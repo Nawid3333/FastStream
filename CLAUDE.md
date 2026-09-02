@@ -50,16 +50,34 @@ Enable them in the extension's options page before testing by URL. Without
 them, use a page that embeds the stream and click the FastStream toolbar
 icon instead.
 
-Known-good public manifests (all verified `200 application/dash+xml`):
+### The playback checklist
 
-| Format | URL |
-|---|---|
-| DASH | `https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd` |
-| DASH | `https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd` |
-| DASH | `https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd` |
+**This is the reference baseline. Re-run it after every change to the player,
+the loaders or the vendored libraries.** Confirmed working on upstream
+`d5fe931` + the tooling commits, firefox-libre build, 2026-09-02:
+
+| Format | Page | Status |
+|---|---|---|
+| DASH | `https://reference.dashif.org/dash.js/v4.4.0/samples/getting-started/auto-load-single-video-src.html` | works |
+| HLS | `https://tracylocalschool.com/gquzbcolcgom` | works |
+| MP4 | `https://video.nie.edu.sg/media/Sample-Video-File-For-Testing.mp4/0_9311zvk2/22238` | works |
+
+These are **pages that embed a stream**, so they exercise the content-script
+detection path — the one real users hit. That is the more valuable test than
+a pasted manifest URL, which only exercises the declarativeNetRequest
+redirect.
+
+Direct manifests for testing the redirect path instead (all verified
+`200 application/dash+xml`), which need `playStreamURLs` enabled first:
+
+- `https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd` (DASH-IF reference vector)
+- `https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd`
 
 Real sites serving DASH: Bilibili (has a dedicated content script at
 `chrome/custom/bilibili_content.js`), and most large video platforms.
+
+YouTube is a separate path again (`YTPlayer` + the sandboxed evaluator) and
+is not covered by the three above.
 
 ## Architecture facts that are easy to get wrong
 

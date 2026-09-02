@@ -1,0 +1,11 @@
+dash
+
+https://reference.dashif.org/dash.js/v4.4.0/samples/getting-started/auto-load-single-video-src.html  
+
+hls
+
+ https://tracylocalschool.com/gquzbcolcgom
+
+mp4
+
+ https://video.nie.edu.sg/media/Sample-Video-File-For-Testing.mp4/0_9311zvk2/22238

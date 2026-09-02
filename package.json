@@ -14,7 +14,7 @@
     "lint:amo": "web-ext lint --source-dir=build_firefox_libre",
     "lint:amo:dist": "web-ext lint --source-dir=build_firefox_dist",
     "profile:setup": "node tools/setup-dev-profile.mjs",
-    "start:ff": "web-ext run --source-dir=build_firefox_libre --target=firefox-desktop --firefox-profile=.dev-profile --profile-create-if-missing --keep-profile-changes",
+    "start:ff": "node tools/launch-ff.mjs",
     "start:ff:clean": "web-ext run --source-dir=build_firefox_libre --target=firefox-desktop",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -8,8 +8,12 @@
 // got in the way". Testing with a blocker matches how the extension is
 // actually used.
 //
+// FastStream itself is NOT installed here — `web-ext run` loads it straight
+// from build_firefox_libre/ on every launch, so source changes are reflected
+// as soon as you rebuild.
+//
 //   node tools/setup-dev-profile.mjs      # download + install into .dev-profile
-//   pnpm run start:ff                     # uses that profile
+//   pnpm run start:ff                     # build + launch separate Firefox
 //
 // The profile is gitignored. Delete .dev-profile/ to start clean.
 
@@ -38,7 +42,16 @@ const EXT_DIR = path.join(PROFILE, 'extensions');
 const PREFS = [
   ['extensions.autoDisableScopes', 0],
   ['extensions.enabledScopes', 15],
+  // Aggressively prevent the dev browser from claiming to be the default
+  // browser or writing itself into Windows default-app associations.
+  // Without this, a separate Firefox process can steal http/https from the
+  // user's normal Firefox, so VS Code links open in the wrong browser.
   ['browser.shell.checkDefaultBrowser', false],
+  ['browser.shell.skipDefaultBrowserCheckOnFirstRun', true],
+  ['browser.shell.didSkipDefaultBrowserCheck', true],
+  ['browser.shell.setDefaultBrowserUserChoice', false],
+  ['browser.shell.setDefaultAlwaysAsk', false],
+  ['browser.startup.homepage_override.mstone', 'ignore'],
   ['datareporting.policy.dataSubmissionEnabled', false],
   ['browser.aboutwelcome.enabled', false],
 ];
