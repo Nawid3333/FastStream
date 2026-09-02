@@ -65,8 +65,7 @@ const volumeNameLen = WIN32 ? (path) => {
 // cleanGlobPath(path :string) : [prefixLen int, cleaned string]
 //
 const cleanGlobPath = (
-  WIN32 ? (path, volumeNameLen) => { // (prefixLen int, cleaned string)
-    let vollen = volumeNameLen(path);
+  WIN32 ? (path, vollen) => { // (prefixLen int, cleaned string)
     if (path == '') {
       return [0, '.'];
     }
