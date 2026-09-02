@@ -123,15 +123,23 @@ them out of the dist target.
 
 ## Baseline verification
 
-`../baseline/MANIFEST.sha256` holds sha256 for all 644 output files from the
-pristine upstream build. Any change claiming to be output-neutral must
-reproduce it exactly:
+Any change claiming to be output-neutral must reproduce the upstream build
+exactly. Use `tools/hash-build.mjs`, which collapses CRLF to LF for text
+files before hashing:
 
 ```bash
-pnpm run build
-cd built && for z in *.zip; do mkdir -p "chk-${z%.zip}" && unzip -qo "$z" -d "chk-${z%.zip}"; done
-find . -type f -exec sha256sum {} \; | sed 's|-faststream_video_player-1\.3\.77/|/|' | sort -k2
+pnpm run build:keep                                  # --keep is required
+node tools/hash-build.mjs build_firefox_libre > after.txt
+diff baseline.txt after.txt                          # must be empty
 ```
+
+**Always normalise line endings when comparing builds.** A build made on
+Windows before `.gitattributes` existed has CRLF throughout; Andrew's Linux
+CI produces LF. Comparing raw bytes across the two makes all 620 text files
+look changed when nothing is. Verified for the pnpm migration: 611 text
+files and 9 SVGs content-identical, 24 png/wasm/ort byte-identical, 644
+total. The LF output this fork now produces is what upstream CI already
+ships; the CRLF build was the local anomaly.
 
 ## Known upstream bugs fixed here
 
