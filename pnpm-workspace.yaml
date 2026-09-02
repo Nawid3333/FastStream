@@ -1,0 +1,4 @@
+allowBuilds:
+  core-js: false
+  dtrace-provider: false
+  spawn-sync: false

@@ -2,6 +2,10 @@
   "name": "faststream",
   "version": "1.3.77",
   "description": "Stream videos without buffering. Fix bad video players on the internet.",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node localescript.mjs && node build.mjs",

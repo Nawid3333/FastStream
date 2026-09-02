@@ -3,3 +3,6 @@ web-ext-artifacts
 node_modules
 built
 output/
+.pnpm-store
+build_*/
+.baseline-commit
