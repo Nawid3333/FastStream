@@ -65,20 +65,19 @@ Targets: `EXTENSION`, `FIREFOX`, `WEB`, `CENSORYT`, `NO_PROMO`,
 | Target | Splices | Notes |
 |---|---|---|
 | `chrome-libre` | EXTENSION, NO_PROMO | manual install, full features |
-| `chrome-dist` | EXTENSION, CENSORYT, NO_UPDATE_CHECKER | Chrome Web Store; **YouTube stripped** |
+| `chrome-dist` | EXTENSION, CENSORYT, NO_UPDATE_CHECKER | Chrome Web Store; YouTube **downloading** disabled (not playback) |
 | `firefox-libre` | EXTENSION, FIREFOX, NO_PROMO | manual install |
-| `firefox-dist` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | **written but never called** by `runAll()`, and **missing `CENSORYT`** |
+| `firefox-dist` | EXTENSION, FIREFOX, CENSORYT, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
-`buildFirefoxDist()` exists in `build.mjs` but `runAll()` doesn't invoke it
-(commit "Remove firefox dist build for now"). Re-enabling it *and* adding
-`CENSORYT` to its splice list is the AMO deliverable.
+`buildFirefoxDist()` was written but never invoked (commit "Remove firefox
+dist build for now"). Re-enabled in `7ed4723`.
 
 ## Rules
 
 - **Never hand-edit `chrome/player/modules/*`** — vendored third-party code
   (dash.mjs 3.5 MB, hls.mjs 1.3 MB, yt.mjs 1.3 MB). Excluded from eslint and
-  jsconfig; they stall the language server otherwise.
+  tsconfig; they stall the language server otherwise.
 - **`build.mjs` rewrites `chrome/manifest.json` in place** on every run to
   sync the version from `package.json`. The tree is dirty after each build.
   Don't sweep it into an unrelated commit.
@@ -87,7 +86,17 @@ Targets: `EXTENSION`, `FIREFOX`, `WEB`, `CENSORYT`, `NO_PROMO`,
 - Branches: `main` mirrors upstream, `dev/mv3-modernization` is the work
   branch, `pr/*` branches get cut fresh off `upstream/main`.
 
-## AMO lint baseline (upstream d5fe931, firefox-libre)
+## AMO lint (firefox-dist, current: 0 errors / 15 warnings)
+
+Upstream firefox-libre baseline was 0 errors, 24 warnings, 1 notice. After
+re-enabling firefox-dist with data_collection_permissions and min version
+142, the AMO target sits at **0 errors, 15 warnings** - the version bump
+alone cleared 8 API-compat warnings. 13 of the 15 remaining live in vendored
+libraries and go away with the Phase 7 npm migration; the only first-party
+hits are `background.mjs:619` (UNSUPPORTED_API) and `PlayerLoader.mjs:16`
+(UNSAFE_VAR_ASSIGNMENT), plus `yt_runner.js:14`.
+
+### Original upstream baseline (firefox-libre)
 
 **0 errors, 24 warnings, 1 notice.** The automated linter already passes.
 The 2023 store rejection was a *human policy* call about the customized
@@ -108,18 +117,59 @@ known-good upstream releases they can verify.
 
 `yt_runner.js:14` runs `new Function(...argNames, body)` on YouTube's
 signature-decipher function, fetched at runtime. That is remotely-hosted
-code execution and no wrapper makes it AMO-legal — hence `CENSORYT`.
+code execution.
 
-## Binary blobs (unresolved AMO risk)
+### CENSORYT does NOT disable YouTube
 
-3.0 MB of binaries with no build script in the repo:
+Easy to get wrong. `YTPlayer.mjs` `canSave()` is the only thing it touches —
+it forces `cantSave: true`, blocking **downloading** YouTube videos. Playback
+still works, `ENSURE_YT_USERSCRIPT` still registers `yt_runner.js`, and the
+`new Function` call still ships. Removing YouTube entirely would need a new
+splice target covering `YTPlayer`, the `registerYTUserScript()` body in
+`background.mjs:689`, and `yt_runner.js` itself.
 
-- `chrome/player/modules/vad/ort-wasm-simd-threaded.wasm` — 1.04 MB
-- `chrome/player/modules/vad/silero_vad_half.ort` — 1.86 MB
-- `chrome/player/modules/reencoder/libsamplerate.wasm` — 0.12 MB
+Note `userScripts` is already an **optional** permission in the Firefox
+builds, and `YTPlayer.setSource` degrades gracefully when it is declined
+(`AlertPolyfill.ytUserscriptError`, then an ERROR event).
 
-Reviewers ask for reproducible sources. Either document a build, or splice
-them out of the dist target.
+## The binary blobs are identifiable published artifacts
+
+Not mystery blobs — every one has a known upstream, version and licence, so
+they belong in the Phase 7 npm migration rather than being removed:
+
+| File | What it is | npm |
+|---|---|---|
+| `vad/ort-wasm-simd-threaded.wasm` + `ort.wasm.mjs` | **ONNX Runtime Web v1.20.0**, Microsoft, MIT | `onnxruntime-web@1.20.0` |
+| `vad/silero_vad_half.ort` | Silero VAD model, ORT format, MIT | published model |
+| `reencoder/libsamplerate.wasm` + `.mjs` | `aolsenjazz/libsamplerate-js`, MIT | `@alexanderolsen/libsamplerate-js` |
+
+`vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carries the comment
+"Minified to reduce loading time (https://minify-js.com/)"** — Andrew
+minified it by hand, which is precisely the modified-third-party-library
+problem AMO objects to. Shipping the unminified npm dist fixes it.
+
+VAD is lazily loaded via dynamic `import()` from
+`analyzer/AudioAnalyzerNode.mjs:63`, so it only costs anything when the
+audio analyzer runs.
+
+## Type checking
+
+`tsconfig.json` type checks without emitting. `checkJs` is off; files opt in
+with `// @ts-check` on line 1. `pnpm run typecheck` is gated in CI, so the
+opted-in set is a ratchet.
+
+Opted in: `BackgroundUtils`, `MultiRegexMatcher`, `SponsorBlockIntegration`,
+`TabTracker`. Not yet: `background.mjs` (23 errors), `StreamSaverBackend`
+(3), `NetRequestRuleManager` (1) — mostly nullability and API-shape issues
+in the header-spoofing and download paths, where a wrong guard causes silent
+403s. Fix those only with the playback checklist to hand.
+
+`types/messages.d.ts` describes the cross-context message contracts. Add a
+message only after reading its real payload; an inaccurate type is worse
+than an absent one.
+
+Use `@types/chrome` — the codebase uses `chrome.*` in 136 places and does
+not use webextension-polyfill at all.
 
 ## Baseline verification
 
