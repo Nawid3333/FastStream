@@ -1,0 +1,114 @@
+name: Sync upstream
+
+# Pulls Andrew's latest commits into this fork and opens a pull request.
+#
+# It deliberately does NOT auto-merge. Once this fork replaces the vendored
+# hls.js/dash.js with npm packages, an upstream commit touching
+# chrome/player/modules/ will either conflict or silently revert that work.
+# A PR puts CI (lint, tests, AMO lint) in front of every upstream change and
+# leaves the merge decision to a human.
+
+on:
+  schedule:
+    # Mondays, 06:00 UTC. GitHub disables scheduled workflows on a repo with
+    # no activity for 60 days - re-enable from the Actions tab if that happens.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM: https://github.com/Andrews54757/FastStream.git
+  WORK_BRANCH: dev/mv3-modernization
+
+jobs:
+  sync:
+    name: Merge upstream into a PR branch
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.WORK_BRANCH }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch upstream main --tags
+
+      # Keep main a clean mirror of upstream so pr/* branches can be cut from
+      # it later. Fast-forward only: if it ever diverges, that is a mistake
+      # worth surfacing rather than papering over with a merge commit.
+      - name: Fast-forward main to upstream
+        continue-on-error: true
+        run: |
+          git checkout -B main origin/main
+          git merge --ff-only upstream/main
+          git push origin main
+          git checkout "$WORK_BRANCH"
+
+      - name: Merge upstream into a sync branch
+        id: merge
+        run: |
+          BEHIND=$(git rev-list --count "${WORK_BRANCH}..upstream/main")
+          echo "Commits from upstream not yet in ${WORK_BRANCH}: ${BEHIND}"
+          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
+          if [ "$BEHIND" -eq 0 ]; then
+            echo "Already up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          BRANCH="sync/upstream-$(date -u +%Y%m%d)"
+          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
+          git checkout -B "$BRANCH" "$WORK_BRANCH"
+
+          if git merge --no-edit upstream/main; then
+            echo "conflicts=false" >> "$GITHUB_OUTPUT"
+          else
+            # Commit the conflicted state so the markers are visible in the
+            # PR diff and CI fails loudly. Pull the branch to resolve locally.
+            echo "conflicts=true" >> "$GITHUB_OUTPUT"
+            git add -A
+            git commit -m 'merge upstream/main (CONFLICTS - resolve before merging)'
+          fi
+
+          git push -f origin "$BRANCH"
+
+      - name: Open or update the pull request
+        if: steps.merge.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          BEHIND: ${{ steps.merge.outputs.behind }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+        run: |
+          if [ "$CONFLICTS" = 'true' ]; then
+            TITLE="Sync upstream (${BEHIND} commits) - CONFLICTS"
+            BODY="Merging \`upstream/main\` produced conflicts. The branch carries the conflicted state so the markers show in the diff; CI will fail until they are resolved.
+
+          \`\`\`
+          git fetch origin ${BRANCH} && git checkout ${BRANCH}
+          # resolve, then:
+          git add -A && git commit && git push
+          \`\`\`
+
+          Check \`chrome/player/modules/\` first - that is where this fork diverges most."
+          else
+            TITLE="Sync upstream (${BEHIND} commits)"
+            BODY="Clean merge of \`upstream/main\` into \`${WORK_BRANCH}\`.
+
+          Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first."
+          fi
+
+          if ! gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY" 2>/dev/null; then
+            gh pr create --base "$WORK_BRANCH" --head "$BRANCH" \
+              --title "$TITLE" --body "$BODY"
+          fi
