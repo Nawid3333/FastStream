@@ -39,6 +39,7 @@
     "eslint-plugin-n": "^16.0.2",
     "eslint-plugin-no-unsanitized": "^4.1.5",
     "eslint-plugin-promise": "^6.1.1",
+    "hls.js": "^1.7.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
     "web-ext": "^10.6.0"

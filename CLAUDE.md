@@ -189,6 +189,18 @@ Note `userScripts` is already an **optional** permission in the Firefox
 builds, and `YTPlayer.setSource` degrades gracefully when it is declined
 (`AlertPolyfill.ytUserscriptError`, then an ERROR event).
 
+## Vendored libraries
+
+The in-tree hls.js is **1.6.9 with 466 lines of divergence across 22 hunks**
+(1.3%), not a fork. Most of it has already landed upstream. See
+[docs/vendored-libraries.md](docs/vendored-libraries.md) for the full hunk
+classification and the recommended [ERR_PNPM_MISSING_PACKAGE_NAME] `pnpm patch` requires the package name approach; the raw diff is
+.
+
+Do not try to replace these with wrapper classes - the extra demuxer exports
+that  needs have no public-API equivalent in any
+hls.js release.
+
 ## The binary blobs are identifiable published artifacts
 
 Not mystery blobs — every one has a known upstream, version and licence, so
