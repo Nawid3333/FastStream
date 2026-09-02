@@ -358,7 +358,7 @@ async function buildFirefoxLibre() {
 
 
 async function buildFirefoxDist() {
-  spliceAndCopy(chromeSourceDir, firefoxDistBuildDir, ['EXTENSION', 'FIREFOX', 'NO_UPDATE_CHECKER']);
+  spliceAndCopy(chromeSourceDir, firefoxDistBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER']);
   insertLicense(firefoxDistBuildDir);
 
   const manifestPath = path.join(firefoxDistBuildDir, 'manifest.json');
@@ -367,7 +367,14 @@ async function buildFirefoxDist() {
   manifest.browser_specific_settings = {
     gecko: {
       id: 'faststream@andrews',
-      strict_min_version: '113.0',
+      // data_collection_permissions needs Firefox 140+ (Android 142+).
+      strict_min_version: '142.0',
+      // FastStream sends no telemetry and contacts no analytics
+      // service, so nothing is collected. Required by AMO for all new
+      // submissions: https://mzl.la/firefox-builtin-data-consent
+      data_collection_permissions: {
+        required: ['none'],
+      },
     },
   };
 
@@ -429,7 +436,7 @@ async function runAll() {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log(`Building version ${manifest.version}`);
 
-  await Promise.all([buildChromeLibre(), buildChromeDist(), buildFirefoxLibre(), buildWeb()]);
+  await Promise.all([buildChromeLibre(), buildChromeDist(), buildFirefoxLibre(), buildFirefoxDist(), buildWeb()]);
   if (KEEP_BUILD_DIRS) {
     console.log('Keeping unpacked build directories (--keep)');
   } else {
