@@ -6,3 +6,4 @@ output/
 .pnpm-store
 build_*/
 .baseline-commit
+.dev-profile/

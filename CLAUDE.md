@@ -22,6 +22,45 @@ pnpm test                 # vitest
 `build:keep` must run before any `lint:amo` or `start:ff` — those need an
 unpacked directory, and a plain build leaves only zips.
 
+## Manual playback testing
+
+```bash
+pnpm run profile:setup   # once: builds .dev-profile with uBlock Origin
+pnpm run build:keep
+pnpm run start:ff        # persistent profile, uBO enabled
+pnpm run start:ff:clean  # throwaway profile, FastStream only
+```
+
+The dev profile exists because real streaming sites are dense with ads and
+overlay players, which makes "FastStream failed to replace the player"
+indistinguishable from "an ad iframe got in the way". `.dev-profile/` is
+gitignored.
+
+**How FastStream picks up a stream URL.** `background.mjs:913`
+`setupRedirectRule` installs a declarativeNetRequest rule matching
+`^.+\.(m3u8|mpd)([?#].*)?$` on `main_frame` and redirects to the player with
+the URL in the hash. So pasting a manifest URL into the address bar opens it
+in FastStream — **but only when the matching option is on, and both default
+to `false`** (`DefaultOptions.mjs:13-14`):
+
+- `playMP4URLs` → rule 1, `.mp4`
+- `playStreamURLs` → rule 2, `.m3u8` and `.mpd`
+
+Enable them in the extension's options page before testing by URL. Without
+them, use a page that embeds the stream and click the FastStream toolbar
+icon instead.
+
+Known-good public manifests (all verified `200 application/dash+xml`):
+
+| Format | URL |
+|---|---|
+| DASH | `https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd` |
+| DASH | `https://dash.akamaized.net/envivio/EnvivioDash3/manifest.mpd` |
+| DASH | `https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.mpd` |
+
+Real sites serving DASH: Bilibili (has a dedicated content script at
+`chrome/custom/bilibili_content.js`), and most large video platforms.
+
 ## Architecture facts that are easy to get wrong
 
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
