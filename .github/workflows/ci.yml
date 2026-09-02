@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'dev/**', 'pr/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Reads the pnpm version from package.json "packageManager", so CI and
+      # local installs cannot drift apart.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: ESLint
+        run: pnpm run lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build all targets
+        run: pnpm run build:keep
+
+      # Mozilla's addons-linter - the same engine AMO runs on upload.
+      # Errors are already at zero upstream, so this gate is meaningful:
+      # it stops a regression from reaching a store submission.
+      - name: AMO compliance (firefox-libre)
+        run: pnpm exec web-ext lint --source-dir=build_firefox_libre
+
+      - name: Upload extension bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: faststream-bundles
+          path: built/*.zip
+          if-no-files-found: error
