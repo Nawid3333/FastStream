@@ -1,3 +1,4 @@
+// @ts-check
 export class MultiRegexMatcher {
   constructor() {
     this.compiledRegexes = [];

@@ -1,3 +1,4 @@
+// @ts-check
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 
 const SponsorBlockID = EnvUtils.isChrome() ? 'mnjggcdmjocbbbhaepdhchncahnbgone' : 'sponsorBlocker@ajay.app';

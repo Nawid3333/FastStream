@@ -1,3 +1,4 @@
+// @ts-check
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 export class BackgroundUtils {
   static checkMessageError(message, suppress = false) {

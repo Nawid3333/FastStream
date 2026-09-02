@@ -1,0 +1,50 @@
+{
+  "//": [
+    "Type checking only - noEmit is deliberate. build.mjs copies .mjs files",
+    "verbatim through the SPLICER preprocessor, and the browser loads them",
+    "natively as ES modules, so nothing here compiles anything.",
+    "",
+    "checkJs is off by default: files opt in with a `// @ts-check` comment at",
+    "the top. That lets the codebase be typed a file at a time instead of",
+    "producing thousands of errors on day one."
+  ],
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": true,
+
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+
+    "types": ["chrome"]
+  },
+  "include": [
+    "types/**/*.d.ts",
+    "chrome/background/**/*.mjs",
+    "chrome/player/utils/**/*.mjs",
+    "chrome/player/enums/**/*.mjs",
+    "chrome/player/network/**/*.mjs",
+    "tests/**/*.mjs",
+    "tools/**/*.mjs"
+  ],
+  "exclude": [
+    "node_modules",
+    "built",
+    "build_chrome_libre",
+    "build_chrome_dist",
+    "build_firefox_libre",
+    "build_firefox_dist",
+    "chrome/player/modules",
+    "chrome/player/assets"
+  ]
+}

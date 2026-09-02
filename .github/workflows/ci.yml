@@ -35,6 +35,9 @@ jobs:
       - name: ESLint
         run: pnpm run lint
 
+      - name: Type check
+        run: pnpm run typecheck
+
       - name: Unit tests
         run: pnpm test
 
