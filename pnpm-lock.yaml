@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  hls.js@1.6.9: 2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3
+
 importers:
 
   .:
@@ -30,8 +33,8 @@ importers:
         specifier: ^6.1.1
         version: 6.1.1(eslint@8.49.0(supports-color@7.2.0))
       hls.js:
-        specifier: ^1.7.1
-        version: 1.7.1
+        specifier: ^1.6.9
+        version: 1.6.9(patch_hash=2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1081,8 +1084,8 @@ packages:
     resolution: {integrity: sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==}
     engines: {node: '>= 0.4.0'}
 
-  hls.js@1.7.1:
-    resolution: {integrity: sha512-DlzIkeBAS9IIQ432k3BUf3HlwbsR0+trB1i2lDdN2gUkNkrehFurh0/48M5c1/EjlDkdGng1gwZIpwyPxvdZ/g==}
+  hls.js@1.6.9:
+    resolution: {integrity: sha512-q7qPrri6GRwjcNd7EkFCmhiJ6PBIxeUsdxKbquBkQZpg9jAnp6zSAeN9eEWFlOB09J8JfzAQGoXL5ZEAltjO9g==}
 
   htmlparser2@10.1.0:
     resolution: {integrity: sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==}
@@ -3280,7 +3283,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.1
 
-  hls.js@1.7.1: {}
+  hls.js@1.6.9(patch_hash=2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3): {}
 
   htmlparser2@10.1.0:
     dependencies:

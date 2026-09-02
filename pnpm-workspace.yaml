@@ -2,3 +2,5 @@ allowBuilds:
   core-js: false
   dtrace-provider: false
   spawn-sync: false
+patchedDependencies:
+  hls.js@1.6.9: patches/hls.js@1.6.9.patch
