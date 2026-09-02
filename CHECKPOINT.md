@@ -35,7 +35,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 | 4 · Unit tests | **done** | 58 tests, all mutation-verified |
 | 5 · E2E (WebdriverIO) | **deferred** | Your call: after Firefox passes lint |
 | 6 · CI | **done** | Green in ~35s |
-| 7 · Unbundle libs | **analysed, not started** | hls.js measured; dash.js and yt.js not yet |
+| 7 · Unbundle libs | **hls.js migrated** | npm + `pnpm patch`, provably inert; dash.js and yt.js not yet |
 | 8 · AMO sweep | **part done** | firefox-dist live: 0 errors, 24→15 warnings |
 | 9 · Signing | **not started** | Needs gecko ID change first |
 | 10 · Upstream PRs | **not started** | Two strong candidates ready |
@@ -143,11 +143,35 @@ pnpm run start:ff       # launches an ISOLATED Firefox (never touches your own)
 
 ---
 
+## hls.js migration — done, step 1 of 2
+
+`chrome/player/modules/hls.mjs` is no longer in git. It is generated at build
+time by `tools/sync-vendor.mjs` from `hls.js@1.6.9` on npm plus
+`patches/hls.js@1.6.9.patch`, applied by pnpm on install.
+
+- **Before:** 1.3 MB file, `const version = undefined`, no provenance.
+- **After:** hash-verifiable npm base + a 22-hunk patch a reviewer reads in ten minutes.
+
+Verified inert: a clean `pnpm install` reproduces the previously vendored
+file byte-for-byte, and `player/modules/hls.mjs` in the build output hashes
+identically to the upstream baseline (`8702f2b3`). Across the whole
+firefox-libre target the only differing files are the four background
+modules carrying `// @ts-check`, each by exactly that one line.
+
+**Still to do for hls.js (step 2):** upgrade the base to 1.7.1 and drop the
+hunks that landed upstream; move the ABR change into a
+`FastStreamAbrController` subclass passed via hls.js config (public API, no
+patch needed); keep only the extra demuxer exports, `outputSamples`, and the
+two unlanded fixes. Expected to shrink the patch from 22 hunks to about
+three. **Re-run the playback checklist after this** — step 2 is the first
+change that can actually alter behaviour.
+
+---
+
 ## Next steps, in order
 
-1. **Phase 7 for hls.js** — upgrade to 1.7.1, drop the hunks that landed upstream, move the ABR change into a `FastStreamAbrController` subclass (public API, no patch), patch only the exports + `outputSamples` + two unlanded fixes. Re-run the playback checklist.
-2. **Same measurement for dash.js** (base `5.1.0`, already known) and youtube.js.
-3. **Phase 10 PR 1** — two clean upstream candidates already exist and are worth submitting regardless of the rest:
-   - the `miniglob.mjs` Windows build fix (one line, obviously correct)
-   - `.gitattributes` (fixes 2352 phantom lint errors for Windows contributors)
+1. **hls.js step 2** (above) — the first behaviour-affecting change. Playback checklist required.
+2. **Same measurement for dash.js** (base `5.1.0`, already known from `VERSION` in-tree) and youtube.js.
+3. Phase 8 remainder — the two first-party lint warnings, and the YouTube decision.
 4. Phase 9 signing, once the gecko ID is settled.
+5. **Phase 10 PRs — held until the fork is complete**, by your decision, so Andrew can integrate them one at a time and still have a working program. Each `pr/*` branch will be cut fresh from `upstream/main` and verified green on its own before you see it. Two candidates are already clean: the `miniglob.mjs` Windows build fix and `.gitattributes`.
