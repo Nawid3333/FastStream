@@ -1,0 +1,7 @@
+node_modules/
+built/
+build_*/
+web-ext-artifacts/
+chrome/player/modules/
+chrome/player/assets/
+coverage/

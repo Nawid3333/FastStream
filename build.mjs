@@ -15,6 +15,11 @@ const webBuildDir = path.resolve(__dirname, 'built/web');
 const licenseText = fs.readFileSync(path.resolve(__dirname, 'LICENSE.md'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
 
+// Keep the unpacked build directories on disk so `web-ext run` and
+// `web-ext lint` have something to point at. Off by default so a
+// normal build still leaves only the zips in built/.
+const KEEP_BUILD_DIRS = process.argv.includes('--keep');
+
 fs.mkdirSync(builtDir, {recursive: true});
 glob(builtDir + '/*.zip').forEach((file) => {
   fs.unlinkSync(file);
@@ -425,7 +430,11 @@ async function runAll() {
   console.log(`Building version ${manifest.version}`);
 
   await Promise.all([buildChromeLibre(), buildChromeDist(), buildFirefoxLibre(), buildWeb()]);
-  removeBuildDirs();
+  if (KEEP_BUILD_DIRS) {
+    console.log('Keeping unpacked build directories (--keep)');
+  } else {
+    removeBuildDirs();
+  }
 }
 
 runAll();
