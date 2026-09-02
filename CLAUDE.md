@@ -192,14 +192,14 @@ builds, and `YTPlayer.setSource` degrades gracefully when it is declined
 ## Vendored libraries
 
 The in-tree hls.js is **1.6.9 with 466 lines of divergence across 22 hunks**
-(1.3%), not a fork. Most of it has already landed upstream. See
+(1.3%), not a fork. Much of it has already landed upstream. See
 [docs/vendored-libraries.md](docs/vendored-libraries.md) for the full hunk
-classification and the recommended [ERR_PNPM_MISSING_PACKAGE_NAME] `pnpm patch` requires the package name approach; the raw diff is
-.
+classification and the recommended `pnpm patch` approach; the raw diff is
+`docs/hls.js-1.6.9-faststream.patch`.
 
-Do not try to replace these with wrapper classes - the extra demuxer exports
-that  needs have no public-API equivalent in any
-hls.js release.
+Do not try to replace these with wrapper classes — the extra demuxer exports
+that `hls2mp4/transmuxer.mjs` needs have no public-API equivalent in any
+hls.js release, including 1.7.1.
 
 ## The binary blobs are identifiable published artifacts
 
