@@ -49,6 +49,16 @@ const VENDOR = [
     transform: normaliseText,
   },
   {
+    // Stock build, no patch. The previously vendored copy differed only by
+    // "eslint --fix" output - 32 let->const, one var->const, one quote style
+    // (same string value) - plus an eslint-disable header. Verified by AST
+    // comparison; the exports are identical.
+    name: 'fuse.js',
+    from: 'node_modules/fuse.js/dist/fuse.mjs',
+    to: 'chrome/player/modules/fuse.mjs',
+    transform: normaliseText,
+  },
+  {
     name: 'pako',
     from: 'node_modules/pako/dist/pako.js',
     to: 'chrome/player/modules/pako.mjs',

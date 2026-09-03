@@ -36,6 +36,9 @@ importers:
       eslint-plugin-promise:
         specifier: ^6.1.1
         version: 6.1.1(eslint@8.49.0(supports-color@7.2.0))
+      fuse.js:
+        specifier: 7.1.0
+        version: 7.1.0
       hls.js:
         specifier: ^1.6.9
         version: 1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7)
@@ -1028,6 +1031,10 @@ packages:
 
   functions-have-names@1.2.3:
     resolution: {integrity: sha512-xckBUXyTIqT97tq2x2AMb+g163b5JFysYk0x4qxNFwbfQkmNZoiRHb6sPzI9/QV33WeuvVYBUIiD4NzNIyqaRQ==}
+
+  fuse.js@7.1.0:
+    resolution: {integrity: sha512-trLf4SzuuUxfusZADLINj+dE8clK1frKdmqiJNb1Es75fmI5oY6X2mxLVUciLLjxqw/xr72Dhy+lER6dGd02FQ==}
+    engines: {node: '>=10'}
 
   fx-runner@1.6.0:
     resolution: {integrity: sha512-PEEUfnQJw0/io6SspBbR4EIeXFL/qe/sugesCyfr9M3llgyxNaOH8stvO6KJOKRjeUAvEB6oSZKS3lgjSEOsXg==}
@@ -3292,6 +3299,8 @@ snapshots:
       functions-have-names: 1.2.3
 
   functions-have-names@1.2.3: {}
+
+  fuse.js@7.1.0: {}
 
   fx-runner@1.6.0:
     dependencies:
