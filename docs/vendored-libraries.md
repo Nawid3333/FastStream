@@ -253,7 +253,7 @@ what can actually change behaviour.
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
-| vtt.js | 0.13.0 | browserify bundle; npm ships no bundle | documented |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
 | coloris | not pinned | upstream unwrapped from its IIFE; no release matches exactly | **open** |
 | libsamplerate-js | **none** | built on the author's own laptop - see below | **blocker** |
 | jswebm | src, not dist | `webm.mjs` is the **source** concatenated, not the published bundle | **open** |
@@ -340,6 +340,50 @@ cannot verify. It needs a decision rather than more measurement:
 2. **Reproduce the build.** Keep the size, and publish the exact emscripten
    version and flags so a reviewer can rebuild it. Cheaper in bytes, more work
    to document, and only as good as the reproducibility.
+
+### vtt.js: provenance proven, and re-checkable on demand
+
+This one was expected to be the awkward case and turned out to be the
+cleanest. The starting assumption in this document was wrong twice over: the
+file is not a bundle of videojs/vtt.js's published `lib/`, and it is not
+0.13.0.
+
+The bundle's internal module map gives it away. It requires
+`./process/parse-content.js`, `./parser/parser.js`, `./box-position.js` and
+eighteen others - a nested layout that videojs/vtt.js does not have; its `lib/`
+is six flat files. The layout belongs to the build **dash.js** maintains at
+`contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
+through v5.1.0.
+
+`chrome/player/modules/vtt.mjs` is that file with exactly three changes:
+
+| Change | Why |
+|---|---|
+| `FONT_SIZE_PERCENT` 0.25 -> 0.05 | subtitles rendered at a fifth of dash.js's default size relative to the container |
+| `processCues(window, cues, overlay, parentId)` loses `parentId` | dash.js added that parameter for its own container; FastStream did not take it |
+| `if (parentId) { paddedOverlay.id = parentId; }` removed | the body of the same dash.js addition |
+
+plus `export const WebVTT = window.WebVTT;` appended so a bundle that assigns
+to a global can be imported. Note that two of the three are *removals* of
+dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
+dash.js's own is.
+
+Apply those to the upstream file and the result parses to the **same program**
+as the vendored one.
+
+It cannot be generated at build time: videojs/vtt.js publishes only `lib/*` to
+npm, and dash.js's npm package ships only the minified `vtt.min.js`, not this
+bundle. So it is *verified* instead of generated. `pnpm run verify:vtt` fetches
+the upstream file, applies the three changes and asserts AST equality, and
+fails with the exact point of divergence if anything moves. That is the
+difference between a claim in a document and a claim a reviewer can re-run -
+and it is mutation-tested, so a wrong expectation fails rather than passing
+quietly.
+
+`tools/ast-compare.mjs` is the shared normaliser this uses, now a real module
+rather than a throwaway script: it undoes `one-var`, `curly`, `quotes`,
+`no-var`/`prefer-const` and template-literal re-indentation, so what survives
+is only what can change behaviour.
 
 ### webm.mjs is jswebm's source, not its build
 

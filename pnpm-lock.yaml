@@ -30,6 +30,9 @@ importers:
       '@wdio/spec-reporter':
         specifier: ^9.31.2
         version: 9.31.2
+      acorn:
+        specifier: 8.18.0
+        version: 8.18.0
       dashjs:
         specifier: 5.1.0
         version: 5.1.0(patch_hash=d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61)

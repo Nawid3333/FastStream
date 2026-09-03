@@ -26,7 +26,8 @@
     "start:ff:dist": "node tools/launch-ff.mjs dist",
     "start:ff:fresh:dist": "node tools/launch-ff-fresh.mjs dist",
     "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:amo && pnpm run lint:amo:dist && pnpm run test:e2e"
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:amo && pnpm run lint:amo:dist && pnpm run test:e2e",
+    "verify:vtt": "node tools/verify-vtt.mjs"
   },
   "repository": {
     "type": "git",
@@ -44,6 +45,7 @@
     "@wdio/local-runner": "^9.31.5",
     "@wdio/mocha-framework": "^9.31.5",
     "@wdio/spec-reporter": "^9.31.2",
+    "acorn": "8.18.0",
     "dashjs": "5.1.0",
     "eslint": "^8.49.0",
     "eslint-config-google": "^0.14.0",
