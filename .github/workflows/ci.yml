@@ -58,6 +58,13 @@ jobs:
       # It needs network access for the HLS and DASH streams; the MP4 fixture
       # is fetched once and cached. Not marked continue-on-error: a library
       # swap that stops video decoding should fail the build.
+      # Firefox on Linux decodes H.264/AAC through ffmpeg's libavcodec rather
+      # than shipping its own. Without this the runner loads every stream and
+      # then never reaches HAVE_CURRENT_DATA, which looks exactly like a broken
+      # media library but is a missing codec.
+      - name: Install media codecs
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: End-to-end playback (Firefox)
         run: pnpm run test:e2e
 
