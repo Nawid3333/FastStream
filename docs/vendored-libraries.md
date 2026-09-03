@@ -247,10 +247,12 @@ what can actually change behaviour.
 | fuse.js | 7.1.0 | none at all | **migrated** |
 | sortablejs | 1.15.2 | mounts Swap + MultiDrag plugins; exports the function directly instead of `export default` | measured |
 | sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
-| mp4box | ? | not yet measured | pending |
-| vtt.js | ? | not yet measured | pending |
-| coloris | ? | not yet measured | pending |
-| knob | — | `jherrm/knobs`, may not be on npm | pending |
+| sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
+| sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
+| mp4box | not a published dist | custom concatenated build - see below | blocked |
+| vtt.js | ? | no version string; needs the empirical method | pending |
+| coloris | ? | npm package is `@melloware/coloris` | pending |
+| knob | — | `jherrm/knobs`; the npm `knob` is a different package | pending |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
@@ -270,6 +272,46 @@ This is a strictly better outcome than a patch. A patch of `eslint --fix`
 noise would be a thousand lines of diff that tells a reviewer nothing; using
 the npm file as published, with any real change expressed as a few lines in a
 documented transform, is exactly what AMO is asking for.
+
+### sweetalert2 ships a payload that must stay removed
+
+Worth stating plainly, because taking the npm file naively would have
+reintroduced it. Upstream sweetalert2 contains:
+
+```js
+if (typeof window !== 'undefined' && /^ru/.test(navigator.language) &&
+    location.host.match(/\.(ru|su|by|xn--p1ai)$/)) {
+  ...
+  document.body.style.pointerEvents = 'none';
+  var ukrainianAnthem = document.createElement('audio');
+  ukrainianAnthem.src = 'https://flag-gimn.ru/wp-content/uploads/2021/09/Ukraina.mp3';
+  ukrainianAnthem.loop = true;
+```
+
+For users whose browser language is Russian on a .ru/.su/.by/.xn--p1ai host,
+it makes the page unusable and loops remote audio. Andrew had removed it from
+the vendored copy. Three separate reasons it must stay removed: it loads
+remote media from a third-party host at runtime, which fails AMO review on its
+own; it disables interaction with whatever page the extension is injected
+into; and it triggers on the user's locale rather than on anything they did.
+
+`tools/sync-vendor.mjs` strips it by brace matching rather than a line range,
+so it survives upstream reformatting, and the build is checked for its
+absence.
+
+### mp4box is not a published dist
+
+Every published `dist/mp4box.all.js` from 1.4.7 to 2.3.0 differs from the
+in-tree copy by roughly 16,000 lines even ignoring whitespace, and the
+in-tree file is 318 KB against npm's 352 KB. Its source carries `// file:src/log.js`
+markers, so it was **concatenated from the mp4box.js repository's sources**
+rather than taken from a release artifact.
+
+That makes it the one library the npm-plus-patch approach does not fit as-is.
+Options, in rough order of preference: find the upstream commit it was built
+from and generate the same concatenation; move to the published dist and
+carry the API differences as a patch; or keep it vendored with its provenance
+documented. Needs its own measurement pass.
 
 ## youtube.js
 
