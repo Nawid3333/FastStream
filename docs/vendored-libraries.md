@@ -250,9 +250,9 @@ what can actually change behaviour.
 | sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
 | sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
 | mp4box | 0.5.3 | ESM exports; drops the trailing CommonJS block | **migrated** |
-| vtt.js | ? | no version string; needs the empirical method | pending |
-| coloris | ? | npm package is `@melloware/coloris` | pending |
-| knob | — | `jherrm/knobs`; the npm `knob` is a different package | pending |
+| vtt.js | 0.13.0 | browserify bundle; npm ships no bundle | documented |
+| coloris | ~0.21.x | from mdbassit/Coloris, not the npm fork | documented |
+| knob | — | `jherrm/knobs`; npm `knob` is a different project | documented |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
@@ -322,6 +322,59 @@ slightly **before** the 0.5.3 release - it lacks the `lhvC` box parser and the
 `fLaC` sample entry that 0.5.3 ships. Moving to the release therefore *adds*
 two box types rather than removing anything, which is why this is a low-risk
 change, but it is still a behavioural one and needs the playback checklist.
+
+## The three that stay vendored
+
+vtt.js, coloris and knob total 153 KB. None can be generated from an npm
+release, and each for a different reason. Documenting their provenance
+precisely is what a reviewer actually needs; adding a bundler to the build to
+produce them from pinned commits would replace one unverifiable artifact with
+another, since the reviewer would then have to trust our build pipeline
+instead of Andrew's.
+
+### vtt.js — 88 KB
+
+Base: **0.13.0**, the best match across all 22 published releases (2121
+differing lines, against 2241 for 0.12.x). The gap is structural rather than
+modification: the in-tree file is 88 KB where npm's `lib/vtt.js` is 45 KB,
+because it is a **browserify bundle** of the package - `vtt.js` plus
+`vttcue.js` and `vttregion.js` - wrapped in browserify's UMD preamble.
+npm publishes only the individual `lib/*` modules, never a bundle.
+
+Upstream: https://github.com/videojs/vtt.js
+Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
+
+To regenerate: browserify `lib/index.js` from `vtt.js@0.13.0`.
+
+### coloris — 38 KB
+
+From **mdbassit/Coloris**, the original project, which is not published to
+npm. The npm name `coloris` is an unrelated package, and
+`@melloware/coloris` is a maintained *fork* that wraps the source in a
+factory function and adds npm packaging - comparing against it gives 243
+differing lines at its closest release (0.21.1), most of that wrapper.
+
+FastStream's one change is that the trailing `DOMReady(init)` call is
+commented out; `ui/InterfaceController.mjs` and
+`ui/subtitles/SubtitlesSettingsManager.mjs` drive initialisation themselves.
+
+Upstream: https://github.com/mdbassit/Coloris
+
+### knob — 27 KB
+
+From **jherrm/knobs**, GitHub only. The npm package named `knob` is
+`mmckegg/knob`, an unrelated canvas-based widget. Exports a single
+`Knob` constructor used by `ui/components/Knob.mjs`.
+
+Upstream: https://github.com/jherrm/knobs
+
+### If this is ever revisited
+
+The stronger version of this is to add each as a pinned git dependency, so
+the lockfile records a commit hash, and bundle at build time. That gives a
+reviewer a hash to check rather than a prose description. It costs a bundler
+in the build and is worth doing only if a reviewer asks - for 153 KB across
+three small, stable libraries, the documentation above is the better trade.
 
 ## youtube.js
 
