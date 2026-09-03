@@ -1,6 +1,8 @@
 allowBuilds:
+  onnxruntime-web: false
   core-js: false
   dtrace-provider: false
+  protobufjs: false
   spawn-sync: false
 patchedDependencies:
   dashjs@5.1.0: patches/dashjs@5.1.0.patch

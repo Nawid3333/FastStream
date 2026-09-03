@@ -87,7 +87,39 @@ const VENDOR = [
     to: 'chrome/player/modules/mp4box.mjs',
     transform: toMp4BoxModule,
   },
+  {
+    // The vendored copy of this was hand-minified by the upstream author
+    // ("Minified to reduce loading time (https://minify-js.com/)"), which is
+    // the one thing AMO's policy on minified code is explicitly about: a
+    // reviewer cannot read it and it corresponds to no published artifact.
+    // onnxruntime-web publishes an unminified ESM build of exactly this
+    // bundle, with an identical export list, so use that instead.
+    //
+    // Only the JavaScript API layer comes from npm. The wasm binary beside it
+    // and its emscripten glue cannot: see docs/vendored-libraries.md.
+    name: 'onnxruntime-web',
+    from: 'node_modules/onnxruntime-web/dist/ort.wasm.mjs',
+    to: 'chrome/player/modules/vad/ort.wasm.mjs',
+    transform: stripInlineSourceMap,
+  },
 ];
+
+/**
+ * Drops a trailing inline base64 sourcemap.
+ *
+ * onnxruntime-web's unminified bundle is 539 KB, of which 410 KB is an inline
+ * sourcemap pointing at TypeScript sources we do not ship. Removing it leaves
+ * 129 KB of readable JavaScript - still far more reviewable than the 47 KB of
+ * hand-minified code it replaces, and without shipping a map that resolves to
+ * nothing.
+ *
+ * @param {string} src file contents
+ * @return {string} contents without the inline sourcemap
+ */
+function stripInlineSourceMap(src) {
+  return normaliseText(src)
+      .replace(/\n\/\/# sourceMappingURL=data:[^\n]*\n?$/, '\n');
+}
 
 /**
  * Exposes mp4box's two globals as ES module exports.

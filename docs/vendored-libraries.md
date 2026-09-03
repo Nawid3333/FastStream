@@ -323,6 +323,52 @@ slightly **before** the 0.5.3 release - it lacks the `lhvC` box parser and the
 two box types rather than removing anything, which is why this is a low-risk
 change, but it is still a behavioural one and needs the playback checklist.
 
+## The VAD / ONNX Runtime files
+
+Four files in `modules/vad/`, and they split cleanly into one that could be
+fixed and three that cannot.
+
+### ort.wasm.mjs - fixed
+
+This was the **single worst AMO liability in the tree**. It carried the
+comment `// Minified to reduce loading time (https://minify-js.com/)`: 47 KB
+of code the upstream author minified himself, corresponding to no published
+artifact. AMO's policy on minified code without sources is explicit, and
+unlike everything else here it could not be explained by pointing at a
+release.
+
+onnxruntime-web publishes an **unminified ESM build of exactly this bundle**.
+It is now generated from `onnxruntime-web@1.20.0`'s `dist/ort.wasm.mjs`, with
+its 410 KB inline base64 sourcemap stripped (it points at TypeScript sources
+we do not ship). The result is **129 KB of readable JavaScript**, and its
+export list - `InferenceSession, TRACE, TRACE_FUNC_BEGIN, TRACE_FUNC_END,
+Tensor, TrainingSession, default, env, registerBackend` - is **identical** to
+the vendored file's. `vad/vad.mjs` imports the default export.
+
+Costs 82 KB and removes the hardest question a reviewer could ask.
+
+### ort-wasm-simd-threaded.wasm and .mjs - cannot come from npm
+
+npm's stock `ort-wasm-simd-threaded.wasm` for 1.20.0 is **11.2 MB**. The
+in-tree one is **1.04 MB** - roughly a tenth. This is a **custom minimal
+ONNX Runtime build**, compiled with only the operators Silero VAD needs;
+shipping the stock 11.2 MB binary in an extension would not be reasonable.
+`ort-wasm-simd-threaded.mjs` (23.5 KB) is the emscripten glue generated
+alongside it, so it is tied to that binary and differs from npm's for the same
+reason.
+
+Reproducing these means running ONNX Runtime's C++/emscripten build with a
+reduced operator set. That is a real toolchain, not a packaging step, so they
+stay vendored. Note the API layer above them *is* now stock, so only the
+binary and its generated glue are unverifiable.
+
+### silero_vad_half.ort - a model, not code
+
+1.86 MB. The Silero VAD model in ONNX runtime format, from
+https://github.com/snakers4/silero-vad (MIT). A model weights file, not
+source, so minification and provenance-by-diff do not apply; it is verifiable
+only against the upstream release it was taken from.
+
 ## The three that stay vendored
 
 vtt.js, coloris and knob total 153 KB. None can be generated from an npm
