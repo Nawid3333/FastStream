@@ -96,7 +96,8 @@ Raw diff: `Faststream version 4/docs/hls.js-1.6.9-faststream.patch`
 
 ## Verified playback baseline
 
-Confirmed working by you on the firefox-libre build, 2026-09-02. **Re-run after every change to the player, loaders or vendored libraries.**
+Confirmed working by you on the firefox-libre build, 2026-09-02, and
+re-confirmed 2026-09-03 after hls.worker.js became a generated file. **Re-run after every change to the player, loaders or vendored libraries.**
 
 | Format | URL | Status |
 |---|---|---|
