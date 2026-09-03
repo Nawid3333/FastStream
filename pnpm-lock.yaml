@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  hls.js@1.6.9: 2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3
+  hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
 
 importers:
 
@@ -34,7 +34,7 @@ importers:
         version: 6.1.1(eslint@8.49.0(supports-color@7.2.0))
       hls.js:
         specifier: ^1.6.9
-        version: 1.6.9(patch_hash=2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3)
+        version: 1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3283,7 +3283,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.1
 
-  hls.js@1.6.9(patch_hash=2423b620f988222f68708b84f37bf18b127aa83951bc3aabeac0737e6bd91cf3): {}
+  hls.js@1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7): {}
 
   htmlparser2@10.1.0:
     dependencies:

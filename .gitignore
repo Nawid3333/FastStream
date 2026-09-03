@@ -8,3 +8,4 @@ build_*/
 .baseline-commit
 .dev-profile/
 chrome/player/modules/hls.mjs
+chrome/player/modules/hls.worker.js

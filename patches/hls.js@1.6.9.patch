@@ -1,3 +1,58 @@
+diff --git a/dist/hls.js b/dist/hls.js
+index fa5b377554ed79e5c89568d0270896d7051e0f56..1bd262e5ece22033ede08f662a13c9945ac029ba 100644
+--- a/dist/hls.js
++++ b/dist/hls.js	
+@@ -12228,19 +12228,24 @@
+         state = 0;
+         i = 1;
+       }
+-      while (i < len) {
+-        value = array[i++];
++      l1: while (i < len) {
+         // optimization. state 0 and 1 are the predominant case. let's handle them outside of the switch/case
+-        if (!state) {
+-          state = value ? 0 : 1;
++        if (state === 0) {
++          while (array[i++] !== 0) {
++            if (i === len) {
++              break l1;
++            }
++            // noop
++          }
++          state = 1;
+           continue;
+-        }
+-        if (state === 1) {
+-          state = value ? 0 : 2;
++        } else if (state === 1) {
++          state = array[i++] === 0 ? 2 : 0;
+           continue;
+         }
++        value = array[i++];
+         // here we have state either equal to 2 or 3
+-        if (!value) {
++        if (value === 0) {
+           state = 3;
+         } else if (value === 1) {
+           overflow = i - state - 1;
+@@ -15585,6 +15590,7 @@
+         hasAudio: false,
+         hasVideo: true,
+         nb: outputSamples.length,
++        outputSamples: outputSamples,
+         dropped: track.dropped
+       };
+       track.samples = [];
+@@ -15809,7 +15815,8 @@
+         type: type,
+         hasAudio: true,
+         hasVideo: false,
+-        nb: nbSamples
++        nb: nbSamples,
++        outputSamples: outputSamples
+       };
+       this.isAudioContiguous = true;
+       return audioData;
 diff --git a/dist/hls.mjs b/dist/hls.mjs
 index ada62172227ad8d3b54b6a68a08b9b342eb5dbc5..34645f153b1156a76b0d0e65a2a14be19a93536f 100644
 --- a/dist/hls.mjs
