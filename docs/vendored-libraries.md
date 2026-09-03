@@ -249,7 +249,7 @@ what can actually change behaviour.
 | sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
 | sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
 | sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
-| mp4box | not a published dist | custom concatenated build - see below | blocked |
+| mp4box | 0.5.3 | ESM exports; drops the trailing CommonJS block | **migrated** |
 | vtt.js | ? | no version string; needs the empirical method | pending |
 | coloris | ? | npm package is `@melloware/coloris` | pending |
 | knob | — | `jherrm/knobs`; the npm `knob` is a different package | pending |
@@ -299,19 +299,29 @@ into; and it triggers on the user's locale rather than on anything they did.
 so it survives upstream reformatting, and the build is checked for its
 absence.
 
-### mp4box is not a published dist
+### mp4box - a correction
 
-Every published `dist/mp4box.all.js` from 1.4.7 to 2.3.0 differs from the
-in-tree copy by roughly 16,000 lines even ignoring whitespace, and the
-in-tree file is 318 KB against npm's 352 KB. Its source carries `// file:src/log.js`
-markers, so it was **concatenated from the mp4box.js repository's sources**
-rather than taken from a release artifact.
+An earlier pass here concluded mp4box "is not a published dist" and was
+concatenated from source. **That was wrong**, and the error is worth recording
+because of how it happened: the version search only tested the ten most recent
+releases, which are all 2.x. mp4box was rewritten for 2.0, so every one of
+those differs from the in-tree copy by ~16,000 lines, and the search reported
+a floor rather than a match.
 
-That makes it the one library the npm-plus-patch approach does not fit as-is.
-Options, in rough order of preference: find the upstream commit it was built
-from and generate the same concatenation; move to the published dist and
-carry the API differences as a patch; or keep it vendored with its provenance
-documented. Needs its own measurement pass.
+Testing the 0.x line gives an unambiguous answer. **Base version: 0.5.3**, at
+238 differing lines against 617 for 0.5.2 and 711 for 0.5.4.
+
+The divergence is the same shape as the other small libraries: an
+eslint-disable header, `eslint --fix` reformatting, `var DataStream` and
+`var MP4Box` turned into ES exports, and the trailing CommonJS
+`exports.createFile` block removed. `players/mp4/MP4Player.mjs` and
+`modules/dash2mp4/mp4merger.mjs` both import `{MP4Box, DataStream}`.
+
+One asymmetry worth knowing: the vendored copy was built from a commit
+slightly **before** the 0.5.3 release - it lacks the `lhvC` box parser and the
+`fLaC` sample entry that 0.5.3 ships. Moving to the release therefore *adds*
+two box types rather than removing anything, which is why this is a low-risk
+change, but it is still a behavioural one and needs the playback checklist.
 
 ## youtube.js
 

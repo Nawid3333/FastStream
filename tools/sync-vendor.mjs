@@ -81,7 +81,56 @@ const VENDOR = [
     to: 'chrome/player/modules/sweetalert.mjs',
     transform: toSweetAlertModule,
   },
+  {
+    name: 'mp4box',
+    from: 'node_modules/mp4box/dist/mp4box.all.js',
+    to: 'chrome/player/modules/mp4box.mjs',
+    transform: toMp4BoxModule,
+  },
 ];
+
+/**
+ * Exposes mp4box's two globals as ES module exports.
+ *
+ * mp4box 0.5.3 ships a concatenated script that defines everything as plain
+ * `var`s and, at the end, assigns to CommonJS `exports` if it exists.
+ * players/mp4/MP4Player.mjs and modules/dash2mp4/mp4merger.mjs both import
+ * `{MP4Box, DataStream}`, so those two bindings are exported and the trailing
+ * CommonJS block - the only one that references MP4Box - is dropped. The
+ * other `typeof exports` guards in the file are left alone; they are inert in
+ * a browser module.
+ *
+ * Base version was established by diffing against every release: 0.5.3 is a
+ * clear minimum at 238 lines against 617 for 0.5.2 and 711 for 0.5.4. The
+ * previously vendored copy was built from a commit slightly *before* 0.5.3 -
+ * it lacks the lhvC box parser and the fLaC sample entry that the release
+ * has - so moving to 0.5.3 adds two box types rather than removing anything.
+ *
+ * @param {string} src mp4box's concatenated dist build
+ * @return {string} the same script with ES exports
+ */
+function toMp4BoxModule(src) {
+  const text = normaliseText(src);
+
+  const edits = [
+    ['var DataStream = function(arrayBuffer, byteOffset, endianness) {',
+      'export const DataStream = function(arrayBuffer, byteOffset, endianness) {'],
+    ['var MP4Box = {};', 'export const MP4Box = {};'],
+    ['\nif (typeof exports !== \'undefined\') {\n\texports.createFile = MP4Box.createFile;\n}\n', '\n'],
+  ];
+
+  return edits.reduce((acc, [find, replace]) => {
+    const count = acc.split(find).length - 1;
+    if (count !== 1) {
+      throw new Error(
+          `mp4box transform expected exactly one occurrence of ` +
+          `${JSON.stringify(find.slice(0, 50))}, found ${count}. The upstream ` +
+          'build changed - re-check this transform.',
+      );
+    }
+    return acc.replace(find, replace);
+  }, text);
+}
 
 /**
  * Removes sweetalert2's locale-triggered message block.

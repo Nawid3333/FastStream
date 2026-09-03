@@ -42,6 +42,9 @@ importers:
       hls.js:
         specifier: ^1.6.9
         version: 1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7)
+      mp4box:
+        specifier: 0.5.3
+        version: 0.5.3
       pako:
         specifier: 2.1.0
         version: 2.1.0
@@ -1526,6 +1529,9 @@ packages:
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
+
+  mp4box@0.5.3:
+    resolution: {integrity: sha512-RIvyFZdPDIg3+mL6vUdPBSyQRrEfKO3ryAeJ4xJJV7HBHQUH3KfLlZRzfSpBHCd/HqR63HfbrWQI/CwXDvYENQ==}
 
   ms@2.1.2:
     resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
@@ -3759,6 +3765,8 @@ snapshots:
       brace-expansion: 1.1.11
 
   minimist@1.2.8: {}
+
+  mp4box@0.5.3: {}
 
   ms@2.1.2: {}
 
