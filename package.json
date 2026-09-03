@@ -24,7 +24,9 @@
     "combine-locales": "node localescript.mjs --combine",
     "split-locales": "node localescript.mjs --split",
     "start:ff:dist": "node tools/launch-ff.mjs dist",
-    "start:ff:fresh:dist": "node tools/launch-ff-fresh.mjs dist"
+    "start:ff:fresh:dist": "node tools/launch-ff-fresh.mjs dist",
+    "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
+    "test:e2e:libre": "cross-env-shell FS_TARGET=firefox-libre wdio run tests/e2e/wdio.conf.mjs"
   },
   "repository": {
     "type": "git",
@@ -37,6 +39,11 @@
   "homepage": "https://github.com/Andrews54757/FastStream#readme",
   "devDependencies": {
     "@types/chrome": "^0.2.7",
+    "@wdio/cli": "^9.31.5",
+    "@wdio/globals": "^9.31.3",
+    "@wdio/local-runner": "^9.31.5",
+    "@wdio/mocha-framework": "^9.31.5",
+    "@wdio/spec-reporter": "^9.31.2",
     "dashjs": "5.1.0",
     "eslint": "^8.49.0",
     "eslint-config-google": "^0.14.0",
@@ -45,6 +52,7 @@
     "eslint-plugin-no-unsanitized": "^4.1.5",
     "eslint-plugin-promise": "^6.1.1",
     "fuse.js": "7.1.0",
+    "geckodriver": "^6.1.1",
     "hls.js": "^1.6.9",
     "mp4box": "0.5.3",
     "onnxruntime-web": "1.20.0",

@@ -249,7 +249,7 @@ what can actually change behaviour.
 | sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
 | sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
 | sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
-| mp4box | 0.5.3 | ESM exports; drops the trailing CommonJS block | **migrated** |
+| mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
 | vtt.js | 0.13.0 | browserify bundle; npm ships no bundle | documented |
 | coloris | ~0.21.x | from mdbassit/Coloris, not the npm fork | documented |
 | knob | — | `jherrm/knobs`; npm `knob` is a different project | documented |
@@ -299,75 +299,43 @@ into; and it triggers on the user's locale rather than on anything they did.
 so it survives upstream reformatting, and the build is checked for its
 absence.
 
-### mp4box - a correction
+### mp4box - measured, migrated, then reverted
 
-An earlier pass here concluded mp4box "is not a published dist" and was
-concatenated from source. **That was wrong**, and the error is worth recording
-because of how it happened: the version search only tested the ten most recent
-releases, which are all 2.x. mp4box was rewritten for 2.0, so every one of
-those differs from the in-tree copy by ~16,000 lines, and the search reported
-a floor rather than a match.
+Two corrections happened here, and both are worth recording.
 
-Testing the 0.x line gives an unambiguous answer. **Base version: 0.5.3**, at
-238 differing lines against 617 for 0.5.2 and 711 for 0.5.4.
+**First**, an early pass concluded mp4box "is not a published dist" and was
+concatenated from source. That was wrong: the version search had only tested
+the ten most recent releases, which are all 2.x, and mp4box was rewritten for
+2.0, so every one differs by ~16,000 lines. The search reported a floor and it
+was read as a match. Testing the 0.x line is unambiguous - **base is 0.5.3**,
+at 238 differing lines against 617 for 0.5.2 and 711 for 0.5.4.
 
-The divergence is the same shape as the other small libraries: an
-eslint-disable header, `eslint --fix` reformatting, `var DataStream` and
-`var MP4Box` turned into ES exports, and the trailing CommonJS
-`exports.createFile` block removed. `players/mp4/MP4Player.mjs` and
-`modules/dash2mp4/mp4merger.mjs` both import `{MP4Box, DataStream}`.
+**Second**, migrating to 0.5.3 was committed on the strength of that
+measurement and a claim that it was safe because it only *added* two box
+parsers. The end-to-end suite then failed MP4 playback, and swapping the two
+files back and forth confirmed it: **the vendored copy plays, 0.5.3 does
+not.** The migration was reverted.
 
-One asymmetry worth knowing: the vendored copy was built from a commit
-slightly **before** the 0.5.3 release - it lacks the `lhvC` box parser and the
-`fLaC` sample entry that 0.5.3 ships. Moving to the release therefore *adds*
-two box types rather than removing anything, which is why this is a low-risk
-change, but it is still a behavioural one and needs the playback checklist.
+The intermediate "the old file fails too, so the migration is exonerated"
+conclusion was itself wrong - it was confounded by a 416 bug in the test
+server, which was answering FastStream's overshooting Range requests with
+"Range Not Satisfiable" instead of clamping them. Both files failed for that
+unrelated reason, which looked like exoneration.
 
-## The VAD / ONNX Runtime files
+So mp4box stays vendored for now. What is known:
 
-Four files in `modules/vad/`, and they split cleanly into one that could be
-fixed and three that cannot.
+- base is 0.5.3, established by diff
+- the vendored copy predates that release: it lacks the `lhvC` box parser and
+  the `fLaC` sample entry
+- something between that commit and the release breaks FastStream's MP4 path.
+  Bisecting mp4box's history between 0.5.2 and 0.5.3 would identify it, and is
+  the way to finish this migration properly
+- `players/mp4/MP4Player.mjs` and `modules/dash2mp4/mp4merger.mjs` import
+  `{MP4Box, DataStream}`; the vendored file exports them directly and drops
+  the trailing CommonJS block
 
-### ort.wasm.mjs - fixed
-
-This was the **single worst AMO liability in the tree**. It carried the
-comment `// Minified to reduce loading time (https://minify-js.com/)`: 47 KB
-of code the upstream author minified himself, corresponding to no published
-artifact. AMO's policy on minified code without sources is explicit, and
-unlike everything else here it could not be explained by pointing at a
-release.
-
-onnxruntime-web publishes an **unminified ESM build of exactly this bundle**.
-It is now generated from `onnxruntime-web@1.20.0`'s `dist/ort.wasm.mjs`, with
-its 410 KB inline base64 sourcemap stripped (it points at TypeScript sources
-we do not ship). The result is **129 KB of readable JavaScript**, and its
-export list - `InferenceSession, TRACE, TRACE_FUNC_BEGIN, TRACE_FUNC_END,
-Tensor, TrainingSession, default, env, registerBackend` - is **identical** to
-the vendored file's. `vad/vad.mjs` imports the default export.
-
-Costs 82 KB and removes the hardest question a reviewer could ask.
-
-### ort-wasm-simd-threaded.wasm and .mjs - cannot come from npm
-
-npm's stock `ort-wasm-simd-threaded.wasm` for 1.20.0 is **11.2 MB**. The
-in-tree one is **1.04 MB** - roughly a tenth. This is a **custom minimal
-ONNX Runtime build**, compiled with only the operators Silero VAD needs;
-shipping the stock 11.2 MB binary in an extension would not be reasonable.
-`ort-wasm-simd-threaded.mjs` (23.5 KB) is the emscripten glue generated
-alongside it, so it is tied to that binary and differs from npm's for the same
-reason.
-
-Reproducing these means running ONNX Runtime's C++/emscripten build with a
-reduced operator set. That is a real toolchain, not a packaging step, so they
-stay vendored. Note the API layer above them *is* now stock, so only the
-binary and its generated glue are unverifiable.
-
-### silero_vad_half.ort - a model, not code
-
-1.86 MB. The Silero VAD model in ONNX runtime format, from
-https://github.com/snakers4/silero-vad (MIT). A model weights file, not
-source, so minification and provenance-by-diff do not apply; it is verifiable
-only against the upstream release it was taken from.
+The lesson generalises: a library migration is not "provably inert" because
+its diff looks additive. Only the end-to-end suite settles it.
 
 ## The three that stay vendored
 

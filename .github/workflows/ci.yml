@@ -50,6 +50,25 @@ jobs:
       - name: AMO compliance (firefox-libre)
         run: pnpm exec web-ext lint --source-dir=build_firefox_libre
 
+      # Real playback in a real Firefox: each case loads a stream and asserts
+      # that currentTime actually advances, which is what catches a broken or
+      # mismatched media library. This replaces a manual three-URL checklist
+      # that was never run on CI.
+      #
+      # It needs network access for the HLS and DASH streams; the MP4 fixture
+      # is fetched once and cached. Not marked continue-on-error: a library
+      # swap that stops video decoding should fail the build.
+      - name: End-to-end playback (Firefox)
+        run: pnpm run test:e2e
+
+      - name: Upload e2e failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs
+          path: logs/
+          if-no-files-found: ignore
+
       - name: Upload extension bundles
         uses: actions/upload-artifact@v7
         with:

@@ -318,9 +318,11 @@ async function setup() {
     const ext = URLUtils.get_url_extension(url);
     let mode = PlayerModes.DIRECT;
 
+    // SPLICER:NO_YOUTUBE:REMOVE_START
     if (URLUtils.is_url_yt(url) && URLUtils.is_url_yt_watch(url)) {
       mode = PlayerModes.ACCELERATED_YT;
     }
+    // SPLICER:NO_YOUTUBE:REMOVE_END
 
     if (mode === PlayerModes.DIRECT && URLUtils.getModeFromExtension(ext)) {
       mode = URLUtils.getModeFromExtension(ext);
