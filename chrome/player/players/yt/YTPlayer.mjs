@@ -1,3 +1,4 @@
+// SPLICER:NO_YOUTUBE:REMOVE_FILE
 import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {MessageTypes} from '../../enums/MessageTypes.mjs';
 import {PlayerModes} from '../../enums/PlayerModes.mjs';

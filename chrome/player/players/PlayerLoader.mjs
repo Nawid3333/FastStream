@@ -8,7 +8,7 @@ export class PlayerLoader {
     this.registerPlayer(PlayerModes.ACCELERATED_MP4, './mp4/MP4Player.mjs');
     this.registerPlayer(PlayerModes.ACCELERATED_HLS, './hls/HLSPlayer.mjs');
     this.registerPlayer(PlayerModes.ACCELERATED_DASH, './dash/DashPlayer.mjs');
-    this.registerPlayer(PlayerModes.ACCELERATED_YT, './yt/YTPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_YT, './yt/YTPlayer.mjs'); // SPLICER:NO_YOUTUBE:REMOVE_LINE
     this.registerPlayer(PlayerModes.ACCELERATED_VM, './vm/VMPlayer.mjs');
   }
 

@@ -8,7 +8,7 @@ ModesMap.set('m3u8', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('m3u8v1', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('m3u', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('mpd', PlayerModes.ACCELERATED_DASH);
-ModesMap.set('youtube', PlayerModes.ACCELERATED_YT);
+ModesMap.set('youtube', PlayerModes.ACCELERATED_YT); // SPLICER:NO_YOUTUBE:REMOVE_LINE
 
 ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
 
@@ -136,9 +136,11 @@ export class URLUtils {
   }
 
   static getModeFromURL(url) {
+    // SPLICER:NO_YOUTUBE:REMOVE_START
     if (EnvUtils.isExtension() && URLUtils.is_url_yt(url) && URLUtils.is_url_yt_watch(url)) {
       return PlayerModes.ACCELERATED_YT;
     }
+    // SPLICER:NO_YOUTUBE:REMOVE_END
 
     const ext = URLUtils.get_url_extension(url);
     return URLUtils.getModeFromExtension(ext) || PlayerModes.DIRECT;

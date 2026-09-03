@@ -1,3 +1,4 @@
+// SPLICER:NO_YOUTUBE:REMOVE_FILE
 export class SandboxedEvaluator {
   constructor(runnerFrameLocation) {
     this.runnerFrameLocation = runnerFrameLocation;

@@ -1,3 +1,4 @@
+// SPLICER:NO_YOUTUBE:REMOVE_FILE
 if (window.parent !== window) {
   window.addEventListener('message', async (event) => {
     if (event.source !== window.parent) {

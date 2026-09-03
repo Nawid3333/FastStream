@@ -1,3 +1,4 @@
+// SPLICER:NO_YOUTUBE:REMOVE_FILE
 /* eslint-disable */
 /* https://github.com/Andrews54757/YouTube.js */
 var __defProp = Object.defineProperty;

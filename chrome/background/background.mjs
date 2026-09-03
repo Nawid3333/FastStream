@@ -687,6 +687,15 @@ async function getPageFrame(frame) {
 }
 
 async function registerYTUserScript() {
+  if (false) { // SPLICER:NO_YOUTUBE:REMOVE_LINE
+    // Builds spliced with NO_YOUTUBE ship no YouTube player, so there is
+    // nothing for the userscript to drive. Reporting the failure here is what
+    // makes the caller answer the enable request honestly instead of claiming
+    // success and registering nothing.
+    throw new Error('youtube_not_supported_in_this_build');
+  } // SPLICER:NO_YOUTUBE:REMOVE_LINE
+
+  // SPLICER:NO_YOUTUBE:REMOVE_START
   const scripts = await chrome.userScripts.getScripts();
 
   if (scripts.some((a) => a.id === 'fs_yt_script')) {
@@ -708,6 +717,7 @@ async function registerYTUserScript() {
   };
   await chrome.userScripts.register([script]);
   if (Logging) console.log('Registered yt_runner userscript');
+  // SPLICER:NO_YOUTUBE:REMOVE_END
 }
 
 async function checkIsFull(frame) {
