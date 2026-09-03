@@ -35,7 +35,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 | 4 · Unit tests | **done** | 58 tests, all mutation-verified |
 | 5 · E2E (WebdriverIO) | **deferred** | Your call: after Firefox passes lint |
 | 6 · CI | **done** | Green in ~35s |
-| 7 · Unbundle libs | **hls.js done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
+| 7 · Unbundle libs | **7 of ~13 done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
 | 8 · AMO sweep | **part done** | firefox-dist live: 0 errors, 24→15 warnings |
 | 9 · Signing | **not started** | Needs gecko ID change first |
 | 10 · Upstream PRs | **not started** | Two strong candidates ready |
@@ -130,9 +130,22 @@ pnpm run start:ff       # launches an ISOLATED Firefox (never touches your own)
 
 ## AMO position
 
-`firefox-dist` (the store target): **0 errors, 15 warnings.**
+`firefox-dist` (the store target): **0 errors, 13 warnings.**
 
-13 of the 15 are inside vendored libraries and disappear with the npm migration. Only two are first-party: `background.mjs:619` (UNSUPPORTED_API) and `PlayerLoader.mjs:16` (UNSAFE_VAR_ASSIGNMENT), plus `yt_runner.js:14` (the YouTube eval).
+Breakdown: 10 UNSAFE_VAR_ASSIGNMENT, 2 DANGEROUS_EVAL, 1 UNSUPPORTED_API,
+almost all inside vendored libraries that now have a hash-verifiable npm base.
+`yt_runner.js:14` (the YouTube eval) is **gone** - firefox-dist is spliced with
+NO_YOUTUBE, which also removed the `userScripts` permission and the
+`configureWorld` call that set a `script-src 'unsafe-eval'` CSP.
+
+**Vendored libraries now generated from npm:** hls.js (+ worker), dash.js,
+pako, fuse.js, sortablejs, sweetalert2. Only hls.js and dash.js need patches;
+the rest are stock or stock plus a documented few-line transform.
+
+**Still vendored:** mp4box (concatenated from source - no published dist
+matches), vtt.js (npm ships no bundle), coloris (from mdbassit/Coloris, not
+the @melloware npm fork), knob (GitHub only), and the wasm/ort blobs. yt.mjs
+and googlevideo.mjs remain in the libre build only.
 
 ---
 
