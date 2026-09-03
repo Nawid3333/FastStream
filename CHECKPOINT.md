@@ -35,7 +35,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 | 4 · Unit tests | **done** | 58 tests, all mutation-verified |
 | 5 · E2E (WebdriverIO) | **deferred** | Your call: after Firefox passes lint |
 | 6 · CI | **done** | Green in ~35s |
-| 7 · Unbundle libs | **hls.js migrated** | npm + `pnpm patch`, provably inert; dash.js and yt.js not yet |
+| 7 · Unbundle libs | **~10% done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
 | 8 · AMO sweep | **part done** | firefox-dist live: 0 errors, 24→15 warnings |
 | 9 · Signing | **not started** | Needs gecko ID change first |
 | 10 · Upstream PRs | **not started** | Two strong candidates ready |
@@ -168,10 +168,54 @@ change that can actually alter behaviour.
 
 ---
 
+## Phase 7 is the bulk of the remaining work
+
+The checkpoint previously framed this as "hls.js, dash.js, youtube.js". A full
+inventory of `chrome/player/modules/` shows that undercounts it badly. Still
+vendored, still tracked in git, none with a recorded version:
+
+| File | Size | Notes |
+|---|---|---|
+| `dash.mjs` | 3.5 MB | base `5.1.0`, known from in-tree `VERSION` — not yet measured |
+| `vad/silero_vad_half.ort` | 1.8 MB | Silero VAD model blob |
+| `yt.mjs` | 1.2 MB | youtube.js — not yet measured |
+| `vad/ort-wasm-simd-threaded.wasm` | 1.0 MB | ONNX Runtime Web v1.20.0 (MIT) |
+| **`hls.worker.js`** | **325 KB** | **gap in the hls.js migration — see below** |
+| `mp4box.mjs` | 318 KB | |
+| `pako.mjs` | 275 KB | |
+| `googlevideo.mjs` | 170 KB | |
+| `sweetalert.mjs` | 152 KB | |
+| `sortable.mjs` | 120 KB | |
+| `reencoder/libsamplerate.wasm` | 118 KB | libsamplerate-js (MIT) |
+| `reencoder/webm.mjs` | 106 KB | |
+| `vtt.mjs` | 88 KB | |
+| `reencoder/mp4-muxer.mjs` | 62 KB | |
+| `reencoder/libsamplerate.mjs` | 51 KB | |
+| `vad/ort.wasm.mjs` | 47 KB | **hand-minified by Andrew** — itself the AMO problem |
+| `fuse.mjs` | 45 KB | |
+| `coloris.mjs` | 38 KB | |
+| `gif/gif.worker.js` + `gif/gif.mjs` | 58 KB | |
+| `knob.mjs` | 27 KB | |
+
+**`hls.worker.js` is an unclosed gap.** `hls.mjs` now comes from npm, but
+`HLSPlayer.mjs:29` also loads `modules/hls.worker.js`, which is still a
+325 KB tracked file. npm ships it too (`node_modules/hls.js/dist/hls.worker.js`,
+102 KB) — the in-tree copy is the same code **unminified**. Unminified is
+better for AMO review, so the fix is to generate it from the npm source via
+`tools/sync-vendor.mjs` rather than to ship npm's minified build verbatim.
+Until that is done the hls.js migration is not actually complete.
+
+Not every library needs the full `pnpm patch` treatment — several are likely
+unmodified stock copies, where a plain npm dependency plus a `sync-vendor.mjs`
+entry is enough. The measurement decides which.
+
+---
+
 ## Next steps, in order
 
-1. **hls.js step 2** (above) — the first behaviour-affecting change. Playback checklist required.
-2. **Same measurement for dash.js** (base `5.1.0`, already known from `VERSION` in-tree) and youtube.js.
-3. Phase 8 remainder — the two first-party lint warnings, and the YouTube decision.
-4. Phase 9 signing, once the gecko ID is settled.
-5. **Phase 10 PRs — held until the fork is complete**, by your decision, so Andrew can integrate them one at a time and still have a working program. Each `pr/*` branch will be cut fresh from `upstream/main` and verified green on its own before you see it. Two candidates are already clean: the `miniglob.mjs` Windows build fix and `.gitattributes`.
+1. **Close the hls.js gap** — bring `hls.worker.js` under `sync-vendor.mjs` too.
+2. **hls.js step 2** (above) — the first behaviour-affecting change. Playback checklist required.
+3. **Same measurement for dash.js** (base `5.1.0`, already known from `VERSION` in-tree), youtube.js, then the smaller libraries.
+4. Phase 8 remainder — the two first-party lint warnings, and the YouTube decision.
+5. Phase 9 signing — the gecko ID is `faststream@andrews` in **two** places in `build.mjs` (lines 335 and 369); both must change.
+6. **Phase 10 PRs — held until the fork is complete**, by your decision, so Andrew can integrate them one at a time and still have a working program. Each `pr/*` branch will be cut fresh from `upstream/main` and verified green on its own before you see it. Two candidates are already clean: the `miniglob.mjs` Windows build fix and `.gitattributes`.
