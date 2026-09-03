@@ -279,7 +279,7 @@ Worth stating plainly, because taking the npm file naively would have
 reintroduced it. Upstream sweetalert2 contains:
 
 ```js
-if (typeof window !== 'undefined' && /^ru/.test(navigator.language) &&
+if (typeof window !== 'undefined' && /^ru\b/.test(navigator.language) &&
     location.host.match(/\.(ru|su|by|xn--p1ai)$/)) {
   ...
   document.body.style.pointerEvents = 'none';
