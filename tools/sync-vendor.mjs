@@ -48,7 +48,32 @@ const VENDOR = [
     patched: true,
     transform: normaliseText,
   },
+  {
+    name: 'pako',
+    from: 'node_modules/pako/dist/pako.js',
+    to: 'chrome/player/modules/pako.mjs',
+    transform: toPakoModule,
+  },
 ];
+
+/**
+ * Wraps pako's UMD build as an ES module.
+ *
+ * pako ships UMD, which assigns to `window.pako`; FastStream imports
+ * `{Pako}` from this file in modules/analyzer/VideoAligner.mjs. The previously
+ * vendored copy was stock pako 2.1.0 with exactly this one line appended,
+ * plus an eslint-disable header and some reformatted brace placement - all of
+ * which parse to an identical AST, verified against the vendored file before
+ * this replaced it. So no patch is needed: the npm file is used untouched and
+ * only the export is added.
+ *
+ * @param {string} src pako's UMD dist build
+ * @return {string} the same file, re-exported as an ES module
+ */
+function toPakoModule(src) {
+  return normaliseText(src).replace(/\s*$/, '\n') +
+    '\nexport const Pako = window.pako;\n';
+}
 
 /**
  * Normalises line endings and guarantees a trailing newline.
@@ -127,10 +152,11 @@ for (const lib of VENDOR) {
   fs.mkdirSync(path.dirname(dst), {recursive: true});
   fs.writeFileSync(dst, data);
 
-  const kind = lib.transform ? ' + patch, generated' : (lib.patched ? ' + patch' : '');
+  const kind = [lib.patched && '+ patch', lib.transform && 'generated']
+      .filter(Boolean).join(', ');
   const state = unchanged ? 'unchanged' : 'updated';
   console.log(
-      `${lib.name}@${version}${kind} -> ${lib.to} (${state}, ` +
+      `${lib.name}@${version}${kind ? ' ' + kind : ''} -> ${lib.to} (${state}, ` +
       `${(data.length / 1024).toFixed(0)} KB)`,
   );
 }
