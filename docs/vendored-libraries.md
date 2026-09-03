@@ -256,7 +256,7 @@ what can actually change behaviour.
 | vtt.js | 0.13.0 | browserify bundle; npm ships no bundle | documented |
 | coloris | not pinned | upstream unwrapped from its IIFE; no release matches exactly | **open** |
 | libsamplerate-js | **none** | built on the author's own laptop - see below | **blocker** |
-| jswebm | ? | `webm.mjs` exports `class JsWebm`; npm has only 0.0.3-0.1.2 | pending |
+| jswebm | src, not dist | `webm.mjs` is the **source** concatenated, not the published bundle | **open** |
 | knob | — | `jherrm/knobs`; npm `knob` is a different project | documented |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
@@ -341,6 +341,21 @@ cannot verify. It needs a decision rather than more measurement:
    version and flags so a reviewer can rebuild it. Cheaper in bytes, more work
    to document, and only as good as the reproducibility.
 
+### webm.mjs is jswebm's source, not its build
+
+`reencoder/webm.mjs` is readable `class Track { ... }` source ending in
+`window.JsWebm = JsWebm;`, whereas the npm package's `dist/JsWebm.js` is a
+minified webpack bundle. So the vendored file is jswebm's `src/` directory
+concatenated into one ES module - the same shape as mp4box.
+
+That is better news than it sounds. jswebm publishes its `src/` files in the
+npm tarball alongside the bundle, so each concatenated piece can be checked
+against a published file rather than taken on trust. Reproducing the
+concatenation is more work than the transforms already in sync-vendor.mjs,
+because it means stripping `require`/`module.exports` and fixing an order,
+which is why it is recorded here rather than attempted alongside the two
+migrations above.
+
 ### coloris is close but not pinned
 
 The vendored copy is mdbassit/Coloris with its
@@ -351,6 +366,22 @@ transform. What is missing is the base version: none of v0.19.0-v0.25.0 from
 the upstream repository, nor 0.10-0.25 of the `@melloware/coloris` npm fork,
 matches after normalisation. The npm package literally named `coloris` is an
 unrelated project, which is worth knowing before anyone reaches for it.
+
+v0.22.0 is the closest by statement matching, and the difference from it is
+mostly one deliberate adaptation: `document` is rebound to a `container`
+element, so the picker queries and listens inside FastStream's own subtree
+rather than the top-level document - `addListener(document, ...)` becomes
+`addListener(container, ...)`, `document.documentElement.clientWidth` becomes
+`container.clientWidth`, and `document.getElementById` becomes
+`container.ownerDocument.getElementById` where a real Document is needed.
+
+Applying exactly those substitutions to v0.22.0 still does not reproduce the
+vendored file: `configure` additionally gained a `container` setting. So this
+is an adapted fork rather than a mechanically transformed release, and
+migrating it would mean reimplementing that adaptation with no test covering
+the colour picker. Documented provenance - "mdbassit/Coloris v0.22.0 with the
+container rebinding described here" - is the honest status, and is the kind of
+disclosure AMO asks for; what it rejects is an unexplained modified blob.
 
 ### sweetalert2 ships a payload that must stay removed
 
