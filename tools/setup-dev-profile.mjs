@@ -52,8 +52,30 @@ const PREFS = [
   ['browser.shell.setDefaultBrowserUserChoice', false],
   ['browser.shell.setDefaultAlwaysAsk', false],
   ['browser.startup.homepage_override.mstone', 'ignore'],
+  // Keep the bookmarks toolbar on screen. Firefox 89+ defaults this to
+  // 'newtab', which hides the imported test links as soon as a page loads.
+  ['browser.toolbars.bookmarks.visibility', 'always'],
   ['datareporting.policy.dataSubmissionEnabled', false],
   ['browser.aboutwelcome.enabled', false],
+];
+
+/**
+ * Default test bookmarks for FastStream playback validation. Firefox will
+ * import these automatically when a fresh profile first starts.
+ */
+const BOOKMARKS = [
+  {
+    name: 'DASH test',
+    url: 'https://reference.dashif.org/dash.js/v4.4.0/samples/getting-started/auto-load-single-video-src.html',
+  },
+  {
+    name: 'HLS test',
+    url: 'https://tracylocalschool.com/gquzbcolcgom',
+  },
+  {
+    name: 'MP4 test',
+    url: 'https://video.nie.edu.sg/media/Sample-Video-File-For-Testing.mp4/0_9311zvk2/22238',
+  },
 ];
 
 /**
@@ -89,6 +111,43 @@ const userJs = PREFS
     .map(([k, v]) => `user_pref(${JSON.stringify(k)}, ${JSON.stringify(v)});`)
     .join('\n');
 fs.writeFileSync(path.join(PROFILE, 'user.js'), userJs + '\n');
+
+// Write a bookmarks file that Firefox imports automatically on first run.
+// The Netscape bookmark format is the simplest portable format that
+// Firefox still recognises at startup.
+// PERSONAL_TOOLBAR_FOLDER="true" is what tells Firefox's importer that this
+// folder is the Bookmarks Toolbar rather than the Bookmarks Menu. Without it
+// the links import correctly but land in the menu, where they are two clicks
+// away instead of visible on every new tab.
+const bookmarkLinks = BOOKMARKS
+    .map((b) => `        <DT><A HREF="${escapeHtml(b.url)}" ADD_DATE="0">${escapeHtml(b.name)}</A>`)
+    .join('\n');
+const bookmarksHtml = `<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<!-- This is an automatically generated bookmarks file for FastStream testing. -->
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks</H1>
+<DL><p>
+    <DT><H3 PERSONAL_TOOLBAR_FOLDER="true">Bookmarks Toolbar</H3>
+    <DL><p>
+${bookmarkLinks}
+    </p></DL>
+</p></DL>
+`;
+fs.writeFileSync(path.join(PROFILE, 'bookmarks.html'), bookmarksHtml);
+
+/**
+ * Minimal HTML escaping for the bookmark file.
+ * @param {string} text Raw text.
+ * @return {string} Escaped text.
+ */
+function escapeHtml(text) {
+  return text
+      .replace(/\u0026/g, '\u0026amp;')
+      .replace(/\u003c/g, '\u0026lt;')
+      .replace(/\u003e/g, '\u0026gt;')
+      .replace(/"/g, '\u0026quot;');
+}
 
 console.log(`\nProfile ready at ${path.relative(process.cwd(), PROFILE)}`);
 console.log('Run: pnpm run start:ff');

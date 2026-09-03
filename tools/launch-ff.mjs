@@ -14,51 +14,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {rebuild} from './rebuild.mjs';
+
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 const sourceDir = path.join(root, 'build_firefox_libre');
 const profileDir = path.join(root, '.dev-profile');
 
+console.log('Rebuilding Firefox libre target...\n');
+await rebuild();
+
+// Checked after the rebuild, not before: on a fresh clone build_firefox_libre
+// does not exist yet, and aborting here would refuse to run the very build
+// that creates it.
 if (!fs.existsSync(sourceDir)) {
-  console.error(`Source dir missing: ${sourceDir}\nRun: pnpm run build:keep`);
+  console.error(`Source dir missing after rebuild: ${sourceDir}`);
   process.exit(1);
 }
-
-// Build scripts are plain Node modules, so we can invoke them directly
-// without needing pnpm in PATH for the rebuild step.
-console.log('Rebuilding Firefox libre target...\n');
-const build = spawn(process.execPath, [
-  path.join(root, 'localescript.mjs'),
-], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: false,
-});
-
-await new Promise((resolve, reject) => {
-  build.on('error', reject);
-  build.on('exit', (code) => {
-    if (code === 0) resolve();
-    else reject(new Error(`localescript exited with ${code}`));
-  });
-});
-
-const build2 = spawn(process.execPath, [
-  path.join(root, 'build.mjs'),
-  '--keep',
-], {
-  cwd: root,
-  stdio: 'inherit',
-  shell: false,
-});
-
-await new Promise((resolve, reject) => {
-  build2.on('error', reject);
-  build2.on('exit', (code) => {
-    if (code === 0) resolve();
-    else reject(new Error(`build.mjs exited with ${code}`));
-  });
-});
 
 console.log('\nLaunching Firefox dev instance with FastStream + uBlock...');
 console.log(`Profile: ${profileDir}\n`);
