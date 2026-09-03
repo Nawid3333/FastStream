@@ -228,6 +228,49 @@ source. Diff formats cannot carry a trailing-CR-only change, so
 newline instead. Without that the generated file differs from the vendored one
 by exactly those 428 bytes plus a final newline.
 
+## The smaller libraries
+
+Measuring these turned up a pattern that changes how they should be handled.
+They are **stock npm builds that Andrew ran the project's own `eslint --fix`
+over**, plus a small edit at the module boundary where a UMD build had to
+become an ES module. The huge textual diffs are almost entirely lint autofix:
+`let`->`const`, `var`->`const`, added semicolons, ternary line breaks, quote
+style, and split combined `var` declarations.
+
+Comparing **ASTs** rather than text separates the two, and is the right tool
+here: it ignores whitespace, comments and quote style, so what remains is only
+what can actually change behaviour.
+
+| Library | Version | Real change beyond lint autofix | Status |
+|---|---|---|---|
+| pako | 2.1.0 | one line: `export const Pako = window.pako;` | **migrated** |
+| fuse.js | 7.1.0 | none at all | **migrated** |
+| sortablejs | 1.15.2 | mounts Swap + MultiDrag plugins; exports the function directly instead of `export default` | measured |
+| sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
+| mp4box | ? | not yet measured | pending |
+| vtt.js | ? | not yet measured | pending |
+| coloris | ? | not yet measured | pending |
+| knob | — | `jherrm/knobs`, may not be on npm | pending |
+| googlevideo | ? | `LuanRT/googlevideo` | pending |
+
+`eventemitter.mjs` is **not** a vendored library - it is FastStream's own
+code and should stay in git.
+
+### Worked examples
+
+**pako** was stock 2.1.0 with a single appended export line. The generated
+file (npm build + that line) parses to an **AST identical** to the vendored
+copy, so the replacement needed no patch and no playback test - the parsed
+program is provably the same.
+
+**fuse.js** needed nothing at all: 34 AST differences, every one of them lint
+autofix, and identical exports.
+
+This is a strictly better outcome than a patch. A patch of `eslint --fix`
+noise would be a thousand lines of diff that tells a reviewer nothing; using
+the npm file as published, with any real change expressed as a few lines in a
+documented transform, is exactly what AMO is asking for.
+
 ## youtube.js
 
 Not yet measured. Apply the same method.
