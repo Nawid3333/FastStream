@@ -249,9 +249,14 @@ what can actually change behaviour.
 | sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
 | sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
 | sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
+| mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated** |
+| gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
+| gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
 | vtt.js | 0.13.0 | browserify bundle; npm ships no bundle | documented |
-| coloris | ~0.21.x | from mdbassit/Coloris, not the npm fork | documented |
+| coloris | not pinned | upstream unwrapped from its IIFE; no release matches exactly | **open** |
+| libsamplerate-js | **none** | built on the author's own laptop - see below | **blocker** |
+| jswebm | ? | `webm.mjs` exports `class JsWebm`; npm has only 0.0.3-0.1.2 | pending |
 | knob | — | `jherrm/knobs`; npm `knob` is a different project | documented |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
@@ -272,6 +277,80 @@ This is a strictly better outcome than a patch. A patch of `eslint --fix`
 noise would be a thousand lines of diff that tells a reviewer nothing; using
 the npm file as published, with any real change expressed as a few lines in a
 documented transform, is exactly what AMO is asking for.
+
+### mp4-muxer and gif.js: proven, not argued
+
+These two are worth separating from the "measured" cases because the evidence
+is stronger. Their vendored copies are **AST-identical** to the published
+builds once the transformations the project's own `eslint --fix` performs are
+normalised away:
+
+| Normalised | What it changes |
+|---|---|
+| `one-var` | `var a, b` into `var a; var b` |
+| `curly` | `if (x) stmt;` into `if (x) { stmt; }` |
+| `quotes` | a literal's raw text, not its value |
+| `no-var` / `prefer-const` | the declaration keyword |
+| `indent` | whitespace *inside* a multi-line template literal |
+
+Nothing else differed. That is a stronger claim than "the diff looks
+additive", which is exactly the reasoning that shipped the mp4box regression:
+the parsed program is the same program.
+
+Finding the base for mp4-muxer needed the AST size as a search key rather than
+the line count, since the vendored copy is reformatted. 4.3.3 sits between
+4.3.2 and 5.0.0 by that measure and matches exactly; a line-count search would
+have pointed at 5.0.0.
+
+gif.js needed one real change. The npm build spawns its worker from
+`options.workerScript`, a bare `'gif.worker.js'` that the browser resolves
+against the **document**, and the extension's player page is not in that
+directory. `toGifModule` rewrites the single `new Worker(...)` call to resolve
+from `import.meta.url` instead. Both anchors it edits are asserted, so a
+future gif.js that changes either fails the build rather than silently
+shipping a module that exports nothing or spawns a worker from a 404.
+
+Neither is covered by the playback suite - GIF export and remuxing are not on
+the path a video takes - so `tests/e2e/specs/modules.e2e.mjs` drives both
+directly: gif.js encodes two frames and the test checks for a `GIF89a` header,
+mp4-muxer writes a container and the test checks for an `ftyp` box at offset
+4. Breaking the worker URL on purpose fails the gif test and only that test.
+
+### libsamplerate is the remaining provenance blocker
+
+`reencoder/libsamplerate.mjs` matches no published artifact, and there is
+direct evidence why. Its emscripten glue carries the absolute path of the
+machine that produced it:
+
+```js
+var _scriptName = "file:///Users/andrews/Desktop/fs/libsamplerate-js/src/glue.js";
+```
+
+It was built on the author's own computer. The wasm beside it is consistent
+with that: 117,508 bytes against the 1,501,929 bytes that
+`@alexanderolsen/libsamplerate-js` publishes for the same library.
+
+This is the hardest remaining AMO problem in the tree - harder than coloris or
+knob, which are readable JavaScript from public repositories. It is a **binary
+blob with no published counterpart**, which is precisely what a reviewer
+cannot verify. It needs a decision rather than more measurement:
+
+1. **Use the published package.** Full provenance, at roughly +1.4 MB, since
+   the npm wasm is a much less optimised build.
+2. **Reproduce the build.** Keep the size, and publish the exact emscripten
+   version and flags so a reviewer can rebuild it. Cheaper in bytes, more work
+   to document, and only as good as the reproducibility.
+
+### coloris is close but not pinned
+
+The vendored copy is mdbassit/Coloris with its
+`(function (window, document, Math) { ... })(...)` wrapper removed, exported as
+`export const Coloris`, with `bindElement` additionally exposed and the
+`DOMReady(init)` auto-start commented out. That shape is a documentable
+transform. What is missing is the base version: none of v0.19.0-v0.25.0 from
+the upstream repository, nor 0.10-0.25 of the `@melloware/coloris` npm fork,
+matches after normalisation. The npm package literally named `coloris` is an
+unrelated project, which is worth knowing before anyone reaches for it.
 
 ### sweetalert2 ships a payload that must stay removed
 

@@ -96,6 +96,31 @@ const VENDOR = [
     to: 'chrome/player/modules/vad/ort.wasm.mjs',
     transform: stripInlineSourceMap,
   },
+  {
+    // Proven, not assumed: the vendored copy's AST is *identical* to this
+    // build's once the project's own `eslint --fix` transformations are
+    // normalised away - one-var splitting, curly, quote style,
+    // no-var/prefer-const, and re-indentation inside a template literal.
+    // Nothing else differed, so this is the same code the fork already ships.
+    name: 'mp4-muxer',
+    from: 'node_modules/mp4-muxer/build/mp4-muxer.mjs',
+    to: 'chrome/player/modules/reencoder/mp4-muxer.mjs',
+    transform: normaliseText,
+  },
+  {
+    // Also AST-identical to the vendored copy; that one was only run through
+    // a beautifier, since gif.js publishes its dist on one line.
+    name: 'gif.js',
+    from: 'node_modules/gif.js/dist/gif.worker.js',
+    to: 'chrome/player/modules/gif/gif.worker.js',
+    transform: normaliseText,
+  },
+  {
+    name: 'gif.js',
+    from: 'node_modules/gif.js/dist/gif.js',
+    to: 'chrome/player/modules/gif/gif.mjs',
+    transform: toGifModule,
+  },
 ];
 
 /**
@@ -252,6 +277,97 @@ function toSweetAlertModule(src) {
 function toPakoModule(src) {
   return normaliseText(src).replace(/\s*$/, '\n') +
     '\nexport const Pako = window.pako;\n';
+}
+
+/**
+ * Turns gif.js's UMD build into an ES module that loads a real worker file.
+ *
+ * Two changes, both forced by the extension environment, and both matching
+ * what the previously vendored copy did by hand:
+ *
+ * 1. The UMD dispatcher assigns the factory result to `window.GIF`.
+ *    LoopMenu.mjs does `import {GIF}`, so the dispatcher is replaced by a
+ *    direct assignment to a module binding. It has to be `let`, because the
+ *    assignment happens when the factory is called, not at declaration.
+ *
+ * 2. gif.js defaults `options.workerScript` to a bare 'gif.worker.js', which
+ *    the browser resolves against the *document*. In the extension the player
+ *    page is not in this directory, so that 404s. Resolving against
+ *    `import.meta.url` instead points at the worker we ship beside this file.
+ *    (gif.js has no blob-worker path, so unlike hls.js this is the only
+ *    reason a separate worker file is needed.)
+ *
+ * Both anchors are asserted rather than pattern-matched loosely: if a future
+ * version of gif.js changes either, this throws instead of silently emitting
+ * a module that exports nothing or spawns a worker from the wrong URL.
+ *
+ * The MIT notice is re-attached because gif.js ships no LICENSE file in its
+ * npm package - it lives only in the repository - and the licence requires
+ * the notice to travel with redistributed copies.
+ *
+ * @param {string} src contents of gif.js's UMD dist build
+ * @return {string} an ES module exporting GIF
+ */
+function toGifModule(src) {
+  const umdHead = '(function(f){if(typeof exports==="object"&&typeof ' +
+    'module!=="undefined"){module.exports=f()}else if(typeof define===' +
+    '"function"&&define.amd){define([],f)}else{var g;if(typeof window!==' +
+    '"undefined"){g=window}else if(typeof global!=="undefined"){g=global}' +
+    'else if(typeof self!=="undefined"){g=self}else{g=this}g.GIF=f()}})(';
+  const workerCall = 'new Worker(_this.options.workerScript)';
+
+  if (!src.includes(umdHead)) {
+    throw new Error(
+        'gif.js UMD wrapper not found; its dist layout changed - re-check ' +
+        'this transform before shipping a build.',
+    );
+  }
+  const workers = src.split(workerCall).length - 1;
+  if (workers !== 1) {
+    throw new Error(
+        `expected exactly one ${workerCall} in gif.js, found ${workers}; ` +
+        'the worker-spawning code changed - re-check this transform.',
+    );
+  }
+
+  const licence = [
+    '/*', 'The MIT License (MIT)', '',
+    'Copyright (c) 2013-2018 Johan Nordberg', '',
+    'Permission is hereby granted, free of charge, to any person obtaining ' +
+      'a copy',
+    'of this software and associated documentation files (the "Software"), ' +
+      'to deal',
+    'in the Software without restriction, including without limitation the ' +
+      'rights',
+    'to use, copy, modify, merge, publish, distribute, sublicense, and/or ' +
+      'sell',
+    'copies of the Software, and to permit persons to whom the Software is',
+    'furnished to do so, subject to the following conditions:', '',
+    'The above copyright notice and this permission notice shall be ' +
+      'included in',
+    'all copies or substantial portions of the Software.', '',
+    'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, ' +
+      'EXPRESS OR',
+    'IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF ' +
+      'MERCHANTABILITY,',
+    'FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT ' +
+      'SHALL THE',
+    'AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER',
+    'LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ' +
+      'ARISING FROM,',
+    'OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS ' +
+      'IN',
+    'THE SOFTWARE. */',
+  ].join('\n');
+
+  const preamble = licence + '\n\nexport let GIF;\n\n' +
+    '// Resolved from this module rather than the document: see the note in\n' +
+    '// tools/sync-vendor.mjs.\n' +
+    'const WORKER_URL = new URL(\'gif.worker.js\', import.meta.url).href;\n\n';
+
+  return preamble + normaliseText(src)
+      .replace(umdHead, '(function(f) {\n  GIF = f();\n})(')
+      .replace(workerCall, 'new Worker(WORKER_URL)');
 }
 
 /**

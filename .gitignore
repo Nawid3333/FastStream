@@ -15,6 +15,9 @@ chrome/player/modules/fuse.mjs
 chrome/player/modules/sortable.mjs
 chrome/player/modules/sweetalert.mjs
 chrome/player/modules/vad/ort.wasm.mjs
+chrome/player/modules/reencoder/mp4-muxer.mjs
+chrome/player/modules/gif/gif.mjs
+chrome/player/modules/gif/gif.worker.js
 tests/e2e/fixtures/
 
 # WebdriverIO driver logs and failure screenshots from the e2e suite.
