@@ -58,10 +58,10 @@ async function openPlayer(source) {
 }
 
 describe('FastStream playback', function() {
-  it('serves the player page from the extension', async function() {
-    // Guards the rest of the suite: if the pinned uuid mapping ever stops
-    // working, every playback test would fail with a confusing "no <video>"
-    // rather than "the page did not load".
+  it('serves the player page', async function() {
+    // Guards the rest of the suite: if the local server or the web build ever
+    // stops producing a loadable page, every playback test would fail with a
+    // confusing "no <video>" rather than "the page did not load".
     await openPlayer();
     expect(await browser.getUrl()).toContain('/player/index.html');
   });

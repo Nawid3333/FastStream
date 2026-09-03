@@ -118,6 +118,10 @@ export const config = {
   }],
 
   logLevel: 'error',
+  // Without an outputDir wdio keeps its driver logs in memory and CI's
+  // "upload e2e failure logs" step collects nothing, which is worse than no
+  // step at all: it looks like diagnostics exist when they do not.
+  outputDir: path.join(root, 'logs'),
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {
@@ -187,6 +191,23 @@ export const config = {
       server.on('error', reject);
       server.listen(PORT, '127.0.0.1', resolve);
     });
+  },
+
+  // A headless CI failure gives you a timeout message and nothing else. A
+  // screenshot distinguishes the cases that matter and look identical from the
+  // message alone: the page never loaded, the player rendered but no video
+  // element appeared, or the video is there and simply not decoding.
+  afterTest: async function(test, context, {passed}) {
+    if (passed) return;
+    const dir = path.join(root, 'logs');
+    fs.mkdirSync(dir, {recursive: true});
+    const safe = test.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60);
+    try {
+      await browser.saveScreenshot(path.join(dir, `fail-${safe}.png`));
+    } catch {
+      // A screenshot is a diagnostic aid; failing to take one must not
+      // replace the real test failure with a confusing error from here.
+    }
   },
 
   onComplete: function() {

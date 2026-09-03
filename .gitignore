@@ -16,3 +16,6 @@ chrome/player/modules/sortable.mjs
 chrome/player/modules/sweetalert.mjs
 chrome/player/modules/vad/ort.wasm.mjs
 tests/e2e/fixtures/
+
+# WebdriverIO driver logs and failure screenshots from the e2e suite.
+logs/

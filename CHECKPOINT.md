@@ -191,10 +191,20 @@ NO_YOUTUBE, which also removed the `userScripts` permission and the
 pako, fuse.js, sortablejs, sweetalert2. Only hls.js and dash.js need patches;
 the rest are stock or stock plus a documented few-line transform.
 
-**Still vendored:** mp4box (concatenated from source - no published dist
-matches), vtt.js (npm ships no bundle), coloris (from mdbassit/Coloris, not
-the @melloware npm fork), knob (GitHub only), and the wasm/ort blobs. yt.mjs
-and googlevideo.mjs remain in the libre build only.
+**Still vendored:** mp4box, vtt.js (npm ships no bundle), coloris (from
+mdbassit/Coloris, not the @melloware npm fork), knob (GitHub only), and the
+wasm/ort blobs. yt.mjs and googlevideo.mjs remain in the libre build only.
+
+mp4box is a correction of a correction, and the reason is worth keeping. An
+earlier note here claimed "no published dist matches"; that was wrong, because
+the version search only covered the 2.x line, which was a rewrite. The 0.x line
+does match closely - but generating `mp4box.mjs` from npm 0.5.3 **breaks MP4
+playback**, which the e2e suite caught and a file swap confirmed. The vendored
+copy predates 0.5.3 (it lacks the `lhvC` box parser and the `fLaC` sample
+entry). So the npm base exists and is still rejected, on evidence. Finishing it
+means bisecting mp4box between 0.5.2 and 0.5.3 to find what breaks FastStream's
+MP4 path; until then `mp4box` is deliberately **not** a devDependency, so that
+package.json cannot imply a provenance the build does not use.
 
 ---
 

@@ -60,9 +60,6 @@ importers:
       hls.js:
         specifier: ^1.6.9
         version: 1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7)
-      mp4box:
-        specifier: 0.5.3
-        version: 0.5.3
       onnxruntime-web:
         specifier: 1.20.0
         version: 1.20.0
@@ -2607,9 +2604,6 @@ packages:
   modern-tar@0.7.7:
     resolution: {integrity: sha512-t9VmxaqrmANnEOBhpSDI6HD192Ge48k8vmWqQQL7hSFEqHEYwZbbsu49+aKLWZeRvFs3j1pMhXOqqF4kPlvjkQ==}
     engines: {node: '>=18.0.0'}
-
-  mp4box@0.5.3:
-    resolution: {integrity: sha512-RIvyFZdPDIg3+mL6vUdPBSyQRrEfKO3ryAeJ4xJJV7HBHQUH3KfLlZRzfSpBHCd/HqR63HfbrWQI/CwXDvYENQ==}
 
   ms@2.1.2:
     resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
@@ -6386,8 +6380,6 @@ snapshots:
       yargs-unparser: 2.0.0
 
   modern-tar@0.7.7: {}
-
-  mp4box@0.5.3: {}
 
   ms@2.1.2: {}
 

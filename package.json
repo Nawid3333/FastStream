@@ -26,7 +26,7 @@
     "start:ff:dist": "node tools/launch-ff.mjs dist",
     "start:ff:fresh:dist": "node tools/launch-ff-fresh.mjs dist",
     "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
-    "test:e2e:libre": "cross-env-shell FS_TARGET=firefox-libre wdio run tests/e2e/wdio.conf.mjs"
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:amo && pnpm run lint:amo:dist && pnpm run test:e2e"
   },
   "repository": {
     "type": "git",
@@ -54,7 +54,6 @@
     "fuse.js": "7.1.0",
     "geckodriver": "^6.1.1",
     "hls.js": "^1.6.9",
-    "mp4box": "0.5.3",
     "onnxruntime-web": "1.20.0",
     "pako": "2.1.0",
     "sortablejs": "1.15.2",
