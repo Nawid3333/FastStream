@@ -55,6 +55,25 @@ not yet test-merged) · `verified` (test-merged clean in the pristine clone)
 - **Standalone:** yes, but needs the extraction step above first.
 - **Status:** `queued`
 
+## 3. ESLint only checks .js, missing 94% of the codebase
+
+- **Source:** commit `1d2ff5a` on `dev/mv3-modernization`.
+- **Problem:** the `lint` script is `eslint .`, and ESLint 8 lints only
+  `.js` by default. FastStream is almost entirely `.mjs` - 134 tracked
+  `.mjs` against 8 `.js` - so the lint step, including the one CI gates on,
+  checks 8 files out of 142 and reports success for everything else.
+  Demonstrated with an identical probe file that was reported as `.js` and
+  silently ignored as `.mjs`.
+- **Fix:** `eslint . --ext .js,.mjs`, plus the 14 cosmetic errors this
+  surfaces (brace spacing, quote style, operator placement, trailing
+  whitespace) in `VMPlayer.mjs` and `PlaybackRateChanger.mjs`. All were
+  auto-fixed by `eslint --fix`; none are semantic.
+- **Standalone:** yes. Independent of pnpm - works the same under npm.
+- **Note:** worth pairing with candidate 2 (`.gitattributes`), since without
+  LF normalisation a Windows contributor enabling this sees thousands of
+  `linebreak-style` errors.
+- **Status:** `queued`
+
 ---
 
 ## Not FastStream PRs — upstream hls.js issue (separate project)
