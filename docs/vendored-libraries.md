@@ -156,7 +156,78 @@ half way. These hunks were therefore **not** ported to the UMD, and they
 should simply be dropped when the base moves to 1.7.1, where the real version
 of this change already exists.
 
-## dash.js and youtube.js
+## dash.js
 
-Not yet measured. dash.js reports `VERSION = '5.1.0'` in-tree, so its base
-is known without searching. Apply the same method.
+**Base version: 5.1.0**, confirmed rather than assumed. The npm package is
+`dashjs`, not `dash.js`, and the artifact is
+`dist/modern/esm/dash.all.debug.js`. Diff sizes against candidates:
+
+| Release | Diff lines |
+|---|---|
+| **5.1.0** | **3887** |
+| 5.0.3 | 4286 |
+| 5.1.1 | 14511 |
+| 5.2.0 | 35824 |
+
+The `dash.mediaplayer.debug.js` variant is much further away (11571), so
+`dash.all.debug.js` is the right artifact.
+
+### The divergence is real, and much larger than hls.js's
+
+The bundle is webpack output, so every module carries its source path and can
+be compared individually. That gives an exact answer instead of a line count:
+
+| | Count |
+|---|---|
+| Modules in npm 5.1.0 | 432 |
+| Modules in-tree | 415 |
+| **Byte-identical** | **331** |
+| Differing | 79 |
+| Only in npm | 22 |
+| Only in-tree | 5 |
+
+Of dash.js's **own** 251 source modules, **188 are byte-identical** and 60
+differ. That 75% identical figure is the important control: if the in-tree
+bundle had been built with a different toolchain, *every* module would differ.
+It did not, so the 60 differing modules are genuine FastStream modifications,
+not build noise.
+
+Most-modified modules, by removed lines: `MediaController` (203),
+`DashManifestModel` (192), `AbrController` (183), `TimelineSegmentsGetter`
+(167), `SegmentsUtils` (166), `StreamProcessor` (98), `HTTPLoader` (90),
+`DashHandler` (88), `StreamController` (83), `ScheduleController` (76).
+`HTTPLoader._internalLoad` is rewritten wholesale to hook FastStream's own
+downloader, in the same spirit as the hls.js loader change.
+
+The 22 modules present only in npm and 5 only in-tree are **not** FastStream
+changes: they are a different version of the transitive dependency
+`@svta/common-media-library`. npm's 5.1.0 bundles CMCD v2
+(`CMCD_COMMON_KEYS`); the in-tree build has the older `CmcdFormatters`. That
+is dependency drift baked into a bundle, and it is left alone - npm's newer
+copy is kept.
+
+### Status: migrated, provably inert
+
+`chrome/player/modules/dash.mjs` is no longer in git. It is generated from
+`dashjs@5.1.0` plus `patches/dashjs@5.1.0.patch`. A clean install reproduces
+the previously vendored file **byte for byte**, and the file does not appear
+in a build-output diff against the upstream baseline at all.
+
+The patch is 354 KB, against hls.js's 31 KB. That is honest about the size of
+the divergence rather than hiding it, and it still gives AMO what today's tree
+does not: a hash-verifiable upstream base and a diff a reviewer can read.
+Shrinking it - by checking which of the 60 modules can move to dash.js's
+public extension points, or which changes have landed upstream by 5.2.1 - is
+worthwhile later, but is a behaviour-affecting change and needs the playback
+checklist each time.
+
+One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
+inside a vendored BSD licence comment, because a bundled dependency ships CRLF
+source. Diff formats cannot carry a trailing-CR-only change, so
+`tools/sync-vendor.mjs` normalises line endings and guarantees a trailing
+newline instead. Without that the generated file differs from the vendored one
+by exactly those 428 bytes plus a final newline.
+
+## youtube.js
+
+Not yet measured. Apply the same method.

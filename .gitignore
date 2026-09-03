@@ -9,3 +9,4 @@ build_*/
 .dev-profile/
 chrome/player/modules/hls.mjs
 chrome/player/modules/hls.worker.js
+chrome/player/modules/dash.mjs

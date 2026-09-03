@@ -41,7 +41,34 @@ const VENDOR = [
     patched: true,
     transform: toClassicWorker,
   },
+  {
+    name: 'dashjs',
+    from: 'node_modules/dashjs/dist/modern/esm/dash.all.debug.js',
+    to: 'chrome/player/modules/dash.mjs',
+    patched: true,
+    transform: normaliseText,
+  },
 ];
+
+/**
+ * Normalises line endings and guarantees a trailing newline.
+ *
+ * dash.js's published bundle embeds 428 stray CR characters inside a vendored
+ * BSD licence comment, because one of its bundled dependencies ships CRLF
+ * source. Diff and patch formats cannot represent a trailing-CR-only change
+ * reliably, so the patch in patches/ cannot carry that difference and it has
+ * to be normalised here instead. Without this the generated file differs from
+ * the previously vendored one by exactly those 428 bytes plus a final
+ * newline - a pure whitespace difference inside a comment, but one that would
+ * break byte-for-byte verification against the baseline build.
+ *
+ * @param {string} src file contents
+ * @return {string} contents with LF endings and a trailing newline
+ */
+function normaliseText(src) {
+  const lf = src.replace(/\r\n/g, '\n').replace(/\r/g, '');
+  return lf.endsWith('\n') ? lf : lf + '\n';
+}
 
 /**
  * Turns hls.js's UMD build into a standalone classic worker script.
