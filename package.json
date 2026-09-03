@@ -45,6 +45,8 @@
     "fuse.js": "7.1.0",
     "hls.js": "^1.6.9",
     "pako": "2.1.0",
+    "sortablejs": "1.15.2",
+    "sweetalert2": "11.12.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
     "web-ext": "^10.6.0"

@@ -64,7 +64,144 @@ const VENDOR = [
     to: 'chrome/player/modules/pako.mjs',
     transform: toPakoModule,
   },
+  {
+    // The complete build already mounts AutoScroll, Remove/Revert, Swap and
+    // MultiDrag exactly as the vendored copy did; only the export shape
+    // differed. Everything else was "eslint --fix" output, including four
+    // combined var declarations split into ~62 separate let/const statements,
+    // which is what inflated the textual diff to 1613 lines.
+    name: 'sortablejs',
+    from: 'node_modules/sortablejs/modular/sortable.complete.esm.js',
+    to: 'chrome/player/modules/sortable.mjs',
+    transform: addSortableNamedExport,
+  },
+  {
+    name: 'sweetalert2',
+    from: 'node_modules/sweetalert2/dist/sweetalert2.js',
+    to: 'chrome/player/modules/sweetalert.mjs',
+    transform: toSweetAlertModule,
+  },
 ];
+
+/**
+ * Removes sweetalert2's locale-triggered message block.
+ *
+ * Upstream sweetalert2 ships a block that, for users whose browser language
+ * is Russian and who are on a .ru/.su/.by/.xn--p1ai host, sets
+ * `document.body.style.pointerEvents = 'none'` to make the page unusable and
+ * appends an <audio> element that streams and loops a file from
+ * https://flag-gimn.ru. The previously vendored copy had this removed, and it
+ * must stay removed:
+ *
+ * - it loads remote media from a third-party host at runtime, which fails
+ *   AMO review on its own,
+ * - it disables interaction with whatever page the extension is running on,
+ * - and it triggers on the user's language, not on anything they asked for.
+ *
+ * The block is located by its distinctive host test and removed by brace
+ * matching rather than by a line range, so it survives reformatting. If the
+ * marker is ever absent - upstream removing it would be the happy case - this
+ * returns the source unchanged rather than failing the build.
+ *
+ * @param {string} text sweetalert2 source
+ * @return {string} the same source with the block removed
+ */
+function stripLocaleMessageBlock(text) {
+  const marker = text.indexOf('if (typeof window !== \'undefined\' && /^ru\\b/');
+  if (marker < 0) {
+    return text;
+  }
+
+  let depth = 0;
+  let end = -1;
+  for (let i = text.indexOf('{', marker); i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}' && --depth === 0) {
+      end = i + 1;
+      break;
+    }
+  }
+  if (end < 0) {
+    throw new Error(
+        'sweetalert2 locale-message block found but its braces do not close - ' +
+        'refusing to ship it. Re-check this transform.',
+    );
+  }
+
+  // Also take the indentation preceding it, so no stray blank line is left.
+  const lineStart = text.lastIndexOf('\n', marker) + 1;
+  return text.slice(0, lineStart) + text.slice(end).replace(/^\n/, '');
+}
+
+/**
+ * Adds the named export FastStream imports.
+ *
+ * sortablejs's complete build ends in `export default Sortable`, but
+ * ui/ToolManager.mjs does `import {Sortable} from '../modules/sortable.mjs'`.
+ * The vendored copy achieved that by exporting the function declaration
+ * directly; adding a named export alongside the default is equivalent and
+ * leaves the npm file untouched.
+ *
+ * @param {string} src sortablejs's complete ESM build
+ * @return {string} the same module with a named Sortable export
+ */
+function addSortableNamedExport(src) {
+  return normaliseText(src) + '\nexport {Sortable};\n';
+}
+
+/**
+ * Converts sweetalert2's UMD build to an ES module and retargets it at
+ * FastStream's player container.
+ *
+ * Three changes, all of which the vendored copy also made:
+ *
+ * 1. The UMD dispatcher is replaced with a plain `swl = factory()`, since
+ *    neither CommonJS nor AMD exists here and the global assignment is not
+ *    wanted.
+ * 2. Every `document.body` becomes `document_body`, bound to
+ *    `DOMElements.playerContainer`. This is the one behavioural change:
+ *    dialogs must render inside FastStream's player container, not the host
+ *    page's body - the player is often in a fullscreen or shadow context
+ *    where document.body is the wrong parent. There are exactly 32
+ *    occurrences, matching the 32 in the vendored copy, and none left over.
+ * 3. The trailing global assignment becomes the ES export that
+ *    utils/AlertPolyfill.mjs imports.
+ *
+ * It also strips sweetalert2's locale-triggered message block - see
+ * stripLocaleMessageBlock. The vendored copy had it removed too; leaving it
+ * in would be an AMO failure and a real user-harm bug.
+ *
+ * @param {string} src sweetalert2's UMD dist build
+ * @return {string} an ES module scoped to the player container
+ */
+function toSweetAlertModule(src) {
+  const text = stripLocaleMessageBlock(normaliseText(src));
+
+  const umdHead = /\(function \(global, factory\) \{\n[\s\S]*?\n\}\)\(this, /;
+  if (!umdHead.test(text)) {
+    throw new Error(
+        'sweetalert2 UMD wrapper not in the expected shape - re-check this ' +
+        'transform against the new release.',
+    );
+  }
+
+  const globalTail = /\nif \(typeof this !== 'undefined' && this\.Sweetalert2\)\{[^\n]*\}\n?$/;
+  if (!globalTail.test(text)) {
+    throw new Error(
+        'sweetalert2 global-assignment tail not found - re-check this ' +
+        'transform against the new release.',
+    );
+  }
+
+  return 'import {DOMElements} from \'../ui/DOMElements.mjs\';\n\n' +
+    'const document_body = DOMElements.playerContainer;\n' +
+    'let swl;\n' +
+    text
+        .replace(umdHead, '(function (global, factory) {\n  swl = factory();\n})(this, ')
+        .replace(/document\.body/g, 'document_body')
+        .replace(globalTail, '\n') +
+    '\nexport const SweetAlert = swl;\n';
+}
 
 /**
  * Wraps pako's UMD build as an ES module.
