@@ -1,7 +1,7 @@
-import { DefaultPlayerEvents } from '../../enums/DefaultPlayerEvents.mjs';
-import { PlayerModes } from '../../enums/PlayerModes.mjs';
-import { RequestUtils } from '../../utils/RequestUtils.mjs';
-import HLSPlayer from "../hls/HLSPlayer.mjs";
+import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
+import {PlayerModes} from '../../enums/PlayerModes.mjs';
+import {RequestUtils} from '../../utils/RequestUtils.mjs';
+import HLSPlayer from '../hls/HLSPlayer.mjs';
 
 export default class VMPlayer extends HLSPlayer {
   constructor(client, options) {
@@ -44,9 +44,9 @@ export default class VMPlayer extends HLSPlayer {
         throw new Error('Vimeo HLS data not found');
       }
       const defaultCdn =
-          hls.default_cdn && hls.cdns[hls.default_cdn]
-              ? hls.default_cdn
-              : Object.keys(hls.cdns)[0];
+          hls.default_cdn && hls.cdns[hls.default_cdn] ?
+              hls.default_cdn :
+              Object.keys(hls.cdns)[0];
 
       let hlsUrl = hls.cdns[defaultCdn].url;
 
@@ -59,7 +59,6 @@ export default class VMPlayer extends HLSPlayer {
       this.source = source.copy();
       this.source.url = hlsUrl;
       this.source.mode = PlayerModes.ACCELERATED_HLS;
-
     } catch (e) {
       console.error(e);
       this.emit(DefaultPlayerEvents.ERROR, e);
@@ -81,7 +80,6 @@ export default class VMPlayer extends HLSPlayer {
   }
 
   extractVimeoHlsUrlFromIframePlayer(html) {
-
     const config = this.extractJsonConfig(html, 'window.playerConfig =');
 
     if (!config) {
@@ -131,5 +129,4 @@ export default class VMPlayer extends HLSPlayer {
 
     return null;
   }
-
 }

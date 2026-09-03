@@ -10,7 +10,7 @@
     "vendor:sync": "node tools/sync-vendor.mjs",
     "build": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs",
     "build:keep": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs --keep",
-    "lint": "eslint .",
+    "lint": "eslint . --ext .js,.mjs",
     "typecheck": "tsc --noEmit",
     "lint:amo": "web-ext lint --source-dir=build_firefox_libre",
     "lint:amo:dist": "web-ext lint --source-dir=build_firefox_dist",

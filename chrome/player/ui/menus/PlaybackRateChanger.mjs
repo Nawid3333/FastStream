@@ -265,7 +265,7 @@ export class PlaybackRateChanger extends EventEmitter {
     this.stayOpen = false;
     return true;
   }
-  
+
   reset() {
     // Reset silence skipper state when a new video loads
     if (this.silenceSkipperActive) {
@@ -273,7 +273,7 @@ export class PlaybackRateChanger extends EventEmitter {
     }
     this.silenceSkipperLoopRunning = false;
   }
-  
+
   isOpen() {
     return DOMElements.playbackRateMenuContainer.style.display !== 'none';
   }
