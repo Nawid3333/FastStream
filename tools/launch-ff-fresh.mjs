@@ -14,11 +14,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {rebuild} from './rebuild.mjs';
+import {rebuild, resolveTarget} from './rebuild.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
-const sourceDir = path.join(root, 'build_firefox_libre');
+const target = resolveTarget();
+const sourceDir = target.dir;
 const profileDir = path.join(root, '.dev-profile');
 const builtDir = path.join(root, 'built');
 
@@ -59,7 +60,7 @@ if (fs.existsSync(builtDir)) {
 
 // Rebuild the extension. rebuild() keeps the unpacked build_* directories
 // so web-ext run has a source-dir to read; the profile is still fresh.
-console.log('Rebuilding Firefox libre target from scratch...\n');
+console.log(`Rebuilding ${target.name} from scratch...\n`);
 await rebuild();
 
 if (!fs.existsSync(sourceDir)) {

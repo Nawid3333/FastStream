@@ -14,17 +14,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {rebuild} from './rebuild.mjs';
+import {rebuild, resolveTarget} from './rebuild.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
-const sourceDir = path.join(root, 'build_firefox_libre');
+const target = resolveTarget();
+const sourceDir = target.dir;
 const profileDir = path.join(root, '.dev-profile');
 
-console.log('Rebuilding Firefox libre target...\n');
+console.log(`Rebuilding ${target.name}...\n`);
 await rebuild();
 
-// Checked after the rebuild, not before: on a fresh clone build_firefox_libre
+// Checked after the rebuild, not before: on a fresh clone the build dir
 // does not exist yet, and aborting here would refuse to run the very build
 // that creates it.
 if (!fs.existsSync(sourceDir)) {

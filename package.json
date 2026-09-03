@@ -22,7 +22,9 @@
     "test:watch": "vitest",
     "gen-locale": "node generate-locales.mjs",
     "combine-locales": "node localescript.mjs --combine",
-    "split-locales": "node localescript.mjs --split"
+    "split-locales": "node localescript.mjs --split",
+    "start:ff:dist": "node tools/launch-ff.mjs dist",
+    "start:ff:fresh:dist": "node tools/launch-ff-fresh.mjs dist"
   },
   "repository": {
     "type": "git",

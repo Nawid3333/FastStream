@@ -19,6 +19,24 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 
 /**
+ * Picks which build target a launcher should run.
+ *
+ * Defaults to firefox-libre, the daily driver. Pass `dist` to launch
+ * firefox-dist instead - that is the AMO submission build, which is spliced
+ * with NO_YOUTUBE and so has no YouTube support, no yt.mjs/googlevideo.mjs
+ * and no userScripts permission. Testing playback against it is the only way
+ * to confirm that removing YouTube did not disturb the other players.
+ *
+ * @param {string[]} [argv] arguments to read, defaults to process.argv
+ * @return {{name: string, dir: string}} the target's name and build directory
+ */
+export function resolveTarget(argv = process.argv.slice(2)) {
+  const wantsDist = argv.some((a) => a === 'dist' || a === '--dist');
+  const name = wantsDist ? 'firefox-dist' : 'firefox-libre';
+  return {name, dir: path.join(root, `build_${name.replace('-', '_')}`)};
+}
+
+/**
  * Runs a Node script from the project root and resolves when it exits 0.
  *
  * @param {string} script path to the script, relative to the project root

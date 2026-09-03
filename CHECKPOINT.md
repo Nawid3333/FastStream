@@ -94,6 +94,55 @@ Raw diff: `Faststream version 4/docs/hls.js-1.6.9-faststream.patch`
 
 ---
 
+## YouTube removed from the AMO build (firefox-dist)
+
+`firefox-dist` is now spliced with a `NO_YOUTUBE` target. Chrome targets and
+`firefox-libre` are untouched.
+
+**Why, in one line:** `yt.mjs` is the one library that can never get the
+hash-verifiable npm base every other library now has.
+
+Its base was determined empirically, not assumed: diffing the in-tree file
+against every youtubei.js release from 15.0.0 to 18.0.0 gives a clear minimum
+at **17.0.1** (11,089 differing lines against 11,516 for 16.0.1 and 13,537 for
+17.1.0), which matches a `version: "17.0.1"` string embedded in the bundle.
+
+The fork is genuinely **maintained**, not merely stripped. It removes ~9,500
+lines of unused modules, but it also *adds* current user-agent strings
+(Chrome 141) - and YouTube rejects stale user agents, so stock 17.0.1 would
+not work. No npm release corresponds to it. `googlevideo.mjs` (170 KB) is
+bundled from LuanRT/googlevideo's sources and has the same problem.
+
+**Results on firefox-dist:**
+
+| | Before | After |
+|---|---|---|
+| `web-ext lint` | 0 errors, 15 warnings | 0 errors, **13 warnings** |
+| YouTube libraries | 1.41 MB shipped | removed |
+| `yt_runner.js` eval | present | **gone** |
+| `userScripts` permission | optional_permissions | **dropped entirely** |
+| Build size | 15 MB | **13 MB** |
+
+Dropping the permission outright, rather than moving it to
+`optional_permissions` as the other targets do, matters: the userscript that
+needed it is no longer in the build, and requesting a permission nothing uses
+is what reviewers ask about. That userscript was also the only reason this
+build called `chrome.userScripts.configureWorld` with a
+`script-src 'unsafe-eval'` CSP.
+
+Remaining 13 warnings: 10 UNSAFE_VAR_ASSIGNMENT, 2 DANGEROUS_EVAL, 1
+UNSUPPORTED_API - almost all inside vendored libraries that now have a
+verifiable npm base.
+
+**libre is unaffected**, verified file by file against the baseline build. Its
+only changes are the splice comments plus an `if (false)` block that is
+unreachable there, following the same idiom `CENSORYT` already uses.
+
+**Testing the store build:** `pnpm run start:ff:dist` launches firefox-dist in
+the isolated dev profile (`pnpm run start:ff` still launches libre).
+
+---
+
 ## Verified playback baseline
 
 Confirmed working by you on the firefox-libre build, 2026-09-02, and
