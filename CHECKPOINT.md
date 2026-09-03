@@ -35,7 +35,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 | 4 · Unit tests | **done** | 58 tests, all mutation-verified |
 | 5 · E2E (WebdriverIO) | **deferred** | Your call: after Firefox passes lint |
 | 6 · CI | **done** | Green in ~35s |
-| 7 · Unbundle libs | **~10% done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
+| 7 · Unbundle libs | **hls.js done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
 | 8 · AMO sweep | **part done** | firefox-dist live: 0 errors, 24→15 warnings |
 | 9 · Signing | **not started** | Needs gecko ID change first |
 | 10 · Upstream PRs | **not started** | Two strong candidates ready |
@@ -180,7 +180,6 @@ vendored, still tracked in git, none with a recorded version:
 | `vad/silero_vad_half.ort` | 1.8 MB | Silero VAD model blob |
 | `yt.mjs` | 1.2 MB | youtube.js — not yet measured |
 | `vad/ort-wasm-simd-threaded.wasm` | 1.0 MB | ONNX Runtime Web v1.20.0 (MIT) |
-| **`hls.worker.js`** | **325 KB** | **gap in the hls.js migration — see below** |
 | `mp4box.mjs` | 318 KB | |
 | `pako.mjs` | 275 KB | |
 | `googlevideo.mjs` | 170 KB | |
@@ -197,7 +196,11 @@ vendored, still tracked in git, none with a recorded version:
 | `gif/gif.worker.js` + `gif/gif.mjs` | 58 KB | |
 | `knob.mjs` | 27 KB | |
 
-**`hls.worker.js` is an unclosed gap.** `hls.mjs` now comes from npm, but
+**`hls.worker.js` — CLOSED.** Now generated from npm's unminified UMD build
+by `tools/sync-vendor.mjs`; see `docs/vendored-libraries.md`. Original note
+kept below for context.
+
+~~**`hls.worker.js` is an unclosed gap.**~~ `hls.mjs` now comes from npm, but
 `HLSPlayer.mjs:29` also loads `modules/hls.worker.js`, which is still a
 325 KB tracked file. npm ships it too (`node_modules/hls.js/dist/hls.worker.js`,
 102 KB) — the in-tree copy is the same code **unminified**. Unminified is
@@ -213,7 +216,7 @@ entry is enough. The measurement decides which.
 
 ## Next steps, in order
 
-1. **Close the hls.js gap** — bring `hls.worker.js` under `sync-vendor.mjs` too.
+1. ~~Close the hls.js gap~~ — **done**, `hls.worker.js` is generated from npm.
 2. **hls.js step 2** (above) — the first behaviour-affecting change. Playback checklist required.
 3. **Same measurement for dash.js** (base `5.1.0`, already known from `VERSION` in-tree), youtube.js, then the smaller libraries.
 4. Phase 8 remainder — the two first-party lint warnings, and the YouTube decision.
