@@ -9,6 +9,7 @@ patchedDependencies:
   dashjs@5.1.0: d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61
   hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
+  mp4box@0.5.3: 97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296
 
 importers:
 
@@ -77,6 +78,9 @@ importers:
       mp4-muxer:
         specifier: 4.3.3
         version: 4.3.3
+      mp4box:
+        specifier: 0.5.3
+        version: 0.5.3(patch_hash=97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296)
       onnxruntime-web:
         specifier: 1.20.0
         version: 1.20.0
@@ -3236,6 +3240,9 @@ packages:
   mp4-muxer@4.3.3:
     resolution: {integrity: sha512-kuZWsEaZorpDAb3JTZmLeCoyDM+Jhf3QPZx7x3V7/zaxy5NC/j2tfWetVjaHG8cSJOMBrHed7p3cKHU6Lxcaxw==}
     deprecated: This library is superseded by Mediabunny. Please migrate to it.
+
+  mp4box@0.5.3:
+    resolution: {integrity: sha512-RIvyFZdPDIg3+mL6vUdPBSyQRrEfKO3ryAeJ4xJJV7HBHQUH3KfLlZRzfSpBHCd/HqR63HfbrWQI/CwXDvYENQ==}
 
   ms@2.1.2:
     resolution: {integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==}
@@ -7841,6 +7848,8 @@ snapshots:
     dependencies:
       '@types/dom-webcodecs': 0.1.19
       '@types/wicg-file-system-access': 2020.9.8
+
+  mp4box@0.5.3(patch_hash=97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296): {}
 
   ms@2.1.2: {}
 

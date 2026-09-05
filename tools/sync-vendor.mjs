@@ -102,6 +102,16 @@ const VENDOR = [
     // normalised away - one-var splitting, curly, quote style,
     // no-var/prefer-const, and re-indentation inside a template literal.
     // Nothing else differed, so this is the same code the fork already ships.
+    // Base is 0.5.3: 332 of 339 prototype assignments are already identical
+    // to the published release. The seven that were not are what the patch
+    // and this transform account for - see docs/vendored-libraries.md.
+    name: 'mp4box',
+    from: 'node_modules/mp4box/dist/mp4box.all.js',
+    to: 'chrome/player/modules/mp4box.mjs',
+    transform: toMp4boxModule,
+    patched: true,
+  },
+  {
     name: 'mp4-muxer',
     from: 'node_modules/mp4-muxer/build/mp4-muxer.mjs',
     to: 'chrome/player/modules/reencoder/mp4-muxer.mjs',
@@ -362,6 +372,53 @@ function toPakoModule(src) {
  * @param {string} src contents of gif.js's UMD dist build
  * @return {string} an ES module exporting GIF
  */
+/**
+ * Turns mp4box's classic script into an ES module.
+ *
+ * mp4box publishes a plain script that declares two globals and, at the end,
+ * assigns to `exports` if it happens to exist. FastStream imports
+ * `{MP4Box, DataStream}`, so the two declarations become named exports and the
+ * CommonJS tail goes.
+ *
+ * The behavioural differences from the published release are not here - they
+ * are in patches/mp4box@0.5.3.patch, five changes of which
+ * `ISOFile.prototype.getSampleList` is an addition that
+ * modules/dash2mp4/mp4merger.mjs calls. A straight swap without that patch
+ * passes every linter and then fails MP4 playback, which is how the first
+ * attempt at this migration was caught.
+ *
+ * @param {string} src the published mp4box.all.js
+ * @return {string} the module written to chrome/player/modules/mp4box.mjs
+ */
+function toMp4boxModule(src) {
+  const exportsTail = 'if (typeof exports !== \'undefined\') {\n' +
+    '\texports.createFile = MP4Box.createFile;\n}';
+  const decls = [
+    ['var DataStream = function', 'export const DataStream = function'],
+    ['var MP4Box = {};', 'export const MP4Box = {};'],
+  ];
+
+  let out = normaliseText(src);
+  for (const [from, to] of decls) {
+    const n = out.split('\n').filter((l) => l.startsWith(from)).length;
+    if (n !== 1) {
+      throw new Error(
+          `expected exactly one top-level "${from}" in mp4box, found ${n}; ` +
+          'its dist layout changed - re-check this transform.',
+      );
+    }
+    out = out.replace(from, to);
+  }
+
+  if (!out.includes(exportsTail)) {
+    throw new Error(
+        'mp4box CommonJS tail not found; its dist layout changed - re-check ' +
+        'this transform before shipping a build.',
+    );
+  }
+  return out.replace(exportsTail, '').trimEnd() + '\n';
+}
+
 function toGifModule(src) {
   const umdHead = '(function(f){if(typeof exports==="object"&&typeof ' +
     'module!=="undefined"){module.exports=f()}else if(typeof define===' +

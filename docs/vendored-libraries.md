@@ -253,7 +253,7 @@ what can actually change behaviour.
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| mp4box | 0.5.3 | **reverted** - needs a 7-item patch; see below | vendored |
+| mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated** |
 | libsamplerate-js | **none published** | a wasm-filename bug fixed; see below | build not yet reproduced |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
@@ -851,10 +851,44 @@ at 0.5.3 still fails, which rules that difference out and puts the cause in
 the vendored loop does `size = (byteRead & 0x7F) << 7`, overwriting on every
 byte, where 0.5.3 accumulates with `size = (size << 7) + (byteRead & 0x7F)`.
 
-So the migration is not blocked, it is specified. It needs a patch carrying
-the seven items above - the same treatment hls.js and dash.js already get -
-and the e2e suite to confirm it. What it must not be is a straight swap, which
-is what was tried and reverted.
+**Fourth**, the migration was done, and the patch needs **five** of those
+seven, not all of them.
+
+Each candidate was built and run against `plays MP4 (mp4box)`:
+
+| Applied | Result |
+|---|---|
+| `getSampleList` alone | fails |
+| `getSample` + `getSampleList` | fails |
+| `buildTrakSampleLists` + `getSampleList` | **passes** |
+| all seven | passes |
+| all but `items` and `entity_groups` | **passes** |
+
+So `buildTrakSampleLists` is the one playback depends on. `items` and
+`entity_groups` turn out to be **0.5.2-era leftovers, not fork changes**: 0.5.3
+initialises both in the `ISOFile` constructor, which is also the better place -
+a `prototype`-level array is shared by every instance. They are dropped.
+
+The other three - `writeHeader`, `getSample`, `flattenItemInfo` - are kept even
+though playback passes without them. They differ from **both** 0.5.2 and 0.5.3,
+so they are deliberate fork changes, and the paths that would exercise them
+(download, merge, image items) have no end-to-end coverage. Dropping them
+because one test still passes is the exact reasoning that shipped the original
+regression.
+
+`MPEG4DescriptorParser` is **not** in the patch: that difference is upstream
+fixing a real bug, and 0.5.3's version is taken.
+
+The generated file is structurally identical to the candidate that was tested -
+337 declarations and assignments, zero differences - and against the old
+vendored copy every one of the 337 assignments matches, the only changes being
+the two dropped leftovers and the two declarations that carry the descriptor
+fix and the constructor initialisation.
+
+So mp4box is now **generated** from `mp4box@0.5.3` plus
+`patches/mp4box@0.5.3.patch`, like hls.js and dash.js. 318 KB of unattributed
+JavaScript becomes a published tarball plus a 37 KB patch of five named
+changes.
 
 - `players/mp4/MP4Player.mjs` and `modules/dash2mp4/mp4merger.mjs` import
   `{MP4Box, DataStream}`; the vendored file exports them directly and drops

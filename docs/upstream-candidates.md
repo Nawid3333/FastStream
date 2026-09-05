@@ -215,6 +215,7 @@ where needed commit a patch. Ordered by risk, lowest first.
 | C7 | Coloris | git, pinned commit | 10 KB | `modules.e2e.mjs` | `queued` |
 | C8 | hls.js | npm 1.6.9 | 31 KB, 22 hunks | `playback.e2e.mjs` | `queued` |
 | C9 | dash.js | npm 5.1.0 | 354 KB | `playback.e2e.mjs` | `queued` |
+| C9b | mp4box | npm 0.5.3 | 37 KB, five changes, one an addition | `playback.e2e.mjs` | `queued` |
 
 **C8 carries a dependency of its own.** Its patch would shrink considerably
 if `video-dev/hls.js` widened its exports map — see the note at the foot of
