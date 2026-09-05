@@ -157,7 +157,7 @@ the migration order:
 
 | Count | File | Status |
 |---|---|---|
-| 7 | `coloris.mjs` | base pinned to v0.21.1, not yet generated |
+| 7 | `coloris.mjs` | generated from a pinned commit + patch |
 | 1 | `vtt.mjs` | provenance proven, `pnpm run verify:vtt` |
 | 1 | `gif/gif.mjs` | generated from npm |
 | 1 | `vad/ort.wasm.mjs` | generated from npm |
@@ -165,7 +165,10 @@ the migration order:
 | 1 | `dash.mjs` | generated from npm + patch |
 | 1 | `players/PlayerLoader.mjs` | **ours** |
 
-Clearing coloris more than halves what is left.
+Migrating a library does not clear its warnings - all seven coloris hits are
+`UNSAFE_VAR_ASSIGNMENT` on upstream's own `innerHTML` writes, and they stayed
+put when the file became generated. The linter grades the code; provenance is
+a separate axis, and it is the one the 2023 rejection was actually about.
 
 ### Original upstream baseline (firefox-github)
 

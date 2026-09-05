@@ -1,0 +1,314 @@
+diff --git a/dist/coloris.js b/dist/coloris.js
+index 49d67eedf513071bfa5531483f885666c4d405a8..13ba708f550ca72fac3f8b612222361c6680d131 100644
+--- a/dist/coloris.js
++++ b/dist/coloris.js	
+@@ -66,15 +66,10 @@
+ 
+     for (var key in options) {
+       switch (key) {
+-        case 'el':
+-          bindFields(options.el);
+-          if (options.wrap !== false) {
+-            wrapFields(options.el);
+-          }
+-          break;
+         case 'parent':
+           container = document.querySelector(options.parent);
+           if (container) {
++            init();
+             container.appendChild(picker);
+             settings.parent = options.parent;
+ 
+@@ -298,7 +293,7 @@
+    */
+   function bindFields(selector) {
+     // Show the color picker on click on the input fields that match the selector
+-    addListener(document, 'click', selector, function (event) {
++    addListener(container, 'click', selector, function (event) {
+       // Skip if inline mode is in use
+       if (settings.inline) {
+         return;
+@@ -334,7 +329,7 @@
+     });
+ 
+     // Update the color preview of the input fields that match the selector
+-    addListener(document, 'input', selector, function (event) {
++    addListener(container, 'input', selector, function (event) {
+       var parent = event.target.parentNode;
+ 
+       // Only update the preview if the field has been previously wrapped
+@@ -344,6 +339,53 @@
+     });
+   }
+ 
++function bindElement(element) {
++  element.addEventListener('click', function (event) {
++    // Skip if inline mode is in use
++    if (settings.inline) {
++      return;
++    }
++
++    // Apply any per-instance options first
++    attachVirtualInstance(event.target);
++
++    currentEl = event.target;
++    oldColor = currentEl.value;
++    currentFormat = getColorFormatFromStr(oldColor);
++    picker.classList.add('clr-open');
++
++    updatePickerPosition();
++    setColorFromStr(oldColor);
++
++    if (settings.focusInput || settings.selectInput) {
++      colorValue.focus({ preventScroll: true });
++      colorValue.setSelectionRange(currentEl.selectionStart, currentEl.selectionEnd);
++    }
++
++    if (settings.selectInput) {
++      colorValue.select();
++    }
++
++    // Always focus the first element when using keyboard navigation
++    if (keyboardNav || settings.swatchesOnly) {
++      getFocusableElements().shift().focus();
++    }
++
++    // Trigger an "open" event
++    currentEl.dispatchEvent(new Event('open', { bubbles: true }));
++  });
++
++  // Update the color preview of the input fields that match the selector
++  element.addEventListener('input', function (event) {
++    var parent = event.target.parentNode;
++
++    // Only update the preview if the field has been previously wrapped
++    if (parent.classList.contains('clr-field')) {
++      parent.style.color = event.target.value;
++    }
++  });
++}
++
+   /**
+    * Update the color picker's position and the color gradient's offset
+    */
+@@ -392,12 +434,12 @@
+ 
+         // Otherwise set the position relative to the whole document
+       } else {
+-        if (left + pickerWidth > document.documentElement.clientWidth) {
++        if (left + pickerWidth > container.clientWidth) {
+           left += coords.width - pickerWidth;
+           reposition.left = true;
+         }
+ 
+-        if (top + pickerHeight - scrollY > document.documentElement.clientHeight) {
++        if (top + pickerHeight - scrollY > container.clientHeight) {
+           if (pickerHeight + settings.margin <= coords.top) {
+             top = scrollY + coords.y - pickerHeight - settings.margin;
+             reposition.top = true;
+@@ -426,7 +468,7 @@
+    * @param {string} selector One or more selectors pointing to input fields.
+    */
+   function wrapFields(selector) {
+-    document.querySelectorAll(selector).forEach(function (field) {
++    container.querySelectorAll(selector).forEach(function (field) {
+       var parentNode = field.parentNode;
+ 
+       if (!parentNode.classList.contains('clr-field')) {
+@@ -548,7 +590,7 @@
+       settings.onChange.call(window, color, currentEl);
+     }
+ 
+-    document.dispatchEvent(new CustomEvent('coloris:pick', { detail: { color: color, currentEl: currentEl } }));
++    container.ownerDocument.dispatchEvent(new CustomEvent('coloris:pick', { detail: { color: color, currentEl: currentEl } }));
+   }
+ 
+   /**
+@@ -702,7 +744,7 @@
+ 
+ 
+     // Select the current format in the format switcher
+-    document.querySelector(".clr-format [value=\"" + format + "\"]").checked = true;
++    container.querySelector(".clr-format [value=\"" + format + "\"]").checked = true;
+   }
+ 
+   /**
+@@ -920,7 +962,6 @@
+    */
+   function init() {
+     // Render the UI
+-    container = undefined;
+     picker = document.createElement('div');
+     picker.setAttribute('id', 'clr-picker');
+     picker.className = 'clr-picker';
+@@ -983,19 +1024,19 @@
+     });
+ 
+     addListener(colorArea, 'mousedown', function (event) {
+-      addListener(document, 'mousemove', moveMarker);
++      addListener(container, 'mousemove', moveMarker);
+     });
+ 
+     addListener(colorArea, 'touchstart', function (event) {
+-      document.addEventListener('touchmove', moveMarker, { passive: false });
++      container.addEventListener('touchmove', moveMarker, { passive: false });
+     });
+ 
+     addListener(colorMarker, 'mousedown', function (event) {
+-      addListener(document, 'mousemove', moveMarker);
++      addListener(container, 'mousemove', moveMarker);
+     });
+ 
+     addListener(colorMarker, 'touchstart', function (event) {
+-      document.addEventListener('touchmove', moveMarker, { passive: false });
++      container.addEventListener('touchmove', moveMarker, { passive: false });
+     });
+ 
+     addListener(colorValue, 'change', function (event) {
+@@ -1007,6 +1048,11 @@
+       }
+     });
+ 
++  addListener(colorValue, 'keydown', function(event) {
++    if (event.key !== "Tab" && event.key !== "Escape")
++      event.stopPropagation();
++  })
++
+     addListener(clearButton, 'click', function (event) {
+       pickColor('');
+       closePicker();
+@@ -1032,21 +1078,21 @@
+       }
+     });
+ 
+-    addListener(document, 'mouseup', function (event) {
+-      document.removeEventListener('mousemove', moveMarker);
++    addListener(container, 'mouseup', function (event) {
++      container.removeEventListener('mousemove', moveMarker);
+     });
+ 
+-    addListener(document, 'touchend', function (event) {
+-      document.removeEventListener('touchmove', moveMarker);
++    addListener(container, 'touchend', function (event) {
++      container.removeEventListener('touchmove', moveMarker);
+     });
+ 
+-    addListener(document, 'mousedown', function (event) {
++    addListener(container, 'mousedown', function (event) {
+       keyboardNav = false;
+       picker.classList.remove('clr-keyboard-nav');
+       closePicker();
+     });
+ 
+-    addListener(document, 'keydown', function (event) {
++    addListener(container, 'keydown', function (event) {
+       var key = event.key;
+       var target = event.target;
+       var shiftKey = event.shiftKey;
+@@ -1070,14 +1116,16 @@
+         if (shiftKey && target === firstFocusable) {
+           lastFocusable.focus();
+           event.preventDefault();
++          event.stopPropagation();
+         } else if (!shiftKey && target === lastFocusable) {
+           firstFocusable.focus();
+           event.preventDefault();
++          event.stopPropagation();
+         }
+       }
+     });
+ 
+-    addListener(document, 'click', '.clr-field button', function (event) {
++    addListener(container, 'click', '.clr-field button', function (event) {
+       // Reset any previously set per-instance options
+       if (hasInstance) {
+         resetVirtualInstance();
+@@ -1098,9 +1146,40 @@
+       if (Object.keys(movements).includes(event.key)) {
+         moveMarkerOnKeydown.apply(void 0, movements[event.key]);
+         event.preventDefault();
++        event.stopPropagation();
+       }
+     });
+ 
++  addListener(hueSlider, 'keydown', function (event) {
++    const value = hueSlider.value * 1;
++    if (event.key === "ArrowLeft") {
++      hueSlider.value = value - 5;
++      setHue();
++      event.stopPropagation();
++      event.preventDefault();
++    } else if (event.key === "ArrowRight") {
++      hueSlider.value = value + 5;
++      setHue();
++      event.stopPropagation();
++      event.preventDefault();
++    }
++  });
++
++  addListener(alphaSlider, 'keydown', function (event) {
++    const value = alphaSlider.value * 1;
++    if (event.key === "ArrowLeft") {
++      alphaSlider.value = value - 2;
++      setAlpha();
++      event.stopPropagation();
++      event.preventDefault();
++    } else if (event.key === "ArrowRight") {
++      alphaSlider.value = value + 2;
++      setAlpha();
++      event.stopPropagation();
++      event.preventDefault();
++    }
++  });
++
+     addListener(colorArea, 'click', moveMarker);
+     addListener(hueSlider, 'input', setHue);
+     addListener(alphaSlider, 'input', setAlpha);
+@@ -1123,7 +1202,7 @@
+    * @return {object} The DOM element with the provided id.
+    */
+   function getEl(id) {
+-    return document.getElementById(id);
++    return container.ownerDocument.getElementById(id);
+   }
+ 
+   /**
+@@ -1142,7 +1221,7 @@
+         if (matches.call(event.target, selector)) {
+           fn.call(event.target, event);
+         }
+-      });
++      }, true);
+ 
+       // If the selector is not a string then it's a function
+       // in which case we need a regular event listener
+@@ -1163,7 +1242,7 @@
+     if (document.readyState !== 'loading') {
+       fn.apply(void 0, args);
+     } else {
+-      document.addEventListener('DOMContentLoaded', function () {
++      container.addEventListener('DOMContentLoaded', function () {
+         fn.apply(void 0, args);
+       });
+     }
+@@ -1188,11 +1267,7 @@
+     function Coloris(options) {
+       DOMReady(function () {
+         if (options) {
+-          if (typeof options === 'string') {
+-            bindFields(options);
+-          } else {
+-            configure(options);
+-          }
++          configure(options);
+         }
+       });
+     }var _loop2 = function _loop2(
+@@ -1207,6 +1282,6 @@
+   }();
+ 
+   // Init the color picker when the DOM is ready
+-  DOMReady(init);
++  // DOMReady(init);
+ 
+ })(window, document, Math);

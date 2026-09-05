@@ -163,6 +163,18 @@ const VENDOR = [
     patched: true,
     transform: toWebmModule,
   },
+  {
+    // Pinned as a git dependency because mdbassit/Coloris is not on npm - the
+    // package literally named `coloris` is an unrelated project, and
+    // @melloware/coloris is a different fork. pnpm records the commit and a
+    // tarball integrity hash in the lockfile, which is the same thing a
+    // registry version gives a reviewer.
+    name: 'Coloris',
+    from: 'node_modules/Coloris/dist/coloris.js',
+    to: 'chrome/player/modules/coloris.mjs',
+    patched: true,
+    transform: toColorisModule,
+  },
 ];
 
 /**
@@ -493,6 +505,37 @@ function toWebmModule(sources) {
 
   return body.replace(/^class JsWebm \{/m, 'export class JsWebm {') +
     '\n\nwindow.JsWebm = JsWebm;\n';
+}
+
+/**
+ * Turns Coloris's dist bundle into an ES module scoped to a container.
+ *
+ * Upstream wraps everything in `(function (window, document, Math) { ... })`
+ * and assigns the result to `window.Coloris`. Removing the wrapper puts the
+ * same declarations at module scope, which is what the vendored copy did and
+ * what lets `bindElement` be exported alongside `Coloris`.
+ *
+ * The behavioural changes - the container rebinding, `bindElement`, and the
+ * slider keyboard handlers - are not here. They are in
+ * patches/Coloris@0.21.1.patch, so a reviewer reads them as a diff against a
+ * commit the lockfile pins by hash.
+ *
+ * @param {string} src Coloris's dist/coloris.js
+ * @return {string} the same code as an ES module
+ */
+function toColorisModule(src) {
+  const head = '(function (window, document, Math, undefined) {\n';
+  const tail = '})(window, document, Math);';
+  if (!src.includes(head) || !src.includes(tail)) {
+    throw new Error(
+        'coloris: the UMD wrapper is not where it was. Re-derive the ' +
+        'transform before trusting the generated module.');
+  }
+  return normaliseText(src)
+      .replace(head, '')
+      .replace(tail, '')
+      .replace('window.Coloris = function () {', 'export const Coloris = function () {') +
+    '\nColoris.bindElement = bindElement;\n';
 }
 
 let failed = false;

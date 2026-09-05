@@ -8,6 +8,7 @@ allowBuilds:
   protobufjs: false
   spawn-sync: false
 patchedDependencies:
+  Coloris@0.21.1: patches/Coloris@0.21.1.patch
   dashjs@5.1.0: patches/dashjs@5.1.0.patch
   hls.js@1.6.9: patches/hls.js@1.6.9.patch
   jswebm@0.1.2: patches/jswebm@0.1.2.patch

@@ -180,3 +180,56 @@ describe('vendored demuxers', function() {
     expect(result.keyframes).toBeGreaterThan(0);
   });
 });
+
+describe('the colour picker', function() {
+  beforeEach(async function() {
+    await browser.url('/player/index.html?t=' + Date.now());
+  });
+
+  it('coloris opens inside the player and sets a colour', async function() {
+    // coloris.mjs is generated from a git dependency the lockfile pins by
+    // commit, plus patches/Coloris@0.21.1.patch. Nothing else in the suite
+    // touches the picker, and what that patch does is scope it to a
+    // container element instead of the document - so this drives the page's
+    // own instance, the one InterfaceController creates with
+    // `parent: '.mainplayer'`, rather than standing up a second one.
+    //
+    // That matters for more than realism: coloris addresses its own UI by
+    // fixed element ids, so two pickers in one document would collide and a
+    // document-wide query would silently test the wrong one.
+    const result = await runInPage(async () => {
+      const {Coloris} = await import('/player/modules/coloris.mjs');
+
+      const picker = document.querySelector('#clr-picker');
+      if (!picker) throw new Error('the player never built its picker');
+
+      const input = document.createElement('input');
+      input.value = '#ff0000';
+      document.querySelector('.mainplayer').appendChild(input);
+      Coloris.bindElement(input);
+
+      input.click();
+      await new Promise((r) => setTimeout(r, 200));
+      const open = picker.classList.contains('clr-open');
+
+      const colorValue = picker.querySelector('#clr-color-value');
+      colorValue.value = '#00ff00';
+      colorValue.dispatchEvent(new Event('change', {bubbles: true}));
+      await new Promise((r) => setTimeout(r, 200));
+
+      return {
+        // The patch renders the picker into the configured parent. Left
+        // unpatched it attaches to document.body, so this is the assertion
+        // that separates a working container rebinding from a broken one.
+        parent: picker.parentElement.className,
+        open,
+        value: input.value,
+      };
+    });
+
+    console.log('      coloris:', JSON.stringify(result));
+    expect(result.parent).toContain('mainplayer');
+    expect(result.open).toBe(true);
+    expect(result.value).toBe('#00ff00');
+  });
+});

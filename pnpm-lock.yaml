@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  Coloris@0.21.1: 168cefadcbd4d0b0f63d464316c8d77a6c82bb59928d143353706dec045836c6
   dashjs@5.1.0: d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61
   hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
@@ -31,6 +32,9 @@ importers:
       '@wdio/spec-reporter':
         specifier: ^9.31.2
         version: 9.31.2
+      Coloris:
+        specifier: github:mdbassit/Coloris#v0.21.1
+        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=168cefadcbd4d0b0f63d464316c8d77a6c82bb59928d143353706dec045836c6)
       acorn:
         specifier: 8.18.0
         version: 8.18.0
@@ -1425,6 +1429,10 @@ packages:
   '@zip.js/zip.js@2.9.0':
     resolution: {integrity: sha512-AblaO/5MIVKiVExlF7GD17qn5NSsQ7qdtE+uEIMU6OiwHLqPxaI5Z5gLxMDxdEBzaiVVRCFNABcIc3sZpFcUeA==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
+
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825:
+    resolution: {gitHosted: true, integrity: sha512-pWMXd/4JNXN2L4+oY3m9KPcxf+yVQCE0f1zyLltOjG2596I++b4HnnX9gxc6csbidjwDJ0oJZESOVoLtIKZGug==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825}
+    version: 0.21.1
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -5841,6 +5849,8 @@ snapshots:
       '@wdio/logger': 9.29.1
 
   '@zip.js/zip.js@2.9.0': {}
+
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=168cefadcbd4d0b0f63d464316c8d77a6c82bb59928d143353706dec045836c6): {}
 
   abort-controller@3.0.0:
     dependencies:

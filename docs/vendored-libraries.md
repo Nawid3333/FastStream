@@ -478,19 +478,19 @@ row of the table above. Removing `demux()`'s return makes it fail, verified
 by doing exactly that. The fixture is transcoded from the MP4 one with ffmpeg
 on first run, so no binary enters the repository.
 
-### coloris: base pinned to v0.21.1, and the adaptation is enumerable
+### coloris: generated from a pinned commit, with a 9 KB patch
 
-An earlier note here said the base was "closest to v0.22.0 by statement
-matching" and that none of v0.19.0-v0.25.0 matched. Two corrections.
+Two earlier claims here were wrong, and both came from searching the wrong
+thing rather than from ranking the results wrongly.
 
-First, the search was looking at the wrong file. The vendored copy uses `var`
-and ends `}();`, which is babel output - so it comes from `dist/coloris.js`,
-not `src/coloris.js`. mdbassit/Coloris builds its dist with babel and gulp.
+First, the base was searched against `src/coloris.js`. The vendored copy uses
+`var` and ends `}();`, which is babel output - it comes from
+**`dist/coloris.js`**, which mdbassit builds with babel and gulp.
 
-Second, ranking by AST size gets this one wrong. Size put v0.25.0 first, but
-only because the vendored file is larger than *every* release, which makes
-"newest" and "nearest" the same answer for the wrong reason. Matching
-**declaration by declaration** separates them properly:
+Second, ranking by whole-file AST size put v0.25.0 first. That is the key
+failing: the vendored file is larger than *every* release, so "newest" and
+"nearest" become the same answer for the wrong reason. Matching
+**declaration by declaration** separates them:
 
 | Release | Declarations identical |
 |---|---|
@@ -502,26 +502,57 @@ only because the vendored file is larger than *every* release, which makes
 | v0.24.0 | 30 |
 | v0.25.0 | 29 |
 
-v0.21.1 and v0.22.0 tie, and one line breaks the tie: v0.22.0 added
+v0.21.1 and v0.22.0 tie, and one line breaks it: v0.22.0 added
 `ready: DOMReady` to the exported object, which the vendored file does not
-have. So the base is **mdbassit/Coloris v0.21.1, `dist/coloris.js`**.
+have.
 
-The remainder is small and entirely accounted for: **31 declarations
-identical, 10 differing, 2 added, and none of upstream's missing.** The ten
-are all the same adaptation - `document` rebound to a `container` element so
-the picker queries and listens inside FastStream's own subtree:
-`getEl`, `addListener`, `DOMReady`, `updatePickerPosition`, `wrapFields`,
-`bindFields`, `pickColor`, `updateColor`, `init`, `configure` (which also
-gained the `container` setting). The two additions are the export shape:
-`bindElement` exposed, and `Coloris` itself.
+**mdbassit/Coloris is not on npm** - the package literally named `coloris` is
+an unrelated project and `@melloware/coloris` is a different fork - so it is
+pinned as a git dependency instead. pnpm records the commit and a tarball
+integrity hash in the lockfile:
 
-That is a documentable provenance rather than an unexplained blob, which is
-what AMO asks for. Going further - a pinned git dependency plus a patch, as
-webm.mjs now has - is possible because the repository carries a `package.json`
-with `main: dist/coloris.js`, so pnpm would record the commit hash. It is
-worth doing: coloris accounts for **7 of the 13 remaining addons-linter
-warnings**, more than any other file. What it needs first is a test, because
-nothing in the suite currently touches the colour picker.
+```
+Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825
+  integrity: sha512-pWMXd/4JNXN2L4+oY3m9KPcxf+yVQCE0f1zyLltOjG2596I++b4HnnX9gxc6csbidjwDJ0oJZESOVoLtIKZGug==
+```
+
+That is the same guarantee a registry version gives a reviewer: a fixed
+artifact they can fetch and hash themselves.
+
+FastStream's changes are in `patches/Coloris@0.21.1.patch`, 9 KB, and they
+are not the cosmetic rebinding the earlier note described. They are three
+features:
+
+| Change | What it is |
+|---|---|
+| `document` → `container` at 19 call sites, plus `container.ownerDocument` where a real Document is needed | scopes the picker to the player's own subtree instead of the page |
+| `init()` moved into `configure`'s `case 'parent'`, `container = undefined` dropped from `init`, `DOMReady(init)` disabled | the picker is built into its container when configured, not at DOMReady |
+| a new `bindElement(element)`, and `case 'el'` removed from `configure` | binds one element directly instead of a selector, which is what `SubtitlesSettingsManager` needs |
+| keyboard control for the hue and alpha sliders, `stopPropagation` on trapped keys, and capture-phase delegated listeners | the picker lives inside a video player that binds arrow keys and Tab of its own |
+
+The module shape - unwrapping the UMD and exporting `Coloris` and
+`bindElement` - is in `sync-vendor.mjs`, not the patch, so the package in
+`node_modules` stays a valid script.
+
+Applying all of it reproduces the vendored file exactly: **43 of 43
+declarations identical, and the whole file parses to the same program.**
+
+**Tested.** `tests/e2e/specs/modules.e2e.mjs` drives the player's own picker
+the way `InterfaceController` does, and asserts it renders into `.mainplayer`
+rather than the document, opens on click, and writes the chosen colour back
+to the bound input. Removing the patched `init()` call makes it fail,
+verified by doing exactly that.
+
+**It does not change the warning count, and that is worth being exact
+about.** coloris still accounts for 7 of the 13 addons-linter warnings after
+the migration; they are `UNSAFE_VAR_ASSIGNMENT` on the picker's own
+`innerHTML` writes, which are upstream's code and are there whether the file
+is vendored or generated. addons-linter grades the code, not where it came
+from.
+
+What the migration changes is the thing that actually got the add-on
+refused: a reviewer can now fetch a pinned commit, hash it, and read a 9 KB
+diff, instead of being asked to trust 40 KB of unattributed JavaScript.
 
 ### sweetalert2 ships a payload that must stay removed
 
@@ -587,10 +618,10 @@ So mp4box stays vendored for now. What is known:
 The lesson generalises: a library migration is not "provably inert" because
 its diff looks additive. Only the end-to-end suite settles it.
 
-## The three that stay vendored
+## The two that stay vendored
 
-vtt.js, coloris and knob total 153 KB. None can be generated from an npm
-release, and each for a different reason. Documenting their provenance
+vtt.js and knob total 116 KB. Neither can be generated from a published
+artifact, and each for a different reason. Documenting their provenance
 precisely is what a reviewer actually needs; adding a bundler to the build to
 produce them from pinned commits would replace one unverifiable artifact with
 another, since the reviewer would then have to trust our build pipeline
@@ -614,14 +645,6 @@ paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 v4.7.4 through v5.1.0, plus three changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
-
-### coloris — 40 KB
-
-Base pinned: **mdbassit/Coloris v0.21.1, `dist/coloris.js`**. See
-"coloris: base pinned to v0.21.1" above for how it was settled and what the
-remaining ten functions change.
-
-Upstream: https://github.com/mdbassit/Coloris
 
 ### knob — 28 KB
 

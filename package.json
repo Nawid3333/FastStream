@@ -45,6 +45,7 @@
     "@wdio/local-runner": "^9.31.5",
     "@wdio/mocha-framework": "^9.31.5",
     "@wdio/spec-reporter": "^9.31.2",
+    "Coloris": "github:mdbassit/Coloris#v0.21.1",
     "acorn": "8.18.0",
     "dashjs": "5.1.0",
     "eslint": "^8.49.0",
