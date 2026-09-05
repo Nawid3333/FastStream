@@ -438,14 +438,14 @@ That needs Docker or an emsdk install, neither of which is set up on this
 machine yet. Until it is, the honest status is: the wasm works, is proven to
 work by test, and its build is documented but not yet reproduced.
 
-### The VAD blobs: 2.8 MB, and the same problem twice
+### The VAD blobs: the model is proven, the runtime is not
 
 `vad/` holds the two largest files left in the tree, and both are binaries a
 reviewer cannot read:
 
 | File | Size | Status |
 |---|---|---|
-| `silero_vad_half.ort` | 1,856,120 B | converted from a published `.onnx` |
+| `silero_vad_half.ort` | 1,856,120 B | **verified** - `pnpm run verify:vad` |
 | `ort-wasm-simd-threaded.wasm` | 1,037,262 B | custom build; npm ships 11,241,642 B |
 | `ort-wasm-simd-threaded.mjs` | 24 KB | hand-minified emscripten glue |
 | `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0 |
@@ -457,9 +457,34 @@ no reason to expect one: `.ort` is ONNX Runtime's own serialised format,
 produced by converting a `.onnx` with `convert_onnx_models_to_ort`. So the
 provenance path is a two-step one, and the honest form of it is:
 `silero_vad_half.onnx` (published, hash-verifiable) plus the exact conversion
-command. That is the same shape as libsamplerate's problem - a published base
-and a documented build - and unlike libsamplerate the base is a file anyone
-can download and hash.
+command.
+
+That is now checked rather than argued. `tools/verify-vad.mjs` fetches the
+published models from a pinned tag and asks how much of each appears
+**byte-for-byte** inside the vendored `.ort`. Weight tensors are long
+contiguous runs in both protobuf and flatbuffers, so a converted model carries
+them across verbatim even though the two formats frame everything else
+differently:
+
+| Published model | Content shared with the `.ort` |
+|---|---|
+| `silero_vad_half.onnx` | **96.60%** |
+| `silero_vad_16k_op15.onnx` | 20.48% |
+| `silero_vad.onnx` (full precision) | 11.39% |
+
+The controls are the point. A single high number could mean the method is
+measuring the file format; three numbers this far apart mean it is measuring
+the model. An exhaustive pass over every 64-byte window agrees with the
+sampled one to two decimal places, and the longest single run shared with the
+base is 264,128 bytes.
+
+It is not 100% because ORT's graph optimiser fuses nodes on conversion - the
+file registers `com.microsoft:FusedConv:1` - and fusion rewrites the weights it
+folds together. The script asserts 90%, refuses to pass if a control ever
+scores as high as the base, and was watched failing: scribbling over the
+weight region drops the base to 64.14% and exits 1.
+
+So the model is no longer the problem. **The runtime still is.**
 
 **The runtime.** The wasm is a tenth the size of the one onnxruntime-web
 publishes, so it is a custom minimal build, and its glue was hand-minified.

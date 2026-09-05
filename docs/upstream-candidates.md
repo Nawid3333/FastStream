@@ -231,6 +231,23 @@ this file. Worth filing that issue before offering C8.
   can re-run, which is what a reviewer is actually asking for.
 - **Status:** `queued`
 
+## C10b. VAD model provenance, verified rather than generated
+
+- **What:** `tools/verify-vad.mjs` and `pnpm run verify:vad`. snakers4/silero-vad
+  publishes no `.ort` at all, so `silero_vad_half.ort` cannot be generated. The
+  script instead fetches the published `.onnx` models from a pinned tag and
+  measures how much of each appears byte-for-byte inside the vendored file:
+  96.60% for `silero_vad_half.onnx` against 20.48% and 11.39% for the two
+  controls.
+- **Why he wants it:** it converts a 1.8 MB opaque binary into a claim anyone
+  can re-run in one command, and the controls are what make the number mean
+  something.
+- **Depends on:** nothing. Same shape as C10.
+- **Note:** covers the model only. The ONNX Runtime build beside it,
+  `ort-wasm-simd-threaded.wasm`, is still unverified and needs a different
+  answer.
+- **Status:** `queued`
+
 ## C11. `docs/vendored-libraries.md`
 
 - **What:** the analysis behind wave C — every base version, how it was

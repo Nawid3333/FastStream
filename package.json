@@ -28,6 +28,7 @@
     "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e",
     "verify:vtt": "node tools/verify-vtt.mjs",
+    "verify:vad": "node tools/verify-vad.mjs",
     "sign:amo": "node tools/sign-amo.mjs",
     "sign:amo:listed": "node tools/sign-amo.mjs --listed"
   },
