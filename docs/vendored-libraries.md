@@ -446,8 +446,8 @@ reviewer cannot read:
 | File | Size | Status |
 |---|---|---|
 | `silero_vad_half.ort` | 1,856,120 B | **verified** - `pnpm run verify:vad` |
-| `ort-wasm-simd-threaded.wasm` | 1,037,262 B | custom build; npm ships 11,241,642 B |
-| `ort-wasm-simd-threaded.mjs` | 24 KB | hand-minified emscripten glue |
+| `ort-wasm-simd-threaded.wasm` | 1,037,262 B | **stamped** - `pnpm run verify:ort` |
+| `ort-wasm-simd-threaded.mjs` | 24 KB | emscripten glue from the same build |
 | `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0 |
 
 **The model.** snakers4/silero-vad publishes only ONNX - `silero_vad.onnx`,
@@ -487,8 +487,76 @@ weight region drops the base to 64.14% and exits 1.
 So the model is no longer the problem. **The runtime still is.**
 
 **The runtime.** The wasm is a tenth the size of the one onnxruntime-web
-publishes, so it is a custom minimal build, and its glue was hand-minified.
-Neither has a published counterpart.
+publishes, so it is a custom reduced build with no published counterpart. It
+is not anonymous, though: ONNX Runtime stamps its own build metadata into the
+binary, and reading it out gives the whole configuration.
+
+```
+ORT Build Info: git-branch=main, git-commit-id=5c74539ab7,
+build type=MinSizeRel, cmake cxx flags:  -ffunction-sections -fdata-sections
+-flto -msimd128 -pthread -Wno-pthreads-mem-growth -fno-exceptions
+-fno-unwind-tables -fno-asynchronous-unwind-tables
+```
+
+Plus, elsewhere in the binary, the version `1.20.0` and the message *"This
+build doesn't support ORT format models older than version 5"* - which is what
+a reduced build says, and the reason the model beside it is `.ort` rather than
+`.onnx`. A reduced runtime will not load ONNX at all, so the two cannot be
+separated.
+
+`5c74539ab7` is real: `5c74539ab70e953e952fd2e4a8cc29daaf3455d5`, committed
+2024-09-03. It is a **main-branch commit, not the v1.20.0 tag** (`1a313abba7`,
+about two months later), which is worth stating plainly because it means the
+runtime and the loader do not come from the same place - see below.
+
+`pnpm run verify:ort` reads that stamp out of the shipped file and checks every
+field against the values above, so this documentation cannot quietly drift away
+from the binary. It was watched failing: scribbling over the commit id makes it
+exit 1. What it proves is that the binary self-reports a specific upstream
+commit and configuration; what it does not prove is that rebuilding there
+reproduces these bytes.
+
+The flags say what that rebuild would be. `-msimd128` is SIMD, `-pthread` is
+threads, `-fno-exceptions` is `--disable_exceptions`, `MinSizeRel` is the
+config, and the ORT-format-only restriction is `--minimal_build` - so:
+
+```sh
+git clone --recursive https://github.com/microsoft/onnxruntime
+cd onnxruntime && git checkout 5c74539ab7
+./build.sh --build_wasm --config MinSizeRel \
+  --enable_wasm_simd --enable_wasm_threads \
+  --minimal_build --disable_exceptions --skip_tests
+```
+
+That is derived from the flags rather than run, and it needs emscripten plus a
+full ONNX Runtime build to confirm. It is the remaining work on this file.
+
+**The glue.** `ort-wasm-simd-threaded.mjs` is 23,512 bytes against the 24,618
+onnxruntime-web 1.20.0 publishes, and the two differ only in minified
+identifiers (`h` where upstream has `g`) around identical structure. So it is
+not hand-written or hand-minified: it is the emscripten output of the same
+build that produced the wasm, which is what it should be. Glue and wasm pair
+correctly with each other.
+
+**The pairing, now actually run.** `ort.wasm.mjs` is generated from the
+published onnxruntime-web 1.20.0, while the glue and wasm come from main two
+months earlier. A release loader driving a pre-release runtime is exactly the
+combination that fails quietly, and nothing had ever executed it - the VAD is
+reached only from `AudioAnalyzerNode`, behind subtitle syncing.
+
+`tests/e2e/ext-specs/vad.e2e.mjs` now runs it on the extension origin, under
+the real CSP: create an `InferenceSession` from the `.ort`, feed it 512 samples
+and a zeroed `[2,1,128]` state, exactly as `vad.mjs` does.
+
+| | |
+|---|---|
+| input names | `input`, `state` |
+| output names | `output`, `stateN` |
+| silence | `0.0443` - correctly not speech |
+| noise | `0.0244` - different, so the model reads its input |
+| returned state | `[2,1,128]` |
+
+It works. That retires the concern rather than arguing it away.
 
 **The glue's own upstream.** `vad/vad.mjs` is not first-party either: the
 `Silero` class, `modelFetcher`, `frameSamples: 512`,
@@ -497,10 +565,9 @@ ricky0123/vad-web's. That project ships `.onnx` too, never `.ort`, which
 confirms the conversion is FastStream's own step - and means the JavaScript
 side has a verifiable base of its own if it is ever worth pinning.
 
-**Untested pairing.** `ort.wasm.mjs` now comes from onnxruntime-web 1.20.0
-while the glue and wasm beside it do not, and nothing in the suite exercises
-the VAD path. That combination has never been run end to end. It should be,
-before any of the above is treated as settled.
+**Still open.** Only two things: reproducing the wasm from the command above,
+and pinning `vad.mjs` to a ricky0123/vad-web release. Neither blocks the
+feature working, and both are provenance rather than correctness.
 
 ### vtt.js: provenance proven, and re-checkable on demand
 

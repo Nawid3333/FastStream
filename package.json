@@ -27,9 +27,10 @@
     "start:ff:fresh:amo": "node tools/launch-ff-fresh.mjs amo",
     "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
     "test:ext": "wdio run tests/e2e/wdio.extension.conf.mjs",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e && pnpm run test:ext",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e && pnpm run test:ext && pnpm run verify:ort",
     "verify:vtt": "node tools/verify-vtt.mjs",
     "verify:vad": "node tools/verify-vad.mjs",
+    "verify:ort": "node tools/verify-ort.mjs",
     "sign:amo": "node tools/sign-amo.mjs",
     "sign:amo:listed": "node tools/sign-amo.mjs --listed"
   },
