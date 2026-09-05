@@ -27,3 +27,7 @@ logs/
 
 # AMO signing credentials. Never commit these.
 .amo-credentials.json
+
+# addons-linter JSON dumps.
+lint-amo.json
+lint-*.json
