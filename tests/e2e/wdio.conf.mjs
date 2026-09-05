@@ -27,6 +27,7 @@
 // manifest. Those need the extension harness and are checked by
 // `pnpm run lint:amo:dist` and by loading the build in Firefox.
 
+import {spawnSync} from 'node:child_process';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +53,7 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.ort': 'application/octet-stream',
   '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
 };
 
 // The MP4 fixture is served locally rather than fetched from a public host.
@@ -81,6 +83,37 @@ async function ensureMp4Fixture() {
     );
   }
   fs.writeFileSync(MP4_FIXTURE, Buffer.from(await res.arrayBuffer()));
+}
+
+// The WebM fixture is transcoded from the MP4 one rather than downloaded or
+// committed. webm.mjs is generated from jswebm's published sources plus
+// patches/jswebm@0.1.2.patch, and every one of those patched changes is on
+// this path - the VP9 codec string, the colour metadata, the keyFrame
+// spelling, and demux()'s progress return, without which WebMDemuxer.process
+// stops before demuxing anything. None of it is reachable from the MP4
+// specs.
+const WEBM_FIXTURE = path.join(fixturesDir, 'sample.webm');
+
+/**
+ * Transcodes the WebM fixture from the MP4 one if it is not already present.
+ *
+ * @return {Promise<void>}
+ */
+async function ensureWebmFixture() {
+  if (fs.existsSync(WEBM_FIXTURE) && fs.statSync(WEBM_FIXTURE).size > 0) return;
+  const args = [
+    '-y', '-v', 'error', '-i', MP4_FIXTURE, '-t', '2',
+    '-vf', 'scale=160:120', '-c:v', 'libvpx-vp9', '-b:v', '120k',
+    '-cpu-used', '8', WEBM_FIXTURE,
+  ];
+  const {status, error, stderr} = spawnSync('ffmpeg', args, {encoding: 'utf8'});
+  if (status !== 0) {
+    throw new Error(
+        `could not build the WebM fixture with ffmpeg` +
+        `${error ? ` (${error.message})` : ''}. CI installs ffmpeg; ` +
+        `locally it must be on PATH.\n${stderr || ''}`,
+    );
+  }
 }
 
 if (!fs.existsSync(path.join(webBuildDir, 'player', 'index.html'))) {
@@ -133,6 +166,7 @@ export const config = {
 
   onPrepare: async function() {
     await ensureMp4Fixture();
+    await ensureWebmFixture();
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {
         const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);

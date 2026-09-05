@@ -131,3 +131,52 @@ describe('vendored encoding libraries', function() {
     expect(result.length).toBeGreaterThan(0);
   });
 });
+
+describe('vendored demuxers', function() {
+  beforeEach(async function() {
+    await browser.url('/player/index.html?t=' + Date.now());
+  });
+
+  it('webm.mjs demuxes a real VP9 stream', async function() {
+    // Every change in patches/jswebm@0.1.2.patch is exercised here, which is
+    // the point: webm.mjs stopped being a hand-made blob and became jswebm's
+    // published sources plus that patch, and nothing else in the suite
+    // touches this code path.
+    //
+    // demux()'s boolean return is the one to watch. Upstream returns
+    // nothing, so WebMDemuxer.process() - `while (this.demuxer.demux())` -
+    // stops on the first call and the demuxer yields no packets at all.
+    // Verified by removing the return and watching this fail; a test that
+    // only imported the module would not notice.
+    const result = await runInPage(async () => {
+      const {WebMDemuxer} =
+        await import('/player/modules/reencoder/demuxers.mjs');
+      const bytes = new Uint8Array(
+          await (await fetch('/fixtures/sample.webm')).arrayBuffer());
+
+      const demuxer = new WebMDemuxer();
+      demuxer.initialize(bytes.buffer);
+      const config = demuxer.getVideoDecoderConfig();
+      const chunks = demuxer.getVideoChunks(10);
+      return {
+        codec: config && config.codec,
+        width: config && config.codedWidth,
+        height: config && config.codedHeight,
+        chunks: chunks.length,
+        keyframes: chunks.filter((c) => c.type === 'key').length,
+      };
+    });
+
+    console.log('      webm:', JSON.stringify(result));
+    // The full codec string comes from initVp9Headers, which reads the VP9
+    // profile out of the first frame. Upstream jswebm reports a bare "vp9",
+    // which WebCodecs rejects as an incomplete codec string.
+    expect(result.codec).toMatch(/^vp09\.\d\d\.\d\d\.\d\d/);
+    expect(result.width).toBe(160);
+    expect(result.height).toBe(120);
+    expect(result.chunks).toBeGreaterThan(0);
+    // Chunk types come from `isKeyframe`, which upstream sets from a
+    // misspelled field and so leaves undefined on every frame.
+    expect(result.keyframes).toBeGreaterThan(0);
+  });
+});

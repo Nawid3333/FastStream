@@ -341,6 +341,45 @@ cannot verify. It needs a decision rather than more measurement:
    version and flags so a reviewer can rebuild it. Cheaper in bytes, more work
    to document, and only as good as the reproducibility.
 
+### The VAD blobs: 2.8 MB, and the same problem twice
+
+`vad/` holds the two largest files left in the tree, and both are binaries a
+reviewer cannot read:
+
+| File | Size | Status |
+|---|---|---|
+| `silero_vad_half.ort` | 1,856,120 B | converted from a published `.onnx` |
+| `ort-wasm-simd-threaded.wasm` | 1,037,262 B | custom build; npm ships 11,241,642 B |
+| `ort-wasm-simd-threaded.mjs` | 24 KB | hand-minified emscripten glue |
+| `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0 |
+
+**The model.** snakers4/silero-vad publishes only ONNX - `silero_vad.onnx`,
+`silero_vad_half.onnx` and four variants, plus a `.jit` and a
+`.safetensors`. There is no `.ort` anywhere in that repository, and there is
+no reason to expect one: `.ort` is ONNX Runtime's own serialised format,
+produced by converting a `.onnx` with `convert_onnx_models_to_ort`. So the
+provenance path is a two-step one, and the honest form of it is:
+`silero_vad_half.onnx` (published, hash-verifiable) plus the exact conversion
+command. That is the same shape as libsamplerate's problem - a published base
+and a documented build - and unlike libsamplerate the base is a file anyone
+can download and hash.
+
+**The runtime.** The wasm is a tenth the size of the one onnxruntime-web
+publishes, so it is a custom minimal build, and its glue was hand-minified.
+Neither has a published counterpart.
+
+**The glue's own upstream.** `vad/vad.mjs` is not first-party either: the
+`Silero` class, `modelFetcher`, `frameSamples: 512`,
+`positiveSpeechThreshold: 0.5` and `redemptionFrames: 8` are
+ricky0123/vad-web's. That project ships `.onnx` too, never `.ort`, which
+confirms the conversion is FastStream's own step - and means the JavaScript
+side has a verifiable base of its own if it is ever worth pinning.
+
+**Untested pairing.** `ort.wasm.mjs` now comes from onnxruntime-web 1.20.0
+while the glue and wasm beside it do not, and nothing in the suite exercises
+the VAD path. That combination has never been run end to end. It should be,
+before any of the above is treated as settled.
+
 ### vtt.js: provenance proven, and re-checkable on demand
 
 This one was expected to be the awkward case and turned out to be the
@@ -385,47 +424,104 @@ rather than a throwaway script: it undoes `one-var`, `curly`, `quotes`,
 `no-var`/`prefer-const` and template-literal re-indentation, so what survives
 is only what can change behaviour.
 
-### webm.mjs is jswebm's source, not its build
+### webm.mjs is generated from jswebm's published sources
 
-`reencoder/webm.mjs` is readable `class Track { ... }` source ending in
-`window.JsWebm = JsWebm;`, whereas the npm package's `dist/JsWebm.js` is a
-minified webpack bundle. So the vendored file is jswebm's `src/` directory
+`reencoder/webm.mjs` was readable `class Track { ... }` source ending in
+`window.JsWebm = JsWebm;`, whereas jswebm's npm package ships a minified
+webpack bundle in `dist/`. So the vendored file was jswebm's `src/` directory
 concatenated into one ES module - the same shape as mp4box.
 
-That is better news than it sounds. jswebm publishes its `src/` files in the
-npm tarball alongside the bundle, so each concatenated piece can be checked
-against a published file rather than taken on trust. Reproducing the
-concatenation is more work than the transforms already in sync-vendor.mjs,
-because it means stripping `require`/`module.exports` and fixing an order,
-which is why it is recorded here rather than attempted alongside the two
-migrations above.
+That turned out to be good news, because jswebm publishes `src/` in the npm
+tarball alongside the bundle. Comparing declaration by declaration with
+`tools/compare-decls.mjs` settled it immediately: **30 of the 35 top-level
+declarations were already byte-for-byte identical** to jswebm@0.1.2's sources
+once eslint's autofixes were normalised away. Nothing about that is a
+judgement call - either a declaration parses to the same tree or it does not.
 
-### coloris is close but not pinned
+So webm.mjs is now generated, on the same model as hls.js: the npm tarball
+plus `patches/jswebm@0.1.2.patch`. Five changes are FastStream's, and a
+reviewer reads them in the patch instead of taking a 104 KB file on trust:
 
-The vendored copy is mdbassit/Coloris with its
-`(function (window, document, Math) { ... })(...)` wrapper removed, exported as
-`export const Coloris`, with `bindElement` additionally exposed and the
-`DOMReady(init)` auto-start commented out. That shape is a documentable
-transform. What is missing is the base version: none of v0.19.0-v0.25.0 from
-the upstream repository, nor 0.10-0.25 of the `@melloware/coloris` npm fork,
-matches after normalisation. The npm package literally named `coloris` is an
-unrelated project, which is worth knowing before anyone reaches for it.
+| Change | Where | Why it matters |
+|---|---|---|
+| `MasteringData` and `Colour` classes added | `Track.js` | parses Matroska colour metadata, which upstream skips over |
+| `case 0x55B0` builds a `Colour` | `VideoTrack.js` | upstream read the element as an integer and discarded it |
+| `initVp8Headers` / `initVp9Headers` added | `JsWebm.js` | derives a full `vp09.00.10.08…` codec string; WebCodecs rejects a bare `vp9` |
+| the three Vorbis setup headers are not pushed as packets | `JsWebm.js` | FastStream hands `codecPrivate` to WebCodecs itself |
+| `demux()` returns whether it advanced | `JsWebm.js` | `WebMDemuxer.process()` is `while (this.demuxer.demux())` |
+| `keyframe` → `keyFrame`, track looked up by number, frame length validated, `isKeyframe` on audio packets | `SimpleBlock.js` | upstream *writes* `this.keyframe` and *reads* `this.keyFrame`, so every chunk was `delta` |
 
-v0.22.0 is the closest by statement matching, and the difference from it is
-mostly one deliberate adaptation: `document` is rebound to a `container`
-element, so the picker queries and listens inside FastStream's own subtree
-rather than the top-level document - `addListener(document, ...)` becomes
-`addListener(container, ...)`, `document.documentElement.clientWidth` becomes
-`container.clientWidth`, and `document.getElementById` becomes
-`container.ownerDocument.getElementById` where a real Document is needed.
+The last two rows are upstream bugs rather than product changes, which is
+worth saying plainly: this is a maintained fork, not a mangled copy.
 
-Applying exactly those substitutions to v0.22.0 still does not reproduce the
-vendored file: `configure` additionally gained a `container` setting. So this
-is an adapted fork rather than a mechanically transformed release, and
-migrating it would mean reimplementing that adaptation with no test covering
-the colour picker. Documented provenance - "mdbassit/Coloris v0.22.0 with the
-container rebinding described here" - is the honest status, and is the kind of
-disclosure AMO asks for; what it rejects is an unexplained modified blob.
+After the migration all 35 declarations match. The generated file additionally
+contains upstream's `UNSET` constant, which the hand-made concatenation had
+dropped; it appears exactly once in the file - its own declaration - so it is
+dead code, and keeping upstream's own line is preferable to inventing a rule
+that deletes it.
+
+One cost worth stating: jswebm lists `@babel/preset-env`, `lodash`,
+`circular-json` and `eslint-utils` as *runtime* dependencies rather than dev
+ones, which is a packaging mistake on its author's part and pulls about a
+hundred packages into the dev tree. None of it ships - the build reads
+`node_modules/jswebm/src/*.js` as text and nothing ever imports the package -
+and the lockfile still passes the supply-chain check. It is a slower install
+in exchange for a hash-verified base, which is the right way round.
+
+`src/Chapters.js` and `src/Queue.js` stay out: the vendored file never
+included them and nothing references them.
+
+**Tested, not assumed.** `tests/e2e/specs/modules.e2e.mjs` demuxes a real VP9
+file through `WebMDemuxer` and asserts the codec string, the dimensions, the
+chunk count and that at least one chunk is a keyframe - which covers every
+row of the table above. Removing `demux()`'s return makes it fail, verified
+by doing exactly that. The fixture is transcoded from the MP4 one with ffmpeg
+on first run, so no binary enters the repository.
+
+### coloris: base pinned to v0.21.1, and the adaptation is enumerable
+
+An earlier note here said the base was "closest to v0.22.0 by statement
+matching" and that none of v0.19.0-v0.25.0 matched. Two corrections.
+
+First, the search was looking at the wrong file. The vendored copy uses `var`
+and ends `}();`, which is babel output - so it comes from `dist/coloris.js`,
+not `src/coloris.js`. mdbassit/Coloris builds its dist with babel and gulp.
+
+Second, ranking by AST size gets this one wrong. Size put v0.25.0 first, but
+only because the vendored file is larger than *every* release, which makes
+"newest" and "nearest" the same answer for the wrong reason. Matching
+**declaration by declaration** separates them properly:
+
+| Release | Declarations identical |
+|---|---|
+| v0.19.0 | 29 |
+| v0.20.0 | 30 |
+| **v0.21.1** | **31** |
+| v0.22.0 | 31 |
+| v0.23.0 | 30 |
+| v0.24.0 | 30 |
+| v0.25.0 | 29 |
+
+v0.21.1 and v0.22.0 tie, and one line breaks the tie: v0.22.0 added
+`ready: DOMReady` to the exported object, which the vendored file does not
+have. So the base is **mdbassit/Coloris v0.21.1, `dist/coloris.js`**.
+
+The remainder is small and entirely accounted for: **31 declarations
+identical, 10 differing, 2 added, and none of upstream's missing.** The ten
+are all the same adaptation - `document` rebound to a `container` element so
+the picker queries and listens inside FastStream's own subtree:
+`getEl`, `addListener`, `DOMReady`, `updatePickerPosition`, `wrapFields`,
+`bindFields`, `pickColor`, `updateColor`, `init`, `configure` (which also
+gained the `container` setting). The two additions are the export shape:
+`bindElement` exposed, and `Coloris` itself.
+
+That is a documentable provenance rather than an unexplained blob, which is
+what AMO asks for. Going further - a pinned git dependency plus a patch, as
+webm.mjs now has - is possible because the repository carries a `package.json`
+with `main: dist/coloris.js`, so pnpm would record the commit hash. It is
+worth doing: coloris accounts for **7 of the 15 remaining addons-linter
+warnings**, more than any other file. What it needs first is a test, because
+nothing in the suite currently touches the colour picker.
 
 ### sweetalert2 ships a payload that must stay removed
 
@@ -519,25 +615,42 @@ v4.7.4 through v5.1.0, plus three changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
-### coloris — 38 KB
+### coloris — 40 KB
 
-From **mdbassit/Coloris**, the original project, which is not published to
-npm. The npm name `coloris` is an unrelated package, and
-`@melloware/coloris` is a maintained *fork* that wraps the source in a
-factory function and adds npm packaging - comparing against it gives 243
-differing lines at its closest release (0.21.1), most of that wrapper.
-
-FastStream's one change is that the trailing `DOMReady(init)` call is
-commented out; `ui/InterfaceController.mjs` and
-`ui/subtitles/SubtitlesSettingsManager.mjs` drive initialisation themselves.
+Base pinned: **mdbassit/Coloris v0.21.1, `dist/coloris.js`**. See
+"coloris: base pinned to v0.21.1" above for how it was settled and what the
+remaining ten functions change.
 
 Upstream: https://github.com/mdbassit/Coloris
 
-### knob — 27 KB
+### knob — 28 KB
 
-From **jherrm/knobs**, GitHub only. The npm package named `knob` is
-`mmckegg/knob`, an unrelated canvas-based widget. Exports a single
-`Knob` constructor used by `ui/components/Knob.mjs`.
+Base pinned: **jherrm/knobs `Knob.js` at `cf2db70f`** (2012-05-16), found with
+`tools/find-base.mjs --commits`. Not the repository's head: the 2022 commit is
+a third larger and matches far worse.
+
+The npm package named `knob` is `mmckegg/knob`, an unrelated canvas widget,
+and jherrm/knobs is not published to npm at all.
+
+Almost all of the 278-line diff is this project's eslint autofix. The real
+changes are ten, and they make it an adapted, maintained fork rather than a
+transformed copy:
+
+- the IIFE wrapper is removed and `Knob` is exported
+- the constructor takes `(inputEl, callback)` instead of `(callback, options)`,
+  stores the element, and throws without one; the options-merge loop and the
+  `valueMin < valueMax` check are dropped with it
+- a scroll gesture is added: `gestureScrollEnabled`, `angleScrollRatio`, and
+  `doMouseScroll` honouring both
+- HTML-slider defaults: `valueMin: 0`, `valueMax: 100`, a new `value: 0`, and
+  `angleSlideRatio` 1 → 2
+- `val(value)` sets by value rather than by angle, and accepts `0`
+- `__determineValue` becomes `__valueFromAngles`, with a new `__validateValue`
+- `__publish` writes `element.value` and dispatches a `change` event, and the
+  callback loses its `angle, value` arguments
+- `__angleFromValue` is a genuine **upstream bug fix**: the original tested
+  `isFinite` on the angle bounds while mapping the value bounds, and
+  referenced an undefined `valueMax`
 
 Upstream: https://github.com/jherrm/knobs
 

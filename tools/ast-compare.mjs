@@ -46,6 +46,7 @@ const LOOPS = new Set([
  * | `quotes`                  | a literal's raw text, not its value       |
  * | `no-var` / `prefer-const` | the declaration keyword                   |
  * | `indent`                  | whitespace inside a template literal      |
+ * | `no-extra-semi`           | a stray `;` between statements            |
  *
  * Positions and comments are dropped too: they carry no behaviour.
  *
@@ -56,6 +57,8 @@ export function normalise(node) {
   if (Array.isArray(node)) {
     const out = [];
     for (const n of node) {
+      // `no-extra-semi`: a stray `;` parses to a statement that does nothing.
+      if (n && n.type === 'EmptyStatement') continue;
       // `one-var`: a grouped declaration and separate ones are the same
       // program, so flatten every group to single declarators.
       if (n && n.type === 'VariableDeclaration' && n.declarations.length > 1) {
@@ -131,6 +134,85 @@ export function parse(src) {
  */
 export function fingerprint(src) {
   return JSON.stringify(normalise(parse(src)));
+}
+
+/**
+ * Extracts every top-level named declaration, keyed by name.
+ *
+ * Whole-file comparison answers "is this the same program?" but says nothing
+ * useful when the answer is no. These files are concatenations or adapted
+ * forks, so the interesting question is *which parts* match: a candidate
+ * where 40 of 44 functions are byte-for-byte the published ones is the base,
+ * and the four that differ are the modifications to document.
+ *
+ * Ranking by whole-file size cannot see that. It ranked coloris v0.25.0 top
+ * only because the vendored file is larger than every release, which makes
+ * "newest" and "nearest" the same answer for the wrong reason.
+ *
+ * @param {string} src JavaScript source
+ * @return {Map<string, string>} declaration name to its canonical form
+ */
+export function declarations(src) {
+  const out = new Map();
+  const walk = (body) => {
+    for (const node of body) {
+      if (node.type === 'ExportNamedDeclaration' ||
+          node.type === 'ExportDefaultDeclaration') {
+        if (node.declaration) walk([node.declaration]);
+        continue;
+      }
+      // A bundle's whole payload is often one IIFE or one block; descend so
+      // its contents are compared rather than treated as a single unit.
+      if (node.type === 'ExpressionStatement' &&
+          node.expression.type === 'CallExpression' &&
+          /Function/.test(node.expression.callee.type) &&
+          node.expression.callee.body?.type === 'BlockStatement') {
+        walk(node.expression.callee.body.body);
+        continue;
+      }
+      if (node.type === 'BlockStatement') {
+        walk(node.body);
+        continue;
+      }
+      if (node.type === 'ClassDeclaration' ||
+          node.type === 'FunctionDeclaration') {
+        if (node.id) out.set(node.id.name, JSON.stringify(normalise(node)));
+        continue;
+      }
+      if (node.type === 'VariableDeclaration') {
+        for (const d of node.declarations) {
+          if (d.id.type === 'Identifier' && d.init) {
+            out.set(d.id.name, JSON.stringify(normalise(d.init)));
+          }
+        }
+      }
+    }
+  };
+  walk(parse(src).body);
+  return out;
+}
+
+/**
+ * Compares two sources declaration by declaration.
+ *
+ * @param {string} a first source
+ * @param {string} b second source
+ * @return {{same: string[], differs: string[], onlyA: string[],
+ *   onlyB: string[]}} the four buckets
+ */
+export function compareDeclarations(a, b) {
+  const da = declarations(a);
+  const db = declarations(b);
+  const same = [];
+  const differs = [];
+  const onlyA = [];
+  for (const [name, code] of da) {
+    if (!db.has(name)) onlyA.push(name);
+    else if (db.get(name) === code) same.push(name);
+    else differs.push(name);
+  }
+  const onlyB = [...db.keys()].filter((n) => !da.has(n));
+  return {same, differs, onlyA, onlyB};
 }
 
 /**

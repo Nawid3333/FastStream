@@ -121,6 +121,48 @@ const VENDOR = [
     to: 'chrome/player/modules/gif/gif.mjs',
     transform: toGifModule,
   },
+  {
+    // The one vendored file that is a *concatenation* rather than a copy.
+    // jswebm publishes its src/ in the npm tarball alongside the webpack
+    // bundle, so each piece can be checked against a published file: 30 of
+    // the 35 top-level declarations in the old vendored copy were already
+    // byte-for-byte identical to these, once eslint's autofixes were
+    // normalised away. The other five are FastStream's - colour metadata
+    // parsing, a VP9 codec string, and three fixes - and live in
+    // patches/jswebm@0.1.2.patch where a reviewer can read them.
+    //
+    // src/Chapters.js and src/Queue.js are deliberately absent: the vendored
+    // file never included them and nothing references them.
+    name: 'jswebm',
+    from: [
+      // Track must precede the two classes that extend it, and JsWebm must
+      // follow everything it constructs. Beyond that the order is the
+      // alphabetical one the original concatenation used.
+      'node_modules/jswebm/src/Track.js',
+      'node_modules/jswebm/src/VideoTrack.js',
+      'node_modules/jswebm/src/AudioTrack.js',
+      'node_modules/jswebm/src/BlockGroup.js',
+      'node_modules/jswebm/src/Cluster.js',
+      'node_modules/jswebm/src/CueTrackPositions.js',
+      'node_modules/jswebm/src/Cues.js',
+      'node_modules/jswebm/src/DataInterface/DataInterface.js',
+      'node_modules/jswebm/src/DataInterface/DateParser.js',
+      'node_modules/jswebm/src/ElementHeader.js',
+      'node_modules/jswebm/src/JsWebm.js',
+      'node_modules/jswebm/src/Seek.js',
+      'node_modules/jswebm/src/SeekHead.js',
+      'node_modules/jswebm/src/SegmentInfo.js',
+      'node_modules/jswebm/src/SimpleBlock.js',
+      'node_modules/jswebm/src/SimpleTag.js',
+      'node_modules/jswebm/src/Tag.js',
+      'node_modules/jswebm/src/Tags.js',
+      'node_modules/jswebm/src/Targets.js',
+      'node_modules/jswebm/src/Tracks.js',
+    ],
+    to: 'chrome/player/modules/reencoder/webm.mjs',
+    patched: true,
+    transform: toWebmModule,
+  },
 ];
 
 /**
@@ -423,14 +465,49 @@ function toClassicWorker(src) {
     body.slice(0, -tail.length) + '})(true);\n';
 }
 
+/**
+ * Concatenates jswebm's CommonJS sources into one ES module.
+ *
+ * Each file is a plain script that requires its siblings and assigns to
+ * `module.exports`. Concatenated in dependency order those statements are
+ * both unnecessary and invalid, so they are dropped; the classes then share
+ * one scope, which is exactly what the original vendored file did.
+ *
+ * The export shape matches what demuxers.mjs imports, plus the global the
+ * vendored file also set. Neither is patched into node_modules, because
+ * jswebm's own package must stay valid CommonJS for anything else that
+ * loads it.
+ *
+ * @param {string[]} sources the source of each file, in concatenation order
+ * @return {string} one ES module
+ */
+function toWebmModule(sources) {
+  const isRequire = /^\s*(?:const|var|let)\s+\w+\s*=\s*require\(/;
+  const isExport = /^\s*module\.exports\s*=/;
+  const body = sources.map((src) => src
+      .split('\n')
+      .filter((line) => !isRequire.test(line) && !isExport.test(line))
+      .join('\n')
+      .trim(),
+  ).join('\n\n');
+
+  return body.replace(/^class JsWebm \{/m, 'export class JsWebm {') +
+    '\n\nwindow.JsWebm = JsWebm;\n';
+}
+
 let failed = false;
 
 for (const lib of VENDOR) {
-  const src = path.join(root, lib.from);
+  // `from` is a list when the vendored file is a concatenation of several
+  // published sources rather than a copy of one - see webm.mjs. The order is
+  // load-bearing, so it is recorded in the entry rather than inferred here.
+  const sources = Array.isArray(lib.from) ? lib.from : [lib.from];
+  const src = path.join(root, sources[0]);
   const dst = path.join(root, lib.to);
 
-  if (!fs.existsSync(src)) {
-    console.error(`MISSING ${lib.name}: ${lib.from}\n  run: pnpm install`);
+  const missing = sources.filter((f) => !fs.existsSync(path.join(root, f)));
+  if (missing.length) {
+    console.error(`MISSING ${lib.name}: ${missing.join(', ')}\n  run: pnpm install`);
     failed = true;
     continue;
   }
@@ -438,8 +515,12 @@ for (const lib of VENDOR) {
   const pkgPath = path.join(root, 'node_modules', lib.name, 'package.json');
   const version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
 
+  const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
   const data = lib.transform ?
-    Buffer.from(lib.transform(fs.readFileSync(src, 'utf8')), 'utf8') :
+    Buffer.from(
+        lib.transform(Array.isArray(lib.from) ? sources.map(read) : read(
+            sources[0])),
+        'utf8') :
     fs.readFileSync(src);
   const unchanged = fs.existsSync(dst) &&
     Buffer.compare(fs.readFileSync(dst), data) === 0;

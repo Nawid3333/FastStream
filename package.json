@@ -57,6 +57,7 @@
     "geckodriver": "^6.1.1",
     "gif.js": "0.2.0",
     "hls.js": "^1.6.9",
+    "jswebm": "0.1.2",
     "mp4-muxer": "4.3.3",
     "onnxruntime-web": "1.20.0",
     "pako": "2.1.0",
