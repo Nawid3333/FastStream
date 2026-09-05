@@ -63,7 +63,7 @@ As políticas da loja do Chrome não permitem extensões que possam baixar víde
 ##Instalação Manual para Firefox
 A extensão, por padrão, está configurada para funcionar no Chrome. Você pode usar uma versão pré-compilada na página de [Releases page](https://github.com/Andrews54757/FastStream/releases) ou compilar a extensão você mesmo seguindo as instruções abaixo.
 
-Você pode instalar a extensão no Firefox Developer Edition acessando `about:config` e definindo `xpinstall.signatures.required` como `false`. Você também deve desativar as atualizações automáticas de extensões, ou a extensão será removida ao fechar o navegador. Para isso, vá em `about:addons`, clique no ícone de engrenagem e desmarque `Atualizar complementos automaticamente`. Depois, clique em `Instalar complemento a partir de arquivo` e selecione o arquivo `firefox-libre-*.zip` para instalar a extensão.
+Você pode instalar a extensão no Firefox Developer Edition acessando `about:config` e definindo `xpinstall.signatures.required` como `false`. Você também deve desativar as atualizações automáticas de extensões, ou a extensão será removida ao fechar o navegador. Para isso, vá em `about:addons`, clique no ícone de engrenagem e desmarque `Atualizar complementos automaticamente`. Depois, clique em `Instalar complemento a partir de arquivo` e selecione o arquivo `firefox-github-*.zip` para instalar a extensão.
 
 **NÃO HÁ UM SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA INTEGRADO. Veja acima.
 

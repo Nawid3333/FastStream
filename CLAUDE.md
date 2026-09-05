@@ -14,7 +14,7 @@ pnpm install              # pnpm 11, pinned via packageManager
 pnpm run build            # 4 targets -> built/*.zip, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
 pnpm run lint             # eslint (must stay at 0)
-pnpm run lint:amo         # web-ext lint on build_firefox_libre
+pnpm run lint:amo         # web-ext lint on build_firefox_github
 pnpm run start:ff         # web-ext run — launches Firefox with the extension
 pnpm test                 # vitest
 ```
@@ -54,7 +54,7 @@ icon instead.
 
 **This is the reference baseline. Re-run it after every change to the player,
 the loaders or the vendored libraries.** Confirmed working on upstream
-`d5fe931` + the tooling commits, firefox-libre build, 2026-09-02:
+`d5fe931` + the tooling commits, firefox-github build, 2026-09-02:
 
 | Format | Page | Status |
 |---|---|---|
@@ -121,13 +121,13 @@ Targets: `EXTENSION`, `FIREFOX`, `WEB`, `CENSORYT`, `NO_PROMO`,
 
 | Target | Splices | Notes |
 |---|---|---|
-| `chrome-libre` | EXTENSION, NO_PROMO | manual install, full features |
-| `chrome-dist` | EXTENSION, CENSORYT, NO_UPDATE_CHECKER | Chrome Web Store; YouTube **downloading** disabled (not playback) |
-| `firefox-libre` | EXTENSION, FIREFOX, NO_PROMO | manual install |
-| `firefox-dist` | EXTENSION, FIREFOX, CENSORYT, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
+| `chrome-github` | EXTENSION, NO_PROMO | manual install, full features |
+| `chrome-webstore` | EXTENSION, CENSORYT, NO_UPDATE_CHECKER | Chrome Web Store; YouTube **downloading** disabled (not playback) |
+| `firefox-github` | EXTENSION, FIREFOX, NO_PROMO | manual install |
+| `firefox-amo` | EXTENSION, FIREFOX, CENSORYT, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
-`buildFirefoxDist()` was written but never invoked (commit "Remove firefox
+`buildFirefoxAmo()` was written but never invoked (commit "Remove firefox
 dist build for now"). Re-enabled in `7ed4723`.
 
 ## Rules
@@ -143,17 +143,31 @@ dist build for now"). Re-enabled in `7ed4723`.
 - Branches: `main` mirrors upstream, `dev/mv3-modernization` is the work
   branch, `pr/*` branches get cut fresh off `upstream/main`.
 
-## AMO lint (firefox-dist, current: 0 errors / 15 warnings)
+## AMO lint (firefox-amo, current: 0 errors / 13 warnings)
 
-Upstream firefox-libre baseline was 0 errors, 24 warnings, 1 notice. After
-re-enabling firefox-dist with data_collection_permissions and min version
-142, the AMO target sits at **0 errors, 15 warnings** - the version bump
-alone cleared 8 API-compat warnings. 13 of the 15 remaining live in vendored
-libraries and go away with the Phase 7 npm migration; the only first-party
-hits are `background.mjs:619` (UNSUPPORTED_API) and `PlayerLoader.mjs:16`
-(UNSAFE_VAR_ASSIGNMENT), plus `yt_runner.js:14`.
+Upstream firefox-github baseline was 0 errors, 24 warnings, 1 notice. After
+re-enabling firefox-amo with `data_collection_permissions`, a minimum version
+of 142, and the `NO_YOUTUBE` splice, the AMO target sits at **0 errors, 13
+warnings, 0 notices** - the version bump alone cleared 8 API-compat warnings
+and the splice removed the `DANGEROUS_EVAL` that mattered.
 
-### Original upstream baseline (firefox-libre)
+Twelve of the thirteen are in vendored libraries; `PlayerLoader.mjs:15` is the
+only first-party hit. Where they live is the useful view, because it is also
+the migration order:
+
+| Count | File | Status |
+|---|---|---|
+| 7 | `coloris.mjs` | base pinned to v0.21.1, not yet generated |
+| 1 | `vtt.mjs` | provenance proven, `pnpm run verify:vtt` |
+| 1 | `gif/gif.mjs` | generated from npm |
+| 1 | `vad/ort.wasm.mjs` | generated from npm |
+| 1 | `sweetalert.mjs` | generated from npm |
+| 1 | `dash.mjs` | generated from npm + patch |
+| 1 | `players/PlayerLoader.mjs` | **ours** |
+
+Clearing coloris more than halves what is left.
+
+### Original upstream baseline (firefox-github)
 
 **0 errors, 24 warnings, 1 notice.** The automated linter already passes.
 The 2023 store rejection was a *human policy* call about the customized
@@ -248,7 +262,7 @@ files before hashing:
 
 ```bash
 pnpm run build:keep                                  # --keep is required
-node tools/hash-build.mjs build_firefox_libre > after.txt
+node tools/hash-build.mjs build_firefox_github > after.txt
 diff baseline.txt after.txt                          # must be empty
 ```
 

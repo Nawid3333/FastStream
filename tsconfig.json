@@ -40,10 +40,10 @@
   "exclude": [
     "node_modules",
     "built",
-    "build_chrome_libre",
-    "build_chrome_dist",
-    "build_firefox_libre",
-    "build_firefox_dist",
+    "build_chrome_github",
+    "build_chrome_webstore",
+    "build_firefox_github",
+    "build_firefox_amo",
     "chrome/player/modules",
     "chrome/player/assets"
   ]

@@ -76,6 +76,25 @@ not yet test-merged) · `verified` (test-merged clean in the pristine clone)
 
 ---
 
+## Fork-only — never send upstream
+
+**The build-target rename.** `chrome_dist`/`chrome_libre`/`firefox_dist`/
+`firefox_libre` became `chrome_webstore`/`chrome_github`/`firefox_amo`/
+`firefox_github`, and `lint:amo` now lints the AMO build rather than the
+self-install one.
+
+The reason is not taste. "dist" reads as the download build and "libre" as
+the free one, which is backwards - `dist` is the store target and `libre` is
+the self-install target - and that misreading led to a change that would have
+put YouTube's remote-code path into the AMO submission. Naming a target after
+where it goes removes the trap.
+
+Upstream has no such trap to remove, and a rename in `build.mjs` is pure
+conflict surface for every other PR that touches that file. It stays here.
+Keep it in its own commit so it can be rebased around if that ever changes.
+
+---
+
 ## Not FastStream PRs — upstream hls.js issue (separate project)
 
 Not a candidate for Andrew's repo. Once the hls.js migration (step 2) is

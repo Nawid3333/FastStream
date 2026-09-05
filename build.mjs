@@ -7,10 +7,10 @@ import webExt from 'web-ext';
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const builtDir = path.resolve(__dirname, 'built');
 const chromeSourceDir = path.resolve(__dirname, 'chrome');
-const chromeLibreBuildDir = path.resolve(__dirname, 'build_chrome_libre');
-const chromeDistBuildDir = path.resolve(__dirname, 'build_chrome_dist');
-const firefoxLibreBuildDir = path.resolve(__dirname, 'build_firefox_libre');
-const firefoxDistBuildDir = path.resolve(__dirname, 'build_firefox_dist');
+const chromeGithubBuildDir = path.resolve(__dirname, 'build_chrome_github');
+const chromeWebstoreBuildDir = path.resolve(__dirname, 'build_chrome_webstore');
+const firefoxGithubBuildDir = path.resolve(__dirname, 'build_firefox_github');
+const firefoxAmoBuildDir = path.resolve(__dirname, 'build_firefox_amo');
 const webBuildDir = path.resolve(__dirname, 'built/web');
 const licenseText = fs.readFileSync(path.resolve(__dirname, 'LICENSE.md'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'));
@@ -29,10 +29,10 @@ removeBuildDirs();
 deleteDirectoryRecursively(webBuildDir);
 
 function removeBuildDirs() {
-  deleteDirectoryRecursively(chromeDistBuildDir);
-  deleteDirectoryRecursively(firefoxLibreBuildDir);
-  deleteDirectoryRecursively(firefoxDistBuildDir);
-  deleteDirectoryRecursively(chromeLibreBuildDir);
+  deleteDirectoryRecursively(chromeWebstoreBuildDir);
+  deleteDirectoryRecursively(firefoxGithubBuildDir);
+  deleteDirectoryRecursively(firefoxAmoBuildDir);
+  deleteDirectoryRecursively(chromeGithubBuildDir);
 }
 
 function deleteDirectoryRecursively(dirPath) {
@@ -292,31 +292,31 @@ function insertLicense(buildDir) {
   fs.writeFileSync(newLicensePath, licenseText);
 }
 
-async function buildChromeDist() {
-  spliceAndCopy(chromeSourceDir, chromeDistBuildDir, ['EXTENSION', 'CENSORYT', 'NO_UPDATE_CHECKER']);
-  insertLicense(chromeDistBuildDir);
-  const builtPath = await runWebExtBuild(chromeDistBuildDir, path.join(chromeDistBuildDir, 'dist'));
+async function buildChromeWebstore() {
+  spliceAndCopy(chromeSourceDir, chromeWebstoreBuildDir, ['EXTENSION', 'CENSORYT', 'NO_UPDATE_CHECKER']);
+  insertLicense(chromeWebstoreBuildDir);
+  const builtPath = await runWebExtBuild(chromeWebstoreBuildDir, path.join(chromeWebstoreBuildDir, 'webstore'));
   const name = path.basename(builtPath);
-  const finalPath = path.join(builtDir, 'chrome-dist-' + name);
+  const finalPath = path.join(builtDir, 'chrome-webstore-' + name);
   fs.renameSync(builtPath, finalPath);
   return finalPath;
 }
 
-async function buildChromeLibre() {
-  spliceAndCopy(chromeSourceDir, chromeLibreBuildDir, ['EXTENSION', 'NO_PROMO']);
-  insertLicense(chromeLibreBuildDir);
-  const builtPath = await runWebExtBuild(chromeLibreBuildDir, path.join(chromeLibreBuildDir, 'libre'));
+async function buildChromeGithub() {
+  spliceAndCopy(chromeSourceDir, chromeGithubBuildDir, ['EXTENSION', 'NO_PROMO']);
+  insertLicense(chromeGithubBuildDir);
+  const builtPath = await runWebExtBuild(chromeGithubBuildDir, path.join(chromeGithubBuildDir, 'github'));
   const name = path.basename(builtPath);
-  const finalPath = path.join(builtDir, 'chrome-libre-' + name);
+  const finalPath = path.join(builtDir, 'chrome-github-' + name);
   fs.renameSync(builtPath, finalPath);
   return finalPath;
 }
 
-async function buildFirefoxLibre() {
-  spliceAndCopy(chromeSourceDir, firefoxLibreBuildDir, ['EXTENSION', 'FIREFOX', 'NO_PROMO']);
-  insertLicense(firefoxLibreBuildDir);
+async function buildFirefoxGithub() {
+  spliceAndCopy(chromeSourceDir, firefoxGithubBuildDir, ['EXTENSION', 'FIREFOX', 'NO_PROMO']);
+  insertLicense(firefoxGithubBuildDir);
 
-  const manifestPath = path.join(firefoxLibreBuildDir, 'manifest.json');
+  const manifestPath = path.join(firefoxGithubBuildDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
   manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
@@ -349,19 +349,19 @@ async function buildFirefoxLibre() {
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
-  const builtPath = await runWebExtBuild(firefoxLibreBuildDir, path.join(firefoxLibreBuildDir, 'libre'));
+  const builtPath = await runWebExtBuild(firefoxGithubBuildDir, path.join(firefoxGithubBuildDir, 'github'));
   const name = path.basename(builtPath);
-  const finalPath = path.join(builtDir, 'firefox-libre-' + name);
+  const finalPath = path.join(builtDir, 'firefox-github-' + name);
   fs.renameSync(builtPath, finalPath);
   return finalPath;
 }
 
 
-async function buildFirefoxDist() {
-  spliceAndCopy(chromeSourceDir, firefoxDistBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER']);
-  insertLicense(firefoxDistBuildDir);
+async function buildFirefoxAmo() {
+  spliceAndCopy(chromeSourceDir, firefoxAmoBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER']);
+  insertLicense(firefoxAmoBuildDir);
 
-  const manifestPath = path.join(firefoxDistBuildDir, 'manifest.json');
+  const manifestPath = path.join(firefoxAmoBuildDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
   manifest.browser_specific_settings = {
@@ -400,9 +400,9 @@ async function buildFirefoxDist() {
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
-  const builtPath = await runWebExtBuild(firefoxDistBuildDir, path.join(firefoxDistBuildDir, 'dist'));
+  const builtPath = await runWebExtBuild(firefoxAmoBuildDir, path.join(firefoxAmoBuildDir, 'amo'));
   const name = path.basename(builtPath);
-  const finalPath = path.join(builtDir, 'firefox-dist-' + name);
+  const finalPath = path.join(builtDir, 'firefox-amo-' + name);
   fs.renameSync(builtPath, finalPath);
   return finalPath;
 }
@@ -436,7 +436,7 @@ async function runAll() {
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log(`Building version ${manifest.version}`);
 
-  await Promise.all([buildChromeLibre(), buildChromeDist(), buildFirefoxLibre(), buildFirefoxDist(), buildWeb()]);
+  await Promise.all([buildChromeGithub(), buildChromeWebstore(), buildFirefoxGithub(), buildFirefoxAmo(), buildWeb()]);
   if (KEEP_BUILD_DIRS) {
     console.log('Keeping unpacked build directories (--keep)');
   } else {

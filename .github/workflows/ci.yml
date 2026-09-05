@@ -47,8 +47,14 @@ jobs:
       # Mozilla's addons-linter - the same engine AMO runs on upload.
       # Errors are already at zero upstream, so this gate is meaningful:
       # it stops a regression from reaching a store submission.
-      - name: AMO compliance (firefox-libre)
-        run: pnpm exec web-ext lint --source-dir=build_firefox_libre
+      # The AMO build is the one that has to pass, and until now CI only
+      # linted the GitHub build - which is a different splice with different
+      # code in it. Both run.
+      - name: addons-linter (firefox-amo, the store submission)
+        run: pnpm run lint:amo
+
+      - name: addons-linter (firefox-github, the self-install build)
+        run: pnpm run lint:github
 
       # Real playback in a real Firefox: each case loads a stream and asserts
       # that currentTime actually advances, which is what catches a broken or

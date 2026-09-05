@@ -9,7 +9,7 @@
 // actually used.
 //
 // FastStream itself is NOT installed here — `web-ext run` loads it straight
-// from build_firefox_libre/ on every launch, so source changes are reflected
+// from build_firefox_github/ on every launch, so source changes are reflected
 // as soon as you rebuild.
 //
 //   node tools/setup-dev-profile.mjs      # download + install into .dev-profile

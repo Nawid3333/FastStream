@@ -519,7 +519,7 @@ That is a documentable provenance rather than an unexplained blob, which is
 what AMO asks for. Going further - a pinned git dependency plus a patch, as
 webm.mjs now has - is possible because the repository carries a `package.json`
 with `main: dist/coloris.js`, so pnpm would record the commit hash. It is
-worth doing: coloris accounts for **7 of the 15 remaining addons-linter
+worth doing: coloris accounts for **7 of the 13 remaining addons-linter
 warnings**, more than any other file. What it needs first is a test, because
 nothing in the suite currently touches the colour picker.
 

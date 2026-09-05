@@ -36,7 +36,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 | 5 · E2E (WebdriverIO) | **deferred** | Your call: after Firefox passes lint |
 | 6 · CI | **done** | Green in ~35s |
 | 7 · Unbundle libs | **7 of ~13 done** | hls.js `.mjs` only. ~18 libs + 3 MB of wasm/ort still vendored — see below |
-| 8 · AMO sweep | **part done** | firefox-dist live: 0 errors, 24→15 warnings |
+| 8 · AMO sweep | **part done** | firefox-amo live: 0 errors, 24→13 warnings |
 | 9 · Signing | **not started** | Needs gecko ID change first |
 | 10 · Upstream PRs | **not started** | Two strong candidates ready |
 | — · TypeScript | **done** | Not in the original plan; you requested it |
@@ -51,7 +51,7 @@ Original phases 0–10. Executed out of order where evidence justified it.
 411c966 build(dev): fix the dev-profile launcher and record the playback baseline
 d47309f build(dev): add a persistent test profile with uBlock Origin preinstalled
 75ce249 docs: correct CENSORYT scope and record what the binary blobs actually are
-7ed4723 fix(firefox-dist): re-enable the store build and make it AMO-submittable
+7ed4723 fix(firefox-amo): re-enable the store build and make it AMO-submittable
 0176208 types: add opt-in type checking and cross-context message contracts
 ffa233e build(tools): add EOL-normalising build hasher for output-neutrality checks
 d922563 ci: add weekly upstream sync that opens a PR instead of auto-merging
@@ -94,10 +94,10 @@ Raw diff: `Faststream version 4/docs/hls.js-1.6.9-faststream.patch`
 
 ---
 
-## YouTube removed from the AMO build (firefox-dist)
+## YouTube removed from the AMO build (firefox-amo)
 
-`firefox-dist` is now spliced with a `NO_YOUTUBE` target. Chrome targets and
-`firefox-libre` are untouched.
+`firefox-amo` is now spliced with a `NO_YOUTUBE` target. Chrome targets and
+`firefox-github` are untouched.
 
 **Why, in one line:** `yt.mjs` is the one library that can never get the
 hash-verifiable npm base every other library now has.
@@ -113,7 +113,7 @@ lines of unused modules, but it also *adds* current user-agent strings
 not work. No npm release corresponds to it. `googlevideo.mjs` (170 KB) is
 bundled from LuanRT/googlevideo's sources and has the same problem.
 
-**Results on firefox-dist:**
+**Results on firefox-amo:**
 
 | | Before | After |
 |---|---|---|
@@ -138,14 +138,14 @@ verifiable npm base.
 only changes are the splice comments plus an `if (false)` block that is
 unreachable there, following the same idiom `CENSORYT` already uses.
 
-**Testing the store build:** `pnpm run start:ff:dist` launches firefox-dist in
+**Testing the store build:** `pnpm run start:ff:dist` launches firefox-amo in
 the isolated dev profile (`pnpm run start:ff` still launches libre).
 
 ---
 
 ## Verified playback baseline
 
-Confirmed working by you on the firefox-libre build, 2026-09-02, and
+Confirmed working by you on the firefox-github build, 2026-09-02, and
 re-confirmed 2026-09-03 after hls.worker.js became a generated file. **Re-run after every change to the player, loaders or vendored libraries.**
 
 | Format | URL | Status |
@@ -179,11 +179,11 @@ pnpm run start:ff       # launches an ISOLATED Firefox (never touches your own)
 
 ## AMO position
 
-`firefox-dist` (the store target): **0 errors, 13 warnings.**
+`firefox-amo` (the store target): **0 errors, 13 warnings.**
 
 Breakdown: 10 UNSAFE_VAR_ASSIGNMENT, 2 DANGEROUS_EVAL, 1 UNSUPPORTED_API,
 almost all inside vendored libraries that now have a hash-verifiable npm base.
-`yt_runner.js:14` (the YouTube eval) is **gone** - firefox-dist is spliced with
+`yt_runner.js:14` (the YouTube eval) is **gone** - firefox-amo is spliced with
 NO_YOUTUBE, which also removed the `userScripts` permission and the
 `configureWorld` call that set a `script-src 'unsafe-eval'` CSP.
 
@@ -228,7 +228,7 @@ time by `tools/sync-vendor.mjs` from `hls.js@1.6.9` on npm plus
 Verified inert: a clean `pnpm install` reproduces the previously vendored
 file byte-for-byte, and `player/modules/hls.mjs` in the build output hashes
 identically to the upstream baseline (`8702f2b3`). Across the whole
-firefox-libre target the only differing files are the four background
+firefox-github target the only differing files are the four background
 modules carrying `// @ts-check`, each by exactly that one line.
 
 **Still to do for hls.js (step 2):** upgrade the base to 1.7.1 and drop the

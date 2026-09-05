@@ -6,9 +6,9 @@
 // meaning is the same - line endings alone change all 620 text hashes. Binary
 // assets (png, wasm, ort) are hashed verbatim.
 //
-//   node tools/hash-build.mjs build_firefox_libre > before.txt
+//   node tools/hash-build.mjs build_firefox_github > before.txt
 //   ...refactor...
-//   node tools/hash-build.mjs build_firefox_libre > after.txt
+//   node tools/hash-build.mjs build_firefox_github > after.txt
 //   diff before.txt after.txt
 //
 // Any change claiming to be output-neutral must produce an empty diff.
