@@ -106,6 +106,11 @@ export function normalise(node) {
     return out;
   }
 
+  // A BigInt literal survives parsing as an actual BigInt, which
+  // JSON.stringify refuses to serialise. Only the value matters here, and
+  // acorn keeps the source text alongside it in `bigint`.
+  if (typeof node === 'bigint') return `${node}n`;
+
   return node;
 }
 

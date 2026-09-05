@@ -558,16 +558,29 @@ and a zeroed `[2,1,128]` state, exactly as `vad.mjs` does.
 
 It works. That retires the concern rather than arguing it away.
 
-**The glue's own upstream.** `vad/vad.mjs` is not first-party either: the
-`Silero` class, `modelFetcher`, `frameSamples: 512`,
-`positiveSpeechThreshold: 0.5` and `redemptionFrames: 8` are
-ricky0123/vad-web's. That project ships `.onnx` too, never `.ort`, which
-confirms the conversion is FastStream's own step - and means the JavaScript
-side has a verifiable base of its own if it is ever worth pinning.
+**The glue's own upstream.** `vad/vad.mjs` derives from ricky0123/vad-web:
+the `Silero` and `FrameProcessor` classes, `modelFetcher`,
+`frameSamples: 512`, `positiveSpeechThreshold: 0.5` and `redemptionFrames: 8`
+are all that project's. It ships `.onnx` too, never `.ort`, which confirms the
+conversion is FastStream's own step.
 
-**Still open.** Only two things: reproducing the wasm from the command above,
-and pinning `vad.mjs` to a ricky0123/vad-web release. Neither blocks the
-feature working, and both are provenance rather than correctness.
+It cannot be pinned to a release, and after trying, it should not be. vad-web
+publishes a webpack bundle plus per-module CommonJS files; the vendored file
+is neither. It is a 275-line ES module that keeps the three classes it needs
+and drops the microphone capture, the worklet plumbing and the packaging that
+make up most of the original. Declaration matching finds no shared top-level
+declarations with any of 0.0.19, 0.0.20, 0.0.22 or 0.0.24 - not because the
+lineage is in doubt but because the file was restructured rather than copied.
+
+That puts it in a different category from the binaries above, and a better
+one. It is unminified, readable JavaScript a reviewer can simply read - 275
+lines with no build step between the source and what ships. The risk that
+motivated this whole document is code nobody can check; this is code anybody
+can. Recording where it came from is the right treatment, and generating it
+is not available.
+
+**Still open.** One thing: reproducing the wasm from the command above. That
+is provenance, not correctness - the feature is proven to work.
 
 ### vtt.js: provenance proven, and re-checkable on demand
 
