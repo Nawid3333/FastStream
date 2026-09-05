@@ -58,11 +58,13 @@ webExt.cmd.sign({
   channel,
   apiKey,
   apiSecret,
+  amoBaseUrl: 'https://addons.mozilla.org/api/v5/',
 }).then((result) => {
-  console.log(`\nSigned: ${result.success ? 'yes' : 'no'}`);
-  if (result.downloadedFiles) {
-    result.downloadedFiles.forEach((f) => console.log(`  ${f}`));
-  }
+  // web-ext 10.x resolves with the downloaded files; `success` is not
+  // populated, so treat a downloaded .xpi as the success signal.
+  const files = result.downloadedFiles || [];
+  console.log(`\nSigned: ${files.length ? 'yes' : 'no'}`);
+  files.forEach((f) => console.log(`  ${f}`));
 }).catch((err) => {
   console.error('\nSigning failed:', err.message || err);
   process.exit(1);
