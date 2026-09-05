@@ -255,7 +255,7 @@ what can actually change behaviour.
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
 | mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
 | libsamplerate-js | **none published** | a wasm-filename bug fixed; see below | build not yet reproduced |
-| knob | - | `jherrm/knobs`; npm `knob` is a different project | documented |
+| knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
@@ -858,11 +858,37 @@ v4.7.4 through v5.1.0, plus three changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
-### knob — 28 KB
+### knob — 28 KB, verified on demand
 
 Base pinned: **jherrm/knobs `Knob.js` at `cf2db70f`** (2012-05-16), found with
 `tools/find-base.mjs --commits`. Not the repository's head: the 2022 commit is
 a third larger and matches far worse.
+
+It cannot be generated - the repository has **no `package.json`**, so no
+package manager can install it, and there is no npm release to pin. So it is
+verified instead, the same way vtt.js is. `pnpm run verify:knob` fetches
+`Knob.js` at that commit and compares parsed declarations:
+
+```
+top-level identical    10 of 11
+top-level ours only    Knob            (upstream keeps it inside an IIFE)
+top-level differing    members
+members identical      33 of 39
+members changed        val, doMouseScroll, __validateAndPublishAngle,
+                       __angleFromValue, __publish
+members added          __validateAndPublishValue, __validateValue,
+                       __valueFromAngles
+members removed        __determineValue  (renamed to __valueFromAngles)
+```
+
+Every one of those differences is in the list below, and the script fails if a
+single one appears that is not - it does not check a count, it checks the
+exact sets. Mutation tested: injecting one statement into `setDimensions`
+moves it into `members changed` and exits 1.
+
+That is a stronger claim than a patch would give. A patch says "here is what we
+changed"; this says "here is what we changed, and nothing else changed", and
+re-checks it against upstream on demand.
 
 The npm package named `knob` is `mmckegg/knob`, an unrelated canvas widget,
 and jherrm/knobs is not published to npm at all.

@@ -248,6 +248,20 @@ this file. Worth filing that issue before offering C8.
   answer.
 - **Status:** `queued`
 
+## C10c. knob provenance, verified rather than generated
+
+- **What:** `tools/verify-knob.mjs` and `pnpm run verify:knob`. jherrm/knobs
+  has no `package.json` and no npm release, so `knob.mjs` cannot be generated.
+  The script fetches `Knob.js` at the pinned commit and asserts that 10 of 11
+  top-level declarations and 33 of 39 `members` entries are structurally
+  identical, and that the exact set of differences is the ten documented
+  changes - not a count, the sets themselves.
+- **Why he wants it:** knob is the one vendored file with no linter warnings
+  and no obvious problem, which is exactly why nobody would ever check it. One
+  of the ten changes is an upstream bug fix worth reporting to jherrm.
+- **Depends on:** C0 for `ast-compare.mjs`.
+- **Status:** `queued`
+
 ## C11. `docs/vendored-libraries.md`
 
 - **What:** the analysis behind wave C — every base version, how it was
