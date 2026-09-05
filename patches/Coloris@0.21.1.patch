@@ -1,5 +1,5 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index 49d67eedf513071bfa5531483f885666c4d405a8..13ba708f550ca72fac3f8b612222361c6680d131 100644
+index 49d67eedf513071bfa5531483f885666c4d405a8..e6e6ae251e31bc93393290fe71be8c2ea0e77c83 100644
 --- a/dist/coloris.js
 +++ b/dist/coloris.js	
 @@ -66,15 +66,10 @@
@@ -282,15 +282,6 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..13ba708f550ca72fac3f8b612222361c
  
        // If the selector is not a string then it's a function
        // in which case we need a regular event listener
-@@ -1163,7 +1242,7 @@
-     if (document.readyState !== 'loading') {
-       fn.apply(void 0, args);
-     } else {
--      document.addEventListener('DOMContentLoaded', function () {
-+      container.addEventListener('DOMContentLoaded', function () {
-         fn.apply(void 0, args);
-       });
-     }
 @@ -1188,11 +1267,7 @@
      function Coloris(options) {
        DOMReady(function () {

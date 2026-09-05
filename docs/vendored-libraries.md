@@ -537,6 +537,16 @@ The module shape - unwrapping the UMD and exporting `Coloris` and
 Applying all of it reproduces the vendored file exactly: **43 of 43
 declarations identical, and the whole file parses to the same program.**
 
+**One bug fixed on top.** The fork had rewritten `DOMReady` to attach its
+`DOMContentLoaded` listener to `container` rather than `document`. An element
+never receives `DOMContentLoaded`, and `container` is `undefined` until a
+parent is configured, so any Coloris call made while the document was still
+parsing would throw `TypeError: container is undefined`. It survived because
+FastStream's scripts run after parsing, which makes the branch unreachable in
+practice - a latent crash rather than a live one. That line is restored to
+`document`, and it is now the single deliberate difference from the file this
+replaces: **42 of 43 declarations identical, one fixed.**
+
 **Tested.** `tests/e2e/specs/modules.e2e.mjs` drives the player's own picker
 the way `InterfaceController` does, and asserts it renders into `.mainplayer`
 rather than the document, opens on click, and writes the chosen colour back
