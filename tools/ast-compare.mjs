@@ -198,16 +198,53 @@ export function declarations(src) {
 }
 
 /**
- * Compares two sources declaration by declaration.
+ * Extracts every top-level `A.b.c = ...` assignment, keyed by its path.
  *
- * @param {string} a first source
- * @param {string} b second source
+ * `declarations` only sees named declarations, which makes a prototype-based
+ * library almost entirely invisible to it: mp4box declares twelve things and
+ * then hangs 339 assignments off them. Comparing only the declarations there
+ * reported "2 differing" and missed that four prototype methods had changed
+ * and three existed in one file and not the other - one of which, mp4box's
+ * `getSampleList`, FastStream's own mp4merger.mjs calls.
+ *
+ * @param {string} src JavaScript source
+ * @return {Map<string, string>} assignment path to its canonical right side
+ */
+export function prototypeAssignments(src) {
+  const out = new Map();
+  const pathOf = (node) => {
+    if (!node || node.type !== 'MemberExpression') return null;
+    const parts = [];
+    let cur = node;
+    while (cur && cur.type === 'MemberExpression') {
+      const k = cur.property;
+      parts.unshift(k.name ?? k.value ?? '?');
+      cur = cur.object;
+    }
+    if (!cur || cur.type !== 'Identifier') return null;
+    parts.unshift(cur.name);
+    return parts.join('.');
+  };
+  for (const stmt of parse(src).body) {
+    if (stmt.type !== 'ExpressionStatement') continue;
+    const e = stmt.expression;
+    if (e.type !== 'AssignmentExpression' || e.operator !== '=') continue;
+    const key = pathOf(e.left);
+    if (key) out.set(key, JSON.stringify(normalise(e.right)));
+  }
+  return out;
+}
+
+/**
+ * Buckets two maps of the shape `declarations` and `prototypeAssignments`
+ * return.
+ *
+ * @param {Map<string, string>} da first map
+ * @param {Map<string, string>} db second map
  * @return {{same: string[], differs: string[], onlyA: string[],
  *   onlyB: string[]}} the four buckets
  */
-export function compareDeclarations(a, b) {
-  const da = declarations(a);
-  const db = declarations(b);
+function bucket(da, db) {
   const same = [];
   const differs = [];
   const onlyA = [];
@@ -218,6 +255,30 @@ export function compareDeclarations(a, b) {
   }
   const onlyB = [...db.keys()].filter((n) => !da.has(n));
   return {same, differs, onlyA, onlyB};
+}
+
+/**
+ * Compares two sources by their top-level assignments.
+ *
+ * @param {string} a first source
+ * @param {string} b second source
+ * @return {{same: string[], differs: string[], onlyA: string[],
+ *   onlyB: string[]}} the four buckets
+ */
+export function comparePrototypes(a, b) {
+  return bucket(prototypeAssignments(a), prototypeAssignments(b));
+}
+
+/**
+ * Compares two sources declaration by declaration.
+ *
+ * @param {string} a first source
+ * @param {string} b second source
+ * @return {{same: string[], differs: string[], onlyA: string[],
+ *   onlyB: string[]}} the four buckets
+ */
+export function compareDeclarations(a, b) {
+  return bucket(declarations(a), declarations(b));
 }
 
 /**

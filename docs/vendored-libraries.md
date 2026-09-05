@@ -253,7 +253,7 @@ what can actually change behaviour.
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
+| mp4box | 0.5.3 | **reverted** - needs a 7-item patch; see below | vendored |
 | libsamplerate-js | **none published** | a wasm-filename bug fixed; see below | build not yet reproduced |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
@@ -815,20 +815,55 @@ server, which was answering FastStream's overshooting Range requests with
 "Range Not Satisfiable" instead of clamping them. Both files failed for that
 unrelated reason, which looked like exoneration.
 
-So mp4box stays vendored for now. What is known:
+**Third**, the bisect was run, and it did not need mp4box's git history at
+all - only a tool that could see the file properly.
 
-- base is 0.5.3, established by diff
-- the vendored copy predates that release: it lacks the `lhvC` box parser and
-  the `fLaC` sample entry
-- something between that commit and the release breaks FastStream's MP4 path.
-  Bisecting mp4box's history between 0.5.2 and 0.5.3 would identify it, and is
-  the way to finish this migration properly
+`compare-decls` reported "2 declarations differing" and that was misleading,
+because mp4box declares twelve things and then hangs **339 assignments** off
+them. `declarations()` never looked at those. Adding `prototypeAssignments()`
+changes the picture completely:
+
+```
+declarations   identical 12   differing 2   MPEG4DescriptorParser, ISOFile
+assignments    identical 332  differing 4   BoxParser.Box.prototype.writeHeader
+                                            ISOFile.prototype.buildTrakSampleLists
+                                            ISOFile.prototype.getSample
+                                            ISOFile.prototype.flattenItemInfo
+               only ours 3                  ISOFile.prototype.getSampleList
+                                            ISOFile.prototype.items
+                                            ISOFile.prototype.entity_groups
+```
+
+332 of 339 assignments identical settles the base: this really is 0.5.3-era
+code. The seven that are not are the migration's actual work list, and one of
+them explains everything:
+
+**`ISOFile.prototype.getSampleList` exists only in the vendored copy, and
+`modules/dash2mp4/mp4merger.mjs:66` calls it.** It is a FastStream addition.
+Replacing the file with stock 0.5.3 deletes a method the product calls.
+
+The experiment was re-run from scratch against the current test server - the
+one whose 416 bug confounded the original attempt - and the earlier conclusion
+holds: **stock 0.5.3 fails `plays MP4 (mp4box)`, the vendored copy passes.**
+Reverting only the `MPEG4DescriptorParser` change and keeping everything else
+at 0.5.3 still fails, which rules that difference out and puts the cause in
+`ISOFile`. For the record, that descriptor change is upstream *fixing* a bug:
+the vendored loop does `size = (byteRead & 0x7F) << 7`, overwriting on every
+byte, where 0.5.3 accumulates with `size = (size << 7) + (byteRead & 0x7F)`.
+
+So the migration is not blocked, it is specified. It needs a patch carrying
+the seven items above - the same treatment hls.js and dash.js already get -
+and the e2e suite to confirm it. What it must not be is a straight swap, which
+is what was tried and reverted.
+
 - `players/mp4/MP4Player.mjs` and `modules/dash2mp4/mp4merger.mjs` import
   `{MP4Box, DataStream}`; the vendored file exports them directly and drops
   the trailing CommonJS block
 
-The lesson generalises: a library migration is not "provably inert" because
-its diff looks additive. Only the end-to-end suite settles it.
+Two lessons generalise. A library migration is not "provably inert" because
+its diff looks additive - only the end-to-end suite settles it. And a
+comparison tool that reports a small number is not the same as a small
+difference: check that the tool can see the shape of the file it is reading.
 
 ## The two that stay vendored
 
