@@ -502,17 +502,22 @@ instead of Andrew's.
 
 ### vtt.js — 88 KB
 
-Base: **0.13.0**, the best match across all 22 published releases (2121
-differing lines, against 2241 for 0.12.x). The gap is structural rather than
-modification: the in-tree file is 88 KB where npm's `lib/vtt.js` is 45 KB,
-because it is a **browserify bundle** of the package - `vtt.js` plus
-`vttcue.js` and `vttregion.js` - wrapped in browserify's UMD preamble.
-npm publishes only the individual `lib/*` modules, never a bundle.
+Provenance is **proven and re-runnable**; see
+"vtt.js: provenance proven, and re-checkable on demand" above, and run
+`pnpm run verify:vtt`.
 
-Upstream: https://github.com/videojs/vtt.js
+Two claims this document previously made here were wrong, and are recorded
+because they show how the wrong answer was reached. It said the base was
+**0.13.0** and that the file was a browserify bundle of videojs/vtt.js's
+`lib/`. Both came from a line-count search across videojs/vtt.js releases,
+which will always return a nearest release even when the true base is not in
+the set at all. The bundle's own module map settles it: it requires
+`./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
+paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
+**dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
+v4.7.4 through v5.1.0, plus three changes and an export line.
+
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
-
-To regenerate: browserify `lib/index.js` from `vtt.js@0.13.0`.
 
 ### coloris — 38 KB
 
