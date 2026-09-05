@@ -332,7 +332,7 @@ async function buildFirefoxGithub() {
 
   manifest.browser_specific_settings = {
     gecko: {
-      id: 'faststream@andrews',
+      id: 'thanatus@Nawid',
       strict_min_version: '113.0',
     },
   };
@@ -366,7 +366,7 @@ async function buildFirefoxAmo() {
 
   manifest.browser_specific_settings = {
     gecko: {
-      id: 'faststream@andrews',
+      id: 'thanatus@Nawid',
       // data_collection_permissions needs Firefox 140+ (Android 142+).
       strict_min_version: '142.0',
       // FastStream sends no telemetry and contacts no analytics

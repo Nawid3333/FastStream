@@ -1,6 +1,6 @@
 {
   "name": "faststream",
-  "version": "1.3.77",
+  "version": "1.3.77.1",
   "description": "Stream videos without buffering. Fix bad video players on the internet.",
   "packageManager": "pnpm@11.22.0",
   "engines": {
@@ -27,7 +27,9 @@
     "start:ff:fresh:amo": "node tools/launch-ff-fresh.mjs amo",
     "test:e2e": "wdio run tests/e2e/wdio.conf.mjs",
     "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e",
-    "verify:vtt": "node tools/verify-vtt.mjs"
+    "verify:vtt": "node tools/verify-vtt.mjs",
+    "sign:amo": "node tools/sign-amo.mjs",
+    "sign:amo:listed": "node tools/sign-amo.mjs --listed"
   },
   "repository": {
     "type": "git",

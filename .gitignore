@@ -24,3 +24,6 @@ tests/e2e/fixtures/
 
 # WebdriverIO driver logs and failure screenshots from the e2e suite.
 logs/
+
+# AMO signing credentials. Never commit these.
+.amo-credentials.json
