@@ -358,7 +358,7 @@ async function buildFirefoxLibre() {
 
 
 async function buildFirefoxDist() {
-  spliceAndCopy(chromeSourceDir, firefoxDistBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER', 'NO_YOUTUBE']);
+  spliceAndCopy(chromeSourceDir, firefoxDistBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER']);
   insertLicense(firefoxDistBuildDir);
 
   const manifestPath = path.join(firefoxDistBuildDir, 'manifest.json');
@@ -385,11 +385,14 @@ async function buildFirefoxDist() {
 
   manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
 
-  // This target is spliced with NO_YOUTUBE, so the userscript that needed
-  // this permission is not in the build at all. Requesting a permission
-  // nothing uses is exactly what AMO reviewers ask about, so drop it rather
-  // than moving it to optional_permissions as the other targets do.
+  // CENSORYT disables YouTube downloading but keeps playback, so the
+  // userscript that drives YouTube is still in the build. Move userScripts
+  // to optional_permissions as the other targets do.
   manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
+  if (!manifest.optional_permissions) {
+    manifest.optional_permissions = [];
+  }
+  manifest.optional_permissions.push('userScripts');
 
   delete manifest.incognito;
   delete manifest.minimum_chrome_version;
