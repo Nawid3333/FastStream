@@ -233,3 +233,186 @@ describe('the colour picker', function() {
     expect(result.value).toBe('#00ff00');
   });
 });
+
+describe('the audio resampler', function() {
+  beforeEach(async function() {
+    await browser.url('/player/index.html?t=' + Date.now());
+  });
+
+  /**
+   * Runs a snippet inside a module Worker and returns what it posts back.
+   *
+   * libsamplerate cannot be exercised from the page. Its glue is built with
+   * `BINARYEN_ASYNC_COMPILATION=0`, so it instantiates the wasm synchronously
+   * and reads it with a blocking XHR - which only exists in a worker. Loading
+   * it from a window throws "sync fetching of the wasm failed" before any of
+   * the library's own code runs.
+   *
+   * That is also how the product loads it: `reencoder.mjs` spawns
+   * `resampler-worker.mjs`. The worker cannot be driven directly here because
+   * its protocol takes `AudioData`, which is WebCodecs and absent in Firefox,
+   * so this stands up an equivalent worker around the same module.
+   *
+   * @param {string} body worker source; posts its result with postMessage
+   * @param {number} [timeout] how long to allow, in ms
+   * @return {Promise<any>} whatever the worker posted
+   */
+  async function runInWorker(body, timeout = 60000) {
+    await browser.execute((src) => {
+      window.__out = undefined;
+      window.__err = undefined;
+      const url = URL.createObjectURL(
+          new Blob([src], {type: 'text/javascript'}));
+      const worker = new Worker(url, {type: 'module'});
+      worker.onmessage = (e) => {
+        window.__out = e.data;
+      };
+      // A module worker reports a failed import as an ErrorEvent with an
+      // empty message, so record whatever detail there is rather than
+      // letting the poll below time out with nothing to show.
+      worker.onerror = (e) => {
+        window.__err = 'worker error: ' + (e.message || '(no message)') +
+          ' at ' + (e.filename || '?') + ':' + (e.lineno || '?');
+      };
+    }, body);
+
+    await browser.waitUntil(
+        async () => browser.execute(
+            () => window.__out !== undefined || window.__err !== undefined),
+        {timeout, interval: 250, timeoutMsg: 'the worker never settled'},
+    );
+
+    const {out, err} = await browser.execute(
+        () => ({out: window.__out, err: window.__err}));
+    if (err) throw new Error(err);
+    if (out && out.error) throw new Error('worker-side failure: ' + out.error);
+    return out;
+  }
+
+  const MODULE = '/player/modules/reencoder/libsamplerate.mjs';
+
+  it('resamples 48 kHz to 44.1 kHz and keeps the tone', async function() {
+    const result = await runInWorker(`
+      const IN_RATE = 48000;
+      const OUT_RATE = 44100;
+      const FREQ = 440;
+      (async () => {
+        try {
+          const m = await import(location.origin + '${MODULE}');
+          const input = new Float32Array(IN_RATE);
+          for (let i = 0; i < input.length; i++) {
+            input[i] = Math.sin(2 * Math.PI * FREQ * i / IN_RATE);
+          }
+          const r = await m.create(1, IN_RATE, OUT_RATE, {
+            converterType: m.ConverterType.SRC_SINC_MEDIUM_QUALITY,
+          });
+          const output = r.full(input);
+          r.destroy();
+
+          let peak = 0;
+          let sumSquares = 0;
+          for (let i = 0; i < output.length; i++) {
+            peak = Math.max(peak, Math.abs(output[i]));
+            sumSquares += output[i] * output[i];
+          }
+          const rms = Math.sqrt(sumSquares / output.length);
+          // A clean sine crosses zero exactly twice per cycle, so counting
+          // sign changes recovers its frequency without an FFT. That is
+          // enough to catch the failures that matter - silence, a copy of
+          // the input at the wrong rate, or garbage - and unlike a spectral
+          // check it needs no windowing and has no leakage to reason about.
+          let crossings = 0;
+          for (let i = 1; i < output.length; i++) {
+            if ((output[i - 1] < 0) !== (output[i] < 0)) crossings++;
+          }
+          const seconds = output.length / OUT_RATE;
+          postMessage({
+            length: output.length,
+            peak,
+            rms,
+            hz: Math.round(crossings / 2 / seconds),
+          });
+        } catch (e) {
+          postMessage({error: (e && e.stack) || String(e)});
+        }
+      })();
+    `);
+
+    console.log('      resampler:', JSON.stringify(result));
+    // One second in must be one second out, at the new rate.
+    expect(result.length).toBeGreaterThan(44000);
+    expect(result.length).toBeLessThan(44200);
+    // Not silence, and not clipped or scaled.
+    expect(result.peak).toBeGreaterThan(0.9);
+    expect(result.peak).toBeLessThan(1.1);
+    // Still a sine, not merely something with the right period. A sine of
+    // peak 1 has an RMS of 1/sqrt(2); a square wave of peak 1 has an RMS of
+    // 1, and would otherwise satisfy every other assertion here.
+    expect(result.rms).toBeGreaterThan(0.70);
+    expect(result.rms).toBeLessThan(0.71);
+    // The tone survived the conversion.
+    expect(result.hz).toBeGreaterThan(435);
+    expect(result.hz).toBeLessThan(445);
+  });
+
+  it('pins which converter types this wasm build can actually run',
+      async function() {
+        // The vendored wasm is 117 KB where the published one is 1.5 MB, and
+        // this is where the difference shows: only three of the five
+        // converters produce audio. SRC_SINC_BEST_QUALITY and
+        // SRC_SINC_FASTEST construct without error and then return 2 frames
+        // for 48000 in, which is what an absent coefficient table looks like
+        // from JavaScript - the module's own validation accepts all five, so
+        // nothing before this test could tell them apart.
+        //
+        // Order-independent: probing them in a different sequence gives the
+        // same answer, so this is the build, not leaked state between
+        // instances.
+        //
+        // FastStream only ever asks for SRC_SINC_MEDIUM_QUALITY, so the
+        // product is unaffected - but swapping this wasm for a stock build
+        // would silently change resampling quality, and this pins it.
+        const result = await runInWorker(`
+      (async () => {
+        try {
+          const m = await import(location.origin + '${MODULE}');
+          const order = ['SRC_SINC_MEDIUM_QUALITY', 'SRC_SINC_BEST_QUALITY',
+            'SRC_SINC_FASTEST', 'SRC_ZERO_ORDER_HOLD', 'SRC_LINEAR'];
+          const input = new Float32Array(48000);
+          for (let i = 0; i < input.length; i++) {
+            input[i] = Math.sin(2 * Math.PI * 440 * i / 48000);
+          }
+          const support = {};
+          for (const name of order) {
+            try {
+              const r = await m.create(1, 48000, 44100, {
+                converterType: m.ConverterType[name],
+              });
+              const out = r.full(input);
+              r.destroy();
+              // The length is reported, not asserted. 48000 frames at this
+              // ratio is 44100 exactly, but a sinc converter cannot emit the
+              // tail it has no future input for, so each converter returns a
+              // slightly different count. Recording them shows how much of
+              // the shortfall is filter delay rather than lost audio.
+              support[name] = out.length > 0 ? 'ok ' + out.length : 'empty';
+            } catch (e) {
+              support[name] = 'failed: ' + ((e && e.message) || e);
+            }
+          }
+          postMessage(support);
+        } catch (e) {
+          postMessage({error: (e && e.stack) || String(e)});
+        }
+      })();
+    `);
+
+        console.log('      converters:', JSON.stringify(result));
+        // The three that work, including the one the product uses. The other
+        // two are recorded above rather than asserted, so that shipping a
+        // fuller wasm later is not a test failure.
+        expect(result.SRC_SINC_MEDIUM_QUALITY).toBe('ok 44054');
+        expect(result.SRC_ZERO_ORDER_HOLD).toBe('ok 44100');
+        expect(result.SRC_LINEAR).toBe('ok 44100');
+      });
+});

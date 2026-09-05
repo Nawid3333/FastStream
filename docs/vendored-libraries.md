@@ -245,19 +245,17 @@ what can actually change behaviour.
 |---|---|---|---|
 | pako | 2.1.0 | one line: `export const Pako = window.pako;` | **migrated** |
 | fuse.js | 7.1.0 | none at all | **migrated** |
-| sortablejs | 1.15.2 | mounts Swap + MultiDrag plugins; exports the function directly instead of `export default` | measured |
-| sweetalert2 | 11.12.4 | injects `import {DOMElements}`; replaces the UMD global assignment with `export const SweetAlert = swl;` | measured |
-| sweetalert2 | 11.12.4 | see below - includes a payload that must stay stripped | **migrated** |
 | sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
+| sweetalert2 | 11.12.4 | ESM boundary; includes a payload that must stay stripped | **migrated** |
 | mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
-| mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
+| coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
+| jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| coloris | not pinned | upstream unwrapped from its IIFE; no release matches exactly | **open** |
-| libsamplerate-js | **none** | built on the author's own laptop - see below | **blocker** |
-| jswebm | src, not dist | `webm.mjs` is the **source** concatenated, not the published bundle | **open** |
-| knob | — | `jherrm/knobs`; npm `knob` is a different project | documented |
+| mp4box | 0.5.3 (base) | **reverted** - 0.5.3 breaks MP4 playback | vendored |
+| libsamplerate-js | **none published** | a wasm-filename bug fixed; see below | build not yet reproduced |
+| knob | - | `jherrm/knobs`; npm `knob` is a different project | documented |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
@@ -316,30 +314,129 @@ directly: gif.js encodes two frames and the test checks for a `GIF89a` header,
 mp4-muxer writes a container and the test checks for an `ftyp` box at offset
 4. Breaking the worker URL on purpose fails the gif test and only that test.
 
-### libsamplerate is the remaining provenance blocker
+### libsamplerate: a shipped bug, and why npm is the wrong answer
 
-`reencoder/libsamplerate.mjs` matches no published artifact, and there is
-direct evidence why. Its emscripten glue carries the absolute path of the
-machine that produced it:
+This section used to say the answer here was "use the published package".
+Measuring it says the opposite, and on the way to that measurement the
+resampler turned out to have never worked at all.
+
+#### The resampler was broken in every build, including upstream's
+
+The vendored `libsamplerate.mjs` is webpack output, and webpack emitted the
+wasm reference under its content-hashed name:
+
+```js
+module.exports = __webpack_require__.p + "625941a851f0440e1705.wasm";
+```
+
+The file vendored beside it is called `libsamplerate.wasm`. Nothing sets
+`Module.locateFile` or `Module.wasmBinary`, so the request 404s. The glue is
+built with `BINARYEN_ASYNC_COMPILATION=0`, which means it instantiates
+synchronously through a blocking `XMLHttpRequest` rather than
+`WebAssembly.instantiateStreaming` - so the 404 response body was handed
+straight to `WebAssembly.Module`, which rejected it:
+
+```
+at offset 4: failed to match magic number
+```
+
+Every call to `create()` threw. The same mismatch is present in upstream
+v1.3.77, so this is not something the fork introduced.
+
+It went unnoticed because of where the code sits: the resampler is reached
+only from `reencoder.mjs`, which needs WebCodecs and therefore runs on Chrome
+only, and only when a user re-encodes a download. Nothing on the playback path
+touches it, and no test did either.
+
+The fix is the one string literal, and it is annotated in place. With it
+applied, 1 second of a 440 Hz sine resampled 48000 -> 44100 comes back as
+44054 samples at peak 1.0, RMS 0.7071 and still 440 Hz.
+`tests/e2e/specs/modules.e2e.mjs` now asserts exactly that, and it was watched
+failing with the magic-number error before the fix.
+
+#### Do not replace it with the npm package
+
+The earlier recommendation assumed npm's build was the same thing with better
+provenance. It is not the same thing. Measured, not estimated:
+
+| Artifact | JS | wasm | Real WebAssembly? | Zipped total |
+|---|---|---|---|---|
+| vendored (Andrew's build) | 50,636 | 117,508, separate file | **yes** | **110,601** |
+| npm 1.4.3 | 24,714 | 1,501,929, separate file | yes | 1,352,606 |
+| npm 2.1.0 - 2.1.2 | 2,016,428, wasm inlined | none | **no** | 1,470,718 |
+
+`@alexanderolsen/libsamplerate-js` has shipped **no WebAssembly at all** since
+2.1.0. The string `WebAssembly` does not appear anywhere in its published
+bundles; what is there is a wasm2js shim whose `instantiate` returns a
+thenable. Upstream's own build script says why:
+
+```sh
+-s WASM=0 \        # don't generate a separate .wasm file
+-s SINGLE_FILE=1 \ # inline the generated wasm
+```
+
+So migrating to npm would mean shipping **+1.36 MB compressed** - a 32%
+increase on the 4.28 MB AMO zip - to replace working WebAssembly with
+asm.js. That is a worse product in exchange for provenance, and the size lands
+on every user whether or not they ever re-encode anything.
+
+Version 1.4.3 is the last release with real wasm in a separate file, and it is
+no cheaper: its wasm is 1.5 MB and barely compresses, because sinc coefficient
+tables are incompressible float data.
+
+#### The 117 KB is not free, and now we know what it costs
+
+Probing each converter with a full second of audio - rather than merely
+constructing one - shows where the 12x size difference went:
+
+| Converter | Frames out for 48000 in |
+|---|---|
+| `SRC_SINC_MEDIUM_QUALITY` | 44054 |
+| `SRC_SINC_BEST_QUALITY` | **2** |
+| `SRC_SINC_FASTEST` | **2** |
+| `SRC_ZERO_ORDER_HOLD` | 44100 |
+| `SRC_LINEAR` | 44100 |
+
+Two of the five sinc converters construct without error and then emit almost
+nothing, which is what an absent coefficient table looks like from
+JavaScript - and libsamplerate's sinc tables are exactly the megabyte-scale
+static float data missing from this build. Probing them in a different order
+gives the same result, so it is the build and not leaked state between
+instances.
+
+The 46-frame shortfall on the medium converter is different in kind and is not
+a defect: a sinc converter cannot emit the tail it has no future input for.
+`SRC_ZERO_ORDER_HOLD` and `SRC_LINEAR`, which need no lookahead, return 44100
+exactly.
+
+FastStream only ever asks for `SRC_SINC_MEDIUM_QUALITY`, so none of this
+affects the product - but it does mean the vendored wasm is **not**
+interchangeable with a stock build, and swapping it would silently change
+resampling quality. The e2e suite now pins the three that work.
+
+So Andrew's build is not sloppy, it is a deliberate trade: `-O3`, `-g0`, real
+WebAssembly, one converter's tables, and 12x smaller than the published one.
+
+#### What is actually left to do
+
+Only provenance, and it is a narrower problem than it looked. The glue carries
+the machine that produced it:
 
 ```js
 var _scriptName = "file:///Users/andrews/Desktop/fs/libsamplerate-js/src/glue.js";
 ```
 
-It was built on the author's own computer. The wasm beside it is consistent
-with that: 117,508 bytes against the 1,501,929 bytes that
-`@alexanderolsen/libsamplerate-js` publishes for the same library.
+Mozilla's requirement for compiled code is source plus build instructions, and
+those instructions are now known: upstream's `scripts/build_emscripten.sh`
+with `WASM=0` changed to `WASM=1` and `SINGLE_FILE=1` to `SINGLE_FILE=0`,
+against `libsamplerate.a` from `scripts/library/build_library.sh`. The
+remaining work is to pin an emscripten version, run that build, and ship a
+`verify:libsamplerate` that reproduces the artifact and compares hashes - the
+same shape as `verify:vtt`, which is already how vtt.js is handled.
 
-This is the hardest remaining AMO problem in the tree - harder than coloris or
-knob, which are readable JavaScript from public repositories. It is a **binary
-blob with no published counterpart**, which is precisely what a reviewer
-cannot verify. It needs a decision rather than more measurement:
-
-1. **Use the published package.** Full provenance, at roughly +1.4 MB, since
-   the npm wasm is a much less optimised build.
-2. **Reproduce the build.** Keep the size, and publish the exact emscripten
-   version and flags so a reviewer can rebuild it. Cheaper in bytes, more work
-   to document, and only as good as the reproducibility.
+That needs Docker or an emsdk install, neither of which is set up on this
+machine yet. Until it is, the honest status is: the wasm works, is proven to
+work by test, and its build is documented but not yet reproduced.
 
 ### The VAD blobs: 2.8 MB, and the same problem twice
 

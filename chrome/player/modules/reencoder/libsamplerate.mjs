@@ -17,7 +17,13 @@ Copyright (c) 2012-2016, Erik de Castro Lopo erikd@mega-nerd.com All rights rese
   \***********************/
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
-module.exports = __webpack_require__.p + "625941a851f0440e1705.wasm";
+// FastStream change: webpack emitted this as "625941a851f0440e1705.wasm",
+// but the file is vendored beside this module as libsamplerate.wasm. The
+// original name 404s, and because the glue is built with
+// BINARYEN_ASYNC_COMPILATION=0 it instantiates synchronously, so the 404
+// body reaches WebAssembly.Module and fails on the magic number. That
+// broke every resample. Covered by tests/e2e/specs/modules.e2e.mjs.
+module.exports = __webpack_require__.p + "libsamplerate.wasm";
 
 /***/ })
 

@@ -39,7 +39,7 @@ within that, from small to large:
 
 | Wave | What it is | Risk to his store build |
 |---|---|---|
-| A | repository hygiene | none — no shipped file changes |
+| A | repository hygiene and one shipped bug fix | none - A0 fixes a path that already fails |
 | B | tests and CI | none — new files only |
 | C | library provenance | real — changes what ships, one library at a time |
 | D | Firefox MV3 / AMO | real — but only affects a target he does not ship |
@@ -53,6 +53,33 @@ no linter caught.
 ---
 
 # Wave A — repository hygiene
+
+## A0. Fix the resampler: it fetches a wasm file that is not there
+
+- **Commit:** `pending` (this fork)
+- **What:** `reencoder/libsamplerate.mjs` is webpack output, and webpack wrote
+  the wasm reference under its content-hashed name:
+
+  ```js
+  module.exports = __webpack_require__.p + "625941a851f0440e1705.wasm";
+  ```
+
+  The file vendored beside it is `libsamplerate.wasm`. Nothing sets
+  `Module.locateFile`, so the request 404s - and because the glue is built
+  with `BINARYEN_ASYNC_COMPILATION=0` it instantiates synchronously, so the
+  404 body reaches `WebAssembly.Module` and fails with
+  `at offset 4: failed to match magic number`. One string literal fixes it.
+- **Why he wants it:** audio resampling during re-encode has never worked, in
+  any release, on any browser. It is reached only from `reencoder.mjs`, which
+  needs WebCodecs and so runs on Chrome only, and only when a user re-encodes
+  a download - which is why nothing caught it. Verified present in upstream
+  v1.3.77.
+- **Depends on:** nothing. Ideally offered together with the e2e test from B3
+  that proves it, since the fix is otherwise a one-character-looking change to
+  a 50 KB vendored bundle and hard to take on faith.
+- **Note:** send this one first. It is the smallest diff in the queue and the
+  only one that fixes something users can hit.
+- **Status:** `queued`
 
 ## A1. Fix Windows build: `miniglob.mjs` `volumeNameLen` shadowing
 
