@@ -259,11 +259,11 @@ what can actually change behaviour.
 
 | Library | Version | Real change beyond lint autofix | Status |
 |---|---|---|---|
-| pako | 2.1.0 | one line: `export const Pako = window.pako;` | **migrated** |
-| fuse.js | 7.1.0 | none at all | **migrated** |
-| sortablejs | 1.15.2 | named export only; plugins already mounted upstream | **migrated** |
-| sweetalert2 | 11.12.4 | ESM boundary; includes a payload that must stay stripped | **migrated** |
-| mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated** |
+| pako | 3.0.1 | none - 3.x ships real ESM, no wrapper needed at all | **migrated** |
+| fuse.js | 7.5.0 | none at all | **migrated** |
+| sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
+| sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
+| mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated, 5.2.2 tried and reverted** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
@@ -282,7 +282,35 @@ code and should stay in git.
 **pako** was stock 2.1.0 with a single appended export line. The generated
 file (npm build + that line) parses to an **AST identical** to the vendored
 copy, so the replacement needed no patch and no playback test - the parsed
-program is provably the same.
+program is provably the same. Since upgraded to 3.0.1, whose `dist/pako.mjs`
+is real ESM with named `deflate`/`inflate` exports - that appended line has
+nothing to attach to any more, so the wrapper is gone too and this is now a
+verbatim copy, same as fuse.js.
+
+**mp4-muxer 5.2.2 was tried (2026-09-06) and reverted.** The API surface
+`reencoder.mjs` uses (`Muxer`, `StreamTarget`, `addVideoChunk`,
+`addAudioChunk`, `finalize`) is unchanged between 4.3.3 and 5.2.2 - checked
+directly against 5.2.2's `.d.ts` before touching anything. But
+`tests/e2e/specs/modules.e2e.mjs`'s existing "writes a valid MP4 container"
+test - which declares a video track and calls `finalize()` with **zero**
+video chunks added, exercising exactly the "recording stopped before any
+frame arrived" edge case a re-encode tool has to survive - throws in 5.2.2:
+
+```
+page-side failure: can't access property "colorSpace", track.info.decoderConfig is null
+```
+
+5.2.2's `videoSampleDescription()` unconditionally reads
+`track.info.decoderConfig.colorSpace` when writing the `stsd` box.
+`decoderConfig` is only ever populated from a real chunk's metadata, so a
+video track that received no chunks has a null one, and finalization
+crashes instead of producing a container with an empty track (or at least
+not crashing). 5.2.2 is the current latest release (checked against the npm
+registry directly, not assumed), so there is no newer patch to wait for, and
+the package is itself deprecated upstream in favor of a successor library
+("Mediabunny"). Given a real behavioural regression, on the newest
+available version, in a package upstream has stopped investing in - reverted
+to 4.3.3 rather than shipped it or patched around it.
 
 **fuse.js** needed nothing at all: 34 AST differences, every one of them lint
 autofix, and identical exports.
