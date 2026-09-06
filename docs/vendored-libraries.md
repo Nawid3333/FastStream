@@ -269,7 +269,7 @@ what can actually change behaviour.
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated** |
+| mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated, 2.4.1 upgrade attempted and shelved (2026-09-06)** |
 | libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
@@ -286,6 +286,31 @@ program is provably the same. Since upgraded to 3.0.1, whose `dist/pako.mjs`
 is real ESM with named `deflate`/`inflate` exports - that appended line has
 nothing to attach to any more, so the wrapper is gone too and this is now a
 verbatim copy, same as fuse.js.
+
+**mp4box 2.4.1 was sized up (2026-09-06) and shelved.** Two problems, not
+one. First, the public API changed: `MP4Box.createFile()` is gone, replaced
+by a bare `createFile()` export, which alone would mean code changes in
+`mp4merger.mjs` (3 call sites), `demuxers.mjs` and `MP4Player.mjs`. Second,
+and the real blocker: mp4box.js was rewritten in TypeScript and is now
+bundled with rolldown, which renames every internal binding to a short
+synthetic identifier (`$`, `Bn`, `Kt`, ...) and only maps back to a readable
+name at the final `export {...}` statement. Checked both the `.mjs` and
+`.cjs` output - neither keeps real names. That breaks the method this
+project otherwise relies on for exactly this kind of upgrade: hls.js's and
+dash.js's bundlers keep real function/module names, so a patch hunk can be
+found, diffed against the new release, and judged landed/superseded/still
+needed. Here, none of the five customized functions
+(`buildTrakSampleLists`, `getSample`, `getSampleList`, `flattenItemInfo`,
+`writeHeader`) are findable by name any more, and two of them
+(`samples_stored` sample-release tracking, used by `MP4Player.mjs` in core
+playback; `getSampleList()`, used by the save-to-disk DASH-to-MP4 path) are
+real behaviour, not lint noise. Porting them would mean reverse-engineering
+the rolldown output's alias chain back to the real functions first - a
+materially bigger and riskier undertaking than hls.js, on code that sits in
+the playback-critical path. 0.5.3 stays pinned + patched; that already
+satisfies AMO's actual objection (verifiable provenance), and nothing
+requires the newer release. Worth revisiting only with a lot more time
+budgeted, or if GPAC ever ships a build that preserves real names.
 
 **mp4-muxer 5.2.2 was tried (2026-09-06) and reverted.** The API surface
 `reencoder.mjs` uses (`Muxer`, `StreamTarget`, `addVideoChunk`,
