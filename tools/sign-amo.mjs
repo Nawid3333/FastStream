@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 // Signs the Firefox AMO build with web-ext and submits it to addons.mozilla.org.
 //
-// Credentials come from .amo-credentials.json (gitignored), never from the
-// command line or the environment, so they cannot leak into shell history or
-// CI logs. The file is:
+// Locally, credentials come from .amo-credentials.json (gitignored), never
+// from the command line, so they cannot leak into shell history. The file
+// is:
 //
 //   {
 //     "apiKey": "user:...",
 //     "apiSecret": "..."
 //   }
+//
+// In CI (no file on the runner), AMO_API_KEY / AMO_API_SECRET env vars are
+// used instead - see .github/workflows/publish-amo.yml, which injects them
+// from repo secrets.
 //
 // Usage
 // -----
@@ -31,22 +35,29 @@ const artifactsDir = path.join(root, 'web-ext-artifacts');
 const listed = process.argv.includes('--listed');
 const channel = listed ? 'listed' : 'unlisted';
 
-if (!fs.existsSync(credPath)) {
+let apiKey;
+let apiSecret;
+if (fs.existsSync(credPath)) {
+  ({apiKey, apiSecret} = JSON.parse(fs.readFileSync(credPath, 'utf8')));
+} else if (process.env.AMO_API_KEY && process.env.AMO_API_SECRET) {
+  apiKey = process.env.AMO_API_KEY;
+  apiSecret = process.env.AMO_API_SECRET;
+} else {
   console.error(
-      'Missing .amo-credentials.json. Create it with your AMO API key and ' +
-      'secret (see the header comment in tools/sign-amo.mjs).');
+      'Missing .amo-credentials.json, and AMO_API_KEY/AMO_API_SECRET are ' +
+      'not set. Create the file locally, or set both env vars in CI (see ' +
+      'the header comment in tools/sign-amo.mjs).');
+  process.exit(2);
+}
+
+if (!apiKey || !apiSecret) {
+  console.error('AMO credentials need both an API key and a secret.');
   process.exit(2);
 }
 
 if (!fs.existsSync(path.join(sourceDir, 'manifest.json'))) {
   console.error(
       `No build at ${sourceDir}. Run: pnpm run build:keep`);
-  process.exit(2);
-}
-
-const {apiKey, apiSecret} = JSON.parse(fs.readFileSync(credPath, 'utf8'));
-if (!apiKey || !apiSecret) {
-  console.error('.amo-credentials.json needs both "apiKey" and "apiSecret".');
   process.exit(2);
 }
 

@@ -18,6 +18,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 env:
   UPSTREAM: https://github.com/Andrews54757/FastStream.git
@@ -111,4 +112,24 @@ jobs:
           if ! gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY" 2>/dev/null; then
             gh pr create --base "$WORK_BRANCH" --head "$BRANCH" \
               --title "$TITLE" --body "$BODY"
+          fi
+
+      # No SMTP secrets to manage: assigning a GitHub issue emails the
+      # assignee under that account's default notification settings. Reuses
+      # one issue by title instead of opening a new one on every failed
+      # Monday so repeated failures don't pile up silently.
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE='Upstream sync workflow failed'
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" \
+              --body "The sync-upstream workflow failed. Run: $RUN_URL" \
+              --assignee "${{ github.repository_owner }}"
           fi
