@@ -576,8 +576,71 @@ cd onnxruntime && git checkout 5c74539ab7
   --minimal_build --disable_exceptions --skip_tests
 ```
 
-That is derived from the flags rather than run, and it needs emscripten plus a
-full ONNX Runtime build to confirm. It is the remaining work on this file.
+#### That command was run, and the answer key was checked against
+
+`tools/reproduce-ort-wasm.sh` runs it: clones onnxruntime at `5c74539ab7`,
+fetches only the one submodule this build path needs (`cmake/external/onnx` -
+the other two, `emsdk` and `libprotobuf-mutator`, are its own pinned emsdk
+copy and a fuzzing harness respectively), and builds with the flags above via
+`build.py`.
+
+Two problems came up along the way, both external and both documented in the
+script rather than worked around silently. CMake 4.x refuses
+`cmake_minimum_required` versions below 3.5, which `google_nsync` - a
+transitive dependency fetched automatically - still declares; the fix is
+CMake's own suggested `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`. And GitLab had
+regenerated the byte content of the pinned Eigen archive since onnxruntime's
+`cmake/deps.txt` recorded its hash - a live instance of the exact issue
+onnxruntime's own deps.txt cites at
+`gitlab.com/libeigen/eigen/-/issues/2744` - confirmed by downloading the
+archive and checking its root directory name still matches the pinned commit
+before accepting the new hash. The script re-derives that hash at run time
+rather than trusting a pin that GitLab can silently invalidate.
+
+With both cleared, the build produces a real
+`ort-wasm-simd-threaded.wasm`, and its own "ORT Build Info" stamp - the same
+one `verify:ort` reads from the shipped file - was checked against the
+recorded values field by field:
+
+```
+ok   commit      git-commit-id=5c74539ab7
+ok   build type  build type=MinSizeRel
+ok   flag        -ffunction-sections / -fdata-sections / -flto / -msimd128 /
+                 -pthread / -Wno-pthreads-mem-growth / -fno-exceptions /
+                 -fno-unwind-tables / -fno-asynchronous-unwind-tables
+ok   version     1.20.0
+ok   minimal     ORT-format-only (reduced build)
+BAD  branch      git-branch=main
+```
+
+Every field matches except `git-branch`, and that one is explained rather
+than concerning: this build checked out a detached commit, so git reports
+`HEAD`; a branch checkout at the same commit reports `main`. Same tree, same
+commit, same compiler flags - a checkout-state label, not a build
+difference.
+
+Then the rebuilt runtime was asked to do the actual job: load
+`silero_vad_half.ort` and run the same 512-sample, `[2,1,128]`-state
+inference `vad.mjs` makes.
+
+|  | shipped | rebuilt |
+|---|---|---|
+| silence | 0.04426264762878418 | 0.04426264762878418 |
+| noise | 0.02436661720275879 | 0.02436661720275879 |
+| state shape | [2, 1, 128] | [2, 1, 128] |
+
+Bit for bit identical. Between the exact commit, the exact flags, and
+identical inference output on the real model, this is as complete a
+reproduction as the shipped binary's own self-attestation permits.
+
+**The one thing this does not reproduce is size.** The rebuild is 4,016,081
+bytes against the shipped 1,037,262 - about 4x larger - because this build
+used only `--minimal_build` and `--disable_ml_ops`; the shipped binary was
+further restricted to a specific set of ONNX operators via
+`--include_ops_by_config`, and which ops were in that list is not recoverable
+from the binary's stamp. That is the one open question left on this file, and
+it is about a build parameter, not about what the binary is or whether it
+works - both of which are now settled.
 
 **The glue.** `ort-wasm-simd-threaded.mjs` is 23,512 bytes against the 24,618
 onnxruntime-web 1.20.0 publishes, and the two differ only in minified
