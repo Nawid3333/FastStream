@@ -432,7 +432,13 @@ async function buildFirefoxAmo() {
   dropDeadTempResource(manifest);
   dropYoutubeContentScript(manifest);
 
-  manifest.permissions.push('downloads');
+  // 'cookies' stays: the DOWNLOAD handler in background.mjs reads
+  // `sender.tab.cookieStoreId` and passes it to `tabs.create()` so a
+  // download started from a container tab runs in that container. Firefox
+  // gates cookieStoreId on the "cookies" permission - Mozilla's own schema
+  // says so in as many words on downloads.download - so dropping it would
+  // quietly break container downloads.
+  manifest.permissions.push('downloads', 'cookies');
 
   // This target is spliced with NO_YOUTUBE, so the userscript that needed
   // this permission is not in the build at all. Requesting a permission
@@ -440,12 +446,12 @@ async function buildFirefoxAmo() {
   // than moving it to optional_permissions as the other targets do.
   manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
 
-  // 'cookies' and 'contextualIdentities' were requested for yt.mjs's
-  // getCookie() helper, which NO_YOUTUBE already removes from this target -
-  // and that helper only ever parsed a cookie string it was handed, never
-  // called the cookies API itself. contextualIdentities has no call site
-  // anywhere in the project. Same reasoning as userScripts above: don't ask
-  // for permissions nothing in the build uses.
+  // 'contextualIdentities' is deliberately not requested, for that same
+  // reason. Mozilla's schema scopes that permission to the
+  // `browser.contextualIdentities` namespace - querying and editing
+  // container definitions - which nothing here calls. Reading a tab's
+  // cookieStoreId, which is all this add-on does, needs 'cookies' and not
+  // this.
 
   delete manifest.incognito;
   delete manifest.minimum_chrome_version;

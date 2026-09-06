@@ -1253,10 +1253,17 @@ fork past the `17.0.1` npm tag, not the tag itself, and finding it would be
 the first step before a patch could be written. Not attempted, since the
 file isn't in the AMO build this documentation is scoped to.
 
-As a consequence of not shipping this file, the AMO manifest also drops the
-`cookies` and `contextualIdentities` permissions (`build.mjs`,
-`buildFirefoxAmo()`) - the only reference to either was `yt.mjs`'s
-`getCookie()`, which turned out to just parse a cookie string it was handed
-rather than call the `cookies` API, and `contextualIdentities` has no call
-site anywhere in the project. Requesting permissions nothing in the build
-uses is exactly what an AMO reviewer stops on.
+Unrelated to the splice, the AMO manifest drops the `contextualIdentities`
+permission (`build.mjs`, `buildFirefoxAmo()`). Mozilla's schema scopes that
+permission to the `browser.contextualIdentities` namespace - querying and
+editing container definitions - and nothing in the project calls it.
+Requesting a permission nothing uses is what an AMO reviewer stops on.
+
+`cookies` was very nearly dropped alongside it and must not be: the
+`DOWNLOAD` handler in `background.mjs` reads `sender.tab.cookieStoreId` and
+passes it to `tabs.create()`, so that a download started from a container
+tab opens in that same container. Firefox gates `cookieStoreId` on the
+`cookies` permission - the bundled schema says so outright on
+`downloads.download` - so removing it silently breaks container downloads
+while leaving every test green. The first pass at this did remove it, on
+the strength of a grep for `.cookies.` that `cookieStoreId` does not match.
