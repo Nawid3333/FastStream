@@ -845,7 +845,8 @@ Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538eda
 That is the same guarantee a registry version gives a reviewer: a fixed
 artifact they can fetch and hash themselves.
 
-FastStream's changes are in `patches/Coloris@0.21.1.patch`, 9 KB, and they
+FastStream's changes are in `patches/Coloris@0.21.1.patch`, 11 KB (grew from
+9 KB after the `textContent` changes described below), and they
 are not the cosmetic rebinding the earlier note described. They are three
 features:
 
@@ -879,12 +880,44 @@ rather than the document, opens on click, and writes the chosen colour back
 to the bound input. Removing the patched `init()` call makes it fail,
 verified by doing exactly that.
 
-**It does not change the warning count, and that is worth being exact
-about.** coloris still accounts for 7 of the 13 addons-linter warnings after
-the migration; they are `UNSAFE_VAR_ASSIGNMENT` on the picker's own
-`innerHTML` writes, which are upstream's code and are there whether the file
-is vendored or generated. addons-linter grades the code, not where it came
-from.
+**A second pass did change the warning count.** coloris originally accounted
+for 7 of the 12 addons-linter warnings, all `UNSAFE_VAR_ASSIGNMENT` on
+`innerHTML` writes - upstream's code, present whether the file is vendored or
+generated, since addons-linter grades the code, not where it came from. Five
+of the seven turned out to be genuinely static: `clearButton.innerHTML =
+settings.clearLabel`, `closeButton.innerHTML = settings.closeLabel`, and the
+two `a11y.open`/`a11y.swatch` label writes all read from Coloris's own
+built-in defaults (`'Clear'`, `'Close'`, plain-text a11y labels) - confirmed
+by checking FastStream's actual call in `InterfaceController.mjs`, which
+passes `parent`, `theme`, `themeMode`, `formatToggle`, `swatches`, `alpha`,
+and `focusInput`, never `clearLabel`/`closeLabel`/`a11y`. `patches/
+Coloris@0.21.1.patch` now also rewrites those four sites (one call site is
+hit twice) from `innerHTML` to `textContent` - an exact behavioural match for
+plain-text labels, and strictly safer if a future caller ever does pass a
+dynamic value through them.
+
+The remaining two - the swatch list built by joining per-colour HTML strings,
+and the picker's own ~40-line template literal - build markup by
+concatenation rather than static assignment. Both are fed only FastStream's
+own hardcoded values today (a fixed hex/rgb swatch array, and the library's
+own static a11y defaults), but rewriting either into safe DOM construction is
+a materially bigger change to code that renders the entire widget, so they
+are left as they are rather than rewritten under time pressure.
+
+Applying just the four-site rename was caught doing real damage once:
+recreating the patch via a second `pnpm patch` / `pnpm patch-commit` cycle
+starting from a *pristine* copy silently produced a patch containing only the
+new change, dropping every earlier hunk (`bindElement` included) - `pnpm
+patch` hands you the pristine package, not the already-patched one, so
+anything added this way must be layered onto a copy the existing patch has
+already been applied to, not assumed. The full `pnpm run test:e2e` suite
+caught it immediately: the colour-picker test and, because
+`InterfaceController` calls `Coloris(...)` during its own construction and an
+uncaught `ReferenceError` there aborted the rest of player setup, all three
+playback tests failed too. Re-applying the existing patch with `patch -p1`
+before layering the new change on top, then confirming both `bindElement` and
+`textContent` are present in the resulting diff, fixed it - verified by
+rerunning the exact tests that had failed.
 
 What the migration changes is the thing that actually got the add-on
 refused: a reviewer can now fetch a pinned commit, hash it, and read a 9 KB

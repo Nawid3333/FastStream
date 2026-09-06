@@ -39,7 +39,7 @@ async function runInPage(fn, timeout = 60000) {
           window.__out = v;
         })
         .catch((e) => {
-          window.__err = (e && e.stack) || String(e);
+          window.__err = ((e && e.message) ? e.message + '\n' : '') + ((e && e.stack) || String(e));
         });
   }, fn.toString());
 
