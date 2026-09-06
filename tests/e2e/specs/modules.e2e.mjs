@@ -217,6 +217,13 @@ describe('the colour picker', function() {
       colorValue.dispatchEvent(new Event('change', {bubbles: true}));
       await new Promise((r) => setTimeout(r, 200));
 
+      // InterfaceController's own Coloris({...}) call configures 6 fixed
+      // swatches. patches/Coloris@0.21.1.patch rewrote how these buttons get
+      // built (createElement/textContent instead of a joined innerHTML
+      // string, for addons-linter's UNSAFE_VAR_ASSIGNMENT), so this checks
+      // that rewrite actually renders the same buttons rather than nothing.
+      const swatchButtons = Array.from(picker.querySelectorAll('#clr-swatches button'));
+
       return {
         // The patch renders the picker into the configured parent. Left
         // unpatched it attaches to document.body, so this is the assertion
@@ -224,6 +231,11 @@ describe('the colour picker', function() {
         parent: picker.parentElement.className,
         open,
         value: input.value,
+        swatchCount: swatchButtons.length,
+        firstSwatch: swatchButtons[0] && {
+          text: swatchButtons[0].textContent,
+          color: swatchButtons[0].style.color,
+        },
       };
     });
 
@@ -231,6 +243,9 @@ describe('the colour picker', function() {
     expect(result.parent).toContain('mainplayer');
     expect(result.open).toBe(true);
     expect(result.value).toBe('#00ff00');
+    expect(result.swatchCount).toBe(6);
+    expect(result.firstSwatch.text).toBe('rgb(255,255,255)');
+    expect(result.firstSwatch.color).toBe('rgb(255, 255, 255)');
   });
 });
 
