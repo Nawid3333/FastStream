@@ -1227,4 +1227,36 @@ three small, stable libraries, the documentation above is the better trade.
 
 ## youtube.js
 
-Not yet measured. Apply the same method.
+Not shipped to AMO, so it is out of scope for that submission. `NO_YOUTUBE`
+(`build.mjs`, `buildFirefoxAmo()`) splices `yt.mjs`, `googlevideo.mjs`,
+`YTPlayer`, the sandboxed evaluator, and `yt_runner.js` out of that target
+entirely - a decision project made deliberately, to keep the store build
+small and easy to review rather than take on YouTube's anti-bot arms race
+inside a listed extension. Confirmed empirically: `build_firefox_amo`
+contains no file matching `yt*.mjs` or `googlevideo.mjs` after a real build.
+
+It still ships in the GitHub self-host build (`buildFirefoxGithub()`,
+`buildChromeGithub()`), where it remains an unmeasured ~33,000-line vendor
+of `youtubei.js` (github.com/LuanRT/YouTube.js). Andrew maintains his own
+fork at github.com/Andrews54757/YouTube.js and pulls version bumps in
+wholesale (see the file's own commit history: "Update Youtube.js to v8.0.0",
+"Update ytjs", etc.), same shape as hls.js/dash.js but far bigger.
+
+If this is ever revisited: `yt.mjs`'s embedded `packageInfo.version` reads
+`17.0.1`, and `youtubei.js@17.0.1` is a real published npm version - but a
+module-inventory diff against that exact tarball's `bundle/browser.js`
+(639 modules) against the vendored file (618 modules) shows they are close
+but not identical: 613 modules are shared, and 5 - including
+`bgutils/BGUtils.js` and `bgutils/SandboxedEvaluator.js` - exist only in the
+vendored file. That means the real base is a specific commit on Andrew's
+fork past the `17.0.1` npm tag, not the tag itself, and finding it would be
+the first step before a patch could be written. Not attempted, since the
+file isn't in the AMO build this documentation is scoped to.
+
+As a consequence of not shipping this file, the AMO manifest also drops the
+`cookies` and `contextualIdentities` permissions (`build.mjs`,
+`buildFirefoxAmo()`) - the only reference to either was `yt.mjs`'s
+`getCookie()`, which turned out to just parse a cookie string it was handed
+rather than call the `cookies` API, and `contextualIdentities` has no call
+site anywhere in the project. Requesting permissions nothing in the build
+uses is exactly what an AMO reviewer stops on.
