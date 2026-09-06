@@ -14,4 +14,4 @@ patchedDependencies:
   hls.js@1.7.2: patches/hls.js@1.7.2.patch
   jswebm@0.1.2: patches/jswebm@0.1.2.patch
   mp4box@0.5.3: patches/mp4box@0.5.3.patch
-  sweetalert2@11.12.4: patches/sweetalert2@11.12.4.patch
+  sweetalert2@11.26.25: patches/sweetalert2@11.26.25.patch
