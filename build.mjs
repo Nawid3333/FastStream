@@ -376,7 +376,10 @@ async function buildFirefoxGithub() {
   manifest.browser_specific_settings = {
     gecko: {
       id: 'thanatus@Nawid',
-      strict_min_version: '113.0',
+      // The userScripts optional permission and the MV3 userScripts.getScripts/
+      // configureWorld calls in background.mjs need Firefox 136+; 113.0 predates
+      // all three, which is what addons-linter's lint:github run was flagging.
+      strict_min_version: '136.0',
     },
   };
 
