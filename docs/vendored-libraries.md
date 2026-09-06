@@ -254,7 +254,7 @@ what can actually change behaviour.
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
 | mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated** |
-| libsamplerate-js | **none published** | a wasm-filename bug fixed; see below | build not yet reproduced |
+| libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
@@ -434,9 +434,57 @@ remaining work is to pin an emscripten version, run that build, and ship a
 `verify:libsamplerate` that reproduces the artifact and compares hashes - the
 same shape as `verify:vtt`, which is already how vtt.js is handled.
 
-That needs Docker or an emsdk install, neither of which is set up on this
-machine yet. Until it is, the honest status is: the wasm works, is proven to
-work by test, and its build is documented but not yet reproduced.
+#### Reproduced, with an honest limit on what that proves
+
+`tools/reproduce-libsamplerate-wasm.sh` does exactly that: fetches the
+wrapper unmodified from `aolsenjazz/libsamplerate-js` (confirmed unchanged
+since commit `581aac655d`, 2021-01-13 - checked via that path's own commit
+history, not assumed), builds `libsamplerate` 0.2.2 with `emconfigure`, and
+compiles the two with `em++` using upstream's own flags minus the two that
+turn off WebAssembly.
+
+libsamplerate 0.2.2 is a choice, not a certainty: it was published 2021-09-05,
+four days before npm 1.4.3 - the last release with a real, separate wasm -
+went out on 2021-09-09. That is the reasoning; there is nothing to check it
+against, because `lib/libsamplerate.a` was committed as a **prebuilt binary
+in that repository's very first commit** (`d5e77f2720`, 2021-01-12), with no
+source and no build script anywhere in its history. That was confirmed by
+walking the commit history of that exact path, the same way the mp4box bisect
+was - there is nothing left to bisect here. This is the same shape of problem
+the whole file started from, one level down: not "who modified this," but
+"nobody ever recorded how this was built," and libsamplerate-js's own history
+proves it, rather than assuming it.
+
+So this script cannot claim byte-identity, and does not. What it produces is
+run through the exact numeric check `modules.e2e.mjs` runs on the shipped
+module - a 440 Hz sine, 48000 -> 44100 - and the result for
+`SRC_SINC_MEDIUM_QUALITY`, the only converter the product uses, is:
+
+| | shipped | rebuilt (0.2.2) | rebuilt (0.2.0, control) |
+|---|---|---|---|
+| length | 44054 | 44054 | 44054 |
+| peak | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 |
+| rms | 0.7070750381175818 | 0.7070750381175818 | 0.7070750381175818 |
+
+Exact agreement on all three figures - but the 0.2.0 control matches too,
+which means this particular signal is not sensitive enough to tell
+libsamplerate versions apart on its own. What it does establish is narrower
+and still real: the published wrapper, compiled with documented flags against
+a real release of the library it wraps, reproduces the shipped module's
+behaviour on the one converter FastStream calls. The version pin stays a
+documented inference, not a proven match, and the difference between those
+two claims is written down here rather than blurred.
+
+One thing the rebuild does that the shipped file does not: **every converter
+works.** The shipped wasm returns 2 frames - not reduced quality, no usable
+output at all - for `SRC_SINC_BEST_QUALITY` and `SRC_SINC_FASTEST`; the
+rebuild returns correct audio for both, alongside the same match on the other
+three. FastStream never asks for either, so this is not a product bug, but it
+is a genuine defect in the shipped binary that a full rebuild does not carry.
+
+The script needs a real toolchain - emsdk plus autotools - so it is
+documentation to run by hand, the same way the ONNX Runtime rebuild command
+above is, not a `pnpm run` target.
 
 ### The VAD blobs: the model is proven, the runtime is not
 

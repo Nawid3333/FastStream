@@ -232,6 +232,29 @@ this file. Worth filing that issue before offering C8.
   can re-run, which is what a reviewer is actually asking for.
 - **Status:** `queued`
 
+## C10c. libsamplerate wasm, reproduced from public source
+
+- **What:** `tools/reproduce-libsamplerate-wasm.sh`. libsamplerate-js's own
+  `lib/libsamplerate.a` was committed as a prebuilt binary in that
+  repository's first commit, with no source and no build script ever - so
+  there is no recipe to recover, only one to construct. This fetches the
+  wrapper (unmodified since 2021-01-13), builds libsamplerate 0.2.2 - the
+  release published four days before the last real-wasm npm version - and
+  compiles both with documented emcc flags.
+- **Why he wants it:** the result matches the shipped wasm's behaviour exactly
+  on the one converter FastStream uses (length, peak and RMS all identical),
+  and it fixes a genuine defect the shipped binary has: two of five converter
+  types return no usable output there, and do in the rebuild.
+- **What it does not claim:** byte-identity, or a proven exact version pin -
+  a 0.2.0 control build matches the same numeric test just as exactly, so
+  that particular signal cannot tell versions apart. The documentation is
+  explicit about the difference between "reproduces the behaviour" and
+  "is the same bytes."
+- **Depends on:** a real toolchain (emsdk + autotools) to run - it is a
+  by-hand reproduction, not a `pnpm run` target, the same shape as the ONNX
+  Runtime rebuild command in `docs/vendored-libraries.md`.
+- **Status:** `queued`
+
 ## C10b. VAD model provenance, verified rather than generated
 
 - **What:** `tools/verify-vad.mjs` and `pnpm run verify:vad`. snakers4/silero-vad
