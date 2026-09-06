@@ -1,5 +1,5 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554c7a5e382 100644
+index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b230bd2cd 100644
 --- a/dist/coloris.js
 +++ b/dist/coloris.js
 @@ -66,15 +66,10 @@
@@ -194,7 +194,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
    }
  
    /**
-@@ -920,7 +968,6 @@
+@@ -920,43 +968,57 @@
     */
    function init() {
      // Render the UI
@@ -202,7 +202,91 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
      picker = document.createElement('div');
      picker.setAttribute('id', 'clr-picker');
      picker.className = 'clr-picker';
-@@ -983,19 +1030,19 @@
+-    picker.innerHTML =
+-    "<input id=\"clr-color-value\" name=\"clr-color-value\" class=\"clr-color\" type=\"text\" value=\"\" spellcheck=\"false\" aria-label=\"" + settings.a11y.input + "\">" + ("<div id=\"clr-color-area\" class=\"clr-gradient\" role=\"application\" aria-label=\"" +
+-    settings.a11y.instruction + "\">") +
+-    '<div id="clr-color-marker" class="clr-marker" tabindex="0"></div>' +
+-    '</div>' +
+-    '<div class="clr-hue">' + ("<input id=\"clr-hue-slider\" name=\"clr-hue-slider\" type=\"range\" min=\"0\" max=\"360\" step=\"1\" aria-label=\"" +
+-    settings.a11y.hueSlider + "\">") +
+-    '<div id="clr-hue-marker"></div>' +
+-    '</div>' +
+-    '<div class="clr-alpha">' + ("<input id=\"clr-alpha-slider\" name=\"clr-alpha-slider\" type=\"range\" min=\"0\" max=\"100\" step=\"1\" aria-label=\"" +
+-    settings.a11y.alphaSlider + "\">") +
+-    '<div id="clr-alpha-marker"></div>' +
+-    '<span></span>' +
+-    '</div>' +
+-    '<div id="clr-format" class="clr-format">' +
+-    '<fieldset class="clr-segmented">' + ("<legend>" +
+-    settings.a11y.format + "</legend>") +
+-    '<input id="clr-f1" type="radio" name="clr-format" value="hex">' +
+-    '<label for="clr-f1">Hex</label>' +
+-    '<input id="clr-f2" type="radio" name="clr-format" value="rgb">' +
+-    '<label for="clr-f2">RGB</label>' +
+-    '<input id="clr-f3" type="radio" name="clr-format" value="hsl">' +
+-    '<label for="clr-f3">HSL</label>' +
+-    '<span></span>' +
+-    '</fieldset>' +
+-    '</div>' +
+-    '<div id="clr-swatches" class="clr-swatches"></div>' + ("<button type=\"button\" id=\"clr-clear\" class=\"clr-clear\" aria-label=\"" +
+-    settings.a11y.clear + "\">" + settings.clearLabel + "</button>") +
+-    '<div id="clr-color-preview" class="clr-preview">' + ("<button type=\"button\" id=\"clr-close\" class=\"clr-close\" aria-label=\"" +
+-    settings.a11y.close + "\">" + settings.closeLabel + "</button>") +
+-    '</div>' + ("<span id=\"clr-open-label\" hidden>" +
+-    settings.a11y.open + "</span>") + ("<span id=\"clr-swatch-label\" hidden>" +
+-    settings.a11y.swatch + "</span>");
++    function mk(tag, attrs, children) {
++      var node = document.createElement(tag);
++      for (var attrName in attrs) {
++        if (attrName === 'text') {
++          node.textContent = attrs[attrName];
++        } else {
++          node.setAttribute(attrName, attrs[attrName]);
++        }
++      }
++      (children || []).forEach(function (child) {
++        node.appendChild(child);
++      });
++      return node;
++    }
++    picker.append(
++      mk('input', {id: 'clr-color-value', name: 'clr-color-value', 'class': 'clr-color', type: 'text', value: '', spellcheck: 'false', 'aria-label': settings.a11y.input}),
++      mk('div', {id: 'clr-color-area', 'class': 'clr-gradient', role: 'application', 'aria-label': settings.a11y.instruction}, [
++        mk('div', {id: 'clr-color-marker', 'class': 'clr-marker', tabindex: '0'}),
++      ]),
++      mk('div', {'class': 'clr-hue'}, [
++        mk('input', {id: 'clr-hue-slider', name: 'clr-hue-slider', type: 'range', min: '0', max: '360', step: '1', 'aria-label': settings.a11y.hueSlider}),
++        mk('div', {id: 'clr-hue-marker'}),
++      ]),
++      mk('div', {'class': 'clr-alpha'}, [
++        mk('input', {id: 'clr-alpha-slider', name: 'clr-alpha-slider', type: 'range', min: '0', max: '100', step: '1', 'aria-label': settings.a11y.alphaSlider}),
++        mk('div', {id: 'clr-alpha-marker'}),
++        mk('span', {}),
++      ]),
++      mk('div', {id: 'clr-format', 'class': 'clr-format'}, [
++        mk('fieldset', {'class': 'clr-segmented'}, [
++          mk('legend', {text: settings.a11y.format}),
++          mk('input', {id: 'clr-f1', type: 'radio', name: 'clr-format', value: 'hex'}),
++          mk('label', {'for': 'clr-f1', text: 'Hex'}),
++          mk('input', {id: 'clr-f2', type: 'radio', name: 'clr-format', value: 'rgb'}),
++          mk('label', {'for': 'clr-f2', text: 'RGB'}),
++          mk('input', {id: 'clr-f3', type: 'radio', name: 'clr-format', value: 'hsl'}),
++          mk('label', {'for': 'clr-f3', text: 'HSL'}),
++          mk('span', {}),
++        ]),
++      ]),
++      mk('div', {id: 'clr-swatches', 'class': 'clr-swatches'}),
++      mk('button', {type: 'button', id: 'clr-clear', 'class': 'clr-clear', 'aria-label': settings.a11y.clear, text: settings.clearLabel}),
++      mk('div', {id: 'clr-color-preview', 'class': 'clr-preview'}, [
++        mk('button', {type: 'button', id: 'clr-close', 'class': 'clr-close', 'aria-label': settings.a11y.close, text: settings.closeLabel}),
++      ]),
++      mk('span', {id: 'clr-open-label', hidden: '', text: settings.a11y.open}),
++      mk('span', {id: 'clr-swatch-label', hidden: '', text: settings.a11y.swatch})
++    );
+ 
+     // Append the color picker to the DOM
+     document.body.appendChild(picker);
+@@ -983,19 +1045,19 @@
      });
  
      addListener(colorArea, 'mousedown', function (event) {
@@ -226,7 +310,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
      });
  
      addListener(colorValue, 'change', function (event) {
-@@ -1007,6 +1054,11 @@
+@@ -1007,6 +1069,11 @@
        }
      });
  
@@ -238,7 +322,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
      addListener(clearButton, 'click', function (event) {
        pickColor('');
        closePicker();
-@@ -1032,21 +1084,21 @@
+@@ -1032,21 +1099,21 @@
        }
      });
  
@@ -266,7 +350,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
        var key = event.key;
        var target = event.target;
        var shiftKey = event.shiftKey;
-@@ -1070,14 +1122,16 @@
+@@ -1070,14 +1137,16 @@
          if (shiftKey && target === firstFocusable) {
            lastFocusable.focus();
            event.preventDefault();
@@ -284,7 +368,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
        // Reset any previously set per-instance options
        if (hasInstance) {
          resetVirtualInstance();
-@@ -1098,9 +1152,40 @@
+@@ -1098,9 +1167,40 @@
        if (Object.keys(movements).includes(event.key)) {
          moveMarkerOnKeydown.apply(void 0, movements[event.key]);
          event.preventDefault();
@@ -325,7 +409,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
      addListener(colorArea, 'click', moveMarker);
      addListener(hueSlider, 'input', setHue);
      addListener(alphaSlider, 'input', setAlpha);
-@@ -1123,7 +1208,7 @@
+@@ -1123,7 +1223,7 @@
     * @return {object} The DOM element with the provided id.
     */
    function getEl(id) {
@@ -334,7 +418,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
    }
  
    /**
-@@ -1142,7 +1227,7 @@
+@@ -1142,7 +1242,7 @@
          if (matches.call(event.target, selector)) {
            fn.call(event.target, event);
          }
@@ -343,7 +427,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
  
        // If the selector is not a string then it's a function
        // in which case we need a regular event listener
-@@ -1188,11 +1273,7 @@
+@@ -1188,11 +1288,7 @@
      function Coloris(options) {
        DOMReady(function () {
          if (options) {
@@ -356,7 +440,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..269a8eb9112575e52d1c82109d598554
          }
        });
      }var _loop2 = function _loop2(
-@@ -1207,6 +1288,6 @@
+@@ -1207,6 +1303,6 @@
    }();
  
    // Init the color picker when the DOM is ready

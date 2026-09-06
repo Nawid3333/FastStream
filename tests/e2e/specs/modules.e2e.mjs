@@ -216,6 +216,8 @@ describe('the colour picker', function() {
       colorValue.value = '#00ff00';
       colorValue.dispatchEvent(new Event('change', {bubbles: true}));
       await new Promise((r) => setTimeout(r, 200));
+      // Captured now, before the hue-slider check below changes it further.
+      const boundInputValue = input.value;
 
       // InterfaceController's own Coloris({...}) call configures 6 fixed
       // swatches. patches/Coloris@0.21.1.patch rewrote how these buttons get
@@ -224,13 +226,50 @@ describe('the colour picker', function() {
       // that rewrite actually renders the same buttons rather than nothing.
       const swatchButtons = Array.from(picker.querySelectorAll('#clr-swatches button'));
 
+      // patches/Coloris@0.21.1.patch also rewrote the picker's own ~40-element
+      // skeleton (color area, hue/alpha sliders, the format radios, clear/
+      // close buttons, the two hidden a11y label spans) from one big
+      // innerHTML template into createElement calls. The rest of this test
+      // already exercises colorArea/colorMarker/hueSlider/alphaSlider/
+      // clearButton/closeButton/colorValue indirectly - init() would throw
+      // via getEl() returning null for any of those before this point ever
+      // ran - but nothing above touches the format radios or the hidden
+      // labels, so check those, plus a direct attribute/class spot-check on
+      // a few nodes, rather than trust the ids alone.
+      const formatRadios = Array.from(picker.querySelectorAll('#clr-format input[type=radio]'))
+          .map((r) => ({id: r.id, value: r.value, label: picker.querySelector(`label[for="${r.id}"]`)?.textContent}));
+      const openLabel = picker.querySelector('#clr-open-label');
+      const swatchLabel = picker.querySelector('#clr-swatch-label');
+      const colorArea = picker.querySelector('#clr-color-area');
+      const hueSlider = picker.querySelector('#clr-hue-slider');
+
+      // Dragging the hue slider isn't simulated anywhere else, so prove the
+      // rebuilt slider and its marker are actually wired into setHue() -
+      // not just present with the right attributes - by moving it and
+      // reading back the two things setHue() touches directly.
+      const hueMarker = picker.querySelector('#clr-hue-marker');
+      hueSlider.value = '120';
+      hueSlider.dispatchEvent(new Event('input', {bubbles: true}));
+      await new Promise((r) => setTimeout(r, 50));
+
       return {
+        hueMarkerLeft: hueMarker?.style.left,
+        pickerColor: picker.style.color,
+        formatRadios,
+        openLabelHidden: openLabel?.hasAttribute('hidden'),
+        openLabelText: openLabel?.textContent,
+        swatchLabelText: swatchLabel?.textContent,
+        colorAreaRole: colorArea?.getAttribute('role'),
+        colorAreaAriaLabel: colorArea?.getAttribute('aria-label'),
+        hueSliderAttrs: hueSlider && {
+          type: hueSlider.type, min: hueSlider.min, max: hueSlider.max, step: hueSlider.step,
+        },
         // The patch renders the picker into the configured parent. Left
         // unpatched it attaches to document.body, so this is the assertion
         // that separates a working container rebinding from a broken one.
         parent: picker.parentElement.className,
         open,
-        value: input.value,
+        value: boundInputValue,
         swatchCount: swatchButtons.length,
         firstSwatch: swatchButtons[0] && {
           text: swatchButtons[0].textContent,
@@ -246,6 +285,28 @@ describe('the colour picker', function() {
     expect(result.swatchCount).toBe(6);
     expect(result.firstSwatch.text).toBe('rgb(255,255,255)');
     expect(result.firstSwatch.color).toBe('rgb(255, 255, 255)');
+
+    expect(result.formatRadios).toEqual([
+      {id: 'clr-f1', value: 'hex', label: 'Hex'},
+      {id: 'clr-f2', value: 'rgb', label: 'RGB'},
+      {id: 'clr-f3', value: 'hsl', label: 'HSL'},
+    ]);
+    expect(result.openLabelHidden).toBe(true);
+    expect(result.openLabelText).toBe('Open color picker');
+    expect(result.swatchLabelText).toBe('Color swatch');
+    expect(result.colorAreaRole).toBe('application');
+    expect(result.colorAreaAriaLabel).toBe(
+        'Saturation and brightness selector. Use up, down, left and right arrow keys to select.',
+    );
+    expect(result.hueSliderAttrs).toEqual({type: 'range', min: '0', max: '360', step: '1'});
+    // setHue() assigns the literal string 'hsl(120, 100%, 50%)', but the
+    // CSSOM serializes style.color back out in its canonical rgb() form -
+    // this is hue 120 (green), read back correctly.
+    expect(result.pickerColor).toBe('rgb(0, 255, 0)');
+    // Same CSSOM serialization behaviour as pickerColor above - the source
+    // assigns the raw '33.33333333333333%' but style.left reads back
+    // rounded.
+    expect(result.hueMarkerLeft).toBe('33.3333%');
   });
 });
 

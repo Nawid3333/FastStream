@@ -1,6 +1,6 @@
 # The addons-linter warnings, one by one
 
-`pnpm run lint:amo` reports **0 errors, 0 notices, 4 warnings** against
+`pnpm run lint:amo` reports **0 errors, 0 notices, 3 warnings** against
 `build_firefox_amo`. Errors block automated validation; warnings do not. They
 are advisory, and every one of them is listed here with what it is and why the
 file has not been changed to silence it.
@@ -26,6 +26,7 @@ worth the audit cost, explain the rest.
 | `UNSUPPORTED_API` | `player/modules/gif/gif.mjs` line 26 | renamed a function-scoped variable that happened to be called `browser` (see below) |
 | `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 143, 152, 164, 180, 181 | `innerHTML` → `textContent` for four static-label writes (see below) |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 116 | the swatch-list builder rewritten to `createElement`/`setAttribute`/`textContent` (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 810 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
 | `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below) |
 
 **gif.js's `UNSUPPORTED_API` was a scope-blind false positive, not a
@@ -95,21 +96,32 @@ render as buttons, and that the first one's text and `style.color` match
 `rgb(255,255,255)` — rather than relying on "the picker still opens" to imply
 the swatch row rendered correctly too.
 
-## The remaining 4
+**The picker's own ~40-element skeleton got the same treatment, with
+correspondingly more verification.** `picker.innerHTML = "..." + "..." +
+...` built the entire widget in one statement — every input, slider, button
+and a11y label. Rewritten to a small local `mk(tag, attrs, children)` helper
+plus one `picker.append(...)` call laying out the same tree: the colour-value
+input, the colour area and its marker, the hue and alpha sliders and their
+markers, the format fieldset with its three radio/label pairs, the swatches
+container, the clear and close buttons, and the two hidden a11y label spans.
+Patched in `patches/Coloris@0.21.1.patch`.
 
-### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/coloris.mjs` line 810
+A rewrite this size got more than a rebuild-and-eyeball check.
+`tests/e2e/specs/modules.e2e.mjs`'s colour-picker test now asserts, against
+the real rendered picker: the three format radios' ids/values/labels, both
+hidden a11y label spans' text, the colour area's `role` and `aria-label`, and
+the hue slider's `type`/`min`/`max`/`step`. None of that was implicitly
+covered by the existing open-and-set-a-colour flow. The one thing that flow
+*couldn't* reach — dragging a slider — was checked by setting the hue
+slider's value and dispatching `input` directly, then reading back the two
+things `setHue()` touches: `hueMarker.style.left` and `picker.style.color`.
+Both came back through the CSSOM's own serialization rather than the literal
+strings the source assigns (`'33.33333333333333%'` reads back as
+`'33.3333%'`, `'hsl(120, 100%, 50%)'` reads back as `'rgb(0, 255, 0)'`) —
+expected browser behaviour, not a bug, and adjusted for after seeing the
+actual values rather than guessing them.
 
-The picker's own ~40-line template literal — the inputs, sliders, buttons and
-a11y labels that make up the whole widget skeleton, assigned to `innerHTML`
-in one `picker.innerHTML = "..." + "..." + ...` statement. `textContent` is
-not a valid swap here either, for the same reason as the swatch list: this
-assigns real structure, not text. Unlike the swatch list, rewriting this one
-into `createElement` calls means reproducing roughly 40 elements' worth of
-tags, classes, ids and attributes by hand, for code that renders the entire
-widget rather than one repeated, easily-verified pattern — a meaningfully
-bigger and more error-prone change for the same single warning. Left rather
-than rushed; a candidate for a future, dedicated pass with its own test
-coverage rather than folded into cleanup that also touched five other sites.
+## The remaining 3
 
 ### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vtt.mjs` line 1065
 
@@ -181,23 +193,24 @@ bundle, and DASH playback is covered end to end by
 
 Because the count is not the goal. Upstream FastStream passed the automated
 linter and was rejected anyway, over vendored libraries a reviewer could not
-verify. Four advisory warnings on files that are pinned, generated, diffable,
-or safe by construction is a far better position than zero warnings on files
-that have been hand-edited past the point of easy review — which is where the
-last submission started. Where a fix was genuinely safe and worth that audit
-cost (gif.js, six of Coloris's seven sites, sweetalert2), it was made; where
-it was not, the reasoning is written down instead of a diff nobody asked for.
+verify. Three advisory warnings on files that are pinned, generated,
+diffable, or safe by construction is a far better position than zero
+warnings on files that have been hand-edited past the point of easy review —
+which is where the last submission started. Where a fix was genuinely safe
+and worth that audit cost (gif.js, all seven of Coloris's sites,
+sweetalert2), it was made; where it was not, the reasoning is written down
+instead of a diff nobody asked for.
 
 ## The GitHub self-host build has more, and does not need fewer
 
 `pnpm run lint:github` — the build distributed outside AMO, which is the one
 target that keeps YouTube support — currently reports **0 errors, 0 notices,
-10 warnings**. It is not held to the same bar as `lint:amo` on purpose: this
+9 warnings**. It is not held to the same bar as `lint:amo` on purpose: this
 build is never submitted to Mozilla, so nothing here affects AMO review. It
 is worth a short note anyway, since some of it looks alarming out of context.
 
-- **4 of the 10** are the coloris/vtt/ort.wasm/dash items above, present in
-  both builds for the same reasons (patches apply to the shared
+- **3 of the 9** are the vtt/ort.wasm/dash items above, present in both
+  builds for the same reasons (patches apply to the shared
   `chrome/player/modules/` source both targets splice from).
 - **3 `ANDROID_INCOMPATIBLE_API`** (`permissions.request`, `userScripts.*`) —
   expected. This extension has no `gecko_android` entry and does not target
@@ -226,7 +239,7 @@ is worth a short note anyway, since some of it looks alarming out of context.
   already spliced out of the AMO build** by the pre-existing
   `SPLICER:NO_YOUTUBE` markers — `dropYoutubeContentScript` in `build.mjs`
   removes it from `build_firefox_amo` outright, which is why none of this
-  shows up in `lint:amo`'s 4. It is documented here rather than in the AMO
+  shows up in `lint:amo`'s 3. It is documented here rather than in the AMO
   section above because it never reaches AMO review at all.
 - **`MISSING_DATA_COLLECTION_PERMISSIONS`** is deliberately not added to this
   build. Adding `data_collection_permissions` was tested directly: it needs

@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  Coloris@0.21.1: 46daa48a275a65d80f76bc4e981cfa5f54006cf827d8a7b1f01f0775eef505d3
+  Coloris@0.21.1: 73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251
   dashjs@5.1.0: d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
@@ -37,7 +37,7 @@ importers:
         version: 9.31.2
       Coloris:
         specifier: github:mdbassit/Coloris#v0.21.1
-        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=46daa48a275a65d80f76bc4e981cfa5f54006cf827d8a7b1f01f0775eef505d3)
+        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251)
       acorn:
         specifier: 8.18.0
         version: 8.18.0
@@ -5859,7 +5859,7 @@ snapshots:
 
   '@zip.js/zip.js@2.9.0': {}
 
-  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=46daa48a275a65d80f76bc4e981cfa5f54006cf827d8a7b1f01f0775eef505d3): {}
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251): {}
 
   abort-controller@3.0.0:
     dependencies:
