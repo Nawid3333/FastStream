@@ -46,16 +46,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # AMO rejects resubmitting a version string it has already seen, so
-      # the run number is appended to keep every submission unique without
-      # needing a manual bump in package.json for each merge. This edits
-      # only this runner's checkout - nothing is committed back.
+      # AMO rejects resubmitting a version string it has already seen, and
+      # caps a version at 4 dot-separated numbers - so the run number
+      # replaces everything past major.minor.patch rather than appending
+      # onto whatever package.json already has, which could otherwise grow
+      # past 4 parts (as it does today: 1.3.77.1). This edits only this
+      # runner's checkout - nothing is committed back.
       - name: Make this submission's version unique
         run: |
           node -e "
             const fs = require('fs');
             const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-            p.version = p.version + '.' + process.env.GITHUB_RUN_NUMBER;
+            const base = p.version.split('.').slice(0, 3).join('.');
+            p.version = base + '.' + process.env.GITHUB_RUN_NUMBER;
             fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
             console.log('Building as', p.version);
           "
