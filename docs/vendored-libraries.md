@@ -228,6 +228,16 @@ source. Diff formats cannot carry a trailing-CR-only change, so
 newline instead. Without that the generated file differs from the vendored one
 by exactly those 428 bytes plus a final newline.
 
+**addons-linter's one `DANGEROUS_EVAL` here** is
+`/******/ return this || new Function('return this')();` - webpack's own
+generated bootstrap, present verbatim in the module-wrapper preamble of
+effectively every webpack bundle (the `/******/` comment prefix is webpack's
+own marker for its runtime code, not this project's). It is the standard
+cross-environment global-object lookup, reached only as a fallback when
+`this` is already falsy at that point in the bootstrap - which it is not, in
+a browser or extension context. Not something to patch out of a bundle this
+size for one boilerplate line; left as upstream ships it.
+
 ## The smaller libraries
 
 Measuring these turned up a pattern that changes how they should be handled.
@@ -662,6 +672,14 @@ not hand-written or hand-minified: it is the emscripten output of the same
 build that produced the wasm, which is what it should be. Glue and wasm pair
 correctly with each other.
 
+`ort.wasm.mjs`'s one `UNSAFE_VAR_ASSIGNMENT` (`await import(url)`, `webpackIgnore`d) is generated too: `dynamicImportDefault`, part of
+onnxruntime-web's own proxy-worker mechanism, importing a module from a URL
+that was itself built two lines earlier from a same-origin `fetch` and
+`URL.createObjectURL`. Generated emscripten/onnxruntime-web glue is not
+something to hand-patch line by line - the correct lever, if this needed to
+change, is the build flags in `reproduce-ort-wasm.sh` and the npm release
+pin, both already the subject of the reproduction above. Left as generated.
+
 **The pairing, now actually run.** `ort.wasm.mjs` is generated from the
 published onnxruntime-web 1.20.0, while the glue and wasm come from main two
 months earlier. A release loader driving a pre-release runtime is exactly the
@@ -750,6 +768,25 @@ rather than a throwaway script: it undoes `one-var`, `curly`, `quotes`,
 `no-var`/`prefer-const` and template-literal re-indentation, so what survives
 is only what can change behaviour.
 
+**Its one `UNSAFE_VAR_ASSIGNMENT`** is `TEXTAREA_ELEMENT.innerHTML = s;`
+inside `unescape(s)`, decoding HTML entities in cue text by writing to a
+detached `<textarea>` and reading `.textContent` back. This is not a
+sanitizer that might be wrong, it is safe by construction: the HTML spec
+gives `<textarea>` an RCDATA content model, so assigning to its `innerHTML`
+can never create an element or run a script no matter what the string
+contains - the entire value always becomes exactly one text node. Confirmed
+that addons-linter cannot be told this either: an inline
+`// eslint-disable-next-line no-unsanitized/property` on this exact line was
+tested and made no difference to the warning count, so whatever runs this
+check does not honour inline directives (a sensible choice for a review
+tool, since otherwise a maintainer could always just disable the finding).
+`DOMParser().parseFromString(s, 'text/html')` was considered as an
+alternative and rejected: unlike a textarea's RCDATA parsing, `'text/html'`
+parsing genuinely constructs real elements (just detached from any
+document), which is a weaker guarantee resting on browsers not fetching
+resources for a detached document rather than on what the parser is
+spec-required to produce. Left as upstream ships it.
+
 ### webm.mjs is generated from jswebm's published sources
 
 `reencoder/webm.mjs` was readable `class Track { ... }` source ending in
@@ -804,7 +841,7 @@ row of the table above. Removing `demux()`'s return makes it fail, verified
 by doing exactly that. The fixture is transcoded from the MP4 one with ffmpeg
 on first run, so no binary enters the repository.
 
-### coloris: generated from a pinned commit, with a 9 KB patch
+### coloris: generated from a pinned commit, with an 11 KB patch
 
 Two earlier claims here were wrong, and both came from searching the wrong
 thing rather than from ranking the results wrongly.
@@ -898,11 +935,15 @@ dynamic value through them.
 
 The remaining two - the swatch list built by joining per-colour HTML strings,
 and the picker's own ~40-line template literal - build markup by
-concatenation rather than static assignment. Both are fed only FastStream's
-own hardcoded values today (a fixed hex/rgb swatch array, and the library's
-own static a11y defaults), but rewriting either into safe DOM construction is
-a materially bigger change to code that renders the entire widget, so they
-are left as they are rather than rewritten under time pressure.
+concatenation rather than static assignment, and **`textContent` is not a
+valid swap for either.** Both assign actual HTML structure (`<div>` wrappers,
+swatch buttons, the picker's inputs and sliders) - `textContent` doesn't
+parse markup, so applying it here would render the literal tag text on
+screen instead of the widget. Both are fed only FastStream's own hardcoded
+values today (a fixed hex/rgb swatch array, and the library's own static
+a11y defaults), but rewriting either into safe DOM construction is a
+materially bigger change to code that renders the entire widget, so they are
+left as they are rather than rewritten under time pressure.
 
 Applying just the four-site rename was caught doing real damage once:
 recreating the patch via a second `pnpm patch` / `pnpm patch-commit` cycle
