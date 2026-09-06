@@ -1,6 +1,6 @@
 import {AnalyzerEvents} from '../../enums/AnalyzerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
-import {Pako} from '../pako.mjs';
+import {deflate, inflate} from '../pako.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {dHash} from './dHash.mjs';
 
@@ -347,8 +347,8 @@ export class VideoAligner extends EventEmitter {
       });
 
       memory[identifier] = {
-        hashBuffer: this.stringifyBuffer(Pako.deflate(hashBuffer.buffer)),
-        timeBuffer: this.stringifyBuffer(Pako.deflate(timeBuffer.buffer)),
+        hashBuffer: this.stringifyBuffer(deflate(hashBuffer.buffer)),
+        timeBuffer: this.stringifyBuffer(deflate(timeBuffer.buffer)),
         deleteIn: item.deleteIn,
         matchStart: item.matchStart,
         matchEnd: item.matchEnd,
@@ -376,8 +376,8 @@ export class VideoAligner extends EventEmitter {
     const memory = this.memory;
     for (const identifier in saved) {
       if (!Object.hasOwn(saved, identifier)) continue;
-      const hashBuffer = new Uint32Array(Pako.inflate(Uint8Array.from(atob(saved[identifier].hashBuffer), (c) => c.charCodeAt(0))).buffer);
-      const timeBuffer = new Uint16Array(Pako.inflate(Uint8Array.from(atob(saved[identifier].timeBuffer), (c) => c.charCodeAt(0))).buffer);
+      const hashBuffer = new Uint32Array(inflate(Uint8Array.from(atob(saved[identifier].hashBuffer), (c) => c.charCodeAt(0))).buffer);
+      const timeBuffer = new Uint16Array(inflate(Uint8Array.from(atob(saved[identifier].timeBuffer), (c) => c.charCodeAt(0))).buffer);
 
       const sequence = [];
       let startTime = saved[identifier].startTime;

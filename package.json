@@ -68,7 +68,7 @@
     "mp4-muxer": "4.3.3",
     "mp4box": "0.5.3",
     "onnxruntime-web": "1.20.0",
-    "pako": "2.1.0",
+    "pako": "3.0.1",
     "sortablejs": "1.15.7",
     "sweetalert2": "11.26.25",
     "typescript": "^5.9.3",

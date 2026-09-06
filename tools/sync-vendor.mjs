@@ -59,10 +59,14 @@ const VENDOR = [
     transform: normaliseText,
   },
   {
+    // pako 3.x ships real ESM with named `deflate`/`inflate` exports, so
+    // (unlike the 2.x UMD build this replaced) it needs no wrapper at all -
+    // just a straight copy. modules/analyzer/VideoAligner.mjs imports the
+    // two functions directly rather than through a synthetic `Pako` object.
     name: 'pako',
-    from: 'node_modules/pako/dist/pako.js',
+    from: 'node_modules/pako/dist/pako.mjs',
     to: 'chrome/player/modules/pako.mjs',
-    transform: toPakoModule,
+    transform: normaliseText,
   },
   {
     // The complete build already mounts AutoScroll, Remove/Revert, Swap and
@@ -324,25 +328,6 @@ function toSweetAlertModule(src) {
         .replace(/document\.body/g, 'document_body')
         .replace(globalTail, '\n') +
     '\nexport const SweetAlert = swl;\n';
-}
-
-/**
- * Wraps pako's UMD build as an ES module.
- *
- * pako ships UMD, which assigns to `window.pako`; FastStream imports
- * `{Pako}` from this file in modules/analyzer/VideoAligner.mjs. The previously
- * vendored copy was stock pako 2.1.0 with exactly this one line appended,
- * plus an eslint-disable header and some reformatted brace placement - all of
- * which parse to an identical AST, verified against the vendored file before
- * this replaced it. So no patch is needed: the npm file is used untouched and
- * only the export is added.
- *
- * @param {string} src pako's UMD dist build
- * @return {string} the same file, re-exported as an ES module
- */
-function toPakoModule(src) {
-  return normaliseText(src).replace(/\s*$/, '\n') +
-    '\nexport const Pako = window.pako;\n';
 }
 
 /**
