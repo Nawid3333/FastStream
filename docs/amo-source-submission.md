@@ -59,7 +59,7 @@ warnings is in third-party library code and is explained individually in
    live in `patches/`:
 
    ```
-   Coloris@0.21.1     dashjs@5.1.0      gif.js@0.2.0     hls.js@1.6.9
+   Coloris@0.21.1     dashjs@5.1.0      gif.js@0.2.0     hls.js@1.7.2
    jswebm@0.1.2       mp4box@0.5.3      sweetalert2@11.12.4
    ```
 

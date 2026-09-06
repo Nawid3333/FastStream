@@ -10,67 +10,78 @@ copy, and take the smallest diff as the base version. Reproduce with
 
 ## hls.js
 
-**Base version: 1.6.9.** Determined empirically — the in-tree file has
-`const version = undefined` (the build strips it), so the version is not
-recorded anywhere. Diff sizes against candidate releases:
+**Base version: 1.7.2** (upgraded 2026-09-06 from 1.6.9). `patches/hls.js@1.7.2.patch`
+is now **4 hunks, 62 lines** — down from the original 22 hunks / 466 lines
+against 1.6.9. The reduction plan below (originally written against a
+1.7.1 target) was carried out one version further, re-verifying every claim
+against the actual 1.7.2 npm release rather than trusting the old table.
 
-| Release | Diff lines |
-|---|---|
-| **1.6.9** | **466** |
-| 1.6.8 | 691 |
-| 1.6.11 | 1031 |
-| 1.6.12 | 1472 |
-| 1.6.7 | 2984 |
-| 1.6.0 | 5090 |
-| 1.7.0 | 22599 |
-| 1.5.x | ~38000 |
+### What's still patched
 
-**466 lines across 22 hunks** — 276 added, 185 removed, out of 36,165 lines.
-That is a 1.3% divergence, not a fork. The full patch is in
-`docs/hls.js-1.6.9-faststream.patch`.
+**Extra exports (1 hunk).** The export list is widened to include
+`AACDemuxer`, `MP3Demuxer`, `MP4Demuxer`, `TSDemuxer`, `MP4Remuxer` and
+`PassThroughRemuxer` — exactly the six names
+`chrome/player/modules/hls2mp4/transmuxer.mjs:1` imports to convert HLS to
+MP4 for the save-to-disk feature (the original patch's list also included
+`AvcVideoParser` and `ExpGolomb`, which nothing in this tree imports, so
+those two were dropped). Confirmed still absent from 1.7.2's export
+statement, and the package's `exports` map still only exposes `.`,
+`./light` and `./dist/*`, so there is still no deep-import escape hatch.
 
-### What the 22 hunks are
-
-**Build noise (3 hunks)** — an `/* eslint-disable */` header, `version` set
-to `undefined` in two places, and the sourcemap comment removed. Not
-behavioural.
-
-**Extra exports (1 hunk, and the hardest one).** The export list is widened
-to include `AACDemuxer`, `MP3Demuxer`, `MP4Demuxer`, `TSDemuxer`,
-`MP4Remuxer`, `PassThroughRemuxer`, `AvcVideoParser` and `ExpGolomb`.
-`chrome/player/modules/hls2mp4/transmuxer.mjs:1` imports six of these to
-convert HLS to MP4 for the save-to-disk feature. **None are exported by
-stock hls.js, including 1.7.1**, and the package's `exports` map only
-exposes `.`, `./light` and `./dist/*` — so there is no deep-import escape
-hatch to the internal modules.
-
-**ABR abandon-rules disabled (1 very large hunk).**
-`AbrController._abandonRulesCheck` is commented out wholesale. hls.js
-normally watches for a fragment loading too slowly and drops quality; that
-heuristic fights FastStream's whole premise of pre-buffering far ahead at up
-to 6x. **This one does not need a patch** — hls.js's config accepts an
-`abrController` class, so a subclass overriding `_abandonRulesCheck` with a
-no-op achieves the same thing through the public API.
-
-**`outputSamples` on the remux result (2 hunks).** The muxer's returned
+**`outputSamples` on the remux result (2 hunks, in both `dist/hls.mjs` and
+the UMD `dist/hls.js` that becomes `hls.worker.js`).** The muxer's returned
 object gains `outputSamples` alongside `nb`. hls2mp4 needs the samples
-themselves, not just the count. **Not in 1.7.1** — `nb:
-outputSamples.length` is upstream but the field is not returned.
+themselves, not just the count. Confirmed still not returned by 1.7.2's
+`MP4Remuxer`.
 
-**Upstream fixes, several already landed.** Checked against 1.7.1:
+**VTT subtitle part-loading guard, upstream issue #7460 (1 hunk).**
+`BaseStreamController.shouldLoadParts` still has no fragment-type check, so
+without this guard `SubtitleStreamController` (which does not implement
+part loading) could be told to load parts anyway. Confirmed still missing
+in 1.7.2.
 
-| Patch | In 1.7.1? |
+### What moved out of the patch entirely
+
+**ABR abandon-rules disabled.** `AbrController._abandonRulesCheck` used to
+be commented out wholesale in the patch. hls.js normally watches for a
+fragment loading too slowly and drops quality; that heuristic fights
+FastStream's whole premise of pre-buffering far ahead at up to 6x. This is
+now a `FastStreamAbrController` subclass in `HLSPlayer.mjs`, passed via
+hls.js's public `abrController` config option — no patch needed. Because
+`_abandonRulesCheck` is assigned as an *instance* property inside
+`AbrController`'s constructor rather than declared on the prototype, the
+subclass has to reassign it after calling `super()`; a same-named subclass
+method would be shadowed by the parent's instance property and never run.
+
+### What was dropped as already landed or superseded upstream
+
+Checked directly against the 1.7.2 npm release (not assumed from the 1.7.1
+table, which turned out to be wrong on two rows below):
+
+| Patch hunk | Status at 1.7.2 |
 |---|---|
-| `notEqualAfterStrippingQueries` — tolerate CDN token rotation in segment URLs instead of erroring "media sequence mismatch" | **yes** |
-| `userAgent` config plumbed through `getAudioConfig` / `initTrackConfig` | **yes** |
-| `details.fragmentEnd` instead of `frag.end` for part selection | **yes** |
-| `mapDateRanges` PDT fallback, `mergeDateRanges` restructure | likely |
-| `ExpGolomb` scan-loop optimisation | likely |
-| VTT subtitle part-loading guard (upstream #7460) | **no** |
-| `httpStatus !== 0` guard before treating a fragment as a gap | **no** |
+| `notEqualAfterStrippingQueries` (CDN token rotation tolerance) | **landed**, byte-identical |
+| `mapDateRanges` PDT fallback | **landed**, byte-identical |
+| `mergeDateRanges` early-return restructure | **landed**, byte-identical |
+| `details.fragmentEnd` instead of `frag.end` for part selection | **landed**, byte-identical |
+| `ExpGolomb`/NAL start-code scan-loop optimisation | **superseded** — `BaseVideoParser.parseNALu` was rewritten entirely to use `array.indexOf`, faster than the patched version and not the same code to diff against |
+| `userAgent` config threaded through `getAudioConfig`/`initTrackConfig` | **dead in the original patch** — added to both signatures and to `hlsDefaultConfig`, but never actually read anywhere in the diff. Not present in 1.7.2's signatures either; dropped, no behavioural loss |
+| `httpStatus !== 0` guard before treating a fragment as a gap | **superseded** — `onFragmentOrKeyLoadError` was rewritten around a `live && frag.sn < levelDetails.endSN` condition that only applies to live streams at all, which is strictly more precise than the old guard |
 
 Andrew has evidently been upstreaming; the README's "I work with the
 original developers" is accurate.
+
+### Verification performed for the 1.7.2 upgrade
+
+- `pnpm run lint`, `pnpm run typecheck`, `pnpm test` — all pass.
+- `pnpm run build:keep` — all four targets build.
+- `pnpm run lint:amo` / `lint:github` — 0 errors, the same pre-existing 3
+  warnings (vtt.js, ort.wasm.mjs, dash.mjs), nothing new from hls.js.
+- `pnpm run test:e2e` — real HLS playback via `hls.js` + `hls.worker.js`
+  against a live stream (`readyState` reaches 4, `currentTime` advances, no
+  `error`), alongside the DASH and MP4 paths in the same spec.
+- `pnpm run test:ext` — extension-loaded checks (WASM under extension CSP,
+  no YouTube surface, VAD/ONNX Runtime) unaffected.
 
 ## Recommended approach: `pnpm patch`, not wrappers
 
@@ -79,24 +90,19 @@ Do **not** try to reimplement these through wrapper classes. The exports and
 demuxer to avoid a one-line export change would add far more risk than it
 removes.
 
-Instead ship the **official npm release plus a committed patch file**, via
+Ship the **official npm release plus a committed patch file**, via
 `pnpm patch`. This is what pnpm's patching exists for and it satisfies what
 AMO actually wants — a verifiable upstream base and an auditable,
 human-sized diff:
 
-- today: a 1.3 MB file with no stated version and no provenance
-- after: `hls.js@1.7.1` from npm, hash-verifiable, plus a patch of roughly
-  three hunks that a reviewer reads in ten minutes
+- before this project existed: a 1.3 MB file with no stated version and no
+  provenance
+- now: `hls.js@1.7.2` from npm, hash-verifiable, plus a 62-line patch a
+  reviewer reads in a couple of minutes
 
-Sequence:
-
-1. Upgrade the base to 1.7.1 and drop every hunk that landed upstream.
-2. Move the ABR change out of the patch into a `FastStreamAbrController`
-   subclass passed via hls.js config — public API, no patch needed.
-3. Patch only what is left: the extra exports, `outputSamples`, and the two
-   unlanded fixes.
-4. Offer the export change upstream. "Please export the demuxers" is a small
-   ask, and if accepted the patch shrinks again.
+Next step if this is revisited again: offer the export change upstream.
+"Please export the demuxers" is a small ask, and if accepted the patch
+shrinks to 3 hunks.
 
 Re-run the playback checklist in `CLAUDE.md` after each step. The HLS entry
 covers this library.

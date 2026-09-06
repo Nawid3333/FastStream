@@ -3,13 +3,27 @@ import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
-import {Hls} from '../../modules/hls.mjs';
+import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {HLSFragment} from './HLSFragment.mjs';
 import {HLSFragmentRequester} from './HLSFragmentRequester.mjs';
 import {HLSLoaderFactory} from './HLSLoader.mjs';
 
+// hls.js watches for a fragment loading too slowly and drops quality
+// mid-fragment (AbrController._abandonRulesCheck). That heuristic fights
+// FastStream's whole premise of pre-buffering far ahead at up to 6x, so it
+// is disabled here. _abandonRulesCheck is assigned as an instance property
+// in the base constructor (not a prototype method), so it has to be
+// reassigned after `super()` runs rather than simply redeclared - a
+// prototype method of the same name would be shadowed by that instance
+// property and never called.
+class FastStreamAbrController extends AbrController {
+  constructor(hls) {
+    super(hls);
+    this._abandonRulesCheck = () => {};
+  }
+}
 
 export default class HLSPlayer extends EventEmitter {
   constructor(client, config) {
@@ -83,6 +97,7 @@ export default class HLSPlayer extends EventEmitter {
       abrBandWidthFactor: 0.95,
       abrBandWidthUpFactor: 0.7,
       abrMaxWithRealBitrate: false,
+      abrController: FastStreamAbrController,
       maxStarvationDelay: 4,
       maxLoadingDelay: 4,
       minAutoBitrate: 0,

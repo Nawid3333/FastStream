@@ -8,7 +8,7 @@ patchedDependencies:
   Coloris@0.21.1: 73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251
   dashjs@5.1.0: d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
-  hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
+  hls.js@1.7.2: cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
   mp4box@0.5.3: 97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296
   sweetalert2@11.12.4: f5a23102de79ff98b35de68d4bd4f4f71d5b56c5a84ae255a8f7dc10525ed12c
@@ -72,8 +72,8 @@ importers:
         specifier: 0.2.0
         version: 0.2.0(patch_hash=7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae)
       hls.js:
-        specifier: ^1.6.9
-        version: 1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7)
+        specifier: ^1.7.2
+        version: 1.7.2(patch_hash=cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be)
       jswebm:
         specifier: 0.1.2
         version: 0.1.2(patch_hash=b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a)(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
@@ -2607,8 +2607,8 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  hls.js@1.6.9:
-    resolution: {integrity: sha512-q7qPrri6GRwjcNd7EkFCmhiJ6PBIxeUsdxKbquBkQZpg9jAnp6zSAeN9eEWFlOB09J8JfzAQGoXL5ZEAltjO9g==}
+  hls.js@1.7.2:
+    resolution: {integrity: sha512-CW/pPvSOFIRsosbwxrYaE9ERmpTo5fbTqL7wCvuCFlqW1Bmb1K5fXsY7yiH95rmlr4rVuA7UXHbM/cIXQ6AXwg==}
 
   hosted-git-info@7.0.2:
     resolution: {integrity: sha512-puUZAUKT5m8Zzvs72XWy3HtvVbTWljRE66cP60bxJzAqf2DgICo7lYTY2IHUmLnNpjYvw5bvmoHvPc0QO2a62w==}
@@ -7248,7 +7248,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  hls.js@1.6.9(patch_hash=020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7): {}
+  hls.js@1.7.2(patch_hash=cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be): {}
 
   hosted-git-info@7.0.2:
     dependencies:
