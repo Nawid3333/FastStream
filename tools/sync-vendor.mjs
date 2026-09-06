@@ -129,6 +129,7 @@ const VENDOR = [
     name: 'gif.js',
     from: 'node_modules/gif.js/dist/gif.js',
     to: 'chrome/player/modules/gif/gif.mjs',
+    patched: true,
     transform: toGifModule,
   },
   {

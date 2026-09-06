@@ -314,6 +314,19 @@ directly: gif.js encodes two frames and the test checks for a `GIF89a` header,
 mp4-muxer writes a container and the test checks for an `ftyp` box at offset
 4. Breaking the worker URL on purpose fails the gif test and only that test.
 
+gif.js later picked up a second, cosmetic patch (`patches/gif.js@0.2.0.patch`):
+a bundled UA-sniffing helper module declares `var UA, browser, mode, platform,
+ua` and then reads `browser.platform.name` off its own function-scoped
+`browser` object - nothing to do with the WebExtensions `browser` global, but
+addons-linter's `webextension-unsupported-api` check does not appear to do
+scope analysis, so it flagged the access as an unimplemented API anyway.
+Confirmed empirically, not assumed: renaming that one local variable to
+`browserInfo` (a plain word-boundary rename, scoped to just that bundled
+module so it cannot touch anything else in the file) made the warning
+disappear on a real `lint:amo` run, with nothing else in the 12-warning count
+changing. `module.exports` still returns the same shaped object, so nothing
+downstream can observe the rename.
+
 ### libsamplerate: a shipped bug, and why npm is the wrong answer
 
 This section used to say the answer here was "use the published package".
