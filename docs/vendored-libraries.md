@@ -949,6 +949,41 @@ into; and it triggers on the user's locale rather than on anything they did.
 so it survives upstream reformatting, and the build is checked for its
 absence.
 
+### sweetalert2's DANGEROUS_EVAL: dead code, and provably so
+
+sweetalert2 supports configuring a popup declaratively through a `<template>`
+element instead of the JS options object - `<swal-function-param name="..."
+value="...">` children let a page-author-supplied string become a real
+function value, which HTML attributes cannot hold any other way. Doing that
+needs `new Function(value)()`, and that call is what addons-linter flags.
+
+Two independent things make this dead code in FastStream, not just
+low-risk. First, `getTemplateParams` bails to `{}` before ever reaching it
+unless `params.template` is set, and grepping the whole codebase for
+`swal-function-param` or any `<template>`-based Swal config turns up
+nothing - FastStream always calls the plain JS options API. Second, even if
+that were wrong, `build_firefox_amo/manifest.json`'s CSP is `script-src
+'self' 'wasm-unsafe-eval'` - no `'unsafe-eval'` - so `new Function(...)`
+would throw a CSP violation the instant it executed, in this extension,
+regardless of caller.
+
+Patched (`patches/sweetalert2@11.12.4.patch`) to throw a message explaining
+why instead of calling `new Function`, rather than leaving the call in
+place. The throw is exactly as unreachable as the original call was - this
+removes the AST pattern, not a working feature - and makes the reason
+explicit for anyone who goes looking, instead of a silent behaviour change.
+
+Caught two of my own mistakes verifying this one, both fixed before
+committing: the first patch attempt put an apostrophe inside a
+single-quoted JS string (`'this build's CSP'`), which is a syntax error,
+not a lint warning - `pnpm run lint:amo` turned the fixed warning into a
+worse `JS_SYNTAX_ERROR` and caught it immediately. Second, reopening the
+patch to fix that via `pnpm patch sweetalert2@11.12.4` handed back the
+*already-patched* (broken) file this time, not a pristine copy - the
+opposite of what the same command did for Coloris earlier - so the state
+handed back by `pnpm patch` was checked directly rather than assumed
+either way, both times.
+
 ### mp4box - measured, migrated, then reverted
 
 Two corrections happened here, and both are worth recording.

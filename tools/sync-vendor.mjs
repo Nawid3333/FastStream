@@ -79,6 +79,7 @@ const VENDOR = [
     name: 'sweetalert2',
     from: 'node_modules/sweetalert2/dist/sweetalert2.js',
     to: 'chrome/player/modules/sweetalert.mjs',
+    patched: true,
     transform: toSweetAlertModule,
   },
   {

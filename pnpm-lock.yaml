@@ -11,6 +11,7 @@ patchedDependencies:
   hls.js@1.6.9: 020ca1acc90d464734a29e9a2b3cf589275560ccf0450535cc74787b2f5f56f7
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
   mp4box@0.5.3: 97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296
+  sweetalert2@11.12.4: f5a23102de79ff98b35de68d4bd4f4f71d5b56c5a84ae255a8f7dc10525ed12c
 
 importers:
 
@@ -93,7 +94,7 @@ importers:
         version: 1.15.2
       sweetalert2:
         specifier: 11.12.4
-        version: 11.12.4
+        version: 11.12.4(patch_hash=f5a23102de79ff98b35de68d4bd4f4f71d5b56c5a84ae255a8f7dc10525ed12c)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -8577,7 +8578,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  sweetalert2@11.12.4: {}
+  sweetalert2@11.12.4(patch_hash=f5a23102de79ff98b35de68d4bd4f4f71d5b56c5a84ae255a8f7dc10525ed12c): {}
 
   tar-fs@3.1.3:
     dependencies:
