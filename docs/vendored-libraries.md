@@ -222,10 +222,30 @@ in a build-output diff against the upstream baseline at all.
 The patch is 354 KB, against hls.js's 31 KB. That is honest about the size of
 the divergence rather than hiding it, and it still gives AMO what today's tree
 does not: a hash-verifiable upstream base and a diff a reviewer can read.
-Shrinking it - by checking which of the 60 modules can move to dash.js's
-public extension points, or which changes have landed upstream by 5.2.1 - is
-worthwhile later, but is a behaviour-affecting change and needs the playback
-checklist each time.
+
+**5.2.1 upgrade measured (2026-09-06): shelved, not attempted.** Before
+touching anything, ran the same module-boundary comparison hls.js's upgrade
+used, but three-way: stock 5.1.0 vs. the in-tree patched bundle vs. stock
+5.2.1. That isolates exactly which of dash.js's own `src/` modules FastStream
+actually customized (68, close to the 60 estimated by line-count above) from
+modules that merely drifted between releases for unrelated reasons - then
+checks, per customized module, whether 5.2.1 already contains the fix.
+
+**Result: 0 of 68 have landed.** Every customized module still differs from
+5.2.1 exactly as it differs from 5.1.0. That is a materially different
+finding than hls.js's upgrade, where most hunks turned out to already be
+upstream and the patch shrank by 90%. There is no shortcut here - dash.js
+apparently hasn't absorbed any of these fixes in the 5.1.0->5.2.1 window, so
+"upgrade the base and drop what landed" does not apply. What would remain is
+reconciling all 68 modules by hand against a new base, and most of them are
+the core streaming engine, not peripheral code: `AbrController`,
+`StreamController`, `MediaController`, `BufferController`,
+`ScheduleController`, `GapController`, `ThroughputController`, `HTTPLoader`,
+`DashHandler`, `DashManifestModel`, `DashParser` among them. That is
+realistically comparable in size to redoing most of the original vendoring
+analysis, not a version bump - shelved as its own dedicated effort rather
+than attempted under session time pressure. 5.1.0 stays pinned + patched,
+which already satisfies AMO's actual objection (verifiable provenance).
 
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF
