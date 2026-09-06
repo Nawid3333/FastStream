@@ -1,5 +1,3 @@
-/* eslint-disable valid-jsdoc */
-
 /**
      * Calling load() will start retrieving content located at given URL (HTTP GET).
      *
