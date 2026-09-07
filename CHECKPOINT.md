@@ -45,7 +45,7 @@ checks — everything green).
 | 7 · Unbundle libs | **done** | Every JS library generated from a pinned npm release/git commit + patch; only vtt.js, knob, the wasm/ort binaries and (libre-only) yt.mjs/googlevideo.mjs stay vendored, each with re-runnable provenance checks |
 | 8 · AMO sweep | **done** | firefox-amo: 0 errors, 0 notices, **3 warnings** (was 24; each remaining one documented in `docs/amo-linter-warnings.md`) |
 | 9 · Signing | **done (unlisted)** | Own add-on ID `thanatus@Nawid`; `pnpm run sign:amo` signs unlisted, `sign:amo:listed` exists for when the license question is settled |
-| 10 · Upstream PRs | **not started** | Windows build fix + `.gitattributes` ready to send |
+| 10 · Upstream PRs | **done — open, awaiting response** | #548 Windows fix, #549 permissions, #550 `.gitattributes`, #551 vendor recipes (+ recipes comment on #547, hls.js recipe comment on #546); issue #547 carries the license ask |
 | — · TypeScript | **done** | Opt-in `tsc --noEmit` |
 | — · Upstream sync | **done** | Weekly workflow, opens a PR, never auto-merges |
 
@@ -320,24 +320,31 @@ reverted it to the stale vendored copy.
 
 ## Next steps, in order
 
-1. **Settle the license.** Ask Andrew for written permission to publish the
-   fork (the README invites contributions, and the Windows build fix is a
-   goodwill opener), or scope what a clean-room rewrite of the proprietary
-   parts would take. Nothing else on this list changes the store answer.
-2. **First real AMO submission (unlisted)** — the linter is green, provenance
-   docs exist, signing is wired. An unlisted XPI proves the whole pipeline
-   against Mozilla's live review, without the public-listing license
-   question. `.amo-credentials.json` or `AMO_API_KEY`/`AMO_API_SECRET`
-   required.
-3. **Send the upstream PRs** (Phase 10): the `miniglob.mjs` Windows build fix
-   and `.gitattributes`, cut from `pr/*` branches off `upstream/main`, each
-   verified green on its own. The hls.js demuxer-export ask is a third
-   candidate once a maintainer relationship exists.
-4. **If a human AMO reviewer asks for more:** the remaining candidates are
+1. ~~Settle the license.~~ **Asked** (issue #547, PR #551) — now waiting on
+   Andrew's response. Listed distribution stays blocked until/unless he
+   grants permission; unlisted self-distribution works today.
+2. ~~First real AMO submission (unlisted)~~ — **done 2026-09-07**: signed
+   locally (`99f1b8e844554f46b28a-1.3.78.0.xpi`) and again via the
+   `publish-amo.yml` workflow, end to end green.
+3. ~~Send the upstream PRs (Phase 10)~~ — **done 2026-09-07**: #548
+   (Windows, pre-existing), #549 (permissions, pre-existing), #550
+   (`.gitattributes`), #551 (vendor recipes). Follow-ups posted on #547
+   (PR index) and #546 (hls.js 1.7.2 recipe, where it was requested).
+   If Andrew responds, the most likely next PR is a ready-to-merge hls.js
+   1.7.2 bump off a fresh `pr/*` branch.
+4. **Close the last unverified-feature gap: Chrome e2e + YouTube e2e.**
+   The e2e suite runs Firefox only; the chrome-github/webstore targets and
+   the YouTube path (libre builds) have zero automated playback coverage.
+5. **If a human AMO reviewer asks for more:** the remaining candidates are
    the three warnings in `docs/amo-linter-warnings.md` (all currently
    defended as safer-left-alone) and pinning vtt/knob as git dependencies
    bundled at build time — documented as the "if revisited" option.
-5. **Library upgrades stay shelved** unless new evidence arrives
+6. **Library upgrades stay shelved** unless new evidence arrives
    (dashjs >5.2.1 with the customized modules landed upstream, a
    name-preserving mp4box build, a fixed mp4-muxer release, or a new
    reduced ORT wasm pairing). Re-run `pnpm run verify` after any of them.
+7. ~~Baseline refresh~~ — **done 2026-09-07**: `baseline/` now holds the
+   modernised fork's four targets (852 files, `MANIFEST.sha256` regenerated
+   and spot-verified) captured from commit `cd728ab`; the original V1.3.77
+   upstream build moved to `baseline-v1.3.77-upstream-archive/` for
+   upstream-relative archaeology only.
