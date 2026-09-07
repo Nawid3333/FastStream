@@ -9,12 +9,12 @@ allowBuilds:
   protobufjs: false
   spawn-sync: false
 minimumReleaseAgeExclude:
-  - '@wdio/cli@9.31.6'
-  - '@wdio/config@9.31.6'
-  - '@wdio/local-runner@9.31.6'
-  - '@wdio/mocha-framework@9.31.6'
-  - '@wdio/runner@9.31.6'
-  - '@wdio/utils@9.31.6'
+  - "@wdio/cli@9.31.6"
+  - "@wdio/config@9.31.6"
+  - "@wdio/local-runner@9.31.6"
+  - "@wdio/mocha-framework@9.31.6"
+  - "@wdio/runner@9.31.6"
+  - "@wdio/utils@9.31.6"
   - create-wdio@9.31.6
   - webdriver@9.31.6
   - webdriverio@9.31.6
