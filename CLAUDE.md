@@ -1,8 +1,19 @@
 # FastStream — working notes
 
 Fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream),
-branched from `d5fe931` (V1.3.77). GPL-3.0-or-later; any derivative must stay
-GPL-3.0-or-later with public source.
+branched from `d5fe931` (V1.3.77).
+
+**LICENSING — read this before publishing anything.** The upstream
+`LICENSE.md` is **not** GPL and grants **no redistribution right**: it is
+"All rights reserved. You must receive permission before using my code."
+The `GPL-3.0-or-later` claim that used to sit in this file was wrong; the
+upstream repo carries no LICENSE file granting GPL, and `package.json` in the
+fork deliberately declares **no** `license` field for exactly this reason.
+Practical consequence: this fork is a derivative of proprietary code made
+without Andrew's written permission. Fixing that (getting permission or
+rewriting) is a **hard prerequisite for any listed AMO submission** — AMO
+reviewers check add-on license claims, and "I assert GPL over someone
+else's all-rights-reserved code" does not survive that.
 
 Goal: an AMO-compliant Firefox build with a modern, testable dev workflow,
 without breaking Chrome and without making upstream merges painful.
