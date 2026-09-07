@@ -74,6 +74,15 @@ jobs:
       - name: End-to-end playback (Firefox)
         run: pnpm run test:e2e
 
+      # The same playback suite driven through a Chromium engine. Chromium is
+      # where this extension ships first (Chrome Web Store), and "plays in
+      # Firefox" does not imply "plays in Chromium": codec pipelines,
+      # worker and SharedArrayBuffer behaviour all differ. The runner has
+      # real Chrome preinstalled; the config prefers it and falls back to
+      # Edge (or CHROME_BIN) where a dev machine has it instead.
+      - name: End-to-end playback (Chromium)
+        run: pnpm run test:e2e:chromium
+
       - name: Upload e2e failure logs
         if: failure()
         uses: actions/upload-artifact@v7

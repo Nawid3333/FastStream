@@ -31,8 +31,14 @@ const STREAMS = [
   {
     name: 'MP4 (mp4box)',
     // Served by the local test server: same-origin, so no CORS, and no
-    // network dependency once fetched. See wdio.conf.mjs.
-    url: 'http://127.0.0.1:41879/fixtures/sample.mp4',
+    // network dependency once fetched. The URL is built at runtime against
+    // the test server's own origin - available as a global via the config
+    // (window.__E2E_FIXTURES_ORIGIN__, set by wdio.conf.mjs and
+    // wdio.chromium.conf.mjs) - because the two configs listen on different
+    // ports and neither can hardcode the other's.
+    get url() {
+      return globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.mp4';
+    },
   },
 ];
 

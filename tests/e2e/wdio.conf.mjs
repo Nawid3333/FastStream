@@ -164,6 +164,14 @@ export const config = {
     timeout: 120000,
   },
 
+  // The specs need to reference the local server's origin for same-origin
+  // fixture URLs (see the MP4 stream in playback.e2e.mjs). The two configs
+  // listen on different ports, so it is exposed here rather than hardcoded
+  // in the spec.
+  before: function() {
+    globalThis.__E2E_FIXTURES_ORIGIN__ = BASE_URL;
+  },
+
   onPrepare: async function() {
     await ensureMp4Fixture();
     await ensureWebmFixture();

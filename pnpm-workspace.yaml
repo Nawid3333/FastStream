@@ -1,7 +1,8 @@
 allowBuilds:
   geckodriver: true
   esbuild: true
-  edgedriver: false
+  chromedriver: true
+  edgedriver: true
   onnxruntime-web: false
   core-js: false
   dtrace-provider: false
