@@ -1033,6 +1033,7 @@ async function loadOptions(newOptions) {
   MpvAllowlist.setEntries(Options.mpvAllowlist);
   Mpv.mpvPath = Options.mpvPath || '';
   Mpv.fullscreen = !!Options.mpvFullscreen;
+  Mpv.singleInstance = !!Options.mpvSingleInstance;
 
   if (Options.mpvMode) {
     chrome.permissions.contains({

@@ -27,6 +27,8 @@ export class MpvBackend {
     this.mpvPath = '';
     /** @type {boolean} */
     this.fullscreen = false;
+    /** @type {boolean} */
+    this.singleInstance = true;
   }
 
   /**
@@ -91,6 +93,10 @@ export class MpvBackend {
 
     if (this.fullscreen) {
       message.fullscreen = true;
+    }
+
+    if (this.singleInstance) {
+      message.singleInstance = true;
     }
 
     const relayHeaders = MpvBackend.pickRelayHeaders(headers);

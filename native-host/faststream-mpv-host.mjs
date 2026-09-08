@@ -19,6 +19,7 @@
 import fs from 'fs';
 import path from 'path';
 import {execFile, spawn} from 'child_process';
+import net from 'net';
 import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -178,6 +179,122 @@ function readMessage() {
   });
 }
 
+// Named pipe for mpv's JSON IPC. Only instances this host starts are given
+// it, which is what keeps "reuse the open window" from ever reaching an mpv
+// the user launched themselves -- that one has no such pipe, so it is
+// invisible here and can never be loaded into or closed by us.
+const IpcPipe = '\\\\.\\pipe\\faststream-mpv';
+
+/**
+ * Sends commands to the mpv instance listening on our pipe.
+ *
+ * @param {Array<Object>} commands - mpv JSON IPC commands, in order.
+ * @param {number} [timeoutMs] - How long to wait for the pipe and replies.
+ * @return {Promise<{ok: boolean, replies?: Array<Object>, error?: string}>}
+ *   ok:false simply means no instance of ours is running.
+ */
+function mpvIpcRequest(commands, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const replies = [];
+    let buffer = '';
+
+    const socket = net.connect(IpcPipe);
+
+    const finish = (value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      try {
+        socket.destroy();
+      } catch (e) {
+        // Already gone.
+      }
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => {
+      finish(replies.length ?
+        {ok: true, replies} :
+        {ok: false, error: 'mpv ipc timeout'});
+    }, timeoutMs);
+
+    // Any connect error means there is no live instance of ours: a stale pipe
+    // after mpv was closed behaves the same way.
+    socket.on('error', () => finish({ok: false, error: 'no mpv ipc'}));
+
+    socket.on('connect', () => {
+      commands.forEach((command, index) => {
+        socket.write(JSON.stringify(
+            Object.assign({request_id: index + 1}, command)) + String.fromCharCode(10));
+      });
+    });
+
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split(String.fromCharCode(10));
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.request_id !== undefined) {
+            replies.push(parsed);
+          }
+        } catch (e) {
+          // Event lines that are not replies; ignore.
+        }
+      }
+      if (replies.length >= commands.length) {
+        finish({ok: true, replies});
+      }
+    });
+  });
+}
+
+/**
+ * Loads a URL into the mpv instance already running on our pipe.
+ *
+ * @param {Object} message - The open message from the extension.
+ * @param {Array<string>} headerFields - "Name: value" strings for mpv.
+ * @param {string} title - Media title to display.
+ * @return {Promise<{ok: boolean, pid?: number}>} ok:false when no instance of
+ *   ours answered, in which case the caller should start one.
+ */
+async function loadIntoExisting(message, headerFields, title) {
+  const commands = [
+    {command: ['set_property', 'http-header-fields', headerFields]},
+    {command: ['set_property', 'force-media-title', title]},
+  ];
+  if (message.fullscreen) {
+    commands.push({command: ['set_property', 'fullscreen', true]});
+  }
+  commands.push({command: ['loadfile', message.url, 'replace']});
+  commands.push({command: ['get_property', 'pid']});
+
+  const result = await mpvIpcRequest(commands);
+  if (!result.ok) {
+    return {ok: false};
+  }
+
+  // The loadfile reply is what decides success; a pipe that answers but
+  // refuses the load should fall through to starting a fresh instance.
+  const loadReply = result.replies.find((r) => r.request_id === commands.length - 1);
+  if (loadReply && loadReply.error && loadReply.error !== 'success') {
+    return {ok: false};
+  }
+
+  const pidReply = result.replies.find((r) => r.request_id === commands.length);
+  return {
+    ok: true,
+    pid: pidReply && typeof pidReply.data === 'number' ? pidReply.data : undefined,
+  };
+}
+
 /**
  * Quotes one argument for a Windows command line, per the rules
  * CommandLineToArgvW uses to take it apart again.
@@ -187,6 +304,104 @@ function readMessage() {
 function quoteWindowsArg(value) {
   const str = String(value);
   return '"' + str.replace(/(\\*)"/g, '$1$1\\"').replace(/(\\+)$/, '$1$1') + '"';
+}
+
+/**
+ * PowerShell that declares the window APIs used to activate mpv.
+ * @return {Array<string>} Script lines.
+ */
+function focusApiLines() {
+  return [
+    'Add-Type @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'public class FSFg {',
+    '  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);',
+    '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+    '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);',
+    '  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);',
+    '  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);',
+    '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);',
+    '  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int p);',
+    '  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
+    '}',
+    '"@',
+  ];
+}
+
+/**
+ * PowerShell that waits for a process's window and pulls it to the front.
+ *
+ * A process created by the WMI service has no right to take the foreground,
+ * so mpv's own --focus-on=open is silently refused and its window opens
+ * behind the browser. Attaching to the foreground thread's input queue is the
+ * documented way back: it makes this thread a peer of whoever currently owns
+ * the foreground, and SetForegroundWindow is then honoured.
+ *
+ * @param {string} pidExpr - PowerShell expression holding the process id.
+ * @return {Array<string>} Script lines.
+ */
+function focusWindowLines(pidExpr) {
+  return [
+    '  try {',
+    '    $deadline = (Get-Date).AddSeconds(3)',
+    '    $h = [IntPtr]::Zero',
+    '    while ((Get-Date) -lt $deadline) {',
+    '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
+    '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
+      '{ $h = $p.MainWindowHandle; break }',
+    '      Start-Sleep -Milliseconds 100',
+    '    }',
+    '    if ($h -ne [IntPtr]::Zero) {',
+    '      $null = [FSFg]::AllowSetForegroundWindow([int]' + pidExpr + ')',
+    '      $fg = [FSFg]::GetForegroundWindow()',
+    '      $t = [FSFg]::GetWindowThreadProcessId($fg, [ref]([uint32]0))',
+    '      $me = [FSFg]::GetCurrentThreadId()',
+    '      $null = [FSFg]::AttachThreadInput($me, $t, $true)',
+    '      $null = [FSFg]::ShowWindow($h, 5)',
+    '      $null = [FSFg]::BringWindowToTop($h)',
+    '      $ok = [FSFg]::SetForegroundWindow($h)',
+    '      $null = [FSFg]::AttachThreadInput($me, $t, $false)',
+    '      Start-Sleep -Milliseconds 300',
+    '      $now = [FSFg]::GetForegroundWindow()',
+    '      Write-Output ("FOCUS=" + $ok + " FGOK=" + ($now -eq $h))',
+    '    } else { Write-Output "FOCUS=nowindow" }',
+    '  } catch { Write-Output "FOCUS=error" }',
+  ];
+}
+
+/**
+ * Runs a PowerShell script and returns its stdout.
+ * @param {Array<string>} lines - Script lines.
+ * @param {number} timeoutMs - Kill the shell after this long.
+ * @return {Promise<string>} Captured stdout, empty on failure.
+ */
+function runPowerShell(lines, timeoutMs) {
+  // -EncodedCommand takes UTF-16LE base64, which sidesteps every layer of
+  // shell quoting the URL would otherwise have to survive.
+  const encoded = Buffer.from(lines.join(String.fromCharCode(10)), 'utf16le')
+      .toString('base64');
+  return new Promise((resolve) => {
+    execFile('powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+        {timeout: timeoutMs, windowsHide: true},
+        (error, stdout) => resolve(String(stdout || '')));
+  });
+}
+
+/**
+ * Brings an already-running mpv window to the front.
+ * @param {number} pid - The mpv process id.
+ * @return {Promise<string>} The FOCUS= line PowerShell reported.
+ */
+async function focusPid(pid) {
+  const out = await runPowerShell([
+    ...focusApiLines(),
+    '$target = ' + String(Number(pid)),
+    ...focusWindowLines('$target'),
+  ], 15000);
+  const match = /FOCUS=(\S+)(?:\s+FGOK=(\S+))?/.exec(out);
+  return match ? match[0] : 'FOCUS=unknown';
 }
 
 /**
@@ -206,48 +421,56 @@ function quoteWindowsArg(value) {
  */
 function launchViaWmi(mpvPath, args) {
   const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
-  const script =
-    '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create ' +
-    '-Arguments @{CommandLine=\'' +
-    commandLine.replace(/'/g, '\'\'') +
-    '\'}; Write-Output (\'RC=\' + $r.ReturnValue + ' + '\' PID=\' + $r.ProcessId)';
+  const psCommandLine = commandLine.replace(/'/g, '\'\'');
 
-  return new Promise((resolve) => {
-    execFile('powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-Command', script],
-        {timeout: 20000, windowsHide: true},
-        (error, stdout) => {
-          if (error) {
-            resolve({ok: false, error: String(error.message || error)});
-            return;
-          }
-          const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(String(stdout));
-          if (!match) {
-            resolve({ok: false, error: 'unexpected WMI output: ' + stdout});
-            return;
-          }
-          if (match[1] !== '0') {
-            resolve({ok: false, error: 'WMI Create returned ' + match[1]});
-            return;
-          }
-          resolve({ok: true, pid: match[2] ? Number(match[2]) : undefined});
-        });
+  const lines = [
+    ...focusApiLines(),
+    'try { $null = [FSFg]::AllowSetForegroundWindow(-1) } catch {}',
+    '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create ' +
+      '-Arguments @{CommandLine=\'' + psCommandLine + '\'}',
+    'Write-Output ("RC=" + $r.ReturnValue + " PID=" + $r.ProcessId)',
+    'if ($r.ReturnValue -eq 0) {',
+    ...focusWindowLines('$r.ProcessId'),
+    '}',
+  ];
+
+  return runPowerShell(lines, 20000).then((text) => {
+    const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
+    if (!match) {
+      return {ok: false, error: 'unexpected WMI output: ' + text};
+    }
+    if (match[1] !== '0') {
+      return {ok: false, error: 'WMI Create returned ' + match[1]};
+    }
+    const focus = /FOCUS=(\S+)/.exec(text);
+    const fgOk = /FGOK=(\S+)/.exec(text);
+    return {
+      ok: true,
+      pid: match[2] ? Number(match[2]) : undefined,
+      focus: focus ? focus[1] : undefined,
+      foreground: fgOk ? fgOk[1] : undefined,
+    };
   });
 }
 
-function launchMpv(mpvPath, message, config) {
+async function launchMpv(mpvPath, message, config) {
   const args = [];
+  const headerFields = [];
 
   if (message.headers && Array.isArray(message.headers)) {
-    // One --http-header-fields-append per header. The plain
-    // --http-header-fields form takes a comma-separated list, so a value
-    // containing a comma (legal in a Referer URL) would be split into two
-    // malformed headers.
     for (const header of message.headers) {
       if (header && header.name && header.value) {
-        args.push(`--http-header-fields-append=${header.name}: ${header.value}`);
+        headerFields.push(`${header.name}: ${header.value}`);
       }
     }
+  }
+
+  // One --http-header-fields-append per header. The plain
+  // --http-header-fields form takes a comma-separated list, so a value
+  // containing a comma (legal in a Referer URL) would be split into two
+  // malformed headers.
+  for (const field of headerFields) {
+    args.push(`--http-header-fields-append=${field}`);
   }
 
   let title = 'FastStream';
@@ -256,6 +479,23 @@ function launchMpv(mpvPath, message, config) {
   } catch (e) {
     // Keep the default title for non-URLs.
   }
+
+  // Reuse the window we already own, rather than stacking up players. Only
+  // instances started with our pipe answer, so an mpv the user opened
+  // themselves is never loaded into.
+  if (message.singleInstance) {
+    const existing = await loadIntoExisting(message, headerFields, title);
+    if (existing.ok) {
+      let focus;
+      if (existing.pid) {
+        focus = await focusPid(existing.pid);
+      }
+      debugLog(config, 'reused', {pid: existing.pid, focus});
+      return {ok: true};
+    }
+    args.push(`--input-ipc-server=${IpcPipe}`);
+  }
+
   args.push(`--force-media-title=${title}`);
   if (message.fullscreen) {
     args.push('--fullscreen');
@@ -272,6 +512,9 @@ function launchMpv(mpvPath, message, config) {
   if (process.platform === 'win32') {
     return launchViaWmi(mpvPath, args).then((result) => {
       if (result.ok) {
+        debugLog(config, 'wmi-created',
+            {pid: result.pid, focus: result.focus,
+              foreground: result.foreground});
         return {ok: true};
       }
       debugLog(config, 'wmi-failed', result);

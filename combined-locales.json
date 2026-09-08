@@ -6611,6 +6611,9 @@
   "options_mpv_pausepage": {
     "en": "Pause the video in the browser when it is handed to mpv"
   },
+  "options_mpv_singleinstance": {
+    "en": "Reuse one mpv window instead of opening a new one each time"
+  },
   "options_mpv_test": {
     "en": "Test mpv connection"
   },

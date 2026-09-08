@@ -1121,6 +1121,9 @@
   "options_mpv_pausepage": {
     "message": "Pause the video in the browser when it is handed to mpv"
   },
+  "options_mpv_singleinstance": {
+    "message": "Reuse one mpv window instead of opening a new one each time"
+  },
   "options_mpv_test": {
     "message": "Test mpv connection"
   },
