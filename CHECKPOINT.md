@@ -386,8 +386,9 @@ survival inside a real kill-on-close job object.
   detached spawn, which is correct there (no job object) but untested.
 - **Chrome.** `install.ps1` supports `-ExtensionId` for Chrome-family
   browsers, but MPV mode has only ever been run in Firefox.
-- **Not merged, not pushed.** The branch sits on top of an older
-  `dev/mv3-modernization`; a rebase is needed before it goes anywhere.
+- **Not merged, not pushed.** The branch is 6 commits ahead of
+  `dev/mv3-modernization` (local and `origin`) and behind neither, so it
+  needs no rebase — just a merge decision.
 
 ---
 
