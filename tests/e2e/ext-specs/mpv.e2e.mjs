@@ -70,6 +70,9 @@ describe('MPV mode, end to end', function() {
     siteServer = http.createServer((req, res) => {
       requests.push({origin: 'site', url: req.url, headers: req.headers});
       if (req.url.startsWith('/watch')) {
+        // /watch2 points at a different clip, so a second navigation is
+        // distinguishable from a repeat of the first.
+        const clipName = req.url.includes('2') ? 'clip2.mp4' : 'clip.mp4';
         res.writeHead(200, {'Content-Type': 'text/html'});
         // crossorigin makes the media load a CORS request, which is what adds
         // the Origin header. The source is attached after a beat so the
@@ -81,7 +84,7 @@ describe('MPV mode, end to end', function() {
           <script>
             setTimeout(() => {
               const v = document.getElementById('v');
-              v.src = '${CDN}/clip.mp4';
+              v.src = '${CDN}/' + '${clipName}';
               // load() and play() are belt and braces: a window that is not
               // focused will not start a media fetch on src alone.
               v.load();
@@ -96,7 +99,7 @@ describe('MPV mode, end to end', function() {
 
     cdnServer = http.createServer((req, res) => {
       requests.push({origin: 'cdn', url: req.url, headers: req.headers});
-      if (req.url.startsWith('/clip.mp4')) {
+      if (req.url.startsWith('/clip.mp4') || req.url.startsWith('/clip2.mp4')) {
         res.writeHead(200, {
           'Content-Type': 'video/mp4',
           'Content-Length': String(clip.length),
@@ -240,5 +243,26 @@ describe('MPV mode, end to end', function() {
           return document.getElementById('v').ended;
         });
         expect(ended).toBe(false);
+
+        // 7. A second video on the same site must reach mpv too. The
+        //    auto-open latch is there to stop one page opening a window per
+        //    detected source; it must not outlive the page, or every episode
+        //    after the first is silently dropped.
+        await browser.url(`${SITE}/watch2`);
+
+        await browser.waitUntil(async () => {
+          return requests.some(
+              (r) => isMpvRequest(r) && r.url.startsWith('/clip2.mp4'));
+        }, {
+          timeout: 45000,
+          interval: 500,
+          timeoutMsg: 'the second video never reached mpv: ' +
+            JSON.stringify(requests.filter(isMpvRequest).map((r) => r.url)),
+        });
+
+        const second = requests.filter(
+            (r) => isMpvRequest(r) && r.url.startsWith('/clip2.mp4'));
+        console.log(`      second video reached mpv (${second.length} request)`);
+        expect(second[0].headers.referer).toBe(`${SITE}/`);
       });
 });

@@ -182,6 +182,13 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
 
     tab.url = changeInfo.url;
 
+    // The auto-open latch is per page, not per tab. tab.reset() only runs on
+    // a hostname change, so without this a second episode on the same site is
+    // detected and then dropped, because the tab still looks like it has
+    // already handed a stream to mpv.
+    tab.mpvAutoOpened = false;
+    tab.mpvSentUrls.clear();
+
     chrome.tabs.sendMessage(tabid, {
       type: MessageTypes.REMOVE_PLAYERS,
     }, {
