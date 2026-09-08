@@ -357,6 +357,10 @@ is worth reading before touching this code:
 4. **One page opened an mpv window per detected source** — a real session
    produced 14 launches of a single URL.
 
+**Docs:** `README-MPV.md` is the user-facing setup guide (install, options,
+troubleshooting, uninstall); `native-host/README.md` is the reference for how
+the host works and how to set it up without the script.
+
 **Options** (Settings → MPV Mode): `mpvMode`, `mpvAllowlist`, `mpvPath`,
 `mpvFullscreen` (default off), `mpvPausePage` (default on),
 `mpvSingleInstance` (default on).

@@ -1,5 +1,9 @@
 # FastStream mpv native host
 
+> Just want to set this up? Start with [`../README-MPV.md`](../README-MPV.md).
+> This file is the reference: how the host works, why mpv is launched the
+> way it is, manual setup for non-Windows, and how to test it by hand.
+
 Lets the FastStream extension open detected video streams directly in
 [mpv](https://mpv.io/) on your computer, instead of the built-in browser
 player.
