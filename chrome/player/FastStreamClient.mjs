@@ -308,6 +308,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.downloadAll = options.downloadAll;
     this.options.autoEnableBestSubtitles = options.autoEnableBestSubtitles;
     this.options.mpvMode = !!options.mpvMode;
+    this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.seekStepSize = options.seekStepSize;

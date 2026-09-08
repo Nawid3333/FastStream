@@ -22,9 +22,35 @@ web page ──▶ FastStream content script ──▶ background (stream detect
 The host is a small Node.js script that speaks the standard
 [native messaging](https://developer.chrome.com/docs/apps/nativeMessaging)
 protocol. The extension sends it `{type: 'open', url, headers?}` and it
-launches mpv with that URL. Only `Referer`/`Origin` headers are relayed to
-mpv (`--http-header-fields`), which is what CDN-protected streams usually
-need.
+launches mpv with that URL. Only `Referer`, `Origin` and `User-Agent` are
+relayed, one `--http-header-fields-append` per header. Referer/Origin are what
+CDN-protected streams check; the browser's User-Agent is relayed because mpv
+otherwise identifies itself as `libmpv`, which UA-gated CDNs reject. Cookies
+and every other header stay in the browser, so streams behind a per-session
+cookie will still fail to load in mpv.
+
+## Why mpv is started through WMI on Windows
+
+Firefox (and Chrome) run a native messaging host inside a Windows **job
+object** created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Every descendant of
+the host joins that job. This host answers one message and exits, the browser
+then closes the job, and Windows kills everything still in it -- so an mpv
+started as an ordinary child dies a fraction of a second after it appears.
+`detached: true` and `unref()` do not help: neither escapes a job object.
+
+Measured, spawning mpv from inside such a job and then closing it:
+
+| how mpv was started | survives the job closing |
+| --- | --- |
+| `spawn(..., {detached: true})` + `unref()` | no |
+| `cmd /c start` | no |
+| `Win32_Process.Create` via WMI | **yes** |
+
+So on Windows the host asks the WMI service to create the process; mpv ends up
+parented to `WmiPrvSE` and outlives the browser's job. If WMI is unavailable
+the host falls back to a direct spawn, which still plays for as long as the
+browser allows. On other platforms there is no job object and the direct
+detached spawn is used.
 
 ## Requirements
 

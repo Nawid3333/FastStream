@@ -15,6 +15,8 @@ export const DefaultOptions = {
   mpvMode: false,
   mpvAllowlist: [],
   mpvPath: '',
+  mpvFullscreen: false,
+  mpvPausePage: true,
   analyzeVideos: false,
   downloadAll: true,
   previewEnabled: true,

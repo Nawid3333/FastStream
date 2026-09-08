@@ -80,6 +80,7 @@ export class TabHolder {
 
     this.isOn = false;
     this.isMpv = false;
+    this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
     this.url = '';
 
@@ -93,6 +94,7 @@ export class TabHolder {
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
     // surviving hostname changes (upstream semantics for regexMatched).
+    this.mpvAutoOpened = false;
     this.mpvSentUrls.clear();
   }
   getFrames() {

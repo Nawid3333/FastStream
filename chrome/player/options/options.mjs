@@ -29,6 +29,8 @@ const mpvModeToggle = document.getElementById('mpvmode');
 const mpvModeSectionToggle = document.getElementById('mpvModeSectionToggle');
 const mpvAllowlistInput = document.getElementById('mpvAllowlist');
 const mpvPathInput = document.getElementById('mpvpath');
+const mpvFullscreenToggle = document.getElementById('mpvfullscreen');
+const mpvPausePageToggle = document.getElementById('mpvpausepage');
 const mpvTestButton = document.getElementById('mpvtest');
 const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
@@ -93,6 +95,8 @@ if (!EnvUtils.isExtension()) {
   mpvModeSectionToggle.disabled = true;
   mpvAllowlistInput.disabled = true;
   mpvPathInput.disabled = true;
+  mpvFullscreenToggle.disabled = true;
+  mpvPausePageToggle.disabled = true;
   mpvTestButton.disabled = true;
   miniSize.disabled = true;
   // ytclient.disabled = true;
@@ -116,6 +120,8 @@ async function loadOptions(newOptions) {
   mpvModeSectionToggle.checked = !!Options.mpvMode;
   mpvAllowlistInput.value = (Options.mpvAllowlist || []).join('\n');
   mpvPathInput.value = Options.mpvPath || '';
+  mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
+  mpvPausePageToggle.checked = !!Options.mpvPausePage;
   previewEnabled.checked = !!Options.previewEnabled;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayYoutube.checked = !!Options.autoplayYoutube;
@@ -409,6 +415,16 @@ mpvAllowlistInput.addEventListener('change', (e) => {
 
 mpvPathInput.addEventListener('change', () => {
   Options.mpvPath = mpvPathInput.value.trim();
+  optionChanged();
+});
+
+mpvFullscreenToggle.addEventListener('change', () => {
+  Options.mpvFullscreen = mpvFullscreenToggle.checked;
+  optionChanged();
+});
+
+mpvPausePageToggle.addEventListener('change', () => {
+  Options.mpvPausePage = mpvPausePageToggle.checked;
   optionChanged();
 });
 

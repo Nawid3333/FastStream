@@ -109,23 +109,9 @@ type FSMessage =
   | FSPlayerLoaded
   | FSSetHeaders
   | FSGetVideoSize
-  | FSMpvStatus
   | FSMpvTest
   | FSMpvOpen
   | FSMessageBase;
-
-/** Player/options page asks the background for MPV mode availability. */
-interface FSMpvStatus extends FSMessageBase {
-  type: 'MPV_STATUS';
-}
-
-/** Response payload of MPV_STATUS. */
-interface FSMpvStatusResponse {
-  /** True when the MPV mode option is enabled. */
-  enabled: boolean;
-  /** True when the requesting tab's URL is on the MPV allowlist. */
-  allowlisted: boolean;
-}
 
 /** Options page asks the background to ping the native host. */
 interface FSMpvTest extends FSMessageBase {

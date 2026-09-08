@@ -6605,6 +6605,12 @@
   "options_mpv_path": {
     "en": "mpv path (optional, used by the native host when mpv is not on PATH)"
   },
+  "options_mpv_fullscreen": {
+    "en": "Open mpv in fullscreen"
+  },
+  "options_mpv_pausepage": {
+    "en": "Pause the video in the browser when it is handed to mpv"
+  },
   "options_mpv_test": {
     "en": "Test mpv connection"
   },

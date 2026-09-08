@@ -20,6 +20,11 @@ const AutoEnableList = [];
 const MpvAllowlist = new UrlMatchList();
 const Mpv = new MpvBackend();
 
+// Guards the manual "send to mpv" button against repeat clicks.
+const ManualMpvRepeatMs = 3000;
+let LastManualMpvUrl = '';
+let LastManualMpvTime = 0;
+
 // Resolves once options have been read from storage. Clicks and navigation
 // events can arrive before the initial load completes (fresh install,
 // add-on reload); awaiting this prevents them from acting on an empty
@@ -84,7 +89,7 @@ async function onClicked(tabobj) {
       // MPV mode only applies on allowlisted URLs; everywhere else the
       // toolbar keeps its original Off/On behavior.
       if (Options.mpvMode && MpvAllowlist.matches(tab.url)) {
-        console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
+        if (Logging) console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
         // Cycle: Off → MPV → On → MPV → Off. The first click auto-starts
         // MPV; a further click falls back to the in-page player; one more
         // returns to MPV; a final click disables.
@@ -204,14 +209,14 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
 
     const isPlayerUrl = BackgroundUtils.isUrlPlayerUrl(tab.url);
     const mpvSite = !!Options.mpvMode && MpvAllowlist.matches(tab.url);
-    console.log('[MPV] check:', tab.url, 'mpvMode:', !!Options.mpvMode, 'mpvSite:', mpvSite);
+    if (Logging) console.log('[MPV] check:', tab.url, 'mpvMode:', !!Options.mpvMode, 'mpvSite:', mpvSite);
 
     if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
     } else if (mpvSite && !tab.regexMatched && !tab.mpvMatched) {
       // Visiting an allowlisted site auto-starts MPV mode.
-      console.log('[MPV] auto-start on allowlisted URL:', tab.url);
+      if (Logging) console.log('[MPV] auto-start on allowlisted URL:', tab.url);
       tab.regexMatched = true;
       tab.mpvMatched = true;
       tab.isOn = true;
@@ -259,24 +264,42 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     });
     return;
-  } else if (msg.type === MessageTypes.MPV_STATUS) {
-    const statusTab = sender.tab ? Tabs.getTabOrCreate(sender.tab.id) : null;
-    sendResponse({
-      enabled: !!Options.mpvMode,
-      allowlisted: MpvAllowlist.matches(statusTab ? statusTab.url : ''),
-    });
-    return;
   } else if (msg.type === MessageTypes.MPV_TEST) {
     Mpv.testConnection().then((result) => {
       sendResponse(result);
     });
     return true;
   } else if (msg.type === MessageTypes.MPV_OPEN) {
-    // Manual "send to mpv" (player button): bypass the per-tab dedupe so
-    // re-sending the same URL always works.
-    console.log('[MPV] MPV_OPEN request:', msg.url);
-    Mpv.openStream(msg.url, null, msg.headers).then((result) => {
-      console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
+    // Manual "send to mpv" (player button). The per-tab dedupe is bypassed so
+    // a deliberate re-send always works, but repeat clicks inside a couple of
+    // seconds are swallowed: each one spawns its own mpv window, and a user
+    // who clicks again because nothing appeared yet should not end up with a
+    // stack of them.
+    if (Logging) console.log('[MPV] MPV_OPEN request:', msg.url);
+    const now = Date.now();
+    if (msg.url === LastManualMpvUrl &&
+        now - LastManualMpvTime < ManualMpvRepeatMs) {
+      if (Logging) console.log('[MPV] MPV_OPEN ignored, repeat click');
+      sendResponse({ok: true});
+      return true;
+    }
+    LastManualMpvUrl = msg.url;
+    LastManualMpvTime = now;
+
+    // The player builds these from VideoSource.headers, which strips
+    // User-Agent (it is on VideoSource's header blacklist). Put the browser's
+    // own back, or mpv identifies itself to the CDN as "libmpv".
+    const headers = Array.isArray(msg.headers) ? msg.headers.slice() : [];
+    if (!headers.some((h) => h && /^user-agent$/i.test(h.name))) {
+      headers.push({name: 'User-Agent', value: navigator.userAgent});
+    }
+
+    Mpv.openStream(msg.url, null, headers).then((result) => {
+      if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
+      if (!result.ok) {
+        // Let the user retry immediately when the launch actually failed.
+        LastManualMpvTime = 0;
+      }
       sendResponse(result);
     });
     return true;
@@ -1009,6 +1032,7 @@ async function loadOptions(newOptions) {
 
   MpvAllowlist.setEntries(Options.mpvAllowlist);
   Mpv.mpvPath = Options.mpvPath || '';
+  Mpv.fullscreen = !!Options.mpvFullscreen;
 
   if (Options.mpvMode) {
     chrome.permissions.contains({
@@ -1301,6 +1325,12 @@ async function sendSourcesToMainFramePlayers(frame) {
 }
 
 async function onSourceRecieved(details, frame, mode) {
+  // Read the cached request headers before anything else. deleteHeaderCache is
+  // a second onHeadersReceived listener, so it runs the moment this function
+  // yields at its first await; reading them after that always returns
+  // undefined and the Referer/Origin the CDN needs is lost.
+  const customHeaders = details.customHeaders || frame.requestHeaders.get(details.requestId);
+
   await ensureOptions();
 
   if ((URLUtils.is_url_yt(frame.url) || URLUtils.is_url_yt(frame.tab.url)) && mode !== PlayerModes.ACCELERATED_YT) {
@@ -1308,7 +1338,6 @@ async function onSourceRecieved(details, frame, mode) {
   }
 
   const url = details.url;
-  const customHeaders = details.customHeaders || frame.requestHeaders.get(details.requestId);
 
   if (getSourceFromURL(frame, url)) return;
 
@@ -1344,11 +1373,25 @@ async function onSourceRecieved(details, frame, mode) {
 
   addSource(frame, url, mode, customHeaders);
 
-  // MPV mode: relay detected sources to the native mpv host instead of
+  // MPV mode: relay the detected source to the native mpv host instead of
   // opening the in-page player.
   if (frame.tab.isOn && frame.tab.isMpv) {
-    console.log('[MPV] forwarding detected stream to mpv:', url);
-    Mpv.openStream(url, frame.tab, customHeaders);
+    // Auto-open only the first stream found on this page. Later ones stay
+    // tracked for the toolbar and the player's "send to mpv" button, but
+    // they must not each spawn their own mpv window.
+    if (!frame.tab.mpvAutoOpened) {
+      frame.tab.mpvAutoOpened = true;
+      if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
+      Mpv.openStream(url, frame.tab, customHeaders).then((result) => {
+        if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
+        if (result.ok) {
+          pauseTabMedia(frame.tab.tabId);
+        } else {
+          // The host never launched mpv, so let the next stream try.
+          frame.tab.mpvAutoOpened = false;
+        }
+      });
+    }
     return;
   }
 
@@ -1405,15 +1448,54 @@ async function openPlayersWithSources(tab) {
 }
 
 /**
- * Sends every source tracked on the tab to mpv via the native messaging
- * host, largest first (mirroring openPlayersWithSources ordering).
- * @param {Object} tab - TabHolder whose tracked sources should open in mpv.
+ * Stops whatever the page is still playing once a stream has been handed to
+ * mpv. Without this the site keeps streaming in the background and the user
+ * has to come back to the tab just to silence it.
+ *
+ * Sent to every frame: on these sites the video usually lives in an iframe,
+ * not the top document.
+ *
+ * @param {number} tabId - Tab whose media should be paused.
  * @return {void}
+ */
+function pauseTabMedia(tabId) {
+  if (!Options.mpvPausePage || typeof tabId !== 'number' || tabId < 0) {
+    return;
+  }
+  try {
+    chrome.tabs.sendMessage(tabId, {
+      type: MessageTypes.PAUSE_MEDIA,
+    }, () => {
+      // A frame without the content script is normal here.
+      BackgroundUtils.checkMessageError('pause_media');
+    });
+  } catch (e) {
+    if (Logging) console.log('[MPV] pauseTabMedia failed:', e);
+  }
+}
+
+/**
+ * Sends the most recently detected source tracked on the tab to mpv via the
+ * native messaging host.
+ *
+ * Only one source is sent. mpv opens a window per invocation, and a page
+ * routinely exposes several sources (ads, previews, one per quality), so
+ * sending them all would bury the user in mpv windows. The newest source is
+ * the one the page just started playing; the rest stay tracked, so the
+ * player's "send to mpv" button can still reach them.
+ *
+ * @param {Object} tab - TabHolder whose tracked sources should open in mpv.
+ * @return {boolean} True when a source was handed to mpv.
  */
 function openMpvWithSources(tab) {
   if (!Options.mpvMode) {
-    return;
+    return false;
   }
+
+  // Entering MPV mode is an explicit start, so forget what was already sent
+  // for this tab. Without this the dedupe in openStream silently swallows a
+  // re-entry that targets the same URL (toolbar cycled MPV -> On -> Off -> MPV).
+  tab.mpvSentUrls.clear();
 
   const seen = new Set();
   const sources = [];
@@ -1431,11 +1513,22 @@ function openMpvWithSources(tab) {
     return b.time - a.time;
   });
 
-  for (const source of sources) {
-    Mpv.openStream(source.url, tab, source.headers).then((result) => {
-      console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
-    });
+  const source = sources[0];
+  if (!source) {
+    return false;
   }
+
+  tab.mpvAutoOpened = true;
+  Mpv.openStream(source.url, tab, source.headers).then((result) => {
+    if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
+    if (result.ok) {
+      pauseTabMedia(tab.tabId);
+    } else {
+      // The host never launched mpv, so let the next detected stream try.
+      tab.mpvAutoOpened = false;
+    }
+  });
+  return true;
 }
 
 const webRequestPerms = ['requestHeaders'];

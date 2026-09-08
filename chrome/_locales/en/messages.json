@@ -1115,6 +1115,12 @@
   "options_mpv_path": {
     "message": "mpv path (optional, used by the native host when mpv is not on PATH)"
   },
+  "options_mpv_fullscreen": {
+    "message": "Open mpv in fullscreen"
+  },
+  "options_mpv_pausepage": {
+    "message": "Pause the video in the browser when it is handed to mpv"
+  },
   "options_mpv_test": {
     "message": "Test mpv connection"
   },

@@ -11,8 +11,10 @@
  *   {type: 'open', url, headers?}  -> {ok, error?}
  *
  * `headers` is the subset of the original request headers mpv needs to
- * fetch CDN streams that check Referer/Origin. Only those two are relayed;
- * cookies and everything else stay in the browser.
+ * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
+ * without the browser's User-Agent mpv identifies itself as "libmpv", which
+ * CDNs that gate on a browser UA reject. Cookies and everything else stay in
+ * the browser.
  */
 
 const NativeHostName = 'com.faststream.mpv';
@@ -23,10 +25,13 @@ export class MpvBackend {
     this.warnedAboutHost = false;
     /** @type {string} */
     this.mpvPath = '';
+    /** @type {boolean} */
+    this.fullscreen = false;
   }
 
   /**
    * Picks the headers worth relaying to mpv from a webRequest header list.
+   * Duplicates are dropped, keeping the first value seen for each name.
    * @param {Array<{name: string, value: string}>|undefined} headerList
    * @return {Array<{name: string, value: string}>|undefined} The filtered
    *   header list, or undefined when there is nothing to relay.
@@ -36,8 +41,20 @@ export class MpvBackend {
       return undefined;
     }
 
+    const seen = new Set();
     const picked = headerList.filter((header) => {
-      return header.name && header.value && /^(referer|origin)$/i.test(header.name);
+      if (!header || !header.name || !header.value) {
+        return false;
+      }
+      if (!/^(referer|origin|user-agent)$/i.test(header.name)) {
+        return false;
+      }
+      const key = header.name.toLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
     });
 
     return picked.length > 0 ? picked : undefined;
@@ -70,6 +87,10 @@ export class MpvBackend {
     // not have to guess where mpv is installed.
     if (this.mpvPath) {
       message.mpvPath = this.mpvPath;
+    }
+
+    if (this.fullscreen) {
+      message.fullscreen = true;
     }
 
     const relayHeaders = MpvBackend.pickRelayHeaders(headers);
