@@ -1,8 +1,9 @@
 # FastStream modernisation — checkpoint
 
-**Date:** 2026-09-07
+**Date:** 2026-09-07 (MPV section added 2026-09-09)
 **Fork:** https://github.com/Nawid3333/FastStream
-**Branch:** `dev/mv3-modernization` (also the fork's default branch)
+**Branch:** `dev/mv3-modernization` (also the fork's default branch);
+`Mpv-feature` carries the MPV work and is **not** merged
 **Base:** upstream `d5fe931` (V1.3.77)
 **CI:** green — https://github.com/Nawid3333/FastStream/actions
 **Plan doc:** https://claude.ai/code/artifact/830a4dd8-e6ab-4429-a4ac-b5541f9a3224
@@ -12,6 +13,11 @@ Everything in this checkpoint reflects a verified state: the full suite
 playback, extension e2e, and every provenance check) was run green on
 2026-09-07 at the commits listed below. Check the git status before relying
 on any "current" claim here.
+
+The MPV section near the end was added on 2026-09-09 from work on the
+`Mpv-feature` branch. Its own claims were verified on that branch (lint 0,
+tsc 0, 87 unit tests, ext e2e 4/4, Firefox e2e 12/12, 4 builds, AMO lint
+0/0/3) — the rest of this document was **not** re-run that day.
 
 ---
 
@@ -318,8 +324,75 @@ reverted it to the stale vendored copy.
 
 ---
 
+## MPV mode (branch `Mpv-feature`) — working, not merged
+
+Hands a detected stream to mpv on the user's machine instead of the in-page
+player, on allowlisted sites. Started as a WIP commit that was end-to-end
+broken; now verified working on a real site from a **clean install** of the
+native host.
+
+**State on 2026-09-09:** works on aniworld — auto-detect, single mpv window,
+correct headers, fullscreen, focus, episode switching. Verified from a fresh
+`install.ps1` run (install dir and registry key deleted first), not from the
+hand-copied host used during development.
+
+| Commit | What it fixed |
+|---|---|
+| `5ce5f3ec` | The original WIP. Not functional. |
+| `b839054a` | Job object, header loss, `libmpv` UA, duplicate launches |
+| `9beec583` | Focus, single instance, fullscreen |
+| `8a54ff33` | Second video on the same site |
+
+Four independent breakages, each measured rather than reasoned about — the
+detail is in `CLAUDE.md` under "MPV mode and the native host", and every one
+is worth reading before touching this code:
+
+1. **mpv was killed the instant it appeared.** Firefox's job object takes
+   every descendant of the native host with it. Measured: `detached`+`unref`
+   killed, `cmd /c start` killed, WMI `Win32_Process.Create` survives.
+2. **Referer/Origin never reached the CDN** — read after the first `await`,
+   by which point the sibling `onHeadersReceived` listener had cleared them.
+   This was also a silent regression on the ordinary player path.
+3. **mpv announced itself as `libmpv`** and UA-gated CDNs refused it.
+4. **One page opened an mpv window per detected source** — a real session
+   produced 14 launches of a single URL.
+
+**Options** (Settings → MPV Mode): `mpvMode`, `mpvAllowlist`, `mpvPath`,
+`mpvFullscreen` (default off), `mpvPausePage` (default on),
+`mpvSingleInstance` (default on).
+
+**Coverage.** `tests/e2e/ext-specs/mpv.e2e.mjs` asserts the three relayed
+headers, a single launch, that the page is paused, and that a second video
+reaches mpv. Each assertion was checked against the broken code first, so
+none of them can pass vacuously. The suite skips when the host is not
+installed. The native host itself has **no automated coverage** — it is
+verified by hand, driving the `.bat` with framed messages and checking
+survival inside a real kill-on-close job object.
+
+**Not done:**
+
+- **Locales.** Every new option string is English-only; other locales fall
+  back to English.
+- **Leave-site gap.** Allowlisted site A → allowlisted site B leaves B off if
+  MPV was manually toggled off on A, because `regexMatched`/`mpvMatched`
+  deliberately survive `reset()`. Needs a decision on intended behaviour, not
+  just a patch.
+- **Windows only.** The WMI launcher and the focus step are
+  `process.platform === 'win32'`; other platforms fall back to a plain
+  detached spawn, which is correct there (no job object) but untested.
+- **Chrome.** `install.ps1` supports `-ExtensionId` for Chrome-family
+  browsers, but MPV mode has only ever been run in Firefox.
+- **Not merged, not pushed.** The branch sits on top of an older
+  `dev/mv3-modernization`; a rebase is needed before it goes anywhere.
+
+---
+
 ## Next steps, in order
 
+0. **Decide what to do with `Mpv-feature`.** It works, but it is unmerged,
+   unrebased and unpushed, Windows-only, and English-only. The leave-site gap
+   needs a behaviour decision before it can be called finished. See the MPV
+   section above.
 1. ~~Settle the license.~~ **Asked** (issue #547, PR #551) — now waiting on
    Andrew's response. Listed distribution stays blocked until/unless he
    grants permission; unlisted self-distribution works today.

@@ -108,6 +108,66 @@ is not covered by the three above.
 - **Vendored library versions are current**, not stale: dash.js reports
   `VERSION = '5.1.0'`, hls.js carries 1.6.x branches.
 
+## MPV mode and the native host
+
+Feature branch `Mpv-feature`. Allowlisted sites hand their detected stream to
+mpv on the user's machine instead of the in-page player, over native
+messaging to `com.faststream.mpv`.
+
+**The host in `native-host/` is not part of the extension build.** It is a
+separate Node script the user installs with `native-host/install.ps1`, which
+copies it to `%LOCALAPPDATA%\FastStreamMpvHost`, writes a `.bat` wrapper (the
+browser runs the manifest `path` directly and cannot execute a `.mjs`), and
+registers the host under `HKCU\Software\Mozilla\NativeMessagingHosts`.
+Editing `native-host/faststream-mpv-host.mjs` in the repo changes nothing
+until it is copied to the install directory — a rebuild does **not** ship it.
+
+Four things here are counter-intuitive enough that each shipped broken once:
+
+- **A child of the host does not survive the browser.** Firefox runs a native
+  messaging host inside a job object with
+  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; every descendant joins that job, and
+  when the host exits after replying, Windows kills them all. `detached: true`
+  and `unref()` do not escape a job, and neither does `cmd /c start`. mpv is
+  therefore created by the **WMI** service (`Win32_Process.Create`), which
+  parents it to `WmiPrvSE`, outside the job. Do not "simplify" this back to a
+  plain spawn.
+- **A WMI-created process cannot take the foreground**, so mpv's own
+  `--focus-on=open` is silently refused and the window opens behind the
+  browser. The host grants the right and activates the window by attaching to
+  the foreground thread's input queue, then re-reads `GetForegroundWindow` to
+  confirm rather than trusting the call's return value.
+- **Request headers must be read before the first `await`.** In
+  `onSourceRecieved`, `deleteHeaderCache` is a second `onHeadersReceived`
+  listener and runs the moment the function yields, so a header read placed
+  after an `await` always returns `undefined`. This silently breaks the
+  ordinary in-page player too, not just mpv.
+- **`VideoSource` blacklists `user-agent`**, so the player's "send to mpv"
+  button physically cannot forward it and the background restores
+  `navigator.userAgent` on arrival. Without it mpv identifies itself to CDNs
+  as `libmpv` and gets refused.
+
+Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
+instances this host starts are given `--input-ipc-server`, which is what
+stops it ever loading into — or closing — an mpv the user opened themselves.
+A stale pipe simply fails to connect and a fresh instance starts.
+
+**Debugging.** Add `"debug": true` to
+`%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
+reads it per message) and it appends JSONL to `faststream-mpv-host.log` next
+to the script: every message received, the exact mpv argv, the WMI pid, and
+whether focus took. It never writes to stdout, which carries the framed
+native messages. That log is what found the header loss and the job object;
+reach for it before theorising.
+
+**Testing.** `tests/e2e/ext-specs/mpv.e2e.mjs` drives the real chain —
+allowlisted page, webRequest detection, native host, mpv, HTTP request —
+against two local origins, because a same-origin media request carries no
+`Origin` header. It skips rather than fails when the host is not installed.
+The host itself is covered by no suite; verify it by driving
+`com.faststream.mpv.bat` with a length-prefixed message, and by checking
+survival inside a real kill-on-close job object.
+
 ## The SPLICER preprocessor
 
 `build.mjs` strips or injects code per build target using comment directives:
