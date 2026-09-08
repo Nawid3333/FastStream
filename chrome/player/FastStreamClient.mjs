@@ -307,6 +307,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.storeProgress = options.storeProgress;
     this.options.downloadAll = options.downloadAll;
     this.options.autoEnableBestSubtitles = options.autoEnableBestSubtitles;
+    this.options.mpvMode = !!options.mpvMode;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.seekStepSize = options.seekStepSize;
@@ -382,6 +383,9 @@ export class FastStreamClient extends EventEmitter {
       this.options.toolSettings = options.toolSettings;
       this.interfaceController.updateToolVisibility();
     }
+
+    // MPV mode may have been toggled while a video is open.
+    this.interfaceController.updateToolVisibility();
 
     this.updateHasDownloadSpace();
     this.interfaceController.updateAutoNextIndicator();

@@ -79,6 +79,8 @@ export class TabHolder {
     this.frames = new Map();
 
     this.isOn = false;
+    this.isMpv = false;
+    this.mpvSentUrls = new Set();
     this.url = '';
 
     this.reset();
@@ -88,6 +90,10 @@ export class TabHolder {
     this.playerCount = 0;
     this.continuationOptions = null;
     this.analyzerData = null;
+    // regexMatched/mpvMatched are deliberately NOT cleared here: the
+    // leave-a-site detection in the onUpdated handler relies on them
+    // surviving hostname changes (upstream semantics for regexMatched).
+    this.mpvSentUrls.clear();
   }
   getFrames() {
     return this.frames.values();

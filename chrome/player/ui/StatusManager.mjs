@@ -12,6 +12,7 @@ export const StatusTypes = {
   SILENCE_SKIP: 'silence-skip',
   SUBTITLES: 'subtitles',
   COPY: 'copy',
+  MPV: 'mpv',
   CHAPTER: 'chapter',
 };
 
@@ -31,6 +32,7 @@ export class StatusManager {
     this.registerStatusLevel(StatusTypes.SILENCE_SKIP, 1);
     this.registerStatusLevel(StatusTypes.SUBTITLES, 1);
     this.registerStatusLevel(StatusTypes.COPY, 1);
+    this.registerStatusLevel(StatusTypes.MPV, 1);
 
     this.registerStatusLevel(StatusTypes.CHAPTER, 2);
   }

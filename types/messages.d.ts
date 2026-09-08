@@ -109,4 +109,37 @@ type FSMessage =
   | FSPlayerLoaded
   | FSSetHeaders
   | FSGetVideoSize
+  | FSMpvStatus
+  | FSMpvTest
+  | FSMpvOpen
   | FSMessageBase;
+
+/** Player/options page asks the background for MPV mode availability. */
+interface FSMpvStatus extends FSMessageBase {
+  type: 'MPV_STATUS';
+}
+
+/** Response payload of MPV_STATUS. */
+interface FSMpvStatusResponse {
+  /** True when the MPV mode option is enabled. */
+  enabled: boolean;
+  /** True when the requesting tab's URL is on the MPV allowlist. */
+  allowlisted: boolean;
+}
+
+/** Options page asks the background to ping the native host. */
+interface FSMpvTest extends FSMessageBase {
+  type: 'MPV_TEST';
+}
+
+/**
+ * Player asks the background to push a stream URL to mpv.
+ * This is the "send to mpv" player button's message.
+ */
+interface FSMpvOpen extends FSMessageBase {
+  type: 'MPV_OPEN';
+  /** Stream URL to play in mpv. */
+  url: string;
+  /** Optional Referer/Origin headers for CDN-protected streams. */
+  headers?: Array<{name: string; value: string}>;
+}

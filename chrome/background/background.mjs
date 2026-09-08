@@ -5,16 +5,32 @@ import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
+import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {SponsorBlockIntegration} from './SponsorBlockIntegration.mjs';
 import {StreamSaverBackend} from './StreamSaverBackend.mjs';
 import {TabTracker} from './TabTracker.mjs';
+import {UrlMatchList} from './UrlMatchList.mjs';
 
 let Options = {};
 const OptionsCache = {};
 
 const AutoEnableList = [];
+const MpvAllowlist = new UrlMatchList();
+const Mpv = new MpvBackend();
+
+// Resolves once options have been read from storage. Clicks and navigation
+// events can arrive before the initial load completes (fresh install,
+// add-on reload); awaiting this prevents them from acting on an empty
+// Options object, where mpvMode and the allowlist would read as disabled.
+let OptionsLoadPromise = null;
+function ensureOptions() {
+  if (!OptionsLoadPromise) {
+    OptionsLoadPromise = loadOptions().catch(console.error);
+  }
+  return OptionsLoadPromise;
+}
 const ExtensionVersion = chrome.runtime.getManifest().version;
 const Logging = false;
 const Tabs = new TabTracker();
@@ -45,6 +61,8 @@ BackgroundUtils.queryTabs().then((ctabs) => {
 });
 
 async function onClicked(tabobj) {
+  await ensureOptions();
+
   const tab = Tabs.getTabOrCreate(tabobj.id);
 
   // check permissions
@@ -63,28 +81,70 @@ async function onClicked(tabobj) {
   const emptyTabURLS = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing', 'chrome://newtab/'];
   if (tab.url && !emptyTabURLS.includes(tab.url)) {
     if (!BackgroundUtils.isUrlPlayerUrl(tab.url)) {
-      tab.isOn = !tab.isOn;
+      // MPV mode only applies on allowlisted URLs; everywhere else the
+      // toolbar keeps its original Off/On behavior.
+      if (Options.mpvMode && MpvAllowlist.matches(tab.url)) {
+        console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
+        // Cycle: Off → MPV → On → MPV → Off. The first click auto-starts
+        // MPV; a further click falls back to the in-page player; one more
+        // returns to MPV; a final click disables.
+        if (tab.isMpv) {
+          // MPV -> On (in-page player)
+          tab.isMpv = false;
+          BackgroundUtils.updateTabIcon(tab);
+          openPlayersWithSources(tab);
+        } else if (tab.isOn) {
+          // On -> Off
+          tab.isOn = false;
+          tab.isMpv = false;
+          BackgroundUtils.updateTabIcon(tab);
 
-      BackgroundUtils.updateTabIcon(tab);
-
-      if (tab.isOn) {
-        openPlayersWithSources(tab);
-      } else {
-        let hasPlayer = false;
-        for (const frame of tab.getFrames()) {
-          if (frame.isPlayer) {
-            hasPlayer = true;
-            break;
+          let hasPlayer = false;
+          for (const frame of tab.getFrames()) {
+            if (frame.isPlayer) {
+              hasPlayer = true;
+              break;
+            }
           }
-        }
 
-        if (hasPlayer) {
-          tab.reset();
-          chrome.tabs.reload(tab.tabId);
+          if (hasPlayer) {
+            tab.reset();
+            chrome.tabs.reload(tab.tabId);
+          }
+        } else {
+          // Off -> MPV
+          tab.isOn = true;
+          tab.isMpv = true;
+          tab.regexMatched = true;
+          BackgroundUtils.updateTabIcon(tab);
+          openMpvWithSources(tab);
+        }
+      } else {
+        tab.isOn = !tab.isOn;
+        tab.isMpv = false;
+
+        BackgroundUtils.updateTabIcon(tab);
+
+        if (tab.isOn) {
+          openPlayersWithSources(tab);
+        } else {
+          let hasPlayer = false;
+          for (const frame of tab.getFrames()) {
+            if (frame.isPlayer) {
+              hasPlayer = true;
+              break;
+            }
+          }
+
+          if (hasPlayer) {
+            tab.reset();
+            chrome.tabs.reload(tab.tabId);
+          }
         }
       }
     } else {
       tab.isOn = !tab.isOn;
+      tab.isMpv = false;
       BackgroundUtils.updateTabIcon(tab);
     }
   } else {
@@ -103,7 +163,9 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   Tabs.removeTab(tabid);
 });
 
-chrome.tabs.onUpdated.addListener((tabid, changeInfo, tabobj) => {
+chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
+  await ensureOptions();
+
   const tab = Tabs.getTabOrCreate(tabid);
 
   if (changeInfo.url) {
@@ -140,17 +202,37 @@ chrome.tabs.onUpdated.addListener((tabid, changeInfo, tabobj) => {
 
     const shouldAutoEnable = match && !match.negative;
 
+    const isPlayerUrl = BackgroundUtils.isUrlPlayerUrl(tab.url);
+    const mpvSite = !!Options.mpvMode && MpvAllowlist.matches(tab.url);
+    console.log('[MPV] check:', tab.url, 'mpvMode:', !!Options.mpvMode, 'mpvSite:', mpvSite);
 
-    if (BackgroundUtils.isUrlPlayerUrl(tab.url)) {
+    if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
+    } else if (mpvSite && !tab.regexMatched && !tab.mpvMatched) {
+      // Visiting an allowlisted site auto-starts MPV mode.
+      console.log('[MPV] auto-start on allowlisted URL:', tab.url);
+      tab.regexMatched = true;
+      tab.mpvMatched = true;
+      tab.isOn = true;
+      tab.isMpv = true;
+      openMpvWithSources(tab);
     } else if (shouldAutoEnable && !tab.regexMatched) {
       tab.regexMatched = true;
       tab.isOn = true;
-      openPlayersWithSources(tab);
-    } else if (!shouldAutoEnable && tab.regexMatched) {
+      // Allowlisted sites default to MPV mode; everything else uses the
+      // in-page player.
+      tab.isMpv = mpvSite;
+      if (tab.isMpv) {
+        openMpvWithSources(tab);
+      } else {
+        openPlayersWithSources(tab);
+      }
+    } else if (!shouldAutoEnable && !mpvSite && tab.regexMatched) {
       tab.isOn = false;
+      tab.isMpv = false;
       tab.regexMatched = false;
+      tab.mpvMatched = false;
     }
   }
 
@@ -177,6 +259,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     });
     return;
+  } else if (msg.type === MessageTypes.MPV_STATUS) {
+    const statusTab = sender.tab ? Tabs.getTabOrCreate(sender.tab.id) : null;
+    sendResponse({
+      enabled: !!Options.mpvMode,
+      allowlisted: MpvAllowlist.matches(statusTab ? statusTab.url : ''),
+    });
+    return;
+  } else if (msg.type === MessageTypes.MPV_TEST) {
+    Mpv.testConnection().then((result) => {
+      sendResponse(result);
+    });
+    return true;
+  } else if (msg.type === MessageTypes.MPV_OPEN) {
+    // Manual "send to mpv" (player button): bypass the per-tab dedupe so
+    // re-sending the same URL always works.
+    console.log('[MPV] MPV_OPEN request:', msg.url);
+    Mpv.openStream(msg.url, null, msg.headers).then((result) => {
+      console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
+      sendResponse(result);
+    });
+    return true;
   }
 
   const tab = Tabs.getTabOrCreate(sender.tab.id);
@@ -904,6 +1007,19 @@ async function loadOptions(newOptions) {
   // Reverse auto enable list
   AutoEnableList.reverse();
 
+  MpvAllowlist.setEntries(Options.mpvAllowlist);
+  Mpv.mpvPath = Options.mpvPath || '';
+
+  if (Options.mpvMode) {
+    chrome.permissions.contains({
+      permissions: ['nativeMessaging'],
+    }, (hasNative) => {
+      if (!hasNative && !Mpv.warnedAboutHost) {
+        console.warn('MPV mode is enabled but the nativeMessaging permission is missing');
+      }
+    });
+  }
+
   if (Options.playMP4URLs) {
     setupRedirectRule(1, ['mp4']);
   } else {
@@ -1185,6 +1301,8 @@ async function sendSourcesToMainFramePlayers(frame) {
 }
 
 async function onSourceRecieved(details, frame, mode) {
+  await ensureOptions();
+
   if ((URLUtils.is_url_yt(frame.url) || URLUtils.is_url_yt(frame.tab.url)) && mode !== PlayerModes.ACCELERATED_YT) {
     return;
   }
@@ -1225,6 +1343,14 @@ async function onSourceRecieved(details, frame, mode) {
   }
 
   addSource(frame, url, mode, customHeaders);
+
+  // MPV mode: relay detected sources to the native mpv host instead of
+  // opening the in-page player.
+  if (frame.tab.isOn && frame.tab.isMpv) {
+    console.log('[MPV] forwarding detected stream to mpv:', url);
+    Mpv.openStream(url, frame.tab, customHeaders);
+    return;
+  }
 
   const subs = await scrapeCaptionsTags(frame);
   if (subs) {
@@ -1275,6 +1401,40 @@ async function openPlayersWithSources(tab) {
     for (let i = 0; i < framesWithSources.length; i++) {
       openPlayer(framesWithSources[i].frame);
     }
+  }
+}
+
+/**
+ * Sends every source tracked on the tab to mpv via the native messaging
+ * host, largest first (mirroring openPlayersWithSources ordering).
+ * @param {Object} tab - TabHolder whose tracked sources should open in mpv.
+ * @return {void}
+ */
+function openMpvWithSources(tab) {
+  if (!Options.mpvMode) {
+    return;
+  }
+
+  const seen = new Set();
+  const sources = [];
+
+  for (const frame of tab.getFrames()) {
+    for (const source of frame.getSources()) {
+      if (!seen.has(source.url)) {
+        seen.add(source.url);
+        sources.push(source);
+      }
+    }
+  }
+
+  sources.sort((a, b) => {
+    return b.time - a.time;
+  });
+
+  for (const source of sources) {
+    Mpv.openStream(source.url, tab, source.headers).then((result) => {
+      console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
+    });
   }
 }
 
@@ -1388,7 +1548,7 @@ function deleteHeaderCache(details) {
   frame.requestHeaders.delete(details.requestId);
 }
 
-loadOptions().catch(console.error);
+ensureOptions();
 
 const streamSaverBackend = new StreamSaverBackend();
 try {
