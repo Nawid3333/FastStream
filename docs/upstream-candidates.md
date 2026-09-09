@@ -24,7 +24,8 @@ broken intermediate state. See `CHECKPOINT.md`.
 
 Status values: `queued` (identified, not yet cut) · `cut` (branch exists,
 not yet test-merged) · `verified` (test-merged clean in the pristine clone)
-· `opened` (PR live upstream) · `merged`.
+· `opened` (PR live upstream) · `merged` · `rejected` (Andrew declined —
+reason recorded, do not re-propose without new information).
 
 ---
 
@@ -88,7 +89,10 @@ no linter caught.
   handling breaks on Windows and the build cannot complete there.
 - **Why he wants it:** contributors on Windows currently cannot build at all.
 - **Depends on:** nothing.
-- **Status:** `queued`
+- **Status:** `merged` — upstream PR #548, merged 2026-09-09. His merge also
+  renamed the parameter in the non-`WIN32` branch, which this fork did not
+  touch; pulled back in by the 2026-09-09 upstream sync so `miniglob.mjs` no
+  longer diverges.
 
 ## A2. Add `.gitattributes` for cross-platform line endings
 
@@ -98,7 +102,30 @@ no linter caught.
   CRLF, which makes diffs unreadable and, once A3 lands, produces thousands
   of `linebreak-style` errors.
 - **Depends on:** nothing. Pairs with A3 — send A2 first.
-- **Status:** `queued`
+- **Status:** `merged` — upstream PR #550, merged 2026-09-09. His merged
+  `.gitattributes` is byte-identical to this fork's; the 2026-09-09 upstream
+  sync landed it as a content no-op.
+
+## A2b. Drop the unused `contextualIdentities` permission — rejected
+
+- **PR:** #549, `fix/unused-firefox-permissions`, **closed by Andrew**
+  2026-09-09, not merged.
+- **What was proposed:** `build.mjs` requests `contextualIdentities` in both
+  Firefox targets, but nothing in the repo calls
+  `browser.contextualIdentities.*` — only `cookieStoreId` is read (gated on
+  `cookies`, which was correctly left alone). Looked like dead weight in the
+  install prompt.
+- **Why he rejected it, in his words:** "contextualIdentities was added in
+  prior attempt to fix bug where downloads failed in specific firefox
+  containers. Unfortunately firefox did not expose a mechanism for extensions
+  to know about or control certain partitions so the permission currently
+  does nothing. It will be important in the future once
+  https://bugzilla.mozilla.org/show_bug.cgi?id=1917842 is solved."
+- **Do not re-propose this** until that Bugzilla issue ships. The permission
+  looks dead by grep alone; it isn't — it's provisioned ahead of a Firefox
+  API that doesn't exist yet. Recorded here so nobody runs the same grep and
+  reaches the same wrong conclusion twice.
+- **Status:** `rejected`, tracked in upstream #549.
 
 ## A3. ESLint covers `.mjs`, which is 94% of the codebase
 
