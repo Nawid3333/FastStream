@@ -424,6 +424,15 @@ async function buildFirefoxAmo() {
       data_collection_permissions: {
         required: ['none'],
       },
+      // Self-hosted update checking: this is an "unlisted" AMO build, so it
+      // has no store page for Firefox to poll for new versions. Without
+      // this, "Check for Updates" in about:addons has nothing to check
+      // against. releases/latest/download/<name> is a GitHub redirect that
+      // always resolves to whatever the current newest Release publishes
+      // under that filename, so this URL never has to change between
+      // releases - release.yml regenerates and re-uploads updates.json
+      // (and the xpi it points at) every time it cuts one.
+      update_url: 'https://github.com/Nawid3333/FastStream/releases/latest/download/updates.json',
     },
   };
 

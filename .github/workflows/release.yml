@@ -24,7 +24,18 @@ name: Release
 # independently of anything else in the release, and none of those should
 # hold back the three unsigned zips. When it does fail, fix the cause, then
 # attach the xpi by hand with `gh release upload <tag> <file>` once a manual
-# `pnpm run sign:amo` produces one.
+# `pnpm run sign:amo` produces one -- and regenerate updates.json (see below)
+# the same way, or the self-update path stays stuck on the last release that
+# had one.
+#
+# Self-hosted auto-update: the AMO build's manifest points
+# browser_specific_settings.gecko.update_url at
+# .../releases/latest/download/updates.json, a GitHub redirect that always
+# resolves to whatever the newest Release publishes under that filename. So
+# "Check for Updates" in about:addons (and Firefox's own periodic check)
+# works without a store listing, as long as every release re-publishes an
+# updates.json alongside the xpi it describes -- tools/gen-update-manifest.mjs
+# does that from the just-signed xpi, only when signing succeeded.
 
 on:
   push:
@@ -72,6 +83,10 @@ jobs:
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
         run: pnpm run sign:amo
 
+      - name: Generate self-update manifest
+        if: steps.sign.outcome == 'success'
+        run: node tools/gen-update-manifest.mjs "${{ github.repository }}" "${{ github.ref_name }}"
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,9 +97,9 @@ jobs:
             built/firefox-github-*.zip
           )
           if [ "${{ steps.sign.outcome }}" = "success" ]; then
-            assets+=(web-ext-artifacts/*.xpi)
+            assets+=(web-ext-artifacts/*.xpi web-ext-artifacts/updates.json)
           else
-            echo "::warning::AMO signing failed or was already done for this version -- releasing without the signed xpi. See the header comment in this workflow for how to attach it by hand."
+            echo "::warning::AMO signing failed or was already done for this version -- releasing without the signed xpi or updates.json. See the header comment in this workflow for how to attach both by hand."
           fi
           gh release create "${{ github.ref_name }}" \
             "${assets[@]}" \
