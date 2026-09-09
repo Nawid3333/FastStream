@@ -1,0 +1,73 @@
+name: Release
+
+# Builds the extension and publishes it as a GitHub Release with downloadable
+# zips attached -- the public-facing equivalent of what Andrew does by hand
+# on the upstream repo (github.com/Andrews54757/FastStream/releases): a tag,
+# a release page, and a couple of zips people can download without touching
+# a store.
+#
+# Fires on a version tag push (same v*.*.* / V*.*.* pattern build.yml already
+# watches, so tagging a commit is the only step this repo doesn't already do
+# somewhere). workflow_dispatch is for re-running by hand against an existing
+# tag if a release needs to be redone.
+#
+# Deliberately does not touch AMO signing: publish-amo.yml already submits
+# every merge to dev/mv3-modernization to Mozilla on its own continuous
+# schedule, and AMO refuses to accept the same version+channel twice, so
+# re-signing here on the same tag would just fail. The Firefox zip attached
+# to the release is the same *un*signed build Andrew ships from his own
+# releases -- side-loadable via about:debugging or a permanent install once
+# self-signed. If you want the release page to also carry the properly
+# AMO-signed XPI, that needs a small design decision about which of the two
+# workflows owns signing a given version -- ask before wiring it in.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "V*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Reads the pnpm version from package.json "packageManager", so this
+      # workflow cannot drift from CI or from local installs.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # --frozen-lockfile also applies patches/ during install, which the
+      # build needs: chrome/player/modules/hls.mjs is generated from the
+      # patched npm package, not tracked in git.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # Only the two "github" flavors are meant for a person to grab and
+      # side-load directly -- chrome-webstore and firefox-amo are shaped for
+      # store submission (different manifest fields, different signing
+      # expectations) and would be confusing to hand someone as a plain zip.
+      # Matches the two assets Andrew's own releases carry (chrome + firefox).
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            built/chrome-github-*.zip \
+            built/firefox-github-*.zip \
+            --title "${{ github.ref_name }}" \
+            --generate-notes
