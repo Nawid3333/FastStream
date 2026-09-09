@@ -25,6 +25,15 @@ const playMP4URLs = document.getElementById('playmp4urls');
 const downloadAll = document.getElementById('downloadall');
 const keybindsList = document.getElementById('keybindslist');
 const autoEnableURLSInput = document.getElementById('autoEnableURLs');
+const mpvModeToggle = document.getElementById('mpvmode');
+const mpvModeSectionToggle = document.getElementById('mpvModeSectionToggle');
+const mpvAllowlistInput = document.getElementById('mpvAllowlist');
+const mpvPathInput = document.getElementById('mpvpath');
+const mpvFullscreenToggle = document.getElementById('mpvfullscreen');
+const mpvPausePageToggle = document.getElementById('mpvpausepage');
+const mpvSingleInstanceToggle = document.getElementById('mpvsingleinstance');
+const mpvTestButton = document.getElementById('mpvtest');
+const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
@@ -59,6 +68,12 @@ autoEnableURLSInput.setAttribute('autocorrect', 'off');
 autoEnableURLSInput.setAttribute('spellcheck', false);
 autoEnableURLSInput.placeholder = 'https://example.com/movie/\n~^https:\\/\\/example\\.com\\/(movie|othermovie)\\/';
 
+mpvAllowlistInput.setAttribute('autocapitalize', 'off');
+mpvAllowlistInput.setAttribute('autocomplete', 'off');
+mpvAllowlistInput.setAttribute('autocorrect', 'off');
+mpvAllowlistInput.setAttribute('spellcheck', false);
+mpvAllowlistInput.placeholder = 'https://example.com/\n~^https:\\/\\/example\\.com\\/movie\\/';
+
 customSourcePatterns.setAttribute('autocapitalize', 'off');
 customSourcePatterns.setAttribute('autocomplete', 'off');
 customSourcePatterns.setAttribute('autocorrect', 'off');
@@ -77,6 +92,14 @@ if (!EnvUtils.isExtension()) {
   autoplayYoutube.disabled = true;
   autoEnableURLSInput.disabled = true;
   customSourcePatterns.disabled = true;
+  mpvModeToggle.disabled = true;
+  mpvModeSectionToggle.disabled = true;
+  mpvAllowlistInput.disabled = true;
+  mpvPathInput.disabled = true;
+  mpvFullscreenToggle.disabled = true;
+  mpvPausePageToggle.disabled = true;
+  mpvSingleInstanceToggle.disabled = true;
+  mpvTestButton.disabled = true;
   miniSize.disabled = true;
   // ytclient.disabled = true;
   autoplayNext.disabled = true;
@@ -95,6 +118,13 @@ async function loadOptions(newOptions) {
   analyzeVideos.checked = !!Options.analyzeVideos;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
+  mpvModeToggle.checked = !!Options.mpvMode;
+  mpvModeSectionToggle.checked = !!Options.mpvMode;
+  mpvAllowlistInput.value = (Options.mpvAllowlist || []).join('\n');
+  mpvPathInput.value = Options.mpvPath || '';
+  mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
+  mpvPausePageToggle.checked = !!Options.mpvPausePage;
+  mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
   previewEnabled.checked = !!Options.previewEnabled;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayYoutube.checked = !!Options.autoplayYoutube;
@@ -367,6 +397,79 @@ autoSub.addEventListener('change', () => {
 playStreamURLs.addEventListener('change', () => {
   Options.playStreamURLs = playStreamURLs.checked;
   optionChanged();
+});
+
+const mpvModeChanged = () => {
+  Options.mpvMode = mpvModeToggle.checked;
+  mpvModeSectionToggle.checked = Options.mpvMode;
+  optionChanged();
+};
+
+mpvModeToggle.addEventListener('change', mpvModeChanged);
+mpvModeSectionToggle.addEventListener('change', () => {
+  mpvModeToggle.checked = mpvModeSectionToggle.checked;
+  mpvModeChanged();
+});
+
+mpvAllowlistInput.addEventListener('change', (e) => {
+  Options.mpvAllowlist = mpvAllowlistInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
+  optionChanged();
+});
+
+mpvPathInput.addEventListener('change', () => {
+  Options.mpvPath = mpvPathInput.value.trim();
+  optionChanged();
+});
+
+mpvFullscreenToggle.addEventListener('change', () => {
+  Options.mpvFullscreen = mpvFullscreenToggle.checked;
+  optionChanged();
+});
+
+mpvPausePageToggle.addEventListener('change', () => {
+  Options.mpvPausePage = mpvPausePageToggle.checked;
+  optionChanged();
+});
+
+mpvSingleInstanceToggle.addEventListener('change', () => {
+  Options.mpvSingleInstance = mpvSingleInstanceToggle.checked;
+  optionChanged();
+});
+
+mpvTestButton.addEventListener('click', () => {
+  mpvTestResult.textContent = '...';
+  const sendTest = () => {
+    chrome.runtime.sendMessage({type: 'MPV_TEST'}, (response) => {
+      if (chrome.runtime.lastError || !response) {
+        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+        return;
+      }
+      if (response.ok && response.mpv) {
+        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_ok');
+      } else if (response.ok) {
+        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_nompv');
+      } else {
+        mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+      }
+    });
+  };
+  if (chrome.permissions && chrome.permissions.contains) {
+    chrome.permissions.contains({permissions: ['nativeMessaging']}, (has) => {
+      if (has) {
+        sendTest();
+      } else {
+        chrome.permissions.request({permissions: ['nativeMessaging']}, (granted) => {
+          if (granted) {
+            sendTest();
+          } else {
+            mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
+          }
+        });
+      }
+    });
+  } else {
+    sendTest();
+  }
 });
 
 analyzeVideos.addEventListener('change', () => {

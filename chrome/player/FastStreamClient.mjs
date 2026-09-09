@@ -307,6 +307,8 @@ export class FastStreamClient extends EventEmitter {
     this.options.storeProgress = options.storeProgress;
     this.options.downloadAll = options.downloadAll;
     this.options.autoEnableBestSubtitles = options.autoEnableBestSubtitles;
+    this.options.mpvMode = !!options.mpvMode;
+    this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.seekStepSize = options.seekStepSize;
@@ -380,8 +382,12 @@ export class FastStreamClient extends EventEmitter {
 
     if (options.toolSettings) {
       this.options.toolSettings = options.toolSettings;
-      this.interfaceController.updateToolVisibility();
     }
+
+    // Unconditional: MPV mode gates the mpv button and may have been toggled
+    // while a video is open, so tool visibility has to be recomputed even
+    // when toolSettings itself did not change.
+    this.interfaceController.updateToolVisibility();
 
     this.updateHasDownloadSpace();
     this.interfaceController.updateAutoNextIndicator();

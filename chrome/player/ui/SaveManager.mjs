@@ -1,6 +1,7 @@
 import {SubtitleTrack} from '../SubtitleTrack.mjs';
 import {VideoSource} from '../VideoSource.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
+import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {streamSaver} from '../modules/StreamSaver.mjs';
 import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
@@ -12,6 +13,7 @@ import {URLUtils} from '../utils/URLUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {StatusTypes} from './StatusManager.mjs';
 
 export class SaveManager {
   constructor(client) {
@@ -33,8 +35,51 @@ export class SaveManager {
 
     WebUtils.setupTabIndex(DOMElements.download);
 
+    DOMElements.mpv.addEventListener('click', this.openInMpv.bind(this));
+    WebUtils.setupTabIndex(DOMElements.mpv);
+
     DOMElements.screenshot.addEventListener('click', this.saveScreenshot.bind(this));
     WebUtils.setupTabIndex(DOMElements.screenshot);
+  }
+
+  /**
+   * Sends the currently playing source URL to mpv through the background's
+   * native messaging bridge (MPV_OPEN -> com.faststream.mpv).
+   * @return {Promise<void>}
+   */
+  async openInMpv() {
+    if (!this.client.player || !this.client.source) {
+      await AlertPolyfill.alert(Localize.getMessage('player_nosource_alert'), 'error');
+      return;
+    }
+
+    const source = this.client.source;
+    const headers = Object.entries(source.headers || {}).map(([name, value]) => {
+      return {name, value};
+    });
+
+    this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sending'), 'info');
+
+    chrome.runtime.sendMessage({
+      type: MessageTypes.MPV_OPEN,
+      url: source.url,
+      headers: headers,
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
+        return;
+      }
+      if (response && response.ok) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
+        // mpv has the stream now, so stop playing it here too: otherwise both
+        // players run at once and the user has to come back just to pause.
+        if (this.client.options.mpvPausePage) {
+          this.client.pause().catch(() => {});
+        }
+      } else {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
+      }
+    });
   }
 
   setStatusMessage(key, message, type, expiry) {

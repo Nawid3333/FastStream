@@ -19,6 +19,7 @@
     FRAME_REMOVED: 'FRAME_REMOVED',
     SEND_TO_CONTENT: 'SEND_TO_CONTENT',
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
+    PAUSE_MEDIA: 'PAUSE_MEDIA',
   };
 
   const iframeMap = new Map();
@@ -77,6 +78,8 @@
     } else if (request.type === MessageTypes.REMOVE_PLAYERS) {
       removePlayers();
       sendResponse('ok');
+    } else if (request.type === MessageTypes.PAUSE_MEDIA) {
+      sendResponse(pauseAllMedia());
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
@@ -505,6 +508,27 @@
     if (done === tracks.length) sendResponse(tracks);
 
     return true;
+  }
+
+  /**
+   * Pauses every playing media element in this frame. Used when a stream is
+   * handed off to mpv: the page keeps buffering (and making noise) otherwise,
+   * and the user would have to come back to the tab just to stop it.
+   * @return {number} How many elements were paused.
+   */
+  function pauseAllMedia() {
+    let paused = 0;
+    document.querySelectorAll('video, audio').forEach((media) => {
+      try {
+        if (!media.paused) {
+          media.pause();
+          paused++;
+        }
+      } catch (e) {
+        // A cross-origin or detached element: nothing to do about it.
+      }
+    });
+    return paused;
   }
 
   function removePlayers() {

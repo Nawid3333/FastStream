@@ -204,8 +204,11 @@ function splice(fileText, target, relativePath) {
 
         const newLocales = {};
         newLocales['LANGUAGES'] = locales.map((locale) => locale.code);
-        Object.keys(locales[0].translationMap).forEach((key) => {
-          const translations = locales.map((locale) => locale.translationMap[key]);
+        const englishMap = locales[0].translationMap;
+        Object.keys(englishMap).forEach((key) => {
+          // Locales that predate a new key would otherwise inline `undefined`
+          // and render blank strings on the web build; fall back to English.
+          const translations = locales.map((locale) => locale.translationMap[key] || englishMap[key]);
           newLocales[key] = translations;
         });
 
@@ -477,6 +480,7 @@ async function buildWeb() {
     'perms.mjs',
     'welcome.html',
     'icon2_128.png',
+    'icon3_128.png',
     'icon16.png',
     'icon48.png',
     'keyboard.png',

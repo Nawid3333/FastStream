@@ -36,7 +36,16 @@ export class BackgroundUtils {
 
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
-    if (tab.isOn) {
+    if (tab.isOn && tab.isMpv) {
+      chrome.action.setBadgeText({
+        text: 'MPV',
+        tabId: tab.tabId,
+      });
+      chrome.action.setIcon({
+        path: '/icon3_128.png',
+        tabId: tab.tabId,
+      });
+    } else if (tab.isOn) {
       chrome.action.setBadgeText({
         text: 'On',
         tabId: tab.tabId,

@@ -118,6 +118,14 @@ export class ToolManager {
       DOMElements.download.classList.add('hidden');
     }
 
+    // MPV button: only meaningful when the extension can talk to the native
+    // host (extension context, MPV mode enabled) and a source is playing.
+    if (this.client.player && this.client.source && EnvUtils.isExtension() && this.client.options.mpvMode) {
+      DOMElements.mpv.classList.remove('hidden');
+    } else {
+      DOMElements.mpv.classList.add('hidden');
+    }
+
     if (this.client.player && window.self !== window.top) {
       DOMElements.windowedFullscreen.classList.remove('hidden');
     } else {
@@ -153,6 +161,7 @@ export class ToolManager {
       pip: DOMElements.pip,
       screenshot: DOMElements.screenshot,
       download: DOMElements.download,
+      mpv: DOMElements.mpv,
       playrate: DOMElements.playbackRate,
       fullscreen: DOMElements.fullscreen,
       windowedfs: DOMElements.windowedFullscreen,

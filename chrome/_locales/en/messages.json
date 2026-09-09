@@ -1097,6 +1097,57 @@
     "options_pattern_body": {
         "message": "These patterns are used to detect custom video sources on webpages. They are applied in order, and the first match is used. For advanced users only."
     },
+    "options_mpv_header": {
+        "message": "MPV Mode"
+    },
+    "options_mpv_toggle": {
+        "message": "Open detected streams in mpv (external player)"
+    },
+    "options_mpv_body": {
+        "message": "When MPV mode is on, the toolbar button toggles between Off, On (built-in player) and MPV. On allowlisted sites, detected streams open directly in mpv on your computer instead of the browser player. Requires the FastStream mpv host - see the repository's native-host folder for setup instructions."
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV Allowlist"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude."
+    },
+    "options_mpv_path": {
+        "message": "mpv path (optional, used by the native host when mpv is not on PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Open mpv in fullscreen"
+    },
+    "options_mpv_pausepage": {
+        "message": "Pause the video in the browser when it is handed to mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Reuse one mpv window instead of opening a new one each time"
+    },
+    "options_mpv_test": {
+        "message": "Test mpv connection"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv found"
+    },
+    "options_mpv_test_nompv": {
+        "message": "host reachable, but mpv was not found"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv host not available"
+    },
+    "player_mpv_label": {
+        "message": "Open this stream in mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Sending to mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Sent to mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Could not open in mpv. Is the FastStream mpv host installed?"
+    },
     "options_help_header": {
         "message": "Help"
     },

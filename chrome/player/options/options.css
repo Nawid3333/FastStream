@@ -258,7 +258,8 @@ p.hint {
 }
 
 #autoEnableURLs,
-#customSourcePatterns {
+#customSourcePatterns,
+#mpvAllowlist {
   color: var(--color-text);
   background-color: var(--color-elev);
   font-size: var(--font-size-1);
@@ -272,7 +273,8 @@ p.hint {
 }
 
 #autoEnableURLs:focus-visible,
-#customSourcePatterns:focus-visible {
+#customSourcePatterns:focus-visible,
+#mpvAllowlist:focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }

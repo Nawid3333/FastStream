@@ -11,7 +11,9 @@
     <header class="searchcontainer">
         <div class="searchbar-shell">
             <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                <path d="M10.5 3a7.5 7.5 0 0 1 5.918 12.087l3.247 3.248a1 1 0 0 1-1.414 1.414l-3.248-3.247A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11a5.5 5.5 0 0 0 0-11Z"></path>
+                <path
+                    d="M10.5 3a7.5 7.5 0 0 1 5.918 12.087l3.247 3.248a1 1 0 0 1-1.414 1.414l-3.248-3.247A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11a5.5 5.5 0 0 0 0-11Z">
+                </path>
             </svg>
             <input id="searchbar" class="searchbar" type="search" placeholder="Search">
             <button data-i18n="options_reset_search" id="resetsearch" class="resetsearch"></button>
@@ -67,7 +69,8 @@
                         data-i18n-label="options_video_zoom"></input>
                 </div>
 
-                <div class="video-option search-target-remove" data-option="videoDelay" data-unit="ms" data-multiplier="1" data-nolimits="true">
+                <div class="video-option search-target-remove" data-option="videoDelay" data-unit="ms"
+                    data-multiplier="1" data-nolimits="true">
                     <div class="label search-target-text" data-i18n="options_video_delay"></div>
                     <input class="number" type="text" data-i18n-label="options_video_delay"></input>
                     <input class="range" type="range" min="-1000" max="1000" value="0" step="1" list="snap-zero"
@@ -119,7 +122,8 @@
                         data-i18n-label="options_video_invert"></input>
                 </div>
 
-                <div class="video-option search-target-remove" data-option="videoHueRotate" data-unit="°" data-multiplier="1">
+                <div class="video-option search-target-remove" data-option="videoHueRotate" data-unit="°"
+                    data-multiplier="1">
                     <div class="label search-target-text" data-i18n="options_video_hue"></div>
                     <input class="number" type="text" data-i18n-label="options_video_hue"></input>
                     <input class="range" type="range" min="0" max="360" value="0" step="1"
@@ -127,11 +131,13 @@
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 5px">
-                    <div class="label search-target-text" data-i18n="options_video_daltonizer_type" style="margin-left: 0px"></div>
+                    <div class="label search-target-text" data-i18n="options_video_daltonizer_type"
+                        style="margin-left: 0px"></div>
                     <div class="select" id="daltonizerType" data-i18n-label="options_video_daltonizer_type"></div>
                 </div>
 
-                <div id="daltonizerStrength" class="video-option search-target-remove" data-option="videoDaltonizerStrength" style="margin-top: 5px">
+                <div id="daltonizerStrength" class="video-option search-target-remove"
+                    data-option="videoDaltonizerStrength" style="margin-top: 5px">
                     <div class="label search-target-text" data-i18n="options_video_daltonizer_strength"></div>
                     <input class="number" type="text" data-i18n-label="options_video_daltonizer_strength"></input>
                     <input class="range" type="range" min="0" max="100" value="0" step="1"
@@ -153,7 +159,8 @@
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px">
                     <div class="label search-target-text" data-i18n="options_general_targetspeed"></div>
-                    <input class="number" type="text" id="maxspeed" data-i18n-label="options_general_targetspeed"></input>
+                    <input class="number" type="text" id="maxspeed"
+                        data-i18n-label="options_general_targetspeed"></input>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
@@ -230,6 +237,14 @@
 
                 <div class="search-target-remove">
                     <br>
+                    <div class="option grid1">
+                        <input type="checkbox" id="mpvmode" data-i18n-label="options_mpv_toggle">
+                        <div class="label search-target-text" data-i18n="options_mpv_toggle"></div>
+                    </div>
+                </div>
+
+                <div class="search-target-remove">
+                    <br>
                     <div class="option grid2">
                         <div class="label search-target-text" data-i18n="options_general_quality"></div>
                         <div class="select" id="quality" data-i18n-label="options_general_quality"></div>
@@ -240,7 +255,8 @@
                     <br>
                     <div class="option grid2">
                         <div class="label search-target-text" data-i18n="options_general_vischangeaction"></div>
-                        <div class="select" id="vischangeaction" data-i18n-label="options_general_vischangeaction"></div>
+                        <div class="select" id="vischangeaction" data-i18n-label="options_general_vischangeaction">
+                        </div>
                     </div>
                 </div>
 
@@ -349,7 +365,8 @@
                 <span class="section-count" aria-live="polite"></span>
             </div>
             <p data-i18n="options_keybinds_body"></p>
-            <button class="search-target-remove search-target-text" id="resetdefault" data-i18n="options_keybinds_reset"></button>
+            <button class="search-target-remove search-target-text" id="resetdefault"
+                data-i18n="options_keybinds_reset"></button>
             <div>
 
             </div>
@@ -375,6 +392,45 @@
                     href="https://github.com/Andrews54757/FastStream/wiki/Custom-Source-Patterns">Learn more</a>
             </p>
             <textarea id="customSourcePatterns" data-i18n-label="options_pattern_body"></textarea>
+        </section>
+
+        <section class="options-section">
+            <div class="section-heading">
+                <h1 data-i18n="options_mpv_header"></h1>
+            </div>
+            <p data-i18n="options_mpv_body"></p>
+            <div class="search-target-remove">
+                <br>
+                <div class="option grid1">
+                    <input type="checkbox" id="mpvModeSectionToggle" data-i18n-label="options_mpv_toggle">
+                    <div class="label search-target-text" data-i18n="options_mpv_toggle"></div>
+                </div>
+            </div>
+            <p class="search-target-text" data-i18n="options_mpv_allowlist_hint"></p>
+            <p><span data-i18n="options_autourl_hint"></span> <a target="_blank" rel="noopener noreferrer"
+                    href="https://regex101.com/">Regex101</a></p>
+            <textarea id="mpvAllowlist" data-i18n-label="options_mpv_allowlist"></textarea>
+            <div class="search-target-remove">
+                <div class="option grid1">
+                    <input type="checkbox" id="mpvfullscreen" data-i18n-label="options_mpv_fullscreen">
+                    <div class="label search-target-text" data-i18n="options_mpv_fullscreen"></div>
+                </div>
+                <div class="option grid1">
+                    <input type="checkbox" id="mpvpausepage" data-i18n-label="options_mpv_pausepage">
+                    <div class="label search-target-text" data-i18n="options_mpv_pausepage"></div>
+                </div>
+                <div class="option grid1">
+                    <input type="checkbox" id="mpvsingleinstance" data-i18n-label="options_mpv_singleinstance">
+                    <div class="label search-target-text" data-i18n="options_mpv_singleinstance"></div>
+                </div>
+            </div>
+            <div class="option grid2" style="margin-top: 12px;">
+                <div class="label search-target-text" data-i18n="options_mpv_path"></div>
+                <input class="text" type="text" id="mpvpath"></input>
+            </div>
+            <br>
+            <button id="mpvtest" class="search-target-remove search-target-text" data-i18n="options_mpv_test"></button>
+            <span id="mpvtestresult" class="search-target-text" style="margin-left: 12px;"></span>
         </section>
 
         <section class="options-section">
