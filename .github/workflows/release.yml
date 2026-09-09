@@ -11,19 +11,20 @@ name: Release
 # CENSORYT, not the feature) and the Firefox AMO build, signed by Mozilla so
 # it installs with no "unverified" warning.
 #
-# Fires on a version tag push (same v*.*.* / V*.*.* pattern build.yml already
-# watches). workflow_dispatch is for re-running by hand against an existing
-# tag if a release needs to be redone.
+# Fires on a version tag push. workflow_dispatch is for re-running by hand
+# against an existing tag if a release needs to be redone.
 #
-# Signing here is a second, independent submission from what publish-amo.yml
-# already does continuously on every merge to dev/mv3-modernization. AMO
-# refuses to accept the same version+channel twice, so if that continuous
-# pipeline already signed the exact version being tagged, this workflow's own
-# sign attempt fails -- deliberately non-fatal (continue-on-error), so the
-# release still goes out with the three unsigned zips and a note instead of
-# not going out at all. When that happens, grab the already-signed xpi AMO
-# has for that version and attach it by hand with
-# `gh release upload <tag> <file>`.
+# This is the only AMO signing path now -- the old publish-amo.yml, which
+# signed continuously on every merge to dev/mv3-modernization, was removed
+# once this workflow made it redundant (both existed briefly). AMO signing
+# happens once per release, right here.
+#
+# continue-on-error on the sign step is worth keeping: a credential rotation,
+# a network blip, or AMO taking too long to review can all fail it
+# independently of anything else in the release, and none of those should
+# hold back the three unsigned zips. When it does fail, fix the cause, then
+# attach the xpi by hand with `gh release upload <tag> <file>` once a manual
+# `pnpm run sign:amo` produces one.
 
 on:
   push:
@@ -61,9 +62,8 @@ jobs:
       - name: Build
         run: pnpm run build:keep
 
-      # See the header comment: fails when publish-amo.yml already signed
-      # this exact version via the merge that landed it, which is expected
-      # and not the release's problem to fix.
+      # See the header comment for why this is allowed to fail without
+      # blocking the rest of the release.
       - name: Sign Firefox build (AMO, unlisted)
         id: sign
         continue-on-error: true
