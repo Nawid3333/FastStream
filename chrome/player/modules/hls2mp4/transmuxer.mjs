@@ -1,4 +1,24 @@
-import {TSDemuxer, MP4Remuxer, MP4Demuxer, AACDemuxer, MP3Demuxer, PassThroughRemuxer} from '../hls.mjs';
+import {TSDemuxer, MP4Remuxer, MP4Demuxer, AACDemuxer, MP3Demuxer, PassThroughRemuxer, ChunkMetadata} from '../hls.mjs';
+
+// hls.js 1.7.2 added a chunkMeta parameter to Demuxer.resetInitSegment/demux
+// and Remuxer.remux that 1.6.9 (what this file was written against) did not
+// have. In hls.js's own pipeline it is built per-fragment by the
+// FragmentController and always a real object; here, where this file drives
+// the demuxer/remuxer classes directly on already-downloaded fragments for
+// the offline HLS-to-MP4 save path, nothing ever constructs one, so it
+// arrived as undefined -- and hls.js reads chunkMeta.iframe unconditionally
+// at the top of demux(), resetInitSegment() and remux(), so every save of an
+// HLS source with an out-of-band init segment (fMP4/CMAF-packaged HLS is
+// increasingly the common case) threw immediately.
+//
+// A single reused, mostly-inert instance is enough: this file bypasses hls.js's
+// FragmentController/BufferController entirely and never reads sn/level/part
+// back out of it, so the exact values only need to be well-typed, not
+// individually meaningful, other than duration, which is worth keeping real
+// since box generation downstream can consult it.
+function makeChunkMeta(duration) {
+  return new ChunkMetadata(0, 0, 1, 0, -1, false, duration || 0, false);
+}
 
 const muxConfig = [{
   demux: MP4Demuxer,
@@ -156,7 +176,12 @@ export default class Transmuxer {
     if (!demuxer || !remuxer) {
       return;
     }
-    demuxer.resetInitSegment(initSegmentData, audioCodec, videoCodec, trackDuration);
+    // decryptdata (5th) stays undefined -- this offline save path never
+    // handles DRM-encrypted content -- but chunkMeta (6th) has to be a real
+    // object: TSDemuxer.resetInitSegment reads chunkMeta.iframe as soon as
+    // an init segment is present, unconditionally.
+    demuxer.resetInitSegment(initSegmentData, audioCodec, videoCodec, trackDuration,
+        undefined, makeChunkMeta(trackDuration));
     remuxer.resetInitSegment(initSegmentData, audioCodec, videoCodec);
   }
   destroy() {
@@ -190,7 +215,10 @@ export default class Transmuxer {
       'dropped': 0,
     };
 
-    return this.remuxer.remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, true, false, 3);
+    // 9th positional arg (chunkMeta) is new in hls.js 1.7.2 and read
+    // unconditionally at the top of remux() -- see makeChunkMeta above.
+    return this.remuxer.remux(audioTrack, videoTrack, id3Track, textTrack, timeOffset, true, false, 3,
+        makeChunkMeta(this.transmuxConfig.duration));
   }
   getVideoStartPts(videoSamples) {
     let rolloverDetected = false;
@@ -212,7 +240,12 @@ export default class Transmuxer {
     return startPTS;
   }
   demux(data) {
-    const {audioTrack, videoTrack} = this.demuxer.demux(data, null, false, true);
+    // 3rd positional arg (chunkMeta) used to be harmless as `false` here --
+    // TSDemuxer.demux only reads chunkMeta.iframe, and false.iframe reads as
+    // undefined rather than throwing -- but a real object is used for
+    // consistency with the other two call sites, which do throw on it.
+    const {audioTrack, videoTrack} = this.demuxer.demux(
+        data, null, makeChunkMeta(this.transmuxConfig.duration), true);
 
 
     const videoStartPTS = videoTrack.samples.length ? this.getVideoStartPts(videoTrack.samples) : 0;
