@@ -90,9 +90,9 @@ async function onClicked(tabobj) {
       // toolbar keeps its original Off/On behavior.
       if (Options.mpvMode && MpvAllowlist.matches(tab.url)) {
         if (Logging) console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
-        // Cycle: Off → MPV → On → MPV → Off. The first click auto-starts
-        // MPV; a further click falls back to the in-page player; one more
-        // returns to MPV; a final click disables.
+        // Cycle: Off → MPV → On → Off. The first click hands the stream
+        // to mpv; a second falls back to the in-page player; a third turns
+        // FastStream off for the tab and reloads it.
         if (tab.isMpv) {
           // MPV -> On (in-page player)
           tab.isMpv = false;
@@ -178,6 +178,12 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
       tab.reset();
+      // A different site is a fresh decision. mpvMatched is what stops the
+      // allowlist from re-arming MPV mode after the user switched it off, so
+      // it has to be dropped here or MPV stays off for the rest of the tab's
+      // life. Cleared here rather than in tab.reset(), which also runs on the
+      // toolbar's Off path, where re-arming would undo the click.
+      tab.mpvMatched = false;
     }
 
     tab.url = changeInfo.url;
@@ -221,7 +227,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
-    } else if (mpvSite && !tab.regexMatched && !tab.mpvMatched) {
+    } else if (mpvSite && !tab.mpvMatched) {
       // Visiting an allowlisted site auto-starts MPV mode.
       if (Logging) console.log('[MPV] auto-start on allowlisted URL:', tab.url);
       tab.regexMatched = true;

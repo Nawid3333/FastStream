@@ -3,7 +3,7 @@
 **Date:** 2026-09-07 (MPV section added 2026-09-09)
 **Fork:** https://github.com/Nawid3333/FastStream
 **Branch:** `dev/mv3-modernization` (also the fork's default branch);
-`Mpv-feature` carries the MPV work and is **not** merged
+`Mpv-feature` carried the MPV work and was **merged** on 2026-09-09
 **Base:** upstream `d5fe931` (V1.3.77)
 **CI:** green — https://github.com/Nawid3333/FastStream/actions
 **Plan doc:** https://claude.ai/code/artifact/830a4dd8-e6ab-4429-a4ac-b5541f9a3224
@@ -324,7 +324,7 @@ reverted it to the stale vendored copy.
 
 ---
 
-## MPV mode (branch `Mpv-feature`) — working, not merged
+## MPV mode — working, merged into `dev/mv3-modernization`
 
 Hands a detected stream to mpv on the user's machine instead of the in-page
 player, on allowlisted sites. Started as a WIP commit that was end-to-end
@@ -376,28 +376,61 @@ survival inside a real kill-on-close job object.
 **Not done:**
 
 - **Locales.** Every new option string is English-only; other locales fall
-  back to English.
-- **Leave-site gap.** Allowlisted site A → allowlisted site B leaves B off if
-  MPV was manually toggled off on A, because `regexMatched`/`mpvMatched`
-  deliberately survive `reset()`. Needs a decision on intended behaviour, not
-  just a patch.
+  back to English. `build.mjs` substitutes the English string for a missing
+  key so the web build no longer renders blanks, and the extension builds get
+  the same fallback from the browser via `default_locale`. The cost is noise:
+  `localescript.mjs` prints all 17 keys for each of the 15 non-English
+  locales on every build.
+- **`nativeMessaging` is a required permission, but the code is written for an
+  optional one.** The manifest lists it under `permissions`, so every install
+  asks for "Exchange messages with programs other than Firefox" whether or not
+  the user ever enables MPV mode — and `chrome.permissions.contains()` in
+  `loadOptions` and in the options page's Test button can never be false, so
+  the `chrome.permissions.request()` branch already written there is dead.
+  Moving the entry to `optional_permissions` would make that flow live and
+  drop the permission for everyone who does not use mpv; the cost is that the
+  user must press **Test connection** once to grant it, or MPV mode fails
+  silently. Not changed here because it alters the install prompt.
 - **Windows only.** The WMI launcher and the focus step are
   `process.platform === 'win32'`; other platforms fall back to a plain
   detached spawn, which is correct there (no job object) but untested.
 - **Chrome.** `install.ps1` supports `-ExtensionId` for Chrome-family
   browsers, but MPV mode has only ever been run in Firefox.
-- **Not merged, not pushed.** The branch is 6 commits ahead of
-  `dev/mv3-modernization` (local and `origin`) and behind neither, so it
-  needs no rebase — just a merge decision.
+- **Windows-only host, still true.** See above.
+
+**Fixed on 2026-09-09, after the branch was first written up:**
+
+- **Leave-site gap — fixed, and it was wider than this document said.** The
+  auto-start condition was `mpvSite && !regexMatched && !mpvMatched`. The
+  `!regexMatched` half meant that *any* tab the ordinary auto-enable list had
+  already claimed never switched to mpv when it later reached an allowlisted
+  site: the stream just played in the page. It is now `mpvSite && !mpvMatched`,
+  with `mpvMatched` cleared on a hostname change in the `tabs.onUpdated`
+  handler (not in `tab.reset()`, which also runs on the toolbar's Off path,
+  where re-arming would undo the click). Covered by a second e2e case that was
+  confirmed to fail against the old condition.
+- **A failed launch is retryable again.** `MpvBackend.openStream` recorded the
+  URL in `tab.mpvSentUrls` before the host replied and only removed it when
+  the *host* was unreachable — not when the host answered `{ok: false}`
+  (no mpv installed, bad path). Retrying the same video then reported success,
+  paused the page, and played nothing. Unit-tested, mutation-checked.
+- **Locale files no longer fight their generator.** Both locale files had been
+  reindented to 2 spaces while `localescript.mjs` and upstream write 4, so
+  `node localescript.mjs --combine` produced a 14,288-line diff on a clean
+  tree. Regenerated at 4 spaces: the branch's locale diff went from 16,654
+  lines to 102 added ones, content verified unchanged.
+
+- **Not pushed.** Merged into `dev/mv3-modernization` on 2026-09-09.
 
 ---
 
 ## Next steps, in order
 
-0. **Decide what to do with `Mpv-feature`.** It works, but it is unmerged,
-   unrebased and unpushed, Windows-only, and English-only. The leave-site gap
-   needs a behaviour decision before it can be called finished. See the MPV
-   section above.
+0. ~~**Decide what to do with `Mpv-feature`.**~~ **Merged** into
+   `dev/mv3-modernization` on 2026-09-09 after a review pass that fixed the
+   leave-site gap, a non-retryable failed launch, and a locale reindent that
+   fought its own generator. Still Windows-only and English-only, and the
+   `nativeMessaging` permission question above is still open. Not pushed.
 1. ~~Settle the license.~~ **Asked** (issue #547, PR #551) — now waiting on
    Andrew's response. Listed distribution stays blocked until/unless he
    grants permission; unlisted self-distribution works today.

@@ -35,6 +35,9 @@ const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const SITE_PORT = 41993;
 const CDN_PORT = 41994;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
+// Same server, different hostname: that is all "a different site" means to
+// the background, which compares URL.hostname to decide a tab has moved on.
+const SITE_B = `http://localhost:${SITE_PORT}`;
 const CDN = `http://127.0.0.1:${CDN_PORT}`;
 
 // Requests carrying icy-metadata come from mpv's libavformat HTTP client; the
@@ -63,6 +66,31 @@ function hostInstalled() {
 // that never ran anything.
 const HAVE_HOST = hostInstalled();
 
+/**
+ * Process ids of every running mpv.exe.
+ * @return {Array<number>} The pids, empty when none are running.
+ */
+function mpvPids() {
+  if (process.platform !== 'win32') {
+    return [];
+  }
+  try {
+    const out = execFileSync('tasklist',
+        ['/FI', 'IMAGENAME eq mpv.exe', '/FO', 'CSV', '/NH'],
+        {encoding: 'utf8'});
+    return out.split(String.fromCharCode(10))
+        .map((line) => /^"mpv\.exe","(\d+)"/.exec(line.trim()))
+        .filter(Boolean)
+        .map((m) => Number(m[1]));
+  } catch (e) {
+    return [];
+  }
+}
+
+// Captured before anything launches, so teardown can tell "ours" from
+// "the developer's".
+const preexistingMpvPids = new Set(mpvPids());
+
 describe('MPV mode, end to end', function() {
   before(async function() {
     const clip = fs.readFileSync(path.join(root, 'tests/e2e/fixtures/sample.mp4'));
@@ -72,7 +100,9 @@ describe('MPV mode, end to end', function() {
       if (req.url.startsWith('/watch')) {
         // /watch2 points at a different clip, so a second navigation is
         // distinguishable from a repeat of the first.
-        const clipName = req.url.includes('2') ? 'clip2.mp4' : 'clip.mp4';
+        const clipName = req.url.includes('4') ? 'clip4.mp4' :
+          req.url.includes('3') ? 'clip3.mp4' :
+          req.url.includes('2') ? 'clip2.mp4' : 'clip.mp4';
         res.writeHead(200, {'Content-Type': 'text/html'});
         // crossorigin makes the media load a CORS request, which is what adds
         // the Origin header. The source is attached after a beat so the
@@ -99,7 +129,8 @@ describe('MPV mode, end to end', function() {
 
     cdnServer = http.createServer((req, res) => {
       requests.push({origin: 'cdn', url: req.url, headers: req.headers});
-      if (req.url.startsWith('/clip.mp4') || req.url.startsWith('/clip2.mp4')) {
+      if (req.url.startsWith('/clip.mp4') || req.url.startsWith('/clip2.mp4') ||
+          req.url.startsWith('/clip3.mp4') || req.url.startsWith('/clip4.mp4')) {
         res.writeHead(200, {
           'Content-Type': 'video/mp4',
           'Content-Length': String(clip.length),
@@ -127,12 +158,19 @@ describe('MPV mode, end to end', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
     // mpv is launched detached, so it outlives the host and must be cleaned
-    // up here rather than left on the developer's desktop.
-    try {
-      execFileSync('taskkill', ['/F', '/IM', 'mpv.exe'],
-          {stdio: 'ignore'});
-    } catch (e) {
-      // No mpv running: nothing to clean up.
+    // up here rather than left on the developer's desktop. Only the windows
+    // this run started: killing every mpv.exe would take out the one the
+    // developer had open for their own reasons, which is the exact failure
+    // the single-instance design exists to avoid.
+    for (const pid of mpvPids()) {
+      if (preexistingMpvPids.has(pid)) {
+        continue;
+      }
+      try {
+        execFileSync('taskkill', ['/F', '/PID', String(pid)], {stdio: 'ignore'});
+      } catch (e) {
+        // Already gone.
+      }
     }
   });
 
@@ -157,11 +195,11 @@ describe('MPV mode, end to end', function() {
           return false;
         }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-        const stored = await browser.executeAsync((site, done) => {
+        const stored = await browser.executeAsync((site, site2, done) => {
           chrome.storage.local.set({
             options: JSON.stringify({
               mpvMode: true,
-              mpvAllowlist: [site],
+              mpvAllowlist: [site, site2],
             }),
           }, () => {
             chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
@@ -169,7 +207,7 @@ describe('MPV mode, end to end', function() {
               chrome.storage.local.get('options', (r) => done(r.options));
             });
           });
-        }, SITE);
+        }, SITE, SITE_B);
         expect(JSON.parse(stored).mpvMode).toBe(true);
 
         // Give the background a moment to apply the reloaded options.
@@ -264,5 +302,105 @@ describe('MPV mode, end to end', function() {
             (r) => isMpvRequest(r) && r.url.startsWith('/clip2.mp4'));
         console.log(`      second video reached mpv (${second.length} request)`);
         expect(second[0].headers.referer).toBe(`${SITE}/`);
+
+        // 8. Crossing to a different allowlisted host keeps working. The
+        //    hostname change runs tab.reset(); this is what would catch a
+        //    regression there clearing the tab out of MPV mode. (It does not
+        //    exercise re-arming -- the tab is already in MPV mode here. The
+        //    case that does is the second spec below.)
+        await browser.url(`${SITE_B}/watch3`);
+
+        await browser.waitUntil(async () => {
+          return requests.some(
+              (r) => isMpvRequest(r) && r.url.startsWith('/clip3.mp4'));
+        }, {
+          timeout: 45000,
+          interval: 500,
+          timeoutMsg: 'a second allowlisted site never reached mpv: ' +
+            JSON.stringify(requests.filter(isMpvRequest).map((r) => r.url)),
+        });
+
+        const third = requests.filter(
+            (r) => isMpvRequest(r) && r.url.startsWith('/clip3.mp4'));
+        console.log(`      second allowlisted site reached mpv ` +
+          `(${third.length} request)`);
+        // Referer follows the new origin, proving the handoff came from the
+        // page on SITE_B and not from a replay of the earlier one.
+        expect(third[0].headers.referer).toBe(`${SITE_B}/`);
+      });
+
+  // A tab that FastStream already took over on an ordinary auto-enabled site
+  // still has to switch to mpv when it reaches an allowlisted one. The
+  // auto-start used to require !regexMatched, which the auto-enable list had
+  // already set, so MPV mode never engaged and the stream stayed in the page.
+  (HAVE_HOST ? it : it.skip)(
+      'switches to mpv when an auto-enabled tab reaches an allowlisted site',
+      async function() {
+        // MPV is allowlisted for SITE_B only; SITE is merely auto-enabled.
+        await browser.url(OPENER_URL);
+        await browser.execute((u) => window.open(u, '_blank'),
+            ORIGIN + '/player/index.html');
+        await browser.waitUntil(async () => {
+          for (const handle of await browser.getWindowHandles()) {
+            await browser.switchToWindow(handle);
+            if ((await browser.getUrl()).startsWith(ORIGIN)) {
+              return true;
+            }
+          }
+          return false;
+        }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
+
+        await browser.executeAsync((site, site2, done) => {
+          chrome.storage.local.set({
+            options: JSON.stringify({
+              mpvMode: true,
+              mpvAllowlist: [site2],
+              autoEnableURLs: [site],
+            }),
+          }, () => {
+            chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
+              void chrome.runtime.lastError;
+              done(true);
+            });
+          });
+        }, SITE, SITE_B);
+        await browser.pause(1000);
+
+        const remaining = await browser.getWindowHandles();
+        if (remaining.length > 1) {
+          await browser.closeWindow();
+          await browser.switchToWindow((await browser.getWindowHandles())[0]);
+        }
+
+        // A fresh tab, so none of the first spec's per-tab state carries over.
+        await browser.newWindow(`${SITE}/watch`);
+        // Long enough for the auto-enable branch to have marked the tab.
+        await browser.pause(3000);
+
+        const before = requests.filter(
+            (r) => isMpvRequest(r) && r.url.startsWith('/clip4.mp4')).length;
+        expect(before).toBe(0);
+
+        await browser.url(`${SITE_B}/watch4`);
+
+        await browser.waitUntil(async () => {
+          return requests.some(
+              (r) => isMpvRequest(r) && r.url.startsWith('/clip4.mp4'));
+        }, {
+          timeout: 45000,
+          interval: 500,
+          timeoutMsg: 'an auto-enabled tab never switched to mpv on the ' +
+            'allowlisted site. mpv fetched: ' +
+            JSON.stringify(requests.filter(isMpvRequest).map((r) => r.url)),
+        });
+
+        const handed = requests.filter(
+            (r) => isMpvRequest(r) && r.url.startsWith('/clip4.mp4'));
+        console.log(`      auto-enabled tab switched to mpv ` +
+          `(${handed.length} request)`);
+        expect(handed[0].headers.referer).toBe(`${SITE_B}/`);
+
+        await browser.closeWindow();
+        await browser.switchToWindow((await browser.getWindowHandles())[0]);
       });
 });

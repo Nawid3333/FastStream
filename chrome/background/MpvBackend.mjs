@@ -122,6 +122,13 @@ export class MpvBackend {
           }
 
           if (response && response.ok === false) {
+            // The host answered but mpv never started (bad path, no mpv
+            // installed). Forget the URL so the user can retry it after
+            // fixing the cause; leaving it recorded would make every later
+            // attempt at this URL report success without playing anything.
+            if (tab && tab.mpvSentUrls) {
+              tab.mpvSentUrls.delete(url);
+            }
             resolve({ok: false, error: response.error || 'mpv host error'});
             return;
           }

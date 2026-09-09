@@ -382,10 +382,11 @@ export class FastStreamClient extends EventEmitter {
 
     if (options.toolSettings) {
       this.options.toolSettings = options.toolSettings;
-      this.interfaceController.updateToolVisibility();
     }
 
-    // MPV mode may have been toggled while a video is open.
+    // Unconditional: MPV mode gates the mpv button and may have been toggled
+    // while a video is open, so tool visibility has to be recomputed even
+    // when toolSettings itself did not change.
     this.interfaceController.updateToolVisibility();
 
     this.updateHasDownloadSpace();

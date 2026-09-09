@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {MpvBackend} from '../../chrome/background/MpvBackend.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
@@ -90,5 +90,75 @@ describe('pickRelayHeaders', () => {
     expect(MpvBackend.pickRelayHeaders(headers)).toEqual([
       {name: 'Origin', value: 'https://example.com'},
     ]);
+  });
+});
+
+// openStream records every URL it hands to the host so a page that reports the
+// same source twice does not open two windows. That record must not survive a
+// failed launch: the user fixes the cause (installs mpv, corrects the path)
+// and retries the very same video, and a stale entry would make the retry
+// report success while nothing plays.
+
+/**
+ * Installs a fake chrome.runtime whose sendNativeMessage replies with a fixed
+ * response, and reports how many times it was called.
+ * @param {Object|null} response - Reply handed to the callback.
+ * @param {Object} [lastError] - chrome.runtime.lastError to simulate.
+ * @return {{calls: () => number}} Call counter.
+ */
+function stubNativeHost(response, lastError) {
+  let calls = 0;
+  globalThis.chrome = {
+    runtime: {
+      lastError: undefined,
+      sendNativeMessage(name, message, callback) {
+        calls++;
+        globalThis.chrome.runtime.lastError = lastError;
+        callback(response);
+        globalThis.chrome.runtime.lastError = undefined;
+      },
+    },
+  };
+  return {calls: () => calls};
+}
+
+describe('openStream retry bookkeeping', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+    vi.restoreAllMocks();
+  });
+
+  it('does not resend a URL the host already accepted', async () => {
+    const host = stubNativeHost({ok: true});
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+
+    expect(await backend.openStream('https://cdn/a.m3u8', tab)).toEqual({ok: true});
+    expect(await backend.openStream('https://cdn/a.m3u8', tab)).toEqual({ok: true});
+    expect(host.calls()).toBe(1);
+  });
+
+  it('lets the same URL be retried after the host reports a launch failure', async () => {
+    const host = stubNativeHost({ok: false, error: 'mpv executable not found'});
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+
+    const first = await backend.openStream('https://cdn/a.m3u8', tab);
+    expect(first.ok).toBe(false);
+    expect(tab.mpvSentUrls.has('https://cdn/a.m3u8')).toBe(false);
+
+    const second = await backend.openStream('https://cdn/a.m3u8', tab);
+    expect(second.ok).toBe(false);
+    expect(host.calls()).toBe(2);
+  });
+
+  it('lets the same URL be retried when the host is not installed', async () => {
+    const host = stubNativeHost(undefined, {message: 'no such native application'});
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+
+    await backend.openStream('https://cdn/a.m3u8', tab);
+    await backend.openStream('https://cdn/a.m3u8', tab);
+    expect(host.calls()).toBe(2);
   });
 });
