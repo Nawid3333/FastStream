@@ -35,7 +35,8 @@
     "verify:ort": "node tools/verify-ort.mjs",
     "verify:knob": "node tools/verify-knob.mjs",
     "sign:amo": "node tools/sign-amo.mjs",
-    "sign:amo:listed": "node tools/sign-amo.mjs --listed"
+    "sign:amo:listed": "node tools/sign-amo.mjs --listed",
+    "release": "node tools/cut-release.mjs"
   },
   "repository": {
     "type": "git",
