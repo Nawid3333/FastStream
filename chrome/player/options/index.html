@@ -406,7 +406,7 @@
                     <div class="label search-target-text" data-i18n="options_mpv_toggle"></div>
                 </div>
             </div>
-            <p class="search-target-text" data-i18n="options_mpv_allowlist_hint"></p>
+            <p class="search-target-remove search-target-text" data-i18n="options_mpv_allowlist_hint"></p>
             <p><span data-i18n="options_autourl_hint"></span> <a target="_blank" rel="noopener noreferrer"
                     href="https://regex101.com/">Regex101</a></p>
             <textarea id="mpvAllowlist" data-i18n-label="options_mpv_allowlist"></textarea>
@@ -415,22 +415,26 @@
                     <input type="checkbox" id="mpvfullscreen" data-i18n-label="options_mpv_fullscreen">
                     <div class="label search-target-text" data-i18n="options_mpv_fullscreen"></div>
                 </div>
+            </div>
+            <div class="search-target-remove">
                 <div class="option grid1">
                     <input type="checkbox" id="mpvpausepage" data-i18n-label="options_mpv_pausepage">
                     <div class="label search-target-text" data-i18n="options_mpv_pausepage"></div>
                 </div>
+            </div>
+            <div class="search-target-remove">
                 <div class="option grid1">
                     <input type="checkbox" id="mpvsingleinstance" data-i18n-label="options_mpv_singleinstance">
                     <div class="label search-target-text" data-i18n="options_mpv_singleinstance"></div>
                 </div>
             </div>
-            <div class="option grid2" style="margin-top: 12px;">
+            <div class="option search-target-remove grid2" style="margin-top: 12px;">
                 <div class="label search-target-text" data-i18n="options_mpv_path"></div>
                 <input class="text" type="text" id="mpvpath"></input>
             </div>
             <br>
             <button id="mpvtest" class="search-target-remove search-target-text" data-i18n="options_mpv_test"></button>
-            <span id="mpvtestresult" class="search-target-text" style="margin-left: 12px;"></span>
+            <span id="mpvtestresult" style="margin-left: 12px;"></span>
         </section>
 
         <section class="options-section">
