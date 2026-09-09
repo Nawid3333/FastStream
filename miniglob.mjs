@@ -79,15 +79,15 @@ const cleanGlobPath = (
       vollen = path.length - 1;
     }
     return [vollen, path.substr(0, path.length-1)]; // chop off trailing separator
-  } : (path, volumeNameLen) => {
+  } : (path, vollen) => {
     if (path == '') {
-      return [volumeNameLen, '.'];
+      return [vollen, '.'];
     }
     if (path == DIRSEP) {
       // do nothing to the path
-      return [volumeNameLen, path];
+      return [vollen, path];
     }
-    return [volumeNameLen, path.substr(0, path.length-1)]; // chop off trailing separator
+    return [vollen, path.substr(0, path.length-1)]; // chop off trailing separator
   }
 );
 
