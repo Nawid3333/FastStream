@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "DASH Acelerado"
     },
-    "player_source_accelyt": {
-        "message": "YouTube Acelerado"
-    },
     "player_source_accelvm": {
         "message": "Vimeo Acelerado"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Retraso antes de reemplazar auto (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Reproducir automáticamente videos de YouTube incrustados"
-    },
     "options_general_autoplaynext": {
         "message": "Reproducir automáticamente el siguiente video"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Alternar imagen en imagen"
     },
-    "options_general_ytclient": {
-        "message": "Cliente de YouTube. Intente cambiar si tiene problemas."
-    },
     "options_export_header": {
         "message": "Importar/Exportar Configuraciones"
     },
@@ -1149,36 +1140,12 @@
         "message": "Error: $1"
     },
     "error_popup_body": {
-        "message": "Por favor, informe este error a los desarrolladores en https://github.com/Andrews54757/FastStream/issues con la traza de pila a continuación:"
+        "message": "Por favor, informe este error a los desarrolladores en https://github.com/Nawid3333/FastStream/issues con la traza de pila a continuación:"
     },
     "error_popup_send": {
         "message": "Reportar Error"
     },
-    "yt_error_login_required": {
-        "message": "¡Lo sentimos! FastStream no admite videos que requieran que inicies sesión en YouTube."
-    },
     "player_outofstorage": {
         "message": "Advertencia: Su navegador no admite completamente las funciones de almacenamiento de archivos. Esto puede deberse a que su navegador se quedó sin espacio de almacenamiento o no se ha reiniciado en mucho tiempo. Algunas funciones pueden no funcionar como se espera."
-    },
-    "yterror_popup_body": {
-        "message": "¡A FastStream le falta el permiso userScript que se requiere para reproducir videos de YouTube!"
-    },
-    "yterror_popup": {
-        "message": "Error de Permiso de YouTube"
-    },
-    "yterror_fix": {
-        "message": "Corregir Permiso"
-    },
-    "yterror_permission_granted": {
-        "message": "¡Permiso concedido! Por favor, recargue la página para reproducir videos de YouTube."
-    },
-    "ytslowdown_popup": {
-        "message": "Aviso de ralentización de YouTube"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Debido a los cambios de YouTube, es posible que experimente tiempos de carga iniciales lentos para los videos. Esto se debe a que YouTube ahora impone un retraso para los anuncios, que FastStream debe esperar antes de poder comenzar a cargar el video. Desafortunadamente, no hay una solución para este problema. Gracias por su comprensión."
-    },
-    "ytslowdown_ok": {
-        "message": "Aceptar"
     }
 }

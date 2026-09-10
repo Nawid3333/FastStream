@@ -454,9 +454,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       requestId: -1,
       customHeaders: headers,
     }, frame, mode);
-  } else if (msg.type === MessageTypes.YT_LOADED) {
-    frame.url = msg.url;
-    checkYTURL(frame);
   } else if (msg.type === MessageTypes.DOWNLOAD) {
     const url = msg.url;
     const filename = msg.filename;
@@ -508,26 +505,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       BackgroundUtils.checkMessageError('message_from_page');
 
       sendResponse(response);
-    });
-    return true;
-  } else if (msg.type === MessageTypes.ENSURE_YT_USERSCRIPT) {
-    if (!BackgroundUtils.isUserScriptsAvailable()) {
-      sendResponse({
-        success: false,
-        reason: 'userscripts_not_available',
-      });
-      return;
-    }
-
-    registerYTUserScript().then(() => {
-      sendResponse({
-        success: true,
-      });
-    }).catch((e) => {
-      sendResponse({
-        success: false,
-        reason: e.message,
-      });
     });
     return true;
   } else if (msg.type === MessageTypes.REQUEST_FULLSCREEN) {
@@ -592,22 +569,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
 
     return sponsorBlockBackend.onPlayerMessage(msg, sendResponse);
-  } else if (msg.type === MessageTypes.REQUEST_YT_DATA) {
-    const pageFrame = frame.pageFrame;
-    if (!pageFrame) {
-      sendResponse('error');
-      return;
-    }
-
-    chrome.tabs.sendMessage(pageFrame.tab.tabId, {
-      type: MessageTypes.EXTRACT_YT_DATA,
-    }, {
-      frameId: pageFrame.frameId,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('extract_yt_data');
-      sendResponse(response);
-    });
-    return true;
   } else {
     return;
   }
@@ -777,21 +738,6 @@ async function checkIsFullscreenAllowed(frame) {
   });
 }
 
-function checkYTURL(frame) {
-  const url = frame.url;
-  // Check if url is youtube
-  if (BackgroundUtils.isUrlPlayerUrl(url)) {
-    return;
-  }
-
-  if (URLUtils.is_url_yt(url) && URLUtils.is_url_yt_watch(url)) {
-    onSourceRecieved({
-      url: url,
-      requestId: -1,
-    }, frame, PlayerModes.ACCELERATED_YT);
-  }
-}
-
 function checkURLMatch(frame) {
   const url = frame.url;
   const ext = CustomSourcePatternsMatcher.match(url);
@@ -823,40 +769,6 @@ async function getPageFrame(frame) {
   }
 
   return null;
-}
-
-async function registerYTUserScript() {
-  if (false) { // SPLICER:NO_YOUTUBE:REMOVE_LINE
-    // Builds spliced with NO_YOUTUBE ship no YouTube player, so there is
-    // nothing for the userscript to drive. Reporting the failure here is what
-    // makes the caller answer the enable request honestly instead of claiming
-    // success and registering nothing.
-    throw new Error('youtube_not_supported_in_this_build');
-  } // SPLICER:NO_YOUTUBE:REMOVE_LINE
-
-  // SPLICER:NO_YOUTUBE:REMOVE_START
-  const scripts = await chrome.userScripts.getScripts();
-
-  if (scripts.some((a) => a.id === 'fs_yt_script')) {
-    return;
-  }
-
-  await chrome.userScripts.configureWorld({
-    csp: 'script-src \'unsafe-eval\'; trusted-types \'none\';',
-  });
-
-  const script = {
-    id: 'fs_yt_script',
-    js: [{
-      file: 'userscripts/yt_runner.js',
-    }],
-    allFrames: true,
-    matches: ['https://www.youtube.com/robots.txt'],
-    runAt: 'document_start',
-  };
-  await chrome.userScripts.register([script]);
-  if (Logging) console.log('Registered yt_runner userscript');
-  // SPLICER:NO_YOUTUBE:REMOVE_END
 }
 
 async function checkIsFull(frame) {
@@ -1346,10 +1258,6 @@ async function onSourceRecieved(details, frame, mode) {
   const customHeaders = details.customHeaders || frame.requestHeaders.get(details.requestId);
 
   await ensureOptions();
-
-  if ((URLUtils.is_url_yt(frame.url) || URLUtils.is_url_yt(frame.tab.url)) && mode !== PlayerModes.ACCELERATED_YT) {
-    return;
-  }
 
   const url = details.url;
 

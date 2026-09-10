@@ -13,7 +13,7 @@
     "lint": "eslint . --ext .js,.mjs",
     "typecheck": "tsc --noEmit",
     "lint:github": "web-ext lint --source-dir=build_firefox_github",
-    "lint:amo": "web-ext lint --source-dir=build_firefox_amo",
+    "lint:amo": "web-ext lint --source-dir=build_firefox_amo --self-hosted",
     "profile:setup": "node tools/setup-dev-profile.mjs",
     "start:ff": "node tools/launch-ff.mjs",
     "start:ff:fresh": "node tools/launch-ff-fresh.mjs",
@@ -40,13 +40,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://andrews54757@github.com/Andrews54757/FastStream.git"
+    "url": "git+https://github.com/Nawid3333/FastStream.git"
   },
-  "author": "Andrews54757",
+  "author": "Nawid3333",
   "bugs": {
-    "url": "https://github.com/Andrews54757/FastStream/issues"
+    "url": "https://github.com/Nawid3333/FastStream/issues"
   },
-  "homepage": "https://github.com/Andrews54757/FastStream#readme",
+  "homepage": "https://github.com/Nawid3333/FastStream#readme",
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@types/chrome": "^0.2.9",

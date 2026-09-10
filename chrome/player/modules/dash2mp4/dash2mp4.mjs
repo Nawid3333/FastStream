@@ -22,6 +22,10 @@ export class DASH2MP4 extends EventEmitter {
         'Audio codec not supported!',
         'Video is not an mp4!',
         'Audio is not an mp4!',
+        'Unsupported mdat count!',
+        'Unsupported moofs count!',
+        'Unsupported trafs count!',
+        'Sample duration is zero!',
       ];
       if (!mergerErrors.includes(e.message)) {
         throw e;

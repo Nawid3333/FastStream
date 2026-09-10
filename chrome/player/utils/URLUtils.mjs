@@ -1,5 +1,4 @@
 import {PlayerModes} from '../enums/PlayerModes.mjs';
-import {EnvUtils} from './EnvUtils.mjs';
 
 const ModesMap = new Map();
 ModesMap.set('webm', PlayerModes.DIRECT);
@@ -8,7 +7,6 @@ ModesMap.set('m3u8', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('m3u8v1', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('m3u', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('mpd', PlayerModes.ACCELERATED_DASH);
-ModesMap.set('youtube', PlayerModes.ACCELERATED_YT); // SPLICER:NO_YOUTUBE:REMOVE_LINE
 
 ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
 
@@ -16,79 +14,6 @@ ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
  * Utility functions for working with URLs and extracting identifiers.
  */
 export class URLUtils {
-  /**
-   * Extracts the YouTube video identifier from a URL.
-   * @param {string} urlStr - The YouTube URL.
-   * @return {string} The video identifier or empty string if not found.
-   */
-  static get_yt_identifier(urlStr) {
-    try {
-      const url = new URL(urlStr);
-      let identifier = url.searchParams.get('v');
-      if (!identifier) {
-        identifier = url.pathname.split('/').pop();
-      }
-      return identifier;
-    } catch (e) {
-      return '';
-    }
-  }
-
-  /**
-   * Extracts the YouTube playlist identifier from a URL.
-   * @param {string} urlStr - The YouTube URL.
-   * @return {string} The playlist identifier or empty string if not found.
-   */
-  static get_yt_playlist_identifier(urlStr) {
-    try {
-      const url = new URL(urlStr);
-      return url.searchParams.get('list');
-    } catch (e) {
-      return '';
-    }
-  }
-
-  /**
-   * Checks if a URL is a YouTube URL.
-   * @param {string} urlStr - The URL to check.
-   * @return {boolean} True if YouTube URL, false otherwise.
-   */
-  static is_url_yt(urlStr) {
-    if (!urlStr) return false;
-    try {
-      const url = new URL(urlStr);
-      const hostname = url.hostname;
-      if (hostname === 'www.youtube.com' || hostname === 'youtube.com' || hostname === 'm.youtube.com' || hostname === 'music.youtube.com' || hostname === 'www.youtube-nocookie.com') {
-        return true;
-      }
-    } catch (e) {
-
-    }
-    return false;
-  }
-
-  static is_url_yt_watch(urlStr) {
-    if (!urlStr) return false;
-    try {
-      const url = new URL(urlStr);
-      const pathname = url.pathname;
-      return pathname.startsWith('/watch') || pathname.startsWith('/embed');
-    } catch (e) {
-      return false;
-    }
-  }
-
-  static is_url_yt_embed(urlStr) {
-    if (!urlStr) return false;
-    try {
-      const url = new URL(urlStr);
-      const pathname = url.pathname;
-      return pathname.startsWith('/embed');
-    } catch (e) {
-      return false;
-    }
-  }
-
   static is_url(urlStr) {
     try {
       new URL(urlStr);
@@ -136,12 +61,6 @@ export class URLUtils {
   }
 
   static getModeFromURL(url) {
-    // SPLICER:NO_YOUTUBE:REMOVE_START
-    if (EnvUtils.isExtension() && URLUtils.is_url_yt(url) && URLUtils.is_url_yt_watch(url)) {
-      return PlayerModes.ACCELERATED_YT;
-    }
-    // SPLICER:NO_YOUTUBE:REMOVE_END
-
     const ext = URLUtils.get_url_extension(url);
     return URLUtils.getModeFromExtension(ext) || PlayerModes.DIRECT;
   }

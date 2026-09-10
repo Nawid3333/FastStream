@@ -22,10 +22,9 @@ const root = path.resolve(__dirname, '..');
  * Picks which build target a launcher should run.
  *
  * Defaults to firefox-github, the daily driver. Pass `dist` to launch
- * firefox-amo instead - that is the AMO submission build, which is spliced
- * with NO_YOUTUBE and so has no YouTube support, no yt.mjs/googlevideo.mjs
- * and no userScripts permission. Testing playback against it is the only way
- * to confirm that removing YouTube did not disturb the other players.
+ * firefox-amo instead - that is the AMO submission build. YouTube support
+ * (yt.mjs/googlevideo.mjs, the userScripts permission) was removed from
+ * every target, not just this one - see CLAUDE.md's "YouTube removal".
  *
  * @param {string[]} [argv] arguments to read, defaults to process.argv
  * @return {{name: string, dir: string}} the target's name and build directory

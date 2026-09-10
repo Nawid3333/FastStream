@@ -59,8 +59,9 @@ function createWriteStreamBlob(filename, opts, size) {
         blobManager.close();
       }, 120000);
     },
-    abort() {
-      chunks = [];
+    async abort() {
+      blobs.length = 0;
+      await blobManager.clear();
     },
   }, opts.writableStrategy);
 }

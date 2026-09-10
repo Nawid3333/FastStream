@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "DASH accéléré"
     },
-    "player_source_accelyt": {
-        "message": "YouTube accéléré"
-    },
     "player_source_accelvm": {
         "message": "Vimeo accéléré"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Délai avant remplacement automatique du lecteur (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Lecture automatique des vidéos YouTube si possible"
-    },
     "options_general_autoplaynext": {
         "message": "Lire automatiquement la vidéo suivante à la fin de la vidéo en cours"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Basculer l'image dans l'image"
     },
-    "options_general_ytclient": {
-        "message": "Client YouTube à utiliser. Essayez d'en changer si vous rencontrez des problèmes."
-    },
     "options_export_header": {
         "message": "Importer/Exporter les paramètres"
     },
@@ -1149,36 +1140,12 @@
         "message": "Erreur : $1"
     },
     "error_popup_body": {
-        "message": "Veuillez signaler cette erreur aux développeurs à https://github.com/Andrews54757/FastStream/issues en joignant la trace de la pile ci-dessous :"
+        "message": "Veuillez signaler cette erreur aux développeurs à https://github.com/Nawid3333/FastStream/issues en joignant la trace de la pile ci-dessous :"
     },
     "error_popup_send": {
         "message": "Signaler l'erreur"
     },
-    "yt_error_login_required": {
-        "message": "Désolé ! FastStream ne prend pas en charge les vidéos qui nécessitent que vous soyez connecté à YouTube."
-    },
     "player_outofstorage": {
         "message": "Attention : Votre navigateur ne prend pas entièrement en charge les fonctionnalités de stockage de fichiers. Cela peut être dû au fait que votre navigateur a manqué d'espace de stockage ou n'a pas été redémarré depuis longtemps. Certaines fonctionnalités peuvent ne pas fonctionner comme prévu."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream n'a pas la permission userScript requise pour lire les vidéos YouTube !"
-    },
-    "yterror_popup": {
-        "message": "Erreur d'autorisation YouTube"
-    },
-    "yterror_fix": {
-        "message": "Corriger l'autorisation"
-    },
-    "yterror_permission_granted": {
-        "message": "Autorisation accordée ! Veuillez recharger la page pour lire les vidéos YouTube."
-    },
-    "ytslowdown_popup": {
-        "message": "Avis de ralentissement de YouTube"
-    },
-    "ytslowdown_popup_body": {
-        "message": "En raison des changements apportés par YouTube, vous pouvez rencontrer des temps de chargement initiaux lents pour les vidéos. Cela est dû au fait que YouTube impose désormais un délai pour les publicités, que FastStream doit attendre avant de pouvoir commencer à charger la vidéo. Malheureusement, il n'y a pas de solution de contournement pour ce problème. Merci de votre compréhension."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

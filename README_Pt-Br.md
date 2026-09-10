@@ -13,7 +13,6 @@ O player atualmente suporta:
 - Vídeos MP4 (.mp4)
 - Streams HLS (.m3u8)
 - Streams DASH (.mpd)
-- Youtube (download não suportado no Chrome, a menos que instalado manualmente devido à política da loja do Google)
 
 Para usar o player, basta:
 1. Acessar qualquer site com um vídeo e ativar a extensão. Qualquer vídeo detectado será automaticamente substituído pelo player FastStream.
@@ -23,7 +22,7 @@ Para usar o player, basta:
 Observações:
 - Transmissões ao vivo não são suportadas. Não haverá suporte para elas em um futuro próximo.
 - Este player não funciona com conteúdo protegido por DRM (Netflix/Amazon etc). Isso é intencional. Por favor, use esta ferramenta de forma responsável. O FastStream não deve ser usado para violar direitos autorais.
-- Este player ainda está em desenvolvimento. Por favor, relate qualquer problema no Github: https://github.com/Andrews54757/FastStream/issues
+- Este player ainda está em desenvolvimento. Por favor, relate qualquer problema no Github: https://github.com/Nawid3333/FastStream/issues
 - Para sua privacidade, esta extensão não coleta dados de telemetria. Também não requer recursos adicionais da internet para funcionar. Ela funciona totalmente desconectada da rede. Sinta-se à vontade para conferir o código no Github.
 - Levamos a acessibilidade a sério. Se você precisa de algum recurso que ainda não está disponível, entre em contato conosco e trabalharemos nisso o mais rápido possível. Também fique à vontade para sugerir novos recursos ou melhorias no Github!
 - O tamanho máximo padrão para pré-carregamento é de 5GB. Isso pode ser alterado na página de configurações. Fique atento ao espaço de armazenamento do seu computador ao mudar essa configuração. Os navegadores transferem dados da RAM para o SSD se o vídeo for muito grande. Pré-carregar vídeos grandes com frequência pode reduzir a vida útil do seu SSD.
@@ -33,9 +32,6 @@ Observações:
 Veja o player em ação sem instalar a extensão! Testado no Chrome e Firefox. Observação: Alguns recursos (OpenSubtitles/sobrescrever cabeçalhos) não estão disponíveis sem a instalação.
 
 [Web Version + Big Buck Bunny](https://faststream.online/player/#https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8)
-
-## Youtube
-Temos visto problemas com o Youtube não funcionando para algumas pessoas usando o FastStream. Isso acontece devido a um esforço contínuo do Google para dificultar o uso de clientes de terceiros e bloqueadores de anúncios. Se você estiver tendo problemas com o Youtube, por favor, nos avise no Github na área de "issues"!
 
 ## Compatibilidade com navegadores
 Testado no Chrome e Firefox. Outros navegadores baseados em Chromium (como o Edge) provavelmente também funcionarão.
@@ -52,7 +48,7 @@ Também está disponível para [Firefox](https://addons.mozilla.org/en-US/firefo
 
 ## Instalação Manual para Chrome
 
-As políticas da loja do Chrome não permitem extensões que possam baixar vídeos do Youtube. Sendo assim, o FastStream não pode salvar vídeos do Youtube se instalado pela loja oficial. Para obter recursos restritos, siga os passos abaixo:
+A instalação manual traz as correções mais recentes mais rápido do que esperar pelo processo de revisão da Chrome Web Store. Para instalar manualmente, siga os passos abaixo:
 
 1. Acesse chrome://extensions
 2. Ative o modo de desenvolvedor
@@ -61,7 +57,7 @@ As políticas da loja do Chrome não permitem extensões que possam baixar víde
 **NÃO HÁ UM SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA INTEGRADO. Se você optar por esse método, lembre-se de verificar frequentemente por atualizações, pois costumo corrigir bugs conforme eles aparecem. O FastStream irá lembrá-lo na página de configurações, mas você terá que atualizar manualmente.
 
 ##Instalação Manual para Firefox
-A extensão, por padrão, está configurada para funcionar no Chrome. Você pode usar uma versão pré-compilada na página de [Releases page](https://github.com/Andrews54757/FastStream/releases) ou compilar a extensão você mesmo seguindo as instruções abaixo.
+A extensão, por padrão, está configurada para funcionar no Chrome. Você pode usar uma versão pré-compilada na página de [Releases page](https://github.com/Nawid3333/FastStream/releases) ou compilar a extensão você mesmo seguindo as instruções abaixo.
 
 Você pode instalar a extensão no Firefox Developer Edition acessando `about:config` e definindo `xpinstall.signatures.required` como `false`. Você também deve desativar as atualizações automáticas de extensões, ou a extensão será removida ao fechar o navegador. Para isso, vá em `about:addons`, clique no ícone de engrenagem e desmarque `Atualizar complementos automaticamente`. Depois, clique em `Instalar complemento a partir de arquivo` e selecione o arquivo `firefox-github-*.zip` para instalar a extensão.
 
@@ -100,7 +96,6 @@ Muito obrigado aos colaboradores deste projeto.
 - [hls.js](https://github.com/video-dev/hls.js): Used for HLS playback
 - [dash.js](https://github.com/Dash-Industry-Forum/dash.js): Used for DASH playback
 - [mp4box.js](https://github.com/gpac/mp4box.js): Used for automatic fragmentation of mp4 files
-- [youtube.js](https://github.com/LuanRT/YouTube.js): Used for Youtube playback
 - [vtt.js](https://github.com/mozilla/vtt.js): Used for parsing VTT subtitles
 - [jswebm](https://github.com/jscodec/jswebm): Used for demuxing webm files
 - And some more! Check the `chrome/player/modules` directory for more information.

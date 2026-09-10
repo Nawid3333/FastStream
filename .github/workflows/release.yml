@@ -5,11 +5,9 @@ name: Release
 # on the upstream repo (github.com/Andrews54757/FastStream/releases): a tag,
 # a release page, downloadable builds. His releases carry two assets
 # (chrome-libre, firefox-libre, both unsigned); this one carries four --
-# the two unrestricted "github" builds (full YouTube support, nothing a
-# store forbids) plus the two store-shaped builds: chrome-webstore (mostly
-# unrestricted -- Chrome's policy only trims a couple of specific lines,
-# CENSORYT, not the feature) and the Firefox AMO build, signed by Mozilla so
-# it installs with no "unverified" warning.
+# the two unrestricted "github" builds plus the two store-shaped builds:
+# chrome-webstore and the Firefox AMO build, signed by Mozilla so it
+# installs with no "unverified" warning.
 #
 # Fires on a version tag push. workflow_dispatch is for re-running by hand
 # against an existing tag if a release needs to be redone.

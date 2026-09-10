@@ -106,6 +106,80 @@ async function saveAndValidate() {
   });
 }
 
+/**
+ * Same as saveAndValidate, but for canStream:true players (MP4Player and
+ * DirectVideoPlayer), which write into a WritableStream instead of
+ * returning a Blob. Builds a minimal chunk-collecting WritableStream in the
+ * page context (standing in for the real StreamSaver-backed one
+ * SaveManager.mjs would normally hand it) and validates the accumulated
+ * bytes the same way saveAndValidate does.
+ *
+ * @return {Promise<Object>} {saveError, blobSize, blobType, decodeOk,
+ *   decodeError, duration}
+ */
+async function saveAndValidateStreamed() {
+  await browser.waitUntil(
+      async () => browser.execute(() => !!document.querySelector('video')),
+      {timeout: 30000, timeoutMsg: 'no <video> element was created'});
+  await browser.waitUntil(
+      async () => browser.execute(() => document.querySelector('video').readyState >= 2),
+      {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+
+  await browser.execute(() => document.querySelector('video').play().catch(() => {}));
+  await new Promise((r) => setTimeout(r, 3000));
+
+  return browser.executeAsync((done) => {
+    const info = {
+      saveError: null, blobSize: null, blobType: null,
+      decodeOk: null, decodeError: null, duration: null,
+    };
+    const chunks = [];
+    const filestream = new WritableStream({
+      write(chunk) {
+        chunks.push(chunk);
+      },
+    });
+
+    window.fastStream.player.saveVideo({
+      onProgress: () => {},
+      registerCancel: () => {},
+      filestream,
+    }).then(() => {
+      const blob = new Blob(chunks, {type: 'video/webm'});
+      info.blobSize = blob.size;
+      info.blobType = blob.type;
+      const url = URL.createObjectURL(blob);
+      const testVideo = document.createElement('video');
+      testVideo.src = url;
+      const finish = () => {
+        URL.revokeObjectURL(url);
+        done(info);
+      };
+      testVideo.onloadedmetadata = () => {
+        info.decodeOk = true;
+        info.duration = testVideo.duration;
+        finish();
+      };
+      testVideo.onerror = () => {
+        info.decodeOk = false;
+        info.decodeError = testVideo.error ?
+          {code: testVideo.error.code, message: testVideo.error.message} : null;
+        finish();
+      };
+      setTimeout(() => {
+        if (info.decodeOk === null) {
+          info.decodeOk = false;
+          info.decodeError = 'timeout waiting for loadedmetadata';
+          finish();
+        }
+      }, 15000);
+    }).catch((e) => {
+      info.saveError = (e && e.stack) || String(e);
+      done(info);
+    });
+  });
+}
+
 describe('Save video (download)', function() {
   it('mux + saves an HLS clip into a file that actually decodes', async function() {
     await openPlayer('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8');
@@ -134,5 +208,67 @@ describe('Save video (download)', function() {
     expect(result.saveError).toBe(null);
     expect(result.decodeOk).toBe(true);
     expect(result.duration).toBeGreaterThan(0);
+  });
+
+  it('saves a DIRECT/webm source into a file that actually decodes', async function() {
+    // .webm has no fragment-based acceleration and used to be hard-routed
+    // to DirectVideoPlayer.canSave() => {canSave: false} -- no Save button
+    // functionality at all for this whole class of source. DirectVideoPlayer
+    // now does a real whole-resource fetch + streamed save.
+    //
+    // Uses the local same-origin fixture (see wdio.conf.mjs's
+    // ensureWebmFixture), not a public host: DirectVideoPlayer.saveVideo()
+    // does its own fetch() of the source, which -- like the accelerated MP4
+    // path -- needs CORS a web page can't assume a random public host sends.
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.webm');
+    const result = await saveAndValidateStreamed();
+
+    console.log('      result:', JSON.stringify(result));
+    expect(result.saveError).toBe(null);
+    expect(result.decodeOk).toBe(true);
+    expect(result.duration).toBeGreaterThan(0);
+    expect(result.blobSize).toBeGreaterThan(0);
+  });
+
+  it('cancels a DIRECT/webm save promptly instead of completing or hanging', async function() {
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.webm');
+    await browser.waitUntil(
+        async () => browser.execute(() => !!document.querySelector('video')),
+        {timeout: 30000, timeoutMsg: 'no <video> element was created'});
+    await browser.waitUntil(
+        async () => browser.execute(() => document.querySelector('video').readyState >= 2),
+        {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+
+    const result = await browser.executeAsync((done) => {
+      let cancel;
+      const filestream = new WritableStream({
+        write() {},
+      });
+      const start = performance.now();
+      const savePromise = window.fastStream.player.saveVideo({
+        onProgress: () => {},
+        registerCancel: (c) => {
+          cancel = c;
+        },
+        filestream,
+      });
+      // saveVideo() is an async function that calls registerCancel()
+      // synchronously before its first await (the fetch()), so `cancel` is
+      // already set by the time the call above returns control here --
+      // calling it now aborts before the fetch can complete, deterministically
+      // rather than racing a timer against a fixture small enough to finish
+      // instantly over loopback.
+      if (cancel) cancel();
+      savePromise.then(() => {
+        done({rejected: false, message: null, elapsed: performance.now() - start});
+      }).catch((e) => {
+        done({rejected: true, message: (e && e.message) || String(e), elapsed: performance.now() - start});
+      });
+    });
+
+    console.log('      result:', JSON.stringify(result));
+    expect(result.rejected).toBe(true);
+    expect(result.message).toBe('Cancelled');
+    expect(result.elapsed).toBeLessThan(5000);
   });
 });

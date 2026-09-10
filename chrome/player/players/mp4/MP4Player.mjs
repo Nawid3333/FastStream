@@ -796,6 +796,9 @@ export default class MP4Player extends EventEmitter {
         const frag = frags[i];
         if (!options.partialSave) {
           while (true) {
+            if (cancelled) {
+              throw new Error('Cancelled');
+            }
             try {
               await this.downloadFragment(frag, -1);
               break;
@@ -819,7 +822,7 @@ export default class MP4Player extends EventEmitter {
         }
       }
 
-      writer.close();
+      await writer.close();
 
       return {
         extension: 'mp4',
@@ -830,7 +833,7 @@ export default class MP4Player extends EventEmitter {
         const frag = frags[i];
         frag.removeReference(ReferenceTypes.SAVER);
       }
-      writer.abort();
+      await writer.abort();
       throw e;
     }
   }

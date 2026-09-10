@@ -240,7 +240,7 @@ export class Utils {
         'color: #afbc2a; background: rgb(50,50,50); padding:5px 0;',
         'color: black; background: #e9e9e9; padding:5px 0;',
     );
-    console.log('Please report all issues to the GitHub repository: https://github.com/Andrews54757/FastStream/issues');
+    console.log('Please report all issues to the GitHub repository: https://github.com/Nawid3333/FastStream/issues');
   }
 
   /**

@@ -1,5 +1,3 @@
-import {YoutubeClients} from '../../enums/YoutubeClients.mjs';
-import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
 import {DaltonizerTypes} from './DaltonizerTypes.mjs';
@@ -23,9 +21,7 @@ export const DefaultOptions = {
   previewEnabled: true,
   autoEnableBestSubtitles: false,
   storeProgress: true,
-  autoplayYoutube: EnvUtils.isExtension(),
   autoplayNext: false,
-  defaultYoutubeClient: YoutubeClients.WEB,
   defaultQuality: `Auto`,
   colorTheme: ColorThemes.DEFAULT,
   autoEnableURLs: [],
@@ -52,5 +48,4 @@ export const DefaultOptions = {
   miniPos: MiniplayerPositions.BOTTOM_RIGHT,
   videoDelay: 0,
   maximumDownloaders: 6,
-  youtubePlayerID: '',
 };

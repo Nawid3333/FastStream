@@ -124,10 +124,19 @@ Historical raw diff: `Faststream version 4/docs/hls.js-1.6.9-faststream.patch`
 
 ---
 
-## YouTube removed from the AMO build (firefox-amo)
+## YouTube removed from the AMO build (firefox-amo) — superseded 2026-09-10
 
-`firefox-amo` is now spliced with a `NO_YOUTUBE` target. Chrome targets and
-`firefox-github` are untouched.
+**Superseded.** YouTube support was removed entirely on 2026-09-10, from
+every target (not just `firefox-amo`) — `NO_YOUTUBE` and `CENSORYT` are gone
+from `build.mjs`, and `YTPlayer.mjs`/`yt.mjs`/`googlevideo.mjs`/
+`yt_runner.js`/`custom/yt_content.js`/`YoutubeClients.mjs` are deleted
+outright, not spliced. See `CLAUDE.md`'s "YouTube removal" section for the
+current state. Kept below for the historical reasoning (why `yt.mjs` could
+never get provenance, the AMO-only warning-count math at the time), which is
+still accurate as a record of *why* AMO needed this first.
+
+`firefox-amo` was spliced with a `NO_YOUTUBE` target. Chrome targets and
+`firefox-github` were untouched.
 
 **Why, in one line:** `yt.mjs` is the one library that can never get the
 hash-verifiable npm base every other library now has.
@@ -272,10 +281,9 @@ paired with the 1.20.0 loader. 5.1.0 / 0.5.3 / 4.3.3 / 1.20.0 stay pinned.
    written permission or a clean-room rewrite. The wrong GPL claim in
    `CLAUDE.md` was removed 2026-09-07. Unlisted self-distribution works
    today (`pnpm run sign:amo`).
-2. ~~YouTube in the AMO build~~ — **decided: removed**, via the `NO_YOUTUBE`
-   splice. This removed the `yt_runner.js` eval, the `userScripts`
-   permission, and 1.41 MB of unverifiable library code from the store
-   target. Libre/github builds keep YouTube.
+2. ~~YouTube in the AMO build~~ — **superseded 2026-09-10: removed from every
+   target entirely**, not just AMO. Originally decided via the `NO_YOUTUBE`
+   splice (AMO only); libre/github builds have not kept YouTube since.
 3. ~~Gecko extension ID~~ — **done**: `thanatus@Nawid` in both Firefox
    targets, with `strict_min_version` 136 (github) / 142 (amo, for
    `data_collection_permissions`).
@@ -443,9 +451,10 @@ survival inside a real kill-on-close job object.
    (PR index) and #546 (hls.js 1.7.2 recipe, where it was requested).
    If Andrew responds, the most likely next PR is a ready-to-merge hls.js
    1.7.2 bump off a fresh `pr/*` branch.
-4. **Close the last unverified-feature gap: Chrome e2e + YouTube e2e.**
-   The e2e suite runs Firefox only; the chrome-github/webstore targets and
-   the YouTube path (libre builds) have zero automated playback coverage.
+4. **Close the last unverified-feature gap: Chrome e2e.**
+   The e2e suite runs Firefox only; the chrome-github/webstore targets have
+   zero automated playback coverage. (YouTube e2e is moot — YouTube support
+   was removed entirely 2026-09-10.)
 5. **If a human AMO reviewer asks for more:** the remaining candidates are
    the three warnings in `docs/amo-linter-warnings.md` (all currently
    defended as safer-left-alone) and pinning vtt/knob as git dependencies

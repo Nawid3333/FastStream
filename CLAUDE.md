@@ -25,7 +25,7 @@ pnpm install              # pnpm 11, pinned via packageManager
 pnpm run build            # 4 targets -> built/*.zip, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
 pnpm run lint             # eslint (must stay at 0)
-pnpm run lint:amo         # web-ext lint on build_firefox_github
+pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
 pnpm run start:ff         # web-ext run — launches Firefox with the extension
 pnpm test                 # vitest
 ```
@@ -87,8 +87,11 @@ Direct manifests for testing the redirect path instead (all verified
 Real sites serving DASH: Bilibili (has a dedicated content script at
 `chrome/custom/bilibili_content.js`), and most large video platforms.
 
-YouTube is a separate path again (`YTPlayer` + the sandboxed evaluator) and
-is not covered by the three above.
+**YouTube support was removed entirely** (all targets, not just AMO) —
+`YTPlayer`, the sandboxed evaluator, `yt.mjs`, `googlevideo.mjs`,
+`yt_runner.js` and `custom/yt_content.js` are gone, along with the
+`userScripts` permission and every `PlayerModes.ACCELERATED_YT` branch. See
+"YouTube removal" below.
 
 ## Architecture facts that are easy to get wrong
 
@@ -107,6 +110,41 @@ is not covered by the three above.
   aren't an official release — not that the integration is hacked.
 - **Vendored library versions are current**, not stale: dash.js reports
   `VERSION = '5.1.0'`, hls.js carries 1.6.x branches.
+
+## Network layer: fetch() + OPFS (2026-09-10)
+
+`chrome/player/network/XHRLoader.mjs` — the single loader shared by HLS,
+DASH and MP4 fragment/playlist/manifest fetching (`DownloadManager.mjs` →
+`StandardDownloader.mjs` → this file) — was rewritten from `XMLHttpRequest`
+to `fetch()` + a `response.body.getReader()` loop. Same public interface
+(`load`/`abort`/`destroy`, callback shapes), same retry/backoff/timeout
+state machine, but the stall timeout now genuinely re-arms on every chunk
+(the old XHR version could time out mid-transfer on a large, slow-but-
+progressing body — armed once per `readyState` transition, not per byte).
+Fixed along the way: a latent bug where tearing down an attempt to retry it
+(`retry()`) also permanently marked `stats.aborted = true`, silently
+swallowing the retried attempt's own outcome. 13 unit tests in
+`tests/unit/XHRLoader.test.mjs` (the file had zero coverage before).
+
+`chrome/player/modules/FSBlob.mjs` gained an OPFS backend
+(`chrome/player/network/OPFSManager.mjs` + a dedicated module worker,
+`opfs-worker.mjs`, since `FileSystemSyncAccessHandle` only exists inside a
+worker) as a third option alongside the existing Cache-API/IndexedDB/memory
+chain — preferred wherever `OPFSManager.isSupported()` is true, which today
+means Firefox specifically (Chrome's existing `BrowserCanAutoOffloadBlobs`
+shortcut is untouched, and IndexedDB stays the fallback). **Firefox does not
+expose `FileSystemFileHandle` as a global constructor** the way Chrome does
+— `isSupported()` must not duck-type against it, only check
+`navigator.storage.getDirectory`, or OPFS silently never activates on
+Firefox despite being fully supported there. All OPFS filesystem ops
+(including a 1s heartbeat) funnel through one `OpQueue` (`OpQueue.mjs`,
+Node-testable, `tests/unit/OpQueue.test.mjs`) inside the worker, because
+`createSyncAccessHandle()` throws if a handle on the same file is already
+open — unlike an IndexedDB transaction, there's no free serialization to
+lean on. `tests/e2e/specs/storage.e2e.mjs` verifies OPFS is actually
+selected and actually round-trips bytes correctly under concurrent load, by
+reading files directly out of `navigator.storage.getDirectory()` rather
+than trusting `FSBlob`'s own self-report.
 
 ## MPV mode and the native host
 
@@ -185,17 +223,18 @@ survival inside a real kill-on-close job object.
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
 
-Targets: `EXTENSION`, `FIREFOX`, `WEB`, `CENSORYT`, `NO_PROMO`,
-`NO_UPDATE_CHECKER`.
+Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_PROMO`, `NO_UPDATE_CHECKER`.
+(`CENSORYT` and `NO_YOUTUBE` existed before YouTube support was removed
+entirely — see "YouTube removal" below — and no longer apply to anything.)
 
 ## Build targets
 
 | Target | Splices | Notes |
 |---|---|---|
 | `chrome-github` | EXTENSION, NO_PROMO | manual install, full features |
-| `chrome-webstore` | EXTENSION, CENSORYT, NO_UPDATE_CHECKER | Chrome Web Store; YouTube **downloading** disabled (not playback) |
+| `chrome-webstore` | EXTENSION, NO_UPDATE_CHECKER | Chrome Web Store |
 | `firefox-github` | EXTENSION, FIREFOX, NO_PROMO | manual install |
-| `firefox-amo` | EXTENSION, FIREFOX, CENSORYT, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
+| `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
 `buildFirefoxAmo()` was written but never invoked (commit "Remove firefox
@@ -214,68 +253,34 @@ dist build for now"). Re-enabled in `7ed4723`.
 - Branches: `main` mirrors upstream, `dev/mv3-modernization` is the work
   branch, `pr/*` branches get cut fresh off `upstream/main`.
 
-## AMO lint (firefox-amo, current: 0 errors / 13 warnings)
+## AMO lint (firefox-amo, current: 0 errors / 3 warnings, needs `--self-hosted`)
 
-Upstream firefox-github baseline was 0 errors, 24 warnings, 1 notice. After
-re-enabling firefox-amo with `data_collection_permissions`, a minimum version
-of 142, and the `NO_YOUTUBE` splice, the AMO target sits at **0 errors, 13
-warnings, 0 notices** - the version bump alone cleared 8 API-compat warnings
-and the splice removed the `DANGEROUS_EVAL` that mattered.
+Verified 2026-09-10, after YouTube support was removed entirely (see
+"YouTube removal" below): `firefox-amo` is **0 errors, 0 notices, 3
+warnings**; `firefox-github` is **0 errors, 0 notices, 4 warnings**.
 
-Twelve of the thirteen are in vendored libraries; `PlayerLoader.mjs:15` is the
-only first-party hit. Where they live is the useful view, because it is also
-the migration order:
+The 3 warnings both targets share are all in vendored libraries: `vtt.mjs`
+and `vad/ort.wasm.mjs` (`UNSAFE_VAR_ASSIGNMENT`), `dash.mjs`'s webpack
+bootstrap eval (`DANGEROUS_EVAL`) — see `docs/amo-linter-warnings.md` for why
+each is safe-left-alone. `firefox-github`'s extra warning is
+`MISSING_DATA_COLLECTION_PERMISSIONS`, expected — only `firefox-amo`
+declares that key. Neither target has a `players/PlayerLoader.mjs` or
+`yt_runner.js` hit anymore; both disappeared along with YouTube support.
 
-| Count | File | Status |
-|---|---|---|
-| 7 | `coloris.mjs` | generated from a pinned commit + patch |
-| 1 | `vtt.mjs` | provenance proven, `pnpm run verify:vtt` |
-| 1 | `gif/gif.mjs` | generated from npm |
-| 1 | `vad/ort.wasm.mjs` | generated from npm |
-| 1 | `sweetalert.mjs` | generated from npm |
-| 1 | `dash.mjs` | generated from npm + patch |
-| 1 | `players/PlayerLoader.mjs` | **ours** |
-
-Migrating a library does not clear its warnings - all seven coloris hits are
-`UNSAFE_VAR_ASSIGNMENT` on upstream's own `innerHTML` writes, and they stayed
-put when the file became generated. The linter grades the code; provenance is
-a separate axis, and it is the one the 2023 rejection was actually about.
-
-### Original upstream baseline (firefox-github)
-
-**0 errors, 24 warnings, 1 notice.** The automated linter already passes.
-The 2023 store rejection was a *human policy* call about the customized
-hls.js/dash.js/youtube.js, which `web-ext lint` cannot detect.
-
-| Count | Code | Where |
-|---|---|---|
-| 1 | `MISSING_DATA_COLLECTION_PERMISSIONS` | `manifest.json` — new AMO requirement, must fix before submitting |
-| 5 | `ANDROID_INCOMPATIBLE_API` | `perms.mjs`, `background.mjs`, `BackgroundUtils.mjs` — no mobile support by design |
-| 3 | `INCOMPATIBLE_API` | `background.mjs:603,607`, `BackgroundUtils.mjs:87` |
-| 2 | `UNSUPPORTED_API` | `background.mjs:619`, `gif/gif.mjs:294` |
-| 3 | `DANGEROUS_EVAL` | `userscripts/yt_runner.js:14` (**real blocker**), `sweetalert.mjs:3705`, `dash.mjs:85152` (both vendored) |
-| 10 | `UNSAFE_VAR_ASSIGNMENT` | 7× `coloris.mjs`, `vtt.mjs:1065`, `vad/ort.wasm.mjs:8` (vendored); `players/PlayerLoader.mjs:16` (**ours**) |
-
-Two of the three `DANGEROUS_EVAL` hits are inside vendored libraries —
-another reason unbundling to stock npm releases helps: reviewers accept
-known-good upstream releases they can verify.
-
-`yt_runner.js:14` runs `new Function(...argNames, body)` on YouTube's
-signature-decipher function, fetched at runtime. That is remotely-hosted
-code execution.
-
-### CENSORYT does NOT disable YouTube
-
-Easy to get wrong. `YTPlayer.mjs` `canSave()` is the only thing it touches —
-it forces `cantSave: true`, blocking **downloading** YouTube videos. Playback
-still works, `ENSURE_YT_USERSCRIPT` still registers `yt_runner.js`, and the
-`new Function` call still ships. Removing YouTube entirely would need a new
-splice target covering `YTPlayer`, the `registerYTUserScript()` body in
-`background.mjs:689`, and `yt_runner.js` itself.
-
-Note `userScripts` is already an **optional** permission in the Firefox
-builds, and `YTPlayer.setSource` degrades gracefully when it is declined
-(`AlertPolyfill.ytUserscriptError`, then an ERROR event).
+**`pnpm run lint:amo` needs `--self-hosted`, or it reports a false
+`MANIFEST_UPDATE_URL` error.** `browser_specific_settings.gecko.update_url`
+(set in `build.mjs`'s `buildFirefoxAmo()` for this unlisted build's
+self-hosted update checking) is exactly what that flag exists for — per
+`web-ext lint --help`, `--self-hosted` "disables messages related to hosting
+on addons.mozilla.org." Without it, addons-linter assumes every build is
+headed for AMO's own hosting and flags `update_url` as disallowed there,
+which is a real rule but doesn't apply to this build. The `package.json`
+`lint:amo` script now passes it. **This was live-broken on the real
+`dev/mv3-modernization` branch's CI** from the commit that added
+`update_url` (2026-09-09) until this fix — confirmed via `gh run view` on
+the failing runs, not assumed. An earlier claim in this project's history
+that AMO lint was "0 errors" had actually been made from truncated command
+output that never showed the error section at all.
 
 ## Vendored libraries
 
@@ -347,6 +352,30 @@ look changed when nothing is. Verified for the pnpm migration: 611 text
 files and 9 SVGs content-identical, 24 png/wasm/ort byte-identical, 644
 total. The LF output this fork now produces is what upstream CI already
 ships; the CRLF build was the local anomaly.
+
+## YouTube removal
+
+Removed entirely (2026-09-10), from every build target, not just
+`firefox-amo`'s old `NO_YOUTUBE` splice. Deleted outright: `YTPlayer.mjs`,
+`SandboxedEvaluator.mjs`, `yt.mjs`, `googlevideo.mjs`, `yt_runner.js`,
+`custom/yt_content.js`, `YoutubeClients.mjs`. Stripped from shared files:
+`PlayerModes.ACCELERATED_YT` and every branch on it (`PlayerLoader.mjs`'s
+`switch` — the only one over `PlayerModes` in the codebase — plus guards in
+`URLUtils.mjs`, `main.mjs`, `FastStreamClient.mjs`, `background.mjs`,
+`SourcesBrowser.mjs`, `InterfaceController.mjs`, `DownloadManager.mjs`,
+`AlertPolyfill.mjs`), the `userScripts` permission and its
+`chrome.userScripts.configureWorld(...)` runtime CSP grant, and the YouTube
+autoplay/player-ID options UI. `CENSORYT` and `NO_YOUTUBE` splice targets are
+gone from `build.mjs` — both only ever guarded YouTube-only content, so
+they're dead once that content doesn't exist.
+
+One accepted behavior change: `background.mjs`'s `onSourceRecieved` used to
+return early on youtube.com pages unless the detected mode was
+`ACCELERATED_YT`, to keep generic HLS/DASH detection from misfiring on
+YouTube's own internal manifests. That guard is gone too — generic detection
+now runs unmodified on youtube.com pages like any other site. Low-stakes:
+YouTube's real manifest URLs are signed/obfuscated, not the plain URLs this
+detection looks for.
 
 ## Known upstream bugs fixed here
 

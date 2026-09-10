@@ -92,13 +92,8 @@ async function recieveSources(request, sendResponse) {
       return curr;
     }
 
-    // Always choose the newest yt source if it exists
-    if (curr.mode === PlayerModes.ACCELERATED_YT) {
-      return curr;
-    }
-
     // If result isn't using streaming technologies, try to find one that does
-    const streamingModes = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH, PlayerModes.ACCELERATED_YT];
+    const streamingModes = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH];
     if (!streamingModes.includes(result.mode) && streamingModes.includes(curr.mode)) {
       return curr;
     }
@@ -135,12 +130,8 @@ async function recieveSources(request, sendResponse) {
     window.fastStream.clearSubtitles();
   }
 
-  if (
-    (autoSetSource && autoSetSource.mode === PlayerModes.ACCELERATED_YT &&
-    !URLUtils.is_url_yt_embed(autoSetSource.url) &&
-    OPTIONS.autoplayYoutube) || (autoSetSource && request.forceAutoplay)
-  ) {
-    window.fastStream.setAutoPlay(true); // Enable autoplay for yt only. Not embeds.
+  if (autoSetSource && request.forceAutoplay) {
+    window.fastStream.setAutoPlay(true);
   }
 
   sources.forEach((s) => {
@@ -317,12 +308,6 @@ async function setup() {
     const url = window.location.hash.substring(1);
     const ext = URLUtils.get_url_extension(url);
     let mode = PlayerModes.DIRECT;
-
-    // SPLICER:NO_YOUTUBE:REMOVE_START
-    if (URLUtils.is_url_yt(url) && URLUtils.is_url_yt_watch(url)) {
-      mode = PlayerModes.ACCELERATED_YT;
-    }
-    // SPLICER:NO_YOUTUBE:REMOVE_END
 
     if (mode === PlayerModes.DIRECT && URLUtils.getModeFromExtension(ext)) {
       mode = URLUtils.getModeFromExtension(ext);

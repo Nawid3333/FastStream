@@ -14,7 +14,6 @@ The player currently supports:
 - MP4 videos (.mp4)
 - HLS streams (.m3u8)
 - DASH streams (.mpd)
-- Youtube (download not supported on Chrome unless manually installed due to Web Store policy)
 
 To use the player, simply:
 1. Go to any website you want with a video and toggle the extension on. Any video it detects will be automatically replaced with the FastStream player.
@@ -24,7 +23,7 @@ To use the player, simply:
 Notes:
 - Livestreams are not supported. They will not be supported in the near future.
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
-- This player is still a work-in-progress. Please report any bugs to the Github issue tracker here: https://github.com/Andrews54757/FastStream/issues
+- This player is still a work-in-progress. Please report any bugs to the Github issue tracker here: https://github.com/Nawid3333/FastStream/issues
 - For your privacy, this extension **does not collect telemetry**. Nor does it require additional resources from the internet to function. It will work fully offline. Feel free to browse the codebase on Github.
 - **We take accessibility concerns seriously**. If you need accommodations not available in the latest version, please contact us and we will work on it ASAP. Also, please feel free to submit feature requests or suggestions on the Github issue tracker!
 - The default maximum size for pre-buffering is 5GB. This can be changed in the settings page. Please be mindful of your computer's storage space when changing this setting. Browsers will offload data in the RAM to the SSD if the video is too large. Frequently pre-buffering large videos can reduce the lifespan of your SSD.
@@ -34,14 +33,6 @@ Notes:
 See the player in action without installing the extension! Tested on Chrome and Firefox. Note: Some features (OpenSubtitles/header override) are not available without installation.
 
 [Web Version + Big Buck Bunny](https://faststream.online/player/#https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8)
-
-## Youtube issues
-We've been seeing issues with Youtube not working for some people using FastStream. This is because of an ongoing effort by Google to thwart third-party clients and adblockers. If you are having trouble with Youtube, please let us know in the issue tracker!
-
-### Troubleshooting Youtube issues
-1. Make sure you are using the latest version of FastStream.
-2. Try clearing your browser cache and reinstalling the extension.
-3. Search the issue tracker to see if your issue has already been reported. If it has, please add any relevant information to the existing issue. If it hasn't, please create a new issue with as much detail as possible.
 
 ## Browser compatibility
 Tested using Chrome and Firefox. Other chromium based browsers (such as Edge) will also likely work.
@@ -59,21 +50,21 @@ Firefox's extension store policies recently changed and now require a more strin
 
 Mozilla's goal is understandable: they want to ensure extensions are secure and free of malicious code. However, these new requirements have made it much harder for independent developers like me to maintain and update extensions on their platform.
 
-One policy in particular is a major obstacle for FastStream. Mozilla now requires developers to use official release versions of third-party dependencies. That is not practical for this project, because FastStream relies on several heavily customized open-source libraries, including hls.js, dash.js, and youtube.js. These modified versions contain FastStream-specific code and are available on my GitHub, but they are not official upstream releases. Although I work with the original developers to implement the features FastStream needs, Mozilla's policy still requires official release builds. Given how extensively these libraries have been customized, complying with that requirement would mean either removing important features or somehow getting Mozilla to approve the customized versions.
+One policy in particular is a major obstacle for FastStream. Mozilla now requires developers to use official release versions of third-party dependencies. That is not practical for this project, because FastStream relies on several heavily customized open-source libraries, including hls.js and dash.js. These modified versions contain FastStream-specific code and are available on my GitHub, but they are not official upstream releases. Although I work with the original developers to implement the features FastStream needs, Mozilla's policy still requires official release builds. Given how extensively these libraries have been customized, complying with that requirement would mean either removing important features or somehow getting Mozilla to approve the customized versions.
 
 I have tried contacting Mozilla to explain that these modifications are necessary for FastStream to function properly, but I have not received a useful response. For now, the Firefox version of FastStream is only available through manual installation. I will continue trying to get FastStream back onto the Firefox store. In the meantime, please follow the instructions below to install it manually.
 
 ## Manual Installation For Chrome
-The Chrome extension store policies do not allow extensions that can download videos from Youtube (anti-trust anybody?). As a result, FastStream cannot save Youtube videos if installed from the official store. To get restricted features, please do the following steps:
+Manual installation gets you the latest fixes faster than waiting on the Chrome Web Store's review process. To install manually, please do the following steps:
 
 1. Go to `chrome://extensions`
 2. Turn on developer mode
-3. Drag and drop the `chrome` directory of this repository, or the prebuilt ZIP found on the [Releases page](https://github.com/Andrews54757/FastStream/releases)
+3. Drag and drop the `chrome` directory of this repository, or the prebuilt ZIP found on the [Releases page](https://github.com/Nawid3333/FastStream/releases)
 
 **THERE IS NO BUILT-IN AUTOMATIC UPDATE SYSTEM. If you go this route, please make sure to check back often for updates because I will often fix bugs as I encounter them. FastStream will remind you in the settings page, but you will have to update it manually.**
 
 ## Manual Installation For Firefox
-The extension is, by default, configured to work on Chrome. You can either use a prebuilt version from the [Releases page](https://github.com/Andrews54757/FastStream/releases) or build the extension yourself using the build instructions below.
+The extension is, by default, configured to work on Chrome. You can either use a prebuilt version from the [Releases page](https://github.com/Nawid3333/FastStream/releases) or build the extension yourself using the build instructions below.
 
 You can then install the extension on Firefox Developer Edition by going to `about:config` and setting `xpinstall.signatures.required` to `false`. You must then also disable extension auto-updates or the extension will be removed when you close the browser. To do this, go to `about:addons`, click on the gear icon, and uncheck `Update Add-ons Automatically`. You can then click "Install Add-on From File" and select the `firefox-github-*.zip` file to install the extension.
 
@@ -114,7 +105,6 @@ Many thanks to the contributors of this project.
 - [hls.js](https://github.com/video-dev/hls.js): Used for HLS playback
 - [dash.js](https://github.com/Dash-Industry-Forum/dash.js): Used for DASH playback
 - [mp4box.js](https://github.com/gpac/mp4box.js): Used for automatic fragmentation of mp4 files
-- [youtube.js](https://github.com/LuanRT/YouTube.js): Used for Youtube playback
 - [vtt.js](https://github.com/mozilla/vtt.js): Used for parsing VTT subtitles
 - [jswebm](https://github.com/jscodec/jswebm): Used for demuxing webm files
 - And some more! Check the `chrome/player/modules` directory for more information.

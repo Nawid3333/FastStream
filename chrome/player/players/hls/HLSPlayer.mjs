@@ -144,11 +144,21 @@ export default class HLSPlayer extends EventEmitter {
       });
     }
 
+    let cancelled = false;
+    if (options?.registerCancel) {
+      options.registerCancel(() => {
+        cancelled = true;
+      });
+    }
+
     zippedFragments.forEach((data) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
         if (data.fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
           while (true) {
+            if (cancelled) {
+              throw new Error('Cancelled');
+            }
             try {
               await this.downloadFragment(data.fragment, -1);
               break;
@@ -180,17 +190,23 @@ export default class HLSPlayer extends EventEmitter {
 
     try {
       if (levelInitData && audioLevelInitData) {
-        const {MP4Merger} = await import('../../modules/dash2mp4/mp4merger.mjs');
+        // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a
+        // codec/packaging failure here gets the same WebCodecs re-encode
+        // fallback DASH already has, instead of hard-failing the save.
+        const {DASH2MP4} = await import('../../modules/dash2mp4/dash2mp4.mjs');
 
-        const mp4merger = new MP4Merger(options.registerCancel);
+        const dash2mp4 = new DASH2MP4(options.registerCancel);
 
-        mp4merger.on('progress', (progress) => {
+        dash2mp4.on('progress', (progress) => {
           if (options?.onProgress) {
             options.onProgress(progress);
           }
         });
 
-        const blob = await mp4merger.convert(level.details.totalduration, levelInitData.buffer, audioLevel.details.totalduration, audioLevelInitData.buffer, zippedFragments);
+        const videoMimeType = level.videoCodec ? `video/mp4; codecs="${level.videoCodec}"` : null;
+        const audioMimeType = audioLevel.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
+
+        const blob = await dash2mp4.convert(videoMimeType, level.details.totalduration, levelInitData.buffer, audioMimeType, audioLevel.details.totalduration, audioLevelInitData.buffer, zippedFragments);
 
         return {
           extension: 'mp4',

@@ -207,6 +207,10 @@ export class HLS2MP4 extends EventEmitter {
       tracks.push(audioTrack);
     }
 
+    if (!tracks.length || !tracks[0].chunks.length) {
+      throw new Error('Not enough data to save yet');
+    }
+
     const len = tracks[0].chunks.length;
     let minDts = tracks[0].chunks[0].startDTS;
 

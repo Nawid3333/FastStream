@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "Hızlandırılmış DASH"
     },
-    "player_source_accelyt": {
-        "message": "Hızlandırılmış YouTube"
-    },
     "player_source_accelvm": {
         "message": "Hızlandırılmış Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Otomatik oynatıcıyı değiştirmeden önce gecikme (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Mümkünse YouTube videolarını otomatik oynat"
-    },
     "options_general_autoplaynext": {
         "message": "Mevcut video bittiğinde sonraki videoyu otomatik oynat"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Resim içinde resmi aç/kapat"
     },
-    "options_general_ytclient": {
-        "message": "Kullanılacak YT istemcisi. Sorun varsa değiştirmeyi deneyin."
-    },
     "options_export_header": {
         "message": "Ayarları İçe/Dışa Aktar"
     },
@@ -1149,36 +1140,12 @@
         "message": "Hata: $1"
     },
     "error_popup_body": {
-        "message": "Lütfen bu hatayı ve aşağıdaki stack trace'i geliştiricilere https://github.com/Andrews54757/FastStream/issues adresinden bildirin:"
+        "message": "Lütfen bu hatayı ve aşağıdaki stack trace'i geliştiricilere https://github.com/Nawid3333/FastStream/issues adresinden bildirin:"
     },
     "error_popup_send": {
         "message": "Hata Bildir"
     },
-    "yt_error_login_required": {
-        "message": "Üzgünüz! FastStream, YouTube girişinizi gerektiren videoları desteklemiyor."
-    },
     "player_outofstorage": {
         "message": "Uyarı: Tarayıcınız dosya depolama özelliklerini tam olarak desteklemiyor. Bunun nedeni, tarayıcınızın depolama alanının dolmuş olması veya uzun süredir yeniden başlatılmamış olması olabilir. Bazı özellikler beklendiği gibi çalışmayabilir."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream, YouTube videolarını oynatmak için gereken userScript iznine sahip değil!"
-    },
-    "yterror_popup": {
-        "message": "YouTube İzin Hatası"
-    },
-    "yterror_fix": {
-        "message": "İzni Düzelt"
-    },
-    "yterror_permission_granted": {
-        "message": "İzin verildi! YouTube videolarını oynatmak için sayfayı yeniden yükleyin."
-    },
-    "ytslowdown_popup": {
-        "message": "YouTube Yavaşlama Bildirimi"
-    },
-    "ytslowdown_popup_body": {
-        "message": "YouTube'daki değişiklikler nedeniyle, videoların başlangıç yükleme sürelerinde yavaşlama yaşayabilirsiniz. Bunun nedeni, YouTube'un artık reklamlar için bir gecikme zorunlu kılmasıdır ve FastStream'in videoyu yüklemeye başlamadan önce beklemesi gerekir. Ne yazık ki, bu sorun için bir çözüm yoktur. Anlayışınız için teşekkür ederiz."
-    },
-    "ytslowdown_ok": {
-        "message": "Tamam"
     }
 }

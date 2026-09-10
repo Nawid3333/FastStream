@@ -8,7 +8,6 @@ import {VisChangeActions} from '../options/defaults/VisChangeActions.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../utils/InterfaceUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
-import {URLUtils} from '../utils/URLUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
@@ -575,21 +574,16 @@ export class InterfaceController {
       let copyURL = '';
       if (this.client.source) {
         const source = this.client.source;
-        if (source.mode === PlayerModes.ACCELERATED_YT) {
-          copyURL = `https://youtu.be/${URLUtils.get_yt_identifier(source.url)}`;
-          copyURL += `?t=${Math.floor(this.client.currentTime)}`;
-        } else {
-          try {
-            const url = new URL(source.url);
-            if (source.countHeaders() > 0) {
-              const headers = JSON.stringify(source.headers);
-              url.searchParams.set('faststream-headers', headers);
-            }
-            url.searchParams.set('faststream-mode', source.mode);
-            url.searchParams.set('faststream-timestamp', Math.floor(this.client.currentTime).toString());
-            copyURL = url.toString();
-          } catch (e) {
+        try {
+          const url = new URL(source.url);
+          if (source.countHeaders() > 0) {
+            const headers = JSON.stringify(source.headers);
+            url.searchParams.set('faststream-headers', headers);
           }
+          url.searchParams.set('faststream-mode', source.mode);
+          url.searchParams.set('faststream-timestamp', Math.floor(this.client.currentTime).toString());
+          copyURL = url.toString();
+        } catch (e) {
         }
       }
 

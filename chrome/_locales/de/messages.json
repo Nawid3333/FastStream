@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "Beschleunigtes DASH"
     },
-    "player_source_accelyt": {
-        "message": "Beschleunigtes YouTube"
-    },
     "player_source_accelvm": {
         "message": "Beschleunigtest Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Verzöggerung vor dem automatischen Ersetzen des Players (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Automatisches abspielen von YouTube Videos falls möglich"
-    },
     "options_general_autoplaynext": {
         "message": "Nächstes Video automatisch abspielen wenn das aktuelle endet"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Bild-in-Bild umschalten"
     },
-    "options_general_ytclient": {
-        "message": "Der YouTube Client der genutzt wird. Bei Problemen versuch diesen zu ändern."
-    },
     "options_export_header": {
         "message": "Import/Export der Einstellungen"
     },
@@ -1149,36 +1140,12 @@
         "message": "Fehler: $1"
     },
     "error_popup_body": {
-        "message": "Bitte melde diesen Fehler den Entwicklern auf https://github.com/Andrews54757/FastStream/issues mit den folgenden Fehlerinformationen:"
+        "message": "Bitte melde diesen Fehler den Entwicklern auf https://github.com/Nawid3333/FastStream/issues mit den folgenden Fehlerinformationen:"
     },
     "error_popup_send": {
         "message": "Fehler melden"
     },
-    "yt_error_login_required": {
-        "message": "Entschuldigung! FastStream unterstützt keine Videos, die erfordern, dass du bei YouTube angemeldet bist."
-    },
     "player_outofstorage": {
         "message": "Warnung: Dein Browser unterstützt die Dateispeicherfunktionen nicht vollständig. Dies kann daran liegen, dass der Speicherplatz deines Browsers erschöpft ist oder er seit langer Zeit nicht neu gestartet wurde. Einige Funktionen funktionieren möglicherweise nicht wie erwartet."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream hat nicht die userScript-Berechtigung, die zum Abspielen von YouTube-Videos erforderlich ist!"
-    },
-    "yterror_popup": {
-        "message": "YouTube-Berechtigungsfehler"
-    },
-    "yterror_fix": {
-        "message": "Berechtigung beheben"
-    },
-    "yterror_permission_granted": {
-        "message": "Berechtigung erteilt! Bitte laden Sie die Seite neu, um YouTube-Videos abzuspielen."
-    },
-    "ytslowdown_popup": {
-        "message": "YouTube-Verlangsamungsbenachrichtigung"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Aufgrund von Änderungen bei YouTube können Sie langsame Ladezeiten für Videos erleben. Dies liegt daran, dass YouTube jetzt eine Verzögerung für Werbung erzwingt, auf die FastStream warten muss, bevor es mit dem Laden des Videos beginnen kann. Leider gibt es keine Lösung für dieses Problem. Vielen Dank für Ihr Verständnis."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

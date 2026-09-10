@@ -399,11 +399,21 @@ export default class DashPlayer extends EventEmitter {
       });
     }
 
+    let cancelled = false;
+    if (options?.registerCancel) {
+      options.registerCancel(() => {
+        cancelled = true;
+      });
+    }
+
     zippedFragments.forEach((data) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
         if (data.fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
           while (true) {
+            if (cancelled) {
+              throw new Error('Cancelled');
+            }
             try {
               await this.downloadFragment(data.fragment, -1);
               break;

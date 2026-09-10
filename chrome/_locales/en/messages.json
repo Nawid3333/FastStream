@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "Accelerated DASH"
     },
-    "player_source_accelyt": {
-        "message": "Accelerated YouTube"
-    },
     "player_source_accelvm": {
         "message": "Accelerated Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Delay before auto-replacing player (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Autoplay YouTube videos if possible"
-    },
     "options_general_autoplaynext": {
         "message": "Autoplay next video when current video ends"
     },
@@ -1060,9 +1054,6 @@
     },
     "options_general_vischangeaction_pip": {
         "message": "Toggle picture-in-picture"
-    },
-    "options_general_ytclient": {
-        "message": "YT client to use. Try changing if you have issues."
     },
     "options_export_header": {
         "message": "Import/Export Settings"
@@ -1200,36 +1191,12 @@
         "message": "Error: $1"
     },
     "error_popup_body": {
-        "message": "Please report this error to the developers at https://github.com/Andrews54757/FastStream/issues with the stack trace below:"
+        "message": "Please report this error to the developers at https://github.com/Nawid3333/FastStream/issues with the stack trace below:"
     },
     "error_popup_send": {
         "message": "Report Error"
     },
-    "yt_error_login_required": {
-        "message": "Sorry! FastStream does not support videos which require you to be logged in to YouTube."
-    },
     "player_outofstorage": {
         "message": "Warning: Your browser does not fully support file storage features. This may be because your browser ran out of storage space or has not been restarted in a long time. Some features may not work as expected."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream is lacking the userScript permission which is required to play YouTube videos!"
-    },
-    "yterror_popup": {
-        "message": "YouTube Permission Error"
-    },
-    "yterror_fix": {
-        "message": "Fix Permission"
-    },
-    "yterror_permission_granted": {
-        "message": "Permission Granted! Please reload the page to play YouTube videos."
-    },
-    "ytslowdown_popup": {
-        "message": "YouTube Slowdown Notice"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Due to changes by YouTube, you may experience slow initial load times for videos. This is because YouTube now enforces a delay for advertisements, which FastStream must wait for before it can start loading the video. Unfortunately, there is no workaround for this issue. Thank you for your understanding."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

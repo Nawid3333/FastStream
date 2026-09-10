@@ -35,11 +35,6 @@ export class PlayerLoader {
       case PlayerModes.ACCELERATED_DASH:
         module = await import('./dash/DashPlayer.mjs');
         break;
-      // SPLICER:NO_YOUTUBE:REMOVE_START
-      case PlayerModes.ACCELERATED_YT:
-        module = await import('./yt/YTPlayer.mjs');
-        break;
-      // SPLICER:NO_YOUTUBE:REMOVE_END
       case PlayerModes.ACCELERATED_VM:
         module = await import('./vm/VMPlayer.mjs');
         break;

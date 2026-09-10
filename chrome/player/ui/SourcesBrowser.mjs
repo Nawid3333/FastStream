@@ -60,7 +60,6 @@ export class SourcesBrowser {
     modes[PlayerModes.ACCELERATED_HLS] = Localize.getMessage('player_source_accelhls');
     modes[PlayerModes.ACCELERATED_DASH] = Localize.getMessage('player_source_acceldash');
     if (EnvUtils.isExtension()) {
-      modes[PlayerModes.ACCELERATED_YT] = Localize.getMessage('player_source_accelyt');
       modes[PlayerModes.ACCELERATED_VM] = Localize.getMessage('player_source_accelvm');
     }
 
@@ -120,19 +119,15 @@ export class SourcesBrowser {
     sourceCopyBtn.title = Localize.getMessage('player_source_copybtn_label');
     sourceCopyBtn.addEventListener('click', (e) => {
       let copyURL = '';
-      if (source.mode === PlayerModes.ACCELERATED_YT) {
-        copyURL = `https://youtu.be/${URLUtils.get_yt_identifier(source.url)}`;
-      } else {
-        try {
-          const url = new URL(source.url);
-          if (source.countHeaders() > 0) {
-            const headers = JSON.stringify(source.headers);
-            url.searchParams.set('faststream-headers', headers);
-          }
-          url.searchParams.set('faststream-mode', source.mode);
-          copyURL = url.toString();
-        } catch (e) {
+      try {
+        const url = new URL(source.url);
+        if (source.countHeaders() > 0) {
+          const headers = JSON.stringify(source.headers);
+          url.searchParams.set('faststream-headers', headers);
         }
+        url.searchParams.set('faststream-mode', source.mode);
+        copyURL = url.toString();
+      } catch (e) {
       }
 
       const input = document.createElement('input');

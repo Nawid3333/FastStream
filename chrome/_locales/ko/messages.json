@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "가속 DASH"
     },
-    "player_source_accelyt": {
-        "message": "가속 YouTube"
-    },
     "player_source_accelvm": {
         "message": "가속 Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "플레이어 자동 교체 전 지연(밀리초)"
     },
-    "options_general_autoplayyt": {
-        "message": "가능하면 YouTube 동영상 자동 재생"
-    },
     "options_general_autoplaynext": {
         "message": "현재 영상 종료 시 다음 영상 자동 재생"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "화면 속 화면 전환"
     },
-    "options_general_ytclient": {
-        "message": "사용할 YT 클라이언트입니다. 문제가 있으면 변경해 보세요."
-    },
     "options_export_header": {
         "message": "설정 가져오기/내보내기"
     },
@@ -1149,36 +1140,12 @@
         "message": "오류: $1"
     },
     "error_popup_body": {
-        "message": "아래 스택 트레이스와 함께 https://github.com/Andrews54757/FastStream/issues에 개발자에게 이 오류를 신고해 주세요:"
+        "message": "아래 스택 트레이스와 함께 https://github.com/Nawid3333/FastStream/issues에 개발자에게 이 오류를 신고해 주세요:"
     },
     "error_popup_send": {
         "message": "오류 신고"
     },
-    "yt_error_login_required": {
-        "message": "죄송합니다! FastStream는 YouTube에 로그인해야 재생할 수 있는 동영상을 지원하지 않습니다."
-    },
     "player_outofstorage": {
         "message": "경고: 사용 중인 브라우저가 파일 저장 기능을 완전히 지원하지 않습니다. 이는 브라우저의 저장 공간이 부족하거나 오랜 시간 동안 재시작되지 않았기 때문일 수 있습니다. 일부 기능이 예상대로 작동하지 않을 수 있습니다."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream에는 YouTube 동영상을 재생하는 데 필요한 userScript 권한이 없습니다!"
-    },
-    "yterror_popup": {
-        "message": "YouTube 권한 오류"
-    },
-    "yterror_fix": {
-        "message": "권한 수정"
-    },
-    "yterror_permission_granted": {
-        "message": "권한이 부여되었습니다! YouTube 동영상을 재생하려면 페이지를 새로고침하세요."
-    },
-    "ytslowdown_popup": {
-        "message": "YouTube 속도 저하 알림"
-    },
-    "ytslowdown_popup_body": {
-        "message": "YouTube의 변경으로 인해 동영상의 초기 로드 시간이 느려질 수 있습니다. 이는 YouTube가 광고에 대한 지연을 강제하기 때문이며, FastStream은 동영상 로드를 시작하기 전에 기다려야 합니다. 불행히도 이 문제에 대한 해결 방법은 없습니다. 양해해 주셔서 감사합니다."
-    },
-    "ytslowdown_ok": {
-        "message": "확인"
     }
 }

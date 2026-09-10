@@ -1,9 +1,21 @@
 # The addons-linter warnings, one by one
 
 `pnpm run lint:amo` reports **0 errors, 0 notices, 3 warnings** against
-`build_firefox_amo`. Errors block automated validation; warnings do not. They
-are advisory, and every one of them is listed here with what it is and why the
-file has not been changed to silence it.
+`build_firefox_amo`, verified 2026-09-10. Every one of the 3 warnings is
+listed here with what it is and why the file has not been changed to
+silence it.
+
+**The script passes `--self-hosted`.** Without it, addons-linter reports a
+`MANIFEST_UPDATE_URL` error on `browser_specific_settings.gecko.update_url`
+(set in `build.mjs`'s `buildFirefoxAmo()` for this unlisted build's
+self-hosted update checking, documented in `CHECKPOINT.md`) - a real rule,
+but one that only applies to add-ons hosted directly on AMO, which this
+isn't. `web-ext lint --help` describes the flag exactly: "Your extension
+will be self-hosted. This disables messages related to hosting on
+addons.mozilla.org." This was live-broken on the real
+`dev/mv3-modernization` branch's CI from the commit that added `update_url`
+until this flag was added - confirmed via the actual failing GitHub Actions
+run, not assumed.
 
 This document exists because the alternative was worse. Every remaining
 warning is inside a vendored library that is now **generated from a pinned
@@ -203,50 +215,20 @@ instead of a diff nobody asked for.
 
 ## The GitHub self-host build has more, and does not need fewer
 
-`pnpm run lint:github` — the build distributed outside AMO, which is the one
-target that keeps YouTube support — currently reports **0 errors, 0 notices,
-9 warnings**. It is not held to the same bar as `lint:amo` on purpose: this
-build is never submitted to Mozilla, so nothing here affects AMO review. It
-is worth a short note anyway, since some of it looks alarming out of context.
+`pnpm run lint:github` — the build distributed outside AMO — currently
+reports **0 errors, 0 notices, 4 warnings**. It is not held to the same bar
+as `lint:amo` on purpose: this build is never submitted to Mozilla, so
+nothing here affects AMO review.
 
-- **3 of the 9** are the vtt/ort.wasm/dash items above, present in both
+- **3 of the 4** are the vtt/ort.wasm/dash items above, present in both
   builds for the same reasons (patches apply to the shared
   `chrome/player/modules/` source both targets splice from).
-- **3 `ANDROID_INCOMPATIBLE_API`** (`permissions.request`, `userScripts.*`) —
-  expected. This extension has no `gecko_android` entry and does not target
-  Firefox for Android; these fire because the desktop APIs used simply are
-  not implemented there, not because of anything to fix.
-- **1 `UNSUPPORTED_API`** on `userScripts.register` (`background.mjs` line
-  627) is a false positive from an overloaded API name, confirmed by reading
-  addons-linter's own compat schema: it defines two `register` entries, one
-  `max_manifest_version: 2` (single object, callback-based) and one
-  `min_manifest_version: 3` (array argument, promise-based). FastStream's
-  call — `await chrome.userScripts.register([script])` — matches the MV3
-  shape exactly, but the static scanner flags the name against the MV2 entry
-  regardless of which overload the call site actually matches.
-- **1 `DANGEROUS_EVAL`** in `userscripts/yt_runner.js` is real, active, and
-  necessary: it is a `postMessage`-driven bridge that runs
-  `new Function(...argNames, body)()` inside an isolated `USER_SCRIPT` world
-  injected into a same-origin `youtube.com` frame, used by
-  `SandboxedEvaluator`/`chrome/player/modules/yt.mjs` to execute YouTube's own
-  obfuscated challenge-solving JavaScript — the same requirement every
-  third-party YouTube client (yt-dlp, youtube.js, etc.) has, since YouTube
-  deliberately makes this undecipherable without running their code. It is
-  scoped as tightly as that requirement allows: `configureWorld` sets
-  `'unsafe-eval'` only for this one isolated world (not the extension's own
-  CSP, which stays eval-free), and the listener only accepts messages whose
-  `event.source` is the frame's own parent. **This entire code path is
-  already spliced out of the AMO build** by the pre-existing
-  `SPLICER:NO_YOUTUBE` markers — `dropYoutubeContentScript` in `build.mjs`
-  removes it from `build_firefox_amo` outright, which is why none of this
-  shows up in `lint:amo`'s 3. It is documented here rather than in the AMO
-  section above because it never reaches AMO review at all.
 - **`MISSING_DATA_COLLECTION_PERMISSIONS`** is deliberately not added to this
   build. Adding `data_collection_permissions` was tested directly: it needs
-  Firefox 140+ (142+ for Android), higher than the 136 this build's manifest
-  actually requires for `userScripts`, and adding it while staying at 136
-  replaced one warning with two version-mismatch ones instead — a net
-  increase in the warning count, not a decrease. The field only matters for
+  Firefox 140+ (142+ for Android), higher than this build's `strict_min_version`
+  of 136, and adding it while staying at 136 replaced one warning with two
+  version-mismatch ones instead — a net increase in the warning count, not a
+  decrease. The field only matters for
   AMO's own submission policy — Firefox itself does not require it to load a
   self-hosted `.xpi` — so bumping the floor
   just to add a field this build gets no benefit from was rejected in favour

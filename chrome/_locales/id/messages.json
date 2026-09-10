@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "DASH Dipercepat"
     },
-    "player_source_accelyt": {
-        "message": "YouTube Dipercepat"
-    },
     "player_source_accelvm": {
         "message": "Vimeo Dipercepat"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Tunda sebelum mengganti pemutar secara otomatis (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Putar otomatis video YouTube jika memungkinkan"
-    },
     "options_general_autoplaynext": {
         "message": "Putar otomatis video berikutnya saat video saat ini selesai"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Beralih picture-in-picture"
     },
-    "options_general_ytclient": {
-        "message": "Klien YT yang digunakan. Coba ganti jika bermasalah."
-    },
     "options_export_header": {
         "message": "Impor/Ekspor Pengaturan"
     },
@@ -1149,36 +1140,12 @@
         "message": "Kesalahan: $1"
     },
     "error_popup_body": {
-        "message": "Silakan laporkan kesalahan ini ke pengembang di https://github.com/Andrews54757/FastStream/issues beserta stack trace di bawah:"
+        "message": "Silakan laporkan kesalahan ini ke pengembang di https://github.com/Nawid3333/FastStream/issues beserta stack trace di bawah:"
     },
     "error_popup_send": {
         "message": "Laporkan Kesalahan"
     },
-    "yt_error_login_required": {
-        "message": "Maaf! FastStream tidak mendukung video yang mengharuskan Anda masuk ke YouTube."
-    },
     "player_outofstorage": {
         "message": "Peringatan: Browser Anda tidak sepenuhnya mendukung fitur penyimpanan file. Ini mungkin karena browser Anda kehabisan ruang penyimpanan atau belum di-restart dalam waktu yang lama. Beberapa fitur mungkin tidak berfungsi seperti yang diharapkan."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream kekurangan izin userScript yang diperlukan untuk memutar video YouTube!"
-    },
-    "yterror_popup": {
-        "message": "Kesalahan Izin YouTube"
-    },
-    "yterror_fix": {
-        "message": "Perbaiki Izin"
-    },
-    "yterror_permission_granted": {
-        "message": "Izin Diberikan! Silakan muat ulang halaman untuk memutar video YouTube."
-    },
-    "ytslowdown_popup": {
-        "message": "Pemberitahuan Perlambatan YouTube"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Karena perubahan oleh YouTube, Anda mungkin mengalami waktu muat awal yang lambat untuk video. Ini karena YouTube sekarang memberlakukan penundaan untuk iklan, yang harus ditunggu oleh FastStream sebelum dapat mulai memuat video. Sayangnya, tidak ada solusi untuk masalah ini. Terima kasih atas pengertian Anda."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

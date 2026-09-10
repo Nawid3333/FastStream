@@ -296,7 +296,7 @@ function insertLicense(buildDir) {
 }
 
 async function buildChromeWebstore() {
-  spliceAndCopy(chromeSourceDir, chromeWebstoreBuildDir, ['EXTENSION', 'CENSORYT', 'NO_UPDATE_CHECKER']);
+  spliceAndCopy(chromeSourceDir, chromeWebstoreBuildDir, ['EXTENSION', 'NO_UPDATE_CHECKER']);
   insertLicense(chromeWebstoreBuildDir);
   const builtPath = await runWebExtBuild(chromeWebstoreBuildDir, path.join(chromeWebstoreBuildDir, 'webstore'));
   const name = path.basename(builtPath);
@@ -334,28 +334,6 @@ function dropDeadTempResource(manifest) {
   }
 }
 
-/**
- * Removes the YouTube content script and its registration.
- *
- * NO_YOUTUBE already removes the player side - yt.mjs, googlevideo.mjs,
- * YTPlayer, the sandboxed evaluator and yt_runner.js - which is what made a
- * Firefox submission unwinnable. It did not remove `custom/yt_content.js`,
- * so the build still injected into five YouTube domains at document_start and
- * scraped page data to a background that no longer has a player to give it
- * to. Nothing sends REQUEST_YT_DATA once YTPlayer is gone, so the script is
- * inert - but an inert YouTube content script in an add-on rejected over
- * YouTube handling is a question nobody wants to answer.
- *
- * The background handlers stay: they are generic message plumbing shared with
- * the other content scripts, and unreachable is not the same as unsafe.
- *
- * @param {object} manifest the parsed manifest, edited in place
- */
-function dropYoutubeContentScript(manifest) {
-  manifest.content_scripts = (manifest.content_scripts || []).filter(
-      (entry) => !(entry.js || []).includes('custom/yt_content.js'));
-}
-
 async function buildFirefoxGithub() {
   spliceAndCopy(chromeSourceDir, firefoxGithubBuildDir, ['EXTENSION', 'FIREFOX', 'NO_PROMO']);
   insertLicense(firefoxGithubBuildDir);
@@ -367,21 +345,9 @@ async function buildFirefoxGithub() {
 
   manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
 
-  // remove the userscripts permission
-  manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
-
-  // move it to optional_permissions
-  if (!manifest.optional_permissions) {
-    manifest.optional_permissions = [];
-  }
-  manifest.optional_permissions.push('userScripts');
-
   manifest.browser_specific_settings = {
     gecko: {
       id: 'thanatus@Nawid',
-      // The userScripts optional permission and the MV3 userScripts.getScripts/
-      // configureWorld calls in background.mjs need Firefox 136+; 113.0 predates
-      // all three, which is what addons-linter's lint:github run was flagging.
       strict_min_version: '136.0',
     },
   };
@@ -407,7 +373,7 @@ async function buildFirefoxGithub() {
 
 
 async function buildFirefoxAmo() {
-  spliceAndCopy(chromeSourceDir, firefoxAmoBuildDir, ['EXTENSION', 'FIREFOX', 'CENSORYT', 'NO_UPDATE_CHECKER', 'NO_YOUTUBE']);
+  spliceAndCopy(chromeSourceDir, firefoxAmoBuildDir, ['EXTENSION', 'FIREFOX', 'NO_UPDATE_CHECKER']);
   insertLicense(firefoxAmoBuildDir);
 
   const manifestPath = path.join(firefoxAmoBuildDir, 'manifest.json');
@@ -442,7 +408,6 @@ async function buildFirefoxAmo() {
   };
 
   dropDeadTempResource(manifest);
-  dropYoutubeContentScript(manifest);
 
   // 'cookies' stays: the DOWNLOAD handler in background.mjs reads
   // `sender.tab.cookieStoreId` and passes it to `tabs.create()` so a
@@ -451,12 +416,6 @@ async function buildFirefoxAmo() {
   // says so in as many words on downloads.download - so dropping it would
   // quietly break container downloads.
   manifest.permissions.push('downloads', 'cookies');
-
-  // This target is spliced with NO_YOUTUBE, so the userscript that needed
-  // this permission is not in the build at all. Requesting a permission
-  // nothing uses is exactly what AMO reviewers ask about, so drop it rather
-  // than moving it to optional_permissions as the other targets do.
-  manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
 
   // 'contextualIdentities' is deliberately not requested, for that same
   // reason. Mozilla's schema scopes that permission to the

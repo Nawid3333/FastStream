@@ -1,4 +1,4 @@
-import {afterEach, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {URLUtils} from '../../chrome/player/utils/URLUtils.mjs';
 import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
 
@@ -6,10 +6,6 @@ import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
 // player engine handles it. If this regresses, FastStream silently does
 // nothing at all - no error is raised anywhere - so it gets the most
 // coverage of any module here.
-
-afterEach(() => {
-  delete globalThis.chrome;
-});
 
 describe('get_url_extension', () => {
   it('extracts a lowercase extension', () => {
@@ -49,55 +45,6 @@ describe('getModeFromURL', () => {
 
   it('falls back to DIRECT rather than throwing on an unknown type', () => {
     expect(URLUtils.getModeFromURL('https://e.com/page.html')).toBe(PlayerModes.DIRECT);
-  });
-
-  it('only takes the YouTube path when running as an extension', () => {
-    const watch = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
-    // No chrome global: the web build must not claim the YT engine.
-    expect(URLUtils.getModeFromURL(watch)).toBe(PlayerModes.DIRECT);
-
-    globalThis.chrome = {extension: {}};
-    expect(URLUtils.getModeFromURL(watch)).toBe(PlayerModes.ACCELERATED_YT);
-  });
-});
-
-describe('YouTube URL recognition', () => {
-  it('accepts every host listed in the manifest content_scripts', () => {
-    for (const host of [
-      'https://www.youtube.com/watch?v=a',
-      'https://youtube.com/watch?v=a',
-      'https://m.youtube.com/watch?v=a',
-      'https://music.youtube.com/watch?v=a',
-      'https://www.youtube-nocookie.com/embed/a',
-    ]) {
-      expect(URLUtils.is_url_yt(host), host).toBe(true);
-    }
-  });
-
-  it('rejects lookalike hosts', () => {
-    expect(URLUtils.is_url_yt('https://notyoutube.com/watch?v=a')).toBe(false);
-    expect(URLUtils.is_url_yt('https://youtube.com.evil.net/watch?v=a')).toBe(false);
-    expect(URLUtils.is_url_yt('')).toBe(false);
-    expect(URLUtils.is_url_yt('not a url')).toBe(false);
-  });
-
-  it('distinguishes watch pages from embeds', () => {
-    expect(URLUtils.is_url_yt_watch('https://www.youtube.com/watch?v=a')).toBe(true);
-    expect(URLUtils.is_url_yt_watch('https://www.youtube.com/embed/a')).toBe(true);
-    expect(URLUtils.is_url_yt_embed('https://www.youtube.com/embed/a')).toBe(true);
-    expect(URLUtils.is_url_yt_embed('https://www.youtube.com/watch?v=a')).toBe(false);
-    expect(URLUtils.is_url_yt_watch('https://www.youtube.com/feed/subscriptions')).toBe(false);
-  });
-
-  it('pulls the video id from both ?v= and /shorts/ style URLs', () => {
-    expect(URLUtils.get_yt_identifier('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-    expect(URLUtils.get_yt_identifier('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-    expect(URLUtils.get_yt_identifier('not a url')).toBe('');
-  });
-
-  it('pulls the playlist id', () => {
-    expect(URLUtils.get_yt_playlist_identifier('https://www.youtube.com/watch?v=a&list=PL123')).toBe('PL123');
-    expect(URLUtils.get_yt_playlist_identifier('https://www.youtube.com/watch?v=a')).toBeNull();
   });
 });
 

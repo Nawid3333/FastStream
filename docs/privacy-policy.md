@@ -56,9 +56,9 @@ at build time, so it does not contact anything on startup either.
 
 ## What this build does not include
 
-This Firefox build ships without YouTube support. The code that handled
-YouTube - including its sandboxed script evaluation - is removed at build
-time, not merely disabled. See `docs/vendored-libraries.md`.
+FastStream ships without YouTube support (removed entirely, not merely
+disabled - see `docs/vendored-libraries.md`), so there is no sandboxed
+script evaluation of any kind.
 
 ## Third-party code
 

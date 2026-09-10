@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "高速化された DASH"
     },
-    "player_source_accelyt": {
-        "message": "高速化された YouTube"
-    },
     "player_source_accelvm": {
         "message": "高速化された Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
     },
-    "options_general_autoplayyt": {
-        "message": "YouTube 動画の自動再生"
-    },
     "options_general_autoplaynext": {
         "message": "次の動画の自動再生"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "ピクチャー イン ピクチャー (PiP) に切り替え"
     },
-    "options_general_ytclient": {
-        "message": "使用する YouTube クライアント (YouTube の問題がある場合に変更してください)"
-    },
     "options_export_header": {
         "message": "設定のインポート/エクスポート"
     },
@@ -1149,36 +1140,12 @@
         "message": "エラー: $1"
     },
     "error_popup_body": {
-        "message": "このエラーを開発者に報告してください: https://github.com/Andrews54757/FastStream/issues 以下にスタックトレースが表示されます:"
+        "message": "このエラーを開発者に報告してください: https://github.com/Nawid3333/FastStream/issues 以下にスタックトレースが表示されます:"
     },
     "error_popup_send": {
         "message": "エラーを報告"
     },
-    "yt_error_login_required": {
-        "message": "申し訳ありませんが、FastStream は YouTube にログインする必要がある動画をサポートしていません。"
-    },
     "player_outofstorage": {
         "message": "警告: お使いのブラウザはファイルストレージ機能を完全にはサポートしていません。これは、ブラウザのストレージ容量が不足しているか、長時間再起動されていないためです。一部の機能が期待通りに動作しない場合があります。"
-    },
-    "yterror_popup_body": {
-        "message": "FastStream には、YouTube 動画の再生に必要な userScript 権限がありません！"
-    },
-    "yterror_popup": {
-        "message": "YouTube 権限エラー"
-    },
-    "yterror_fix": {
-        "message": "権限を修正"
-    },
-    "yterror_permission_granted": {
-        "message": "権限が付与されました！YouTube 動画を再生するには、ページをリロードしてください。"
-    },
-    "ytslowdown_popup": {
-        "message": "YouTubeの速度低下に関する通知"
-    },
-    "ytslowdown_popup_body": {
-        "message": "YouTube の変更により、動画の初期読み込み時間が遅くなる可能性があります。これは、YouTube が広告の遅延を強制するようになったためで、FastStream は動画の読み込みを開始する前に待機する必要があります。残念ながら、この問題には回避策がありません。ご理解いただきありがとうございます。"
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

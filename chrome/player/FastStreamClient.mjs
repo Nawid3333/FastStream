@@ -22,9 +22,7 @@ import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
 import {AudioAnalyzer} from './modules/analyzer/AudioAnalyzer.mjs';
 import {PreviewFrameExtractor} from './modules/analyzer/PreviewFrameExtractor.mjs';
-import {PlayerModes} from './enums/PlayerModes.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
-import {YoutubeClients} from './enums/YoutubeClients.mjs';
 import {StringUtils} from './utils/StringUtils.mjs';
 import {StatusTypes} from './ui/StatusManager.mjs';
 import {InterfaceUtils} from './utils/InterfaceUtils.mjs';
@@ -68,7 +66,6 @@ export class FastStreamClient extends EventEmitter {
       doubleClickAction: ClickActions.PLAY_PAUSE,
       tripleClickAction: ClickActions.FULLSCREEN,
       visChangeAction: VisChangeActions.NOTHING,
-      defaultYoutubeClient: YoutubeClients.WEB,
       miniSize: 0.25,
       miniPos: MiniplayerPositions.BOTTOM_RIGHT,
       videoBrightness: 1,
@@ -90,7 +87,6 @@ export class FastStreamClient extends EventEmitter {
       disableVisualFilters: false,
       maximumDownloaders: 6,
       maxPlaybackRate: EnvUtils.isChrome() ? 16 : 8,
-      youtubePlayerID: '',
     };
     this.state = {
       playing: false,
@@ -318,8 +314,6 @@ export class FastStreamClient extends EventEmitter {
     this.options.visChangeAction = options.visChangeAction;
     this.options.miniSize = options.miniSize;
     this.options.miniPos = options.miniPos;
-    // this.options.defaultYoutubeClient = options.defaultYoutubeClient;
-    this.options.youtubePlayerID = options.youtubePlayerID;
     this.options.maximumDownloaders = options.maximumDownloaders;
 
     if (sessionStorage && sessionStorage.getItem('autoplayNext') !== null) {
@@ -703,17 +697,6 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Attaches fragment processors to a player for YouTube mode.
-   * @param {Object} player
-   */
-  attachProcessorsToPlayer(player) {
-    if (this.source.mode === PlayerModes.ACCELERATED_YT) {
-      player.preProcessFragment = this.player.preProcessFragment.bind(this.player);
-      player.postProcessFragment = this.player.postProcessFragment.bind(this.player);
-    }
-  }
-
-  /**
    * Sets up the preview player for seek preview.
    * @return {Promise<void>}
    */
@@ -726,9 +709,6 @@ export class FastStreamClient extends EventEmitter {
       this.previewPlayer = await this.playerLoader.createPlayer(this.player.getSource().mode, this, {
         isPreview: true,
       });
-
-      // check if its yt mode
-      this.attachProcessorsToPlayer(this.previewPlayer);
 
       await this.previewPlayer.setup();
       this.bindPreviewPlayer(this.previewPlayer);
@@ -763,15 +743,8 @@ export class FastStreamClient extends EventEmitter {
     try {
       source = source.copy();
 
-      let timeFromURL = null;
-      if (source.mode === PlayerModes.ACCELERATED_YT) {
-        timeFromURL = URLUtils.get_param(source.url, 't') || URLUtils.get_param(source.url, 'start') || '';
-        timeFromURL = timeFromURL.replace('s', '');
-        timeFromURL = parseInt(timeFromURL);
-      } else {
-        timeFromURL = URLUtils.get_param(source.url, 'faststream-timestamp');
-        timeFromURL = parseInt(timeFromURL);
-      }
+      let timeFromURL = URLUtils.get_param(source.url, 'faststream-timestamp');
+      timeFromURL = parseInt(timeFromURL);
 
       if (isNaN(timeFromURL)) {
         timeFromURL = null;
@@ -811,10 +784,6 @@ export class FastStreamClient extends EventEmitter {
       this.storageAvailable = await EnvUtils.getAvailableStorage();
 
       const options = {};
-      if (source.mode === PlayerModes.ACCELERATED_YT) {
-        options.defaultClient = this.options.defaultYoutubeClient;
-        options.forcedPlayerID = this.options.youtubePlayerID;
-      }
       this.player = await this.playerLoader.createPlayer(source.mode, this, options);
 
       await this.player.setup();
@@ -1249,6 +1218,20 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   async resetPlayer() {
+    const saveManager = this.interfaceController?.saveManager;
+    if (saveManager?.makingDownload) {
+      // An abandoned save left running against a player we're about to
+      // destroy (and a download manager we're about to reset) would spin
+      // forever and leave the Save button permanently stuck. Cancel it and
+      // let it settle before tearing anything down.
+      if (saveManager.downloadCancel) {
+        saveManager.downloadCancel();
+      }
+      if (saveManager.pendingSave) {
+        await saveManager.pendingSave.catch(() => {});
+      }
+    }
+
     const promises = [];
     this.lastTime = 0;
 

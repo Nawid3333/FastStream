@@ -4,6 +4,6 @@ To uninstall the extension, simply right click the icon and click "Remove from C
 
 ## Before you leave
 
-Please let us know if you are uninstalling because of a bug. Report all bugs to the [issue tracker](https://github.com/Andrews54757/FastStream/issues). New bugs are usually addressed in 1-2 days.
+Please let us know if you are uninstalling because of a bug. Report all bugs to the [issue tracker](https://github.com/Nawid3333/FastStream/issues).
 
 #### Please report any bugs you notice! We won't know about it otherwise!

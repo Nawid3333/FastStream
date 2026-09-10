@@ -2,8 +2,8 @@
  * Message contracts for the extension's cross-context traffic.
  *
  * FastStream runs code in four isolated contexts - the background event page,
- * the top-level content script, per-site injectors (YouTube, Instagram,
- * Bilibili, Facebook) and the player page itself - which talk exclusively
+ * the top-level content script, per-site injectors (Instagram, Bilibili,
+ * Facebook) and the player page itself - which talk exclusively
  * through `chrome.runtime.sendMessage` / `chrome.tabs.sendMessage`. Those
  * boundaries erase types: every payload arrives as `any`, so a renamed field
  * or a wrong shape fails silently at runtime rather than at review time.

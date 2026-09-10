@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "Versnelde DASH"
     },
-    "player_source_accelyt": {
-        "message": "Versnelde YouTube"
-    },
     "player_source_accelvm": {
         "message": "Versnelde Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Vertraging voordat speler automatisch wordt vervangen (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "YouTube-video's automatisch afspelen indien mogelijk"
-    },
     "options_general_autoplaynext": {
         "message": "Volgende video automatisch afspelen wanneer huidige video eindigt"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Schakel picture-in-picture"
     },
-    "options_general_ytclient": {
-        "message": "Welke YT-client te gebruiken. Wijzig dit als je problemen ondervindt."
-    },
     "options_export_header": {
         "message": "Instellingen importeren/exporteren"
     },
@@ -1149,36 +1140,12 @@
         "message": "Fout: $1"
     },
     "error_popup_body": {
-        "message": "Rapporteer deze fout alstublieft aan de ontwikkelaars op https://github.com/Andrews54757/FastStream/issues met de onderstaande stacktrace:"
+        "message": "Rapporteer deze fout alstublieft aan de ontwikkelaars op https://github.com/Nawid3333/FastStream/issues met de onderstaande stacktrace:"
     },
     "error_popup_send": {
         "message": "Fout melden"
     },
-    "yt_error_login_required": {
-        "message": "Sorry! FastStream ondersteunt geen video's waarvoor je bij YouTube moet inloggen."
-    },
     "player_outofstorage": {
         "message": "Waarschuwing: Uw browser ondersteunt de bestandsopslagfuncties niet volledig. Dit kan komen doordat uw browser geen opslagruimte meer heeft of al lange tijd niet is herstart. Sommige functies werken mogelijk niet zoals verwacht."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream mist de userScript-machtiging die nodig is om YouTube-video's af te spelen!"
-    },
-    "yterror_popup": {
-        "message": "YouTube-machtigingsfout"
-    },
-    "yterror_fix": {
-        "message": "Machtiging repareren"
-    },
-    "yterror_permission_granted": {
-        "message": "Toestemming verleend! Herlaad de pagina om YouTube-video's af te spelen."
-    },
-    "ytslowdown_popup": {
-        "message": "YouTube vertraging melding"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Door veranderingen van YouTube kunt u langzame initiële laadtijden voor video's ervaren. Dit komt doordat YouTube nu een vertraging afdwingt voor advertenties, waar FastStream op moet wachten voordat het kan beginnen met het laden van de video. Helaas is er geen oplossing voor dit probleem. Bedankt voor uw begrip."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

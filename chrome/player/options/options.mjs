@@ -38,7 +38,6 @@ const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
 const seekStepSize = document.getElementById('seekstepsize');
-const autoplayYoutube = document.getElementById('autoplayyt');
 const autoplayNext = document.getElementById('autoplaynext');
 const qualityMenu = document.getElementById('quality');
 const importButton = document.getElementById('import');
@@ -57,10 +56,8 @@ const daltonizerStrength = document.getElementById('daltonizerStrength');
 const previewEnabled = document.getElementById('previewenabled');
 const replaceDelay = document.getElementById('replacedelay');
 const colorTheme = document.getElementById('colortheme');
-const ytPlayerID = document.getElementById('ytplayerid');
 const optionsSearchBar = document.getElementById('searchbar');
 const optionsResetButton = document.getElementById('resetsearch');
-// const ytclient = document.getElementById('ytclient');
 const maxdownloaders = document.getElementById('maxdownloaders');
 autoEnableURLSInput.setAttribute('autocapitalize', 'off');
 autoEnableURLSInput.setAttribute('autocomplete', 'off');
@@ -89,7 +86,6 @@ if (!EnvUtils.isExtension()) {
   playStreamURLs.disabled = true;
   playMP4URLs.disabled = true;
   autoSub.disabled = true;
-  autoplayYoutube.disabled = true;
   autoEnableURLSInput.disabled = true;
   customSourcePatterns.disabled = true;
   mpvModeToggle.disabled = true;
@@ -101,7 +97,6 @@ if (!EnvUtils.isExtension()) {
   mpvSingleInstanceToggle.disabled = true;
   mpvTestButton.disabled = true;
   miniSize.disabled = true;
-  // ytclient.disabled = true;
   autoplayNext.disabled = true;
 }
 
@@ -127,7 +122,6 @@ async function loadOptions(newOptions) {
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
   previewEnabled.checked = !!Options.previewEnabled;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
-  autoplayYoutube.checked = !!Options.autoplayYoutube;
   autoplayNext.checked = !!Options.autoplayNext;
   maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
   maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
@@ -137,7 +131,6 @@ async function loadOptions(newOptions) {
   storeProgress.checked = !!Options.storeProgress;
   replaceDelay.value = Options.replaceDelay;
   maxdownloaders.value = Options.maximumDownloaders;
-  ytPlayerID.value = Options.youtubePlayerID;
 
   setSelectMenuValue(daltonizerType, Options.videoDaltonizerType);
   setSelectMenuValue(clickAction, Options.singleClickAction);
@@ -147,7 +140,6 @@ async function loadOptions(newOptions) {
   setSelectMenuValue(colorTheme, Options.colorTheme);
   setSelectMenuValue(miniPos, Options.miniPos);
   setSelectMenuValue(qualityMenu, Options.defaultQuality);
-  // setSelectMenuValue(ytclient, Options.defaultYoutubeClient);
 
   document.body.dataset.theme = Options.colorTheme;
 
@@ -264,11 +256,6 @@ createSelectMenu(qualityMenu, Object.values(DefaultQualities), Options.defaultQu
   Options.defaultQuality = e.target.value;
   optionChanged();
 });
-
-// createSelectMenu(ytclient, Object.values(YoutubeClients), Options.defaultYoutubeClient, null, (e) => {
-//   Options.defaultYoutubeClient = e.target.value;
-//   optionChanged();
-// });
 
 document.querySelectorAll('.option').forEach((option) => {
   option.addEventListener('click', (e) => {
@@ -492,19 +479,9 @@ storeProgress.addEventListener('change', () => {
   optionChanged();
 });
 
-autoplayYoutube.addEventListener('change', () => {
-  Options.autoplayYoutube = autoplayYoutube.checked;
-  optionChanged();
-});
-
 autoplayNext.addEventListener('change', () => {
   Options.autoplayNext = autoplayNext.checked;
   sessionStorage.removeItem('autoplayNext');
-  optionChanged();
-});
-
-ytPlayerID.addEventListener('change', () => {
-  Options.youtubePlayerID = ytPlayerID.value.trim();
   optionChanged();
 });
 
@@ -760,7 +737,7 @@ if (EnvUtils.isExtension()) {
 
   document.getElementById('update').addEventListener('click', (e) => {
     chrome.tabs.create({
-      url: 'https://github.com/Andrews54757/FastStream',
+      url: 'https://github.com/Nawid3333/FastStream/releases',
     });
   });
 

@@ -20,6 +20,9 @@ export class SaveManager {
     this.client = client;
     this.downloadURL = null;
     this.reuseDownloadURL = false;
+    this.makingDownload = false;
+    this.downloadCancel = null;
+    this.pendingSave = null;
   }
 
   setupUI() {
@@ -139,7 +142,8 @@ export class SaveManager {
     const doDump = e.shiftKey;
     const player = this.client.player;
 
-    const {canSave, isComplete, canStream} = player.canSave();
+    const {canSave, isComplete, canStream, extension} = player.canSave();
+    const saveExtension = extension || 'mp4';
 
     if (!canSave && !doDump) {
       await AlertPolyfill.alert(Localize.getMessage('player_savevideo_unsupported'), 'error');
@@ -176,7 +180,7 @@ export class SaveManager {
     let url;
     let filestream;
     let name;
-    if (canStream || EnvUtils.isChrome() || true) {
+    if (canStream || EnvUtils.isChrome()) {
       name = shouldAskForName ? await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName) : suggestedName;
       if (!name) {
         return;
@@ -187,7 +191,7 @@ export class SaveManager {
       if (!name) {
         return;
       }
-      filestream = streamSaver.createWriteStream(name + '.mp4');
+      filestream = streamSaver.createWriteStream(name + '.' + saveExtension);
     }
 
     if (this.reuseDownloadURL && this.downloadURL && isComplete) {
@@ -201,16 +205,26 @@ export class SaveManager {
       DOMElements.saveNotifBanner.style.color = '';
       try {
         const start = performance.now();
-        result = await player.saveVideo({
+        this.pendingSave = player.saveVideo({
           onProgress: (progress) => {
             this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_progress', [Math.floor(progress * 100)]), 'info');
           },
           registerCancel: (cancel) => {
-            this.downloadCancel = cancel;
+            // Multiple layers (the player itself, and any muxer it hands
+            // off to) each register their own cancel callback. Compose
+            // rather than overwrite, or only the last one registered would
+            // ever run.
+            const previousCancel = this.downloadCancel;
+            this.downloadCancel = () => {
+              if (previousCancel) previousCancel();
+              cancel();
+            };
           },
           filestream,
           partialSave: doPartial,
         });
+        result = await this.pendingSave;
+        this.pendingSave = null;
         const end = performance.now();
         console.log('Save took ' + (end - start) / 1000 + 's');
       } catch (e) {
@@ -218,6 +232,7 @@ export class SaveManager {
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_fail'), 'error', 2000);
         this.makingDownload = false;
         this.downloadCancel = null;
+        this.pendingSave = null;
         DOMElements.saveNotifBanner.style.display = 'none';
 
         if (e.message === 'Cancelled') {
@@ -275,7 +290,7 @@ export class SaveManager {
           this.reuseDownloadURL = false;
         }
       }, 10000);
-      await Utils.downloadURL(url, name + '.mp4');
+      await Utils.downloadURL(url, name + '.' + saveExtension);
     }
   }
 
@@ -409,6 +424,14 @@ export class SaveManager {
       URL.revokeObjectURL(this.downloadURL);
     }
     this.downloadURL = null;
+
+    // Second line of defense: the caller (FastStreamClient.resetPlayer)
+    // should already have canceled and awaited any in-flight save before
+    // reaching this point. Clear the flags anyway so a save that somehow
+    // wasn't canceled first can't leave the Save button permanently stuck.
+    this.makingDownload = false;
+    this.downloadCancel = null;
+    this.pendingSave = null;
   }
 
   destroy() {
@@ -416,5 +439,8 @@ export class SaveManager {
       URL.revokeObjectURL(this.downloadURL);
       this.downloadURL = null;
     }
+    this.makingDownload = false;
+    this.downloadCancel = null;
+    this.pendingSave = null;
   }
 }

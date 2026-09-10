@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "Przyspieszone DASH"
     },
-    "player_source_accelyt": {
-        "message": "Przyspieszony YouTube"
-    },
     "player_source_accelvm": {
         "message": "Przyspieszony Vimeo"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Opóźnienie przed automatyczną zamianą odtwarzacza (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Automatycznie odtwarzaj filmy z YouTube, jeśli możliwe"
-    },
     "options_general_autoplaynext": {
         "message": "Automatycznie odtwarzaj następne wideo po zakończeniu bieżącego"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Przełącz obraz w obrazie"
     },
-    "options_general_ytclient": {
-        "message": "Klient YT do użycia. Jeśli masz problemy, spróbuj go zmienić."
-    },
     "options_export_header": {
         "message": "Import/Eksport ustawień"
     },
@@ -1149,36 +1140,12 @@
         "message": "Błąd: $1"
     },
     "error_popup_body": {
-        "message": "Prosimy zgłosić ten błąd programistom pod adresem https://github.com/Andrews54757/FastStream/issues, dołączając poniższy ślad stosu:"
+        "message": "Prosimy zgłosić ten błąd programistom pod adresem https://github.com/Nawid3333/FastStream/issues, dołączając poniższy ślad stosu:"
     },
     "error_popup_send": {
         "message": "Zgłoś błąd"
     },
-    "yt_error_login_required": {
-        "message": "Przepraszamy! FastStream nie obsługuje filmów, które wymagają zalogowania się na YouTube."
-    },
     "player_outofstorage": {
         "message": "Ostrzeżenie: Twoja przeglądarka nie obsługuje w pełni funkcji przechowywania plików. Może to być spowodowane brakiem miejsca na dysku lub brakiem ponownego uruchomienia przeglądarki przez długi czas. Niektóre funkcje mogą nie działać zgodnie z oczekiwaniami."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream nie ma uprawnienia userScript, które jest wymagane do odtwarzania filmów z YouTube!"
-    },
-    "yterror_popup": {
-        "message": "Błąd uprawnień YouTube"
-    },
-    "yterror_fix": {
-        "message": "Napraw uprawnienia"
-    },
-    "yterror_permission_granted": {
-        "message": "Uprawnienie przyznane! Proszę przeładować stronę, aby odtwarzać filmy z YouTube."
-    },
-    "ytslowdown_popup": {
-        "message": "Powiadomienie o spowolnieniu YouTube"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Z powodu zmian w YouTube możesz doświadczyć wolnych czasów ładowania początkowego dla filmów. Dzieje się tak, ponieważ YouTube teraz wymusza opóźnienie dla reklam, na które FastStream musi czekać, zanim będzie mógł zacząć ładować film. Niestety, nie ma rozwiązania tego problemu. Dziękujemy za zrozumienie."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

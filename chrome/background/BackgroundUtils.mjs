@@ -98,15 +98,4 @@ export class BackgroundUtils {
   static getPlayerUrl() {
     return PlayerURL;
   }
-
-  static isUserScriptsAvailable() {
-    try {
-      // Method call which throws if API permission or toggle is not enabled.
-      chrome.userScripts.getScripts();
-      return true;
-    } catch {
-      // Not available.
-      return false;
-    }
-  }
 }

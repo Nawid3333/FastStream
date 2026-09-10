@@ -80,13 +80,13 @@ warnings is in third-party library code and is explained individually in
 in the code. For the AMO target the active tags are:
 
 ```
-EXTENSION  FIREFOX  CENSORYT  NO_UPDATE_CHECKER  NO_YOUTUBE
+EXTENSION  FIREFOX  NO_UPDATE_CHECKER
 ```
 
-`NO_YOUTUBE` is the significant one: it **removes** the YouTube integration
-from this build entirely - `yt.mjs`, `googlevideo.mjs`, `YTPlayer.mjs`, the
-sandboxed evaluator and `yt_runner.js` are deleted, not disabled. You can
-confirm this in the built output:
+YouTube support was removed from the source tree entirely (not just this
+target) - `yt.mjs`, `googlevideo.mjs`, `YTPlayer.mjs`, the sandboxed
+evaluator and `yt_runner.js` are deleted, not spliced out. You can confirm
+this in the built output:
 
 ```sh
 find build_firefox_amo -iname 'yt*.mjs' -o -iname 'googlevideo.mjs'   # no matches

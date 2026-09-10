@@ -1,8 +1,10 @@
 # Vendored libraries: what was actually changed
 
 Mozilla's stated objection to FastStream on AMO is that it ships "heavily
-customized" copies of hls.js, dash.js and youtube.js rather than official
-releases. This file measures that claim rather than assuming it.
+customized" copies of third-party libraries (hls.js, dash.js, and formerly
+youtube.js - see "youtube.js" below, removed entirely 2026-09-10) rather
+than official releases. This file measures that claim rather than assuming
+it.
 
 Method: fetch every candidate npm release, diff each against the in-tree
 copy, and take the smallest diff as the base version. Reproduce with
@@ -1304,35 +1306,19 @@ reviewer a hash to check rather than a prose description. It costs a bundler
 in the build and is worth doing only if a reviewer asks - for 153 KB across
 three small, stable libraries, the documentation above is the better trade.
 
-## youtube.js
+## youtube.js — removed entirely, 2026-09-10
 
-Not shipped to AMO, so it is out of scope for that submission. `NO_YOUTUBE`
-(`build.mjs`, `buildFirefoxAmo()`) splices `yt.mjs`, `googlevideo.mjs`,
-`YTPlayer`, the sandboxed evaluator, and `yt_runner.js` out of that target
-entirely - a decision project made deliberately, to keep the store build
-small and easy to review rather than take on YouTube's anti-bot arms race
-inside a listed extension. Confirmed empirically: `build_firefox_amo`
-contains no file matching `yt*.mjs` or `googlevideo.mjs` after a real build.
+**Superseded.** `yt.mjs` (a fork of `youtubei.js`, github.com/LuanRT/YouTube.js),
+`googlevideo.mjs`, `YTPlayer`, the sandboxed evaluator and `yt_runner.js`
+are deleted from the source tree, not spliced out of one target. No build
+ships YouTube support anymore. Previously this file documented that
+`NO_YOUTUBE` (`build.mjs`, `buildFirefoxAmo()`) removed it from the AMO
+target only, while the GitHub self-host builds still shipped an unmeasured
+~33,000-line vendor of it with no established npm-release provenance —
+that gap is now moot everywhere, not just resolved for AMO. See
+`CLAUDE.md`'s "YouTube removal" section.
 
-It still ships in the GitHub self-host build (`buildFirefoxGithub()`,
-`buildChromeGithub()`), where it remains an unmeasured ~33,000-line vendor
-of `youtubei.js` (github.com/LuanRT/YouTube.js). Andrew maintains his own
-fork at github.com/Andrews54757/YouTube.js and pulls version bumps in
-wholesale (see the file's own commit history: "Update Youtube.js to v8.0.0",
-"Update ytjs", etc.), same shape as hls.js/dash.js but far bigger.
-
-If this is ever revisited: `yt.mjs`'s embedded `packageInfo.version` reads
-`17.0.1`, and `youtubei.js@17.0.1` is a real published npm version - but a
-module-inventory diff against that exact tarball's `bundle/browser.js`
-(639 modules) against the vendored file (618 modules) shows they are close
-but not identical: 613 modules are shared, and 5 - including
-`bgutils/BGUtils.js` and `bgutils/SandboxedEvaluator.js` - exist only in the
-vendored file. That means the real base is a specific commit on Andrew's
-fork past the `17.0.1` npm tag, not the tag itself, and finding it would be
-the first step before a patch could be written. Not attempted, since the
-file isn't in the AMO build this documentation is scoped to.
-
-Unrelated to the splice, the AMO manifest drops the `contextualIdentities`
+Unrelated to the removal, the AMO manifest drops the `contextualIdentities`
 permission (`build.mjs`, `buildFirefoxAmo()`). Mozilla's schema scopes that
 permission to the `browser.contextualIdentities` namespace - querying and
 editing container definitions - and nothing in the project calls it.

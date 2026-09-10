@@ -1,5 +1,9 @@
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
+import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EmitterRelay, EventEmitter} from '../modules/eventemitter.mjs';
+import {EnvUtils} from '../utils/EnvUtils.mjs';
+import {RequestUtils} from '../utils/RequestUtils.mjs';
+import {URLUtils} from '../utils/URLUtils.mjs';
 import {VideoUtils} from '../utils/VideoUtils.mjs';
 
 export default class DirectVideoPlayer extends EventEmitter {
@@ -88,16 +92,94 @@ export default class DirectVideoPlayer extends EventEmitter {
   }
 
   canSave() {
+    if (!this.source?.url) {
+      return {
+        cantSave: true,
+        canSave: false,
+        isComplete: true,
+      };
+    }
+
     return {
-      cantSave: true,
-      canSave: false,
+      canSave: true,
+      canStream: true,
       isComplete: true,
+      extension: URLUtils.get_url_extension(this.source.identifier || this.source.url) || 'webm',
     };
   }
 
   async saveVideo(options) {
+    const controller = new AbortController();
+    if (options?.registerCancel) {
+      options.registerCancel(() => {
+        controller.abort();
+      });
+    }
 
+    const fetchHeaders = {};
+    const headers = this.source?.headers;
+    if (headers) {
+      const {customHeaderCommands, regularHeaders} = RequestUtils.splitSpecialHeaders(headers);
+      for (const header in regularHeaders) {
+        if (!Object.hasOwn(regularHeaders, header)) continue;
+        fetchHeaders[header] = regularHeaders[header];
+      }
 
+      if (customHeaderCommands.length && EnvUtils.isExtension()) {
+        await chrome.runtime.sendMessage({
+          type: MessageTypes.SET_HEADERS,
+          url: this.source.url,
+          commands: customHeaderCommands,
+        });
+      }
+    }
+
+    let response;
+    try {
+      response = await fetch(this.source.url, {
+        headers: fetchHeaders,
+        credentials: 'same-origin',
+        signal: controller.signal,
+      });
+    } catch (e) {
+      if (controller.signal.aborted) {
+        throw new Error('Cancelled');
+      }
+      throw e;
+    }
+
+    if (!response.ok) {
+      throw new Error('Bad status code: ' + response.status);
+    }
+
+    const writer = options.filestream.getWriter();
+    const total = parseInt(response.headers.get('content-length'), 10) || 0;
+    let loaded = 0;
+
+    try {
+      const reader = response.body.getReader();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        await writer.write(value);
+        loaded += value.byteLength;
+        if (options.onProgress && total) {
+          options.onProgress(loaded / total);
+        }
+      }
+      await writer.close();
+    } catch (e) {
+      await writer.abort();
+      if (controller.signal.aborted) {
+        throw new Error('Cancelled');
+      }
+      throw e;
+    }
+
+    return {
+      extension: URLUtils.get_url_extension(this.source?.identifier || this.source?.url) || 'webm',
+      blob: null,
+    };
   }
 
   get volume() {

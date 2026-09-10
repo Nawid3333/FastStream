@@ -572,9 +572,6 @@
     "player_source_acceldash": {
         "message": "DASH dipercepatkan"
     },
-    "player_source_accelyt": {
-        "message": "YouTube dipercepatkan"
-    },
     "player_source_accelvm": {
         "message": "Vimeo dipercepatkan"
     },
@@ -953,9 +950,6 @@
     "options_general_replace_delay": {
         "message": "Delay before auto-replacing player (ms)"
     },
-    "options_general_autoplayyt": {
-        "message": "Autoplay YouTube videos"
-    },
     "options_general_autoplaynext": {
         "message": "Autoplay next video"
     },
@@ -1061,9 +1055,6 @@
     "options_general_vischangeaction_pip": {
         "message": "Toggle picture-in-picture"
     },
-    "options_general_ytclient": {
-        "message": "YT client to use. Try changing if you have issues."
-    },
     "options_export_header": {
         "message": "Import/Export Settings"
     },
@@ -1149,36 +1140,12 @@
         "message": "Ralat: $1"
     },
     "error_popup_body": {
-        "message": "Sila laporkan ralat ini kepada pembangun di https://github.com/Andrews54757/FastStream/issues dengan jejak tumpukan di bawah:"
+        "message": "Sila laporkan ralat ini kepada pembangun di https://github.com/Nawid3333/FastStream/issues dengan jejak tumpukan di bawah:"
     },
     "error_popup_send": {
         "message": "Laporkan Ralat"
     },
-    "yt_error_login_required": {
-        "message": "Maaf! FastStream tidak menyokong video yang memerlukan anda masuk ke YouTube."
-    },
     "player_outofstorage": {
         "message": "Amaran: Pelayar anda tidak menyokong sepenuhnya ciri penyimpanan fail. Ini mungkin kerana pelayar anda kehabisan ruang simpanan atau tidak dimulakan semula dalam jangka masa yang lama. Sesetengah ciri mungkin tidak berfungsi seperti yang dijangkakan."
-    },
-    "yterror_popup_body": {
-        "message": "FastStream kekurangan kebenaran userScript yang diperlukan untuk memainkan video YouTube!"
-    },
-    "yterror_popup": {
-        "message": "Ralat Kebenaran YouTube"
-    },
-    "yterror_fix": {
-        "message": "Betulkan Kebenaran"
-    },
-    "yterror_permission_granted": {
-        "message": "Kebenaran Diberikan! Sila muat semula halaman untuk memainkan video YouTube."
-    },
-    "ytslowdown_popup": {
-        "message": "Pemberitahuan Perlambatan YouTube"
-    },
-    "ytslowdown_popup_body": {
-        "message": "Disebabkan oleh perubahan YouTube, Anda mungkin mengalami waktu muat awal yang lambat untuk video. Ini karena YouTube sekarang memberlakukan penundaan untuk iklan, yang harus ditunggu oleh FastStream sebelum dapat mulai memuat video. Sayangnya, tidak ada solusi untuk masalah ini. Terima kasih atas pengertian Anda."
-    },
-    "ytslowdown_ok": {
-        "message": "OK"
     }
 }

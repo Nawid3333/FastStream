@@ -215,6 +215,10 @@ export class MP4Merger extends EventEmitter {
       tracks.push(audioTrack);
     }
 
+    if (!tracks.length) {
+      throw new Error('Not enough data to save yet');
+    }
+
     const len = tracks[0].chunks.length;
     let minPts = tracks[0].chunks[0].startPTS;
 

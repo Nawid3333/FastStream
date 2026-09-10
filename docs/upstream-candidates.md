@@ -1,5 +1,12 @@
 # Upstream PR candidates
 
+**Inactive since 2026-09-10.** Nawid decided to stop tracking upstream
+compatibility as a goal and modernize this fork ("version 4") independently —
+see `CHECKPOINT.md`'s "Open decisions" and `CLAUDE.md`. PRs #548–#551 already
+went out and are tracked below with their final status; nothing past that
+point should be cut or opened without checking first. Kept as a record of
+what was already researched, not as an active queue.
+
 Tracks fixes on `dev/mv3-modernization` that are self-contained enough to
 offer back to `Andrews54757/FastStream`, independent of the rest of the
 modernization work.
@@ -341,7 +348,14 @@ libraries already have provenance.
   addons-linter at all.
 - **Status:** `queued`
 
-## D2. Splice YouTube out of the AMO build
+## D2. Splice YouTube out of the AMO build — superseded 2026-09-10
+
+**Superseded.** This fork removed YouTube support entirely (every target,
+not just AMO) on 2026-09-10, so there is no longer a `NO_YOUTUBE` splice to
+offer upstream as a diff — the candidate as originally scoped (an AMO-only
+conditional splice Andrew could adopt without losing YouTube elsewhere) no
+longer matches what this fork does. Kept below for the historical reasoning
+(why `yt_runner.js` was the actual AMO blocker), which is still accurate.
 
 - **Commits:** `288b375`, plus `39c8a3a`, which restored it after it was
   briefly removed.
@@ -354,7 +368,7 @@ libraries already have provenance.
   single thing that makes a Firefox submission unwinnable. Chrome is
   unaffected, so it costs him nothing.
 - **Depends on:** D1.
-- **Status:** `queued`
+- **Status:** `superseded` (fork no longer has this to offer as a diff)
 
 ## D3. Developer profile launchers
 

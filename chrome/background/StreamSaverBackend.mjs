@@ -33,6 +33,16 @@ export class StreamSaverBackend {
 
     this.map.delete(url);
 
+    if (!stream) {
+      // Shouldn't happen (the page hands the stream over before it ever
+      // triggers this fetch), but a silent empty-but-"successful" download
+      // is worse than a loud failure here.
+      event.respondWith(new Response(null, {status: 500, statusText: 'Stream not ready'}));
+      port.postMessage({close: true});
+      port.close();
+      return;
+    }
+
     // Not comfortable letting any user control all headers
     // so we only copy over the length & disposition
     const responseHeaders = new Headers({
