@@ -280,18 +280,51 @@ function addSortableNamedExport(src) {
  * Converts sweetalert2's UMD build to an ES module and retargets it at
  * FastStream's player container.
  *
- * Three changes, all of which the vendored copy also made:
+ * Five changes, all of which the vendored copy also made:
  *
  * 1. The UMD dispatcher is replaced with a plain `swl = factory()`, since
  *    neither CommonJS nor AMD exists here and the global assignment is not
  *    wanted.
  * 2. Every `document.body` becomes `document_body`, bound to
- *    `DOMElements.playerContainer`. This is the one behavioural change:
+ *    `DOMElements.playerContainer`. This is the main behavioural change:
  *    dialogs must render inside FastStream's player container, not the host
  *    page's body - the player is often in a fullscreen or shadow context
  *    where document.body is the wrong parent. There are exactly 32
  *    occurrences, matching the 32 in the vendored copy, and none left over.
- * 3. The trailing global assignment becomes the ES export that
+ * 3. `document_body` is declared `let`, not `const`, and `getContainer()`
+ *    (the first thing every dialog touches, via init -> resetOldContainer)
+ *    re-resolves it from `DOMElements.playerContainer` if it's still falsy.
+ *    `DOMElements.playerContainer` is itself a one-time
+ *    `document.querySelector('.mainplayer')` snapshot taken when
+ *    DOMElements.mjs first evaluates; if this module happens to import
+ *    before that element exists, `document_body` is null forever without
+ *    this self-heal (confirmed empirically: a direct top-level navigation
+ *    to player/index.html throws "document_body is null" out of
+ *    getContainer() without it).
+ * 4. `getTarget()` - the function that turns the `target` option into the
+ *    actual element the popup container gets appended to - special-cases
+ *    the literal string `'body'` to resolve to `document_body` instead of
+ *    `document.querySelector('body')`. Without this, the container is
+ *    appended under the real `<body>` while every other lookup
+ *    (getContainer, focus, classList, event listeners) scopes to
+ *    `document_body` (`.mainplayer`, a descendant of but not equal to
+ *    `<body>`), so the container is never found again after creation - the
+ *    popup never becomes visible while its container sits on top of
+ *    everything, eating clicks (confirmed empirically via the embedded
+ *    player's real save-prompt flow: a full-size `.swal2-container` with
+ *    `display: grid` and `pointer-events: auto`, containing a
+ *    `.swal2-popup` stuck at `display: none`). `'body'` is the value that
+ *    matters here because sweetalert2's own DEFAULT_PARAMS sets
+ *    `target: 'body'` and validateCustomTargetElement() only overwrites an
+ *    *invalid* target - since `document.querySelector('body')` always
+ *    succeeds, that default reaches getTarget() completely unchanged on
+ *    every call. (init()'s own `getTarget(params.target || 'body')` call
+ *    site is therefore never reached with a falsy target in practice -
+ *    patching it alone, as an earlier version of this transform did, is a
+ *    no-op.) None of FastStream's own `SweetAlert.fire()` call sites
+ *    (utils/AlertPolyfill.mjs) ever pass a custom `target`, so this is what
+ *    every dialog actually uses.
+ * 5. The trailing global assignment becomes the ES export that
  *    utils/AlertPolyfill.mjs imports.
  *
  * It also strips sweetalert2's locale-triggered message block - see
@@ -320,13 +353,67 @@ function toSweetAlertModule(src) {
     );
   }
 
+  const getContainerDecl =
+    'const getContainer = () => document_body.querySelector(`.${swalClasses.container}`);';
+  const getContainerFix =
+    'const getContainer = () => {\n' +
+    '    if (!document_body) {\n' +
+    '      document_body = DOMElements.playerContainer || document.body;\n' +
+    '    }\n' +
+    '    return document_body.querySelector(`.${swalClasses.container}`);\n' +
+    '  };';
+
+  const getTargetDecl =
+    'const getTarget = target => {\n' +
+    '    if (typeof target === \'string\') {\n' +
+    '      const element = document.querySelector(target);\n' +
+    '      if (!element) {\n' +
+    '        throw new Error(`Target element "${target}" not found`);\n' +
+    '      }\n' +
+    '      return /** @type {HTMLElement} */element;\n' +
+    '    }\n' +
+    '    return target;\n' +
+    '  };';
+  const getTargetFix =
+    'const getTarget = target => {\n' +
+    '    if (target === \'body\') {\n' +
+    '      return document_body;\n' +
+    '    }\n' +
+    '    if (typeof target === \'string\') {\n' +
+    '      const element = document.querySelector(target);\n' +
+    '      if (!element) {\n' +
+    '        throw new Error(`Target element "${target}" not found`);\n' +
+    '      }\n' +
+    '      return /** @type {HTMLElement} */element;\n' +
+    '    }\n' +
+    '    return target;\n' +
+    '  };';
+
+  let body = text
+      .replace(umdHead, '(function (global, factory) {\n  swl = factory();\n})(this, ')
+      .replace(/document\.body/g, 'document_body')
+      .replace(globalTail, '\n');
+
+  if (!body.includes(getContainerDecl)) {
+    throw new Error(
+        'sweetalert2 getContainer() not in the expected shape - re-check ' +
+        'this transform against the new release.',
+    );
+  }
+  body = body.replace(getContainerDecl, getContainerFix);
+
+  if (!body.includes(getTargetDecl)) {
+    throw new Error(
+        'sweetalert2 getTarget() not in the expected shape - re-check this ' +
+        'transform against the new release.',
+    );
+  }
+  body = body.replace(getTargetDecl, getTargetFix);
+
   return 'import {DOMElements} from \'../ui/DOMElements.mjs\';\n\n' +
-    'const document_body = DOMElements.playerContainer;\n' +
+    'let document_body = DOMElements.playerContainer;\n' +
     'let swl;\n' +
-    text
-        .replace(umdHead, '(function (global, factory) {\n  swl = factory();\n})(this, ')
-        .replace(/document\.body/g, 'document_body')
-        .replace(globalTail, '\n') +
+    body +
     '\nexport const SweetAlert = swl;\n';
 }
 
