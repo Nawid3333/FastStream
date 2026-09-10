@@ -18,6 +18,13 @@ let sessionDir = null;
 let sessionName = null;
 let heartbeatInterval = null;
 
+// Open save-streams: identifier -> {handle, offset}. A save writes one
+// whole output file progressively (see StreamSaver.mjs / mp4merger.mjs);
+// keeping the FileSystemSyncAccessHandle open across messages avoids
+// open/close churn per chunk. All ops still go through the shared OpQueue,
+// so an open save handle can never collide with a heartbeat write.
+const saveStreams = new Map();
+
 /** Gets (creating if needed) the shared parent directory every session's subdirectory lives under. */
 async function getFsBlobRoot() {
   const root = await navigator.storage.getDirectory();
@@ -136,8 +143,71 @@ async function clearStorage() {
 async function destroy() {
   clearInterval(heartbeatInterval);
   heartbeatInterval = null;
-  if (sessionDir && fsBlobRoot && sessionName) {
-    await fsBlobRoot.removeEntry(sessionName, {recursive: true}).catch(() => {});
+  for (const stream of saveStreams.values()) {
+    try {
+      stream.handle.close();
+    } catch (e) {
+      // Best-effort - the worker is going away anyway.
+    }
+  }
+  saveStreams.clear();
+  // Deliberately NOT removing the session directory here: a finished save
+  // file may still be mid-download from the main thread (the File was handed
+  // to chrome.downloads). Once the heartbeat stops, prune() reaps this
+  // directory on the next FSBlob init - same staleness semantics as before,
+  // just deferred so in-flight downloads can finish.
+}
+
+/**
+ * Progressive whole-file saves. 'saveBegin' creates/truncates the output
+ * file and keeps an open sync access handle for it; 'saveAppend' writes
+ * chunks in order (FIFO through the OpQueue preserves stream order);
+ * 'saveEnd' flushes and closes, leaving the file readable from the main
+ * thread via getFile. 'saveAbort' discards everything.
+ */
+async function saveBegin(identifier) {
+  const fileHandle = await sessionDir.getFileHandle(identifier, {create: true});
+  const accessHandle = await fileHandle.createSyncAccessHandle();
+  saveStreams.set(identifier, {handle: accessHandle, offset: 0});
+}
+
+async function saveAppend(identifier, data) {
+  const stream = saveStreams.get(identifier);
+  if (!stream) {
+    throw new Error('No open save stream: ' + identifier);
+  }
+  stream.handle.write(data, {at: stream.offset});
+  stream.offset += data.byteLength;
+}
+
+async function saveEnd(identifier) {
+  const stream = saveStreams.get(identifier);
+  if (!stream) {
+    throw new Error('No open save stream: ' + identifier);
+  }
+  try {
+    stream.handle.truncate(stream.offset);
+    stream.handle.flush();
+  } finally {
+    stream.handle.close();
+    saveStreams.delete(identifier);
+  }
+}
+
+async function saveAbort(identifier) {
+  const stream = saveStreams.get(identifier);
+  if (stream) {
+    try {
+      stream.handle.close();
+    } catch (e) {
+      // Already closed - fine.
+    }
+    saveStreams.delete(identifier);
+  }
+  try {
+    await sessionDir.removeEntry(identifier);
+  } catch (e) {
+    // Never created / already gone - fine, abort is idempotent.
   }
 }
 
@@ -149,6 +219,10 @@ self.addEventListener('message', async (event) => {
     switch (op) {
       case 'init':
         await queue.push(() => init());
+        // The main thread needs the session name to open finished save
+        // files itself (FileSystemSyncAccessHandle is worker-only, but
+        // plain getFile() is not).
+        result = {sessionName};
         break;
       case 'set':
         await queue.push(() => setFile(identifier, data));
@@ -165,6 +239,18 @@ self.addEventListener('message', async (event) => {
         break;
       case 'destroy':
         await queue.push(() => destroy());
+        break;
+      case 'saveBegin':
+        await queue.push(() => saveBegin(identifier));
+        break;
+      case 'saveAppend':
+        await queue.push(() => saveAppend(identifier, data));
+        break;
+      case 'saveEnd':
+        await queue.push(() => saveEnd(identifier));
+        break;
+      case 'saveAbort':
+        await queue.push(() => saveAbort(identifier));
         break;
       default:
         throw new Error('Unknown OPFS op: ' + op);

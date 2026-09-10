@@ -8,6 +8,7 @@ export class OPFSManager {
     this.worker = null;
     this.pending = new Map();
     this.nextId = 0;
+    this.sessionName = null;
   }
 
   static isSupported() {
@@ -30,7 +31,8 @@ export class OPFSManager {
     this.worker = new Worker(basePath + 'opfs-worker.mjs', {type: 'module'});
     this.worker.addEventListener('message', (event) => this.handleMessage(event.data));
     this.worker.addEventListener('error', (event) => this.handleWorkerCrash(event));
-    await this.call('init');
+    const {sessionName} = await this.call('init');
+    this.sessionName = sessionName;
   }
 
   handleMessage(msg) {
@@ -42,6 +44,47 @@ export class OPFSManager {
     } else {
       pending.reject(new Error(msg.error));
     }
+  }
+
+  /**
+   * Progressive whole-file saves (see opfs-worker.mjs). The main thread
+   * writes chunks through the worker - FileSystemSyncAccessHandle only
+   * exists in a dedicated worker - and finishes by opening the completed
+   * file directly with getFileHandle/getFile, which DO exist here.
+   * @return {Promise<void>}
+   */
+  async saveBegin(identifier) {
+    await this.call('saveBegin', {identifier});
+  }
+
+  async saveAppend(identifier, chunk) {
+    await this.call('saveAppend', {identifier, data: chunk}, [chunk.buffer]);
+  }
+
+  async saveEnd(identifier) {
+    await this.call('saveEnd', {identifier});
+  }
+
+  async saveAbort(identifier) {
+    await this.call('saveAbort', {identifier});
+  }
+
+  /**
+   * Opens a file the worker wrote in this session, as a plain File. Used to
+   * hand a finished save to the download pipeline without ever holding the
+   * whole file in RAM.
+   * @param {string} identifier the name passed to saveBegin
+   * @return {Promise<File>} disk-backed file handle
+   */
+  async getSavedFile(identifier) {
+    if (!this.sessionName) {
+      throw new Error('OPFS session not initialized');
+    }
+    const root = await navigator.storage.getDirectory();
+    const fsblobRoot = await root.getDirectoryHandle('fsblob');
+    const sessionDir = await fsblobRoot.getDirectoryHandle(this.sessionName);
+    const fileHandle = await sessionDir.getFileHandle(identifier);
+    return fileHandle.getFile();
   }
 
   /** Fails every still-pending call rather than leaving callers hanging if the worker itself crashes. */

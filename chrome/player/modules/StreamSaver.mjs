@@ -42,7 +42,72 @@ function makeIframe(src) {
 }
 
 function createWriteStreamBlob(filename, opts, size) {
+  // Firefox extension pages have no ServiceWorker (navigator.serviceWorker
+  // is undefined on moz-extension://), so the "streaming" transport is
+  // unavailable there and this fallback IS the real path for every streamed
+  // save (accelerated MP4, DIRECT webm, archive dumps). It used to
+  // accumulate every chunk as an in-RAM Blob plus an OPFS copy, then
+  // assemble a second full copy with new Blob(chunks) - a several-GB spike
+  // for a several-hundred-MB video, which froze the tab and looked like the
+  // save never happened. Instead: write chunks progressively into ONE OPFS
+  // file (disk-backed, flat memory), then hand the download a disk-backed
+  // File. mp4merger.mjs's finalize() does the same via OPFSManager.
   const blobManager = new FSBlob();
+  const opfs = blobManager.opfsManager;
+  if (!opfs) {
+    // No OPFS available (unsupported or setup failed): keep the old
+    // accumulate-in-memory behavior rather than failing outright.
+    return createWriteStreamBlobMemory(filename, opts, size, blobManager);
+  }
+
+  const identifier = 'save-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+  const opfsWriterReady = opfs.saveBegin(identifier);
+
+  return new WritableStream({
+    async write(chunk) {
+      await opfsWriterReady;
+      // Copy into a fresh, transferable ArrayBuffer: chunks may be views
+      // (byteOffset/byteLength != whole buffer), and saveAppend transfers
+      // the underlying buffer.
+      const copy = chunk.buffer.slice(
+          chunk.byteOffset, chunk.byteOffset + chunk.byteLength);
+      await opfs.saveAppend(identifier, new Uint8Array(copy));
+    },
+    async close() {
+      await opfsWriterReady;
+      await opfs.saveEnd(identifier);
+      const file = await opfs.getSavedFile(identifier);
+      const url = URL.createObjectURL(file);
+      try {
+        await Utils.downloadURL(url, filename);
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        throw e;
+      }
+      // chrome.downloads resolves once the transfer STARTS; the OPFS file
+      // (not the blob URL) backs the rest of the transfer, and the session
+      // is reaped by prune() once its heartbeat goes stale.
+      URL.revokeObjectURL(url);
+    },
+    async abort() {
+      await opfsWriterReady.catch(() => {});
+      await opfs.saveAbort(identifier).catch(() => {});
+      blobManager.close();
+    },
+  }, opts.writableStrategy);
+}
+
+/**
+ * Memory-fallback variant of the OPFS save stream, for environments without
+ * OPFS (and for the web build, where service workers may or may not exist).
+ * Kept as close to the original upstream behavior as possible.
+ * @param {string} filename
+ * @param {object} opts
+ * @param {number} size deprecated
+ * @param {FSBlob} blobManager
+ * @return {WritableStream<Uint8Array>}
+ */
+function createWriteStreamBlobMemory(filename, opts, size, blobManager) {
   const blobs = [];
   return new WritableStream({
     write(chunk) {

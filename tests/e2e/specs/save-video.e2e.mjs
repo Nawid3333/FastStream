@@ -100,7 +100,7 @@ async function saveAndValidate() {
         }
       }, 15000);
     }).catch((e) => {
-      info.saveError = (e && e.stack) || String(e);
+      info.saveError = ((e && e.message) ? e.message + '\n' : '') + ((e && e.stack) || String(e));
       done(info);
     });
   });

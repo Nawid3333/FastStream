@@ -262,11 +262,9 @@ export class SaveManager {
         url = URL.createObjectURL(result.blob);
       }
 
-      if (this.downloadURL) {
-        URL.revokeObjectURL(this.downloadURL);
-        this.downloadURL = null;
-      }
-
+      // Any still-referenced previous url stays alive: the 10s sweep below
+      // reaps replaced urls, and revoking here would kill the backing store
+      // of an in-flight download from a re-save on the same source.
       this.downloadURL = url;
     }
 
@@ -281,12 +279,16 @@ export class SaveManager {
         return;
       }
 
+      // The old sweep revoked this.downloadURL unconditionally 10s after
+      // the save finished - mid-transfer for anything whose download takes
+      // longer than that, which killed the backing blob and made the save
+      // fail silently. It now only reaps a url once it has been REPLACED
+      // by a newer save (or nulled on a cancel/name-less exit).
       setTimeout(() => {
-        if (this.downloadURL !== url) return;
+        if (this.downloadURL === url) return;
 
-        if (this.downloadURL) {
-          URL.revokeObjectURL(this.downloadURL);
-          this.downloadURL = null;
+        if (url) {
+          URL.revokeObjectURL(url);
           this.reuseDownloadURL = false;
         }
       }, 10000);

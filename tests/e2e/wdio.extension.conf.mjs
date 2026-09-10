@@ -29,6 +29,13 @@ import * as url from 'node:url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
+const fixturesDir = path.join(__dirname, '..', 'e2e', 'fixtures');
+
+// MIME types for the fixture files served to the embedded-player specs.
+const FIXTURE_MIME = {
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+};
 
 // Firefox assigns each installed extension a random moz-extension:// UUID, so
 // a test cannot guess its own pages' URLs. This pref pins it. The value has to
@@ -99,6 +106,57 @@ export const config = {
   onPrepare: function() {
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {
+        const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
+
+        // /fixtures/<name> serves the shared binary fixtures so the
+        // embedded-player specs can load real media. CORS is required: the
+        // player runs in a moz-extension:// iframe (partitioned), and a
+        // partitioned frame's fetches do not get the extension's host-
+        // permission CORS bypass. The accelerated players fetch with a
+        // Range header, which is not CORS-safelisted, so preflight must be
+        // answered too or every fragment download fails before it starts.
+        if (pathname.startsWith('/fixtures/')) {
+          if (req.method === 'OPTIONS') {
+            res.writeHead(204, {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              'Access-Control-Allow-Headers': 'Range, Content-Type',
+              'Access-Control-Max-Age': '86400',
+            });
+            res.end();
+            return;
+          }
+          const name = path.basename(pathname);
+          const filePath = path.join(fixturesDir, name);
+          if (!fs.existsSync(filePath)) {
+            res.writeHead(404);
+            res.end('not found');
+            return;
+          }
+          res.writeHead(200, {
+            'Content-Type': FIXTURE_MIME[path.extname(name)] || 'application/octet-stream',
+            'Content-Length': fs.statSync(filePath).size,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
+            'Accept-Ranges': 'none',
+          });
+          fs.createReadStream(filePath).pipe(res);
+          return;
+        }
+
+        // /embed serves an ordinary web page that embeds the extension's
+        // player page in a cross-origin iframe - the partitioned context
+        // real sites put the player in, and the one Firefox's blob-isolation
+        // bug (bugzilla 1917842) breaks downloads from.
+        if (pathname === '/embed') {
+          const extOrigin = `moz-extension://${EXTENSION_UUID}`;
+          res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
+          res.end(`<!doctype html><title>embed</title>` +
+              `<iframe id="fs" src="${extOrigin}/player/index.html?t=${Date.now()}">` +
+              `</iframe>`);
+          return;
+        }
+
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.end('<!doctype html><title>opener</title>');
       });
@@ -118,5 +176,11 @@ export const config = {
     // Temporary rather than permanent: the package is unsigned, and a
     // temporary install is exactly how a reviewer or a developer loads it.
     await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);
+    // Specs navigate to the harness server for the embed page; the trailing
+    // slash matters (it makes 'embed?...' append correctly).
+    globalThis.__EXT_OPENER_URL__ = OPENER_URL.endsWith('/') ? OPENER_URL : OPENER_URL + '/';
+    // Specs load real media through the harness server; the MP4 fixture is
+    // what the accelerated-MP4 specs drive.
+    globalThis.__EXT_FIXTURE_MP4__ = globalThis.__EXT_OPENER_URL__ + 'fixtures/sample.mp4';
   },
 };

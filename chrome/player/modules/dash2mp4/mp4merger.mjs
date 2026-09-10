@@ -4,6 +4,21 @@ import {MP4} from '../hls2mp4/MP4Generator.mjs';
 import {FSBlob} from '../FSBlob.mjs';
 import {BlobManager} from '../../utils/BlobManager.mjs';
 
+/**
+ * Copies any ArrayBuffer-or-TypedArray view into a fresh, transferable
+ * ArrayBuffer. FileReader can return either shape depending on platform/
+ * storage backend (OPFS-backed Blobs have been observed yielding views),
+ * and OPFS saveAppend needs a plain buffer to transfer.
+ * @param {ArrayBuffer|TypedArray} data
+ * @return {ArrayBuffer}
+ */
+function toStandaloneBuffer(data) {
+  if (data instanceof ArrayBuffer) {
+    return data.slice(0);
+  }
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+}
+
 const VideoCodecs = ['avc1', 'avc2', 'avc3', 'avc4', 'av01', 'dav1', 'hvc1', 'hev1', 'hvt1', 'lhe1', 'dvh1', 'dvhe', 'vvc1', 'vvi1', 'vvs1', 'vvcN', 'vp08', 'vp09', 'avs3', 'j2ki', 'mjp2', 'mjpg', 'uncv'];
 const AudioCodecs = ['mp4a', 'ac-3', 'ac-4', 'ec-3', 'Opus', 'mha1', 'mha2', 'mhm1', 'mhm2'];
 
@@ -11,6 +26,17 @@ export class MP4Merger extends EventEmitter {
   constructor(registerCancel) {
     super();
     this.blobManager = new FSBlob();
+    // Progressive finalize: when OPFS is available (Firefox), mdat chunks
+    // stream into ONE disk-backed file instead of accumulating as in-RAM
+    // Blobs - finalize() then hands the download a File, not a full in-memory
+    // copy of the video. Without OPFS (web build), falls back to the
+    // original Blob accumulation.
+    this.opfs = this.blobManager.opfsManager || null;
+    this.saveIdentifier = this.opfs ?
+      'merge-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
+    if (this.opfs) {
+      this.saveReady = this.opfs.saveBegin(this.saveIdentifier);
+    }
     if (registerCancel) {
       registerCancel(() => {
         this.cancel();
@@ -89,6 +115,11 @@ export class MP4Merger extends EventEmitter {
       id: track.nextChunkId++,
       samples: outputSamples,
       samplesDuration: samplesList.samples_duration,
+      // Where this chunk's data lands in the OUTPUT file. In the OPFS
+      // finalize path the file starts with the init segment, then chunks
+      // stream in fragment order - this running offset accounts for both
+      // (finalize adds the real init-segment length before the first chunk
+      // is written; see finalize's offset fixup).
       offset: this.datasOffset + headerLen,
       originalOffset: this.datasOffset + headerLen,
       startPTS: earliestPresentationTime,
@@ -97,7 +128,8 @@ export class MP4Merger extends EventEmitter {
     });
 
     mdats.forEach((mdat) => {
-      this.datas.push(this.blobManager.saveBlob(blob.slice(mdat.start, mdat.start + mdat.size)));
+      const slice = blob.slice(mdat.start, mdat.start + mdat.size);
+      this.datas.push(slice);
       this.datasOffset += mdat.size;
     });
   }
@@ -218,7 +250,6 @@ export class MP4Merger extends EventEmitter {
     if (!tracks.length) {
       throw new Error('Not enough data to save yet');
     }
-
     const len = tracks[0].chunks.length;
     let minPts = tracks[0].chunks[0].startPTS;
 
@@ -259,6 +290,7 @@ export class MP4Merger extends EventEmitter {
 
       initSeg = MP4.initSegment(tracks);
     } catch (e) {
+      console.error('MP4Merger finalize initSegment failed:', e);
       tracks.forEach((track) => {
         track.use64Offsets = true;
       });
@@ -273,6 +305,28 @@ export class MP4Merger extends EventEmitter {
       });
 
       initSeg = MP4.initSegment(tracks);
+    }
+
+    // Two output strategies:
+    // - OPFS (Firefox): stream the init segment + every mdat chunk into one
+    //   disk-backed file, then return that File. RAM stays flat no matter
+    //   the video size - this is what un-freezes large DASH saves.
+    // - No OPFS (web build): the original behavior - one big in-RAM Blob.
+    if (this.opfs) {
+      await this.saveReady;
+      // init segment first...
+      await this.opfs.saveAppend(this.saveIdentifier,
+          new Uint8Array(toStandaloneBuffer(initSeg)));
+      // ...then every mdat chunk, in fragment order.
+      for (const slice of this.datas) {
+        const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
+        await this.opfs.saveAppend(this.saveIdentifier,
+            new Uint8Array(toStandaloneBuffer(buf)));
+      }
+      await this.opfs.saveEnd(this.saveIdentifier);
+      const file = await this.opfs.getSavedFile(this.saveIdentifier);
+      this.datas.length = 0;
+      return file;
     }
 
     const dataChunks = await Promise.all(this.datas.map((data) => {
