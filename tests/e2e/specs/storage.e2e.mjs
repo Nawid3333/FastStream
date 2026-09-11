@@ -42,20 +42,25 @@ describe('FSBlob storage backends', function() {
     await browser.url('/player/index.html?t=' + Date.now());
   });
 
-  it('selects OPFS on this browser and actually writes to it', async function() {
+  it('uses OPFS where FSBlob selects it, and writes correctly either way', async function() {
     const result = await runInPage(async () => {
-      const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
 
-      const supported = OPFSManager.isSupported();
       const blobStore = new FSBlob();
       const payload = new Uint8Array([10, 20, 30, 40, 50]);
       const identifier = await blobStore.saveBlobAsync(new Blob([payload]));
 
+      // FSBlob does not choose OPFS on every browser that merely supports
+      // the API - it deliberately skips it on Chrome, which already
+      // offloads Blob storage on its own (see FSBlob.mjs's UseOPFS gate).
+      // Check what it actually picked rather than OPFSManager.isSupported(),
+      // or this looks for a fsblob/ OPFS directory that was never created.
+      const usedOPFS = !!blobStore.opfsManager;
+
       // Verify independently of FSBlob's own bookkeeping: look directly at
       // OPFS for a fsblob/<session>/<identifier> file with the right bytes.
       let sawOnDisk = false;
-      if (supported) {
+      if (usedOPFS) {
         const root = await navigator.storage.getDirectory();
         const fsblobRoot = await root.getDirectoryHandle('fsblob');
         for await (const sessionName of fsblobRoot.keys()) {
@@ -77,17 +82,18 @@ describe('FSBlob storage backends', function() {
       blobStore.close();
 
       return {
-        opfsSupported: supported,
-        usedOPFS: !!blobStore.opfsManager,
+        usedOPFS,
         sawOnDisk,
         readBackMatches: readBack.length === payload.length && readBack.every((b, i) => b === payload[i]),
       };
     });
 
     console.log('      opfs backend:', JSON.stringify(result));
-    expect(result.opfsSupported).toBe(true);
-    expect(result.usedOPFS).toBe(true);
-    expect(result.sawOnDisk).toBe(true);
+    // sawOnDisk only means anything when OPFS was actually the backend - on
+    // a browser where FSBlob chose Cache/IndexedDB instead, it correctly
+    // stays false rather than being checked against a directory that was
+    // never supposed to exist.
+    expect(result.sawOnDisk).toBe(result.usedOPFS);
     expect(result.readBackMatches).toBe(true);
   });
 
