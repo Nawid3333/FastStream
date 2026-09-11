@@ -22,6 +22,7 @@ function resampleAudioSample(data) {
     case 's32':
       isInterleaved = true;
       TypedArrayConstructor = Int32Array;
+      break;
     case 'f32':
       isInterleaved = true;
       TypedArrayConstructor = Float32Array;

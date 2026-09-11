@@ -85,9 +85,14 @@ function createWriteStreamBlob(filename, opts, size) {
         throw e;
       }
       // chrome.downloads resolves once the transfer STARTS; the OPFS file
-      // (not the blob URL) backs the rest of the transfer, and the session
-      // is reaped by prune() once its heartbeat goes stale.
+      // (not the blob URL) backs the rest of the transfer. Defer closing
+      // the worker the same way mp4merger.mjs's destroy() does, so a slow
+      // transfer still has time to finish reading from the OPFS-backed
+      // file before its session is torn down.
       URL.revokeObjectURL(url);
+      setTimeout(() => {
+        blobManager.close();
+      }, 120000);
     },
     async abort() {
       await opfsWriterReady.catch(() => {});

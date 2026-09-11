@@ -74,7 +74,7 @@ export class SubtitleTrack {
   }
 
   equals(otherTrack) {
-    if (this.label !== otherTrack.label && this.language !== otherTrack.language) {
+    if (this.label !== otherTrack.label || this.language !== otherTrack.language) {
       return false;
     }
 

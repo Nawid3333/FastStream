@@ -485,11 +485,13 @@
 
   function handleCaptionsScrape(request, sender, sendResponse) {
     const trackElements = querySelectorAllIncludingShadows('track');
+    let pending = 0;
     let done = 0;
     const tracks = [];
     for (let i = 0; i < trackElements.length; i++) {
       const track = trackElements[i];
       if (track.src && track.kind === 'captions') {
+        pending++;
         const source = track.src;
         httpRequest(source, (err, req, body) => {
           done++;
@@ -501,11 +503,11 @@
               language: track.srclang,
             });
           }
-          if (done === tracks.length) sendResponse(tracks);
+          if (done === pending) sendResponse(tracks);
         });
       }
     }
-    if (done === tracks.length) sendResponse(tracks);
+    if (done === pending) sendResponse(tracks);
 
     return true;
   }

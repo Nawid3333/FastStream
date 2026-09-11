@@ -123,6 +123,7 @@ export class CrosstalkNode {
   }
 
   destroy() {
+    clearTimeout(this.crossoverConfigureTimeout);
     this.crossover?.destroy();
     this.xtc?.destroy();
   }

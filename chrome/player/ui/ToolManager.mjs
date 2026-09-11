@@ -44,8 +44,25 @@ export class ToolManager {
     }
 
     const tools = Array.from(DOMElements.leftToolsContainer.children).concat(Array.from(DOMElements.rightToolsContainer.children), Array.from(DOMElements.extraTools.children));
+
+    // Only one tool's long-press can be pending at a time (each mousedown
+    // clears any previous this.reorderTimeout), so a single shared mouseup
+    // listener can track which element is waiting for its skipClick reset
+    // instead of registering a near-identical listener per tool.
+    let pendingSkipClickEl = null;
+    DOMElements.playerContainer.addEventListener('mouseup', (e) => {
+      clearTimeout(this.reorderTimeout);
+      if (pendingSkipClickEl) {
+        const el = pendingSkipClickEl;
+        pendingSkipClickEl = null;
+        setTimeout(() => {
+          el._toolSkipClick = false;
+        }, 100);
+      }
+    });
+
     tools.forEach((el) => {
-      let skipClick = false;
+      el._toolSkipClick = false;
       const reorderMouseDown = (e) => {
         // check if left mouse button was pressed
         if (e.button !== 0) return;
@@ -54,7 +71,8 @@ export class ToolManager {
 
         clearTimeout(this.reorderTimeout);
         this.reorderTimeout = setTimeout(() => {
-          skipClick = true;
+          el._toolSkipClick = true;
+          pendingSkipClickEl = el;
           this.startReorderUI();
         }, 800);
       };
@@ -63,18 +81,9 @@ export class ToolManager {
         reorderMouseDown(e);
       });
 
-      DOMElements.playerContainer.addEventListener('mouseup', (e)=>{
-        clearTimeout(this.reorderTimeout);
-        if (skipClick) {
-          setTimeout(() => {
-            skipClick = false;
-          }, 100);
-        }
-      });
-
       el.addEventListener('click', (e) => {
         if (this.specialReorderModeEnabled) {
-          if (!skipClick) this.stopReorderUI();
+          if (!el._toolSkipClick) this.stopReorderUI();
           e.stopPropagation();
         }
       }, true);

@@ -83,6 +83,13 @@ jobs:
       - name: End-to-end playback (Chromium)
         run: pnpm run test:e2e:chromium
 
+      # The only suite that installs the real built extension (moz-extension://
+      # origin, chrome.* APIs, a service worker) rather than testing the plain
+      # web build - MPV handoff, save-to-disk transport, and UI regressions
+      # like a save dialog silently becoming unclickable only show up here.
+      - name: End-to-end extension tests (Firefox)
+        run: pnpm run test:ext
+
       - name: Upload e2e failure logs
         if: failure()
         uses: actions/upload-artifact@v7

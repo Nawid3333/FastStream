@@ -578,8 +578,13 @@ importButton.addEventListener('click', () => {
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target.result;
-      const newOptionsObj = JSON.parse(text);
+      let newOptionsObj;
+      try {
+        newOptionsObj = JSON.parse(e.target.result);
+      } catch (err) {
+        alert('Failed to import settings: the selected file is not valid JSON.');
+        return;
+      }
       const newOptions = Utils.mergeOptions(DefaultOptions, newOptionsObj);
       const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
       const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});

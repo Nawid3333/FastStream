@@ -20,6 +20,7 @@
     "start:ff:clean": "web-ext run --source-dir=build_firefox_github --target=firefox-desktop",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "gen-locale": "node generate-locales.mjs",
     "combine-locales": "node localescript.mjs --combine",
     "split-locales": "node localescript.mjs --split",
@@ -50,6 +51,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@types/chrome": "^0.2.9",
+    "@vitest/coverage-v8": "^5.0.0",
     "@wdio/cli": "^9.31.6",
     "@wdio/globals": "^9.31.3",
     "@wdio/local-runner": "^9.31.6",

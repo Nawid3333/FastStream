@@ -52,10 +52,6 @@ export class URLUtils {
     return this.strip_queryhash(url).split('.').pop().trim().toLowerCase();
   }
 
-  static get_file_name(url) {
-    return this.strip_queryhash(url).split('/').pop().trim();
-  }
-
   static getModeFromExtension(ext) {
     return ModesMap.get(ext);
   }

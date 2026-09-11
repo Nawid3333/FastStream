@@ -46,11 +46,6 @@ let CustomSourcePatternsMatcher = new MultiRegexMatcher();
 
 const sponsorBlockBackend = new SponsorBlockIntegration();
 sponsorBlockBackend.setup();
-try {
-  sponsorBlockBackend.setup(self);
-} catch (e) {
-  console.error(e);
-}
 
 BackgroundUtils.openWelcomePageOnInstall();
 
@@ -474,6 +469,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           filename: filename,
           resolve: sendResponse,
         };
+        // If the player in this hidden tab never sends PLAYER_LOADED (blocked
+        // page, redirect failure, site error before injection), the tab and
+        // the caller's sendResponse would otherwise hang forever.
+        setTimeout(() => {
+          if (tab2.downloadInfo) {
+            tab2.downloadInfo.resolve(null);
+            tab2.downloadInfo = null;
+            chrome.tabs.remove(tabobj2.id).catch(() => {});
+          }
+        }, 30000);
       });
     } else {
       chrome.downloads.download({

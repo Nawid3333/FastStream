@@ -70,7 +70,9 @@ let server;
 
 export const config = {
   runner: 'local',
-  specs: [path.join(__dirname, 'ext-specs/**/*.e2e.mjs')],
+  specs: [
+    path.join(__dirname, 'ext-specs/**/*.e2e.mjs'),
+  ],
   maxInstances: 1,
 
   capabilities: [{

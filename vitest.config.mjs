@@ -8,5 +8,15 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/unit/**/*.test.mjs'],
     reporters: ['default'],
+    coverage: {
+      // No repo-wide threshold: most of chrome/player and chrome/background
+      // is DOM/browser-API-dependent and deliberately covered by the e2e
+      // suites instead (see the comment above), so a blanket percentage
+      // here would just be noise. This is for `pnpm run test:coverage` as
+      // a local, on-demand look at how thoroughly the pure-logic modules
+      // this suite actually imports are exercised.
+      provider: 'v8',
+      reporter: ['text', 'html'],
+    },
   },
 });

@@ -361,13 +361,6 @@ export class PreviewFrameExtractor extends EventEmitter {
     return doneRanges;
   }
 
-  getMarkerPosition() {
-    if (this.backgroundAnalyzerPlayer && this.backgroundAnalyzerStatus === AnalyzerStatus.RUNNING) {
-      return this.backgroundAnalyzerPlayer.currentTime;
-    }
-    return null;
-  }
-
   shouldRunAnalyzerInBackground() {
     if (!this.backgroundAnalyzerEnabled) {
       return false;

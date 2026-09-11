@@ -213,6 +213,7 @@ export class InterfaceController {
     this.updateToolVisibility();
     this.fineTimeControls.reset();
     this.playbackRateChanger.reset();
+    this.loopControls.reset();
   }
 
   failedToLoad(reason) {

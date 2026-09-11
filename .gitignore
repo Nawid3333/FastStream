@@ -32,3 +32,6 @@ logs/
 # addons-linter JSON dumps.
 lint-amo.json
 lint-*.json
+
+# vitest --coverage output.
+coverage/

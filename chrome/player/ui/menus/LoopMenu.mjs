@@ -21,6 +21,23 @@ export class LoopMenu extends EventEmitter {
     this.loopHandler = this.checkLoopLoop.bind(this);
   }
 
+  reset() {
+    if (this.gifLoopRunning) {
+      this.gifLoopRunning = false;
+      if (this.gif) {
+        this.gif.abort();
+        this.gif = null;
+      }
+      this.client.playbackRate = this.previousPlaybackRate;
+    }
+    this.recordingGif = false;
+    this.loopEnabled = false;
+    this.loopStart = null;
+    this.loopEnd = null;
+    this.loopLoopRunning = false;
+    this.updateLoopAndGif();
+  }
+
   currentTimeToTimecode(time) {
     const hours = Math.floor(time / 3600);
     const minutes = Math.floor(time / 60) % 60;
@@ -187,11 +204,13 @@ export class LoopMenu extends EventEmitter {
       this.toggleLoopButton.classList.remove('enabled');
     }
 
-    if (this.loopEnabled) {
-      player.getVideo().loop = true;
-      this.startLoopLoop();
-    } else {
-      player.getVideo().loop = false;
+    if (player) {
+      if (this.loopEnabled) {
+        player.getVideo().loop = true;
+        this.startLoopLoop();
+      } else {
+        player.getVideo().loop = false;
+      }
     }
   }
 
@@ -273,6 +292,11 @@ export class LoopMenu extends EventEmitter {
 
   gifLoop() {
     const player = this.client.player;
+    if (!player) {
+      this.gifLoopRunning = false;
+      this.recordingGif = false;
+      return;
+    }
     const currentTime = Math.floor(player.currentTime * 100) / 100;
     const loopStart = this.loopStart;
     let reachedEnd = false;

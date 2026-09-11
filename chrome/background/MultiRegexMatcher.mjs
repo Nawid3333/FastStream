@@ -52,24 +52,34 @@ export class MultiRegexMatcher {
       }
 
       const joinedRegexes = [];
-      const outputs = [];
+      const outputByGroupName = new Map();
+      let groupIndex = 0;
       regexesByOutput.forEach((regexes, output) => {
-        joinedRegexes.push('(' + regexes.join('|') + ')');
-        outputs.push(output);
+        // Named group, not a plain wrapping group: a raw regex with its own
+        // capturing group(s) would otherwise shift every later output's
+        // positional group index, silently misrouting the match to the
+        // wrong (or a nonexistent) output.
+        const groupName = 'o' + groupIndex++;
+        outputByGroupName.set(groupName, output);
+        joinedRegexes.push(`(?<${groupName}>${regexes.join('|')})`);
       });
 
       this.compiledRegexes.push({
         regex: new RegExp(joinedRegexes.join('|'), flags),
-        outputs,
+        outputByGroupName,
       });
     });
   }
 
   match(str) {
-    for (const {regex, outputs} of this.compiledRegexes) {
+    for (const {regex, outputByGroupName} of this.compiledRegexes) {
       const match = str.match(regex);
-      if (match) {
-        return outputs[match.findIndex((v, i) => i > 0 && v) - 1];
+      if (match?.groups) {
+        for (const groupName in match.groups) {
+          if (match.groups[groupName] !== undefined) {
+            return outputByGroupName.get(groupName);
+          }
+        }
       }
     }
     return null;

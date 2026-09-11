@@ -79,15 +79,29 @@ describe('match', () => {
     expect(m.match('https://e.com/a.m3u8')).toBeNull();
   });
 
-  it('resolves outputs positionally, so patterns must not add capture groups', () => {
-    // Documents a real constraint: match() maps the first non-empty capture
-    // group back to an output by index. A capturing group inside a caller's
-    // own pattern shifts that numbering. Use (?:...) in stored patterns.
-    const safe = build([
-      ['\\.(?:m3u8|m3u)', '', 'hls'],
-      ['\\.mpd', '', 'dash'],
+  it('still resolves the right output when a pattern has its own capturing group', () => {
+    // Regression test: match() used to map the first non-empty capture group
+    // back to an output by POSITION. A capturing group inside a caller's own
+    // pattern (e.g. a custom source pattern with (\d+) in it) shifted every
+    // later output's index, silently returning the wrong output - or
+    // undefined - for real, user-authored regexes. Named groups fixed this;
+    // patterns are no longer required to avoid capturing groups.
+    const m = build([
+      ['\\/video\\/(\\d+)\\.mp4', '', 'mp4'],
+      ['\\.m3u8', '', 'hls'],
     ]);
-    expect(safe.match('https://e.com/a.m3u8')).toBe('hls');
-    expect(safe.match('https://e.com/a.mpd')).toBe('dash');
+    expect(m.match('https://e.com/video/123.mp4')).toBe('mp4');
+    expect(m.match('https://e.com/master.m3u8')).toBe('hls');
+  });
+
+  it('resolves correctly regardless of capturing-group count or nesting', () => {
+    const m = build([
+      ['(a)(b)(c)', '', 'triple-group'],
+      ['\\.mpd', '', 'dash'],
+      ['x(y(z))', '', 'nested-group'],
+    ]);
+    expect(m.match('abc')).toBe('triple-group');
+    expect(m.match('manifest.mpd')).toBe('dash');
+    expect(m.match('xyz')).toBe('nested-group');
   });
 });

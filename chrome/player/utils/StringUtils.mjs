@@ -334,6 +334,6 @@ export class StringUtils {
       return '...' + ext.slice(0, maxExtLength);
     }
 
-    return name.slice(0, maxNameLength) + '...' + ext;
+    return name.slice(0, maxNameLength) + '...' + ext.slice(0, maxExtLength);
   }
 }

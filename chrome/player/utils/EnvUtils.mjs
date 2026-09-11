@@ -3,24 +3,6 @@
  */
 export class EnvUtils {
   /**
-   * Checks if the device has sufficient computational resources (CPU and RAM).
-   * @return {boolean} True if resources are sufficient, false otherwise.
-   */
-  static hasComputationalResources() {
-    // check cpu concurrency
-    if (navigator.hardwareConcurrency < 4) {
-      return false;
-    }
-
-    // check ram
-    if (navigator.deviceMemory !== undefined && navigator.deviceMemory < 8) {
-      return false;
-    }
-
-    return true;
-  }
-
-  /**
    * Checks if the browser is Chrome.
    * @return {boolean} True if Chrome, false otherwise.
    */

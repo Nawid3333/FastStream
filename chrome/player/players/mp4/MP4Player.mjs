@@ -235,16 +235,18 @@ export default class MP4Player extends EventEmitter {
         this.client.makeFragment(l, i, new MP4Fragment(l, i, this.source, i * FRAGMENT_SIZE, Math.min((i + 1) * FRAGMENT_SIZE, this.fileLength)));
       }
     }
-    const trak = this.mp4box.moov.traks.find((trak) => {
-      return trak.tkhd.track_id === info.videoTracks[this.currentVideoTrack].id;
-    });
-    const samples = trak.samples;
-    this.videoTracks.push({
-      trak,
-      track: info.videoTracks[l],
-      samples: samples,
-      sortedSamples: this.sortSamples(samples),
-    });
+    if (info.videoTracks[this.currentVideoTrack]) {
+      const trak = this.mp4box.moov.traks.find((trak) => {
+        return trak.tkhd.track_id === info.videoTracks[this.currentVideoTrack].id;
+      });
+      const samples = trak.samples;
+      this.videoTracks.push({
+        trak,
+        track: info.videoTracks[this.currentVideoTrack],
+        samples: samples,
+        sortedSamples: this.sortSamples(samples),
+      });
+    }
     //  }
 
     for (let l = 0; l < info.audioTracks.length; l++) {
@@ -593,7 +595,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   getVideoLevels() {
-    if (!this.metaData) return new Map();
+    if (!this.metaData || !this.metaData.videoTracks[0]) return new Map();
     const track = this.metaData.videoTracks[0];
     const result = new Map();
     const id = this.getCurrentVideoLevelID();
@@ -610,7 +612,7 @@ export default class MP4Player extends EventEmitter {
   }
 
   getAudioLevels() {
-    if (!this.metaData) return new Map();
+    if (!this.metaData || !this.metaData.audioTracks[0]) return new Map();
     const track = this.metaData.audioTracks[0];
     const result = new Map();
     const id = this.getCurrentAudioLevelID();
