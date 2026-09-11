@@ -36,9 +36,7 @@ export class FastStreamArchiveUtils {
     const headerPart = new ArrayBuffer(4 + header.byteLength);
     const headerView = new DataView(headerPart);
     headerView.setUint32(0, header.byteLength);
-    for (let i = 0; i < header.byteLength; i++) {
-      headerView.setUint8(i + 4, header[i]);
-    }
+    new Uint8Array(headerPart, 4).set(header);
 
     await writer.write(new Uint8Array(headerPart));
 
@@ -83,9 +81,7 @@ export class FastStreamArchiveUtils {
       const entryHeaderPart = new ArrayBuffer(4 + entryHeader.byteLength);
       const entryHeaderView = new DataView(entryHeaderPart);
       entryHeaderView.setUint32(0, entryHeader.byteLength);
-      for (let i = 0; i < entryHeader.byteLength; i++) {
-        entryHeaderView.setUint8(i + 4, entryHeader[i]);
-      }
+      new Uint8Array(entryHeaderPart, 4).set(entryHeader);
 
       await writer.write(new Uint8Array(entryHeaderPart));
       await writer.write(new Uint8Array(data));

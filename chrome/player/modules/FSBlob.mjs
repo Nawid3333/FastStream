@@ -117,16 +117,23 @@ export class FSBlob {
       return false;
     }
 
-    const response = new Response(blob);
     const identifierURL = this.getIdentifierURL(identifier);
 
-    await this.cache.put(identifierURL, response);
+    try {
+      await this.cache.put(identifierURL, new Response(blob));
 
-    const match = await this.cache.match(identifierURL);
+      const match = await this.cache.match(identifierURL);
+      const blobResponse = await match?.blob();
 
-    const blobResponse = await match?.blob();
-
-    this.blobStore.set(identifier, blobResponse);
+      this.blobStore.set(identifier, blobResponse);
+      return true;
+    } catch (e) {
+      // A single write failing (e.g. quota exceeded mid-session) doesn't
+      // mean the Cache API is broken for everything else - leave this.cache
+      // in place and just keep this one blob in memory instead.
+      console.warn('Cache write failed for this blob, keeping it in memory', e);
+      return false;
+    }
   }
 
   getIdentifierURL(identifier) {

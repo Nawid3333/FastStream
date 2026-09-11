@@ -524,21 +524,17 @@ optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder')
 
 optionsSearchBar.addEventListener('keyup', () => {
   if (optionsSearchBar.value == '') {
-    console.log('Reset search called from searchbar keyup');
     resetSearch();
   } else {
-    const searchVal = optionsSearchBar.value;
-    console.log(searchWithQuery(searchVal));
+    searchWithQuery(optionsSearchBar.value);
   }
 });
 
 optionsSearchBar.addEventListener('keydown', () => {
   if (optionsSearchBar.value == '') {
-    console.log('Reset search called from searchbar keydown');
     resetSearch();
   } else {
-    const searchVal = optionsSearchBar.value;
-    console.log(searchWithQuery(searchVal));
+    searchWithQuery(optionsSearchBar.value);
   }
 });
 

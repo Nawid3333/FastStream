@@ -77,14 +77,26 @@ export class RuleManager {
         requestHeaders: requestHeaderCommands,
       },
       condition: {
-        urlFilter: '||' + url.replace('https://', '').replace('http://', ''),
+        // Escape urlFilter's special characters (\ * ^ |) so a URL that
+        // happens to contain one is matched literally instead of being
+        // reinterpreted as a wildcard/anchor by declarativeNetRequest.
+        urlFilter: '||' + url.replace('https://', '').replace('http://', '').replace(/[\\*^|]/g, '\\$&'),
         tabIds: [tabId],
       },
     };
 
-    await chrome.declarativeNetRequest.updateSessionRules({
-      addRules: [ruleObj],
-    });
+    try {
+      await chrome.declarativeNetRequest.updateSessionRules({
+        addRules: [ruleObj],
+      });
+    } catch (e) {
+      // Roll back the optimistic insertion above so bookkeeping
+      // (getNextID/getInsertionIndex) doesn't think a rule exists that the
+      // browser never actually registered.
+      const rollbackIndex = this.rules.indexOf(rule);
+      if (rollbackIndex !== -1) this.rules.splice(rollbackIndex, 1);
+      throw e;
+    }
 
     this.startLoop();
     return rule;

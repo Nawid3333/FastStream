@@ -30,6 +30,13 @@ export class HLSDecrypter {
       this.encryptionWorker.terminate();
       this.encryptionWorker = null;
     }
+    // A terminated worker will never post back the results these are
+    // waiting on - settle them now instead of leaving decryptAES() callers
+    // hung forever on a fragment that will never finish.
+    if (this.encryptionWorkerCallbacks) {
+      this.encryptionWorkerCallbacks.forEach((callback) => callback(null));
+      this.encryptionWorkerCallbacks.clear();
+    }
     this.destroyed = true;
   }
 

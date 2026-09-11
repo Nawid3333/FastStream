@@ -340,42 +340,56 @@ export class MP4Merger extends EventEmitter {
   async convert(videoDuration, videoInitSegment, audioDuration, audioInitSegment, zippedFragments) {
     this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
 
-    let lastProgress = 0;
-    for (let i = 0; i < zippedFragments.length; i++) {
-      if (this.cancelled) {
-        this.destroy();
-        this.blobManager.close();
-        throw new Error('Cancelled');
+    try {
+      let lastProgress = 0;
+      for (let i = 0; i < zippedFragments.length; i++) {
+        if (this.cancelled) {
+          throw new Error('Cancelled');
+        }
+        if (zippedFragments[i].track === 0) {
+          await this.pushFragment(this.videoTrack, zippedFragments[i]);
+        } else {
+          await this.pushFragment(this.audioTrack, zippedFragments[i]);
+        }
+        const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
+        if (newProgress !== lastProgress) {
+          lastProgress = newProgress;
+          this.emit('progress', newProgress / 100);
+        }
       }
-      if (zippedFragments[i].track === 0) {
-        await this.pushFragment(this.videoTrack, zippedFragments[i]);
-      } else {
-        await this.pushFragment(this.audioTrack, zippedFragments[i]);
-      }
-      const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
-      if (newProgress !== lastProgress) {
-        lastProgress = newProgress;
-        this.emit('progress', newProgress / 100);
-      }
+
+      const blob = await this.finalize();
+      this.destroy();
+      return blob;
+    } catch (e) {
+      // A cancellation or a mux failure (bad fragment, mp4box parse error)
+      // both leave a live OPFS-backed blobManager behind if nothing closes
+      // it - unlike the success path, there's no result that still needs
+      // to read from it, so close it right away rather than deferring.
+      this.destroy(/* immediate */ true);
+      throw e;
     }
-
-    const blob = await this.finalize();
-    this.destroy();
-
-    return blob;
   }
 
-  destroy() {
+  destroy(immediate) {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
     this.videoTrack = null;
     this.audioTrack = null;
     this.prevFrag = null;
     this.datas = null;
     this.datasOffset = 0;
 
-    setTimeout(() => {
-      this.blobManager.close();
-      this.blobManager = null;
-    }, 120000);
+    const blobManager = this.blobManager;
+    this.blobManager = null;
+    if (blobManager) {
+      if (immediate) {
+        blobManager.close();
+      } else {
+        setTimeout(() => blobManager.close(), 120000);
+      }
+    }
   }
 }
 

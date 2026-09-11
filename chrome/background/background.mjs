@@ -404,6 +404,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       toRemove.parent.removeChildFrame(toRemove);
     }
 
+    // The frame is gone and will never send whatever "main loaded" event
+    // would otherwise resolve these - settle them now so a caller awaiting
+    // WAIT_UNTIL_MAIN_LOADED doesn't hang forever.
+    toRemove.loadedCallbacks.forEach((callback) => {
+      try {
+        callback(null);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+    toRemove.loadedCallbacks.clear();
+
     tab.removeFrame(toRemove.frameId);
   } else if (msg.type === MessageTypes.WAIT_UNTIL_MAIN_LOADED) {
     frame.loadedCallbacks.add(sendResponse);
