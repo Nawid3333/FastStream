@@ -1,5 +1,4 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
-import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
@@ -1448,11 +1447,6 @@ function openMpvWithSources(tab) {
 const webRequestPerms = ['requestHeaders'];
 const webRequestPerms2 = [];
 
-if (EnvUtils.isChrome()) {
-  webRequestPerms.push('extraHeaders');
-  webRequestPerms2.push('extraHeaders');
-}
-
 chrome.webRequest.onBeforeRequest.addListener((details) => {
   const tab = Tabs.getTabOrCreate(details.tabId);
   const frame = tab.getFrameOrCreate(details.frameId);
@@ -1565,14 +1559,6 @@ function deleteHeaderCache(details) {
 }
 
 ensureOptions();
-
-if (EnvUtils.isChrome()) {
-  chrome.action.setBadgeBackgroundColor(
-      {
-        color: [56, 114, 223, 255],
-      },
-  );
-}
 
 // Link to a form to report bugs
 // chrome.runtime.setUninstallURL('https://docs.google.com/forms/d/e/1FAIpQLSfldLYAi0xAW9tYKMcUsfYYk8KyOQDZlLFjqwwz1LajchpBvA/viewform?usp=sf_link');

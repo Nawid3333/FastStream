@@ -638,16 +638,8 @@ if (EnvUtils.isExtension()) {
     });
     ratebox.style.display = 'none';
 
-    let url;
-
-    if (EnvUtils.isChrome()) {
-      url = 'https://chromewebstore.google.com/u/1/detail/faststream-video-player/kkeakohpadmbldjaiggikmnldlfkdfog/reviews';
-    } else {
-      url = 'https://addons.mozilla.org/en-US/firefox/addon/faststream/reviews/';
-    }
-
     chrome?.tabs?.create({
-      url,
+      url: 'https://addons.mozilla.org/en-US/firefox/addon/faststream/reviews/',
     });
   });
 
