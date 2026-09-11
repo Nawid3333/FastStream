@@ -291,33 +291,12 @@ function insertLicense(buildDir) {
   fs.writeFileSync(newLicensePath, licenseText);
 }
 
-/**
- * Drops `temp/*` from web_accessible_resources.
- *
- * StreamSaverBackend builds those URLs from `self.registration.scope`, which
- * exists only in a service worker. Both Firefox targets run the background as
- * an event page, so `setup()` throws, the call site swallows it, and
- * `basePath` stays undefined - no `temp/` URL is ever produced. The entry
- * therefore exposes a directory to every site on the web in exchange for a
- * feature that cannot run, which is precisely the kind of thing an AMO
- * reviewer stops on.
- *
- * @param {object} manifest the parsed manifest, edited in place
- */
-function dropDeadTempResource(manifest) {
-  for (const entry of manifest.web_accessible_resources || []) {
-    entry.resources = entry.resources.filter((r) => r !== 'temp/*');
-  }
-}
-
 async function buildFirefoxGithub() {
   spliceAndCopy(chromeSourceDir, firefoxGithubBuildDir, ['EXTENSION', 'FIREFOX', 'NO_PROMO']);
   insertLicense(firefoxGithubBuildDir);
 
   const manifestPath = path.join(firefoxGithubBuildDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-
-  dropDeadTempResource(manifest);
 
   manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
 
@@ -382,8 +361,6 @@ async function buildFirefoxAmo() {
     scripts: ['background/background.mjs'],
     type: 'module',
   };
-
-  dropDeadTempResource(manifest);
 
   // 'cookies' stays: the DOWNLOAD handler in background.mjs reads
   // `sender.tab.cookieStoreId` and passes it to `tabs.create()` so a

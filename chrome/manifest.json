@@ -81,8 +81,7 @@
       "resources": [
         "player/index.html",
         "player/options/index.html",
-        "custom/instagram_inject.js",
-        "temp/*"
+        "custom/instagram_inject.js"
       ],
       "matches": [
         "<all_urls>"

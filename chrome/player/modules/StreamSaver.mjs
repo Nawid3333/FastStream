@@ -1,4 +1,3 @@
-import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {FSBlob} from './FSBlob.mjs';
 
@@ -7,39 +6,10 @@ export const streamSaver = {
   createWriteStream,
 };
 
-const useBlobFallback = !EnvUtils.isExtension() || navigator.serviceWorker === undefined;
-
-function getServiceWorker() {
-  return navigator.serviceWorker.getRegistration('./').then((swReg) => {
-    const swRegTmp = swReg.installing || swReg.waiting;
-
-    return swReg.active || new Promise((resolve) => {
-      swRegTmp.addEventListener('statechange', fn = () => {
-        if (swRegTmp.state === 'activated') {
-          swRegTmp.removeEventListener('statechange', fn);
-          sw = swReg.active;
-          resolve();
-        }
-      });
-    });
-  });
-};
-
-function makeIframe(src) {
-  if (!src) throw new Error('meh');
-  const iframe = document.createElement('iframe');
-  iframe.hidden = true;
-  iframe.src = src;
-  iframe.loaded = false;
-  iframe.name = 'iframe';
-  iframe.isIframe = true;
-  iframe.postMessage = (...args) => iframe.contentWindow.postMessage(...args);
-  iframe.addEventListener('load', () => {
-    iframe.loaded = true;
-  }, {once: true});
-  document.body.appendChild(iframe);
-  return iframe;
-}
+// Ensures two saves started in the same millisecond never share an OPFS
+// identifier - Math.random() alone left a real (if small) chance of two
+// concurrent saves colliding on one file and corrupting both.
+let saveCounter = 0;
 
 function createWriteStreamBlob(filename, opts, size) {
   // Firefox extension pages have no ServiceWorker (navigator.serviceWorker
@@ -60,7 +30,7 @@ function createWriteStreamBlob(filename, opts, size) {
     return createWriteStreamBlobMemory(filename, opts, size, blobManager);
   }
 
-  const identifier = 'save-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+  const identifier = 'save-' + Date.now() + '-' + (saveCounter++);
   const opfsWriterReady = opfs.saveBegin(identifier);
 
   return new WritableStream({
@@ -137,72 +107,24 @@ function createWriteStreamBlobMemory(filename, opts, size, blobManager) {
 }
 
 /**
-     * @param  {string} filename filename that should be used
-     * @param  {object} options  [description]
-     * @param  {number} size     deprecated
-     * @return {WritableStream<Uint8Array>}
-     */
+ * Creates a WritableStream that saves its input to disk.
+ *
+ * This used to branch on a MessageChannel/ServiceWorker "streaming"
+ * transport, borrowed from streamsaver.js. That transport requires a
+ * ServiceWorker in the same page, which no current build target has -
+ * Firefox extension pages don't expose one (navigator.serviceWorker is
+ * undefined on moz-extension://) and neither does a plain web page (no
+ * `chrome.extension` for EnvUtils.isExtension() to find). It had already
+ * been dead code since 9ef061b1 moved every streamed save onto the OPFS
+ * blob fallback below; removed rather than fixed the ReferenceErrors
+ * (`fn`/`sw` were never declared) it had picked up along the way, since
+ * nothing could reach them to notice.
+ *
+ * @param  {string} filename filename that should be used
+ * @param  {object} options  [description]
+ * @param  {number} size     deprecated
+ * @return {WritableStream<Uint8Array>}
+ */
 function createWriteStream(filename, options, size) {
-  const opts = options || {};
-  if (useBlobFallback) {
-    return createWriteStreamBlob(filename, opts, size);
-  }
-
-  let channel = null;
-  let ts = null;
-
-  channel = new MessageChannel();
-
-  // Make filename RFC5987 compatible
-  filename = encodeURIComponent(filename.replace(/\//g, ':'))
-      .replace(/['()]/g, escape)
-      .replace(/\*/g, '%2A');
-
-  const response = {
-    filename: filename,
-    headers: {
-      'Content-Type': 'application/octet-stream',
-      'Content-Disposition': 'attachment; filename*=UTF-8\'\'' + filename,
-    },
-  };
-
-  if (opts.size) {
-    response.headers['Content-Length'] = opts.size;
-  }
-
-  const args = [response, [channel.port2]];
-
-  const transformer = undefined;
-  ts = new TransformStream(
-      transformer,
-      opts.writableStrategy,
-      opts.readableStrategy,
-  );
-  const readableStream = ts.readable;
-
-  channel.port1.postMessage({readableStream}, [readableStream]);
-
-
-  channel.port1.onmessage = (evt) => {
-    // Service worker sent us a link that we should open.
-    if (evt.data.download) {
-      makeIframe(evt.data.download);
-    } else if (evt.data.abort) {
-      channel.port1.postMessage('abort'); // send back so controller is aborted
-      channel.port1.onmessage = null;
-      channel.port1.close();
-      channel.port2.close();
-      channel = null;
-    } else if (evt.data.close) {
-      channel.port1.onmessage = null;
-      channel.port1.close();
-      channel.port2.close();
-      channel = null;
-    }
-  };
-
-  getServiceWorker().then((sw)=>{
-    sw.postMessage(...args);
-  });
-  return ts.writable;
+  return createWriteStreamBlob(filename, options || {}, size);
 }

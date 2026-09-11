@@ -8,7 +8,6 @@ import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
-import {StreamSaverBackend} from './StreamSaverBackend.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 
@@ -1566,13 +1565,6 @@ function deleteHeaderCache(details) {
 }
 
 ensureOptions();
-
-const streamSaverBackend = new StreamSaverBackend();
-try {
-  streamSaverBackend.setup(self);
-} catch (e) {
-
-}
 
 if (EnvUtils.isChrome()) {
   chrome.action.setBadgeBackgroundColor(
