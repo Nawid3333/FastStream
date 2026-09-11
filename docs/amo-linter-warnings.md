@@ -1,9 +1,10 @@
 # The addons-linter warnings, one by one
 
 `pnpm run lint:amo` reports **0 errors, 0 notices, 3 warnings** against
-`build_firefox_amo`, verified 2026-09-10. Every one of the 3 warnings is
-listed here with what it is and why the file has not been changed to
-silence it.
+`build_firefox_amo`, verified 2026-09-11 (re-verified after the Coloris
+0.21.1→0.25.0 re-port; the count and the specific 3 remaining warnings are
+unchanged). Every one of the 3 warnings is listed here with what it is and
+why the file has not been changed to silence it.
 
 **The script passes `--self-hosted`.** Without it, addons-linter reports a
 `MANIFEST_UPDATE_URL` error on `browser_specific_settings.gecko.update_url`
@@ -36,9 +37,9 @@ worth the audit cost, explain the rest.
 |---|---|---|
 | `UNSAFE_VAR_ASSIGNMENT` | `player/players/PlayerLoader.mjs` | `import(this.players[mode])` over a path registry became a `switch` with literal specifiers |
 | `UNSUPPORTED_API` | `player/modules/gif/gif.mjs` line 26 | renamed a function-scoped variable that happened to be called `browser` (see below) |
-| `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 143, 152, 164, 180, 181 | `innerHTML` → `textContent` for four static-label writes (see below) |
-| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 116 | the swatch-list builder rewritten to `createElement`/`setAttribute`/`textContent` (see below) |
-| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 810 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 174, 185, 199, 218, 219 | `innerHTML` → `textContent` for four static-label writes (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` (swatch-list builder) | fixed upstream itself as of 0.25.0 - no longer in our patch at all (see below) |
+| `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
 | `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below) |
 
 **gif.js's `UNSUPPORTED_API` was a scope-blind false positive, not a
@@ -63,7 +64,7 @@ Coloris's own built-in defaults — confirmed by checking
 `focusInput`, never `clearLabel`, `closeLabel`, or `a11y`. `textContent` is an
 exact behavioural match for plain-text labels and strictly safer if a future
 caller ever does pass something dynamic through them. Patched in
-`patches/Coloris@0.21.1.patch`.
+`patches/Coloris@0.25.0.patch`.
 
 Making this patch caught a real mistake: recreating it via a second `pnpm
 patch`/`pnpm patch-commit` cycle from a **pristine** copy silently dropped the
@@ -90,17 +91,23 @@ the same unreachability as before, with the AST pattern the linter flags
 removed and the reason made explicit for anyone who goes looking.
 
 **The swatch list needed real DOM construction, not a property swap, and got
-it.** The original built one `<button>` per configured swatch color by string
-concatenation — `swatch` (a literal like `'rgb(255,255,255)'`) landed in both
-the `style="color: ..."` attribute and the button's text — then joined and
-assigned the lot to `innerHTML`. `textContent` cannot replace this the way it
-could for the five label sites, since the assignment is real markup, not
-text. Rewritten instead to build each button with `createElement`,
-`setAttribute` for `type`/`id`/`aria-labelledby`, direct `.style.color`
-assignment (which the CSSOM validates rather than parses as markup), and
-`.textContent` for the visible label, replacing the wrapper's children with
-`replaceChildren` instead of an `innerHTML` join. Patched in
-`patches/Coloris@0.21.1.patch`.
+it — originally from us, now from upstream itself.** The 0.21.1 base built one
+`<button>` per configured swatch color by string concatenation — `swatch` (a
+literal like `'rgb(255,255,255)'`) landed in both the `style="color: ..."`
+attribute and the button's text — then joined and assigned the lot to
+`innerHTML`. `textContent` couldn't replace this the way it could for the
+five label sites, since the assignment was real markup, not text, so
+`patches/Coloris@0.21.1.patch` rewrote it to build each button with
+`createElement`/`setAttribute`/`.style.color`/`.textContent`, replacing the
+wrapper's children with `replaceChildren` instead of an `innerHTML` join.
+
+That hunk is **gone as of the 0.25.0 re-port (2026-09-11)**, not because it
+stopped mattering but because upstream independently rewrote the same
+function the same way between 0.21.1 and 0.25.0 - `createElement` +
+`setAttribute` + `.textContent` + `.appendChild`, no `innerHTML` anywhere.
+Confirmed by diffing upstream 0.21.1 against 0.25.0 directly and by the
+unchanged 0-warning, 3-warning lint:amo result after the re-port.
+`patches/Coloris@0.25.0.patch` no longer touches this function at all.
 
 `tests/e2e/specs/modules.e2e.mjs`'s colour-picker test was extended to check
 this directly — it now asserts all 6 of FastStream's configured swatches
@@ -116,7 +123,8 @@ plus one `picker.append(...)` call laying out the same tree: the colour-value
 input, the colour area and its marker, the hue and alpha sliders and their
 markers, the format fieldset with its three radio/label pairs, the swatches
 container, the clear and close buttons, and the two hidden a11y label spans.
-Patched in `patches/Coloris@0.21.1.patch`.
+Patched in `patches/Coloris@0.25.0.patch` (carried forward unchanged through
+the 0.25.0 re-port - upstream never touched this part of `init()`).
 
 A rewrite this size got more than a rebuild-and-eyeball check.
 `tests/e2e/specs/modules.e2e.mjs`'s colour-picker test now asserts, against

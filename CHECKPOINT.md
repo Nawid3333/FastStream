@@ -120,7 +120,7 @@ That satisfies what AMO actually wants — a hash-verifiable upstream base and a
 
 Full analysis: `Faststream version 4/docs/vendored-libraries.md`
 Historical raw diff: `Faststream version 4/docs/hls.js-1.6.9-faststream.patch`
-(current patch: `patches/hls.js@1.7.2.patch`)
+(current patch: `patches/hls.js@1.7.3.patch`)
 
 ---
 
@@ -238,10 +238,10 @@ CSP). The position is deliberate — editing generated files to silence
 advisory warnings would weaken the provenance story that got this far.
 
 **Every JS library is now generated from a pinned, hash-verifiable base:**
-hls.js 1.7.2 (+ worker, + 62-line patch), dashjs 5.1.0 (patch), pako 3.0.1,
+hls.js 1.7.3 (+ worker, + 62-line patch), dashjs 5.1.0 (patch), pako 3.0.1,
 fuse.js 7.5.0, sortablejs 1.15.7, sweetalert2 11.26.25 (patch), mp4box
 0.5.3 (five-change patch), mp4-muxer 4.3.3, gif.js 0.2.0 (patch), jswebm
-0.1.2 (patch), Coloris 0.21.1 (git-pinned commit + patch), and
+0.1.2 (patch), Coloris 0.25.0 (git-pinned commit + patch), and
 onnxruntime-web 1.20.0's unminified loader.
 
 **Still vendored, each with a re-runnable provenance check:** vtt.js
@@ -272,6 +272,25 @@ package deprecated upstream in favor of Mediabunny). onnxruntime-web 1.29.0
 is **not** upgradeable alone — the shipped wasm is a custom reduced build
 paired with the 1.20.0 loader. 5.1.0 / 0.5.3 / 4.3.3 / 1.20.0 stay pinned.
 
+**Library upgrades done (2026-09-11).** Checked every pinned version against
+npm/GitHub: pako, fuse.js, sortablejs, sweetalert2, gif.js and jswebm were
+already current; the shelved four above were re-checked and are still
+correctly shelved (no new evidence since 2026-09-07). Two real candidates
+were found and executed:
+- **hls.js 1.7.2 → 1.7.3** — the existing patch applied unmodified against a
+  pristine 1.7.3 tarball (`git apply --check`, then a real `pnpm patch`/
+  `patch-commit` rebase). See "hls.js migration" above.
+- **Coloris 0.21.1 → 0.25.0** — a real re-port, not a rebase; upstream
+  restructured the exact functions the patch customizes. See
+  `docs/vendored-libraries.md`'s "Re-ported to 0.25.0" section for the full
+  breakdown (what changed, what upstream now does for us, what didn't need
+  touching at all).
+
+Both re-verified with the full suite: lint, typecheck, 144 unit tests, a
+full build, both addons-linter gates (unchanged), and real e2e playback
+(HLS specifically for hls.js; the colour-picker test on both Firefox and
+Chromium/Edge for Coloris).
+
 ---
 
 ## Open decisions
@@ -292,11 +311,11 @@ paired with the 1.20.0 loader. 5.1.0 / 0.5.3 / 4.3.3 / 1.20.0 stay pinned.
 
 ---
 
-## hls.js migration — complete (both steps)
+## hls.js migration — complete (three steps)
 
 `chrome/player/modules/hls.mjs` is no longer in git. It is generated at build
-time by `tools/sync-vendor.mjs` from `hls.js@1.7.2` on npm plus
-`patches/hls.js@1.7.2.patch`.
+time by `tools/sync-vendor.mjs` from `hls.js@1.7.3` on npm plus
+`patches/hls.js@1.7.3.patch`.
 
 - **Before:** 1.3 MB file, `const version = undefined`, no provenance.
 - **After:** hash-verifiable npm base + a **4-hunk, 62-line patch** (down from
@@ -309,6 +328,15 @@ passed via hls.js's public `abrController` config option, and what remains
 is only the extra demuxer exports, `outputSamples` on the remux result, and
 the upstream-issue-#7460 subtitle part-loading guard. Verified by lint,
 typecheck, unit tests, both lints, and real e2e playback of HLS.
+
+Step 3 is done (2026-09-11): bumped to 1.7.3. `git apply --check` against a
+pristine 1.7.3 tarball took the 1.7.2 patch completely unmodified (`pnpm
+patch`/`patch-commit` rebased it clean), so nothing in the patch itself
+changed — only `hls.js@1.7.2` → `hls.js@1.7.3` in `package.json` and
+`pnpm-workspace.yaml`'s `patchedDependencies`. Re-verified the same way:
+lint, typecheck, 144 unit tests, both addons-linter gates, and real e2e HLS
+playback (`playback.e2e.mjs`) plus the HLS save/mux path
+(`save-video.e2e.mjs`), on both the web build and the installed extension.
 
 **Next step if revisited:** offer the export change upstream — "please
 export the demuxers" would shrink the patch to 3 hunks.
@@ -448,9 +476,10 @@ survival inside a real kill-on-close job object.
 3. ~~Send the upstream PRs (Phase 10)~~ — **done 2026-09-07**: #548
    (Windows, pre-existing), #549 (permissions, pre-existing), #550
    (`.gitattributes`), #551 (vendor recipes). Follow-ups posted on #547
-   (PR index) and #546 (hls.js 1.7.2 recipe, where it was requested).
+   (PR index) and #546 (hls.js 1.7.2 recipe, where it was requested — the
+   fork has since moved on to 1.7.3, see "hls.js migration" below).
    If Andrew responds, the most likely next PR is a ready-to-merge hls.js
-   1.7.2 bump off a fresh `pr/*` branch.
+   1.7.3 bump off a fresh `pr/*` branch.
 4. ~~Close the last unverified-feature gap: Chrome e2e.~~ **Moot 2026-09-11**:
    Chrome is no longer a build target at all (Nawid only uses this fork on
    Firefox) — `chrome-github`/`chrome-webstore` were removed from

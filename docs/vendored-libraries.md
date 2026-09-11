@@ -12,11 +12,16 @@ copy, and take the smallest diff as the base version. Reproduce with
 
 ## hls.js
 
-**Base version: 1.7.2** (upgraded 2026-09-06 from 1.6.9). `patches/hls.js@1.7.2.patch`
-is now **4 hunks, 62 lines** — down from the original 22 hunks / 466 lines
-against 1.6.9. The reduction plan below (originally written against a
-1.7.1 target) was carried out one version further, re-verifying every claim
-against the actual 1.7.2 npm release rather than trusting the old table.
+**Base version: 1.7.3** (bumped 2026-09-11 from 1.7.2, which was itself
+upgraded 2026-09-06 from 1.6.9). The 1.7.2→1.7.3 bump changed nothing the
+patch touches: `git apply --check` against a pristine 1.7.3 tarball took the
+1.7.2 patch unmodified (same hunk content, only the surrounding line numbers
+shifted by a couple of lines), confirmed by `pnpm patch`/`patch-commit`
+rebasing it clean. Still **4 hunks, 62 lines** — down from the original 22
+hunks / 466 lines against 1.6.9. The reduction plan below (originally
+written against a 1.7.1 target) was carried out one version further at the
+1.7.2 step, re-verifying every claim against the actual 1.7.2 npm release
+rather than trusting the old table; nothing in it changed at 1.7.3.
 
 ### What's still patched
 
@@ -99,7 +104,7 @@ human-sized diff:
 
 - before this project existed: a 1.3 MB file with no stated version and no
   provenance
-- now: `hls.js@1.7.2` from npm, hash-verifiable, plus a 62-line patch a
+- now: `hls.js@1.7.3` from npm, hash-verifiable, plus a 62-line patch a
   reviewer reads in a couple of minutes
 
 Next step if this is revisited again: offer the export change upstream.
@@ -963,10 +968,10 @@ Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538eda
 That is the same guarantee a registry version gives a reviewer: a fixed
 artifact they can fetch and hash themselves.
 
-FastStream's changes are in `patches/Coloris@0.21.1.patch`, 11 KB (grew from
-9 KB after the `textContent` changes described below), and they
-are not the cosmetic rebinding the earlier note described. They are three
-features:
+FastStream's changes are in `patches/Coloris@0.25.0.patch`, 14 KB (was 11 KB
+against the 0.21.1 base - see the 0.25.0 re-port note below for why the size
+moved), and they are not the cosmetic rebinding the earlier note described.
+They are three features:
 
 | Change | What it is |
 |---|---|
@@ -1044,6 +1049,79 @@ rerunning the exact tests that had failed.
 What the migration changes is the thing that actually got the add-on
 refused: a reviewer can now fetch a pinned commit, hash it, and read a 9 KB
 diff, instead of being asked to trust 40 KB of unattributed JavaScript.
+
+**Note (2026-09-11):** the swatch-list paragraph above ("left as they are
+rather than rewritten") describes an earlier state. The picker's ~40-element
+skeleton was later rewritten with a `mk(tag, attrs, children)` helper, and
+(as of the 0.25.0 re-port just below) the swatch list no longer needs
+rewriting by us at all - upstream did it independently. The accurate current
+state of every addons-linter-relevant Coloris change is in
+`docs/amo-linter-warnings.md`, not this paragraph.
+
+#### Re-ported to 0.25.0 (2026-09-11)
+
+Base moved from 0.21.1 to 0.25.0 (4 releases). This was not a rebase: the old
+patch failed `git apply --check` outright against a pristine 0.25.0 tarball,
+because upstream restructured exactly the functions the patch customizes -
+`bindFields` split into `bindFields` + `openPicker`, `wrapFields` into
+`wrapFields` + `wrapColorField` + `updateColorPreview`. Diffing upstream
+0.21.1 against 0.25.0 directly (not assumed from the failed patch) showed
+123 additions / 66 deletions in `dist/coloris.js`, concentrated in those same
+functions.
+
+Every behavioural change from `patches/Coloris@0.21.1.patch` was re-applied
+by hand against the restructured 0.25.0 source, function by function, not
+by re-running old line-numbered hunks:
+
+- **Container scoping** (`document` → `container` at every call site,
+  `container.ownerDocument` where a real `Document` is needed) - re-applied
+  to both halves of the split functions and to `init()`'s listener setup.
+- **`init()` moved into `configure`'s `case 'parent'`**, `DOMReady(init)`
+  disabled - unchanged, upstream never touched this.
+- **The `mk()`-based picker skeleton** - unchanged, upstream never touched
+  this part of `init()` either.
+- **`bindElement(element)`** - simplified, not just re-applied. Upstream's
+  split gave `openPicker`/`updateColorPreview` top-level names, so
+  `bindElement` shrank from duplicating their bodies (~45 lines in the old
+  patch) to two `addListener` calls reusing the same functions bindFields'
+  new array branch now also uses.
+- **The swatch-list `innerHTML` rewrite - dropped, not ported.** Upstream's
+  own 0.25.0 `swatches` handler already builds each button with
+  `createElement`/`setAttribute`/`.textContent` and never touches
+  `innerHTML`, functionally equivalent to what the old patch hand-added.
+  Confirmed by reading the actual upstream diff, not assumed from the
+  smaller patch size. See `docs/amo-linter-warnings.md` for the full
+  before/after.
+- **Keyboard handling** (hue/alpha slider arrow keys, `stopPropagation` on
+  trapped keys) - re-applied at their new positions. Upstream added its own
+  new Escape/Enter early-returns in the same `keydown` handler in this
+  window; they don't overlap with FastStream's Tab-trap `stopPropagation`
+  additions (different branches of the same `if`/`else if` chain) and were
+  left untouched.
+- **Capture-phase delegated listeners** (`addListener`'s third `true` arg)
+  and **`getEl` via `container.ownerDocument`** - unchanged, upstream didn't
+  touch `addListener` or `getEl`.
+
+**A surprise discovery, not assumed:** `updatePickerPosition` already reads
+as container-aware in 0.25.0's *stock* source - upstream added native
+support for a custom `parent` element (with a `container.clientWidth`/
+`clientHeight`/`scrollTop`-relative branch) somewhere in this window,
+independently of FastStream's patch. That's exactly the capability
+FastStream's whole patch exists to retrofit. This function needed **no
+changes at all** in the re-port - verified by leaving it untouched and
+letting the e2e suite prove the picker still positions correctly inside
+`.mainplayer`.
+
+**Verified**: `git apply --check` proved the *old* patch doesn't apply (the
+actual trigger for doing this work); the *new* one was built with
+`pnpm patch Coloris@0.25.0` / `pnpm patch-commit` against a pristine copy
+(not the already-patched one - see the "caught doing real damage" paragraph
+above for why that distinction matters), then lint, typecheck, all 144 unit
+tests, a full build, both addons-linter gates (unchanged: 0 errors, 3
+warnings), and real e2e - `modules.e2e.mjs`'s colour-picker test on both
+Firefox and Chromium/Edge (confirms `parent` resolves to `.mainplayer`,
+swatches render, hue slider positions correctly), plus the full extension
+e2e suite (8 spec files) on Firefox.
 
 ### sweetalert2 ships a payload that must stay removed
 
