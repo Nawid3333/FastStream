@@ -32,6 +32,12 @@ export class FSBlob {
         this.indexedDBManager = new IndexedDBManager();
         this.setupPromise = this.indexedDBManager.setup();
       }
+      // setupPromise is always awaited before any save/delete/clear call,
+      // so real failures are already handled there. This second, silent
+      // .catch() only exists to stop an instance that never gets used
+      // (constructed, then the tab/player closes before anything awaits
+      // it) from surfacing as an unhandled promise rejection.
+      this.setupPromise?.catch?.(() => {});
     } catch (e) {
       console.warn('FSBlob setup failed, falling back to memory storage', e);
       this.opfsManager = null;
@@ -59,8 +65,11 @@ export class FSBlob {
       await this.setupPromise;
     } catch (e) {
       // OPFS setup itself failed (unsupported/quota denied) - disable it
-      // for the rest of this session, same as the other backends.
+      // for the rest of this session, same as the other backends. A worker
+      // may already have been spawned before 'init' failed; close() tears
+      // it down rather than leaving it running unreferenced.
       console.warn('OPFS is not supported, falling back to memory storage');
+      this.opfsManager?.close();
       this.opfsManager = null;
       this.setupPromise = false;
       this.blobStorePromises.clear();
@@ -92,18 +101,27 @@ export class FSBlob {
       this.blobStorePromises.clear();
       return false;
     }
-    // Store file
-    await this.indexedDBManager.setFile(identifier, blob);
-    // Get file
-    const file = await this.indexedDBManager.getFile(identifier);
+    try {
+      // Store file
+      await this.indexedDBManager.setFile(identifier, blob);
+      // Get file
+      const file = await this.indexedDBManager.getFile(identifier);
 
-    if (EnvUtils.isFirefox()) {
-      // Delete file to orphan it
-      await this.indexedDBManager.deleteFile(identifier);
+      if (EnvUtils.isFirefox()) {
+        // Delete file to orphan it
+        await this.indexedDBManager.deleteFile(identifier);
+      }
+
+      this.blobStore.set(identifier, file);
+      return true;
+    } catch (e) {
+      // A single write failing (e.g. quota exceeded mid-session) doesn't
+      // mean IndexedDB is broken for everything else - leave
+      // indexedDBManager in place and just keep this one blob in memory
+      // instead, same as the OPFS/Cache backends already do.
+      console.warn('IndexedDB write failed for this blob, keeping it in memory', e);
+      return false;
     }
-
-    this.blobStore.set(identifier, file);
-    return true;
   }
 
   async saveBlobUsingCache(identifier, blob) {
@@ -124,6 +142,15 @@ export class FSBlob {
 
       const match = await this.cache.match(identifierURL);
       const blobResponse = await match?.blob();
+
+      if (!blobResponse) {
+        // put() resolved but match() came back empty (eviction under quota
+        // pressure, or some other Cache API surprise) - leave the original
+        // in-memory blob in blobStore alone rather than overwrite it with
+        // undefined and silently lose the data.
+        console.warn('Cache write could not be verified for this blob, keeping it in memory');
+        return false;
+      }
 
       this.blobStore.set(identifier, blobResponse);
       return true;

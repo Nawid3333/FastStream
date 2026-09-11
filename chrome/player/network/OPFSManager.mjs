@@ -87,16 +87,33 @@ export class OPFSManager {
     return fileHandle.getFile();
   }
 
-  /** Fails every still-pending call rather than leaving callers hanging if the worker itself crashes. */
+  /**
+   * Fails every still-pending call rather than leaving callers hanging if
+   * the worker itself crashes, and terminates + drops the worker reference
+   * so every *later* call fails fast too instead of posting into a worker
+   * that fired 'error' but may still be technically alive (a crash doesn't
+   * always mean the worker stopped running) and never replies.
+   */
   handleWorkerCrash(event) {
     const error = new Error(event.message || 'OPFS worker crashed');
     for (const {reject} of this.pending.values()) {
       reject(error);
     }
     this.pending.clear();
+    if (this.worker) {
+      try {
+        this.worker.terminate();
+      } catch (e) {
+        // Already gone.
+      }
+    }
+    this.worker = null;
   }
 
   call(op, payload, transfer) {
+    if (!this.worker) {
+      return Promise.reject(new Error('OPFS worker is not available'));
+    }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, {resolve, reject});
@@ -125,11 +142,20 @@ export class OPFSManager {
   async close() {
     if (!this.worker) return;
     try {
-      await this.call('destroy');
+      // Bounded: 'destroy' only clears in-memory state and closes a couple
+      // of sync access handles, so it should be fast. A worker wedged on
+      // something else (e.g. blocked file I/O) must not be able to stop
+      // close() from ever reaching terminate() below.
+      await Promise.race([
+        this.call('destroy'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('OPFS destroy timed out')), 3000)),
+      ]);
     } catch (e) {
-      // Best-effort - the worker may already be unresponsive.
+      // Best-effort - the worker may already be unresponsive or too slow.
     }
-    this.worker.terminate();
+    if (this.worker) {
+      this.worker.terminate();
+    }
     this.worker = null;
     for (const {reject} of this.pending.values()) {
       reject(new Error('OPFSManager closed'));

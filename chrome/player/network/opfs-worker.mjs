@@ -17,6 +17,7 @@ let fsBlobRoot = null;
 let sessionDir = null;
 let sessionName = null;
 let heartbeatInterval = null;
+let heartbeatInFlight = false;
 
 // Open save-streams: identifier -> {handle, offset}. A save writes one
 // whole output file progressively (see StreamSaver.mjs / mp4merger.mjs);
@@ -94,7 +95,20 @@ async function init() {
   sessionDir = await fsBlobRoot.getDirectoryHandle(sessionName, {create: true});
   await writeHeartbeat();
   heartbeatInterval = setInterval(() => {
-    queue.push(() => writeHeartbeat()).catch(() => {});
+    // Deliberately NOT queue.push()'d: the heartbeat only ever touches
+    // META_FILE, a different path from every other op here, so it can't
+    // collide with an in-progress sync access handle the way two ops on the
+    // same identifier would. Going through the shared queue let one big
+    // get/set or a long saveAppend burst starve the heartbeat past
+    // STALE_MS and get this session's directory deleted by a sibling tab's
+    // prune() while it was still alive, just busy. heartbeatInFlight only
+    // guards against a heartbeat write itself running long enough to
+    // overlap the next tick.
+    if (heartbeatInFlight) return;
+    heartbeatInFlight = true;
+    writeHeartbeat().catch(() => {}).finally(() => {
+      heartbeatInFlight = false;
+    });
   }, HEARTBEAT_MS);
 }
 
