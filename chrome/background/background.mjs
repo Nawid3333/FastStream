@@ -1521,6 +1521,15 @@ chrome.webRequest.onHeadersReceived.addListener(
       initiatorBlacklist.some((a) => {
         return details.initiator.startsWith(a);
       })) {
+        // Only JSON responses from these sites are worth inspecting further
+        // (manifests); everything else on facebook/instagram/vimeo is noise
+        // that should never reach source detection. A prior refactor
+        // (upstream 90a7af55) left this branch's body empty, silently
+        // disabling the exclusion entirely - restored to the original
+        // behavior.
+        if (ext !== 'json') {
+          return;
+        }
       }
 
       const output = CustomSourcePatternsMatcher.match(url);
