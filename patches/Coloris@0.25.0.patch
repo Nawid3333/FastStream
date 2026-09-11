@@ -1,7 +1,7 @@
 diff --git a/dist/coloris.js b/dist/coloris.js
-index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b230bd2cd 100644
+index edad1c83ba663cd2651a26ef82e7116c1c82bf40..53014adf02d1d9e1a2d32feac2dbdea3ff7cf346 100644
 --- a/dist/coloris.js
-+++ b/dist/coloris.js
++++ b/dist/coloris.js	
 @@ -66,15 +66,10 @@
  
      for (var key in options) {
@@ -13,36 +13,13 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
 -          }
 -          break;
          case 'parent':
-           container = document.querySelector(options.parent);
+           container = options.parent instanceof HTMLElement ? options.parent : document.querySelector(options.parent);
            if (container) {
 +            init();
              container.appendChild(picker);
              settings.parent = options.parent;
  
-@@ -125,13 +120,19 @@
-           break;
-         case 'swatches':
-           if (Array.isArray(options.swatches)) {(function () {
--              var swatches = [];
-+              var swatchesWrap = document.createElement('div');
- 
-               options.swatches.forEach(function (swatch, i) {
--                swatches.push("<button type=\"button\" id=\"clr-swatch-" + i + "\" aria-labelledby=\"clr-swatch-label clr-swatch-" + i + "\" style=\"color: " + swatch + ";\">" + swatch + "</button>");
-+                var swatchButton = document.createElement('button');
-+                swatchButton.setAttribute('type', 'button');
-+                swatchButton.setAttribute('id', 'clr-swatch-' + i);
-+                swatchButton.setAttribute('aria-labelledby', 'clr-swatch-label clr-swatch-' + i);
-+                swatchButton.style.color = swatch;
-+                swatchButton.textContent = swatch;
-+                swatchesWrap.appendChild(swatchButton);
-               });
- 
--              getEl('clr-swatches').innerHTML = swatches.length ? "<div>" + swatches.join('') + "</div>" : '';
-+              getEl('clr-swatches').replaceChildren.apply(getEl('clr-swatches'), swatchesWrap.childElementCount ? [swatchesWrap] : []);
-               settings.swatches = options.swatches.slice();})();
-           }
-           break;
-@@ -160,7 +161,7 @@
+@@ -177,7 +172,7 @@
            if (typeof options.clearButton === 'object') {
              if (options.clearButton.label) {
                settings.clearLabel = options.clearButton.label;
@@ -51,7 +28,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
              }
  
              options.clearButton = options.clearButton.show;
-@@ -171,7 +172,7 @@
+@@ -188,7 +183,7 @@
            break;
          case 'clearLabel':
            settings.clearLabel = options.clearLabel;
@@ -60,7 +37,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
            break;
          case 'closeButton':
            settings.closeButton = !!options.closeButton;
-@@ -185,7 +186,7 @@
+@@ -202,7 +197,7 @@
            break;
          case 'closeLabel':
            settings.closeLabel = options.closeLabel;
@@ -69,7 +46,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
            break;
          case 'a11y':
            var labels = options.a11y;
-@@ -204,8 +205,8 @@
+@@ -221,8 +216,8 @@
              var openLabel = getEl('clr-open-label');
              var swatchLabel = getEl('clr-swatch-label');
  
@@ -80,103 +57,41 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
              closeButton.setAttribute('aria-label', settings.a11y.close);
              clearButton.setAttribute('aria-label', settings.a11y.clear);
              hueSlider.setAttribute('aria-label', settings.a11y.hueSlider);
-@@ -298,7 +299,7 @@
-    */
-   function bindFields(selector) {
-     // Show the color picker on click on the input fields that match the selector
--    addListener(document, 'click', selector, function (event) {
-+    addListener(container, 'click', selector, function (event) {
-       // Skip if inline mode is in use
-       if (settings.inline) {
-         return;
-@@ -334,7 +335,7 @@
-     });
- 
-     // Update the color preview of the input fields that match the selector
--    addListener(document, 'input', selector, function (event) {
-+    addListener(container, 'input', selector, function (event) {
-       var parent = event.target.parentNode;
- 
-       // Only update the preview if the field has been previously wrapped
-@@ -344,6 +345,53 @@
-     });
+@@ -324,11 +319,22 @@
+         addListener(field, 'input', updateColorPreview);
+       });
+     } else {
+-      addListener(document, 'click', selector, openPicker);
+-      addListener(document, 'input', selector, updateColorPreview);
++      addListener(container, 'click', selector, openPicker);
++      addListener(container, 'input', selector, updateColorPreview);
+     }
    }
  
-+function bindElement(element) {
-+  element.addEventListener('click', function (event) {
-+    // Skip if inline mode is in use
-+    if (settings.inline) {
-+      return;
-+    }
-+
-+    // Apply any per-instance options first
-+    attachVirtualInstance(event.target);
-+
-+    currentEl = event.target;
-+    oldColor = currentEl.value;
-+    currentFormat = getColorFormatFromStr(oldColor);
-+    picker.classList.add('clr-open');
-+
-+    updatePickerPosition();
-+    setColorFromStr(oldColor);
-+
-+    if (settings.focusInput || settings.selectInput) {
-+      colorValue.focus({ preventScroll: true });
-+      colorValue.setSelectionRange(currentEl.selectionStart, currentEl.selectionEnd);
-+    }
-+
-+    if (settings.selectInput) {
-+      colorValue.select();
-+    }
-+
-+    // Always focus the first element when using keyboard navigation
-+    if (keyboardNav || settings.swatchesOnly) {
-+      getFocusableElements().shift().focus();
-+    }
-+
-+    // Trigger an "open" event
-+    currentEl.dispatchEvent(new Event('open', { bubbles: true }));
-+  });
-+
-+  // Update the color preview of the input fields that match the selector
-+  element.addEventListener('input', function (event) {
-+    var parent = event.target.parentNode;
-+
-+    // Only update the preview if the field has been previously wrapped
-+    if (parent.classList.contains('clr-field')) {
-+      parent.style.color = event.target.value;
-+    }
-+  });
-+}
++  /**
++   * Bind the color picker directly to one element, bypassing selector
++   * delegation - what FastStream actually calls for each per-field color
++   * input, since fields are added dynamically as settings UI is built.
++   * @param {object} element The input field.
++   */
++  function bindElement(element) {
++    addListener(element, 'click', openPicker);
++    addListener(element, 'input', updateColorPreview);
++  }
 +
    /**
-    * Update the color picker's position and the color gradient's offset
-    */
-@@ -392,12 +440,12 @@
+    * Open the color picker.
+    * @param {object} event The event that opens the color picker.
+@@ -455,7 +461,7 @@
+     } else if (Array.isArray(selector)) {
+       selector.forEach(wrapColorField);
+     } else {
+-      document.querySelectorAll(selector).forEach(wrapColorField);
++      container.querySelectorAll(selector).forEach(wrapColorField);
+     }
+   }
  
-         // Otherwise set the position relative to the whole document
-       } else {
--        if (left + pickerWidth > document.documentElement.clientWidth) {
-+        if (left + pickerWidth > container.clientWidth) {
-           left += coords.width - pickerWidth;
-           reposition.left = true;
-         }
- 
--        if (top + pickerHeight - scrollY > document.documentElement.clientHeight) {
-+        if (top + pickerHeight - scrollY > container.clientHeight) {
-           if (pickerHeight + settings.margin <= coords.top) {
-             top = scrollY + coords.y - pickerHeight - settings.margin;
-             reposition.top = true;
-@@ -426,7 +474,7 @@
-    * @param {string} selector One or more selectors pointing to input fields.
-    */
-   function wrapFields(selector) {
--    document.querySelectorAll(selector).forEach(function (field) {
-+    container.querySelectorAll(selector).forEach(function (field) {
-       var parentNode = field.parentNode;
- 
-       if (!parentNode.classList.contains('clr-field')) {
-@@ -548,7 +596,7 @@
+@@ -597,7 +603,7 @@
        settings.onChange.call(window, color, currentEl);
      }
  
@@ -185,7 +100,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
    }
  
    /**
-@@ -702,7 +750,7 @@
+@@ -751,7 +757,7 @@
  
  
      // Select the current format in the format switcher
@@ -194,7 +109,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
    }
  
    /**
-@@ -920,43 +968,57 @@
+@@ -966,43 +972,57 @@
     */
    function init() {
      // Render the UI
@@ -286,12 +201,16 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
  
      // Append the color picker to the DOM
      document.body.appendChild(picker);
-@@ -983,19 +1045,19 @@
+@@ -1029,7 +1049,7 @@
      });
  
      addListener(colorArea, 'mousedown', function (event) {
 -      addListener(document, 'mousemove', moveMarker);
 +      addListener(container, 'mousemove', moveMarker);
+     });
+ 
+     addListener(colorArea, 'contextmenu', function (event) {
+@@ -1037,15 +1057,15 @@
      });
  
      addListener(colorArea, 'touchstart', function (event) {
@@ -310,19 +229,19 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
      });
  
      addListener(colorValue, 'change', function (event) {
-@@ -1007,6 +1069,11 @@
+@@ -1057,6 +1077,11 @@
        }
      });
  
-+  addListener(colorValue, 'keydown', function(event) {
-+    if (event.key !== "Tab" && event.key !== "Escape")
-+      event.stopPropagation();
-+  })
++    addListener(colorValue, 'keydown', function(event) {
++      if (event.key !== "Tab" && event.key !== "Escape")
++        event.stopPropagation();
++    })
 +
      addListener(clearButton, 'click', function (event) {
        pickColor('');
        closePicker();
-@@ -1032,21 +1099,21 @@
+@@ -1082,21 +1107,21 @@
        }
      });
  
@@ -350,7 +269,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
        var key = event.key;
        var target = event.target;
        var shiftKey = event.shiftKey;
-@@ -1070,14 +1137,16 @@
+@@ -1126,14 +1151,16 @@
          if (shiftKey && target === firstFocusable) {
            lastFocusable.focus();
            event.preventDefault();
@@ -368,48 +287,45 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
        // Reset any previously set per-instance options
        if (hasInstance) {
          resetVirtualInstance();
-@@ -1098,9 +1167,40 @@
+@@ -1154,6 +1181,37 @@
        if (Object.keys(movements).includes(event.key)) {
          moveMarkerOnKeydown.apply(void 0, movements[event.key]);
          event.preventDefault();
 +        event.stopPropagation();
++      }
++    });
++
++    addListener(hueSlider, 'keydown', function (event) {
++      const value = hueSlider.value * 1;
++      if (event.key === "ArrowLeft") {
++        hueSlider.value = value - 5;
++        setHue();
++        event.stopPropagation();
++        event.preventDefault();
++      } else if (event.key === "ArrowRight") {
++        hueSlider.value = value + 5;
++        setHue();
++        event.stopPropagation();
++        event.preventDefault();
++      }
++    });
++
++    addListener(alphaSlider, 'keydown', function (event) {
++      const value = alphaSlider.value * 1;
++      if (event.key === "ArrowLeft") {
++        alphaSlider.value = value - 2;
++        setAlpha();
++        event.stopPropagation();
++        event.preventDefault();
++      } else if (event.key === "ArrowRight") {
++        alphaSlider.value = value + 2;
++        setAlpha();
++        event.stopPropagation();
++        event.preventDefault();
        }
      });
  
-+  addListener(hueSlider, 'keydown', function (event) {
-+    const value = hueSlider.value * 1;
-+    if (event.key === "ArrowLeft") {
-+      hueSlider.value = value - 5;
-+      setHue();
-+      event.stopPropagation();
-+      event.preventDefault();
-+    } else if (event.key === "ArrowRight") {
-+      hueSlider.value = value + 5;
-+      setHue();
-+      event.stopPropagation();
-+      event.preventDefault();
-+    }
-+  });
-+
-+  addListener(alphaSlider, 'keydown', function (event) {
-+    const value = alphaSlider.value * 1;
-+    if (event.key === "ArrowLeft") {
-+      alphaSlider.value = value - 2;
-+      setAlpha();
-+      event.stopPropagation();
-+      event.preventDefault();
-+    } else if (event.key === "ArrowRight") {
-+      alphaSlider.value = value + 2;
-+      setAlpha();
-+      event.stopPropagation();
-+      event.preventDefault();
-+    }
-+  });
-+
-     addListener(colorArea, 'click', moveMarker);
-     addListener(hueSlider, 'input', setHue);
-     addListener(alphaSlider, 'input', setAlpha);
-@@ -1123,7 +1223,7 @@
+@@ -1179,7 +1237,7 @@
     * @return {object} The DOM element with the provided id.
     */
    function getEl(id) {
@@ -418,7 +334,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
    }
  
    /**
-@@ -1142,7 +1242,7 @@
+@@ -1198,7 +1256,7 @@
          if (matches.call(event.target, selector)) {
            fn.call(event.target, event);
          }
@@ -427,7 +343,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
  
        // If the selector is not a string then it's a function
        // in which case we need a regular event listener
-@@ -1188,11 +1288,7 @@
+@@ -1245,11 +1303,7 @@
      function Coloris(options) {
        DOMReady(function () {
          if (options) {
@@ -440,7 +356,7 @@ index 49d67eedf513071bfa5531483f885666c4d405a8..35d376d35e1208494569d70627aa2c3b
          }
        });
      }var _loop2 = function _loop2(
-@@ -1207,6 +1303,6 @@
+@@ -1264,6 +1318,6 @@
    }();
  
    // Init the color picker when the DOM is ready

@@ -18,11 +18,12 @@ minimumReleaseAgeExclude:
   - create-wdio@9.31.6
   - webdriver@9.31.6
   - webdriverio@9.31.6
+  - hls.js@1.7.3
 patchedDependencies:
-  Coloris@0.21.1: patches/Coloris@0.21.1.patch
+  Coloris@0.25.0: patches/Coloris@0.25.0.patch
   dashjs@5.1.0: patches/dashjs@5.1.0.patch
   gif.js@0.2.0: patches/gif.js@0.2.0.patch
-  hls.js@1.7.2: patches/hls.js@1.7.2.patch
+  hls.js@1.7.3: patches/hls.js@1.7.3.patch
   jswebm@0.1.2: patches/jswebm@0.1.2.patch
   mp4box@0.5.3: patches/mp4box@0.5.3.patch
   sweetalert2@11.26.25: patches/sweetalert2@11.26.25.patch

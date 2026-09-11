@@ -5,10 +5,10 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  Coloris@0.21.1: 73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251
+  Coloris@0.25.0: b8149226d6e64d4d2baa3a1e7eebf5743a030819825a77a808e847e57755c39b
   dashjs@5.1.0: d729e535a151b1925b4a5a935ba52e4e20772501017ddccb7510a2aa42e38e61
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
-  hls.js@1.7.2: cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be
+  hls.js@1.7.3: 7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
   mp4box@0.5.3: 97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296
   sweetalert2@11.26.25: e4e2461d8ac906ff5b297b0a0dc7a74262e6105483b9a7ddf5a7f6f62f66b885
@@ -42,8 +42,8 @@ importers:
         specifier: ^9.31.2
         version: 9.31.2
       Coloris:
-        specifier: github:mdbassit/Coloris#v0.21.1
-        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251)
+        specifier: github:mdbassit/Coloris#v0.25.0
+        version: https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05(patch_hash=b8149226d6e64d4d2baa3a1e7eebf5743a030819825a77a808e847e57755c39b)
       acorn:
         specifier: 8.18.0
         version: 8.18.0
@@ -87,8 +87,8 @@ importers:
         specifier: ^16.5.0
         version: 16.5.0
       hls.js:
-        specifier: ^1.7.2
-        version: 1.7.2(patch_hash=cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be)
+        specifier: ^1.7.3
+        version: 1.7.3(patch_hash=7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a)
       jswebm:
         specifier: 0.1.2
         version: 0.1.2(patch_hash=b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a)(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
@@ -1588,9 +1588,9 @@ packages:
     resolution: {integrity: sha512-AblaO/5MIVKiVExlF7GD17qn5NSsQ7qdtE+uEIMU6OiwHLqPxaI5Z5gLxMDxdEBzaiVVRCFNABcIc3sZpFcUeA==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=18.0.0'}
 
-  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825:
-    resolution: {gitHosted: true, integrity: sha512-pWMXd/4JNXN2L4+oY3m9KPcxf+yVQCE0f1zyLltOjG2596I++b4HnnX9gxc6csbidjwDJ0oJZESOVoLtIKZGug==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825}
-    version: 0.21.1
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05:
+    resolution: {gitHosted: true, integrity: sha512-BXzPa+odpoBYuiXJalx13ac/jbfasxXM2467Pkn9ES02SXbstTmTCYpsp1rpe6q6tIJqUGUsMh5THX0ZEL+rKg==, tarball: https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05}
+    version: 0.25.0
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -2953,8 +2953,8 @@ packages:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
 
-  hls.js@1.7.2:
-    resolution: {integrity: sha512-CW/pPvSOFIRsosbwxrYaE9ERmpTo5fbTqL7wCvuCFlqW1Bmb1K5fXsY7yiH95rmlr4rVuA7UXHbM/cIXQ6AXwg==}
+  hls.js@1.7.3:
+    resolution: {integrity: sha512-MsPlx6yVW4Qv4C7mEVou4/gk/5cN2dVxOTnrNjPSmyH2f0Ln+/UkG10Ax1PE6OvrmTVPKgQYozTtBaPOuCzq7A==}
 
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
@@ -6546,7 +6546,7 @@ snapshots:
 
   '@zip.js/zip.js@2.9.0': {}
 
-  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/0898dae84c3b5c538edafc557c2a671b7f230825(patch_hash=73a3501564d999cdfcabf01cf55c13cc1da3a4ed81a13f2f8d21f3fbf6a0a251): {}
+  Coloris@https://codeload.github.com/mdbassit/Coloris/tar.gz/a00946eb69780d2ba3b906c3f4535b03f987cc05(patch_hash=b8149226d6e64d4d2baa3a1e7eebf5743a030819825a77a808e847e57755c39b): {}
 
   abort-controller@3.0.0:
     dependencies:
@@ -8219,7 +8219,7 @@ snapshots:
 
   he@1.2.0: {}
 
-  hls.js@1.7.2(patch_hash=cae0eccad6c4db75a387b2a505d6b26de22a908395f999fc7d1e5c8621b1a9be): {}
+  hls.js@1.7.3(patch_hash=7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a): {}
 
   hookified@1.15.1: {}
 

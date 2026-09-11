@@ -8,7 +8,7 @@
 // The regression is one directory over: chrome/player/modules/hls2mp4/
 // transmuxer.mjs drives hls.js's TSDemuxer/MP4Remuxer classes directly, on
 // already-downloaded fragments, to remux HLS into a single MP4 for saving --
-// and hls.js 1.7.2 (this fork upgraded from 1.6.9; upstream is still on
+// and hls.js 1.7.2 (this fork is now on 1.7.3; upstream is still on
 // 1.6.9) added a `chunkMeta` parameter to resetInitSegment/demux/remux that
 // is read unconditionally (`chunkMeta.iframe`) at the top of each. hls.js's
 // own pipeline always supplies a real one; transmuxer.mjs, written against
