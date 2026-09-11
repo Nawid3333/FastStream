@@ -79,9 +79,7 @@ describe('save dialog regression', function() {
         }),
         {timeout: 60000, interval: 1000, timeoutMsg: 'save never settled'});
 
-    await new Promise((r) => setTimeout(r, 2000));
-
-    const landscape = await browser.execute(() => {
+    const readLandscape = () => browser.execute(() => {
       const w = window.innerWidth;
       const h = window.innerHeight;
       const describe = (el) => el ? {
@@ -109,11 +107,24 @@ describe('save dialog regression', function() {
         containers,
       };
     });
+    const leftoversOf = (landscape) => (landscape.containers || []).filter(
+        (c) => c.inDom && c.display !== 'none' && !c.childPopup);
 
-    const leftovers = (landscape.containers || []).filter((c) => {
-      return c.inDom && c.display !== 'none' && !c.childPopup;
-    });
-    expect(leftovers).toEqual([]);
+    // Poll instead of sleeping a fixed 2s and taking one snapshot: headless
+    // Firefox's software (SWGL) compositor - the path CI's Linux runners
+    // fall back to, per its "RenderCompositorSWGL failed mapping default
+    // framebuffer" log - can hand elementFromPoint() a stale hit-test right
+    // after the save-completion UI updates, failing this on nothing more
+    // than a slow paint. A real stuck overlay still fails, just after the
+    // full timeout instead of after a single sample.
+    let landscape;
+    await browser.waitUntil(async () => {
+      landscape = await readLandscape();
+      return leftoversOf(landscape).length === 0 && landscape.saveBtnStillClickable;
+    }, {timeout: 10000, interval: 500,
+      timeoutMsg: 'save button stayed covered/unclickable after the save finished'});
+
+    expect(leftoversOf(landscape)).toEqual([]);
     expect(landscape.saveBtnStillClickable).toBe(true);
   });
 });
