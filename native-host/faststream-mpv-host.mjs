@@ -193,7 +193,7 @@ const IpcPipe = '\\\\.\\pipe\\faststream-mpv';
  * @return {Promise<{ok: boolean, replies?: Array<Object>, error?: string}>}
  *   ok:false simply means no instance of ours is running.
  */
-function mpvIpcRequest(commands, timeoutMs = 1500) {
+export function mpvIpcRequest(commands, timeoutMs = 1500) {
   return new Promise((resolve) => {
     let settled = false;
     const replies = [];
@@ -262,10 +262,12 @@ function mpvIpcRequest(commands, timeoutMs = 1500) {
  * @param {Object} message - The open message from the extension.
  * @param {Array<string>} headerFields - "Name: value" strings for mpv.
  * @param {string} title - Media title to display.
+ * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
+ *   to the real named-pipe transport.
  * @return {Promise<{ok: boolean, pid?: number}>} ok:false when no instance of
  *   ours answered, in which case the caller should start one.
  */
-async function loadIntoExisting(message, headerFields, title) {
+export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest) {
   const commands = [
     {command: ['set_property', 'http-header-fields', headerFields]},
     {command: ['set_property', 'force-media-title', title]},
@@ -276,15 +278,20 @@ async function loadIntoExisting(message, headerFields, title) {
   commands.push({command: ['loadfile', message.url, 'replace']});
   commands.push({command: ['get_property', 'pid']});
 
-  const result = await mpvIpcRequest(commands);
+  const result = await ipcRequest(commands);
   if (!result.ok) {
     return {ok: false};
   }
 
-  // The loadfile reply is what decides success; a pipe that answers but
-  // refuses the load should fall through to starting a fresh instance.
+  // The loadfile reply is what decides success. mpvIpcRequest can resolve
+  // ok:true on its own timeout as soon as *any* reply has come back (so a
+  // live-but-slow pipe still counts as "ours"), which means the loadfile
+  // reply specifically might not be in yet. Treat that as unconfirmed, not
+  // successful -- otherwise this returns {ok: true} without ever knowing
+  // whether the video actually loaded, and the caller skips starting a
+  // fresh instance that would have played it.
   const loadReply = result.replies.find((r) => r.request_id === commands.length - 1);
-  if (loadReply && loadReply.error && loadReply.error !== 'success') {
+  if (!loadReply || (loadReply.error && loadReply.error !== 'success')) {
     return {ok: false};
   }
 
@@ -600,4 +607,10 @@ async function main() {
   process.exit(0);
 }
 
-main();
+// Only run the native-messaging loop when executed directly (the .bat
+// wrapper does `node faststream-mpv-host.mjs`) -- not when a test suite
+// imports this module for its pure functions, which would otherwise block
+// forever on main()'s stdin read.
+if (process.argv[1] && url.pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main();
+}

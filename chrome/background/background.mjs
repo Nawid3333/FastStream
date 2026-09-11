@@ -8,7 +8,6 @@ import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
-import {SponsorBlockIntegration} from './SponsorBlockIntegration.mjs';
 import {StreamSaverBackend} from './StreamSaverBackend.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
@@ -43,9 +42,6 @@ const ruleManager = new RuleManager();
 
 
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
-
-const sponsorBlockBackend = new SponsorBlockIntegration();
-sponsorBlockBackend.setup();
 
 BackgroundUtils.openWelcomePageOnInstall();
 
@@ -566,26 +562,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(response);
     });
     return true;
-  } else if (msg.type === MessageTypes.REQUEST_SPONSORBLOCK) {
-    if (msg.action === 'getSkipSegments' && frame.frameId !== 0) {
-      // send message to parent frame
-      chrome.tabs.sendMessage(frame.tab.tabId, {
-        type: MessageTypes.SPONSORBLOCK_SCRAPE,
-        videoId: msg.videoId,
-      }, {
-        frameId: frame.parent.frameId,
-      }, (response) => {
-        if (!response || response.error) {
-          sendResponse(null);
-          return;
-        } else {
-          sendResponse(response.segments);
-        }
-      });
-      return true;
-    }
-
-    return sponsorBlockBackend.onPlayerMessage(msg, sendResponse);
   } else {
     return;
   }

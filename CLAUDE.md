@@ -332,7 +332,7 @@ audio analyzer runs.
 with `// @ts-check` on line 1. `pnpm run typecheck` is gated in CI, so the
 opted-in set is a ratchet.
 
-Opted in: `BackgroundUtils`, `MultiRegexMatcher`, `SponsorBlockIntegration`,
+Opted in: `BackgroundUtils`, `MultiRegexMatcher`,
 `TabTracker`. Not yet: `background.mjs` (23 errors), `StreamSaverBackend`
 (3), `NetRequestRuleManager` (1) — mostly nullability and API-shape issues
 in the header-spoofing and download paths, where a wrong guard causes silent
