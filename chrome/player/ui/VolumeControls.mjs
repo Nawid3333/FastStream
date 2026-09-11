@@ -124,9 +124,9 @@ export class VolumeControls extends EventEmitter {
     };
 
     DOMElements.playerContainer.addEventListener('mouseup', onVolumeBarMouseUp);
-    DOMElements.playerContainer.addEventListener('touchend', onVolumeBarMouseUp);
+    DOMElements.playerContainer.addEventListener('touchend', onVolumeBarMouseUp, {passive: true});
     DOMElements.playerContainer.addEventListener('mousemove', onVolumeBarMouseMove);
-    DOMElements.playerContainer.addEventListener('touchmove', onVolumeBarMouseMove);
+    DOMElements.playerContainer.addEventListener('touchmove', onVolumeBarMouseMove, {passive: true});
 
     event.stopPropagation();
   }

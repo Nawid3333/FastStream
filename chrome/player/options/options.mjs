@@ -544,7 +544,7 @@ optionsResetButton.addEventListener('click', () => {
 });
 
 document.getElementById('resetdefault').addEventListener('click', () => {
-  Options.keybinds = JSON.parse(JSON.stringify(DefaultKeybinds));
+  Options.keybinds = structuredClone(DefaultKeybinds);
   keybindsList.replaceChildren();
   for (const keybind in Options.keybinds) {
     if (Object.hasOwn(Options.keybinds, keybind)) {

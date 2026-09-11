@@ -587,10 +587,10 @@ export class ProgressBar extends EventEmitter {
     };
     shiftTime(initialPosition);
     DOMElements.playerContainer.addEventListener('mouseup', onProgressbarMouseUp);
-    DOMElements.playerContainer.addEventListener('touchend', onProgressbarMouseUp);
+    DOMElements.playerContainer.addEventListener('touchend', onProgressbarMouseUp, {passive: true});
     DOMElements.playerContainer.addEventListener('mouseleave', onProgressbarMouseUp);
     DOMElements.playerContainer.addEventListener('mousemove', onProgressbarMouseMove);
-    DOMElements.playerContainer.addEventListener('touchmove', onProgressbarMouseMove);
+    DOMElements.playerContainer.addEventListener('touchmove', onProgressbarMouseMove, {passive: true});
   }
 
   onProgressbarMouseLeave() {
