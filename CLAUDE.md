@@ -229,16 +229,28 @@ entirely — see "YouTube removal" below — and no longer apply to anything.)
 
 ## Build targets
 
+**Firefox only (decided 2026-09-11).** Nawid only uses this fork on Firefox;
+`buildChromeGithub()`/`buildChromeWebstore()` and the `chrome-github`/
+`chrome-webstore` targets were removed from `build.mjs`, the release
+workflow's asset list, and CI's Chromium E2E step comments (that step
+itself stays — it tests the `web` target across engines, not the extension).
+`chromeSourceDir` (`chrome/`) is still the shared source directory for every
+remaining target; only the two Chrome-flavored *build outputs* are gone.
+
 | Target | Splices | Notes |
 |---|---|---|
-| `chrome-github` | EXTENSION, NO_PROMO | manual install, full features |
-| `chrome-webstore` | EXTENSION, NO_UPDATE_CHECKER | Chrome Web Store |
 | `firefox-github` | EXTENSION, FIREFOX, NO_PROMO | manual install |
 | `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
 `buildFirefoxAmo()` was written but never invoked (commit "Remove firefox
 dist build for now"). Re-enabled in `7ed4723`.
+
+The 12 `EnvUtils.isChrome()`/`isFirefox()` branches elsewhere in the
+codebase (playback-rate caps, the 7.1-audio workaround, OPFS backend
+selection, SponsorBlock's extension ID) were deliberately left in place —
+narrow, self-contained, and not worth the risk of touching working
+audio/playback logic for a small cleanup win.
 
 ## Rules
 

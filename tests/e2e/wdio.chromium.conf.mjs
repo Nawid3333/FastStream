@@ -1,13 +1,13 @@
 // WebdriverIO config for the Chromium side of the playback suite.
 //
 // Mirrors wdio.conf.mjs - same web build, same local server, same specs - but
-// drives a Chromium browser instead of Firefox. The reason this exists is
-// that Chromium is where the extension actually ships first (Chrome Web
-// Store, chrome-github), and the engine is not a shared implementation:
+// drives a Chromium browser instead of Firefox. This fork ships the
+// extension for Firefox only, but the plain web build (faststream.online)
+// still runs in any browser, and the engine is not a shared implementation:
 // codec pipelines, worker and SharedArrayBuffer behaviour, and hls.js's
 // fallback paths all differ enough that "plays in Firefox" does not imply
 // "plays in Chromium". The web build shares the players and vendored
-// libraries with the extension builds, so this covers the engine risk for
+// libraries with the extension build, so this covers the engine risk for
 // the same code the Firefox suite covers.
 //
 // Browser selection, in order:

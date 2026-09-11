@@ -451,10 +451,12 @@ survival inside a real kill-on-close job object.
    (PR index) and #546 (hls.js 1.7.2 recipe, where it was requested).
    If Andrew responds, the most likely next PR is a ready-to-merge hls.js
    1.7.2 bump off a fresh `pr/*` branch.
-4. **Close the last unverified-feature gap: Chrome e2e.**
-   The e2e suite runs Firefox only; the chrome-github/webstore targets have
-   zero automated playback coverage. (YouTube e2e is moot — YouTube support
-   was removed entirely 2026-09-10.)
+4. ~~Close the last unverified-feature gap: Chrome e2e.~~ **Moot 2026-09-11**:
+   Chrome is no longer a build target at all (Nawid only uses this fork on
+   Firefox) — `chrome-github`/`chrome-webstore` were removed from
+   `build.mjs` and the release workflow. See CLAUDE.md's "Build targets".
+   (YouTube e2e is moot too — YouTube support was removed entirely
+   2026-09-10.)
 5. **If a human AMO reviewer asks for more:** the remaining candidates are
    the three warnings in `docs/amo-linter-warnings.md` (all currently
    defended as safer-left-alone) and pinning vtt/knob as git dependencies

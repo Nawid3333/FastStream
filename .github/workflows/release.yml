@@ -3,11 +3,10 @@ name: Release
 # Builds the extension and publishes it as a GitHub Release with downloadable
 # zips attached -- the public-facing equivalent of what Andrew does by hand
 # on the upstream repo (github.com/Andrews54757/FastStream/releases): a tag,
-# a release page, downloadable builds. His releases carry two assets
-# (chrome-libre, firefox-libre, both unsigned); this one carries four --
-# the two unrestricted "github" builds plus the two store-shaped builds:
-# chrome-webstore and the Firefox AMO build, signed by Mozilla so it
-# installs with no "unverified" warning.
+# a release page, downloadable builds. This fork ships Firefox only (see the
+# "abandon Chrome" decision, 2026-09-11): the unrestricted firefox-github
+# build plus the Firefox AMO build, signed by Mozilla so it installs with no
+# "unverified" warning.
 #
 # Fires on a version tag push. workflow_dispatch is for re-running by hand
 # against an existing tag if a release needs to be redone.
@@ -90,8 +89,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           assets=(
-            built/chrome-github-*.zip
-            built/chrome-webstore-*.zip
             built/firefox-github-*.zip
           )
           if [ "${{ steps.sign.outcome }}" = "success" ]; then
