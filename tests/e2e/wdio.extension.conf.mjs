@@ -68,6 +68,18 @@ export const PORT = 41991;
 export const OPENER_URL = `http://127.0.0.1:${PORT}/`;
 let server;
 
+// save-flow, save-dialog-regression and save-transport trigger real
+// downloads through the extension's DOWNLOAD handler. Without an explicit
+// download directory, Firefox uses its normal one - the developer's actual
+// Downloads folder - and every run leaves files behind there. Wiped both
+// before and after the run, so a crashed previous run can't leave stale
+// files either.
+const downloadDir = path.join(root, '.e2e-downloads');
+function resetDownloadDir() {
+  fs.rmSync(downloadDir, {recursive: true, force: true});
+  fs.mkdirSync(downloadDir, {recursive: true});
+}
+
 export const config = {
   runner: 'local',
   specs: [
@@ -95,6 +107,13 @@ export const config = {
         // Pins the extension origin so the specs can address its pages.
         'extensions.webextensions.uuids':
           JSON.stringify({[EXTENSION_ID]: EXTENSION_UUID}),
+        // Send downloads straight to downloadDir with no picker and no
+        // "where do you want to save this" prompt - see resetDownloadDir.
+        'browser.download.folderList': 2,
+        'browser.download.dir': downloadDir,
+        'browser.download.useDownloadDir': true,
+        'browser.helperApps.neverAsk.saveToDisk':
+          'video/mp4,video/webm,application/octet-stream',
       },
     },
   }],
@@ -106,6 +125,7 @@ export const config = {
   mochaOpts: {ui: 'bdd', timeout: 120000},
 
   onPrepare: function() {
+    resetDownloadDir();
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {
         const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -168,6 +188,7 @@ export const config = {
   },
 
   onComplete: function() {
+    fs.rmSync(downloadDir, {recursive: true, force: true});
     return new Promise((resolve) => {
       if (!server) return resolve();
       server.close(resolve);

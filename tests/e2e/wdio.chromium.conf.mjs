@@ -34,6 +34,17 @@ export const PORT = 41881;
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 let server;
 
+// save-video.e2e.mjs triggers real browser downloads. Without an explicit
+// download directory, Chromium uses its normal one - the developer's actual
+// Downloads folder - and every run leaves files behind there. Wiped both
+// before and after the run, so a crashed previous run can't leave stale
+// files either.
+const downloadDir = path.join(root, '.e2e-downloads');
+function resetDownloadDir() {
+  fs.rmSync(downloadDir, {recursive: true, force: true});
+  fs.mkdirSync(downloadDir, {recursive: true});
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -183,6 +194,15 @@ export const config = {
         // A fresh, throwaway profile - never the developer's own data.
         `--user-data-dir=${fs.mkdtempSync(path.join(os.tmpdir(), 'wdio-chromium-'))}`,
       ],
+      // Send downloads straight to downloadDir with no prompt - a fresh
+      // profile still defaults to the real Downloads folder otherwise. See
+      // resetDownloadDir.
+      prefs: {
+        download: {
+          default_directory: downloadDir,
+          prompt_for_download: false,
+        },
+      },
     },
     [DRIVER_OPTIONS]: {
       // A throwaway profile for the driver too, so a leftover lock from a
@@ -207,6 +227,7 @@ export const config = {
   },
 
   onPrepare: async function() {
+    resetDownloadDir();
     await ensureMp4Fixture();
     await ensureWebmFixture();
     return new Promise((resolve, reject) => {
@@ -272,6 +293,7 @@ export const config = {
   },
 
   onComplete: function() {
+    fs.rmSync(downloadDir, {recursive: true, force: true});
     return new Promise((resolve) => {
       if (!server) return resolve();
       server.close(resolve);

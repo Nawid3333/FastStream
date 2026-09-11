@@ -42,6 +42,17 @@ export const PORT = 41879;
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 let server;
 
+// save-video.e2e.mjs triggers real browser downloads. Without an explicit
+// download directory, Firefox uses its normal one - the developer's actual
+// Downloads folder - and every run leaves files behind there. Wiped both
+// before and after the run, so a crashed previous run can't leave stale
+// files either.
+const downloadDir = path.join(root, '.e2e-downloads');
+function resetDownloadDir() {
+  fs.rmSync(downloadDir, {recursive: true, force: true});
+  fs.mkdirSync(downloadDir, {recursive: true});
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8',
@@ -146,6 +157,13 @@ export const config = {
         'media.autoplay.blocking_policy': 0,
         // Headless CI has no audio device.
         'media.volume_scale': '0.0',
+        // Send downloads straight to downloadDir with no picker and no
+        // "where do you want to save this" prompt - see resetDownloadDir.
+        'browser.download.folderList': 2,
+        'browser.download.dir': downloadDir,
+        'browser.download.useDownloadDir': true,
+        'browser.helperApps.neverAsk.saveToDisk':
+          'video/mp4,video/webm,application/octet-stream',
       },
     },
   }],
@@ -173,6 +191,7 @@ export const config = {
   },
 
   onPrepare: async function() {
+    resetDownloadDir();
     await ensureMp4Fixture();
     await ensureWebmFixture();
     return new Promise((resolve, reject) => {
@@ -253,6 +272,7 @@ export const config = {
   },
 
   onComplete: function() {
+    fs.rmSync(downloadDir, {recursive: true, force: true});
     return new Promise((resolve) => {
       if (!server) return resolve();
       server.close(resolve);
