@@ -1,6 +1,6 @@
 {
   "name": "faststream",
-  "version": "1.3.80.0",
+  "version": "1.3.81.0",
   "description": "Stream videos without buffering. Fix bad video players on the internet.",
   "packageManager": "pnpm@11.22.0",
   "engines": {
