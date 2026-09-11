@@ -127,31 +127,50 @@ export class LevelManager {
   getDesiredVideoHeight() {
     const defaultQuality = this.client.options.defaultQuality;
     if (defaultQuality === 'Auto') {
-      const qualityMultiplier = 1.1;
-      return window.innerHeight * window.devicePixelRatio * qualityMultiplier;
+      // Always max out rather than scaling to the screen - Infinity has no
+      // level at or above it, so matchQuality() falls through to its "no
+      // level meets the target" branch and picks the highest one available.
+      return Infinity;
     } else {
       return parseInt(defaultQuality.replace('p', ''));
     }
   }
 
   matchQuality(levels, desiredHeight) {
-    const list = [];
+    // Prefer the smallest level that still meets or exceeds the target
+    // height - never settle for a lower resolution than requested if a
+    // higher one is on offer, even if it's numerically farther away (a
+    // 1440p target with 1080p/4K available should land on 4K, not 1080p).
+    // Only fall back to a lower resolution when nothing meets the target,
+    // in which case the highest of those remaining is the closest possible.
+    const atOrAbove = [];
+    const below = [];
     levels.forEach((level) => {
-      list.push({
-        level,
-        diff: Math.abs(level.height - desiredHeight),
-      });
-    });
-
-    // Sort by height difference and then by bitrate. Choose highest bitrate if multiple have the same height difference
-    list.sort((a, b) => {
-      if (a.diff === b.diff) {
-        return b.level.bitrate - a.level.bitrate;
+      if (level.height >= desiredHeight) {
+        atOrAbove.push(level);
+      } else {
+        below.push(level);
       }
-      return a.diff - b.diff;
     });
 
-    return list.map((item) => item.level);
+    // Ascending: the smallest level that still meets the target comes first.
+    // Ties (same height) prefer the higher bitrate.
+    atOrAbove.sort((a, b) => {
+      if (a.height === b.height) {
+        return b.bitrate - a.bitrate;
+      }
+      return a.height - b.height;
+    });
+
+    // Descending: closest-below comes first among the levels that fall short.
+    below.sort((a, b) => {
+      if (a.height === b.height) {
+        return b.bitrate - a.bitrate;
+      }
+      return b.height - a.height;
+    });
+
+    return [...atOrAbove, ...below];
   }
 
   isLevelContainerPrioritized(level) {

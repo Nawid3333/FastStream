@@ -10,6 +10,11 @@ import {LevelManager} from '../../chrome/player/players/LevelManager.mjs';
 const matchQuality = (levels, desiredHeight) =>
   LevelManager.prototype.matchQuality(levels, desiredHeight);
 
+// getDesiredVideoHeight() only reads client.options.defaultQuality, so a
+// bare object stand-in for `this` is enough - no need for a real client.
+const getDesiredVideoHeight = (defaultQuality) =>
+  LevelManager.prototype.getDesiredVideoHeight.call({client: {options: {defaultQuality}}});
+
 const level = (height, bitrate) => ({height, bitrate});
 
 describe('matchQuality', () => {
@@ -18,32 +23,56 @@ describe('matchQuality', () => {
     expect(matchQuality(levels, 1080)[0]).toBe(levels[1]);
   });
 
-  it('picks the level whose height is numerically closest to the target', () => {
-    // 1440 target, only 1080p/720p available: diff(1080)=360 < diff(720)=720.
+  it('picks the next resolution up, not the numerically nearer one below the target', () => {
+    // The reported case: 1440p target with 1080p and 4K (2160p) available.
+    // 1080p is numerically closer (diff 360 vs 720), but it's below target,
+    // so 4K must win - never settle for less than requested when something
+    // higher is on offer.
+    const levels = [level(1080, 4e6), level(2160, 16e6)];
+    expect(matchQuality(levels, 1440)[0].height).toBe(2160);
+  });
+
+  it('falls back to the highest available level when nothing meets the target', () => {
+    // 1440 target, only 1080p/720p available - neither meets it, so the
+    // closest-below (1080p) is the best that's actually possible.
     const levels = [level(720, 2e6), level(1080, 4e6)];
     expect(matchQuality(levels, 1440)[0].height).toBe(1080);
   });
 
-  it('can pick a level above the target if it is the closer option', () => {
-    // 1440 target, 1600p/720p available: diff(1600)=160 < diff(720)=720.
-    // matchQuality is nearest-by-difference, not nearest-below.
-    const levels = [level(1600, 8e6), level(720, 2e6)];
-    expect(matchQuality(levels, 1440)[0].height).toBe(1600);
-  });
-
-  it('breaks an exact tie in distance by preferring the higher bitrate', () => {
-    // 1080 target, 720p and 1440p are both exactly 360 away.
-    const levels = [level(720, 2e6), level(1440, 8e6)];
+  it('picks the lowest level that still meets the target, not just any that does', () => {
+    // 1080 target with 1440p and 4K both meeting it - 1440p is the smaller
+    // of the two qualifying levels, so it wins over jumping straight to 4K.
+    const levels = [level(2160, 16e6), level(1440, 8e6), level(720, 2e6)];
     expect(matchQuality(levels, 1080)[0].height).toBe(1440);
   });
 
-  it('returns levels sorted best-match-first, not just the single best', () => {
+  it('breaks a tie between equal-height levels at or above target by preferring the higher bitrate', () => {
+    const levels = [level(1440, 4e6), level(1440, 8e6)];
+    expect(matchQuality(levels, 1080)[0].bitrate).toBe(8e6);
+  });
+
+  it('breaks a tie between equal-height levels below target by preferring the higher bitrate', () => {
+    const levels = [level(720, 4e6), level(720, 8e6)];
+    expect(matchQuality(levels, 1440)[0].bitrate).toBe(8e6);
+  });
+
+  it('returns levels sorted best-match-first: qualifying levels ascending, then shortfalls descending', () => {
     const levels = [level(2160, 16e6), level(720, 2e6), level(1080, 4e6)];
     const sorted = matchQuality(levels, 1080).map((l) => l.height);
-    expect(sorted).toEqual([1080, 720, 2160]);
+    expect(sorted).toEqual([1080, 2160, 720]);
   });
 
   it('handles an empty level list without throwing', () => {
     expect(matchQuality([], 1080)).toEqual([]);
+  });
+});
+
+describe('getDesiredVideoHeight', () => {
+  it('resolves Auto to the highest available resolution, not the screen size', () => {
+    expect(getDesiredVideoHeight('Auto')).toBe(Infinity);
+  });
+
+  it('parses an explicit quality setting into a target height', () => {
+    expect(getDesiredVideoHeight('1440p')).toBe(1440);
   });
 });
