@@ -277,6 +277,28 @@ selection, SponsorBlock's extension ID) were deliberately left in place —
 narrow, self-contained, and not worth the risk of touching working
 audio/playback logic for a small cleanup win.
 
+## Releasing (auto-release.yml, added 2026-09-12)
+
+Every push to `dev/mv3-modernization` that passes CI now gets released
+automatically — no separate "ship it" step. `auto-release.yml` waits for
+CI to go green on that branch (`workflow_run`, not `push` directly — a
+red push is never released), then bumps just the trailing build number
+(`1.3.82.0` -> `1.3.82.1` -> ...), commits `chore: release <version>`,
+tags it, and pushes both. The pushed tag is what `release.yml` (unchanged)
+is watching for — it does the actual build/sign/publish, same as a manual
+release always has.
+
+The bump commit is itself a push to the branch, which reruns CI, which
+would re-trigger `auto-release.yml` — the workflow's `if:` skips any
+`workflow_run` whose head commit message starts with `chore: release `,
+which is what stops that loop rather than looping forever.
+
+`tools/cut-release.mjs` (`pnpm run release <version>`) still exists for a
+deliberate version bump — a real minor/patch for a milestone rather than
+the next build number. Run it by hand right before the push you want that
+version on; auto-release's next build-number bump continues from whatever
+version that leaves in `package.json`.
+
 ## Rules
 
 - **Never hand-edit `chrome/player/modules/*`** — vendored third-party code

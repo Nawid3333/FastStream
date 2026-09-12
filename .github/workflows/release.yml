@@ -8,8 +8,12 @@ name: Release
 # build plus the Firefox AMO build, signed by Mozilla so it installs with no
 # "unverified" warning.
 #
-# Fires on a version tag push. workflow_dispatch is for re-running by hand
-# against an existing tag if a release needs to be redone.
+# Fires on a version tag push - from tools/cut-release.mjs (a deliberate
+# manual version bump) or from auto-release.yml (an automatic build-number
+# bump after every green push to dev/mv3-modernization). Either way, by the
+# time the tag lands here package.json and chrome/manifest.json already
+# agree with it. workflow_dispatch is for re-running by hand against an
+# existing tag if a release needs to be redone.
 #
 # This is the only AMO signing path now -- the old publish-amo.yml, which
 # signed continuously on every merge to dev/mv3-modernization, was removed

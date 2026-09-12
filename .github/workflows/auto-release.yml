@@ -1,0 +1,76 @@
+name: Auto release
+
+# Cuts a release automatically after every push to dev/mv3-modernization
+# that passes CI - this fork's convention is that a push to that branch is
+# already a finished product (see CLAUDE.md), so there is no separate
+# "now ship it" step left to automate away.
+#
+# Runs on CI's completion (workflow_run) rather than on `push` directly, so
+# a push that fails lint/typecheck/tests/build is never released - only a
+# green CI run reaches this workflow at all.
+#
+# This bumps just the trailing build number (1.3.82.0 -> 1.3.82.1 -> ...).
+# tools/cut-release.mjs / `pnpm run release <version>` still exists for a
+# deliberate version bump (a new minor/patch for a real milestone) - run it
+# by hand before the push you want that version to land on, and this
+# workflow's own next auto-bump continues from there.
+#
+# Loop guard: this workflow's own version-bump commit is itself a push to
+# dev/mv3-modernization, which reruns CI, which would re-trigger this
+# workflow - the `chore: release` head-commit check below is what stops
+# that from repeating forever.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [dev/mv3-modernization]
+
+permissions:
+  contents: write
+
+# Never run two of these at once - two overlapping pushes both computing
+# "current version + 1" at the same time would tag the same version twice.
+# Queue rather than cancel, so every green push still gets its own release.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+jobs:
+  auto-release:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      !startsWith(github.event.workflow_run.head_commit.message, 'chore: release ')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Bump version, commit, tag, push
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          IFS='.' read -r major minor patch build <<< "$CURRENT"
+          NEW="$major.$minor.$patch.$((10#$build + 1))"
+          echo "Bumping $CURRENT -> $NEW"
+
+          node -e "
+            const fs = require('fs');
+            for (const p of ['package.json', 'chrome/manifest.json']) {
+              const d = JSON.parse(fs.readFileSync(p, 'utf8'));
+              d.version = '$NEW';
+              fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n');
+            }
+          "
+
+          git add package.json chrome/manifest.json
+          git commit -m "chore: release $NEW"
+          git tag -a "v$NEW" -m "FastStream $NEW"
+          git push origin HEAD:dev/mv3-modernization
+          git push origin "v$NEW"

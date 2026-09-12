@@ -13,6 +13,11 @@
 // pushed tag always points at a commit where package.json,
 // chrome/manifest.json and the tag itself already agree.
 //
+// For a deliberate version bump (a real minor/patch for a milestone) only -
+// every ordinary push to dev/mv3-modernization gets released automatically
+// by .github/workflows/auto-release.yml once CI goes green on it, which
+// bumps just the trailing build number instead of running this script.
+//
 // Usage:
 //   node tools/cut-release.mjs 1.3.80.0
 //   pnpm run release 1.3.80.0
