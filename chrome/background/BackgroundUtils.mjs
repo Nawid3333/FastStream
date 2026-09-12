@@ -8,6 +8,7 @@ const PlayerURL = chrome.runtime.getURL('player/index.html');
 // font size is ours to pick. Built once and cached forever: OffscreenCanvas
 // is a Worker/service-worker API (missing on some very old targets, hence
 // the feature check), and the icon never changes at runtime.
+/** @type {Promise<ImageData|null>|null} */
 let mpvIconImageDataPromise = null;
 function getMpvIconImageData() {
   if (!mpvIconImageDataPromise) {
@@ -30,6 +31,9 @@ async function buildMpvIconImageData() {
   const size = bitmap.width;
   const canvas = new OffscreenCanvas(size, size);
   const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
   ctx.drawImage(bitmap, 0, 0, size, size);
 
   const tagWidth = size * 0.84;
