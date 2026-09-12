@@ -37,8 +37,17 @@ export class BackgroundUtils {
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
+      // 'MPV' (3 wide capital letters) gets clipped in the toolbar badge,
+      // unlike 'On'/'Off' below. 'MP' fits the same way 'On' does.
       chrome.action.setBadgeText({
-        text: 'MPV',
+        text: 'MP',
+        tabId: tab.tabId,
+      });
+      // Locales without a translation for this key yet still get sensible
+      // English text instead of an empty tooltip (chrome.i18n.getMessage
+      // returns '' when a key is missing from a locale's messages.json).
+      chrome.action.setTitle({
+        title: chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV',
         tabId: tab.tabId,
       });
       chrome.action.setIcon({
@@ -50,11 +59,19 @@ export class BackgroundUtils {
         text: 'On',
         tabId: tab.tabId,
       });
+      chrome.action.setTitle({
+        title: chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
+        tabId: tab.tabId,
+      });
       chrome.action.setIcon({
         path: '/icon2_128.png',
         tabId: tab.tabId,
       });
     } else {
+      chrome.action.setTitle({
+        title: chrome.i18n.getMessage('extension_toggle_label') || 'Toggle FastStream',
+        tabId: tab.tabId,
+      });
       chrome.action.setIcon({
         path: '/icon128.png',
         tabId: tab.tabId,

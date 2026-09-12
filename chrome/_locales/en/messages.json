@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Toggle FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Playing in MPV"
+    },
     "welcome_page_title": {
         "message": "Welcome to FastStream"
     },
