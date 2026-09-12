@@ -7,7 +7,12 @@
 //
 // Messages:
 //   {type: 'ping'}                -> {ok, mpv, path}
-//   {type: 'open', url, headers?, mpvPath?, fullscreen?} -> {ok, error?}
+//   {type: 'open', url, headers?, mpvPath?, fullscreen?, contentType?} -> {ok, error?}
+//
+// contentType ('anime'|'movie', optional) is appended to the URL handed to
+// mpv as a #fs-content= fragment marker -- never sent to the CDN, but
+// visible to gpu-toggles.lua's is_anime_content() via mpv's `path` property
+// for content-aware shader selection.
 //
 // Configuration (optional): config.json next to this script:
 //   {"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": false}
@@ -257,6 +262,32 @@ export function mpvIpcRequest(commands, timeoutMs = 1500) {
 }
 
 /**
+ * Appends an fs-content=anime|movie marker to a stream URL's fragment, for
+ * gpu-toggles.lua's is_anime_content() to read back off mpv's `path`
+ * property. A URL fragment is never transmitted to the HTTP server, so this
+ * cannot break a signed/tokenized CDN URL.
+ *
+ * @param {string} streamUrl - The stream URL headed to mpv.
+ * @param {string} [contentType] - 'anime' or 'movie'; anything else is a
+ *   no-op and streamUrl is returned unchanged.
+ * @return {string} The URL, with the marker appended when contentType is set.
+ */
+export function withContentTypeFragment(streamUrl, contentType) {
+  if (contentType !== 'anime' && contentType !== 'movie') {
+    return streamUrl;
+  }
+
+  const tag = `fs-content=${contentType}`;
+  const hashIndex = streamUrl.indexOf('#');
+  if (hashIndex === -1) {
+    return `${streamUrl}#${tag}`;
+  }
+
+  const existingFragment = streamUrl.slice(hashIndex + 1);
+  return existingFragment.length > 0 ? `${streamUrl}&${tag}` : `${streamUrl}${tag}`;
+}
+
+/**
  * Loads a URL into the mpv instance already running on our pipe.
  *
  * @param {Object} message - The open message from the extension.
@@ -275,7 +306,7 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   if (message.fullscreen) {
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
-  commands.push({command: ['loadfile', message.url, 'replace']});
+  commands.push({command: ['loadfile', withContentTypeFragment(message.url, message.contentType), 'replace']});
   commands.push({command: ['get_property', 'pid']});
 
   const result = await ipcRequest(commands);
@@ -509,7 +540,7 @@ async function launchMpv(mpvPath, message, config) {
   }
   args.push('--no-terminal');
   args.push('--');
-  args.push(message.url);
+  args.push(withContentTypeFragment(message.url, message.contentType));
 
   debugLog(config, 'spawn', {mpvPath, args});
 

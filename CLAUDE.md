@@ -190,6 +190,31 @@ instances this host starts are given `--input-ipc-server`, which is what
 stops it ever loading into — or closing — an mpv the user opened themselves.
 A stale pipe simply fails to connect and a fresh instance starts.
 
+**Anime/movie content-type hint (2026-09-12).** `open` messages always
+carry `contentType: 'anime'|'movie'` — never omitted — resolved by
+`background.mjs`'s `resolveMpvContentType(explicit, url)`: the player's
+manual override if set (`SaveManager.mjs`'s `mpvContentType`, right-click
+the mpv button to cycle Auto → Anime → Movie; resets to Auto on every new
+source via `FastStreamClient.resetPlayer`), else the MPV Allowlist's
+trailing `@anime`/`@movie` tag (`UrlMatchList.mjs`'s `getContentType`), else
+**`'movie'`**. Movie is the deliberate default — this user's allowlist is
+mostly movie sites, so only the anime ones need tagging; `@movie` is still
+accepted but never required. Only the manual override is available on the
+button-click path — the two webRequest/DNR auto-forward paths
+(`onSourceRecieved`, `openMpvWithSources`) never load the player, so they
+only ever see the allowlist tag (or the movie default).
+`faststream-mpv-host.mjs`'s `withContentTypeFragment` appends it to the
+stream URL as `#fs-content=anime`/`#fs-content=movie` before either launch
+path (`launchMpv`'s spawn args, `loadIntoExisting`'s `loadfile` command) —
+a URL fragment, so it never reaches the CDN and cannot break a signed URL.
+An mpv-side script reads that marker back off the `path` property as its
+*sole* signal (`fs-content=anime` present → anime, else movie) — an earlier
+version also fell back to an `anime`-named folder in the path, but that
+never matched anything for a streamed URL and was deleted the same day the
+`resolveMpvContentType` default-to-movie behavior above was added, per this
+user's request, rather than kept as dead/misleading code. Covered by
+`tests/unit/{UrlMatchList,MpvBackend,MpvNativeHost}.test.mjs`.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next

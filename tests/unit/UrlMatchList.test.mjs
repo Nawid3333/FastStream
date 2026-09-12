@@ -56,6 +56,31 @@ describe('parseEntry', () => {
   it('rejects an empty entry that is only prefixes', () => {
     expect(UrlMatchList.parseEntry('!')).toBeNull();
   });
+
+  it('parses a trailing @anime/@movie content-type tag', () => {
+    const anime = UrlMatchList.parseEntry('https://crunchyroll.com @anime');
+    expect(anime.contentType).toBe('anime');
+    expect(anime.match).toBe('https://crunchyroll.com');
+
+    const movie = UrlMatchList.parseEntry('https://example.com/movie/ @MOVIE');
+    expect(movie.contentType).toBe('movie');
+    expect(movie.match).toBe('https://example.com/movie/');
+  });
+
+  it('leaves contentType null when no tag is present', () => {
+    expect(UrlMatchList.parseEntry('https://example.com/').contentType).toBeNull();
+  });
+
+  it('combines a content-type tag with other prefixes', () => {
+    const entry = UrlMatchList.parseEntry('!~^https://example\\.com/ @anime');
+    expect(entry.negative).toBe(true);
+    expect(entry.regex).toBe(true);
+    expect(entry.contentType).toBe('anime');
+  });
+
+  it('rejects a line that is only a content-type tag', () => {
+    expect(UrlMatchList.parseEntry('@anime')).toBeNull();
+  });
 });
 
 describe('matches', () => {
@@ -132,5 +157,39 @@ describe('matches', () => {
     list.setEntries(null);
     expect(list.entries).toHaveLength(0);
     expect(list.matches('https://example.com/')).toBe(false);
+  });
+});
+
+describe('getContentType', () => {
+  it('returns null when nothing matches', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/ @anime']);
+    expect(list.getContentType('https://other.com/')).toBeNull();
+  });
+
+  it('returns the tag of the matching entry', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://crunchyroll.com @anime', 'https://netflix.com @movie']);
+    expect(list.getContentType('https://crunchyroll.com/watch/1')).toBe('anime');
+    expect(list.getContentType('https://netflix.com/watch/1')).toBe('movie');
+  });
+
+  it('returns null when the matching entry carries no tag', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/']);
+    expect(list.getContentType('https://example.com/x')).toBeNull();
+  });
+
+  it('lets a later untagged entry clear an earlier tag for the same prefix', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/ @anime', 'https://example.com/movies/']);
+    expect(list.getContentType('https://example.com/movies/1')).toBeNull();
+    expect(list.getContentType('https://example.com/other/1')).toBe('anime');
+  });
+
+  it('returns null for a negative entry even if tagged', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['!https://example.com/ads/ @anime']);
+    expect(list.getContentType('https://example.com/ads/1')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {loadIntoExisting} from '../../native-host/faststream-mpv-host.mjs';
+import {loadIntoExisting, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -89,5 +89,55 @@ describe('loadIntoExisting', () => {
     const result = await loadIntoExisting(
         {...message, fullscreen: true}, headerFields, title, ipcRequest);
     expect(result).toEqual({ok: true, pid: 777});
+  });
+
+  it('appends the fs-content fragment to the loadfile command', async () => {
+    let loadfileUrl;
+    const ipcRequest = async (commands) => {
+      loadfileUrl = commands.find((c) => c.command[0] === 'loadfile').command[1];
+      return {
+        ok: true,
+        replies: [
+          {request_id: 1},
+          {request_id: 2},
+          {request_id: commands.length - 1, error: 'success'},
+          {request_id: commands.length, data: 1},
+        ],
+      };
+    };
+    await loadIntoExisting({...message, contentType: 'anime'}, headerFields, title, ipcRequest);
+    expect(loadfileUrl).toBe('https://example.com/video.m3u8#fs-content=anime');
+  });
+});
+
+// The mpv URL fragment is how gpu-toggles.lua learns a stream's anime/movie
+// tag on the mpv side: fragments are never sent to the HTTP server, so this
+// cannot break a signed/tokenized CDN URL, unlike a query parameter would.
+
+describe('withContentTypeFragment', () => {
+  it('appends a fragment marker when there is none yet', () => {
+    expect(withContentTypeFragment('https://example.com/a.m3u8', 'anime'))
+        .toBe('https://example.com/a.m3u8#fs-content=anime');
+    expect(withContentTypeFragment('https://example.com/a.m3u8', 'movie'))
+        .toBe('https://example.com/a.m3u8#fs-content=movie');
+  });
+
+  it('extends an existing fragment instead of adding a second #', () => {
+    expect(withContentTypeFragment('https://example.com/a.m3u8#t=30', 'anime'))
+        .toBe('https://example.com/a.m3u8#t=30&fs-content=anime');
+  });
+
+  it('fills an empty existing fragment without a leading &', () => {
+    expect(withContentTypeFragment('https://example.com/a.m3u8#', 'movie'))
+        .toBe('https://example.com/a.m3u8#fs-content=movie');
+  });
+
+  it('leaves the URL untouched for an unset or invalid contentType', () => {
+    expect(withContentTypeFragment('https://example.com/a.m3u8', undefined))
+        .toBe('https://example.com/a.m3u8');
+    expect(withContentTypeFragment('https://example.com/a.m3u8', null))
+        .toBe('https://example.com/a.m3u8');
+    expect(withContentTypeFragment('https://example.com/a.m3u8', 'documentary'))
+        .toBe('https://example.com/a.m3u8');
   });
 });

@@ -1101,7 +1101,7 @@
         "message": "MPV Allowlist"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude."
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for sites that are not. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
     },
     "options_mpv_path": {
         "message": "mpv path (optional, used by the native host when mpv is not on PATH)"
@@ -1138,6 +1138,15 @@
     },
     "player_mpv_fail": {
         "message": "Could not open in mpv. Is the FastStream mpv host installed?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Open this stream in mpv (content type: Anime -- right-click to change)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Open this stream in mpv (content type: Movie -- right-click to change)"
     },
     "options_help_header": {
         "message": "Help"

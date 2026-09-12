@@ -1231,6 +1231,9 @@ export class FastStreamClient extends EventEmitter {
         await saveManager.pendingSave.catch(() => {});
       }
     }
+    // A new video defers to the MPV Allowlist's per-site default again,
+    // rather than keeping the previous video's manual anime/movie override.
+    saveManager?.resetMpvContentType();
 
     const promises = [];
     this.lastTime = 0;

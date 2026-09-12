@@ -18,6 +18,7 @@ export const DOMElements = {
   playbackRateBanner: document.querySelector('.mainplayer .rate_menu_banner'),
   download: document.querySelector('.mainplayer .fluid_button_download.main_download'),
   mpv: document.querySelector('.mainplayer .fluid_button_mpv'),
+  mpvContentBanner: document.querySelector('#mpv_content_banner'),
   saveNotifBanner: document.querySelector('#save_notif_banner'),
   screenshot: document.querySelector('.mainplayer .fluid_button_screenshot'),
   pip: document.querySelector('.mainplayer .fluid_button_pip'),

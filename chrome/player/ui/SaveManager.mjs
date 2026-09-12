@@ -23,6 +23,10 @@ export class SaveManager {
     this.makingDownload = false;
     this.downloadCancel = null;
     this.pendingSave = null;
+    // Manual override for the mpv anime/movie shader selection, cycled by
+    // right-clicking the mpv button. null defers to the MPV Allowlist's
+    // per-site @anime/@movie tag (see UrlMatchList.mjs / background.mjs).
+    this.mpvContentType = null;
   }
 
   setupUI() {
@@ -39,7 +43,13 @@ export class SaveManager {
     WebUtils.setupTabIndex(DOMElements.download);
 
     DOMElements.mpv.addEventListener('click', this.openInMpv.bind(this));
+    DOMElements.mpv.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.cycleMpvContentType();
+    });
     WebUtils.setupTabIndex(DOMElements.mpv);
+    this.updateMpvContentBadge();
 
     DOMElements.screenshot.addEventListener('click', this.saveScreenshot.bind(this));
     WebUtils.setupTabIndex(DOMElements.screenshot);
@@ -67,6 +77,7 @@ export class SaveManager {
       type: MessageTypes.MPV_OPEN,
       url: source.url,
       headers: headers,
+      contentType: this.mpvContentType || undefined,
     }, (response) => {
       if (chrome.runtime.lastError) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
@@ -87,6 +98,57 @@ export class SaveManager {
 
   setStatusMessage(key, message, type, expiry) {
     this.client.interfaceController.setStatusMessage(key, message, type, expiry);
+  }
+
+  /**
+   * Cycles the manual mpv content-type override: Unset -> Anime -> Movie ->
+   * Unset. Right-click on the mpv button, since the button's main click
+   * already does the "send to mpv" action.
+   * @return {void}
+   */
+  cycleMpvContentType() {
+    const order = [null, 'anime', 'movie'];
+    const next = order[(order.indexOf(this.mpvContentType) + 1) % order.length];
+    this.mpvContentType = next;
+    this.updateMpvContentBadge();
+  }
+
+  /**
+   * Clears the manual override back to Unset (deferring to the MPV
+   * Allowlist's per-site tag) for a newly loaded video.
+   * @return {void}
+   */
+  resetMpvContentType() {
+    this.mpvContentType = null;
+    this.updateMpvContentBadge();
+  }
+
+  /**
+   * Reflects the current mpvContentType on the mpv button: a small A/M
+   * badge, and a tooltip naming the active state.
+   * @return {void}
+   */
+  updateMpvContentBadge() {
+    const banner = DOMElements.mpvContentBanner;
+    if (this.mpvContentType === 'anime') {
+      if (banner) {
+        banner.textContent = 'A';
+        banner.style.display = '';
+      }
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_anime'));
+    } else if (this.mpvContentType === 'movie') {
+      if (banner) {
+        banner.textContent = 'M';
+        banner.style.display = '';
+      }
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_movie'));
+    } else {
+      if (banner) {
+        banner.textContent = '';
+        banner.style.display = 'none';
+      }
+      WebUtils.setLabels(DOMElements.mpv, Localize.getMessage('player_mpv_content_unset'));
+    }
   }
 
   async saveScreenshot() {

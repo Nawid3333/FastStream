@@ -73,11 +73,23 @@ FastStream settings → **MPV Mode**:
    `-` matches by hostname only, `#` is a comment. Later lines win over
    earlier ones.
 
+   Every site on this list is tagged **Movie** by default. Add `@anime` at
+   the end of a line for the sites that are not, e.g.
+   `https://crunchyroll.com @anime` — most people have more movie sites
+   than anime ones, so only the exceptions need marking. (`@movie` is also
+   accepted, if you'd rather write it out.) This is passed to mpv as a
+   `#fs-content=anime`/`#fs-content=movie` marker on the stream URL (never
+   sent to the site — URL fragments stay client-side), for an mpv config
+   that reads it back to pick an anime- or movie-tuned shader chain
+   automatically.
+
 ## 4. Use it
 
 Open a video on an allowlisted site — mpv takes over automatically. On any
 other site, the player's toolbar has an **Open this stream in mpv** button
-next to the download button.
+next to the download button. Right-click that button to cycle a per-video
+override — Auto → Anime → Movie → Auto — shown as a small A/M badge; it wins
+over the allowlist tag for that one video.
 
 ## Options
 
@@ -128,6 +140,10 @@ Only the stream URL, and **`Referer`, `Origin` and `User-Agent`** — the three
 headers CDNs check. **Cookies and every other header stay in the browser.**
 That is why some streams that play fine in the browser will not play in mpv:
 they are tied to a login session that mpv does not have.
+
+When a content type is set, the URL mpv opens gets an extra
+`#fs-content=anime` or `#fs-content=movie` fragment. Fragments are never
+transmitted over HTTP, so this cannot change what the site or CDN receives.
 
 ---
 

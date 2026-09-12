@@ -162,3 +162,56 @@ describe('openStream retry bookkeeping', () => {
     expect(host.calls()).toBe(2);
   });
 });
+
+// contentType is the MPV allowlist tag or the player's manual anime/movie
+// override, threaded through to the native host message so it can append
+// the #fs-content= marker gpu-toggles.lua reads on the mpv side.
+
+describe('openStream contentType', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * Installs a fake native host that captures the message it was sent.
+   * @return {{message: () => Object}} The most recent message sent.
+   */
+  function captureNativeHost() {
+    let lastMessage;
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          lastMessage = message;
+          callback({ok: true});
+        },
+      },
+    };
+    return {message: () => lastMessage};
+  }
+
+  it('includes a valid contentType in the message', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime');
+    expect(host.message().contentType).toBe('anime');
+
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'movie');
+    expect(host.message().contentType).toBe('movie');
+  });
+
+  it('omits contentType when unset or invalid', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, undefined);
+    expect(host.message()).not.toHaveProperty('contentType');
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, null);
+    expect(host.message()).not.toHaveProperty('contentType');
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'documentary');
+    expect(host.message()).not.toHaveProperty('contentType');
+  });
+});

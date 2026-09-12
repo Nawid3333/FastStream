@@ -6,6 +6,12 @@
  * entry match, `~` marks a regex, `!` marks a negative (exclude) entry and
  * `-` matches by hostname only. Lines starting with `#` are comments.
  *
+ * An entry may also carry a trailing content-type tag, separated by
+ * whitespace: `@anime` or `@movie`, e.g. `https://crunchyroll.com @anime`.
+ * This is the MPV allowlist's per-site default for gpu-toggles.lua's
+ * anime/movie shader selection on the mpv side (see getContentType); it is
+ * unused by any other allowlist that reuses this class.
+ *
  * Matching follows the same precedence as the AutoEnableList in
  * background.mjs: entries are evaluated from last to first, so a negative
  * entry on a later line overrides positive entries above it.
@@ -48,8 +54,17 @@ export class UrlMatchList {
       negative: false,
       regex: false,
       exclude_domain: false,
+      contentType: /** @type {string|null} */ (null),
       match: /** @type {RegExp|string|null} */ (null),
     };
+
+    // Strip a trailing "@anime"/"@movie" tag before the prefix loop below,
+    // which otherwise only ever looks at the start of the string.
+    const tagMatch = /(?:^|\s+)@(anime|movie)\s*$/i.exec(urlStr);
+    if (tagMatch) {
+      entry.contentType = tagMatch[1].toLowerCase();
+      urlStr = urlStr.slice(0, tagMatch.index).trim();
+    }
 
     while (urlStr.length > 0) {
       if (urlStr[0] === '!') {
@@ -101,21 +116,47 @@ export class UrlMatchList {
    *   matched, or a negative entry did not override it).
    */
   matches(url) {
+    const entry = this.findMatchingEntry(url);
+    return entry ? !entry.negative : false;
+  }
+
+  /**
+   * Returns the content-type tag ('anime'|'movie') of the entry that
+   * decides this URL, for the mpv allowlist's per-site default.
+   * @param {string} url - The URL to test.
+   * @return {string|null} 'anime', 'movie', or null when the matching entry
+   *   (if any) carries no tag, is a negative entry, or nothing matched.
+   */
+  getContentType(url) {
+    const entry = this.findMatchingEntry(url);
+    if (!entry || entry.negative) {
+      return null;
+    }
+    return entry.contentType || null;
+  }
+
+  /**
+   * Finds the entry that decides a URL's match result.
+   * @param {string} url - The URL to test.
+   * @return {Object|null} The matching entry (later entries take
+   *   precedence, mirroring the reversed AutoEnableList), or null when
+   *   nothing matched.
+   */
+  findMatchingEntry(url) {
     if (!url) {
-      return false;
+      return null;
     }
 
     const normalized = url.toLowerCase();
 
-    // Later entries take precedence, mirroring the reversed AutoEnableList.
     for (let i = this.entries.length - 1; i >= 0; i--) {
       const entry = this.entries[i];
       if (UrlMatchList.entryMatches(entry, normalized)) {
-        return !entry.negative;
+        return entry;
       }
     }
 
-    return false;
+    return null;
   }
 
   /**

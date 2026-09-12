@@ -7,14 +7,20 @@
  *
  * The host is registered under the name com.faststream.mpv. It receives
  * small JSON messages and launches mpv on the user's machine:
- *   {type: 'ping'}                 -> {ok, mpv, path}
- *   {type: 'open', url, headers?}  -> {ok, error?}
+ *   {type: 'ping'}                                -> {ok, mpv, path}
+ *   {type: 'open', url, headers?, contentType?}  -> {ok, error?}
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
  * without the browser's User-Agent mpv identifies itself as "libmpv", which
  * CDNs that gate on a browser UA reject. Cookies and everything else stay in
  * the browser.
+ *
+ * `contentType` ('anime'|'movie', optional) is the MPV allowlist tag or the
+ * player's manual override (see background.mjs's Mpv.openStream call
+ * sites) for gpu-toggles.lua's content-aware shader selection on the mpv
+ * side. The host appends it to the stream URL as a `#fs-content=` fragment
+ * marker, which is never sent to the CDN.
  */
 
 const NativeHostName = 'com.faststream.mpv';
@@ -69,9 +75,12 @@ export class MpvBackend {
    *   deduplicate repeated detections of the same URL.
    * @param {Array<{name: string, value: string}>} [headers] - Optional
    *   Referer/Origin headers to relay.
+   * @param {string} [contentType] - 'anime' or 'movie', from the MPV
+   *   allowlist tag or the player's manual override. Anything else is
+   *   dropped rather than relayed.
    * @return {Promise<{ok: boolean, error?: string}>} Host response.
    */
-  openStream(url, tab, headers) {
+  openStream(url, tab, headers, contentType) {
     if (tab && tab.mpvSentUrls) {
       if (tab.mpvSentUrls.has(url)) {
         return Promise.resolve({ok: true});
@@ -84,6 +93,10 @@ export class MpvBackend {
       type: 'open',
       url: url,
     };
+
+    if (contentType === 'anime' || contentType === 'movie') {
+      message.contentType = contentType;
+    }
 
     // Relay the user's mpv path preference (options page) so the host does
     // not have to guess where mpv is installed.

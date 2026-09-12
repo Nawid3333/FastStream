@@ -670,7 +670,8 @@ body {
 .rate_menu_banner,
 .nextvideo_banner,
 #update_notif_banner,
-#save_notif_banner {
+#save_notif_banner,
+#mpv_content_banner {
     position: absolute;
     bottom: 0px;
     right: 0px;
@@ -688,7 +689,8 @@ body {
 }
 
 #update_notif_banner,
-#save_notif_banner {
+#save_notif_banner,
+#mpv_content_banner {
     background: none;
     font-weight: bold;
     font-size: 12px;
@@ -699,7 +701,8 @@ body {
     color: var(--update-notif-badge-text-color);
 }
 
-#save_notif_banner {
+#save_notif_banner,
+#mpv_content_banner {
     color: var(--save-notif-badge-text-color);
 }
 

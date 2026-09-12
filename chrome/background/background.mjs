@@ -22,6 +22,27 @@ const ManualMpvRepeatMs = 3000;
 let LastManualMpvUrl = '';
 let LastManualMpvTime = 0;
 
+/**
+ * Resolves the anime/movie shader hint sent to mpv for a stream.
+ *
+ * Movie is the fallback on purpose: most sites on the MPV Allowlist are
+ * movie sites for this user, so only the anime ones need an `@anime` tag --
+ * an untagged site, or none of this ever matching, still gets an explicit
+ * `movie` rather than nothing (which would leave it to mpv's own, less
+ * reliable folder-name heuristic).
+ *
+ * @param {string} [explicit] - The player's manual per-video override
+ *   (SaveManager.mjs's mpvContentType), or anything else to fall through.
+ * @param {string} [url] - Tab URL to check against the MPV Allowlist.
+ * @return {string} 'anime' or 'movie', never null/undefined.
+ */
+function resolveMpvContentType(explicit, url) {
+  if (explicit === 'anime' || explicit === 'movie') {
+    return explicit;
+  }
+  return MpvAllowlist.getContentType(url) || 'movie';
+}
+
 // Resolves once options have been read from storage. Clicks and navigation
 // events can arrive before the initial load completes (fresh install,
 // add-on reload); awaiting this prevents them from acting on an empty
@@ -296,7 +317,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       headers.push({name: 'User-Agent', value: navigator.userAgent});
     }
 
-    Mpv.openStream(msg.url, null, headers).then((result) => {
+    const contentType = resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url);
+
+    Mpv.openStream(msg.url, null, headers, contentType).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
         // Let the user retry immediately when the launch actually failed.
@@ -1295,7 +1318,7 @@ async function onSourceRecieved(details, frame, mode) {
     if (!frame.tab.mpvAutoOpened) {
       frame.tab.mpvAutoOpened = true;
       if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
-      Mpv.openStream(url, frame.tab, customHeaders).then((result) => {
+      Mpv.openStream(url, frame.tab, customHeaders, resolveMpvContentType(null, frame.tab.url)).then((result) => {
         if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
         if (result.ok) {
           pauseTabMedia(frame.tab.tabId);
@@ -1432,7 +1455,7 @@ function openMpvWithSources(tab) {
   }
 
   tab.mpvAutoOpened = true;
-  Mpv.openStream(source.url, tab, source.headers).then((result) => {
+  Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url)).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
     if (result.ok) {
       pauseTabMedia(tab.tabId);
