@@ -382,9 +382,11 @@ export class AudioConfigManager extends AbstractAudioModule {
 
       const downloadBlob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(downloadBlob);
+      const downloadURL = URL.createObjectURL(downloadBlob);
+      a.href = downloadURL;
       a.download = `${shouldDownloadAll ? 'all' : profile.label}.fsprofile.json`;
       a.click();
+      URL.revokeObjectURL(downloadURL);
       this.ui.downloadButton.textContent = Localize.getMessage('player_audioconfig_profile_downloaded');
       clearTimeout(downloadTimeout);
       downloadTimeout = setTimeout(() => {

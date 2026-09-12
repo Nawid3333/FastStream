@@ -433,7 +433,15 @@ export class SaveManager {
         newSource = new VideoSource(file, {}, mode);
         newSource.identifier = file.name + 'size' + file.size;
       } else if (ext === 'fsa') {
-        const buffer = await RequestUtils.httpGetLarge(window.URL.createObjectURL(file));
+        // Read once, then drop the URL - an .fsa archive is a whole video, so
+        // holding this would pin the entire file for the tab's lifetime.
+        const archiveURL = window.URL.createObjectURL(file);
+        let buffer;
+        try {
+          buffer = await RequestUtils.httpGetLarge(archiveURL);
+        } finally {
+          window.URL.revokeObjectURL(archiveURL);
+        }
         try {
           const {source, entries, currentLevel, currentAudioLevel} = await FastStreamArchiveUtils.parseFSA(buffer, (progress)=>{
             this.setStatusMessage('save-video', Localize.getMessage('player_archive_loading', [Math.floor(progress * 100)]), 'info');

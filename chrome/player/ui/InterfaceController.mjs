@@ -941,9 +941,16 @@ export class InterfaceController {
   }
 
   runProgressLoop() {
+    // Set unconditionally, before the isRunning guard: stopProgressLoop()
+    // only clears shouldRunProgressLoop, and isRunningProgressLoop isn't
+    // cleared until the *next* frame observes that. Between those two points
+    // - a window that lasts as long as the tab is backgrounded, since rAF is
+    // paused there - a runProgressLoop() call would otherwise hit the guard,
+    // leave shouldRunProgressLoop false, and let the pending frame stop the
+    // loop for good even though it had just been asked to run.
+    this.shouldRunProgressLoop = true;
     if (!this.isRunningProgressLoop) {
       this.isRunningProgressLoop = true;
-      this.shouldRunProgressLoop = true;
       this.progressLoop();
     }
   }
