@@ -35,6 +35,23 @@ export class EnvUtils {
   }
 
   /**
+   * Opens a URL outside the player. Prefers chrome.tabs.create when running
+   * as the extension: a raw window.open() from inside the player's iframe is
+   * an opener-attributed tab creation the background's popup/popunder guard
+   * (chrome.tabs.onCreated) would otherwise have to special-case, and
+   * chrome.tabs.create from extension-context code doesn't set openerTabId
+   * unless told to, so it's naturally exempt.
+   * @param {string} url
+   */
+  static openExternalURL(url) {
+    if (EnvUtils.isExtension()) {
+      chrome?.tabs?.create({url});
+    } else {
+      window.open(url, '_blank');
+    }
+  }
+
+  /**
    * Checks if the device is mobile.
    * @return {boolean} True if mobile, false otherwise.
    */

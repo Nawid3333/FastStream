@@ -20,6 +20,7 @@
     SEND_TO_CONTENT: 'SEND_TO_CONTENT',
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
     PAUSE_MEDIA: 'PAUSE_MEDIA',
+    POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
   };
 
   const iframeMap = new Map();
@@ -1413,6 +1414,26 @@
   window.addEventListener('resize', () => {
     updateReplacedPlayers();
     resizeMiniPlayers();
+  });
+
+  // Sites that pad their video with popup/popunder ads commonly hook the
+  // page's own 'blur' event to fire window.open() the moment focus leaves
+  // the top document - which is exactly what happens the instant a click on
+  // our player iframe lands, since focus moves into it. Arming the
+  // background's tabs.onCreated guard right here lets it tell "the site
+  // hijacked this click" apart from a normal middle-click-to-open-in-
+  // background-tab elsewhere on the page, which never blurs the top window
+  // like this.
+  window.addEventListener('blur', () => {
+    const active = document.activeElement;
+    if (!active) return;
+    let isOurIframe = false;
+    iframeMap.forEach((iframeObj) => {
+      if (iframeObj.iframe === active) isOurIframe = true;
+    });
+    if (isOurIframe) {
+      chrome.runtime.sendMessage({type: MessageTypes.POPUP_GUARD_ARM});
+    }
   });
 
   window.addEventListener('beforeunload', () => {

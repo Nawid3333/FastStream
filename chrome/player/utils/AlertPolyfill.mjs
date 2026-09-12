@@ -111,13 +111,7 @@ export class AlertPolyfill {
         const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
         const url = `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 
-        if (EnvUtils.isExtension()) {
-          chrome?.tabs?.create({
-            url,
-          });
-        } else {
-          window.open(url, '_blank');
-        }
+        EnvUtils.openExternalURL(url);
       }
     });
   }

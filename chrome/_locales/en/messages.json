@@ -926,6 +926,15 @@
     "options_general_maxsize": {
         "message": "Maximum size of predownloaded video"
     },
+    "options_general_bufferahead": {
+        "message": "Seconds to keep buffered ahead of playback (used once predownload stops or runs out of space)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Seconds to keep buffered behind playback before trimming"
+    },
+    "options_general_blockpopups": {
+        "message": "Block popups/popunders opened right after clicking the player"
+    },
     "options_general_previewenabled": {
         "message": "Show preview when hovering over the timeline"
     },

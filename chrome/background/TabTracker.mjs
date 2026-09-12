@@ -83,6 +83,12 @@ export class TabHolder {
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
     this.url = '';
+    // Popup/popunder guard: set by content.js when focus moves into one of
+    // this tab's player iframes (the click that ad sites hook via a
+    // top-window 'blur' listener to fire a popup/popunder). Not touched by
+    // reset() - it's a short-lived timestamp that's harmless to carry across
+    // a same-tab navigation and naturally goes stale on its own.
+    this.popupGuardArmedUntil = 0;
 
     this.reset();
   }

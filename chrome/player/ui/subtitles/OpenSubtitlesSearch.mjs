@@ -2,6 +2,7 @@ import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
+import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../../utils/InterfaceUtils.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
@@ -417,7 +418,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
               item.downloading = false;
               await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_quota', [data.reset_time]), 'warning');
               if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-                window.open(item.attributes.url);
+                EnvUtils.openExternalURL(item.attributes.url);
               }
               return;
             }
@@ -457,7 +458,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
           item.downloading = false;
           await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
           if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
-            window.open(item.attributes.url);
+            EnvUtils.openExternalURL(item.attributes.url);
           }
           return;
         }

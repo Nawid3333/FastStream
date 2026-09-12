@@ -18,6 +18,7 @@ export const DefaultOptions = {
   mpvSingleInstance: true,
   analyzeVideos: false,
   downloadAll: true,
+  blockPopupsWhilePlaying: true,
   previewEnabled: true,
   autoEnableBestSubtitles: false,
   storeProgress: true,
@@ -39,6 +40,8 @@ export const DefaultOptions = {
   videoZoom: 1,
   maxSpeed: -1,
   maxVideoSize: 5000000000, // 5GB max size
+  bufferAhead: 300, // seconds to keep buffered ahead of playback when predownloading is off/unavailable
+  bufferBehind: 20, // seconds to keep buffered behind playback before trimming
   seekStepSize: 2,
   singleClickAction: ClickActions.PLAY_PAUSE,
   doubleClickAction: ClickActions.FULLSCREEN,

@@ -41,4 +41,5 @@ export const MessageTypes = {
   PAUSE_MEDIA: 'PAUSE_MEDIA',
   MPV_TEST: 'MPV_TEST',
   MPV_OPEN: 'MPV_OPEN',
+  POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
 };

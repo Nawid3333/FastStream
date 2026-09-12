@@ -22,6 +22,19 @@ const ManualMpvRepeatMs = 3000;
 let LastManualMpvUrl = '';
 let LastManualMpvTime = 0;
 
+// How long a tab stays "armed" after content.js reports focus moving into
+// one of its player iframes (see the tabs.onCreated listener below). Short
+// on purpose: a popup/popunder script reacting to that same blur event fires
+// within tens of ms, while a deliberate unrelated action from the user
+// (e.g. middle-clicking a different link) takes noticeably longer to
+// physically happen - so this window trades a little bit of the former for
+// a lot less risk of the latter.
+const PopupGuardArmMs = 700;
+// How long the guard stays armed after actually closing a tab, to catch a
+// popup/popunder script that opens more than one tab off a single click
+// without leaving the guard live long enough to catch unrelated activity.
+const PopupGuardChainMs = 400;
+
 /**
  * Resolves the anime/movie shader hint sent to mpv for a stream.
  *
@@ -178,6 +191,45 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
   Tabs.removeTab(tabid);
 });
 
+// Closes a tab opened right after the user's click landed on a player
+// iframe (see the POPUP_GUARD_ARM handler and content.js's 'blur' listener).
+// Both actual popups (the new tab steals focus) and popunders (it doesn't)
+// go through here - gating on the arm window rather than "is a player
+// running in the opener tab" is what keeps this from touching a tab the user
+// opens deliberately (e.g. middle-clicking a link elsewhere on the page),
+// since that never blurs the top window the way a click into our iframe
+// does. Two caveats this can't fully close: the arm message is an async
+// chrome.runtime.sendMessage to the background - on a cold service worker a
+// popup/popunder that calls window.open() synchronously from the same blur
+// handler can create its tab before the arm message is even processed, so
+// the guard is more reliable once the worker is already warm from an earlier
+// interaction. And because the signal is only "a click landed on the player
+// recently", not "this exact tab-creation was caused by that click", a
+// short window still means a deliberate action within it (e.g. a very fast
+// middle-click elsewhere right after clicking the video) could get caught -
+// PopupGuardArmMs is kept short specifically to make that collision rare
+// without also making the common case (an ad script reacting to the same
+// blur within tens of ms) unreliable.
+chrome.tabs.onCreated.addListener(async (newTab) => {
+  await ensureOptions();
+  if (!Options.blockPopupsWhilePlaying) return;
+
+  const openerTabId = newTab.openerTabId;
+  if (typeof openerTabId !== 'number') return;
+
+  const openerTab = Tabs.getTab(openerTabId);
+  if (!openerTab || openerTab.popupGuardArmedUntil <= Date.now()) return;
+
+  if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
+  chrome.tabs.remove(newTab.id);
+
+  // Re-arm briefly rather than clearing outright: a single popup/popunder
+  // script commonly chains two or three tabs off one click, and this still
+  // keeps the guard from lingering long enough to catch an unrelated later
+  // tab the user opens on their own.
+  openerTab.popupGuardArmedUntil = Date.now() + PopupGuardChainMs;
+});
+
 chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
 
@@ -328,6 +380,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(result);
     });
     return true;
+  } else if (msg.type === MessageTypes.POPUP_GUARD_ARM) {
+    if (sender.tab) {
+      Tabs.getTabOrCreate(sender.tab.id).popupGuardArmedUntil = Date.now() + PopupGuardArmMs;
+    }
+    return;
   }
 
   const tab = Tabs.getTabOrCreate(sender.tab.id);

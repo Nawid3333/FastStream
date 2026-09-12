@@ -37,8 +37,11 @@ const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
+const bufferAhead = document.getElementById('bufferahead');
+const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
 const autoplayNext = document.getElementById('autoplaynext');
+const blockPopupsWhilePlaying = document.getElementById('blockpopupswhileplaying');
 const qualityMenu = document.getElementById('quality');
 const importButton = document.getElementById('import');
 const exportButton = document.getElementById('export');
@@ -123,8 +126,11 @@ async function loadOptions(newOptions) {
   previewEnabled.checked = !!Options.previewEnabled;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
+  blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
   maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+  bufferAhead.value = Options.bufferAhead;
+  bufferBehind.value = Options.bufferBehind;
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
   customSourcePatterns.value = Options.customSourcePatterns || '';
   miniSize.value = Options.miniSize;
@@ -485,6 +491,11 @@ autoplayNext.addEventListener('change', () => {
   optionChanged();
 });
 
+blockPopupsWhilePlaying.addEventListener('change', () => {
+  Options.blockPopupsWhilePlaying = blockPopupsWhilePlaying.checked;
+  optionChanged();
+});
+
 maxSpeed.addEventListener('change', () => {
   // parse value, number unit/s
   Options.maxSpeed = StringUtils.getSpeedValue(maxSpeed.value);
@@ -496,6 +507,18 @@ maxSize.addEventListener('change', () => {
   // parse value, number unit
   Options.maxVideoSize = StringUtils.getSizeValue(maxSize.value);
   maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+  optionChanged();
+});
+
+bufferAhead.addEventListener('change', () => {
+  Options.bufferAhead = Math.max(parseInt(bufferAhead.value) || 0, 0);
+  bufferAhead.value = Options.bufferAhead;
+  optionChanged();
+});
+
+bufferBehind.addEventListener('change', () => {
+  Options.bufferBehind = Math.max(parseInt(bufferBehind.value) || 0, 0);
+  bufferBehind.value = Options.bufferBehind;
   optionChanged();
 });
 
