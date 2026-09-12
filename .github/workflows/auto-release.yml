@@ -19,6 +19,16 @@ name: Auto release
 # dev/mv3-modernization, which reruns CI, which would re-trigger this
 # workflow - the `chore: release` head-commit check below is what stops
 # that from repeating forever.
+#
+# The tag push below is authenticated with the default GITHUB_TOKEN (via
+# actions/checkout's persisted credentials), and GitHub deliberately does
+# not let a GITHUB_TOKEN-authenticated push fire other workflows' `push`
+# triggers - the anti-recursion rule that stops a workflow from chaining
+# into itself forever. release.yml's `on: push: tags:` would silently
+# never fire from here because of exactly that rule (confirmed the hard
+# way: v1.3.82.1's tag landed with no Release run to show for it). The
+# explicit `gh workflow run` step below sidesteps it by dispatching
+# release.yml directly instead of relying on its push trigger.
 
 on:
   workflow_run:
@@ -28,6 +38,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 # Never run two of these at once - two overlapping pushes both computing
 # "current version + 1" at the same time would tag the same version twice.
@@ -74,3 +85,14 @@ jobs:
           git tag -a "v$NEW" -m "FastStream $NEW"
           git push origin HEAD:dev/mv3-modernization
           git push origin "v$NEW"
+
+          echo "NEW_TAG=v$NEW" >> "$GITHUB_ENV"
+
+      # release.yml's own `on: push: tags:` trigger will not fire for the
+      # tag just pushed - see the header comment - so dispatch it directly
+      # against that tag instead of waiting on a push event that never
+      # comes.
+      - name: Trigger the release build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run release.yml --ref "$NEW_TAG"
