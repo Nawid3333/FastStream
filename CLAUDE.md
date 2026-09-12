@@ -284,9 +284,14 @@ automatically — no separate "ship it" step. `auto-release.yml` waits for
 CI to go green on that branch (`workflow_run`, not `push` directly — a
 red push is never released), then bumps just the trailing build number
 (`1.3.82.0` -> `1.3.82.1` -> ...), commits `chore: release <version>`,
-tags it, and pushes both. The pushed tag is what `release.yml` (unchanged)
-is watching for — it does the actual build/sign/publish, same as a manual
-release always has.
+tags it, and pushes both, then explicitly runs `gh workflow run
+release.yml --ref v<version>` to do the actual build/sign/publish.
+That last step has to be explicit: the tag push is authenticated with the
+default `GITHUB_TOKEN`, and GitHub deliberately does not let a
+`GITHUB_TOKEN`-authenticated push fire other workflows' `push` triggers
+(anti-recursion protection) — confirmed the hard way when `v1.3.82.1`'s
+tag landed with no Release run behind it, before this dispatch step
+existed.
 
 The bump commit is itself a push to the branch, which reruns CI, which
 would re-trigger `auto-release.yml` — the workflow's `if:` skips any
@@ -298,6 +303,17 @@ deliberate version bump — a real minor/patch for a milestone rather than
 the next build number. Run it by hand right before the push you want that
 version on; auto-release's next build-number bump continues from whatever
 version that leaves in `package.json`.
+
+**AMO signing needs patience now.** `tools/sign-amo.mjs` waits up to an
+hour for AMO's approval (`approvalTimeout`, was web-ext's 15-minute
+default) — releasing on every push means far more AMO submissions than
+before, and `v1.3.82.2` shipped without a signed xpi/`updates.json`
+(breaking self-update until the next successful release) purely because
+AMO took longer than 15 minutes that one time. An hour comfortably fits
+inside `release.yml`'s job budget (GitHub's default is 6 hours) and
+covers real-world AMO review times; the sign step is still
+`continue-on-error`, so an actual failure (bad credentials, AMO down)
+still can't block the plain-zip release.
 
 ## Rules
 

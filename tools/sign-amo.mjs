@@ -70,6 +70,15 @@ webExt.cmd.sign({
   apiKey,
   apiSecret,
   amoBaseUrl: 'https://addons.mozilla.org/api/v5/',
+  // web-ext's default approvalCheckTimeout is 15 minutes - too short now
+  // that a release happens on every green push instead of only when a
+  // human deliberately cut one. v1.3.82.2 hit exactly this: AMO's
+  // automated review took longer than 15 minutes, web-ext gave up, and
+  // that release published without a signed xpi/updates.json, breaking
+  // self-update for anyone until the next successful release. An hour
+  // comfortably covers real AMO review times and still fits well inside
+  // release.yml's job (GitHub's default job timeout is 6 hours).
+  approvalTimeout: 60 * 60 * 1000,
 }).then((result) => {
   // web-ext 10.x resolves with the downloaded files; `success` is not
   // populated, so treat a downloaded .xpi as the success signal.
