@@ -418,14 +418,19 @@ export class SaveManager {
           name: file.name.substring(0, file.name.length - 4),
         });
       } else if (audioFormats.includes(ext)) {
-        newSource = new VideoSource(window.URL.createObjectURL(file), {}, PlayerModes.DIRECT);
+        // Passing the File itself (rather than a pre-made object URL) routes
+        // through VideoSource.fromFile(), which is the only path that sets
+        // shouldRevoke - so VideoSource.destroy() actually frees the blob
+        // when this source is replaced, instead of leaking it for the tab's
+        // whole lifetime.
+        newSource = new VideoSource(file, {}, PlayerModes.DIRECT);
         newSource.identifier = file.name + 'size' + file.size;
       } else if (URLUtils.getModeFromExtension(ext)) {
         let mode = URLUtils.getModeFromExtension(ext);
         if (mode === PlayerModes.ACCELERATED_MP4) {
           mode = PlayerModes.DIRECT;
         }
-        newSource = new VideoSource(window.URL.createObjectURL(file), {}, mode);
+        newSource = new VideoSource(file, {}, mode);
         newSource.identifier = file.name + 'size' + file.size;
       } else if (ext === 'fsa') {
         const buffer = await RequestUtils.httpGetLarge(window.URL.createObjectURL(file));
@@ -472,7 +477,14 @@ export class SaveManager {
 
     (await Promise.all(captions.map(async (file) => {
       const track = new SubtitleTrack(file.name);
-      await track.loadURL(file.url);
+      try {
+        await track.loadURL(file.url);
+      } finally {
+        // loadURL() only ever fetches this once - nothing holds onto the
+        // blob URL afterward, so it would otherwise leak for the tab's
+        // whole lifetime instead of being freed right after use.
+        window.URL.revokeObjectURL(file.url);
+      }
       return track;
     }))).forEach((track) => {
       const returnedTrack = this.client.loadSubtitleTrack(track);

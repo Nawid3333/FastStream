@@ -497,7 +497,11 @@ export class FastStreamClient extends EventEmitter {
       this.previewPlayer.getVideo().style.opacity = 0;
       clearTimeout(this.previewPlayerLoadingTimeout);
       this.previewPlayerLoadingTimeout = setTimeout(() => {
-        if (parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
+        // previewPlayer can go null (resetPlayer/destroy) while this timeout
+        // is still pending - none of those paths clear it, since it's a
+        // plain UI debounce rather than something tied to the player's
+        // lifecycle.
+        if (this.previewPlayer && parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
           DOMElements.seekPreviewVideo.classList.add('loading');
         }
       }, 200);
