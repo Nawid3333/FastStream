@@ -14,7 +14,10 @@ const KEYFRAME_INTERVAL = 10 * 1000 * 1000; // 10 seconds
  *
  * Currently supports WebM input only.
  *
- * REQUIRES WebCodecs. Not supported in Firefox.
+ * REQUIRES WebCodecs (VideoDecoder/VideoEncoder/AudioDecoder/AudioEncoder).
+ * Firefox has shipped this on desktop since Firefox 130 (Sept 2024), so the
+ * window.VideoDecoder/etc. checks at this module's call sites (dash2mp4.mjs,
+ * convert() below) are genuine feature detection, not a Chrome-only gate.
  */
 export class Reencoder extends EventEmitter {
   constructor(registerCancel) {
