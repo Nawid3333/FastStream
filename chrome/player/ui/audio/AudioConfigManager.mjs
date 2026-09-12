@@ -24,7 +24,6 @@ export class AudioConfigManager extends AbstractAudioModule {
 
 
     this.renderLoopRunning = false;
-    this.shouldRunRenderLoop = false;
     this.audioUpmixer = new ChannelUpmixer();
     this.audioChannelMixer = new AudioChannelMixer(this);
     this.audioCrosstalk = new AudioCrosstalk();
@@ -140,9 +139,6 @@ export class AudioConfigManager extends AbstractAudioModule {
     this.currentProfile = profile.copy();
     this.audioChannelMixer.setConfig(this.currentProfile);
     this.audioCrosstalk.setCrosstalkConfig(this.currentProfile.crosstalk);
-    if (this.outputConvolver) {
-      this.outputConvolver.setConfig(this.currentProfile.convolver);
-    }
     this.saveProfilesToStorage();
   }
 
@@ -444,7 +440,10 @@ export class AudioConfigManager extends AbstractAudioModule {
 
 
   renderLoop() {
-    if (!this.shouldRunRenderLoop || !this.isOpen()) {
+    // The loop ends itself once the window is closed. If the window is
+    // reopened before the pending frame runs, that frame sees isOpen() again
+    // and keeps going, so startRenderLoop() returning early is safe.
+    if (!this.isOpen()) {
       this.renderLoopRunning = false;
     } else {
       requestAnimationFrame(this.renderLoop.bind(this));
@@ -456,13 +455,8 @@ export class AudioConfigManager extends AbstractAudioModule {
 
   startRenderLoop() {
     if (this.renderLoopRunning) return;
-    this.shouldRunRenderLoop = true;
     this.renderLoopRunning = true;
     this.renderLoop();
-  }
-
-  stopRenderLoop() {
-    this.shouldRunRenderLoop = false;
   }
 
   setupNodes(audioContext) {

@@ -567,12 +567,6 @@ export class OutputConvolver extends AbstractAudioModule {
     return this.ui.convolver;
   }
 
-  setConfig(config) {
-    // this.config = config;
-    // this.updateUI();
-    // this.updateNodes();
-  }
-
   async setImpulseResponse(name, data) {
     await this.initPromise;
     return this.db.setFile(name, data);

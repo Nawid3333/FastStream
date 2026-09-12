@@ -32,6 +32,8 @@ export const DefaultKeybinds = {
   'NextVideo': 'KeyN',
   'PreviousVideo': 'KeyB',
   'ToggleSubtitles': 'KeyC',
+  'ShiftSubtitlesEarlier': 'None',
+  'ShiftSubtitlesLater': 'None',
   'FlipVideo': 'KeyE',
   'RotateVideo': 'KeyR',
   'ZoomInVideo': 'None',

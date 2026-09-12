@@ -167,11 +167,12 @@ export class KeybindManager extends EventEmitter {
       this.client.interfaceController.skipSegment();
     });
 
-    this.on('SubtrackShiftRight', (e) => {
+    // Only act while a track is open in the subtitle resync tool.
+    this.on('ShiftSubtitlesLater', (e) => {
       this.client.interfaceController.subtitlesManager.subtitleSyncer.shiftSubtitles(0.2);
     });
 
-    this.on('SubtrackShiftLeft', (e) => {
+    this.on('ShiftSubtitlesEarlier', (e) => {
       this.client.interfaceController.subtitlesManager.subtitleSyncer.shiftSubtitles(-0.2);
     });
 
