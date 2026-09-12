@@ -98,6 +98,17 @@ export default class HLSPlayer extends EventEmitter {
       abrBandWidthUpFactor: 0.7,
       abrMaxWithRealBitrate: false,
       abrController: FastStreamAbrController,
+      // Without this, hls.js's error controller silently resets a manually
+      // pinned level back to auto (getLevelSwitchAction -> hls.loadLevel =
+      // -1) whenever a fragment/level load fails - exactly what a weak
+      // connection triggers. Its bandwidth-based ABR then takes over and
+      // settles on a lower quality that's never restored, even though
+      // FastStream (via LevelManager.currentVideoLevelID) still believes the
+      // user's chosen quality is in effect. FastStream always drives level
+      // selection itself, including for "Auto" (see LevelManager.
+      // getDesiredVideoHeight/matchQuality), so there's no legitimate ABR
+      // mode here for hls.js to fall back to.
+      preserveManualLevelOnError: true,
       maxStarvationDelay: 4,
       maxLoadingDelay: 4,
       minAutoBitrate: 0,
