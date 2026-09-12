@@ -3,6 +3,7 @@ import {KeybindManager} from './ui/KeybindManager.mjs';
 import {DownloadManager} from './network/DownloadManager.mjs';
 import {DefaultPlayerEvents} from './enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from './enums/DownloadStatus.mjs';
+import {ReferenceTypes} from './enums/ReferenceTypes.mjs';
 import {VideoAnalyzer} from './modules/analyzer/VideoAnalyzer.mjs';
 import {AnalyzerEvents} from './enums/AnalyzerEvents.mjs';
 import {EventEmitter} from './modules/eventemitter.mjs';
@@ -307,6 +308,8 @@ export class FastStreamClient extends EventEmitter {
     this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
+    this.options.bufferAhead = options.bufferAhead;
+    this.options.bufferBehind = options.bufferBehind;
     this.options.seekStepSize = options.seekStepSize;
     this.options.singleClickAction = options.singleClickAction;
     this.options.doubleClickAction = options.doubleClickAction;
@@ -646,11 +649,20 @@ export class FastStreamClient extends EventEmitter {
 
         const newHasDownloadSpace = (bitrate * this.duration) * (this.hasDownloadSpace ? 1 : 1.1) < storageAvailable;
         if (!newHasDownloadSpace && this.hasDownloadSpace) {
-          // fragments.forEach((fragment) => {
-          //   if (fragment && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE) {
-          //     fragment.addReference(ReferenceTypes.GRANDFATHERED); // Don't free already downloaded fragments
-          //   }
-          // });
+          // Storage just ran out mid-session. Grandfather in everything
+          // already downloaded so the windowed bufferAhead/bufferBehind
+          // fallback below only holds back *future* downloads - it must
+          // never be allowed to delete a fragment that's already fully
+          // buffered, or a video that looked completely buffered a moment
+          // ago would suddenly lose most of its buffer the next time
+          // freeFragments() runs (see FastStreamClient.freeFragments).
+          const grandfather = (frag) => {
+            if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
+              frag.addReference(ReferenceTypes.GRANDFATHERED);
+            }
+          };
+          fragments.forEach(grandfather);
+          if (this.audioFragments) this.audioFragments.forEach(grandfather);
           const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
           this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [timestr]), 'warning', 5000);
         }
