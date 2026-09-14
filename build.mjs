@@ -417,7 +417,11 @@ async function runAll() {
   const manifestPath = path.join(chromeSourceDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   manifest.version = packageJson.version;
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  // The trailing newline matters more than it looks: without it, every build
+  // rewrote this file as a one-line "no newline at end of file" diff and
+  // dirtied the working tree of anyone who ran build:keep. git, editors and
+  // prettier all expect a final newline.
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Building version ${manifest.version}`);
 
   await Promise.all([buildFirefoxGithub(), buildFirefoxAmo(), buildWeb()]);
