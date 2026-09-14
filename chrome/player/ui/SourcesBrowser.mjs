@@ -1,5 +1,6 @@
 import {VideoSource} from '../VideoSource.mjs';
 import {PlayerModes} from '../enums/PlayerModes.mjs';
+import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {Localize} from '../modules/Localize.mjs';
 import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
@@ -324,6 +325,14 @@ export class SourcesBrowser {
       this.sources.length = 0;
       this.linkui.sourcesList.replaceChildren();
       this.updateSources();
+      if (EnvUtils.isExtension()) {
+        // The player's list is a mirror of the background's per-frame store;
+        // without this the store re-pushes its copy on the next detected
+        // request and the clear visibly undoes itself.
+        chrome.runtime.sendMessage({
+          type: MessageTypes.CLEAR_SOURCES,
+        });
+      }
     });
 
     this.linkui.sourcesList = WebUtils.create('div', null, 'linkui-sources-list');

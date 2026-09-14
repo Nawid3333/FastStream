@@ -519,6 +519,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
+  } else if (msg.type === MessageTypes.CLEAR_SOURCES) {
+    // The SourcesBrowser's "Clear Sources" button empties its own list, but
+    // that list is only a mirror: this background's per-frame stores are the
+    // source of truth, and sendSourcesToMainFramePlayers re-pushes them to
+    // the player on every newly detected request - so a mirror-only clear
+    // was visibly undone within seconds on any page still loading media.
+    // Clear every frame's store (sources arrive on page frames, while this
+    // message comes from the player's frame), so the clear sticks.
+    for (const f of tab.getFrames()) {
+      f.getSources().length = 0;
+    }
+    sendResponse('cleared');
   } else if (msg.type === MessageTypes.SET_HEADERS) {
     if (msg.commands.length) {
       ruleManager.addHeaderRule(msg.url, sender.tab.id, msg.commands).then((rule) => {

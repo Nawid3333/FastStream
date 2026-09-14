@@ -26,4 +26,19 @@ export class InterfaceUtils {
 
     return wasOpen;
   }
+
+  /**
+   * Checks whether any popwindow (sources browser, subtitles, options, audio config) is open.
+   * @return {boolean} True if at least one popwindow is open.
+   */
+  static isAnyWindowOpen() {
+    const windows = [
+      DOMElements.optionsContainer,
+      DOMElements.subuiContainer,
+      DOMElements.linkuiContainer,
+      DOMElements.audioConfigContainer,
+    ];
+
+    return windows.some((box) => box.style.display !== 'none');
+  }
 }
