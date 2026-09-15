@@ -382,27 +382,50 @@ function focusApiLines() {
 function focusWindowLines(pidExpr) {
   return [
     '  try {',
-    '    $deadline = (Get-Date).AddSeconds(3)',
+    // Cold starts are slow in this mpv setup: gpu-next on a Vulkan context,
+    // uosc, thumbfast and the shader pipeline all initialise before the VO
+    // window exists, and network streams add demuxer-open time on top. A 3s
+    // deadline regularly expired on cold starts, leaving mpv behind the
+    // browser -- wait up to 10s instead.
+    '    $deadline = (Get-Date).AddSeconds(10)',
     '    $h = [IntPtr]::Zero',
+    '    $seen = $false',
     '    while ((Get-Date) -lt $deadline) {',
     '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
+    '      if ($p) { $seen = $true }',
     '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
       '{ $h = $p.MainWindowHandle; break }',
+    // mpv gone again after we saw it: it failed to open the URL and quit.
+    // Give up instead of polling the full deadline for a window that can
+    // never appear.
+    '      if ($seen -and -not $p) { break }',
     '      Start-Sleep -Milliseconds 100',
     '    }',
     '    if ($h -ne [IntPtr]::Zero) {',
     '      $null = [FSFg]::AllowSetForegroundWindow([int]' + pidExpr + ')',
-    '      $fg = [FSFg]::GetForegroundWindow()',
-    '      $t = [FSFg]::GetWindowThreadProcessId($fg, [ref]([uint32]0))',
-    '      $me = [FSFg]::GetCurrentThreadId()',
-    '      $null = [FSFg]::AttachThreadInput($me, $t, $true)',
-    '      $null = [FSFg]::ShowWindow($h, 5)',
-    '      $null = [FSFg]::BringWindowToTop($h)',
-    '      $ok = [FSFg]::SetForegroundWindow($h)',
-    '      $null = [FSFg]::AttachThreadInput($me, $t, $false)',
-    '      Start-Sleep -Milliseconds 300',
-    '      $now = [FSFg]::GetForegroundWindow()',
-    '      Write-Output ("FOCUS=" + $ok + " FGOK=" + ($now -eq $h))',
+    // A single attempt can be refused when the foreground owner changes
+    // between AttachThreadInput and SetForegroundWindow (the user clicking
+    // somewhere during startup). Retry while the window did not actually
+    // end up in the foreground.
+    '      $tries = 0',
+    '      $ok = $false',
+    '      $fgok = $false',
+    '      while ($tries -lt 3 -and -not $fgok) {',
+    '        $tries++',
+    '        $fg = [FSFg]::GetForegroundWindow()',
+    '        $t = [FSFg]::GetWindowThreadProcessId($fg, [ref]([uint32]0))',
+    '        $me = [FSFg]::GetCurrentThreadId()',
+    '        $null = [FSFg]::AttachThreadInput($me, $t, $true)',
+    '        $null = [FSFg]::ShowWindow($h, 5)',
+    '        $null = [FSFg]::BringWindowToTop($h)',
+    '        $ok = [FSFg]::SetForegroundWindow($h)',
+    '        $null = [FSFg]::AttachThreadInput($me, $t, $false)',
+    '        Start-Sleep -Milliseconds 250',
+    '        $now = [FSFg]::GetForegroundWindow()',
+    '        $fgok = ($now -eq $h)',
+    '      }',
+    '      Write-Output ("FOCUS=" + $ok + " FGOK=" + $fgok + ' +
+      '" TRIES=" + $tries)',
     '    } else { Write-Output "FOCUS=nowindow" }',
     '  } catch { Write-Output "FOCUS=error" }',
   ];
@@ -482,11 +505,13 @@ function launchViaWmi(mpvPath, args) {
     }
     const focus = /FOCUS=(\S+)/.exec(text);
     const fgOk = /FGOK=(\S+)/.exec(text);
+    const tries = /TRIES=(\d+)/.exec(text);
     return {
       ok: true,
       pid: match[2] ? Number(match[2]) : undefined,
       focus: focus ? focus[1] : undefined,
       foreground: fgOk ? fgOk[1] : undefined,
+      tries: tries ? Number(tries[1]) : undefined,
     };
   });
 }
