@@ -28,6 +28,8 @@ pnpm run lint             # eslint (must stay at 0)
 pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
 pnpm run start:ff         # web-ext run — launches Firefox with the extension
 pnpm test                 # vitest
+pnpm run test:ext         # installed extension, ordinary windows
+pnpm run test:pbm         # installed extension, private windows
 ```
 
 `build:keep` must run before any `lint:amo` or `start:ff` — those need an
@@ -145,6 +147,113 @@ lean on. `tests/e2e/specs/storage.e2e.mjs` verifies OPFS is actually
 selected and actually round-trips bytes correctly under concurrent load, by
 reading files directly out of `navigator.storage.getDirectory()` rather
 than trusting `FSBlob`'s own self-report.
+
+## Storage in a private window (2026-09-17)
+
+**OPFS exists and does not work in a Firefox private window.**
+`navigator.storage.getDirectory` is present there and throws
+`SecurityError: Security error when calling GetDirectory` the moment it is
+called. The Cache API and `navigator.storage.estimate()` work normally
+(10 GB quota reported); `indexedDB.open` fails with `InvalidStateError` on
+an extension page. So "is the API there" answers nothing in a private
+window, and `OPFSManager.isSupported()` — which by design only checks
+`navigator.storage.getDirectory` — said yes.
+
+That single wrong yes killed the extension outright in every private
+window, via a path worth remembering because none of it looks like storage
+code: `FSBlob` committed to OPFS, its `setup()` rejected, and `FSBlob.clear()`
+awaited the OPFS manager with nothing catching it, so the rejection
+travelled `FSBlob.clear()` → `DownloadManager.clearStorage()` →
+`DownloadManager.reset()` → `FastStreamClient.resetPlayer()` →
+`FastStreamClient.setSource()`, whose `catch` logged it and returned. The
+player was never constructed: no `<video>` element, no playback, no visible
+error — just a permanent "Welcome to FastStream" status. The whole
+`ext-specs` suite was green the entire time, because it only ever ran in
+ordinary windows.
+
+What that fix put in place, and the invariants to keep:
+
+- `FSBlob` holds an **ordered backend chain** (`['opfs', 'cache',
+  'indexeddb']`, empty on Chrome) instead of three module-level booleans.
+  `ready()` awaits the active backend's `setup()` and, on rejection, moves
+  to the next one — a backend that claims support and then fails costs one
+  step down the chain, not a drop to RAM. A private window therefore lands
+  on the Cache API, which is disk-backed, rather than buffering every
+  fragment in memory.
+- **No async `FSBlob` entry point may reject because of its backend.**
+  `clear()` and `deleteBlob()` are best-effort by contract: the in-memory
+  maps are emptied first, so the caller's invariant already holds, and a
+  backend that refuses gets a `console.warn`. `reset()`/`setSource()` are
+  on that path and treat a rejection as "loading the video failed".
+- Anything reading `blobManager.opfsManager` **synchronously** is a bug in
+  waiting — at construction time OPFS setup cannot have settled yet.
+  `StreamSaver.mjs` picks its sink on first write via `ready()` for exactly
+  this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
+  accumulation if its OPFS writes throw.
+- `OPFSManager.isSupported()` additionally refuses up front when
+  `EnvUtils.isFirefox() && EnvUtils.isIncognito()`, purely to avoid spawning
+  a worker and logging a `SecurityError` per player open. It is not the
+  safety net — the runtime fall-through is, and it has to be, because the
+  web build has no `chrome.extension` to read `inIncognitoContext` from and
+  still reaches OPFS in a private window.
+
+`tests/e2e/wdio.pbm.conf.mjs` + `tests/e2e/pbm-specs/` (`pnpm run
+test:pbm`) cover this: a permanently private session
+(`browser.privatebrowsing.autostart`) with the add-on's private-browsing
+permission granted through `ExtensionPermissions` in the `before` hook,
+asserting the blob backend is neither `memory` nor `opfs`, that
+`clear()`/`deleteBlob()`/`downloadManager.reset()` resolve, and that an MP4
+actually reaches `HAVE_CURRENT_DATA`. Verified to fail on the pre-fix tree
+(4 of 6 specs) and pass after.
+
+Two things about that harness. It needs **WebDriver classic**
+(`wdio:enforceWebDriverClassic`), because granting the permission goes
+through `browser.setMozContext('chrome')`, which the BiDi session the other
+suites use ignores silently. Under classic, an `ArrayBuffer` built inside a
+`browser.execute` body is cross-realm, so a library that checks `instanceof
+ArrayBuffer` rejects it — that is why `ext-specs/vad.e2e.mjs` (ORT) cannot
+move into this suite, and why an ORT `TypeError: Unexpected argument[0]:
+must be 'path' or 'buffer'` here means the harness, not private browsing.
+Second, the `addon.reload()` that applies the permission re-fires
+`runtime.onInstalled`, so a `welcome.html` tab appears at the end of the
+window-handle list; specs pick their window **by URL**, never by taking the
+last handle.
+
+**One more thing the same fix uncovered.** Making OPFS failure fall through
+made `mp4merger.mjs`'s non-OPFS `finalize()` reachable on Firefox for the
+first time, and it was broken: upstream pushed
+`blobManager.saveBlob(slice)` into `this.datas`, `9ef061b1` changed the push
+to the raw mdat Blob slice for the new OPFS path, and the Blob-accumulation
+path below it kept mapping those slices through `FSBlob.getBlob()`, which
+takes an *identifier*. Every chunk came back `undefined`, and
+`new Blob([initSeg, ...undefined])` stringifies - so a DASH save produced a
+**13 KB** file consisting of a valid init segment followed by the word
+"undefined" once per fragment. It now builds the output from the slices
+directly.
+
+`tests/e2e/specs/save-video.e2e.mjs` had been passing on that file the whole
+time, on Chromium, where the web build always takes this path:
+`decodeOk` and `duration` are both read out of the `moov`, so a header with
+no media behind it satisfies them, and the DASH case asserted nothing about
+size. It now requires >1 MB (a real save of that clip is 55-75 MB). Measured
+both ways before and after: 13,563 bytes with the old mapping, 75,046,520
+with the fix.
+
+`SaveManager` also treated any incognito context the way Chrome's does:
+`shouldAskForName` was `!isIncognito()`, on the rationale that "incognito
+always opens the file picker anyway". Firefox private-window downloads open
+no picker — they land in the download directory under whatever name they are
+given — so both the video and screenshot saves silently used the page title
+instead of asking. Both now skip the prompt only when
+`isChrome() && isIncognito()`.
+
+Deliberately left alone: `FastStreamClient.updateHasDownloadSpace()` still
+refuses to predownload a whole video in a private session
+(`player_buffer_incognito_warning`) and caps buffering to the configured
+window. With a disk-backed Cache backend the original RAM rationale is
+weaker, but not writing an entire video to disk during a private session is
+a defensible privacy stance, and changing it is a behaviour change rather
+than a fix.
 
 ## MPV mode and the native host
 
@@ -325,6 +434,17 @@ still can't block the plain-zip release.
   Don't sweep it into an unrelated commit.
 - `incognito: "split"` is deliberately deleted for Firefox builds — Gecko
   doesn't support split mode. Not a bug.
+- **Private windows are their own platform.** Firefox will not run an
+  extension in a private window until the user ticks "Run in Private
+  Windows" in `about:addons` - there is no manifest key that asks for it,
+  and a temporary install gets it no more automatically than a signed one.
+  Before that tick the extension is genuinely inert there (its
+  `web_accessible_resources` aren't even reachable: a private-window page
+  loading the player URL gets "Access to moz-extension://... from script
+  denied"), so "nothing happens in a private tab" is the expected state and
+  not a bug to chase. After it, `tests/e2e/wdio.pbm.conf.mjs` is the suite
+  that covers what actually runs there - see "Storage in a private window"
+  below for the bug that hid behind this for months.
 - Branches: `main` mirrors upstream, `dev/mv3-modernization` is the work
   branch, `pr/*` branches get cut fresh off `upstream/main`.
 

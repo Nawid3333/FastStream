@@ -208,6 +208,14 @@ describe('Save video (download)', function() {
     expect(result.saveError).toBe(null);
     expect(result.decodeOk).toBe(true);
     expect(result.duration).toBeGreaterThan(0);
+    // decodeOk and duration both come out of the moov, so they are happy with
+    // a file that has a valid header and no media in it. mp4merger's non-OPFS
+    // finalize path did exactly that for a while -- it mapped its mdat Blob
+    // slices through FSBlob.getBlob(), which wants an identifier, so every
+    // chunk came back undefined and this "passed" on a 13 KB file whose
+    // payload was the string "undefined" repeated. A real save of this clip
+    // is tens of MB.
+    expect(result.blobSize).toBeGreaterThan(1024 * 1024);
   });
 
   it('saves a DIRECT/webm source into a file that actually decodes', async function() {

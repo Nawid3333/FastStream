@@ -23,17 +23,51 @@ function createWriteStreamBlob(filename, opts, size) {
   // file (disk-backed, flat memory), then hand the download a disk-backed
   // File. mp4merger.mjs's finalize() does the same via OPFSManager.
   const blobManager = new FSBlob();
-  const opfs = blobManager.opfsManager;
-  if (!opfs) {
-    // No OPFS available (unsupported or setup failed): keep the old
-    // accumulate-in-memory behavior rather than failing outright.
-    return createWriteStreamBlobMemory(filename, opts, size, blobManager);
-  }
 
+  // Which of the two sinks below this uses can only be decided once the blob
+  // store's backend has finished setting up. Reading blobManager.opfsManager
+  // synchronously here used to pick OPFS in a Firefox private window - where
+  // getDirectory() is present and throws - and every write() then rejected
+  // instead of falling back, so saving was dead in private windows rather
+  // than merely slower.
+  let sinkPromise = null;
+  const getSink = () => {
+    if (!sinkPromise) {
+      sinkPromise = blobManager.ready().then((ready) =>
+        ready && blobManager.opfsManager ?
+          createOPFSSink(filename, blobManager) :
+          createMemorySink(filename, blobManager));
+    }
+    return sinkPromise;
+  };
+
+  return new WritableStream({
+    async write(chunk) {
+      await (await getSink()).write(chunk);
+    },
+    async close() {
+      await (await getSink()).close();
+    },
+    async abort() {
+      await (await getSink()).abort();
+    },
+  }, opts.writableStrategy);
+}
+
+/**
+ * Progressive, disk-backed sink: every chunk is appended to one OPFS file and
+ * the finished file goes to the download as a File, so RAM stays flat no
+ * matter the video size.
+ * @param {string} filename
+ * @param {FSBlob} blobManager one whose OPFS backend is live
+ * @return {{write: Function, close: Function, abort: Function}}
+ */
+function createOPFSSink(filename, blobManager) {
+  const opfs = blobManager.opfsManager;
   const identifier = 'save-' + Date.now() + '-' + (saveCounter++);
   const opfsWriterReady = opfs.saveBegin(identifier);
 
-  return new WritableStream({
+  return {
     async write(chunk) {
       await opfsWriterReady;
       // Copy into a fresh, transferable ArrayBuffer: chunks may be views
@@ -69,22 +103,20 @@ function createWriteStreamBlob(filename, opts, size) {
       await opfs.saveAbort(identifier).catch(() => {});
       blobManager.close();
     },
-  }, opts.writableStrategy);
+  };
 }
 
 /**
- * Memory-fallback variant of the OPFS save stream, for environments without
- * OPFS (and for the web build, where service workers may or may not exist).
+ * Memory-fallback sink, for environments without OPFS (a Firefox private
+ * window, and the web build where service workers may or may not exist).
  * Kept as close to the original upstream behavior as possible.
  * @param {string} filename
- * @param {object} opts
- * @param {number} size deprecated
  * @param {FSBlob} blobManager
- * @return {WritableStream<Uint8Array>}
+ * @return {{write: Function, close: Function, abort: Function}}
  */
-function createWriteStreamBlobMemory(filename, opts, size, blobManager) {
+function createMemorySink(filename, blobManager) {
   const blobs = [];
-  return new WritableStream({
+  return {
     write(chunk) {
       blobs.push(blobManager.createBlob(chunk));
     },
@@ -103,7 +135,7 @@ function createWriteStreamBlobMemory(filename, opts, size, blobManager) {
       blobs.length = 0;
       await blobManager.clear();
     },
-  }, opts.writableStrategy);
+  };
 }
 
 /**

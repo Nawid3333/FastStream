@@ -35,7 +35,11 @@ export class MP4Merger extends EventEmitter {
     this.saveIdentifier = this.opfs ?
       'merge-' + Date.now() + '-' + Math.floor(Math.random() * 1000000) : null;
     if (this.opfs) {
+      // Handled where it is awaited in finalize(); the silent catch only
+      // keeps a merge that is cancelled before finalize() from surfacing as
+      // an unhandled rejection.
       this.saveReady = this.opfs.saveBegin(this.saveIdentifier);
+      this.saveReady.catch(() => {});
     }
     if (registerCancel) {
       registerCancel(() => {
@@ -312,28 +316,47 @@ export class MP4Merger extends EventEmitter {
     //   disk-backed file, then return that File. RAM stays flat no matter
     //   the video size - this is what un-freezes large DASH saves.
     // - No OPFS (web build): the original behavior - one big in-RAM Blob.
+    //
+    // this.opfs was decided in the constructor, before OPFS setup could have
+    // settled, so it can still turn out to be unusable here - a Firefox
+    // private window exposes navigator.storage.getDirectory and throws
+    // SecurityError from it. Nothing below touches this.datas until the file
+    // is finished, so falling through to the Blob path costs the work done so
+    // far and nothing else. Without this the merge threw and the whole save
+    // failed instead of just being slower.
     if (this.opfs) {
-      await this.saveReady;
-      // init segment first...
-      await this.opfs.saveAppend(this.saveIdentifier,
-          new Uint8Array(toStandaloneBuffer(initSeg)));
-      // ...then every mdat chunk, in fragment order.
-      for (const slice of this.datas) {
-        const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
+      try {
+        await this.saveReady;
+        // init segment first...
         await this.opfs.saveAppend(this.saveIdentifier,
-            new Uint8Array(toStandaloneBuffer(buf)));
+            new Uint8Array(toStandaloneBuffer(initSeg)));
+        // ...then every mdat chunk, in fragment order.
+        for (const slice of this.datas) {
+          const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
+          await this.opfs.saveAppend(this.saveIdentifier,
+              new Uint8Array(toStandaloneBuffer(buf)));
+        }
+        await this.opfs.saveEnd(this.saveIdentifier);
+        const file = await this.opfs.getSavedFile(this.saveIdentifier);
+        this.datas.length = 0;
+        return file;
+      } catch (e) {
+        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
+        await this.opfs.saveAbort(this.saveIdentifier).catch(() => {});
+        this.opfs = null;
       }
-      await this.opfs.saveEnd(this.saveIdentifier);
-      const file = await this.opfs.getSavedFile(this.saveIdentifier);
-      this.datas.length = 0;
-      return file;
     }
 
-    const dataChunks = await Promise.all(this.datas.map((data) => {
-      return this.blobManager.getBlob(data);
-    }));
-
-    return new Blob([initSeg, ...dataChunks], {
+    // this.datas holds the mdat Blob slices themselves, so they go straight
+    // into the output Blob. Until now this mapped them through
+    // blobManager.getBlob(), which expects an FSBlob *identifier*: upstream
+    // pushed `blobManager.saveBlob(slice)` here, and 9ef061b1 changed the
+    // push to the raw slice for the OPFS path above without updating this
+    // side. Every entry came back undefined and the fallback produced a Blob
+    // full of the string "undefined" instead of a video - invisible because
+    // Firefox always took the OPFS path, until OPFS stopped being available
+    // (a private window) and this became the path that runs.
+    return new Blob([initSeg, ...this.datas], {
       type: 'video/mp4',
     });
   }

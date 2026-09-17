@@ -1,3 +1,5 @@
+import {EnvUtils} from '../utils/EnvUtils.mjs';
+
 // Main-thread counterpart to opfs-worker.mjs. Mirrors IndexedDBManager.mjs's
 // method shape (setup/getFile/setFile/deleteFile/clearStorage/close) so
 // FSBlob.mjs only needs one new branch, parallel to its existing
@@ -17,10 +19,25 @@ export class OPFSManager {
     // FileSystemFileHandle as a global constructor to duck-type against -
     // so this is deliberately just the primary gate. If a browser claims
     // getDirectory() but genuinely lacks sync access handles, that surfaces
-    // as a rejected setup() the first time it's used, which FSBlob already
-    // catches and falls back from - the same way it already handles
+    // as a rejected setup() the first time it's used, which FSBlob's backend
+    // chain falls through from - the same way it already handles
     // IndexedDBManager.isSupported() being similarly optimistic.
-    return typeof navigator !== 'undefined' && !!navigator.storage?.getDirectory;
+    if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) {
+      return false;
+    }
+    // Firefox private windows are the one case worth refusing up front
+    // rather than discovering: getDirectory() is present and throws
+    // SecurityError on every call, so claiming support here buys nothing but
+    // a spawned worker and a SecurityError in the console each time a player
+    // opens. Chrome incognito genuinely does have OPFS, so this is scoped to
+    // Gecko - and the extension build is where inIncognitoContext is
+    // readable at all, which is why the runtime fall-through in FSBlob
+    // stays the real safety net (the web build in a private window still
+    // gets here, fails setup, and moves on to the Cache API).
+    if (EnvUtils.isFirefox() && EnvUtils.isIncognito()) {
+      return false;
+    }
+    return true;
   }
 
   async setup() {

@@ -148,4 +148,78 @@ describe('FSBlob storage backends', function() {
     expect(result.afterDelete).toBe(true);
     expect(result.afterClear).toBe(true);
   });
+
+  // The private-window suite (tests/e2e/wdio.pbm.conf.mjs) covers the one
+  // case this actually happens in today, where getDirectory() throws
+  // SecurityError. This proves the same mechanism in an ordinary window, on
+  // whatever browser is running, by failing OPFS setup synthetically: any
+  // backend that claims support and then fails must cost one step down
+  // FSBlob's chain, not a drop to memory. The old code went straight to
+  // memory - and worse, clear() then rejected, which is what left the player
+  // unbuilt in private windows.
+  it('falls through to the next backend when OPFS setup fails, not to memory', async function() {
+    const result = await runInPage(async () => {
+      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+      const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
+
+      // Nothing to prove where OPFS was never in FSBlob's chain to begin
+      // with. That is NOT the same question as OPFSManager.isSupported():
+      // Chrome has OPFS and answers yes, but FSBlob skips the whole chain
+      // there because Chrome already offloads Blob storage itself, so
+      // 'memory' is the correct answer on Chrome and this test would be
+      // asserting the opposite. Ask an unstubbed instance what it picks.
+      const probe = new FSBlob();
+      const opfsIsInChain = !!probe.opfsManager;
+      probe.close();
+      if (!opfsIsInChain) {
+        return {skipped: true};
+      }
+
+      const originalSetup = OPFSManager.prototype.setup;
+      OPFSManager.prototype.setup = function() {
+        return Promise.reject(new Error('synthetic OPFS setup failure'));
+      };
+
+      try {
+        const blobStore = new FSBlob();
+        const payload = new Uint8Array([21, 22, 23, 24]);
+        const identifier = await blobStore.saveBlobAsync(new Blob([payload]));
+
+        const backend = blobStore.opfsManager ? 'opfs' :
+          (blobStore.cache ? 'cache' :
+            (blobStore.indexedDBManager ? 'indexeddb' : 'memory'));
+
+        const readBack = new Uint8Array(
+            await blobStore.getBlob(identifier).arrayBuffer());
+
+        // Both of these used to reject with the OPFS failure rather than
+        // absorbing it.
+        let teardownError = null;
+        try {
+          await blobStore.deleteBlob(identifier);
+          await blobStore.clear();
+        } catch (e) {
+          teardownError = (e && e.message) || String(e);
+        }
+
+        blobStore.close();
+        return {
+          skipped: false,
+          backend,
+          teardownError,
+          roundTrips: readBack.length === payload.length &&
+              readBack.every((b, i) => b === payload[i]),
+        };
+      } finally {
+        OPFSManager.prototype.setup = originalSetup;
+      }
+    });
+
+    console.log('      opfs fall-through:', JSON.stringify(result));
+    if (result.skipped) return;
+    expect(result.teardownError).toBe(null);
+    expect(result.roundTrips).toBe(true);
+    expect(result.backend).not.toBe('opfs');
+    expect(result.backend).not.toBe('memory');
+  });
 });

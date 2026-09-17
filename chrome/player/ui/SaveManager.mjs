@@ -158,7 +158,12 @@ export class SaveManager {
     }
 
     const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_') + '@' + StringUtils.formatTime(this.client.currentTime);
-    const name = EnvUtils.isIncognito() ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+    // Same reasoning as saveVideo's shouldAskForName: only Chrome's incognito
+    // downloads bring their own Save-As picker, so only there would asking
+    // here be a second prompt. A Firefox private window would otherwise write
+    // the screenshot out unnamed.
+    const skipPrompt = EnvUtils.isChrome() && EnvUtils.isIncognito();
+    const name = skipPrompt ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
     if (!name) {
       return;
@@ -226,8 +231,12 @@ export class SaveManager {
       }
     }
 
-    // Incognito mode always opens file picker anyways
-    const shouldAskForName = !EnvUtils.isIncognito();
+    // Chrome's incognito downloads open the Save-As picker themselves, so
+    // asking for a name first would ask twice. Firefox private windows do
+    // not: a private-window save lands straight in the download directory
+    // under whatever name is passed, so skipping the prompt there just took
+    // the naming away from the user and saved e.g. the page title verbatim.
+    const shouldAskForName = !(EnvUtils.isChrome() && EnvUtils.isIncognito());
     const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_');
 
     if (doDump) {
