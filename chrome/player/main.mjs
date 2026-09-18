@@ -87,13 +87,28 @@ async function recieveSources(request, sendResponse) {
   // Sources are ordered by time, so we can just choose the first one and it will be the oldest.
   // But we also want to minimize depth
   let autoSetSource = sources.reduce((result, curr) => {
+    // A Panopto source describes the whole session — every camera plus the audio, in
+    // sync — so it beats the individual streams it is stitched from, whichever frame
+    // those turned up in and however early the page asked for them.
+    if (result.mode === PlayerModes.ACCELERATED_PANOPTO) {
+      return result;
+    }
+
+    if (curr.mode === PlayerModes.ACCELERATED_PANOPTO) {
+      return curr;
+    }
+
     // Choose lower depth
     if (result.depth > curr.depth) {
       return curr;
     }
 
     // If result isn't using streaming technologies, try to find one that does
+<<<<<<< HEAD
     const streamingModes = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH];
+=======
+    const streamingModes = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH, PlayerModes.ACCELERATED_YT, PlayerModes.ACCELERATED_PANOPTO];
+>>>>>>> upstream/main
     if (!streamingModes.includes(result.mode) && streamingModes.includes(curr.mode)) {
       return curr;
     }

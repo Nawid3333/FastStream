@@ -6,4 +6,5 @@ export const PlayerModes = {
   ACCELERATED_DASH: 'accelerated_dash',
   IFRAME: 'iframe',
   ACCELERATED_VM: 'accelerated_vm',
+  ACCELERATED_PANOPTO: 'accelerated_panopto',
 };
