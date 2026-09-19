@@ -32,6 +32,15 @@ permissions:
 env:
   UPSTREAM: https://github.com/Andrews54757/FastStream.git
   WORK_BRANCH: dev/mv3-modernization
+  # When gh is not told which repository to act on, it picks one from the git
+  # remotes and ranks a remote named "upstream" above "origin" - and "Fetch
+  # upstream" below adds exactly such a remote. Every gh call in this workflow
+  # was therefore aimed at Andrew's repository, where GITHUB_TOKEN has no write
+  # access, so opening the PR failed with "Resource not accessible by
+  # integration" and so did the issue that was supposed to report that failure.
+  # Nothing surfaced until 2026-09-18 because every earlier run found the fork
+  # already up to date and exited before it reached a gh call.
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   sync:
@@ -118,7 +127,13 @@ jobs:
           Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first."
           fi
 
-          if ! gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY" 2>/dev/null; then
+          # Asking first rather than treating a failed edit as "no PR yet": the
+          # old form sent gh's stderr to /dev/null, so when the edit failed for
+          # a reason that had nothing to do with the PR being absent, the real
+          # error was thrown away and only the create's failure was ever seen.
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY"
+          else
             gh pr create --base "$WORK_BRANCH" --head "$BRANCH" \
               --title "$TITLE" --body "$BODY"
           fi
