@@ -160,7 +160,7 @@ jobs:
           - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
           - Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first.
 
-          ### Upstream commits not yet in this project
+          ### Upstream commits not yet in this project (merge commits are not listed)
 
           EOF
             git log --no-merges --format='- %h %s' "${WORK_BRANCH}..upstream/main" | head -40
