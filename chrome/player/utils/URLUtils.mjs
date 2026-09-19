@@ -9,6 +9,7 @@ ModesMap.set('m3u', PlayerModes.ACCELERATED_HLS);
 ModesMap.set('mpd', PlayerModes.ACCELERATED_DASH);
 
 ModesMap.set('vmpatch', PlayerModes.ACCELERATED_VM);
+ModesMap.set('panopto', PlayerModes.ACCELERATED_PANOPTO);
 
 /**
  * Utility functions for working with URLs and extracting identifiers.
