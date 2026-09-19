@@ -190,6 +190,19 @@ function readMessage() {
 // invisible here and can never be loaded into or closed by us.
 const IpcPipe = '\\\\.\\pipe\\faststream-mpv';
 
+// How long to wait for mpv's window to exist before giving up on focusing it.
+// mpv only creates its window once the stream has opened (unless it is started
+// with --force-window=immediate, see launchMpv), so this bounds a slow CDN or
+// HLS manifest rather than mpv's own startup. A late window is still worth
+// raising: past this deadline it simply opens behind the browser. 30s is
+// half of mpv's own 60s --network-timeout, after which it has given up on the
+// stream anyway.
+const WindowWaitSeconds = 30;
+
+// Headroom on top of WindowWaitSeconds for PowerShell startup, the Add-Type
+// compile and the focus retries, before the shell is killed.
+const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
+
 /**
  * Sends commands to the mpv instance listening on our pipe.
  *
@@ -385,9 +398,10 @@ function focusWindowLines(pidExpr) {
     // Cold starts are slow in this mpv setup: gpu-next on a Vulkan context,
     // uosc, thumbfast and the shader pipeline all initialise before the VO
     // window exists, and network streams add demuxer-open time on top. A 3s
-    // deadline regularly expired on cold starts, leaving mpv behind the
-    // browser -- wait up to 10s instead.
-    '    $deadline = (Get-Date).AddSeconds(10)',
+    // deadline regularly expired on cold starts, and so did 10s once a slow
+    // stream held the window back past it (the host logged focus=nowindow and
+    // mpv then appeared behind the browser) -- see WindowWaitSeconds.
+    '    $deadline = (Get-Date).AddSeconds(' + WindowWaitSeconds + ')',
     '    $h = [IntPtr]::Zero',
     '    $seen = $false',
     '    while ((Get-Date) -lt $deadline) {',
@@ -460,7 +474,7 @@ async function focusPid(pid) {
     ...focusApiLines(),
     '$target = ' + String(Number(pid)),
     ...focusWindowLines('$target'),
-  ], 15000);
+  ], PowerShellTimeoutMs);
   const match = /FOCUS=(\S+)(?:\s+FGOK=(\S+))?/.exec(out);
   return match ? match[0] : 'FOCUS=unknown';
 }
@@ -495,7 +509,7 @@ function launchViaWmi(mpvPath, args) {
     '}',
   ];
 
-  return runPowerShell(lines, 20000).then((text) => {
+  return runPowerShell(lines, PowerShellTimeoutMs).then((text) => {
     const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
     if (!match) {
       return {ok: false, error: 'unexpected WMI output: ' + text};
@@ -563,6 +577,13 @@ async function launchMpv(mpvPath, message, config) {
   if (message.fullscreen) {
     args.push('--fullscreen');
   }
+  // Create the window at startup instead of when the first video frame is
+  // ready. By default mpv has no window until the stream has been opened and
+  // probed, which on a slow anime CDN/HLS manifest can take longer than the
+  // focus helper is willing to wait -- mpv then appears late and behind the
+  // browser. With an immediate window the helper always finds it within a
+  // second or two, and the stream loads visibly inside a focused player.
+  args.push('--force-window=immediate');
   args.push('--no-terminal');
   args.push('--');
   args.push(withContentTypeFragment(message.url, message.contentType));
