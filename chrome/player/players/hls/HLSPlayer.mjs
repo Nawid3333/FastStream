@@ -199,8 +199,16 @@ export default class HLSPlayer extends EventEmitter {
       audioLevelInitData = new Uint8Array(await this.client.downloadManager.getEntry(audioFragments[-1].getContext()).getDataFromBlob());
     }
 
+    // A level is fMP4 exactly when its playlist named an initialization segment, and
+    // those belong to the merger - HLS2MP4 below demuxes transport streams and cannot
+    // read them. A level that carries its own audio rather than taking it from a
+    // separate rendition belongs there too, so the audio side is handed over only when
+    // it is a rendition of its own. Requiring both init segments sent fMP4-with-muxed-
+    // audio to HLS2MP4, which then failed on data it was never meant to parse.
+    const mergeable = levelInitData && (audioLevelInitData || audioFragments.length === 0);
+
     try {
-      if (levelInitData && audioLevelInitData) {
+      if (mergeable) {
         // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a
         // codec/packaging failure here gets the same WebCodecs re-encode
         // fallback DASH already has, instead of hard-failing the save.
@@ -214,10 +222,18 @@ export default class HLSPlayer extends EventEmitter {
           }
         });
 
+        // audioLevel is only there when a separate audio rendition is selected, which
+        // a muxed level does not have - hence the optional access and the zero/null
+        // audio side, the same shape DASHPlayer already hands to a video-only save.
         const videoMimeType = level.videoCodec ? `video/mp4; codecs="${level.videoCodec}"` : null;
-        const audioMimeType = audioLevel.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
+        const audioMimeType = audioLevel?.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
 
-        const blob = await dash2mp4.convert(videoMimeType, level.details.totalduration, levelInitData.buffer, audioMimeType, audioLevel.details.totalduration, audioLevelInitData.buffer, zippedFragments);
+        const blob = await dash2mp4.convert(
+            videoMimeType, level.details.totalduration, levelInitData.buffer,
+            audioMimeType,
+            audioLevelInitData ? audioLevel.details.totalduration : 0,
+            audioLevelInitData ? audioLevelInitData.buffer : null,
+            zippedFragments);
 
         return {
           extension: 'mp4',
