@@ -1661,7 +1661,9 @@ export class FastStreamClient extends EventEmitter {
    * @return {boolean}
    */
   get paused() {
-    return this.player?.paused || true;
+    // ?? and not ||: `false || true` is true, so the || form answered "paused"
+    // for a video that was playing, and the getter could never report anything else.
+    return this.player?.paused ?? true;
   }
 
   /**
