@@ -1,6 +1,11 @@
-// Regression coverage for saving an fMP4 HLS stream - the packaging that has an
-// out-of-band initialization segment (#EXT-X-MAP) instead of MPEG transport
-// streams.
+// Regression coverage for saving fMP4 streams - the packaging that has an
+// out-of-band initialization segment (#EXT-X-MAP in HLS) instead of MPEG
+// transport streams - through HLS, and through DASH with separate tracks.
+//
+// Each saved file is decoded end to end with ffmpeg and its frames counted
+// against the source. What the page can see is the container, and a container
+// whose sample table points at the wrong bytes still loads and reports a
+// duration; only decoding shows the offsets and edit lists are right.
 //
 // save-video.e2e.mjs covers HLS only through a transport-stream stream and DASH
 // only through one with separate audio and video tracks, so nothing there
@@ -23,6 +28,7 @@
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
@@ -31,24 +37,88 @@ const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 
 /**
- * Cuts an fMP4 HLS stream out of the MP4 fixture, unless it is already there.
+ * Decodes a saved file end to end with ffmpeg and counts what is in it.
+ *
+ * The page-side checks read the container and can be satisfied by a file whose
+ * sample table points at the wrong bytes: it loads, reports a duration, and
+ * decodes nothing. Only decoding every frame shows the offsets are right.
+ *
+ * @param {string} base64 - The saved file.
+ * @return {Object} {decodeErrors, video, audio}, the last two being
+ *   {frames, duration} or null when the file has no such stream.
+ */
+function decodeWithFfmpeg(base64) {
+  const file = path.join(os.tmpdir(), `faststream-e2e-${process.pid}-${Date.now()}.mp4`);
+  fs.writeFileSync(file, Buffer.from(base64, 'base64'));
+  try {
+    const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
+    const probe = spawnSync('ffprobe', [
+      '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,duration',
+      '-of', 'json', file,
+    ], {encoding: 'utf8'});
+    const streams = JSON.parse(probe.stdout || '{"streams":[]}').streams;
+    const summarise = (type) => {
+      const found = streams.find((stream) => stream.codec_type === type);
+      return found ? {frames: Number(found.nb_read_frames), duration: Number(found.duration)} : null;
+    };
+    return {
+      decodeErrors: (decode.stderr || '').trim(),
+      video: summarise('video'),
+      audio: summarise('audio'),
+    };
+  } finally {
+    fs.rmSync(file, {force: true});
+  }
+}
+
+/**
+ * Counts the video frames in the MP4 fixture, which is what a full save of a
+ * stream cut from it should contain.
+ *
+ * @return {number} The frame count.
+ */
+function sourceFrameCount() {
+  const {stdout} = spawnSync('ffprobe', [
+    '-v', 'error', '-count_frames', '-select_streams', 'v:0',
+    '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', MP4_FIXTURE,
+  ], {encoding: 'utf8'});
+  return Number(stdout.trim());
+}
+
+const HLS_OUTPUT = [
+  '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod',
+  '-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4',
+  '-hls_segment_filename', 'seg%d.m4s', 'index.m3u8',
+];
+
+// Separate adaptation sets, so the video and the audio arrive as two tracks with
+// two initialization segments and two timescales, unlike the muxed HLS above.
+const DASH_OUTPUT = [
+  '-f', 'dash', '-seg_duration', '2', '-use_template', '1', '-use_timeline', '1',
+  '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
+];
+
+const TONE_INPUT = [
+  '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
+  '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
+];
+
+/**
+ * Cuts a stream out of the MP4 fixture, unless it is already there.
  *
  * @param {string} name - Directory under fixtures/ to write into.
+ * @param {string} indexFile - The playlist or manifest the output ends in.
  * @param {string[]} inputArgs - ffmpeg arguments that select what goes in.
+ * @param {string[]} outputArgs - ffmpeg arguments that say how it is packaged.
  * @return {void}
  */
-function ensureHlsFixture(name, inputArgs) {
+function ensureFixture(name, indexFile, inputArgs, outputArgs) {
   const dir = path.join(fixturesDir, name);
-  if (fs.existsSync(path.join(dir, 'index.m3u8'))) return;
+  if (fs.existsSync(path.join(dir, indexFile))) return;
 
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
-  const args = [
-    '-y', '-v', 'error', ...inputArgs,
-    '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod',
-    '-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4',
-    '-hls_segment_filename', 'seg%d.m4s', 'index.m3u8',
-  ];
+  const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
   const {status, error, stderr} = spawnSync('ffmpeg', args, {cwd: dir, encoding: 'utf8'});
   if (status !== 0) {
     throw new Error(
@@ -139,6 +209,11 @@ async function saveAndInspect() {
     }).then(async (result) => {
       info.blobSize = result.blob.size;
       Object.assign(info, inspect(await result.blob.arrayBuffer()));
+      info.base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.readAsDataURL(result.blob);
+      });
 
       const url = URL.createObjectURL(result.blob);
       const testVideo = document.createElement('video');
@@ -169,38 +244,71 @@ async function saveAndInspect() {
   });
 }
 
-describe('Save video (fMP4 HLS)', function() {
+describe('Save video (locally generated fMP4)', function() {
   before(function() {
     // Video-only: sample.mp4 has no audio track.
-    ensureHlsFixture('hls-fmp4-video', ['-i', MP4_FIXTURE, '-c', 'copy']);
+    ensureFixture('hls-fmp4-video', 'index.m3u8', ['-i', MP4_FIXTURE, '-c', 'copy'], HLS_OUTPUT);
     // Muxed: the same video plus a generated tone, both in every fragment.
-    ensureHlsFixture('hls-fmp4-muxed', [
-      '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
-      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
-    ]);
+    ensureFixture('hls-fmp4-muxed', 'index.m3u8', TONE_INPUT, HLS_OUTPUT);
+    // The same content as two separately delivered tracks.
+    ensureFixture('dash-separate', 'manifest.mpd', TONE_INPUT, DASH_OUTPUT);
   });
 
   it('saves a video-only fMP4 level into a file that decodes and holds media', async function() {
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-video/index.m3u8');
     const result = await saveAndInspect();
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
 
-    console.log('      result:', JSON.stringify(result));
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
     expect(result.saveError).toBe(null);
     expect(result.decodeOk).toBe(true);
     expect(result.duration).toBeGreaterThan(0);
     expect(result.trakCount).toBe(1);
     expect(result.mdatBytes).toBeGreaterThan(100000);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(sourceFrameCount());
+    expect(decoded.audio).toBe(null);
   });
 
   it('saves an fMP4 level that carries its own audio, keeping both tracks', async function() {
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-muxed/index.m3u8');
     const result = await saveAndInspect();
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
 
-    console.log('      result:', JSON.stringify(result));
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
     expect(result.saveError).toBe(null);
     expect(result.decodeOk).toBe(true);
     expect(result.duration).toBeGreaterThan(0);
     expect(result.trakCount).toBe(2);
     expect(result.mdatBytes).toBeGreaterThan(100000);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(sourceFrameCount());
+    // The tone is ten seconds; a track whose samples point at the wrong bytes, or
+    // that was written twice, would not come out at that length.
+    expect(decoded.audio.frames).toBeGreaterThan(0);
+    expect(decoded.audio.duration).toBeGreaterThan(9.5);
+    expect(decoded.audio.duration).toBeLessThan(10.6);
+  });
+
+  it('saves a DASH stream with separate audio and video tracks, decoding both', async function() {
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/dash-separate/manifest.mpd');
+    const result = await saveAndInspect();
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
+
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
+    expect(result.saveError).toBe(null);
+    expect(result.decodeOk).toBe(true);
+    expect(result.trakCount).toBe(2);
+    expect(result.mdatBytes).toBeGreaterThan(100000);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(sourceFrameCount());
+    // The two tracks keep different timescales, so their edit lists are computed
+    // separately and a mistake there shows up as a length or start that is off.
+    expect(decoded.audio.frames).toBeGreaterThan(0);
+    expect(decoded.audio.duration).toBeGreaterThan(9.5);
+    expect(decoded.audio.duration).toBeLessThan(10.6);
   });
 });
