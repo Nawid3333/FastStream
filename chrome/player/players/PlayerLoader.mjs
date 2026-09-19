@@ -1,6 +1,7 @@
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 
 export class PlayerLoader {
+<<<<<<< HEAD
   /**
    * Loads the player module for a source mode and constructs it.
    *
@@ -20,6 +21,20 @@ export class PlayerLoader {
    * @param {object} options passed through to the player
    * @return {Promise<object>} the constructed player
    */
+=======
+  constructor() {
+    this.players = {};
+
+    this.registerPlayer(PlayerModes.DIRECT, './DirectVideoPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_MP4, './mp4/MP4Player.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_HLS, './hls/HLSPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_DASH, './dash/DashPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_YT, './yt/YTPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_VM, './vm/VMPlayer.mjs');
+    this.registerPlayer(PlayerModes.ACCELERATED_PANOPTO, './panopto/PanoptoPlayer.mjs');
+  }
+
+>>>>>>> upstream/main
   async createPlayer(mode, client, options) {
     let module;
     switch (mode) {

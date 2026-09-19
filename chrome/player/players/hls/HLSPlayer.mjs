@@ -199,12 +199,23 @@ export default class HLSPlayer extends EventEmitter {
       audioLevelInitData = new Uint8Array(await this.client.downloadManager.getEntry(audioFragments[-1].getContext()).getDataFromBlob());
     }
 
+    // A level is fMP4 exactly when its playlist named an initialization segment, and
+    // those go to the merger — HLS2MP4 demuxes transport streams. A level that carries
+    // its own audio rather than taking it from a separate rendition belongs there too,
+    // so the audio side is only handed over when it is a rendition of its own.
+    const mergeable = levelInitData && (audioLevelInitData || audioFragments.length === 0);
+
     try {
+<<<<<<< HEAD
       if (levelInitData && audioLevelInitData) {
         // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a
         // codec/packaging failure here gets the same WebCodecs re-encode
         // fallback DASH already has, instead of hard-failing the save.
         const {DASH2MP4} = await import('../../modules/dash2mp4/dash2mp4.mjs');
+=======
+      if (mergeable) {
+        const {MP4Merger} = await import('../../modules/dash2mp4/mp4merger.mjs');
+>>>>>>> upstream/main
 
         const dash2mp4 = new DASH2MP4(options.registerCancel);
 
@@ -214,10 +225,18 @@ export default class HLSPlayer extends EventEmitter {
           }
         });
 
+<<<<<<< HEAD
         const videoMimeType = level.videoCodec ? `video/mp4; codecs="${level.videoCodec}"` : null;
         const audioMimeType = audioLevel.audioCodec ? `audio/mp4; codecs="${audioLevel.audioCodec}"` : null;
 
         const blob = await dash2mp4.convert(videoMimeType, level.details.totalduration, levelInitData.buffer, audioMimeType, audioLevel.details.totalduration, audioLevelInitData.buffer, zippedFragments);
+=======
+        const blob = await mp4merger.convert(
+            level.details.totalduration, levelInitData.buffer,
+            audioLevelInitData ? audioLevel.details.totalduration : 0,
+            audioLevelInitData ? audioLevelInitData.buffer : null,
+            zippedFragments);
+>>>>>>> upstream/main
 
         return {
           extension: 'mp4',
