@@ -34,7 +34,13 @@
   const Config = {
     softReplaceByDefault: true,
     hasCustomPlaylist: false,
+    // A selector for the element to replace, or several in order of preference for a
+    // site whose player has more than one layout.
     customVideoQuery: null,
+    // How long to wait for customVideoQuery to match before giving up, in milliseconds.
+    // Sites that build their player asynchronously need this; zero keeps the lookup
+    // immediate for those that do not.
+    customVideoQueryTimeout: 0,
     hasCustomLinkHandler: false,
     customIframeId: null,
   };
@@ -236,7 +242,7 @@
   }
 
   function handlePlayerOpen(request, sender, sendResponse) {
-    getVideo().then((video) => {
+    getVideo(true).then((video) => {
       if (!video && !request.force) {
         console.log('no video found');
         sendResponse('no_video');
@@ -1051,6 +1057,74 @@
     return results;
   }
 
+  /**
+   * Finds the element a site integration named, preferring the selectors it listed
+   * first.
+   *
+   * A site may lay its player out in more than one way, and which element to replace
+   * depends on which layout the page ended up with. Passing the alternatives as one
+   * selector list would not express that: `querySelectorAll` answers in document order,
+   * so the page's layout rather than the integration's preference would decide. They
+   * are therefore tried one at a time, in the order given.
+   *
+   * @param {string|string[]} query - A selector, or several in order of preference.
+   * @return {Element|null} The first match, or null if none matched.
+   */
+  function queryPreferred(query) {
+    const queries = Array.isArray(query) ? query : [query];
+
+    for (const one of queries) {
+      const found = querySelectorAllIncludingShadows(one)[0];
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolves with the first element matching the query, waiting for it to appear if it
+   * is not there yet.
+   *
+   * Sites that build their player after page load may not have the element a site
+   * integration named in the DOM by the time the player is asked to open.
+   *
+   * @param {string|string[]} query - A selector, or several in order of preference.
+   * @param {number} timeout - How long to wait before giving up, in milliseconds.
+   * @return {Promise<Element|null>} The element, or null if it never appeared.
+   */
+  function waitForElement(query, timeout) {
+    const existing = queryPreferred(query);
+    if (existing || !document.body) {
+      return Promise.resolve(existing || null);
+    }
+
+    return new Promise((resolve) => {
+      let timer = null;
+
+      const observer = new MutationObserver(() => {
+        const found = queryPreferred(query);
+        if (!found) {
+          return;
+        }
+        observer.disconnect();
+        clearTimeout(timer);
+        resolve(found);
+      });
+
+      timer = setTimeout(() => {
+        observer.disconnect();
+        resolve(queryPreferred(query));
+      }, timeout);
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    });
+  }
+
   function getParentElement(element) {
     return element.parentElement || element.assignedSlot || element.parentNode?.host;
   }
@@ -1136,9 +1210,22 @@
     return elements;
   }
 
-  async function getVideo() {
+  /**
+   * Finds the element the player should replace.
+   *
+   * @param {boolean} [waitForCustomQuery] - Whether to wait for a site integration's
+   *     chosen element to appear. Only worth doing when about to replace it; callers
+   *     that just want a size should not block on it.
+   * @return {Promise<Object|null>} The element to replace and its size.
+   */
+  async function getVideo(waitForCustomQuery = false) {
     if (Config.customVideoQuery) {
-      const player = querySelectorAllIncludingShadows(Config.customVideoQuery)[0];
+      // A site integration has named the element it wants replaced, so take it as given
+      // rather than guessing at whichever video looks largest.
+      const player = waitForCustomQuery && Config.customVideoQueryTimeout > 0 ?
+        await waitForElement(Config.customVideoQuery, Config.customVideoQueryTimeout) :
+        queryPreferred(Config.customVideoQuery);
+
       if (player) {
         return {
           size: player.clientWidth * player.clientHeight,

@@ -127,12 +127,26 @@ async function onClicked(tabobj) {
           tab.isMpv = false;
           BackgroundUtils.updateTabIcon(tab);
 
+<<<<<<< HEAD
           let hasPlayer = false;
           for (const frame of tab.getFrames()) {
             if (frame.isPlayer) {
               hasPlayer = true;
               break;
             }
+=======
+      BackgroundUtils.updateTabIcon(tab);
+
+      if (tab.isOn) {
+        notifyTabEnabled(tab);
+        openPlayersWithSources(tab);
+      } else {
+        let hasPlayer = false;
+        for (const frame of tab.getFrames()) {
+          if (frame.isPlayer) {
+            hasPlayer = true;
+            break;
+>>>>>>> upstream/main
           }
 
           if (hasPlayer) {
@@ -300,6 +314,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     } else if (shouldAutoEnable && !tab.regexMatched) {
       tab.regexMatched = true;
       tab.isOn = true;
+<<<<<<< HEAD
       // Allowlisted sites default to MPV mode; everything else uses the
       // in-page player.
       tab.isMpv = mpvSite;
@@ -309,6 +324,11 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
         openPlayersWithSources(tab);
       }
     } else if (!shouldAutoEnable && !mpvSite && tab.regexMatched) {
+=======
+      notifyTabEnabled(tab);
+      openPlayersWithSources(tab);
+    } else if (!shouldAutoEnable && tab.regexMatched) {
+>>>>>>> upstream/main
       tab.isOn = false;
       tab.isMpv = false;
       tab.regexMatched = false;
@@ -389,6 +409,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   const tab = Tabs.getTabOrCreate(sender.tab.id);
   const frame = tab.getFrameOrCreate(sender.frameId);
+
+  if (msg.type === MessageTypes.IS_TAB_ENABLED) {
+    // Lets a site integration hold off on doing any work, such as calling a site's API,
+    // until the user has actually switched FastStream on for this tab.
+    sendResponse({enabled: !!tab.isOn});
+    return;
+  }
+
+  if (msg.type === MessageTypes.CLAIM_FRAME) {
+    setFrameClaim(frame, msg.claimed !== false);
+    return;
+  }
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
     if (Logging) console.log('Found FastStream window', frame);
@@ -542,6 +574,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.DETECTED_SOURCE) {
     const mode = URLUtils.getModeFromExtension(msg.ext);
     const headers = msg.headers || {};
+
+    // A site integration that already has the subtitle text can pass it along directly,
+    // rather than leaving a URL for the player to fetch.
+    if (Array.isArray(msg.subtitles)) {
+      const subtitles = frame.getSubtitles();
+      msg.subtitles.forEach((sub) => {
+        if (!sub || !sub.data) return;
+        if (subtitles.some((existing) => existing.label === sub.label && existing.data === sub.data)) return;
+
+        subtitles.push({
+          data: sub.data,
+          label: sub.label,
+          language: sub.language,
+          time: Date.now(),
+        });
+      });
+    }
+
     onSourceRecieved({
       url: msg.url,
       requestId: -1,
@@ -1181,6 +1231,64 @@ function addSource(frame, url, mode, headers) {
   });
 }
 
+// Enough to cover the manifests a page asks for before it starts playing, which are the
+// only ones worth handing back. Past that it is fetching media, and a lecture left
+// playing in the site's own player would otherwise pile up segments indefinitely.
+const MAX_HELD_SOURCES = 32;
+
+function holdSource(frame, url, mode, headers) {
+  const held = frame.getHeldSources();
+  if (held.length >= MAX_HELD_SOURCES || held.some((source) => source.url === url)) {
+    return;
+  }
+
+  if (Logging) console.log('Holding source', url, 'for the integration handling', frame.url);
+
+  held.push({url, mode, headers});
+}
+
+/**
+ * Marks a frame as being handled by a site integration, or hands it back.
+ *
+ * An integration that assembles a source out of several others — Panopto stitches a
+ * session together out of one stream per camera — has to beat the page to the player,
+ * because the page fetches those same streams itself and any one of them would otherwise
+ * be opened on its own. While the claim stands, sources detected the ordinary way are
+ * held rather than tracked, and they are handed over only if the integration turns out
+ * not to be able to handle the page after all.
+ *
+ * @param {FrameHolder} frame - The frame being claimed or released.
+ * @param {boolean} claimed - Whether an integration is handling it.
+ */
+function setFrameClaim(frame, claimed) {
+  if (frame.claimed === claimed) {
+    return;
+  }
+
+  frame.claimed = claimed;
+
+  if (claimed) {
+    // The page may already have started fetching before the integration could claim it.
+    const tracked = frame.getSources();
+    tracked.forEach((source) => {
+      holdSource(frame, source.url, source.mode, source.headers);
+    });
+    tracked.length = 0;
+    return;
+  }
+
+  const held = frame.getHeldSources().splice(0);
+  if (Logging) console.log('Integration released', frame.url, '- releasing', held.length, 'source(s)');
+
+  held.forEach((source) => {
+    onSourceRecieved({
+      url: source.url,
+      requestId: -1,
+      customHeaders: source.headers,
+    }, frame, source.mode);
+  });
+}
+
 function collectSources(frame, remove = false) {
   const subtitles = [];
   const sources = [];
@@ -1309,6 +1417,23 @@ async function openPlayer(frame) {
   });
 }
 
+/**
+ * Tells a tab's content scripts that FastStream has been switched on for it, so that any
+ * that deferred their work until then can get started.
+ * @param {Object} tab - The tab that was enabled.
+ */
+function notifyTabEnabled(tab) {
+  chrome.tabs.sendMessage(tab.tabId, {
+    type: MessageTypes.MESSAGE_FROM_CONTENT,
+    destination: 'custom',
+    data: {
+      type: 'tab-enabled',
+    },
+  }, () => {
+    BackgroundUtils.checkMessageError('tab_enabled', true);
+  });
+}
+
 async function sendSourcesToMainFramePlayers(frame) {
   // query all tabs
   const tabs = await BackgroundUtils.queryTabs();
@@ -1374,6 +1499,14 @@ async function onSourceRecieved(details, frame, mode) {
     if (currentFrame) {
       frame = currentFrame;
     }
+  }
+
+  // A frame an integration has claimed gets its source from that integration alone.
+  // Whatever the page fetches meanwhile is likely to be part of what the integration is
+  // assembling, so it waits rather than racing it.
+  if (frame.claimed && details.requestId !== -1) {
+    holdSource(frame, url, mode, customHeaders);
+    return;
   }
 
   addSource(frame, url, mode, customHeaders);
