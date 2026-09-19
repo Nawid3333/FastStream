@@ -153,8 +153,6 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
 
-    this.client.attachProcessorsToPlayer(player);
-
     await player.setSource(source);
     return player;
   }

@@ -98,8 +98,6 @@ export class SyncedAudioPlayer extends EventEmitter {
         this.client.failedToLoad(msg || Localize.getMessage('player_error_load'));
       });
 
-      this.client.attachProcessorsToPlayer(player);
-
       await player.setSource(source);
 
       this.audioPlayers.push(player);
