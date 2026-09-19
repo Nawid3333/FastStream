@@ -1,21 +1,25 @@
 name: Sync upstream
 
-# Pulls Andrew's latest commits into this fork and opens a pull request.
+# Watches Andrew's repository and opens a pull request when it has commits this
+# project does not.
 #
-# It deliberately does NOT auto-merge. Once this fork replaces the vendored
-# hls.js/dash.js with npm packages, an upstream commit touching
-# chrome/player/modules/ will either conflict or silently revert that work.
-# A PR puts CI (lint, tests, AMO lint) in front of every upstream change and
-# leaves the merge decision to a human.
+# main IS the project. Upstream is not mirrored anywhere: this job fetches it and
+# merges it into one throwaway branch (sync/upstream), so the change arrives as a
+# single PR with CI in front of it. It never merges anything itself. An upstream
+# commit may touch code this fork has rewritten or removed, so taking it is a
+# decision and not a default.
 #
-# There is no way to get a true push-based trigger from a repo this fork
-# does not own - GitHub only delivers webhooks to repos you administer, and
-# Andrew's repo is not one of them. Polling on a tight schedule is the
-# closest available substitute for "as soon as he commits"; each run is
-# cheap when nothing is behind (it exits after one git fetch), so polling
-# often costs little. Releases don't need a separate check: Andrew tags
-# releases on main, and those tags arrive with the same `git fetch --tags`
-# this already does.
+# Deciding on a sync PR:
+#   take it   Resolve any conflicts on the branch, keep only what this project
+#             wants, and merge. The merge commit records every upstream commit as
+#             handled, kept or not, so a later sync shows only newer ones.
+#   skip it   Close the PR without merging. It is not reopened for the same
+#             upstream commit, and comes back once upstream moves again.
+#
+# There is no way to get a true push-based trigger from a repo this fork does not
+# own - GitHub only delivers webhooks to repos you administer, and Andrew's repo
+# is not one of them. Polling on a schedule is the closest substitute; a run is
+# cheap when nothing is behind (it exits after one git fetch).
 
 on:
   schedule:
@@ -23,6 +27,15 @@ on:
     # activity for 60 days - re-enable from the Actions tab if that happens.
     - cron: '0 */6 * * *'
   workflow_dispatch:
+    inputs:
+      work_branch:
+        description: 'Branch to merge upstream into. Only change this to test the workflow.'
+        required: false
+        default: 'main'
+      sync_branch:
+        description: 'Branch the sync PR is opened from. Only change this to test the workflow.'
+        required: false
+        default: 'sync/upstream'
 
 permissions:
   contents: write
@@ -31,7 +44,8 @@ permissions:
 
 env:
   UPSTREAM: https://github.com/Andrews54757/FastStream.git
-  WORK_BRANCH: dev/mv3-modernization
+  WORK_BRANCH: ${{ inputs.work_branch || 'main' }}
+  SYNC_BRANCH: ${{ inputs.sync_branch || 'sync/upstream' }}
   # When gh is not told which repository to act on, it picks one from the git
   # remotes and ranks a remote named "upstream" above "origin" - and "Fetch
   # upstream" below adds exactly such a remote. Every gh call in this workflow
@@ -61,33 +75,50 @@ jobs:
       - name: Fetch upstream
         run: |
           git remote add upstream "$UPSTREAM"
-          git fetch upstream main --tags
+          git fetch upstream main
 
-      # Keep main a clean mirror of upstream so pr/* branches can be cut from
-      # it later. Fast-forward only: if it ever diverges, that is a mistake
-      # worth surfacing rather than papering over with a merge commit.
-      - name: Fast-forward main to upstream
-        continue-on-error: true
-        run: |
-          git checkout -B main origin/main
-          git merge --ff-only upstream/main
-          git push origin main
-          git checkout "$WORK_BRANCH"
-
-      - name: Merge upstream into a sync branch
+      - name: Merge upstream into the sync branch
         id: merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BEHIND=$(git rev-list --count "${WORK_BRANCH}..upstream/main")
+          finish() { echo "action=$1" >> "$GITHUB_OUTPUT"; }
+
+          BEHIND=$(git rev-list --count "HEAD..upstream/main")
+          BASE_SHA=$(git rev-parse --short=10 HEAD)
+          UP_SHA=$(git rev-parse --short=10 upstream/main)
           echo "Commits from upstream not yet in ${WORK_BRANCH}: ${BEHIND}"
           echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
+          echo "base_sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "up_sha=${UP_SHA}" >> "$GITHUB_OUTPUT"
+
           if [ "$BEHIND" -eq 0 ]; then
             echo "Already up to date." >> "$GITHUB_STEP_SUMMARY"
+            finish none
             exit 0
           fi
 
-          BRANCH="sync/upstream-$(date -u +%Y%m%d)"
-          echo "branch=${BRANCH}" >> "$GITHUB_OUTPUT"
-          git checkout -B "$BRANCH" "$WORK_BRANCH"
+          MARKER="<!-- sync-upstream base=${BASE_SHA} upstream=${UP_SHA} -->"
+
+          # A PR closed without merging for this upstream commit is a decision to
+          # skip it. Recreating it every run would undo that decision.
+          SKIPPED=$(gh pr list --head "$SYNC_BRANCH" --state closed --json mergedAt,body \
+            --jq "[.[] | select(.mergedAt == null and ((.body // \"\") | contains(\"upstream=${UP_SHA} \")))] | length")
+          if [ "$SKIPPED" -gt 0 ]; then
+            echo "The sync PR for upstream ${UP_SHA} was closed without merging; not reopening it." >> "$GITHUB_STEP_SUMMARY"
+            finish none
+            exit 0
+          fi
+
+          # The open PR already describes exactly this state. Pushing the branch
+          # again would only rewrite its head and rerun CI for nothing.
+          if gh pr list --head "$SYNC_BRANCH" --state open --json body --jq '.[].body' | grep -qF "$MARKER"; then
+            echo "The open sync PR is already current." >> "$GITHUB_STEP_SUMMARY"
+            finish none
+            exit 0
+          fi
+
+          git checkout -B "$SYNC_BRANCH" HEAD
 
           if git merge --no-edit upstream/main; then
             echo "conflicts=false" >> "$GITHUB_OUTPUT"
@@ -99,49 +130,55 @@ jobs:
             git commit -m 'merge upstream/main (CONFLICTS - resolve before merging)'
           fi
 
-          git push -f origin "$BRANCH"
+          git push -f origin "$SYNC_BRANCH"
+          finish update
 
       - name: Open or update the pull request
-        if: steps.merge.outputs.behind != '0'
+        if: steps.merge.outputs.action == 'update'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.merge.outputs.branch }}
           BEHIND: ${{ steps.merge.outputs.behind }}
+          BASE_SHA: ${{ steps.merge.outputs.base_sha }}
+          UP_SHA: ${{ steps.merge.outputs.up_sha }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
           if [ "$CONFLICTS" = 'true' ]; then
             TITLE="Sync upstream (${BEHIND} commits) - CONFLICTS"
-            BODY="Merging \`upstream/main\` produced conflicts. The branch carries the conflicted state so the markers show in the diff; CI will fail until they are resolved.
-
-          \`\`\`
-          git fetch origin ${BRANCH} && git checkout ${BRANCH}
-          # resolve, then:
-          git add -A && git commit && git push
-          \`\`\`
-
-          Check \`chrome/player/modules/\` first - that is where this fork diverges most."
+            NOTE="Merging upstream/main into ${WORK_BRANCH} produced conflicts. The branch carries the conflicted state so the markers show in the diff; CI will fail until they are resolved. Fetch \`${SYNC_BRANCH}\`, resolve, and push to it."
           else
             TITLE="Sync upstream (${BEHIND} commits)"
-            BODY="Clean merge of \`upstream/main\` into \`${WORK_BRANCH}\`.
-
-          Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first."
+            NOTE="Clean merge of upstream/main into ${WORK_BRANCH}."
           fi
 
-          # Asking first rather than treating a failed edit as "no PR yet": the
-          # old form sent gh's stderr to /dev/null, so when the edit failed for
-          # a reason that had nothing to do with the PR being absent, the real
-          # error was thrown away and only the create's failure was ever seen.
-          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
-            gh pr edit "$BRANCH" --title "$TITLE" --body "$BODY"
+          {
+            printf '%s\n\n' "$NOTE"
+            cat <<'EOF'
+          ### Deciding
+
+          - **Take it.** Resolve any conflicts on this branch, keep only what this project wants, and merge. The merge commit records every commit below as handled, kept or not, so the next sync shows only newer ones.
+          - **Skip it.** Close this PR without merging. It is not reopened for the same upstream commit, and comes back once upstream moves again.
+          - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
+          - Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first.
+
+          ### Upstream commits not yet in this project
+
+          EOF
+            git log --no-merges --format='- %h %s' "${WORK_BRANCH}..upstream/main" | head -40
+            printf '\n<!-- sync-upstream base=%s upstream=%s -->\n' "$BASE_SHA" "$UP_SHA"
+          } > "$RUNNER_TEMP/pr-body.md"
+
+          EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
           else
-            gh pr create --base "$WORK_BRANCH" --head "$BRANCH" \
-              --title "$TITLE" --body "$BODY"
+            gh pr create --base "$WORK_BRANCH" --head "$SYNC_BRANCH" \
+              --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
           fi
 
       # No SMTP secrets to manage: assigning a GitHub issue emails the
       # assignee under that account's default notification settings. Reuses
       # one issue by title instead of opening a new one on every failed run
-      # (this fires every 6 hours now) so repeated failures don't pile up.
+      # (this fires every 6 hours) so repeated failures don't pile up.
       - name: Notify on failure
         if: failure()
         env:

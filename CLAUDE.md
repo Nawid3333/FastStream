@@ -388,7 +388,7 @@ audio/playback logic for a small cleanup win.
 
 ## Releasing (auto-release.yml, added 2026-09-12)
 
-Every push to `dev/mv3-modernization` that passes CI now gets released
+Every push to `main` that passes CI now gets released
 automatically — no separate "ship it" step. `auto-release.yml` waits for
 CI to go green on that branch (`workflow_run`, not `push` directly — a
 red push is never released), then bumps just the trailing build number
@@ -445,8 +445,13 @@ still can't block the plain-zip release.
   not a bug to chase. After it, `tests/e2e/wdio.pbm.conf.mjs` is the suite
   that covers what actually runs there - see "Storage in a private window"
   below for the bug that hid behind this for months.
-- Branches: `main` mirrors upstream, `dev/mv3-modernization` is the work
-  branch, `pr/*` branches get cut fresh off `upstream/main`.
+- Branches: `main` is the project and the only long-lived branch. It was
+  `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
+  and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
+  from `sync/upstream` when Andrew has commits `main` lacks, and taking or
+  skipping them is decided on that PR - close it to skip, merge it to take.
+  `docs/upstream-sync-log.md` records what was decided and why. `pr/*`
+  branches, if ever needed, get cut fresh off `upstream/main`.
 
 ## AMO lint (firefox-amo, current: 0 errors / 3 warnings, needs `--self-hosted`)
 

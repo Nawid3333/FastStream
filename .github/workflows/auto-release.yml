@@ -1,6 +1,6 @@
 name: Auto release
 
-# Cuts a release automatically after every push to dev/mv3-modernization
+# Cuts a release automatically after every push to main
 # that passes CI - this fork's convention is that a push to that branch is
 # already a finished product (see CLAUDE.md), so there is no separate
 # "now ship it" step left to automate away.
@@ -16,7 +16,7 @@ name: Auto release
 # workflow's own next auto-bump continues from there.
 #
 # Loop guard: this workflow's own version-bump commit is itself a push to
-# dev/mv3-modernization, which reruns CI, which would re-trigger this
+# main, which reruns CI, which would re-trigger this
 # workflow - the `chore: release` head-commit check below is what stops
 # that from repeating forever.
 #
@@ -34,7 +34,7 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
-    branches: [dev/mv3-modernization]
+    branches: [main]
 
 permissions:
   contents: write
@@ -83,7 +83,7 @@ jobs:
           git add package.json chrome/manifest.json
           git commit -m "chore: release $NEW"
           git tag -a "v$NEW" -m "FastStream $NEW"
-          git push origin HEAD:dev/mv3-modernization
+          git push origin HEAD:main
           git push origin "v$NEW"
 
           echo "NEW_TAG=v$NEW" >> "$GITHUB_ENV"

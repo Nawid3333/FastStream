@@ -14,7 +14,7 @@
 // chrome/manifest.json and the tag itself already agree.
 //
 // For a deliberate version bump (a real minor/patch for a milestone) only -
-// every ordinary push to dev/mv3-modernization gets released automatically
+// every ordinary push to main gets released automatically
 // by .github/workflows/auto-release.yml once CI goes green on it, which
 // bumps just the trailing build number instead of running this script.
 //

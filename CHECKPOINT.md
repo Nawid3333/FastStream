@@ -1,9 +1,20 @@
 # FastStream modernisation — checkpoint
 
+**Status (2026-09-19): finished, in maintenance mode.** Upstream was merged
+through `9118236f` and the work branch became `main`, the only branch. Verified
+at that point: eslint 0, `tsc --noEmit` clean, 164 unit tests, both web-ext lints
+0 errors (4 warnings github, 3 amo), Firefox and Chromium web e2e 8/8 spec files
+each, installed-extension e2e 8/8, private-window e2e, `verify:ort`. The
+installed-extension `mpv` spec failed once and passed 2 of 2 reruns; treat it as
+an intermittent flake. Maintenance is: decide the upstream sync PR when one
+appears (`docs/upstream-sync-log.md`), and every green push to `main` is
+released automatically. Open decisions (the licence) are unchanged, below.
+
 **Date:** 2026-09-07 (MPV section added 2026-09-09)
 **Fork:** https://github.com/Nawid3333/FastStream
-**Branch:** `dev/mv3-modernization` (also the fork's default branch);
-`Mpv-feature` carried the MPV work and was **merged** on 2026-09-09
+**Branch:** `main` (the only branch, and the default). Until 2026-09-19 the work
+lived on `dev/mv3-modernization` and `main` mirrored upstream; `Mpv-feature`
+carried the MPV work and was **merged** on 2026-09-09
 **Base:** upstream `d5fe931` (V1.3.77)
 **CI:** green — https://github.com/Nawid3333/FastStream/actions
 **Plan doc:** https://claude.ai/code/artifact/830a4dd8-e6ab-4429-a4ac-b5541f9a3224
@@ -53,7 +64,7 @@ checks — everything green).
 | 9 · Signing | **done (unlisted)** | Own add-on ID `thanatus@Nawid`; `pnpm run sign:amo` signs unlisted, `sign:amo:listed` exists for when the license question is settled |
 | 10 · Upstream PRs | **done — open, awaiting response** | #548 Windows fix, #549 permissions, #550 `.gitattributes`, #551 vendor recipes (+ recipes comment on #547, hls.js recipe comment on #546); issue #547 carries the license ask |
 | — · TypeScript | **done** | Opt-in `tsc --noEmit` |
-| — · Upstream sync | **done** | Weekly workflow, opens a PR, never auto-merges |
+| — · Upstream sync | **done** | Every 6 hours; opens or updates one PR from `sync/upstream`, never auto-merges. Close it to skip, merge it to take |
 
 **Licensing is the one thing that gates a *listed* store release.** Upstream
 `LICENSE.md` is **all rights reserved** — "You must receive permission before

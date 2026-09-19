@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, "dev/**", "pr/**"]
+    branches: [main, "pr/**"]
   pull_request:
-    branches: [main, "dev/**"]
+    branches: [main]
   workflow_dispatch:
 
 # Cancel superseded runs on the same branch.
