@@ -88,7 +88,9 @@ lines that matter, and check what it reports against the source.
 pnpm install              # pnpm 11, pinned via packageManager
 pnpm run build            # 4 targets -> built/*.zip, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
-pnpm run lint             # eslint (must stay at 0)
+pnpm run lint             # eslint (must stay at 0), plus eslint.modules.config.js:
+                          # undefined/unused names in chrome/player/modules, which the main
+                          # config skips entirely (first-party code lives there next to vendored libs)
 pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
 pnpm run start:ff         # web-ext run — launches Firefox with the extension
 pnpm test                 # vitest
