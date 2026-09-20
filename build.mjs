@@ -298,7 +298,9 @@ async function buildFirefoxGithub() {
   const manifestPath = path.join(firefoxGithubBuildDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-  manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
+  // 'downloads' and 'cookies' are in the source manifest. This build also asks for
+  // 'contextualIdentities'; the AMO build deliberately does not (see below).
+  manifest.permissions.push('contextualIdentities');
 
   manifest.browser_specific_settings = {
     gecko: {
@@ -306,16 +308,6 @@ async function buildFirefoxGithub() {
       strict_min_version: '136.0',
     },
   };
-
-  manifest.background = {
-    scripts: ['background/background.mjs'],
-    type: 'module',
-  };
-
-  delete manifest.incognito;
-  delete manifest.minimum_chrome_version;
-  delete manifest.key;
-  delete manifest.sandbox;
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
@@ -357,29 +349,19 @@ async function buildFirefoxAmo() {
     },
   };
 
-  manifest.background = {
-    scripts: ['background/background.mjs'],
-    type: 'module',
-  };
-
-  // 'cookies' stays: the DOWNLOAD handler in background.mjs reads
+  // 'cookies' is in the source manifest: the DOWNLOAD handler in background.mjs reads
   // `sender.tab.cookieStoreId` and passes it to `tabs.create()` so a
   // download started from a container tab runs in that container. Firefox
   // gates cookieStoreId on the "cookies" permission - Mozilla's own schema
   // says so in as many words on downloads.download - so dropping it would
   // quietly break container downloads.
-  manifest.permissions.push('downloads', 'cookies');
-
+  //
   // 'contextualIdentities' is deliberately not requested, for that same
   // reason. Mozilla's schema scopes that permission to the
   // `browser.contextualIdentities` namespace - querying and editing
   // container definitions - which nothing here calls. Reading a tab's
   // cookieStoreId, which is all this add-on does, needs 'cookies' and not
   // this.
-
-  delete manifest.incognito;
-  delete manifest.minimum_chrome_version;
-  delete manifest.key;
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
