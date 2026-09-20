@@ -1,4 +1,8 @@
-import {DefaultKeybinds, KeybindsWithModifiers} from '../options/defaults/DefaultKeybinds.mjs';
+import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
+import {
+  SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, isTextEntryTarget,
+  seekPercentAction, seekPercentTarget, speedPresetAction,
+} from '../options/KeybindUtils.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
@@ -55,12 +59,11 @@ export class KeybindManager extends EventEmitter {
     // (0 already maps to GoToStart, i.e. 0%). Same semantics as mpv's
     // "seek <N> absolute-percent" default bindings. Assigned with seek
     // saving left on, like GoToStart, so Z undoes the jump.
-    for (let percent = 10; percent <= 90; percent += 10) {
-      this.on(`SeekPercent${percent}`, (e) => {
-        // A live stream reports an infinite duration, which passes a plain > 0 test and
-        // then makes the currentTime setter throw on a non-finite value.
-        if (Number.isFinite(this.client.duration) && this.client.duration > 0) {
-          this.client.currentTime = this.client.duration * percent / 100;
+    for (const percent of SEEK_PERCENTS) {
+      this.on(seekPercentAction(percent), (e) => {
+        const target = seekPercentTarget(this.client.duration, percent);
+        if (target !== null) {
+          this.client.currentTime = target;
         }
       });
     }
@@ -149,32 +152,23 @@ export class KeybindManager extends EventEmitter {
       this.client.interfaceController.showControlBarTemporarily();
     });
 
-    // mpv-style speed presets (user's speed-presets.lua): a preset key sets
-    // its speed; pressing the SAME key again reverts to the speed that was
-    // active just before that key took effect. Memory is per KEY for the
-    // session, so q(3x) -> y(5x) -> y reverts to 3x, and a(4x) remembers 3x.
-    // Fine adjustments (Shift+arrows) are deliberately not tracked as revert
-    // targets: they are adjustments, not presets - the next preset press
-    // simply reverts to whatever they left active. Same fallback as the lua:
-    // if the preset is already active on its first press (e.g. the rate was
-    // restored from a previous session), revert to 1x.
-    const presetSpeeds = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
-    const EPSILON = 0.0001;
+    // mpv-style speed presets (a port of the user's speed-presets.lua): a preset key
+    // sets its speed; pressing the SAME key again reverts to the speed that was active
+    // just before that key took effect. Memory is per KEY for the session, so
+    // q(3x) -> y(5x) -> y reverts to 3x, and a(4x) remembers 3x. Fine adjustments
+    // (Shift+arrows) are deliberately not tracked as revert targets: they are
+    // adjustments, not presets - the next preset press simply reverts to whatever they
+    // left active. The rules live in applySpeedPreset.
     this.presetRevertMemory = {};
-    for (const preset of presetSpeeds) {
-      const key = `SpeedPreset${String(preset).replace('.', '_')}`;
-      this.on(key, (e) => {
-        const target = Math.min(preset, this.client.options.maxPlaybackRate);
-        const current = this.client.playbackRate;
-        if (Math.abs(current - target) < EPSILON) {
-          const prev = this.presetRevertMemory[key] ?? 1;
-          if (Math.abs(current - prev) >= EPSILON) {
-            this.client.playbackRate = prev;
-            this.presetRevertMemory[key] = target;
-          }
-        } else {
-          this.presetRevertMemory[key] = current;
-          this.client.playbackRate = target;
+    for (const preset of SPEED_PRESETS) {
+      const action = speedPresetAction(preset);
+      this.on(action, (e) => {
+        const {rate, remembered} = applySpeedPreset(
+            preset, this.client.playbackRate, this.client.options.maxPlaybackRate,
+            this.presetRevertMemory[action]);
+        this.presetRevertMemory[action] = remembered;
+        if (rate !== this.client.playbackRate) {
+          this.client.playbackRate = rate;
         }
         this.client.interfaceController.showControlBarTemporarily();
       });
@@ -311,22 +305,7 @@ export class KeybindManager extends EventEmitter {
   }
 
   keyStringToKeybinds(keyString) {
-    const modifiers = keyString.split('+');
-    const baseKey = modifiers.pop();
-
-    const results = [];
-    for (const [key, value] of this.keybindMap.entries()) {
-      if (value === keyString) {
-        results.push(key);
-      } else if (KeybindsWithModifiers.includes(key)) {
-        const testModifiers = value.split('+');
-        const testBase = testModifiers.pop();
-        if (testBase === baseKey && testModifiers.every((mod) => modifiers.includes(mod))) {
-          results.push(key);
-        }
-      }
-    }
-    return results;
+    return actionsForKey(keyString, this.keybindMap);
   }
 
   handleKeyString(keyString, e) {
@@ -342,6 +321,13 @@ export class KeybindManager extends EventEmitter {
   }
 
   onKeyDown(e) {
+    // Typing in a field is not a command: a digit typed into a number box must not jump
+    // the video, nor a letter typed into a search box change the speed. Combinations
+    // with Ctrl, Alt or Meta still count, since Right Alt hides the player.
+    if (isTextEntryTarget(e.target) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      return;
+    }
+
     const keyString = WebUtils.getKeyString(e);
 
     if (this.handleKeyString(keyString, e)) {

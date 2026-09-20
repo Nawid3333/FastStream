@@ -2,6 +2,7 @@ import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
 import {DaltonizerTypes} from './DaltonizerTypes.mjs';
 import {DefaultKeybinds} from './DefaultKeybinds.mjs';
+import {KEYBINDS_VERSION} from '../KeybindUtils.mjs';
 import {MiniplayerPositions} from './MiniplayerPositions.mjs';
 import {VisChangeActions} from './VisChangeActions.mjs';
 
@@ -28,6 +29,7 @@ export const DefaultOptions = {
   autoEnableURLs: [],
   customSourcePatterns: ``,
   keybinds: DefaultKeybinds,
+  keybindsVersion: KEYBINDS_VERSION,
   videoBrightness: 1,
   videoContrast: 1,
   videoSaturation: 1,

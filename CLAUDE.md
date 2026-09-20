@@ -18,33 +18,53 @@ else's all-rights-reserved code" does not survive that.
 Goal: an AMO-compliant Firefox build with a modern, testable dev workflow,
 without breaking Chrome and without making upstream merges painful.
 
-## Keybinds added 2026-09-19
+## Keybinds
 
-- **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9` (`KeybindManager.mjs`, after
-  `GoToStart`). A live stream reports an infinite duration, so the handler tests
-  `Number.isFinite` as well as `> 0`; the `currentTime` setter throws on Infinity.
+The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node can test it);
+`KeybindManager.mjs` and the options page use it.
+
+- **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9`. A live stream reports an infinite
+  duration, which the `currentTime` setter throws on, so `seekPercentTarget` returns null for it.
 - **mpv-style speed presets** (a port of `speed-presets.lua`): `SpeedPreset1/2/2_5/3/3_5/4/5/8/16` on
-  `R G B Q W A Y E H`. A press sets the speed; pressing the same key again reverts to the
-  speed active before it (per-key memory, fallback 1x). The target is clamped to
-  `options.maxPlaybackRate`, which is 8 on Firefox and 16 on Chrome, so on Firefox the 16x
-  key gives 8x.
-- Six defaults had to move to `Shift+<letter>` for those letters: WindowedFullscreen,
-  NextChapter, PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
-  `Utils.migrateKeybinds()` (run by `getOptionsFromStorage()`) rewrites stored options that
-  still hold the old plain-letter default. Two limits: it runs on every load and there is no
-  version stamp, so a user who sets one of the six back to the plain letter is rewritten each
-  time; and a stored custom binding on a key that just became a default (say `Y`) now fires
-  both actions, because `mergeOptions` only fills missing keys.
+  `R G B Q W A Y E H`. A press sets the speed; the same key again reverts to the speed active
+  before it (per-key memory, fallback 1x; `applySpeedPreset`). One deliberate difference from
+  the lua: a remembered speed equal to the preset itself falls back to 1x, so the key never goes
+  dead. The target is clamped to `options.maxPlaybackRate` (8 on Firefox, 16 on Chrome), so on
+  Firefox the 16x key gives 8x, the same as the 8x key.
+- Six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
+  PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
+- **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
+  field, text area, select or editable element, unless Ctrl, Alt or Meta is held (Right Alt hides
+  the player). Ranges, checkboxes and buttons still pass keys through.
+- **Layout version.** `mergeOptions` only fills missing keys, so nothing in saved options said
+  which layout they were written for. Options now carry `keybindsVersion` (`KEYBINDS_VERSION`
+  in KeybindUtils). `Utils.getOptionsFromStorage()` reads the saved options, merges the
+  defaults over them, and runs `migrateKeybinds(options, stored)`, once per saved options: a
+  saved binding that still holds an old plain-letter default is moved, and a new action takes
+  its default key only when nothing else uses it (otherwise it is left `None`). A user's own
+  binding is never overridden, so one press never fires two actions after a migration. A choice
+  made afterwards, even one equal to an old default, is kept, because the saved version stops
+  the migration. Options that were never saved need nothing. Imported settings files go through
+  the same migration. Add a step to `migrateKeybinds` and bump `KEYBINDS_VERSION` when a
+  default moves again.
+- **`getOptionsFromStorage` is async.** It once passed the unresolved promise straight to the
+  migration, which skipped it silently, so the migration never ran in the extension; the unit
+  tests fed plain objects and passed. `tests/unit/Keybinds.test.mjs` now goes through
+  `getOptionsFromStorage` with a stubbed `getConfig`.
+- **Options page menu.** Rows are named by `keybindLabel` ("Seek to 50%", "Speed preset 2.5x"),
+  and a row whose key another action shares is marked with a warning naming the other action
+  (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
 - Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
   **Gotcha:** `en/messages.json` carries 7 keys that are not in `combined-locales.json`
   (`extension_toggle_label_mpv`, `options_general_buffer*`, `options_general_blockpopups`,
   `player_mpv_content_*`), so `localescript.mjs --split` without a whitelist deletes them from
   en. Both files are formatted with a 4-space indent; keep it, or a one-key change shows up as
   thousands of changed lines.
-- Covered by `tests/unit/Keybinds.test.mjs` (no shared default keys, the migration) and
-  `tests/e2e/specs/keybinds.e2e.mjs` (percent seeks, preset set and revert, the clamp, the
-  moved W). Not covered: a real keyboard, and the options page against a profile that already
-  has saved options.
+- Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
+  (the default layout has no clashes and every default has a handler, the storage path, the
+  welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
+  the migration on a legacy profile, the text-field guard) and `keybinds-menu.e2e.mjs` (the
+  options page). Not covered: a saved profile in the real extension's `chrome.storage`.
 
 ## Reading big generated files
 
