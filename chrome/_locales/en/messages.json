@@ -68,6 +68,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- Hide/show player"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- Jump to 10%-90% of the video (0 - start)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- Set speed to 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x or 16x - press the same key again to revert"
+    },
     "perms_page_title": {
         "message": "FastStream Permissions"
     },

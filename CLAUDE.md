@@ -18,6 +18,34 @@ else's all-rights-reserved code" does not survive that.
 Goal: an AMO-compliant Firefox build with a modern, testable dev workflow,
 without breaking Chrome and without making upstream merges painful.
 
+## Keybinds added 2026-09-19
+
+- **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9` (`KeybindManager.mjs`, after
+  `GoToStart`). A live stream reports an infinite duration, so the handler tests
+  `Number.isFinite` as well as `> 0`; the `currentTime` setter throws on Infinity.
+- **mpv-style speed presets** (a port of `speed-presets.lua`): `SpeedPreset1/2/2_5/3/3_5/4/5/8/16` on
+  `R G B Q W A Y E H`. A press sets the speed; pressing the same key again reverts to the
+  speed active before it (per-key memory, fallback 1x). The target is clamped to
+  `options.maxPlaybackRate`, which is 8 on Firefox and 16 on Chrome, so on Firefox the 16x
+  key gives 8x.
+- Six defaults had to move to `Shift+<letter>` for those letters: WindowedFullscreen,
+  NextChapter, PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
+  `Utils.migrateKeybinds()` (run by `getOptionsFromStorage()`) rewrites stored options that
+  still hold the old plain-letter default. Two limits: it runs on every load and there is no
+  version stamp, so a user who sets one of the six back to the plain letter is rewritten each
+  time; and a stored custom binding on a key that just became a default (say `Y`) now fires
+  both actions, because `mergeOptions` only fills missing keys.
+- Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
+  **Gotcha:** `en/messages.json` carries 7 keys that are not in `combined-locales.json`
+  (`extension_toggle_label_mpv`, `options_general_buffer*`, `options_general_blockpopups`,
+  `player_mpv_content_*`), so `localescript.mjs --split` without a whitelist deletes them from
+  en. Both files are formatted with a 4-space indent; keep it, or a one-key change shows up as
+  thousands of changed lines.
+- Covered by `tests/unit/Keybinds.test.mjs` (no shared default keys, the migration) and
+  `tests/e2e/specs/keybinds.e2e.mjs` (percent seeks, preset set and revert, the clamp, the
+  moved W). Not covered: a real keyboard, and the options page against a profile that already
+  has saved options.
+
 ## Commands
 
 ```bash

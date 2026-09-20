@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- 顯示/隱藏播放器"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- 跳轉到影片的 10%-90%（0 為開頭）"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- 將速度設為 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一鍵可還原"
+    },
     "perms_page_title": {
         "message": "FastStream 權限"
     },

@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- プレーヤーを表示/非表示"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- 動画の 10%-90% の位置に移動 (0 は先頭)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- 速度を 1x・2x・2.5x・3x・3.5x・4x・5x・8x・16x に設定 - 同じキーをもう一度押すと元に戻ります"
+    },
     "perms_page_title": {
         "message": "FastStream の権限"
     },

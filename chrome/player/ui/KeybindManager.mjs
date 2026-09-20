@@ -51,6 +51,20 @@ export class KeybindManager extends EventEmitter {
       this.client.currentTime = 0;
     });
 
+    // YouTube-style percentage seeks: 1..9 jump to 10%..90% of the video
+    // (0 already maps to GoToStart, i.e. 0%). Same semantics as mpv's
+    // "seek <N> absolute-percent" default bindings. Assigned with seek
+    // saving left on, like GoToStart, so Z undoes the jump.
+    for (let percent = 10; percent <= 90; percent += 10) {
+      this.on(`SeekPercent${percent}`, (e) => {
+        // A live stream reports an infinite duration, which passes a plain > 0 test and
+        // then makes the currentTime setter throw on a non-finite value.
+        if (Number.isFinite(this.client.duration) && this.client.duration > 0) {
+          this.client.currentTime = this.client.duration * percent / 100;
+        }
+      });
+    }
+
     this.on('VolumeUp', (e) => {
       this.client.volume = Math.round(Math.min(this.client.volume + 0.10, 3) * 100) / 100;
       this.client.interfaceController.showControlBarTemporarily();
@@ -134,6 +148,37 @@ export class KeybindManager extends EventEmitter {
       this.client.playbackRate = 1;
       this.client.interfaceController.showControlBarTemporarily();
     });
+
+    // mpv-style speed presets (user's speed-presets.lua): a preset key sets
+    // its speed; pressing the SAME key again reverts to the speed that was
+    // active just before that key took effect. Memory is per KEY for the
+    // session, so q(3x) -> y(5x) -> y reverts to 3x, and a(4x) remembers 3x.
+    // Fine adjustments (Shift+arrows) are deliberately not tracked as revert
+    // targets: they are adjustments, not presets - the next preset press
+    // simply reverts to whatever they left active. Same fallback as the lua:
+    // if the preset is already active on its first press (e.g. the rate was
+    // restored from a previous session), revert to 1x.
+    const presetSpeeds = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
+    const EPSILON = 0.0001;
+    this.presetRevertMemory = {};
+    for (const preset of presetSpeeds) {
+      const key = `SpeedPreset${String(preset).replace('.', '_')}`;
+      this.on(key, (e) => {
+        const target = Math.min(preset, this.client.options.maxPlaybackRate);
+        const current = this.client.playbackRate;
+        if (Math.abs(current - target) < EPSILON) {
+          const prev = this.presetRevertMemory[key] ?? 1;
+          if (Math.abs(current - prev) >= EPSILON) {
+            this.client.playbackRate = prev;
+            this.presetRevertMemory[key] = target;
+          }
+        } else {
+          this.presetRevertMemory[key] = current;
+          this.client.playbackRate = target;
+        }
+        this.client.interfaceController.showControlBarTemporarily();
+      });
+    }
 
     this.on('UndoSeek', (e) => {
       this.client.undoSeek();

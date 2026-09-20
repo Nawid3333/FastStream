@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- Oynatıcıyı gizle/göster"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- Videonun %10-%90 noktasına git (0 - başlangıç)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- Hızı 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x veya 16x olarak ayarla - geri dönmek için aynı tuşa yeniden bas"
+    },
     "perms_page_title": {
         "message": "FastStream İzinleri"
     },

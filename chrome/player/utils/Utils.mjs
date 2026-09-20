@@ -1,5 +1,6 @@
 import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {DefaultOptions} from '../options/defaults/DefaultOptions.mjs';
+import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
 import {DefaultSubtitlesSettings} from '../options/defaults/DefaultSubtitlesSettings.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
@@ -12,7 +13,39 @@ export class Utils {
    * @return {Object} The loaded options object.
    */
   static getOptionsFromStorage() {
-    return Utils.loadAndParseOptions('options', DefaultOptions);
+    return Utils.migrateKeybinds(Utils.loadAndParseOptions('options', DefaultOptions));
+  }
+
+  /**
+   * Reassigns keybind defaults that moved when the mpv-style speed presets
+   * took over their letters (R/W/Q/A/B/E). Users who saved options before
+   * the move still store the old plain-letter bindings; without this they
+   * would keep them forever (mergeOptions only fills keys that are MISSING,
+   * not ones holding the old default) and both the old action and the new
+   * preset would fight over the same key. Only entries still holding the
+   * exact old default are migrated, so anything the user remapped
+   * themselves - including to the same Shift+ target - is left alone.
+   * @param {Object} options - Options as loaded from storage.
+   * @return {Object} Options with migrated keybinds.
+   */
+  static migrateKeybinds(options) {
+    if (!options.keybinds || typeof options.keybinds !== 'object') {
+      return options;
+    }
+    const moves = {
+      'WindowedFullscreen': 'KeyW',
+      'NextChapter': 'KeyA',
+      'PreviousVideo': 'KeyB',
+      'FlipVideo': 'KeyE',
+      'RotateVideo': 'KeyR',
+      'ToggleVisualFilters': 'KeyQ',
+    };
+    for (const keybind in moves) {
+      if (Object.hasOwn(moves, keybind) && options.keybinds[keybind] === moves[keybind]) {
+        options.keybinds[keybind] = DefaultKeybinds[keybind];
+      }
+    }
+    return options;
   }
 
   /**

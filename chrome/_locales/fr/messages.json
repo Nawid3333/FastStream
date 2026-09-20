@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- Masquer/afficher le lecteur"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- Aller à 10%-90% de la vidéo (0 - début)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- Régler la vitesse sur 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x ou 16x - appuyez à nouveau sur la même touche pour revenir en arrière"
+    },
     "perms_page_title": {
         "message": "Autorisations FastStream"
     },

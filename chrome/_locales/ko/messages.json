@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- 플레이어 숨기기/표시"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- 동영상의 10%-90% 위치로 이동 (0은 처음)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- 속도를 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x, 16x로 설정 - 같은 키를 다시 누르면 이전 속도로 돌아갑니다"
+    },
     "perms_page_title": {
         "message": "FastStream 권한"
     },

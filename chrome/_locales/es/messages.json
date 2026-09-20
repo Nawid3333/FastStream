@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- Ocultar/mostrar jugador"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- Saltar al 10%-90% del video (0 - inicio)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- Fijar la velocidad a 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x o 16x - pulsa la misma tecla otra vez para revertir"
+    },
     "perms_page_title": {
         "message": "Permisos de FastStream"
     },

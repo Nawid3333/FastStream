@@ -65,6 +65,12 @@
     "welcome_page_keybinds_content9": {
         "message": "- Sembunyikan/tunjukkan pemain"
     },
+    "welcome_page_keybinds_content10": {
+        "message": "- Lompat ke 10%-90% video (0 - mula)"
+    },
+    "welcome_page_keybinds_content11": {
+        "message": "- Tetapkan kelajuan kepada 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x atau 16x - tekan kekunci yang sama sekali lagi untuk kembali"
+    },
     "perms_page_title": {
         "message": "Keizinan FastStream"
     },
