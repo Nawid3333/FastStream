@@ -1,7 +1,6 @@
 import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
 import {OPFSManager} from '../network/OPFSManager.mjs';
 import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
-import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Localize} from './Localize.mjs';
 
 // Offloading backends in preference order. OPFS (via a worker-owned
