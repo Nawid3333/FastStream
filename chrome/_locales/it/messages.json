@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Cerca"
     },
-    "options_reviewbanner_header": {
-        "message": "Ti piace FastStream? Lascia una recensione!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream è un progetto amatoriale gestito da volontari. Apprezziamo il tuo feedback perché ci aiuta a capire dove migliorare. Non esitare a dircelo:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Come lo usi"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Eventuali bug che riscontri"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Richieste di funzionalità"
-    },
-    "options_reviewbanner_end": {
-        "message": "Prendiamo molto seriamente anche l'accessibilità. Se hai bisogno di sistemazioni che mancano nella versione attuale, invia una richiesta e ci lavoreremo il prima possibile."
-    },
-    "options_reviewbanner_rate": {
-        "message": "OK, lasciero una recensione a FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Non voglio lasciare una recensione :("
-    },
-    "options_feedback_header": {
-        "message": "Hai del feedback?"
-    },
-    "options_feedback_reason": {
-        "message": "Ci piacerebbe sentire la tua opinione! Compila un breve modulo. È l'unico modo in cui possiamo migliorare, dal momento che non ti tracciamo."
-    },
-    "options_feedback_yes": {
-        "message": "Sì, ho del feedback"
-    },
-    "options_feedback_no": {
-        "message": "No, sto a posto"
-    },
     "options_help_feedback": {
         "message": "Modulo di Feedback"
     },

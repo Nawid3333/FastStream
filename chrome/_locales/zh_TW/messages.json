@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "搜尋"
     },
-    "options_reviewbanner_header": {
-        "message": "喜歡 FastStream 嗎？請留下評價！"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream 是由志工維護的興趣專案。我們非常感謝你的回饋，因為這能幫助我們了解改進方向。請隨時告訴我們："
-    },
-    "options_reviewbanner_l1": {
-        "message": "你如何使用它"
-    },
-    "options_reviewbanner_l2": {
-        "message": "你遇到的任何錯誤"
-    },
-    "options_reviewbanner_l3": {
-        "message": "功能建議"
-    },
-    "options_reviewbanner_end": {
-        "message": "我們也非常重視無障礙。如果目前版本缺少你需要的輔助功能，請提出需求，我們會盡快處理。"
-    },
-    "options_reviewbanner_rate": {
-        "message": "好，我會為 FastStream 留下評論"
-    },
-    "options_reviewbanner_norate": {
-        "message": "我不想評論 :("
-    },
-    "options_feedback_header": {
-        "message": "有回饋嗎？"
-    },
-    "options_feedback_reason": {
-        "message": "我們很想聽到你的意見！請填寫一份簡短表單。由於我們不會追蹤你，這是我們唯一能改進的方式。"
-    },
-    "options_feedback_yes": {
-        "message": "是的，我有回饋"
-    },
-    "options_feedback_no": {
-        "message": "不用，謝謝"
-    },
     "options_help_feedback": {
         "message": "回饋表單"
     },

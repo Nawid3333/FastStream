@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Ara"
     },
-    "options_reviewbanner_header": {
-        "message": "FastStream'i beğendiniz mi? Bir inceleme bırakın!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream, gönüllüler tarafından sürdürülen bir hobi projesidir. Nereleri geliştirebileceğimizi bilmemize yardımcı olduğu için geri bildiriminize minnettarız. Lütfen bize şunları bildirin:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Nasıl kullandığınız"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Karşılaştığınız hatalar"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Özellik talepleri"
-    },
-    "options_reviewbanner_end": {
-        "message": "Erişilebilirliği de çok ciddiye alıyoruz. Mevcut sürümde eksik olan erişim ihtiyaçlarınız varsa lütfen talep gönderin; mümkün olan en kısa sürede üzerinde çalışacağız."
-    },
-    "options_reviewbanner_rate": {
-        "message": "Tamam, FastStream'i inceleyeceğim"
-    },
-    "options_reviewbanner_norate": {
-        "message": "İnceleme yapmak istemiyorum :("
-    },
-    "options_feedback_header": {
-        "message": "Geri bildiriminiz var mı?"
-    },
-    "options_feedback_reason": {
-        "message": "Görüşlerinizi duymak isteriz! Lütfen kısa formu doldurun. Sizi takip etmediğimiz için gelişmemize yardımcı olacak tek yol bu."
-    },
-    "options_feedback_yes": {
-        "message": "Evet, geri bildirimim var"
-    },
-    "options_feedback_no": {
-        "message": "Hayır, teşekkürler"
-    },
     "options_help_feedback": {
         "message": "Geri Bildirim Formu"
     },

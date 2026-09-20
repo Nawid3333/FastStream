@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Поиск"
     },
-    "options_reviewbanner_header": {
-        "message": "Понравился FastStream? Оставьте отзыв!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream - это хобби-проект, поддерживаемый добровольцами. Мы ценим ваши отзывы, так как они помогают понять, что можно улучшить. Не стесняйтесь, расскажите нам:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Как вы используете расширение"
-    },
-    "options_reviewbanner_l2": {
-        "message": "О проблемах, с которыми вы столкнулись"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Запросить функцию"
-    },
-    "options_reviewbanner_end": {
-        "message": "Также мы серьёзно относимся к удобству использования. Если вам нужны дополнительные возможности, которых нет в текущей версии, отправьте запрос, и мы поработаем над ними."
-    },
-    "options_reviewbanner_rate": {
-        "message": "Хорошо, оценю FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Не хочу оценивать :("
-    },
-    "options_feedback_header": {
-        "message": "Оставьте свой отзыв!"
-    },
-    "options_feedback_reason": {
-        "message": "Будем рады услышать ваше мнение! Пожалуйста, заполните небольшую форму. Это единственный способ стать лучше, поскольку мы не следим за вами."
-    },
-    "options_feedback_yes": {
-        "message": "Оставить отзыв"
-    },
-    "options_feedback_no": {
-        "message": "Нет, спасибо"
-    },
     "options_help_feedback": {
         "message": "Форма обратной связи"
     },

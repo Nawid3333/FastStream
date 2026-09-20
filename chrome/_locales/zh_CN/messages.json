@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "搜索"
     },
-    "options_reviewbanner_header": {
-        "message": "喜欢 FastStream 吗？留下评价吧！"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream 是由志愿者维护的业余项目。我们非常重视你的反馈，它能帮助我们了解需要改进的地方。请随时告诉我们："
-    },
-    "options_reviewbanner_l1": {
-        "message": "你的使用方式"
-    },
-    "options_reviewbanner_l2": {
-        "message": "遇到的任何问题"
-    },
-    "options_reviewbanner_l3": {
-        "message": "功能建议"
-    },
-    "options_reviewbanner_end": {
-        "message": "我们对无障碍功能也非常重视。如果当前版本缺少您需要的辅助功能，请提出请求，我们会尽快处理。"
-    },
-    "options_reviewbanner_rate": {
-        "message": "好的，我去评价 FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "我不想评价 :("
-    },
-    "options_feedback_header": {
-        "message": "有反馈吗？"
-    },
-    "options_feedback_reason": {
-        "message": "我们很想听取你的意见！请填写一份简短的表单。由于我们不追踪用户，这是我们改进的唯一途径。"
-    },
-    "options_feedback_yes": {
-        "message": "是的，我有反馈"
-    },
-    "options_feedback_no": {
-        "message": "不用，谢谢"
-    },
     "options_help_feedback": {
         "message": "反馈表单"
     },

@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "検索"
     },
-    "options_reviewbanner_header": {
-        "message": "FastStream にご満足いただけましたか? 評価をお願いします!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream はボランティアによって維持されている趣味なプロジェクトです。改善すべき事を知るためにフィードバックをいただければ幸いです。お気軽にお申し付けください:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "使用方法"
-    },
-    "options_reviewbanner_l2": {
-        "message": "バグに遭遇した場合"
-    },
-    "options_reviewbanner_l3": {
-        "message": "機能のリクエスト"
-    },
-    "options_reviewbanner_end": {
-        "message": "私たちはアクセシビリティについても非常に重視をしています。現在のバージョンに不足している機能があった場合は、リクエストをしてください。できるだけ早く対応をします。"
-    },
-    "options_reviewbanner_rate": {
-        "message": "OK、FastStream を評価する"
-    },
-    "options_reviewbanner_norate": {
-        "message": "評価しない :("
-    },
-    "options_feedback_header": {
-        "message": "フィードバックをお願いします!"
-    },
-    "options_feedback_reason": {
-        "message": "あなたの意見を聞かせてください! 短いフォームを記入してください。私たちはあなたを追跡していないので、改善する唯一の方法です。"
-    },
-    "options_feedback_yes": {
-        "message": "はい、フィードバックを送信します"
-    },
-    "options_feedback_no": {
-        "message": "いいえ、結構です"
-    },
     "options_help_feedback": {
         "message": "フィードバックフォーム"
     },

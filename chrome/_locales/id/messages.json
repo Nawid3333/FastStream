@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Cari"
     },
-    "options_reviewbanner_header": {
-        "message": "Suka FastStream? Tinggalkan ulasan!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream adalah proyek hobi yang dikelola relawan. Kami menghargai masukan Anda karena membantu kami mengetahui apa yang perlu diperbaiki. Silakan beri tahu kami:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Bagaimana Anda menggunakannya"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Bug yang Anda temui"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Permintaan fitur"
-    },
-    "options_reviewbanner_end": {
-        "message": "Kami juga sangat memperhatikan aksesibilitas. Jika Anda membutuhkan akomodasi yang belum tersedia di versi saat ini, silakan ajukan permintaan dan kami akan mengusahakannya secepatnya."
-    },
-    "options_reviewbanner_rate": {
-        "message": "OK, saya akan mengulas FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Saya tidak ingin mengulas :("
-    },
-    "options_feedback_header": {
-        "message": "Punya masukan?"
-    },
-    "options_feedback_reason": {
-        "message": "Kami ingin mendengar dari Anda! Silakan isi formulir singkat. Karena kami tidak melacak Anda, ini satu-satunya cara kami untuk berkembang."
-    },
-    "options_feedback_yes": {
-        "message": "Ya, saya punya masukan"
-    },
-    "options_feedback_no": {
-        "message": "Tidak, terima kasih"
-    },
     "options_help_feedback": {
         "message": "Formulir Masukan"
     },

@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Szukaj"
     },
-    "options_reviewbanner_header": {
-        "message": "Podoba Ci się FastStream? Zostaw recenzję!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream to projekt hobbystyczny utrzymywany przez wolontariuszy. Doceniamy Twoją opinię — pomaga nam określić, co poprawić. Prosimy, powiedz nam:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Jak go używasz"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Wszelkie napotkane błędy"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Propozycje funkcji"
-    },
-    "options_reviewbanner_end": {
-        "message": "Bardzo poważnie traktujemy także dostępność. Jeśli potrzebujesz udogodnień, których brakuje w obecnej wersji, zgłoś to, a my zajmiemy się tym jak najszybciej."
-    },
-    "options_reviewbanner_rate": {
-        "message": "OK, napiszę recenzję FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Nie chcę pisać recenzji :("
-    },
-    "options_feedback_header": {
-        "message": "Masz uwagi?"
-    },
-    "options_feedback_reason": {
-        "message": "Chętnie Cię wysłuchamy! Wypełnij krótki formularz. To jedyny sposób, byśmy mogli się poprawić, ponieważ nie zbieramy danych o Tobie."
-    },
-    "options_feedback_yes": {
-        "message": "Tak, mam uwagi"
-    },
-    "options_feedback_no": {
-        "message": "Nie, dziękuję"
-    },
     "options_help_feedback": {
         "message": "Formularz opinii"
     },

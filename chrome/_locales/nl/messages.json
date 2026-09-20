@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Zoeken"
     },
-    "options_reviewbanner_header": {
-        "message": "Vind je FastStream leuk? Laat een beoordeling achter!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream is een hobbyproject dat door vrijwilligers wordt onderhouden. We waarderen je feedback; dat helpt ons te weten waar we kunnen verbeteren. Vertel ons gerust:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Hoe je het gebruikt"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Eventuele bugs die je tegenkomt"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Functieverzoeken"
-    },
-    "options_reviewbanner_end": {
-        "message": "We nemen toegankelijkheid ook zeer serieus. Als je aanpassingen nodig hebt die in de huidige versie ontbreken, dien dan een verzoek in en we werken er zo snel mogelijk aan."
-    },
-    "options_reviewbanner_rate": {
-        "message": "Oké, ik beoordeel FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Ik wil geen beoordeling achterlaten :("
-    },
-    "options_feedback_header": {
-        "message": "Heb je feedback?"
-    },
-    "options_feedback_reason": {
-        "message": "We horen graag van je! Vul alsjeblieft een kort formulier in. Het is de enige manier waarop we kunnen verbeteren, omdat we je niet volgen."
-    },
-    "options_feedback_yes": {
-        "message": "Ja, ik heb feedback"
-    },
-    "options_feedback_no": {
-        "message": "Nee, het gaat goed"
-    },
     "options_help_feedback": {
         "message": "Feedbackformulier"
     },

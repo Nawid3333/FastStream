@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "검색"
     },
-    "options_reviewbanner_header": {
-        "message": "FastStream이 마음에 드시나요? 리뷰를 남겨주세요!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream은 자원봉사자들이 유지하는 취미 프로젝트입니다. 개선할 부분을 알 수 있게 해주는 여러분의 피드백을 감사히 받습니다. 다음을 알려주세요:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "사용 방법"
-    },
-    "options_reviewbanner_l2": {
-        "message": "발견한 버그"
-    },
-    "options_reviewbanner_l3": {
-        "message": "기능 요청"
-    },
-    "options_reviewbanner_end": {
-        "message": "접근성도 매우 중요하게 생각합니다. 현 버전에 부족한 접근성 지원이 필요하시면 요청해 주세요. 최대한 빨리 개선하겠습니다."
-    },
-    "options_reviewbanner_rate": {
-        "message": "좋아요, FastStream을 리뷰하겠습니다"
-    },
-    "options_reviewbanner_norate": {
-        "message": "리뷰는 하지 않겠습니다 :("
-    },
-    "options_feedback_header": {
-        "message": "피드백이 있으신가요?"
-    },
-    "options_feedback_reason": {
-        "message": "의견을 듣고 싶습니다! 짧은 양식을 작성해 주세요. 저희는 사용자를 추적하지 않으므로 이 양식이 개선을 위한 유일한 방법입니다."
-    },
-    "options_feedback_yes": {
-        "message": "네, 피드백이 있습니다"
-    },
-    "options_feedback_no": {
-        "message": "아니요, 괜찮습니다"
-    },
     "options_help_feedback": {
         "message": "피드백 양식"
     },

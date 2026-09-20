@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Pesquisar"
     },
-    "options_reviewbanner_header": {
-        "message": "Gostou do FastStream? Deixe sua avaliação!"
-    },
-    "options_reviewbanner_body": {
-        "message": "O FastStream é um projeto idealizado de hobby mantido por voluntários. Agradecemos seu retorno, pois ele nos ajuda a saber onde podemos melhorar. Fique à vontade para nos dizer:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Como usá-lo"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Quaisquer erros encontrados"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Solicitações de recursos"
-    },
-    "options_reviewbanner_end": {
-        "message": "Também levamos a acessibilidade muito a sério. Se você precisar de adaptações que não estejam disponíveis na versão atual, faça uma solicitação e trabalharemos nisso o mais rápido possível."
-    },
-    "options_reviewbanner_rate": {
-        "message": "Farei uma avaliação do FastStream"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Não quero avaliar :("
-    },
-    "options_feedback_header": {
-        "message": "Tem algum retorno ?"
-    },
-    "options_feedback_reason": {
-        "message": "Adoraríamos ouvir de você! Por favor preencha um pequeno formulário. É a única maneira de melhorarmos, já que não rastreamos você."
-    },
-    "options_feedback_yes": {
-        "message": "Sim, tenho um retorno"
-    },
-    "options_feedback_no": {
-        "message": "Não, Está tudo bem"
-    },
     "options_help_feedback": {
         "message": "Formulário de retorno"
     },

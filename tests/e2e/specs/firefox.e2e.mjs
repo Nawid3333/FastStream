@@ -1,6 +1,7 @@
 // What this project relies on Firefox to do, pinned so that a Firefox that changes shows
 // up as a failing test instead of as nothing at all.
 //
+// - The options page carries no review or feedback prompt (upstream's, for its own listing).
 // - Scrollbars. Firefox ignores ::-webkit-scrollbar, so the player and the options page
 //   style theirs with the standard scrollbar-width and scrollbar-color.
 // - The fastest playback rate with sound. The player caps the rate at 8
@@ -41,6 +42,18 @@ describe('Firefox scrollbars', function() {
     const style = await thin();
     expect(style.width).toBe('thin');
     expect(style.color).toContain('186, 186, 192');
+  });
+});
+
+describe('Options page', function() {
+  it('does not ask for a review of a store listing this fork does not have', async function() {
+    await browser.url('/player/options/index.html?t=' + Date.now());
+    const found = await browser.execute(() => ({
+      rateBox: !!document.getElementById('ratebox'),
+      feedbackBox: !!document.getElementById('feedbackbox'),
+      reviewText: document.body.innerHTML.includes('addons.mozilla.org'),
+    }));
+    expect(found).toEqual({rateBox: false, feedbackBox: false, reviewText: false});
   });
 });
 

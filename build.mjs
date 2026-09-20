@@ -292,7 +292,7 @@ function insertLicense(buildDir) {
 }
 
 async function buildFirefoxGithub() {
-  spliceAndCopy(chromeSourceDir, firefoxGithubBuildDir, ['EXTENSION', 'FIREFOX', 'NO_PROMO']);
+  spliceAndCopy(chromeSourceDir, firefoxGithubBuildDir, ['EXTENSION', 'FIREFOX']);
   insertLicense(firefoxGithubBuildDir);
 
   const manifestPath = path.join(firefoxGithubBuildDir, 'manifest.json');

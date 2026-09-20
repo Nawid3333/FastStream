@@ -815,42 +815,6 @@
     "options_search_placeholder": {
         "message": "Suche"
     },
-    "options_reviewbanner_header": {
-        "message": "Magst du FastStream? Lass eine Bewertung da!"
-    },
-    "options_reviewbanner_body": {
-        "message": "FastStream ist ein Hobby Projekt aufrechterhalten von Freiwilligen. Wir heißen dein Feedback willkommen, da es uns hilft zu wissen wo wir verbessern müssen. Sei so frei uns deine Meinung mit zu teilen:"
-    },
-    "options_reviewbanner_l1": {
-        "message": "Wie benutzt du es"
-    },
-    "options_reviewbanner_l2": {
-        "message": "Irgendwelchen Fehlern begegnet"
-    },
-    "options_reviewbanner_l3": {
-        "message": "Funktions Anfgragen"
-    },
-    "options_reviewbanner_end": {
-        "message": "Wir nehmen auch Zugänglichkeit sehr ernst. Falls du Annehmlichkeiten brauchst die in der aktuellen Version fehlen, dann stelle uns eine anfrage und wir werden daran arbeiten so bald wie möglich."
-    },
-    "options_reviewbanner_rate": {
-        "message": "OK, ich werde FastStream bewerten"
-    },
-    "options_reviewbanner_norate": {
-        "message": "Ich möchte nicht bewerten :("
-    },
-    "options_feedback_header": {
-        "message": "Hast du irgendein Feedback?"
-    },
-    "options_feedback_reason": {
-        "message": "Wir freuen uns von dir zu hören! Füll bitte ein kleines Formular aus. Dies ist unsere einzige Möglichkeit uns zu verbessern, da wir dich nicht tracken oder daten sammeln."
-    },
-    "options_feedback_yes": {
-        "message": "Ja, Ich habe Feedback"
-    },
-    "options_feedback_no": {
-        "message": "Nein, alles gut"
-    },
     "options_help_feedback": {
         "message": "Feedback Formular"
     },
