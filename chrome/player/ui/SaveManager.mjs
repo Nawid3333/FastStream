@@ -158,12 +158,7 @@ export class SaveManager {
     }
 
     const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_') + '@' + StringUtils.formatTime(this.client.currentTime);
-    // Same reasoning as saveVideo's shouldAskForName: only Chrome's incognito
-    // downloads bring their own Save-As picker, so only there would asking
-    // here be a second prompt. A Firefox private window would otherwise write
-    // the screenshot out unnamed.
-    const skipPrompt = EnvUtils.isChrome() && EnvUtils.isIncognito();
-    const name = skipPrompt ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+    const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
     if (!name) {
       return;
@@ -231,16 +226,12 @@ export class SaveManager {
       }
     }
 
-    // Chrome's incognito downloads open the Save-As picker themselves, so
-    // asking for a name first would ask twice. Firefox private windows do
-    // not: a private-window save lands straight in the download directory
-    // under whatever name is passed, so skipping the prompt there just took
-    // the naming away from the user and saved e.g. the page title verbatim.
-    const shouldAskForName = !(EnvUtils.isChrome() && EnvUtils.isIncognito());
+    // A Firefox save, private window or not, lands straight in the download directory
+    // under whatever name is passed, so the name is always asked for.
     const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_');
 
     if (doDump) {
-      const name = shouldAskForName ? await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName) : suggestedName;
+      const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
       if (!name) {
         return;
       }
@@ -251,14 +242,10 @@ export class SaveManager {
     let url;
     let filestream;
     let name;
-    if (canStream || EnvUtils.isChrome()) {
-      name = shouldAskForName ? await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName) : suggestedName;
-      if (!name) {
-        return;
-      }
-    }
-
+    // A stream is written to its file as it is made, so the file has to be named first;
+    // anything else is named once it is complete.
     if (canStream) {
+      name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
       if (!name) {
         return;
       }
@@ -312,7 +299,7 @@ export class SaveManager {
         } else {
           if (await AlertPolyfill.confirm(Localize.getMessage('player_savevideo_failed_ask_archive'), 'error')) {
             if (!name) {
-              name = shouldAskForName ? await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName) : suggestedName;
+              name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
             }
             if (name) {
               this.dumpBuffer(name);
@@ -341,7 +328,7 @@ export class SaveManager {
 
     if (!canStream) {
       if (!name) {
-        name = shouldAskForName ? await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName) : suggestedName;
+        name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
       }
       if (!name) {
         URL.revokeObjectURL(this.downloadURL);

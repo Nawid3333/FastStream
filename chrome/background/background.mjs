@@ -106,7 +106,7 @@ async function onClicked(tabobj) {
     tab.url = tabobj.url;
   }
 
-  const emptyTabURLS = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing', 'chrome://newtab/'];
+  const emptyTabURLS = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
   if (tab.url && !emptyTabURLS.includes(tab.url)) {
     if (!BackgroundUtils.isUrlPlayerUrl(tab.url)) {
       // MPV mode only applies on allowlisted URLs; everywhere else the
@@ -199,10 +199,10 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
 // opens deliberately (e.g. middle-clicking a link elsewhere on the page),
 // since that never blurs the top window the way a click into our iframe
 // does. Two caveats this can't fully close: the arm message is an async
-// chrome.runtime.sendMessage to the background - on a cold service worker a
+// chrome.runtime.sendMessage to the background - on a cold event page a
 // popup/popunder that calls window.open() synchronously from the same blur
 // handler can create its tab before the arm message is even processed, so
-// the guard is more reliable once the worker is already warm from an earlier
+// the guard is more reliable once the page is already running from an earlier
 // interaction. And because the signal is only "a click landed on the player
 // recently", not "this exact tab-creation was caused by that click", a
 // short window still means a deliberate action within it (e.g. a very fast
@@ -1346,36 +1346,6 @@ async function onSourceRecieved(details, frame, mode) {
 
   if (getSourceFromURL(frame, url)) return;
 
-  // Check if service worker
-  if (frame.tab.tabId < 0 && details.initiator) {
-    // get current frame
-    const currentFrame = await new Promise(async (resolve, reject) => {
-      try {
-        const ctabs = await BackgroundUtils.queryTabs();
-        ctabs.every((ctab) => {
-          const tab = Tabs.getTab(ctab.id);
-          if (!tab) return true;
-
-          for (const frame of tab.getFrames()) {
-            const furl = frame.url;
-            if (furl && furl.length >= details.initiator.length && furl.substring(0, details.initiator.length) === details.initiator) {
-              resolve(frame);
-              return false;
-            }
-          }
-          return true;
-        });
-      } catch (e) {
-        resolve(null);
-        return;
-      }
-    });
-
-    if (currentFrame) {
-      frame = currentFrame;
-    }
-  }
-
   addSource(frame, url, mode, customHeaders);
 
   // MPV mode: relay the detected source to the native mpv host instead of
@@ -1558,13 +1528,6 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
   urls: ['<all_urls>'],
 }, webRequestPerms);
 
-// Exclude urls from facebook and vimeo.
-const initiatorBlacklist = [
-  'https://www.facebook.com',
-  'https://www.instagram.com',
-  'https://vimeo.com',
-];
-
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
       const url = details.url;
@@ -1578,19 +1541,6 @@ chrome.webRequest.onHeadersReceived.addListener(
       }
       if (url.startsWith('https://player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
         ext = 'vmpatch';
-      } else if (details.initiator &&
-      initiatorBlacklist.some((a) => {
-        return details.initiator.startsWith(a);
-      })) {
-        // Only JSON responses from these sites are worth inspecting further
-        // (manifests); everything else on facebook/instagram/vimeo is noise
-        // that should never reach source detection. A prior refactor
-        // (upstream 90a7af55) left this branch's body empty, silently
-        // disabling the exclusion entirely - restored to the original
-        // behavior.
-        if (ext !== 'json') {
-          return;
-        }
       }
 
       const output = CustomSourcePatternsMatcher.match(url);

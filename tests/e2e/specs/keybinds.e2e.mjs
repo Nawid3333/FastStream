@@ -14,7 +14,7 @@
 // - The mpv-style speed presets: a preset key sets its speed, pressing the SAME key
 //   again reverts to the rate that was active before it took effect, and that memory
 //   is per key (Q, then Y, then Y lands on 3x, not 1x). The target is clamped to
-//   options.maxPlaybackRate, which is 8 on Firefox and 16 on Chrome.
+//   options.maxPlaybackRate, which is 8.
 // - The six moved defaults: plain KeyW is now the 3.5x preset, and Shift+KeyW is
 //   windowed fullscreen and must not touch the rate.
 // - Every default key reaches exactly one action in the running player.
@@ -182,7 +182,8 @@ describe('Keybinds', function() {
   });
 
   it('clamps a preset to options.maxPlaybackRate, whatever the browser allows', async function() {
-    // Firefox allows 8 and Chrome 16, so on Chrome the real limit would never bite.
+    // The real limit is 8, which the 8x and 16x keys both reach; forcing it lower shows the
+    // clamp applies to every preset above it.
     const original = await browser.execute(() => {
       const before = window.fastStream.options.maxPlaybackRate;
       window.fastStream.options.maxPlaybackRate = 4;
@@ -203,12 +204,11 @@ describe('Keybinds', function() {
       }, original);
     }
 
-    // And the browser's own limit is what the player says it is.
-    const isFirefox = await browser.execute(() => navigator.userAgent.includes('Firefox'));
-    expect(original).toBe(isFirefox ? 8 : 16);
+    // And the limit the player ships with is Firefox's 8, which the 16x key stops at.
+    expect(original).toBe(8);
     await reset();
     await pressKey('KeyH');
-    expect(await rate()).toBe(original);
+    expect(await rate()).toBe(8);
   });
 
   it('a preset is not left dead when the rate is put back to it by hand', async function() {

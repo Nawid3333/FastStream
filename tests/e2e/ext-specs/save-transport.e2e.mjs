@@ -130,8 +130,6 @@ describe('save transport on the installed extension', function() {
       }
       return {
         isExtension: EnvUtils.isExtension(),
-        isFirefox: EnvUtils.isFirefox(),
-        isChrome: EnvUtils.isChrome(),
         swContainerType: typeof navigator.serviceWorker,
         registrations: registration === 'unset' ? 'unset' :
           (registration ? registration.map((r) => r.scope) : null),
@@ -192,7 +190,7 @@ describe('save transport on the installed extension', function() {
       try {
         const id = await Utils.downloadURL(url, 'faststream-probe.txt');
         return {
-          viaBackground: EnvUtils.isExtension() && !EnvUtils.isChrome(),
+          viaBackground: EnvUtils.isExtension(),
           downloadId: id === undefined ? 'undefined' : id,
         };
       } catch (e) {

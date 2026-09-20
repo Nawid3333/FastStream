@@ -4,11 +4,8 @@ import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Localize} from './Localize.mjs';
 
-const BrowserCanAutoOffloadBlobs = EnvUtils.isChrome();
 // Offloading backends in preference order. OPFS (via a worker-owned
-// FileSystemSyncAccessHandle) beats the Cache API round trip where it works -
-// currently Firefox only, since Chrome already offloads Blob storage on its
-// own, which is why the chain is empty there.
+// FileSystemSyncAccessHandle) beats the Cache API round trip where it works.
 //
 // Each entry is only a *claim* of support. Every one of these APIs can be
 // present and still refuse at runtime, so a backend whose setup() rejects
@@ -18,8 +15,7 @@ const BrowserCanAutoOffloadBlobs = EnvUtils.isChrome();
 // OPFS actually calls it, while the Cache API right behind it works normally.
 // Going to memory there would put every buffered fragment in RAM for no
 // reason.
-const BackendChain = BrowserCanAutoOffloadBlobs ?
-  [] : ['opfs', 'cache', 'indexeddb'];
+const BackendChain = ['opfs', 'cache', 'indexeddb'];
 
 export class FSBlob {
   constructor() {
@@ -165,10 +161,8 @@ export class FSBlob {
       // Get file
       const file = await this.indexedDBManager.getFile(identifier);
 
-      if (EnvUtils.isFirefox()) {
-        // Delete file to orphan it
-        await this.indexedDBManager.deleteFile(identifier);
-      }
+      // Delete file to orphan it
+      await this.indexedDBManager.deleteFile(identifier);
 
       this.blobStore.set(identifier, file);
       return true;

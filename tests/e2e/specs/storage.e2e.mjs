@@ -50,11 +50,10 @@ describe('FSBlob storage backends', function() {
       const payload = new Uint8Array([10, 20, 30, 40, 50]);
       const identifier = await blobStore.saveBlobAsync(new Blob([payload]));
 
-      // FSBlob does not choose OPFS on every browser that merely supports
-      // the API - it deliberately skips it on Chrome, which already
-      // offloads Blob storage on its own (see FSBlob.mjs's UseOPFS gate).
-      // Check what it actually picked rather than OPFSManager.isSupported(),
-      // or this looks for a fsblob/ OPFS directory that was never created.
+      // FSBlob does not choose OPFS wherever the API merely exists: a
+      // private window claims it and then refuses. Check what it actually
+      // picked rather than OPFSManager.isSupported(), or this looks for a
+      // fsblob/ OPFS directory that was never created.
       const usedOPFS = !!blobStore.opfsManager;
 
       // Verify independently of FSBlob's own bookkeeping: look directly at
@@ -163,11 +162,7 @@ describe('FSBlob storage backends', function() {
       const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
 
       // Nothing to prove where OPFS was never in FSBlob's chain to begin
-      // with. That is NOT the same question as OPFSManager.isSupported():
-      // Chrome has OPFS and answers yes, but FSBlob skips the whole chain
-      // there because Chrome already offloads Blob storage itself, so
-      // 'memory' is the correct answer on Chrome and this test would be
-      // asserting the opposite. Ask an unstubbed instance what it picks.
+      // with. Ask an unstubbed instance what it picks.
       const probe = new FSBlob();
       const opfsIsInChain = !!probe.opfsManager;
       probe.close();

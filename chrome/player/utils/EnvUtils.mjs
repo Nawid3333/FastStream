@@ -3,30 +3,6 @@
  */
 export class EnvUtils {
   /**
-   * Checks if the browser is Chrome.
-   * @return {boolean} True if Chrome, false otherwise.
-   */
-  static isChrome() {
-    return navigator.userAgent.indexOf('Chrome') !== -1;
-  }
-
-  /**
-   * Checks if the browser is Firefox.
-   * @return {boolean} True if Firefox, false otherwise.
-   */
-  static isFirefox() {
-    return navigator.userAgent.indexOf('Firefox') !== -1;
-  }
-
-  /**
-   * Checks if the browser is Safari.
-   * @return {boolean} True if Safari, false otherwise.
-   */
-  static isSafari() {
-    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-  }
-
-  /**
    * Checks if running as a browser extension.
    * @return {boolean} True if extension, false otherwise.
    */

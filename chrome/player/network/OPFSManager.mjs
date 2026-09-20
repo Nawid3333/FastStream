@@ -29,12 +29,11 @@ export class OPFSManager {
     // rather than discovering: getDirectory() is present and throws
     // SecurityError on every call, so claiming support here buys nothing but
     // a spawned worker and a SecurityError in the console each time a player
-    // opens. Chrome incognito genuinely does have OPFS, so this is scoped to
-    // Gecko - and the extension build is where inIncognitoContext is
-    // readable at all, which is why the runtime fall-through in FSBlob
-    // stays the real safety net (the web build in a private window still
-    // gets here, fails setup, and moves on to the Cache API).
-    if (EnvUtils.isFirefox() && EnvUtils.isIncognito()) {
+    // opens. The extension build is where inIncognitoContext is readable at
+    // all, which is why the runtime fall-through in FSBlob stays the real
+    // safety net (the web build in a private window still gets here, fails
+    // setup, and moves on to the Cache API).
+    if (EnvUtils.isIncognito()) {
       return false;
     }
     return true;

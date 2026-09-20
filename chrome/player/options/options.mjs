@@ -104,11 +104,6 @@ if (!EnvUtils.isExtension()) {
   autoplayNext.disabled = true;
 }
 
-if (EnvUtils.isSafari()) {
-  daltonizerType.disabled = true;
-  daltonizerStrength.disabled = true;
-}
-
 async function loadOptions(newOptions) {
   newOptions = newOptions || OptionsStore.get();
   Options = newOptions;

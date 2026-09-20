@@ -1,5 +1,4 @@
 import {EventEmitter} from '../../modules/eventemitter.mjs';
-import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
@@ -23,8 +22,6 @@ export class PlaybackRateChanger extends EventEmitter {
     this.silenceThreshold = 0;
     this.audioPaddingStart = 0.5;
     this.audioPaddingEnd = 0.25;
-
-    this.resyncCounter = 0;
 
     this.silenceSkipperLoopHandle = this.silenceSkipperLoop.bind(this);
   }
@@ -148,14 +145,6 @@ export class PlaybackRateChanger extends EventEmitter {
     const time = this.client.currentTime;
     if (this.shouldSkipSilence(time)) {
       if (playbackRate !== this.silenceSkipSpeed) {
-        // Fix for chrome desync bug
-        if (EnvUtils.isChrome()) {
-          this.resyncCounter++;
-          if (this.resyncCounter > 4) {
-            this.resyncCounter = 0;
-            this.client.player.currentTime = this.client.player.currentTime;
-          }
-        }
         this.client.playbackRate = this.silenceSkipSpeed;
       }
     } else {

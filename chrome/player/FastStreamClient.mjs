@@ -39,7 +39,7 @@ import {LevelManager} from './players/LevelManager.mjs';
  * Main FastStream video player client. Handles playback, UI, options, and state management.
  * @extends EventEmitter
  */
-const SET_VOLUME_USING_NODE = !EnvUtils.isSafari() && EnvUtils.isWebAudioSupported();
+const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
 
 export class FastStreamClient extends EventEmitter {
   /**
@@ -88,7 +88,7 @@ export class FastStreamClient extends EventEmitter {
       videoRotate: 0,
       disableVisualFilters: false,
       maximumDownloaders: 6,
-      maxPlaybackRate: EnvUtils.isChrome() ? 16 : 8,
+      maxPlaybackRate: 8,
     };
     this.state = {
       playing: false,

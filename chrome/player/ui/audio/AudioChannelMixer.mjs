@@ -766,7 +766,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
       return nodes.equalizer.hasNodes() || nodes.compressor.isEnabled();
     });
 
-    const needsMerger = hasNonUnityChannelGains || hasActiveNodes || needsAnalyzer || (numberOfChannels === MAX_AUDIO_CHANNELS && EnvUtils.isChrome()); // Chrome bug for 7.1 audio
+    const needsMerger = hasNonUnityChannelGains || hasActiveNodes || needsAnalyzer;
     const needsSplitter = needsMerger; // numberOfChannels > 1 && needsMerger;
     if (needsMasterGain) {
       if (!this.masterNodes.gain) {
