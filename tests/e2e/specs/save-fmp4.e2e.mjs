@@ -37,6 +37,49 @@ const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 
 /**
+ * Decodes a file's audio and reports what share of its energy sits at one frequency.
+ *
+ * A frame count and a duration both come out of the sample table, so a track whose
+ * samples point at the wrong bytes still has them; and how loud it is does not
+ * separate the tone from noise either (AAC-coded white noise measures within a dB of
+ * this tone). What does is that the tone is one frequency: about 1 for the 440 Hz
+ * sine the fixtures carry, near 0 for noise or silence. Goertzel, one bin, over the
+ * span from 1 s to 9 s so the edges do not count.
+ *
+ * @param {string} file - The file to measure.
+ * @param {number} frequency - The frequency to look for, in Hz.
+ * @return {number|null} The share from 0 to 1, or null if it could not be measured.
+ */
+function toneShare(file, frequency) {
+  const rate = 8000;
+  const pcm = spawnSync('ffmpeg', [
+    '-v', 'error', '-i', file, '-vn', '-ac', '1', '-ar', String(rate), '-f', 's16le', '-',
+  ], {maxBuffer: 64 * 1024 * 1024});
+  if (pcm.error || pcm.status !== 0) return null;
+
+  const total = Math.floor(pcm.stdout.length / 2);
+  const start = Math.min(rate, total);
+  const end = Math.min(total, rate * 9);
+  const count = end - start;
+  if (count <= 0) return null;
+
+  const coefficient = 2 * Math.cos(2 * Math.PI * frequency / rate);
+  let previous = 0;
+  let beforePrevious = 0;
+  let energy = 0;
+  for (let i = start; i < end; i++) {
+    const sample = pcm.stdout.readInt16LE(i * 2);
+    const current = sample + coefficient * previous - beforePrevious;
+    beforePrevious = previous;
+    previous = current;
+    energy += sample * sample;
+  }
+  const power = previous * previous + beforePrevious * beforePrevious -
+    coefficient * previous * beforePrevious;
+  return energy > 0 ? (2 * power / count) / energy : 0;
+}
+
+/**
  * Decodes a saved file end to end with ffmpeg and counts what is in it.
  *
  * The page-side checks read the container and can be satisfied by a file whose
@@ -44,8 +87,9 @@ const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
  * decodes nothing. Only decoding every frame shows the offsets are right.
  *
  * @param {string} base64 - The saved file.
- * @return {Object} {decodeErrors, video, audio}, the last two being
- *   {frames, duration} or null when the file has no such stream.
+ * @return {Object} {decodeErrors, video, audio, audioToneShare}, video and audio
+ *   being {frames, duration} or null when the file has no such stream, and the
+ *   last the share of the audio that is the fixtures' 440 Hz tone (see toneShare).
  */
 function decodeWithFfmpeg(base64) {
   const file = path.join(os.tmpdir(), `faststream-e2e-${process.pid}-${Date.now()}.mp4`);
@@ -56,15 +100,21 @@ function decodeWithFfmpeg(base64) {
       '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,duration',
       '-of', 'json', file,
     ], {encoding: 'utf8'});
+    const missing = decode.error || probe.error;
+    if (missing) {
+      throw new Error(`ffmpeg and ffprobe must be on PATH to inspect a saved file: ${missing.message}`);
+    }
     const streams = JSON.parse(probe.stdout || '{"streams":[]}').streams;
     const summarise = (type) => {
       const found = streams.find((stream) => stream.codec_type === type);
       return found ? {frames: Number(found.nb_read_frames), duration: Number(found.duration)} : null;
     };
+    const audio = summarise('audio');
     return {
       decodeErrors: (decode.stderr || '').trim(),
       video: summarise('video'),
-      audio: summarise('audio'),
+      audio,
+      audioToneShare: audio ? toneShare(file, 440) : null,
     };
   } finally {
     fs.rmSync(file, {force: true});
@@ -78,10 +128,13 @@ function decodeWithFfmpeg(base64) {
  * @return {number} The frame count.
  */
 function sourceFrameCount() {
-  const {stdout} = spawnSync('ffprobe', [
+  const {stdout, error} = spawnSync('ffprobe', [
     '-v', 'error', '-count_frames', '-select_streams', 'v:0',
     '-show_entries', 'stream=nb_read_frames', '-of', 'csv=p=0', MP4_FIXTURE,
   ], {encoding: 'utf8'});
+  if (error) {
+    throw new Error(`ffprobe must be on PATH to count the source's frames: ${error.message}`);
+  }
   return Number(stdout.trim());
 }
 
@@ -114,7 +167,10 @@ const TONE_INPUT = [
  */
 function ensureFixture(name, indexFile, inputArgs, outputArgs) {
   const dir = path.join(fixturesDir, name);
-  if (fs.existsSync(path.join(dir, indexFile))) return;
+  // The playlist is written before the last segment is, so the index file alone says
+  // nothing about a run that was killed half way. The marker is written last.
+  const done = path.join(dir, '.complete');
+  if (fs.existsSync(done) && fs.existsSync(path.join(dir, indexFile))) return;
 
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
@@ -127,6 +183,7 @@ function ensureFixture(name, indexFile, inputArgs, outputArgs) {
         `locally it must be on PATH.\n${stderr || ''}`,
     );
   }
+  fs.writeFileSync(done, '');
 }
 
 /**
@@ -158,7 +215,11 @@ async function saveAndInspect() {
       {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
 
   await browser.execute(() => document.querySelector('video').play().catch(() => {}));
-  await new Promise((r) => setTimeout(r, 4000));
+  // The frame counts below compare against the whole source, so everything the stream
+  // has must be in before saving; a fixed pause only holds while the machine is fast.
+  await browser.waitUntil(
+      async () => browser.execute(() => window.fastStream.player.canSave().isComplete),
+      {timeout: 60000, interval: 250, timeoutMsg: 'the stream never finished downloading'});
 
   return browser.executeAsync((done) => {
     const info = {
@@ -285,11 +346,13 @@ describe('Save video (locally generated fMP4)', function() {
     expect(result.mdatBytes).toBeGreaterThan(100000);
     expect(decoded.decodeErrors).toBe('');
     expect(decoded.video.frames).toBe(sourceFrameCount());
-    // The tone is ten seconds; a track whose samples point at the wrong bytes, or
-    // that was written twice, would not come out at that length.
+    // The tone is ten seconds. The length comes from the sample table, so it shows the
+    // track was written, not that its samples point at the right bytes; the share of
+    // the audio that is the 440 Hz tone does.
     expect(decoded.audio.frames).toBeGreaterThan(0);
     expect(decoded.audio.duration).toBeGreaterThan(9.5);
     expect(decoded.audio.duration).toBeLessThan(10.6);
+    expect(decoded.audioToneShare).toBeGreaterThan(0.8);
   });
 
   it('saves a DASH stream with separate audio and video tracks, decoding both', async function() {
@@ -310,5 +373,6 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.audio.frames).toBeGreaterThan(0);
     expect(decoded.audio.duration).toBeGreaterThan(9.5);
     expect(decoded.audio.duration).toBeLessThan(10.6);
+    expect(decoded.audioToneShare).toBeGreaterThan(0.8);
   });
 });
