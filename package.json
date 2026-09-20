@@ -10,7 +10,7 @@
     "vendor:sync": "node tools/sync-vendor.mjs",
     "build": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs",
     "build:keep": "node tools/sync-vendor.mjs && node localescript.mjs && node build.mjs --keep",
-    "lint": "eslint . --ext .js,.mjs",
+    "lint": "eslint . --ext .js,.mjs && eslint -c eslint.modules.config.js chrome/player/modules",
     "typecheck": "tsc --noEmit",
     "lint:github": "web-ext lint --source-dir=build_firefox_github",
     "lint:amo": "web-ext lint --source-dir=build_firefox_amo --self-hosted",

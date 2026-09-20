@@ -1,4 +1,5 @@
 import {TSDemuxer, MP4Remuxer, MP4Demuxer, AACDemuxer, MP3Demuxer, PassThroughRemuxer, ChunkMetadata} from '../hls.mjs';
+import {normalizePts} from './ptsNormalize.mjs';
 
 // hls.js 1.7.2 added a chunkMeta parameter to Demuxer.resetInitSegment/demux
 // and Remuxer.remux that 1.6.9 (what this file was written against) did not
