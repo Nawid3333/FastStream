@@ -146,23 +146,10 @@ body:not(.frame) {
   user-select: text;
 }
 
-/* Modern scrollbar (WebKit); gracefully ignored elsewhere */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background-color: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: color-mix(in oklab, var(--color-text) 25%, transparent);
-  border-radius: 999px;
-}
-
-::-webkit-scrollbar-button {
-  display: none;
+/* Thin scrollbars. A mid grey reads on both the light and the dark theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(128 128 128 / 0.55) transparent;
 }
 
 h1 {
@@ -576,14 +563,6 @@ textarea:focus-visible {
   align-self: stretch;
   line-height: 1.2;
   appearance: none;
-  -webkit-appearance: none;
-}
-
-.searchbar-shell .searchbar::-webkit-search-cancel-button,
-.searchbar-shell .searchbar::-webkit-search-decoration {
-  appearance: none;
-  -webkit-appearance: none;
-  display: none;
 }
 
 .searchbar-shell .searchbar:focus-visible {

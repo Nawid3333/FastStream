@@ -1706,28 +1706,10 @@ body {
     height: 100%;
 }
 
-/* total width */
-::-webkit-scrollbar {
-    background-color: transparent;
-    width: 5px;
-    height: 5px;
-}
-
-/* background of the scrollbar except button or resizer */
-::-webkit-scrollbar-track {
-    background-color: transparent;
-}
-
-/* scrollbar itself */
-::-webkit-scrollbar-thumb {
-    background-color: #babac0;
-    border-radius: 2px;
-    border: none;
-}
-
-/* set button(top and bottom of the scrollbar) */
-::-webkit-scrollbar-button {
-    display: none;
+/* thin scrollbars with a light thumb on a transparent track */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #babac0 transparent;
 }
 
 .page-marker {
@@ -3317,8 +3299,7 @@ input.crosstalk_calculator_input {
     outline: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.convolver_impulse_length_container .convolver_impulse_length_input::-webkit-inner-spin-button,
-.convolver_impulse_length_container .convolver_impulse_length_input::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
+/* no spin buttons on the number box */
+.convolver_impulse_length_container .convolver_impulse_length_input {
+    appearance: textfield;
 }
