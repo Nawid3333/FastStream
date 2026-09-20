@@ -68,7 +68,7 @@ describe('Keybinds', function() {
 
   it('Digit5 and Digit1 seek to 50% and 10% of the duration', async function() {
     const duration = await browser.execute(() => window.fastStream.duration);
-    expect(duration, 'the sample video should be long enough for percentage seeks to be observable').toBeGreaterThan(1);
+    expect(duration).toBeGreaterThan(1);
 
     // Park at the start so neither percentage target can already be satisfied
     // when its key is pressed. Seeks are asynchronous: poll currentTime.
@@ -88,8 +88,8 @@ describe('Keybinds', function() {
         },
         {timeout: 10000, timeoutMsg: `Digit5 never seeked to ${half} s, 50% of ${duration} s`});
     const atHalf = await browser.execute(() => window.fastStream.currentTime);
-    expect(atHalf, `Digit5 should land within 0.5 s of 50% of the ${duration} s sample`).toBeLessThanOrEqual(half + 0.5);
-    expect(atHalf, `Digit5 should land within 0.5 s of 50% of the ${duration} s sample`).toBeGreaterThanOrEqual(half - 0.5);
+    expect(atHalf).toBeLessThanOrEqual(half + 0.5);
+    expect(atHalf).toBeGreaterThanOrEqual(half - 0.5);
 
     await pressKey('Digit1');
     const tenth = duration * 0.1;
@@ -100,32 +100,32 @@ describe('Keybinds', function() {
         },
         {timeout: 10000, timeoutMsg: `Digit1 never seeked to ${tenth} s, 10% of ${duration} s`});
     const atTenth = await browser.execute(() => window.fastStream.currentTime);
-    expect(atTenth, `Digit1 should land within 0.5 s of 10% of the ${duration} s sample`).toBeLessThanOrEqual(tenth + 0.5);
-    expect(atTenth, `Digit1 should land within 0.5 s of 10% of the ${duration} s sample`).toBeGreaterThanOrEqual(tenth - 0.5);
+    expect(atTenth).toBeLessThanOrEqual(tenth + 0.5);
+    expect(atTenth).toBeGreaterThanOrEqual(tenth - 0.5);
   });
 
   it('KeyQ sets the 3x preset and pressing it again reverts to 1x', async function() {
     await pressKey('KeyQ');
     const atPreset = await browser.execute(() => window.fastStream.playbackRate);
-    expect(atPreset, 'KeyQ (SpeedPreset3) should set playbackRate to 3').toBe(3);
+    expect(atPreset).toBe(3);
 
     await pressKey('KeyQ');
     const afterRevert = await browser.execute(() => window.fastStream.playbackRate);
-    expect(afterRevert, 'pressing KeyQ again should revert to the rate the preset replaced, which was 1').toBe(1);
+    expect(afterRevert).toBe(1);
   });
 
   it('KeyY reverts to the rate KeyQ set, the preset memory is per key', async function() {
     await pressKey('KeyQ');
     const atQ = await browser.execute(() => window.fastStream.playbackRate);
-    expect(atQ, 'KeyQ (SpeedPreset3) should set playbackRate to 3 first').toBe(3);
+    expect(atQ).toBe(3);
 
     await pressKey('KeyY');
     const atY = await browser.execute(() => window.fastStream.playbackRate);
-    expect(atY, 'KeyY (SpeedPreset5) should set playbackRate to 5').toBe(5);
+    expect(atY).toBe(5);
 
     await pressKey('KeyY');
     const afterY = await browser.execute(() => window.fastStream.playbackRate);
-    expect(afterY, 'pressing KeyY again must revert to 3, the rate remembered for KeyY, not to 1').toBe(3);
+    expect(afterY).toBe(3);
   });
 
   it('KeyH clamps the 16x preset to options.maxPlaybackRate', async function() {
@@ -134,18 +134,18 @@ describe('Keybinds', function() {
 
     await pressKey('KeyH');
     const atPreset = await browser.execute(() => window.fastStream.playbackRate);
-    expect(atPreset, `KeyH (SpeedPreset16) must clamp to Math.min(16, maxPlaybackRate=${max})`).toBe(expected);
+    expect(atPreset).toBe(expected);
   });
 
   it('KeyW sets 3.5x and Shift+KeyW leaves the playbackRate alone', async function() {
     // Plain KeyW used to toggle windowed fullscreen; it must set the preset.
     await pressKey('KeyW');
     const atPreset = await browser.execute(() => window.fastStream.playbackRate);
-    expect(atPreset, 'plain KeyW (SpeedPreset3_5) should set playbackRate to 3.5').toBe(3.5);
+    expect(atPreset).toBe(3.5);
 
     // Shift+KeyW is WindowedFullscreen now; it must leave the rate alone.
     await pressKey('KeyW', {shift: true});
     const afterShift = await browser.execute(() => window.fastStream.playbackRate);
-    expect(afterShift, 'Shift+KeyW (WindowedFullscreen) must not change playbackRate').toBe(atPreset);
+    expect(afterShift).toBe(atPreset);
   });
 });
