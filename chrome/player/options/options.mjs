@@ -1,4 +1,5 @@
 import {DefaultKeybinds} from './defaults/DefaultKeybinds.mjs';
+import {conflictPartners, keybindLabel} from './KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
@@ -162,12 +163,7 @@ async function loadOptions(newOptions) {
   }
 
   if (Options.keybinds) {
-    keybindsList.replaceChildren();
-    for (const keybind in Options.keybinds) {
-      if (Object.hasOwn(Options.keybinds, keybind)) {
-        createKeybindElement(keybind);
-      }
-    }
+    renderKeybinds();
   }
 
   document.querySelectorAll('.video-option').forEach((option) => {
@@ -321,15 +317,42 @@ document.querySelectorAll('.video-option').forEach((option) => {
   });
 });
 
+function renderKeybinds() {
+  keybindsList.replaceChildren();
+  for (const keybind in Options.keybinds) {
+    if (Object.hasOwn(Options.keybinds, keybind)) {
+      createKeybindElement(keybind);
+    }
+  }
+  refreshKeybindConflicts();
+}
+
+/**
+ * Marks every action whose key another action shares, and says which. A press fires all
+ * of them, which is never what anyone meant; nothing stops the choice, since the user may
+ * be halfway through rearranging.
+ */
+function refreshKeybindConflicts() {
+  const partners = conflictPartners(Options.keybinds);
+  keybindsList.querySelectorAll('.keybind-container').forEach((container) => {
+    const others = partners.get(container.dataset.keybind);
+    const warning = container.querySelector('.keybind-warning');
+    container.classList.toggle('keybind-conflict', !!others);
+    warning.hidden = !others;
+    warning.textContent = others ? `Also used by ${others.map(keybindLabel).join(', ')}` : '';
+  });
+}
+
 function createKeybindElement(keybind) {
   const containerElement = document.createElement('div');
   containerElement.classList.add('keybind-container');
   containerElement.classList.add('search-target-remove-keybind');
+  containerElement.dataset.keybind = keybind;
 
   const keybindNameElement = document.createElement('div');
   keybindNameElement.classList.add('keybind-name');
   keybindNameElement.classList.add('search-target-keybind');
-  const keybindName = keybind.replace(/([A-Z])/g, ' $1').trim();
+  const keybindName = keybindLabel(keybind);
   keybindNameElement.textContent = keybindName;
   containerElement.appendChild(keybindNameElement);
 
@@ -346,6 +369,7 @@ function createKeybindElement(keybind) {
       return;
     } else if (e.key === 'Escape') {
       keybindInput.textContent = Options.keybinds[keybind] = 'None';
+      refreshKeybindConflicts();
       optionChanged();
       keybindInput.blur();
       return;
@@ -354,6 +378,7 @@ function createKeybindElement(keybind) {
     e.preventDefault();
     keybindInput.textContent = WebUtils.getKeyString(e);
     Options.keybinds[keybind] = keybindInput.textContent;
+    refreshKeybindConflicts();
     optionChanged();
   });
 
@@ -371,6 +396,12 @@ function createKeybindElement(keybind) {
   });
 
   containerElement.appendChild(keybindInput);
+
+  const warning = document.createElement('div');
+  warning.classList.add('keybind-warning');
+  warning.setAttribute('role', 'status');
+  warning.hidden = true;
+  containerElement.appendChild(warning);
 
   keybindsList.appendChild(containerElement);
 }
@@ -568,12 +599,7 @@ optionsResetButton.addEventListener('click', () => {
 
 document.getElementById('resetdefault').addEventListener('click', () => {
   Options.keybinds = structuredClone(DefaultKeybinds);
-  keybindsList.replaceChildren();
-  for (const keybind in Options.keybinds) {
-    if (Object.hasOwn(Options.keybinds, keybind)) {
-      createKeybindElement(keybind);
-    }
-  }
+  renderKeybinds();
   optionChanged();
 });
 
@@ -604,7 +630,7 @@ importButton.addEventListener('click', () => {
         alert('Failed to import settings: the selected file is not valid JSON.');
         return;
       }
-      const newOptions = Utils.mergeOptions(DefaultOptions, newOptionsObj);
+      const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
       const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
       const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
       loadOptions(newOptions);
