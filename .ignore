@@ -1,0 +1,16 @@
+# Skipped by Claude Code's Grep, Glob and file picker (they run on ripgrep, which reads
+# .ignore next to .gitignore) and by editor searches that do the same. It hides files
+# from SEARCH only: they can still be opened, and nothing else in the repo reads it.
+#
+# .gitignore already covers node_modules, built, output, web-ext-artifacts, logs,
+# coverage, the vendored libraries and the e2e fixtures. This adds the files that are
+# committed but only ever add noise to a search. Keep it in step with .claudeignore.
+
+pnpm-lock.yaml
+
+# Generated from chrome/_locales by localescript.mjs; every match here repeats one there.
+combined-locales.json
+
+*.map
+*.min.js
+*.min.css

@@ -46,6 +46,19 @@ without breaking Chrome and without making upstream merges painful.
   moved W). Not covered: a real keyboard, and the options page against a profile that already
   has saved options.
 
+## Reading big generated files
+
+`.claude/settings.json` denies the Read tool on `pnpm-lock.yaml`, `node_modules/`,
+`combined-locales.json`, the vendored libraries under `chrome/player/modules/` (generated from npm
+by the build and gitignored), source maps and build output. `.ignore` keeps the committed ones out
+of Grep and Glob results. `.claudeignore` repeats the list, but Claude Code does not read a file
+with that name (checked against 2.1.278); the two above are what work. The rules load when a
+session starts, so an already-open session keeps reading them.
+
+When one of those files has to be consulted, do not read it whole: run `grep -n` or `sed -n`
+through Bash, or have the ollama helper (`glm-5.3-flash:cloud`, through its HTTP API) pull out the
+lines that matter, and check what it reports against the source.
+
 ## Commands
 
 ```bash

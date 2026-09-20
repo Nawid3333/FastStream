@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./pnpm-lock.yaml)",
+      "Read(./node_modules/**)",
+      "Read(./.pnpm-store/**)",
+      "Read(./web-ext-artifacts/**)",
+      "Read(./built/**)",
+      "Read(./**/*.map)",
+      "Read(./**/*.min.js)",
+      "Read(./combined-locales.json)",
+      "Read(./chrome/player/modules/hls.mjs)",
+      "Read(./chrome/player/modules/hls.worker.js)",
+      "Read(./chrome/player/modules/dash.mjs)",
+      "Read(./chrome/player/modules/pako.mjs)",
+      "Read(./chrome/player/modules/fuse.mjs)",
+      "Read(./chrome/player/modules/sortable.mjs)",
+      "Read(./chrome/player/modules/sweetalert.mjs)",
+      "Read(./chrome/player/modules/vad/ort.wasm.mjs)",
+      "Read(./chrome/player/modules/reencoder/mp4-muxer.mjs)",
+      "Read(./chrome/player/modules/reencoder/webm.mjs)",
+      "Read(./chrome/player/modules/gif/gif.mjs)",
+      "Read(./chrome/player/modules/gif/gif.worker.js)",
+      "Read(./chrome/player/modules/mp4box.mjs)",
+      "Read(./chrome/player/modules/coloris.mjs)"
+    ]
+  }
+}
