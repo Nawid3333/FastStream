@@ -29,8 +29,11 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `R G B Q W A Y E H`. A press sets the speed; the same key again reverts to the speed active
   before it (per-key memory, fallback 1x; `applySpeedPreset`). One deliberate difference from
   the lua: a remembered speed equal to the preset itself falls back to 1x, so the key never goes
-  dead. The target is clamped to `options.maxPlaybackRate` (8 on Firefox, 16 on Chrome), so on
-  Firefox the 16x key gives 8x, the same as the 8x key.
+  dead. The target is clamped to `options.maxPlaybackRate`, which is 8, so the 16x key gives
+  8x, the same as the 8x key. 8 is where Firefox stops playing audio: measured on Firefox 156,
+  a tone is at full level at 8x and silent at 10x and 16x, while the picture still runs at the
+  requested pace. `tests/e2e/specs/firefox.e2e.mjs` pins it, so a Firefox that plays faster audio
+  shows up as a failure and the cap can move.
 - Six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
   PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
@@ -235,7 +238,7 @@ ordinary windows.
 What that fix put in place, and the invariants to keep:
 
 - `FSBlob` holds an **ordered backend chain** (`['opfs', 'cache',
-  'indexeddb']`, empty on Chrome) instead of three module-level booleans.
+  'indexeddb']`) instead of three module-level booleans.
   `ready()` awaits the active backend's `setup()` and, on rejection, moves
   to the next one — a backend that claims support and then fails costs one
   step down the chain, not a drop to RAM. A private window therefore lands
@@ -427,10 +430,17 @@ entirely — see "YouTube removal" below — and no longer apply to anything.)
 **Firefox only (decided 2026-09-11).** Nawid only uses this fork on Firefox;
 `buildChromeGithub()`/`buildChromeWebstore()` and the `chrome-github`/
 `chrome-webstore` targets were removed from `build.mjs`, the release
-workflow's asset list, and CI's Chromium E2E step comments (that step
-itself stays — it tests the `web` target across engines, not the extension).
-`chromeSourceDir` (`chrome/`) is still the shared source directory for every
-remaining target; only the two Chrome-flavored *build outputs* are gone.
+workflow's asset list, and the comments around CI's Chromium E2E step.
+**Chromium was dropped altogether on 2026-09-20:** that step, `wdio.chromium.conf.mjs`, the
+`test:e2e:chromium` and `test:e2e:all` scripts, the `chromedriver` dependency, the Chrome and
+Safari branches of the code (`EnvUtils.isChrome/isFirefox/isSafari` are gone), Chromium's
+`details.initiator` handling in the background script (Firefox does not send that field, so it
+never ran here; measured), and the Chrome-family registration in the mpv host installer.
+`chromeSourceDir` (`chrome/`) keeps its name because upstream's tree does, and the sync bot merges
+upstream into it. `chrome/manifest.json` is Firefox's own: an event page, no Chrome-only keys, and
+the `downloads` and `cookies` permissions the builds used to add. The built manifests are
+byte-identical to what the old transformations produced. The plain `web` target stays: the web
+e2e suite runs against it, in Firefox.
 
 | Target | Splices | Notes |
 |---|---|---|

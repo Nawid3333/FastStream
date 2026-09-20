@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // FastStream mpv native messaging host.
 //
-// Receives messages from the FastStream extension over the Chrome/Firefox
+// Receives messages from the FastStream extension over the Firefox
 // native messaging protocol (4-byte little-endian length prefix + JSON) and
 // launches mpv on the user's machine.
 //

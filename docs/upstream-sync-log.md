@@ -47,6 +47,14 @@ line without a conflict and it yields a file with a header and no media);
 `FastStreamClient` imports `PlayerModes` again; `EmbedAPI`'s allowed-mode list
 lost `ACCELERATED_PANOPTO`, which is undefined here.
 
+### Next sync: Chromium code is gone too (2026-09-20)
+
+This fork is Firefox-only now. The Chrome, Chromium and Safari branches were removed from
+`chrome/player`, the source manifest is Firefox's own, and `details.initiator` handling was
+dropped from the background script. Expect conflicts where upstream touches any of those
+lines. Skip upstream changes that only serve Chrome or Safari; take the rest and re-apply the
+Firefox-only form (`git grep -n "isChrome\|isSafari\|isFirefox"` finds a branch that came back).
+
 ### Next sync: Panopto files will conflict
 
 Upstream will keep changing `panopto_content.js`, `PanoptoPlayer.mjs` and

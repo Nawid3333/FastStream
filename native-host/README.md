@@ -35,7 +35,7 @@ cookie will still fail to load in mpv.
 
 ## Why mpv is started through WMI on Windows
 
-Firefox (and Chrome) run a native messaging host inside a Windows **job
+Firefox runs a native messaging host inside a Windows **job
 object** created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Every descendant of
 the host joins that job. This host answers one message and exits, the browser
 then closes the job, and Windows kills everything still in it -- so an mpv
@@ -68,18 +68,16 @@ There are two ways to register the host. **Pick one.**
 ### Option A — install script (recommended, Windows only)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File native-host\install.ps1 -ExtensionId <your-extension-id>
+powershell -ExecutionPolicy Bypass -File native-host\install.ps1
 ```
+
+The extension is allowed by its fixed build ID `thanatus@Nawid`.
 
 Options:
 
-- `-ExtensionId <id>` - your extension's ID from `chrome://extensions`
-  (Developer mode). Required for the Chrome-family registration; Firefox
-  uses the fixed build ID `thanatus@Nawid`.
 - `-MpvPath "D:\tools\mpv\mpv.exe"` - where mpv lives
   (default `C:\Program Files\mpv\mpv.exe`; the host also falls back to `mpv`
   on `PATH`)
-- `-Browser chrome|firefox|both` (default `both`)
 - `-NodePath` - path to `node.exe` if it is not on `PATH`
 
 #### What the script actually does, step by step
@@ -93,21 +91,21 @@ perform the same steps by hand instead of running the script.
 | 1 | Creates `%LOCALAPPDATA%\FastStreamMpvHost\` and copies `faststream-mpv-host.mjs` into it | `New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\FastStreamMpvHost"` then copy the file |
 | 2 | Writes `config.json` there containing only `{"mpvPath": "..."}` — the mpv location the host should launch | create the same file by hand |
 | 3 | Writes `com.faststream.mpv.bat` — a two-line wrapper that runs `node faststream-mpv-host.mjs`. Needed because the browser starts the manifest's `path` executable **with no arguments**, and a bare `.mjs` is not an executable | create the same file by hand |
-| 4 | Writes `com.faststream.mpv.json` — the native-messaging manifest: host name, path to the `.bat`, `type: "stdio"`, and which extensions may talk to it (`allowed_origins` for Chrome = your extension ID, `allowed_extensions` for Firefox = `thanatus@Nawid`) | create the same file by hand |
-| 5 | Creates registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv` (default value = path to the manifest JSON) so **Firefox** can find the host, plus the same under `Google\Chrome`, `Microsoft\Edge`, `BraveSoftware\Brave-Browser`, `Vivaldi` for Chromium browsers | `New-Item` + `Set-ItemProperty`, see the key paths in the script |
+| 4 | Writes `com.faststream.mpv.json` — the native-messaging manifest: host name, path to the `.bat`, `type: "stdio"`, and which extension may talk to it (`allowed_extensions` = `thanatus@Nawid`) | create the same file by hand |
+| 5 | Creates registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv` (default value = path to the manifest JSON) so **Firefox** can find the host | `New-Item` + `Set-ItemProperty`, see the key paths in the script |
 
 The script does **not**: run anything as admin, modify `PATH`, install
 software, start any background process, make network connections, or touch
-anything outside `%LOCALAPPDATA%\FastStreamMpvHost` and the five
-`NativeMessagingHosts` registry keys listed above. Read it — it is 130
-lines, heavily commented, one action per block.
+anything outside `%LOCALAPPDATA%\FastStreamMpvHost` and the one
+`NativeMessagingHosts` registry key listed above. Read it — it is about 70
+lines, commented, one action per block.
 
 ### Option B — manual setup (any OS, no script)
 
 1. Copy `faststream-mpv-host.mjs` somewhere permanent, e.g.
    `%LOCALAPPDATA%\FastStreamMpvHost\`.
-2. Create a wrapper `com.faststream.mpv.bat` next to it (Chrome-family
-   launches the manifest `path` with zero arguments):
+2. Create a wrapper `com.faststream.mpv.bat` next to it (the manifest `path`
+   is launched with zero arguments):
 
    ```bat
    @echo off
@@ -126,20 +124,15 @@ lines, heavily commented, one action per block.
    }
    ```
 
-   (For Chrome, add `"allowed_origins": ["chrome-extension://<your-id>/"]`
-   instead of/in addition to `allowed_extensions`.)
-
-4. Tell the browser where the manifest is:
-   - **Firefox:** registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv`,
-     default value = full path to the JSON file. (Linux/macOS:
-     `~/.mozilla/native-messaging-hosts/com.faststream.mpv.json`.)
-   - **Chrome/Edge/Brave/Vivaldi:** same idea under
-     `HKCU\Software\<Vendor>\NativeMessagingHosts\com.faststream.mpv`.
+4. Tell Firefox where the manifest is: registry key
+   `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv`, default
+   value = full path to the JSON file. (Linux/macOS:
+   `~/.mozilla/native-messaging-hosts/com.faststream.mpv.json`.)
 5. Put your mpv path into `config.json` next to the host script
    (`{"mpvPath": "C:\\Program Files\\mpv\\mpv.exe"}`), or rely on the
    built-in defaults (`C:\Program Files\mpv\mpv.exe`, then `mpv` on `PATH`).
 
-Restart the browser afterwards. In FastStream's options page, use
+Restart Firefox afterwards. In FastStream's options page, use
 **Test mpv connection** to verify the setup.
 
 ## Extension-side setup
@@ -163,12 +156,10 @@ found (with its path).
 
 ```powershell
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"
-foreach ($root in 'Google\Chrome','Microsoft\Edge','BraveSoftware\Brave-Browser','Vivaldi','Mozilla') {
-  Remove-Item -Recurse -Force "HKCU:\Software\$root\NativeMessagingHosts\com.faststream.mpv" -ErrorAction SilentlyContinue
-}
+Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv" -ErrorAction SilentlyContinue
 ```
 
-Or by hand: delete the folder and the registry keys the setup created (see
+Or by hand: delete the folder and the registry key the setup created (see
 the table above).
 
 ## Files

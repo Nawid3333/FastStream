@@ -30,55 +30,29 @@ Notes:
 
 ## Demo
 
-See the player in action without installing the extension! Tested on Chrome and Firefox. Note: Some features (OpenSubtitles/header override) are not available without installation.
+See the player in action without installing the extension! Runs in Firefox. Note: Some features (OpenSubtitles/header override) are not available without installation.
 
 [Web Version + Big Buck Bunny](https://faststream.online/player/#https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8)
 
 ## Browser compatibility
-Tested using Chrome and Firefox. Other chromium based browsers (such as Edge) will also likely work.
 
-Please note that there are no plans to make FastStream mobile compatible any time soon. Developing FastStream for Chrome and Firefox for the desktop is already an exhausting endeavor. Supporting mobile on top of all that is too much work for a mere college-student programming hobbyist like me. That said, if you find a way to make it work on more browsers or devices, please feel free to share and make a pull request!
+FastStream is built for Firefox on the desktop. Chrome and other Chromium browsers are not supported and are not tested, and there are no plans for mobile.
 
-## Installation For Chrome and Firefox
+## Installation
 
-You can find the extension on the [Chrome extension store](https://chrome.google.com/webstore/detail/faststream/kkeakohpadmbldjaiggikmnldlfkdfog)
+Download the `.xpi` from the [Releases page](https://github.com/Nawid3333/FastStream/releases) and open it in Firefox (drag it into a window, or `about:addons` → the gear → Install Add-on From File). It needs Firefox 142 or newer. The release is signed by Mozilla for self-distribution, so it installs in an ordinary Firefox, and Firefox checks for updates by itself: every release publishes an `updates.json` that the extension points at.
 
-It is also available for [Firefox with manual installation](#manual-installation-for-firefox) (see below).
-
-### Notice for Firefox extension store users
-Firefox's extension store policies recently changed and now require a more stringent review process, which FastStream has not been able to pass. As a result, the extension is currently unavailable in the Firefox add-ons store.
-
-Mozilla's goal is understandable: they want to ensure extensions are secure and free of malicious code. However, these new requirements have made it much harder for independent developers like me to maintain and update extensions on their platform.
-
-One policy in particular is a major obstacle for FastStream. Mozilla now requires developers to use official release versions of third-party dependencies. That is not practical for this project, because FastStream relies on several heavily customized open-source libraries, including hls.js and dash.js. These modified versions contain FastStream-specific code and are available on my GitHub, but they are not official upstream releases. Although I work with the original developers to implement the features FastStream needs, Mozilla's policy still requires official release builds. Given how extensively these libraries have been customized, complying with that requirement would mean either removing important features or somehow getting Mozilla to approve the customized versions.
-
-I have tried contacting Mozilla to explain that these modifications are necessary for FastStream to function properly, but I have not received a useful response. For now, the Firefox version of FastStream is only available through manual installation. I will continue trying to get FastStream back onto the Firefox store. In the meantime, please follow the instructions below to install it manually.
-
-## Manual Installation For Chrome
-Manual installation gets you the latest fixes faster than waiting on the Chrome Web Store's review process. To install manually, please do the following steps:
-
-1. Go to `chrome://extensions`
-2. Turn on developer mode
-3. Drag and drop the `chrome` directory of this repository, or the prebuilt ZIP found on the [Releases page](https://github.com/Nawid3333/FastStream/releases)
-
-**THERE IS NO BUILT-IN AUTOMATIC UPDATE SYSTEM. If you go this route, please make sure to check back often for updates because I will often fix bugs as I encounter them. FastStream will remind you in the settings page, but you will have to update it manually.**
-
-## Manual Installation For Firefox
-The extension is, by default, configured to work on Chrome. You can either use a prebuilt version from the [Releases page](https://github.com/Nawid3333/FastStream/releases) or build the extension yourself using the build instructions below.
-
-You can then install the extension on Firefox Developer Edition by going to `about:config` and setting `xpinstall.signatures.required` to `false`. You must then also disable extension auto-updates or the extension will be removed when you close the browser. To do this, go to `about:addons`, click on the gear icon, and uncheck `Update Add-ons Automatically`. You can then click "Install Add-on From File" and select the `firefox-github-*.zip` file to install the extension.
-
-**THERE IS NO BUILT-IN AUTOMATIC UPDATE SYSTEM. See above.**
+The `firefox-github-*.zip` on the same page is an unsigned build for development; loading it needs Firefox Developer Edition or a temporary add-on (`about:debugging`).
 
 ## Build Instructions
-In order to create bundles for Chrome and Firefox, you need to build FastStream by following these steps:
 
-1. Install NodeJS and NPM
-2. Run `npm install --only=dev` to install dev dependencies
-3. Run `npm run build`
-4. Firefox bundle is available in the `built` directory
+You need Node.js 20 or newer and pnpm 11.
 
-Files with `dist` in the name are for Chrome & Firefox's stores. Files with `libre` are for manual installation. The `dist` versions will have reduced featuresets to comply with store policies.
+1. `pnpm install`
+2. `pnpm run build`
+3. The Firefox bundles and the web build are in the `built` directory. `pnpm run build:keep` also leaves the unpacked `build_firefox_*` directories, which `web-ext run` and `web-ext lint` need.
+
+`pnpm test` runs the unit tests, `pnpm run lint` and `pnpm run typecheck` the static checks, and `pnpm run verify` everything, end-to-end tests included (they drive Firefox).
 
 ## Credits
 

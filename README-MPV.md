@@ -13,8 +13,7 @@ Everything else in FastStream works without any of this.
 
 > **Tested on Windows + Firefox only.** The helper falls back to a plain
 > process launch on Linux and macOS, which should be correct there, but
-> nobody has run it. Chrome-family browsers are supported by the installer
-> but have not been tried either.
+> nobody has run it.
 
 ---
 
@@ -31,23 +30,16 @@ From the repo, in PowerShell:
 
 ```powershell
 cd native-host
-powershell -ExecutionPolicy Bypass -File install.ps1 -Browser firefox
+powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 If mpv is not in the default location, pass it:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Browser firefox -MpvPath "D:\Apps\mpv\mpv.exe"
+powershell -ExecutionPolicy Bypass -File install.ps1 -MpvPath "D:\Apps\mpv\mpv.exe"
 ```
 
-For Chrome, Edge, Brave or Vivaldi you must also pass the extension's ID
-(`chrome://extensions` → Developer mode → ID):
-
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1 -Browser both -ExtensionId <your-id>
-```
-
-**Then restart the browser.** It only looks for native hosts at startup.
+**Then restart Firefox.** It only looks for native hosts at startup.
 
 Not on Windows, or prefer to do it by hand? See
 [`native-host/README.md`](native-host/README.md) — same four steps, no script.

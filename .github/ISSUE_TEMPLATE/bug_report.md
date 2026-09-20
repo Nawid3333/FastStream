@@ -14,7 +14,7 @@ A clear and concise description of what the bug is.
 FastStream version. You can get the version by opening the player, it will display "Welcome to FastStream Vx.x.x" in the bottom left corner. You can also get the version by going to the bottom of the settings page.
 
 **Platform**
-The browser you are using Chrome/Firefox/etc. as well as your operating system (Windows/Mac/Linux/Android/etc.)
+Your Firefox version, as well as your operating system (Windows/Mac/Linux/Android/etc.)
 
 **Steps to Reproduce**
 Please tell us how to reproduce the issue. A URL to a specific video is encouraged.

@@ -1,5 +1,8 @@
 # FastStream modernisation — checkpoint
 
+**Chromium dropped (2026-09-20):** Firefox is the only browser this project is written, built and
+tested for. See CLAUDE.md, "Build targets".
+
 **Status (2026-09-19): finished, in maintenance mode.** Upstream was merged
 through `9118236f` and the work branch became `main`, the only branch. Verified
 at that point: eslint 0, `tsc --noEmit` clean, 164 unit tests, both web-ext lints
@@ -441,8 +444,6 @@ survival inside a real kill-on-close job object.
 - **Windows only.** The WMI launcher and the focus step are
   `process.platform === 'win32'`; other platforms fall back to a plain
   detached spawn, which is correct there (no job object) but untested.
-- **Chrome.** `install.ps1` supports `-ExtensionId` for Chrome-family
-  browsers, but MPV mode has only ever been run in Firefox.
 - **Windows-only host, still true.** See above.
 
 **Fixed on 2026-09-09, after the branch was first written up:**

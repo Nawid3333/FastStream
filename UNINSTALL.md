@@ -1,6 +1,6 @@
 # Uninstallation guide
 
-To uninstall the extension, simply right click the icon and click "Remove from Chrome" (Chrome) or "Remove extension" (Firefox). Thats it!
+To uninstall the extension, simply right click the icon and click "Remove Extension". Thats it!
 
 ## Before you leave
 
