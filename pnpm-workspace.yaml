@@ -1,8 +1,9 @@
 allowBuilds:
   geckodriver: true
   esbuild: true
-  chromedriver: true
-  edgedriver: true
+  # wdio pulls edgedriver in for Edge sessions, which this project does not run; its
+  # install script downloads a driver binary that nothing here would use.
+  edgedriver: false
   onnxruntime-web: false
   core-js: false
   dtrace-provider: false
