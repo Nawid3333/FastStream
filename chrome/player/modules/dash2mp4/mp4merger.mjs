@@ -124,7 +124,13 @@ export class MP4Merger extends EventEmitter {
 
       const traf = moof.trafs.find((candidate) => candidate.tfhd.track_id === samplesList.track_id);
       const baseDecodeTime = traf?.tfdt?.baseMediaDecodeTime || 0;
-      const sidx = sidxs.length > 1 ? sidxs.find((box) => box.reference_ID === samplesList.track_id) : sidxs[0];
+      // A sidx says which track it indexes and counts in that track's timescale. Only a
+      // fragment with a single track can lend its lone sidx to that track unchecked; in a
+      // muxed one it would give the other track a start time in the wrong timescale, so
+      // that track falls back to its own decode time.
+      const sidx = sidxs.length > 1 || sampleLists.length > 1 ?
+        sidxs.find((box) => box.reference_ID === samplesList.track_id) :
+        sidxs[0];
       const earliestPresentationTime = sidx ? sidx.earliest_presentation_time : baseDecodeTime;
       const outputSamples = samplesList.samples.map((sample) => {
         return createMp4Sample(sample.is_sync, sample.duration, sample.size, sample.cts - sample.dts);
@@ -412,9 +418,12 @@ export class MP4Merger extends EventEmitter {
     });
   }
   async convert(videoDuration, videoInitSegment, audioDuration, audioInitSegment, zippedFragments) {
-    this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
-
     try {
+      // Inside the try: setup() throws for a codec or packaging this merger cannot
+      // handle, which is what sends the caller to the re-encode fallback, and the
+      // OPFS save the constructor began has to be closed on that path as well.
+      this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
+
       let lastProgress = 0;
       for (let i = 0; i < zippedFragments.length; i++) {
         if (this.cancelled) {

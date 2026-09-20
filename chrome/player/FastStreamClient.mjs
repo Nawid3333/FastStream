@@ -770,8 +770,9 @@ export class FastStreamClient extends EventEmitter {
 
     // The video being previewed can be torn down or replaced while its preview is still
     // being built, and a preview of something that is no longer playing does not belong
-    // in the page.
-    if (this.previewPlayer || this.player?.getSource() !== source) {
+    // in the page. Nor does one that was switched off while it was being built, which
+    // setOptions() could not destroy because it was not stored yet.
+    if (this.previewPlayer || !this.options.previewEnabled || this.player?.getSource() !== source) {
       previewPlayer.destroy();
       return;
     }
@@ -1583,7 +1584,9 @@ export class FastStreamClient extends EventEmitter {
 
     this.previewContext.on(DefaultPlayerEvents.ERROR, (e) => {
       console.log('Preview player error', e);
-      this.previewPlayer.destroy();
+      // Still null while the preview player is being built: it is only stored once its
+      // source has loaded, and a source that fails to load is exactly what gets here.
+      this.previewPlayer?.destroy();
       this.previewPlayer = null;
       this.interfaceController.resetPreviewVideo();
 
