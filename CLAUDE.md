@@ -15,8 +15,9 @@ rewriting) is a **hard prerequisite for any listed AMO submission** — AMO
 reviewers check add-on license claims, and "I assert GPL over someone
 else's all-rights-reserved code" does not survive that.
 
-Goal: an AMO-compliant Firefox build with a modern, testable dev workflow,
-without breaking Chrome and without making upstream merges painful.
+Goal: a Firefox-only extension (Chrome was dropped on 2026-09-20 — see
+"Chromium was dropped" below) with a modern, testable dev workflow, and
+upstream merges that stay as painless as a fork can make them.
 
 ## Keybinds
 

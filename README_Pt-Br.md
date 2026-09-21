@@ -29,49 +29,27 @@ Observações:
 
 ## Demo
 
-Veja o player em ação sem instalar a extensão! Testado no Chrome e Firefox. Observação: Alguns recursos (OpenSubtitles/sobrescrever cabeçalhos) não estão disponíveis sem a instalação.
+Veja o player em ação sem instalar a extensão! Funciona no Firefox. Observação: Alguns recursos (OpenSubtitles/sobrescrever cabeçalhos) não estão disponíveis sem a instalação.
 
 [Web Version + Big Buck Bunny](https://faststream.online/player/#https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8)
 
 ## Compatibilidade com navegadores
-Testado no Chrome e Firefox. Outros navegadores baseados em Chromium (como o Edge) provavelmente também funcionarão.
 
-Por favor, note que não há planos para tornar o FastStream compatível com dispositivos móveis tão cedo. Desenvolver o FastStream para Chrome e Firefox no desktop já é um trabalho exaustivo. Suportar dispositivos móveis é trabalhoso demais para um simples estudante universitário programador como eu. Dito isso, se você encontrar uma maneira de fazê-lo funcionar em mais navegadores ou dispositivos, fique à vontade para compartilhar e enviar uma pull request!
+O FastStream é construído para o Firefox no desktop. Chrome e outros navegadores baseados em Chromium não são suportados nem testados, e não há planos para dispositivos móveis.
 
+## Instalação
 
-## Instalação para Chrome e Firefox
+Baixe o `.xpi` na [página de Releases](https://github.com/Nawid3333/FastStream/releases) e abra-o no Firefox (arraste-o para uma janela, ou `about:addons` → a engrenagem → Instalar complemento a partir de arquivo). Ele requer o Firefox 142 ou mais recente. A versão é assinada pela Mozilla para autodistribuição, então ela instala em um Firefox comum, e o Firefox verifica atualizações sozinho: cada release publica um `updates.json` para o qual a extensão aponta.
 
-Você pode encontrar a extensão na Chrome Web Store
-(https://chrome.google.com/webstore/detail/faststream/kkeakohpadmbldjaiggikmnldlfkdfog)
-
-Também está disponível para [Firefox](https://addons.mozilla.org/en-US/firefox/addon/faststream/)
-
-## Instalação Manual para Chrome
-
-A instalação manual traz as correções mais recentes mais rápido do que esperar pelo processo de revisão da Chrome Web Store. Para instalar manualmente, siga os passos abaixo:
-
-1. Acesse chrome://extensions
-2. Ative o modo de desenvolvedor
-3. Arraste e solte o diretório chrome deste repositório
-
-**NÃO HÁ UM SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA INTEGRADO. Se você optar por esse método, lembre-se de verificar frequentemente por atualizações, pois costumo corrigir bugs conforme eles aparecem. O FastStream irá lembrá-lo na página de configurações, mas você terá que atualizar manualmente.
-
-##Instalação Manual para Firefox
-A extensão, por padrão, está configurada para funcionar no Chrome. Você pode usar uma versão pré-compilada na página de [Releases page](https://github.com/Nawid3333/FastStream/releases) ou compilar a extensão você mesmo seguindo as instruções abaixo.
-
-Você pode instalar a extensão no Firefox Developer Edition acessando `about:config` e definindo `xpinstall.signatures.required` como `false`. Você também deve desativar as atualizações automáticas de extensões, ou a extensão será removida ao fechar o navegador. Para isso, vá em `about:addons`, clique no ícone de engrenagem e desmarque `Atualizar complementos automaticamente`. Depois, clique em `Instalar complemento a partir de arquivo` e selecione o arquivo `firefox-github-*.zip` para instalar a extensão.
-
-**NÃO HÁ UM SISTEMA DE ATUALIZAÇÃO AUTOMÁTICA INTEGRADO. Veja acima.
+O `firefox-github-*.zip` na mesma página é um build não assinado para desenvolvimento; carregá-lo requer o Firefox Developer Edition ou um complemento temporário (`about:debugging`).
 
 ## Instruções de Build (criar pacotes)
-Para criar pacotes para Chrome e Firefox, você precisa compilar o FastStream seguindo estes passos:
+Para criar os pacotes do Firefox, você precisa compilar o FastStream seguindo estes passos:
 
-1. Instale o NodeJS e o NPM
-2. Execute npm install --only=dev para instalar as dependências de desenvolvimento
-3. Execute npm run build
-4. O pacote para Firefox estará disponível no diretório built
-
-Arquivos com `dist` no nome são para as lojas do Chrome e Firefox. Arquivos com libre são para instalação manual. As versões `dist` terão menos recursos para cumprir as políticas das lojas.
+1. Instale o NodeJS (20 ou mais novo) e o pnpm 11
+2. Execute `pnpm install` para instalar as dependências
+3. Execute `pnpm run build`
+4. Os pacotes do Firefox e o build web estarão disponíveis no diretório `built`
 
 ## Creditoss
 
