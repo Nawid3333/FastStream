@@ -7,6 +7,13 @@ overrides:
   adm-zip: ^0.6.1
   lodash: ^4.18.1
   serialize-javascript: ^7.1.1
+  # Dependabot #24/#25: the original extract-zip is unmaintained (no npm release
+  # since 2020, no commits since 2022) and has two unpatched symlink-traversal
+  # CVEs with no first_patched_version. electron/extract-zip is Electron's
+  # actively maintained fork, published as an explicit "drop-in replacement",
+  # and its 1.0.5 changelog fixes exactly this symlink-at-final-path-component
+  # class of bug. Same package name everywhere it's required, so no code change.
+  extract-zip: npm:@electron-internal/extract-zip@^1.0.5
 allowBuilds:
   geckodriver: true
   esbuild: true
