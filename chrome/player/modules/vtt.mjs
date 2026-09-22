@@ -1212,7 +1212,7 @@
                         if (t[1] === "/") {
                             // If the closing tag matches, move back up to the parent node.
                             if (tagStack.length &&
-                                tagStack[tagStack.length - 1] === t.substr(2).replace(">", "")) {
+                                tagStack[tagStack.length - 1] === t.substr(2).replace(/>/g, "")) {
                                 tagStack.pop();
                                 current = current.parentNode;
                             }

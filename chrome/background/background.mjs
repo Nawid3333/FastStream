@@ -1539,7 +1539,7 @@ chrome.webRequest.onHeadersReceived.addListener(
       if ((details.statusCode >= 400 && details.statusCode < 600) || details.statusCode === 204) {
         return; // Client or server error. Ignore it
       }
-      if (url.startsWith('https://player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
+      if (URLUtils.hostnameMatches(url, 'player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
         ext = 'vmpatch';
       }
 

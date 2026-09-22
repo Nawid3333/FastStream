@@ -48,6 +48,18 @@ export class URLUtils {
     return url.split(/[#?]/)[0];
   }
 
+  // A plain url.includes(domain) also matches an attacker host that merely
+  // contains the domain as a substring, e.g. evil.com/vimeo.com or
+  // vimeo.com.evil.com. This checks the actual hostname instead.
+  static hostnameMatches(url, domain) {
+    try {
+      const hostname = new URL(url).hostname;
+      return hostname === domain || hostname.endsWith(`.${domain}`);
+    } catch (e) {
+      return false;
+    }
+  }
+
   static get_url_extension(url) {
     return this.strip_queryhash(url).split('.').pop().trim().toLowerCase();
   }

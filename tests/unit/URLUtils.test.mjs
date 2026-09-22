@@ -72,3 +72,21 @@ describe('header string round-trip', () => {
     expect(obj).toEqual({referer: 'https://e.com', origin: 'https://e.com'});
   });
 });
+
+describe('hostnameMatches', () => {
+  it('accepts the domain itself and real subdomains', () => {
+    expect(URLUtils.hostnameMatches('https://vimeo.com/123', 'vimeo.com')).toBe(true);
+    expect(URLUtils.hostnameMatches('https://player.vimeo.com/video/1', 'vimeo.com')).toBe(true);
+  });
+
+  it('rejects a domain that only appears as a substring elsewhere in the URL', () => {
+    // A CodeQL-flagged bug class: url.includes(domain) also matches these.
+    expect(URLUtils.hostnameMatches('https://vimeo.com.evil.com/x', 'vimeo.com')).toBe(false);
+    expect(URLUtils.hostnameMatches('https://evil.com/vimeo.com', 'vimeo.com')).toBe(false);
+    expect(URLUtils.hostnameMatches('https://notvimeo.com', 'vimeo.com')).toBe(false);
+  });
+
+  it('returns false for an unparsable URL instead of throwing', () => {
+    expect(URLUtils.hostnameMatches('not a url', 'vimeo.com')).toBe(false);
+  });
+});

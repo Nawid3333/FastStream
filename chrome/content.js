@@ -39,9 +39,10 @@
     customIframeId: null,
   };
 
-  const origin = window.location.origin;
+  const {hostname} = window.location;
   // If twitch.tv, or vimeo, disable soft replace by default
-  if (origin.includes('twitch.tv') || origin.includes('vimeo.com')) {
+  if (hostname === 'twitch.tv' || hostname.endsWith('.twitch.tv') ||
+      hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com')) {
     Config.softReplaceByDefault = false;
   }
 

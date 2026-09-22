@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+# Only reads the checkout and uploads a workflow-run artifact; needs nothing else.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and upload artifacts

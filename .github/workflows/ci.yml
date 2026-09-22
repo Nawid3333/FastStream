@@ -12,6 +12,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Only reads the checkout and uploads workflow-run artifacts; needs nothing else.
+permissions:
+  contents: read
+
 jobs:
   verify:
     name: Lint, test and build
