@@ -1,3 +1,12 @@
+overrides:
+  # Dependabot #27/#14/#17/#19/#20/#18/#21: these devDependencies (web-ext's
+  # firefox-profile, mocha's reporters, jswebm/archiver's lodash) pin older
+  # transitive versions than what upstream has since patched. None of these ship
+  # in the extension; forcing the patched versions here avoids waiting on those
+  # maintainers to bump their own lockfiles.
+  adm-zip: ^0.6.1
+  lodash: ^4.18.1
+  serialize-javascript: ^7.1.1
 allowBuilds:
   geckodriver: true
   esbuild: true
