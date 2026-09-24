@@ -60,10 +60,16 @@ function resolveMpvContentType(explicit, url) {
 // events can arrive before the initial load completes (fresh install,
 // add-on reload); awaiting this prevents them from acting on an empty
 // Options object, where mpvMode and the allowlist would read as disabled.
+// The toolbar state saved before the event page was last unloaded comes back
+// on the same promise, for the same reason: an allowlisted site's reload would
+// otherwise find no record of the user's choice and auto-start MPV again.
 let OptionsLoadPromise = null;
 function ensureOptions() {
   if (!OptionsLoadPromise) {
-    OptionsLoadPromise = loadOptions().catch(console.error);
+    OptionsLoadPromise = Promise.all([
+      loadOptions(),
+      Tabs.restoreTabStates(),
+    ]).catch(console.error);
   }
   return OptionsLoadPromise;
 }
@@ -77,7 +83,8 @@ let CustomSourcePatternsMatcher = new MultiRegexMatcher();
 
 BackgroundUtils.openWelcomePageOnInstall();
 
-BackgroundUtils.queryTabs().then((ctabs) => {
+// After the restore, or a woken event page would reset every tab's icon to Off.
+ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
   ctabs.forEach((tabobj) => {
     const tab = Tabs.getTabOrCreate(tabobj.id);
     try {
@@ -182,6 +189,8 @@ async function onClicked(tabobj) {
 
     });
   }
+
+  Tabs.saveTabState(tab);
 }
 
 chrome.action.onClicked.addListener(onClicked);
@@ -314,6 +323,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.regexMatched = false;
       tab.mpvMatched = false;
     }
+
+    Tabs.saveTabState(tab);
   }
 
   BackgroundUtils.updateTabIcon(tab, true);
@@ -371,7 +382,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     const contentType = resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url);
 
-    Mpv.openStream(msg.url, null, headers, contentType).then((result) => {
+    Mpv.openStream(msg.url, null, headers, contentType, sender.tab && sender.tab.url).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
         // Let the user retry immediately when the launch actually failed.
@@ -1356,14 +1367,16 @@ async function onSourceRecieved(details, frame, mode) {
     // they must not each spawn their own mpv window.
     if (!frame.tab.mpvAutoOpened) {
       frame.tab.mpvAutoOpened = true;
+      Tabs.saveTabState(frame.tab);
       if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
-      Mpv.openStream(url, frame.tab, customHeaders, resolveMpvContentType(null, frame.tab.url)).then((result) => {
+      Mpv.openStream(url, frame.tab, customHeaders, resolveMpvContentType(null, frame.tab.url), frame.tab.url).then((result) => {
         if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
         if (result.ok) {
           pauseTabMedia(frame.tab.tabId);
         } else {
           // The host never launched mpv, so let the next stream try.
           frame.tab.mpvAutoOpened = false;
+          Tabs.saveTabState(frame.tab);
         }
       });
     }
@@ -1494,13 +1507,15 @@ function openMpvWithSources(tab) {
   }
 
   tab.mpvAutoOpened = true;
-  Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url)).then((result) => {
+  Tabs.saveTabState(tab);
+  Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else {
       // The host never launched mpv, so let the next detected stream try.
       tab.mpvAutoOpened = false;
+      Tabs.saveTabState(tab);
     }
   });
   return true;

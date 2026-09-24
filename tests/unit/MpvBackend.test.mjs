@@ -214,4 +214,18 @@ describe('openStream contentType', () => {
     await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'documentary');
     expect(host.message()).not.toHaveProperty('contentType');
   });
+
+  it('relays an http(s) page URL for the resume key, and nothing else', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3');
+    expect(host.message().pageUrl).toBe('https://site/ep-3');
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', undefined);
+    expect(host.message()).not.toHaveProperty('pageUrl');
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'about:blank');
+    expect(host.message()).not.toHaveProperty('pageUrl');
+  });
 });

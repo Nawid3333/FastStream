@@ -8,7 +8,7 @@
  * The host is registered under the name com.faststream.mpv. It receives
  * small JSON messages and launches mpv on the user's machine:
  *   {type: 'ping'}                                -> {ok, mpv, path}
- *   {type: 'open', url, headers?, contentType?}  -> {ok, error?}
+ *   {type: 'open', url, headers?, contentType?, pageUrl?}  -> {ok, error?}
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
@@ -21,6 +21,11 @@
  * sites) for gpu-toggles.lua's content-aware shader selection on the mpv
  * side. The host appends it to the stream URL as a `#fs-content=` fragment
  * marker, which is never sent to the CDN.
+ *
+ * `pageUrl` is the tab's page URL (the episode page). The host hashes it into
+ * an `fs-id=` marker in the same fragment, which mpv's stream-resume.lua
+ * uses to save and restore the playback position -- the stream URL itself
+ * usually carries an expiring token and cannot serve as that key.
  */
 
 const NativeHostName = 'com.faststream.mpv';
@@ -78,9 +83,11 @@ export class MpvBackend {
    * @param {string} [contentType] - 'anime' or 'movie', from the MPV
    *   allowlist tag or the player's manual override. Anything else is
    *   dropped rather than relayed.
+   * @param {string} [pageUrl] - The tab's page URL, the key mpv resumes the
+   *   playback position by. Only http(s) URLs are relayed.
    * @return {Promise<{ok: boolean, error?: string}>} Host response.
    */
-  openStream(url, tab, headers, contentType) {
+  openStream(url, tab, headers, contentType, pageUrl) {
     if (tab && tab.mpvSentUrls) {
       if (tab.mpvSentUrls.has(url)) {
         return Promise.resolve({ok: true});
@@ -96,6 +103,10 @@ export class MpvBackend {
 
     if (contentType === 'anime' || contentType === 'movie') {
       message.contentType = contentType;
+    }
+
+    if (typeof pageUrl === 'string' && /^https?:\/\//i.test(pageUrl)) {
+      message.pageUrl = pageUrl;
     }
 
     // Relay the user's mpv path preference (options page) so the host does

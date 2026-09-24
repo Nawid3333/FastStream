@@ -135,9 +135,67 @@ export class TabHolder {
   }
 }
 
+// Prefix of the storage.session key each tab's toggle state is kept under.
+const TabStateKeyPrefix = 'tabState:';
+
+// Firefox runs the background as an event page and unloads it after ~30 idle
+// seconds, which takes every TabHolder with it. What the user chose with the
+// toolbar button is kept in storage.session (cleared when the browser closes,
+// the same lifetime tab ids have) so a woken background still knows it.
+// mpvAutoOpened goes with it: without it the page's next stream request after a
+// wake opens a second mpv window for a page already handed off. The rest of a
+// TabHolder - frames, detected sources - describes the current page and is
+// rebuilt as that page makes requests.
+const PersistedTabFields = ['url', 'isOn', 'isMpv', 'regexMatched', 'mpvMatched', 'mpvAutoOpened'];
+
 export class TabTracker {
   constructor() {
     this.tabs = new Map();
+  }
+
+  /**
+   * Stores the tab's toggle state so it outlives the event page.
+   * @param {TabHolder} tab
+   * @return {Promise<void>}
+   */
+  async saveTabState(tab) {
+    /** @type {Object<string, *>} */
+    const state = {};
+    for (const field of PersistedTabFields) {
+      // @ts-ignore - TabHolder fields are assigned dynamically.
+      state[field] = tab[field];
+    }
+    try {
+      await chrome.storage.session.set({[TabStateKeyPrefix + tab.tabId]: state});
+    } catch (e) {
+      console.warn('Could not save tab state', e);
+    }
+  }
+
+  /**
+   * Puts back the toggle state saved before the event page was unloaded.
+   * Applied onto any TabHolder that already exists, since the webRequest
+   * listeners create them synchronously as soon as the page wakes.
+   * @return {Promise<void>}
+   */
+  async restoreTabStates() {
+    let stored;
+    try {
+      stored = await chrome.storage.session.get(null);
+    } catch (e) {
+      console.warn('Could not restore tab states', e);
+      return;
+    }
+    for (const [key, state] of Object.entries(stored)) {
+      if (!key.startsWith(TabStateKeyPrefix)) continue;
+      const tab = this.getTabOrCreate(Number(key.substring(TabStateKeyPrefix.length)));
+      for (const field of PersistedTabFields) {
+        if (field in state) {
+          // @ts-ignore - TabHolder fields are assigned dynamically.
+          tab[field] = state[field];
+        }
+      }
+    }
   }
 
   createTab(tabId) {
@@ -156,6 +214,7 @@ export class TabTracker {
 
   removeTab(tabId) {
     this.tabs.delete(tabId);
+    chrome.storage.session.remove(TabStateKeyPrefix + tabId).catch(() => {});
   }
 
   getFrame(tabId, frameId) {

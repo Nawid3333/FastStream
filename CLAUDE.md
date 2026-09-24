@@ -361,6 +361,24 @@ Four things here are counter-intuitive enough that each shipped broken once:
   `navigator.userAgent` on arrival. Without it mpv identifies itself to CDNs
   as `libmpv` and gets refused.
 
+**Tab state has to outlive the event page (2026-09-24).** Firefox unloads the
+background after ~30 idle seconds, and every `TabHolder` goes with it. A reload
+then woke a fresh background with no record of the user's toolbar choice, so an
+allowlisted site auto-started MPV again even after the user had picked the
+in-page player or Off. The same loss dropped the one-hand-off-per-page latch,
+so the page's next stream request after a wake opened a second mpv window.
+`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `regexMatched`,
+`mpvMatched` and `mpvAutoOpened` per tab to `chrome.storage.session` whenever
+one of them changes (toolbar click, URL change, mpv hand-off and its failure),
+and `restoreTabStates` puts them back inside `ensureOptions()`, which every
+state-changing listener already awaits. A new field that has to survive a wake
+goes into `PersistedTabFields`, and every place that sets it saves. Within one
+background lifetime the old in-memory logic was already right, so a test that
+never suspends the background cannot see this.
+`tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`) click the toolbar
+and suspend the background from Firefox's chrome context, which needs WebDriver
+classic, hence its own `wdio.classic.conf.mjs` (run by `test:ext`).
+
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
 stops it ever loading into — or closing — an mpv the user opened themselves.
@@ -390,6 +408,15 @@ never matched anything for a streamed URL and was deleted the same day the
 `resolveMpvContentType` default-to-movie behavior above was added, per this
 user's request, rather than kept as dead/misleading code. Covered by
 `tests/unit/{UrlMatchList,MpvBackend,MpvNativeHost}.test.mjs`.
+
+**Resume key (`pageUrl` → `fs-id=`).** All three `Mpv.openStream` call sites
+pass the tab's page URL as a 5th argument; `MpvBackend` relays it (http(s)
+only) and the host's `mpvTargetUrl` appends `fs-id=<first 16 hex of
+sha256(pageUrl)>` after the `fs-content=` tag. The mpv config's
+`stream-resume.lua` saves the playback position under that key. The stream
+URL cannot be the key: CDN tokens change it on every visit. Hashed so the
+page address never appears in mpv's path or state file. A host without this
+change simply sends no `fs-id`, and mpv then does not resume.
 
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host

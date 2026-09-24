@@ -7,12 +7,17 @@
 //
 // Messages:
 //   {type: 'ping'}                -> {ok, mpv, path}
-//   {type: 'open', url, headers?, mpvPath?, fullscreen?, contentType?} -> {ok, error?}
+//   {type: 'open', url, headers?, mpvPath?, fullscreen?, contentType?, pageUrl?} -> {ok, error?}
 //
 // contentType ('anime'|'movie', optional) is appended to the URL handed to
 // mpv as a #fs-content= fragment marker -- never sent to the CDN, but
 // visible to gpu-toggles.lua's is_anime_content() via mpv's `path` property
 // for content-aware shader selection.
+//
+// pageUrl (optional) is the browser tab's page URL. It is not passed on as
+// such: a short hash of it goes into the same fragment as fs-id=, the stable
+// key mpv's stream-resume.lua saves the playback position under (the stream
+// URL itself usually carries an expiring token, so it changes on every visit).
 //
 // Configuration (optional): config.json next to this script:
 //   {"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": false}
@@ -21,6 +26,7 @@
 // command line and the launch result are appended to faststream-mpv-host.log
 // next to this script.
 
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import {execFile, spawn} from 'child_process';
@@ -275,10 +281,28 @@ export function mpvIpcRequest(commands, timeoutMs = 1500) {
 }
 
 /**
+ * Appends a key=value tag to a URL's fragment. A URL fragment is never
+ * transmitted to the HTTP server, so this cannot break a signed/tokenized CDN
+ * URL, and mpv's scripts read it back off the `path` property.
+ *
+ * @param {string} streamUrl - The stream URL headed to mpv.
+ * @param {string} tag - The tag, e.g. `fs-content=anime`.
+ * @return {string} The URL with the tag appended.
+ */
+function withFragmentTag(streamUrl, tag) {
+  const hashIndex = streamUrl.indexOf('#');
+  if (hashIndex === -1) {
+    return `${streamUrl}#${tag}`;
+  }
+
+  const existingFragment = streamUrl.slice(hashIndex + 1);
+  return existingFragment.length > 0 ? `${streamUrl}&${tag}` : `${streamUrl}${tag}`;
+}
+
+/**
  * Appends an fs-content=anime|movie marker to a stream URL's fragment, for
  * gpu-toggles.lua's is_anime_content() to read back off mpv's `path`
- * property. A URL fragment is never transmitted to the HTTP server, so this
- * cannot break a signed/tokenized CDN URL.
+ * property.
  *
  * @param {string} streamUrl - The stream URL headed to mpv.
  * @param {string} [contentType] - 'anime' or 'movie'; anything else is a
@@ -289,15 +313,36 @@ export function withContentTypeFragment(streamUrl, contentType) {
   if (contentType !== 'anime' && contentType !== 'movie') {
     return streamUrl;
   }
+  return withFragmentTag(streamUrl, `fs-content=${contentType}`);
+}
 
-  const tag = `fs-content=${contentType}`;
-  const hashIndex = streamUrl.indexOf('#');
-  if (hashIndex === -1) {
-    return `${streamUrl}#${tag}`;
+/**
+ * The resume key for a page: the first 16 hex digits of its URL's sha256.
+ * Hashed so the page address itself never shows up in mpv's path, title or
+ * state file.
+ *
+ * @param {string} [pageUrl] - The browser tab's page URL.
+ * @return {string|undefined} The key, or undefined for a missing or
+ *   non-http(s) URL.
+ */
+export function resumeIdFor(pageUrl) {
+  if (typeof pageUrl !== 'string' || !/^https?:\/\//i.test(pageUrl)) {
+    return undefined;
   }
+  return crypto.createHash('sha256').update(pageUrl).digest('hex').slice(0, 16);
+}
 
-  const existingFragment = streamUrl.slice(hashIndex + 1);
-  return existingFragment.length > 0 ? `${streamUrl}&${tag}` : `${streamUrl}${tag}`;
+/**
+ * The URL to hand mpv for an open message: the stream URL plus its
+ * fs-content= and fs-id= fragment tags.
+ *
+ * @param {Object} message - The open message from the extension.
+ * @return {string} The URL for mpv.
+ */
+export function mpvTargetUrl(message) {
+  const target = withContentTypeFragment(message.url, message.contentType);
+  const resumeId = resumeIdFor(message.pageUrl);
+  return resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
 }
 
 /**
@@ -319,7 +364,7 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   if (message.fullscreen) {
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
-  commands.push({command: ['loadfile', withContentTypeFragment(message.url, message.contentType), 'replace']});
+  commands.push({command: ['loadfile', mpvTargetUrl(message), 'replace']});
   commands.push({command: ['get_property', 'pid']});
 
   const result = await ipcRequest(commands);
@@ -586,7 +631,7 @@ async function launchMpv(mpvPath, message, config) {
   args.push('--force-window=immediate');
   args.push('--no-terminal');
   args.push('--');
-  args.push(withContentTypeFragment(message.url, message.contentType));
+  args.push(mpvTargetUrl(message));
 
   debugLog(config, 'spawn', {mpvPath, args});
 

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {loadIntoExisting, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
+import {loadIntoExisting, mpvTargetUrl, resumeIdFor, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -139,5 +139,58 @@ describe('withContentTypeFragment', () => {
         .toBe('https://example.com/a.m3u8');
     expect(withContentTypeFragment('https://example.com/a.m3u8', 'documentary'))
         .toBe('https://example.com/a.m3u8');
+  });
+});
+
+// fs-id= is the key stream-resume.lua saves the playback position under: a
+// hash of the tab's page URL, because the stream URL usually changes on every
+// visit (expiring CDN token) while the episode page does not.
+
+describe('resumeIdFor', () => {
+  it('is 16 hex digits and stable for the same page', () => {
+    const id = resumeIdFor('https://example.com/anime/show/episode-3');
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    expect(resumeIdFor('https://example.com/anime/show/episode-3')).toBe(id);
+  });
+
+  it('differs between pages', () => {
+    expect(resumeIdFor('https://example.com/anime/show/episode-3'))
+        .not.toBe(resumeIdFor('https://example.com/anime/show/episode-4'));
+  });
+
+  it('is undefined for a missing or non-http(s) page URL', () => {
+    expect(resumeIdFor(undefined)).toBeUndefined();
+    expect(resumeIdFor('')).toBeUndefined();
+    expect(resumeIdFor('about:blank')).toBeUndefined();
+    expect(resumeIdFor('moz-extension://abc/player.html')).toBeUndefined();
+  });
+});
+
+describe('mpvTargetUrl', () => {
+  const pageUrl = 'https://example.com/anime/show/episode-3';
+
+  it('appends fs-id after fs-content in one fragment', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', contentType: 'anime', pageUrl}))
+        .toBe(`https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}`);
+  });
+
+  it('gives the same key for a new stream token on the same page', () => {
+    const first = mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', pageUrl});
+    const second = mpvTargetUrl({url: 'https://cdn/a.m3u8?token=2', pageUrl});
+    expect(first.split('#')[1]).toBe(second.split('#')[1]);
+  });
+
+  it('adds only fs-id when there is no contentType', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
+        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}`);
+  });
+
+  it('is withContentTypeFragment alone without a page URL', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', contentType: 'movie'}))
+        .toBe('https://cdn/a.m3u8#fs-content=movie');
+  });
+
+  it('never puts the page address itself into the URL', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl})).not.toContain('episode-3');
   });
 });
