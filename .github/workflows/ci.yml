@@ -85,6 +85,11 @@ jobs:
       - name: End-to-end extension tests (Firefox)
         run: pnpm run test:ext
 
+      # The same suites against the GitHub self-host build, which is shipped too
+      # and differs from the AMO one (update checker, contextualIdentities).
+      - name: End-to-end extension tests, GitHub build (Firefox)
+        run: pnpm run test:ext:github
+
       - name: Upload e2e failure logs
         if: failure()
         uses: actions/upload-artifact@v7

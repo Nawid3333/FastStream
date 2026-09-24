@@ -96,6 +96,7 @@ pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
 pnpm run start:ff         # web-ext run — launches Firefox with the extension
 pnpm test                 # vitest
 pnpm run test:ext         # installed extension, ordinary windows
+pnpm run test:ext:github  # the same, against the GitHub self-host build
 pnpm run test:pbm         # installed extension, private windows
 ```
 
@@ -585,16 +586,19 @@ still can't block the plain-zip release.
 
 ## AMO lint (firefox-amo, current: 0 errors / 3 warnings, needs `--self-hosted`)
 
-Verified 2026-09-10, after YouTube support was removed entirely (see
-"YouTube removal" below): `firefox-amo` is **0 errors, 0 notices, 3
-warnings**; `firefox-github` is **0 errors, 0 notices, 4 warnings**.
+Verified 2026-09-24: both `firefox-amo` and `firefox-github` are **0 errors,
+0 notices, 3 warnings**. (`firefox-github` had a 4th until 2026-09-24, see
+below.)
 
 The 3 warnings both targets share are all in vendored libraries: `vtt.mjs`
 and `vad/ort.wasm.mjs` (`UNSAFE_VAR_ASSIGNMENT`), `dash.mjs`'s webpack
 bootstrap eval (`DANGEROUS_EVAL`) — see `docs/amo-linter-warnings.md` for why
-each is safe-left-alone. `firefox-github`'s extra warning is
-`MISSING_DATA_COLLECTION_PERMISSIONS`, expected — only `firefox-amo`
-declares that key. Neither target has a `players/PlayerLoader.mjs` or
+each is safe-left-alone. `firefox-github` used to add
+`MISSING_DATA_COLLECTION_PERMISSIONS`; it now declares
+`data_collection_permissions: {required: ['none']}` like `firefox-amo`, which
+needed its `strict_min_version` raised from 136 to 142 (the key needs 140+,
+Android 142+). The only versions that dropped, 136-139, were long out of
+support and never ESR. Neither target has a `players/PlayerLoader.mjs` or
 `yt_runner.js` hit anymore; both disappeared along with YouTube support.
 
 **`pnpm run lint:amo` needs `--self-hosted`, or it reports a false

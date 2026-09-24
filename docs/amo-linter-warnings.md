@@ -221,23 +221,19 @@ and worth that audit cost (gif.js, all seven of Coloris's sites,
 sweetalert2), it was made; where it was not, the reasoning is written down
 instead of a diff nobody asked for.
 
-## The GitHub self-host build has more, and does not need fewer
+## The GitHub self-host build has the same three
 
-`pnpm run lint:github` — the build distributed outside AMO — currently
-reports **0 errors, 0 notices, 4 warnings**. It is not held to the same bar
-as `lint:amo` on purpose: this build is never submitted to Mozilla, so
-nothing here affects AMO review.
+`pnpm run lint:github` — the build distributed outside AMO — reports
+**0 errors, 0 notices, 3 warnings**: the vtt/ort.wasm/dash items above,
+present in both builds for the same reasons (patches apply to the shared
+`chrome/player/modules/` source both targets splice from).
 
-- **3 of the 4** are the vtt/ort.wasm/dash items above, present in both
-  builds for the same reasons (patches apply to the shared
-  `chrome/player/modules/` source both targets splice from).
-- **`MISSING_DATA_COLLECTION_PERMISSIONS`** is deliberately not added to this
-  build. Adding `data_collection_permissions` was tested directly: it needs
-  Firefox 140+ (142+ for Android), higher than this build's `strict_min_version`
-  of 136, and adding it while staying at 136 replaced one warning with two
-  version-mismatch ones instead — a net increase in the warning count, not a
-  decrease. The field only matters for
-  AMO's own submission policy — Firefox itself does not require it to load a
-  self-hosted `.xpi` — so bumping the floor
-  just to add a field this build gets no benefit from was rejected in favour
-  of keeping the wider compatibility range.
+It had a 4th until 2026-09-24, **`MISSING_DATA_COLLECTION_PERMISSIONS`**. Adding
+`data_collection_permissions` needs Firefox 140+ (142+ for Android), and this
+build's `strict_min_version` was 136; adding the key while staying at 136
+swapped one warning for two version-mismatch ones, so it was left out to keep
+the wider range. That range turned out to be worth nothing: 136-139 are
+ordinary releases, never ESR, and long out of support (ESR 128 was already
+below the old floor). The build now uses the AMO build's floor of 142 and
+declares `data_collection_permissions: {required: ['none']}` the same way, and
+the warning is gone with no new one in its place.

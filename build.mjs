@@ -305,7 +305,14 @@ async function buildFirefoxGithub() {
   manifest.browser_specific_settings = {
     gecko: {
       id: 'thanatus@Nawid',
-      strict_min_version: '136.0',
+      // Same floor and data-collection declaration as the AMO build.
+      // data_collection_permissions needs Firefox 140+ (Android 142+);
+      // without it web-ext lint warns MISSING_DATA_COLLECTION_PERMISSIONS.
+      // The old floor of 136 only kept 136-139, all long out of support.
+      strict_min_version: '142.0',
+      data_collection_permissions: {
+        required: ['none'],
+      },
     },
   };
 

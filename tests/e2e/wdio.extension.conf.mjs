@@ -20,7 +20,9 @@
 // same -no-remote / -new-instance guard as tools/launch-ff.mjs, and a profile
 // geckodriver creates and discards.
 //
-// Run with: pnpm run test:ext
+// Run with: pnpm run test:ext (the AMO build), or pnpm run test:ext:github
+// for the GitHub self-host build. FS_EXT_BUILD picks the package for this
+// config and for the classic and private-browsing configs built on it.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -43,17 +45,26 @@ const FIXTURE_MIME = {
 export const EXTENSION_ID = 'thanatus@Nawid';
 export const EXTENSION_UUID = 'f45ea7c1-3b2d-4a19-9c6e-8d5b0f2a7e34';
 
+// Which build to install: 'amo' (default) or 'github'. Both are shipped, and
+// they differ in more than the manifest - the GitHub build keeps the update
+// checker (NO_UPDATE_CHECKER only splices the AMO one) and asks for
+// contextualIdentities - so passing on one says nothing about the other.
+const BUILD = process.env.FS_EXT_BUILD || 'amo';
+if (BUILD !== 'amo' && BUILD !== 'github') {
+  throw new Error(`FS_EXT_BUILD must be 'amo' or 'github', not '${BUILD}'`);
+}
+
 // Found rather than named, so a version bump does not silently stop this
 // suite from running against the package it is meant to test.
 const builtDir = path.join(root, 'built');
 const packages = fs.existsSync(builtDir) ?
   fs.readdirSync(builtDir).filter(
-      (f) => f.startsWith('firefox-amo-') && f.endsWith('.zip')) :
+      (f) => f.startsWith(`firefox-${BUILD}-`) && f.endsWith('.zip')) :
   [];
 
 if (packages.length !== 1) {
   throw new Error(
-      `Expected exactly one firefox-amo-*.zip in ${builtDir}, found ` +
+      `Expected exactly one firefox-${BUILD}-*.zip in ${builtDir}, found ` +
       `${packages.length}${packages.length ? ': ' + packages.join(', ') : ''}.` +
       ' Run: pnpm run build:keep');
 }

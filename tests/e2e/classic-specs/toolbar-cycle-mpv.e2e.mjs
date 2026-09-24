@@ -311,13 +311,18 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
           timeoutMsg: 'the overlay iframe never came down after On -> MPV',
         });
         await expectMode('mpv', 'clicking On');
-        await browser.waitUntil(
-            async () => requests.filter(isMpvRequest).length > mpvRequestsAtOff,
-            {
-              timeout: 45000,
-              interval: 500,
-              timeoutMsg: 'mpv never received a fresh request after On -> MPV',
-            });
+        try {
+          await browser.waitUntil(
+              async () => requests.filter(isMpvRequest).length > mpvRequestsAtOff,
+              {timeout: 45000, interval: 500});
+        } catch (e) {
+          // Built here, not as timeoutMsg, which would be evaluated before the
+          // wait and miss everything the reload requested. Whether the
+          // browser asked for the reloaded page's video at all tells a
+          // detection failure apart from a hand-off failure.
+          throw new Error('mpv never received a fresh request after On -> MPV. CDN saw: ' +
+              JSON.stringify(requests.map((r) => (isMpvRequest(r) ? 'mpv ' : 'browser ') + r.url)));
+        }
         expect(await hasOverlayPlayer()).toBe(false);
       });
 });
