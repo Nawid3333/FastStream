@@ -191,14 +191,14 @@ describe('Toolbar choice on an MPV-allowlisted site', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
   });
 
-  for (const [target, clicks] of [['on', 1], ['off', 2]]) {
+  for (const [target, clicks] of [['off', 1], ['on', 2]]) {
     it(`keeps '${target}' across reloads, including after the background was suspended`,
         async function() {
           await browser.switchToWindow(siteHandle);
           await browser.url(`${SITE}/watch-${target}`);
           await expectMode('mpv', 'visiting the allowlisted site');
 
-          // MPV -> On -> Off
+          // MPV -> Off -> On
           for (let i = 0; i < clicks; i++) {
             await clickToolbar();
           }

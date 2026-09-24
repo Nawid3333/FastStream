@@ -120,23 +120,25 @@ async function onClicked(tabobj) {
       // toolbar keeps its original Off/On behavior.
       if (Options.mpvMode && MpvAllowlist.matches(tab.url)) {
         if (Logging) console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
-        // Cycle: Off → MPV → On → Off. The first click hands the stream
-        // to mpv; a second falls back to the in-page player; a third turns
-        // FastStream off for the tab and reloads it.
+        // Cycle: MPV → Off → On → MPV. A click on the glowing purple icon
+        // turns FastStream off outright (matching the ordinary Off/On
+        // toggle's "click stops it" behavior everywhere else), rather than
+        // falling back to the in-page player; a second click turns the
+        // in-page player on; a third hands the stream to mpv again.
         if (tab.isMpv) {
-          // MPV -> On (in-page player)
-          tab.isMpv = false;
-          BackgroundUtils.updateTabIcon(tab);
-          openPlayersWithSources(tab);
-        } else if (tab.isOn) {
-          // On -> Off
+          // MPV -> Off
           tab.isOn = false;
           tab.isMpv = false;
           BackgroundUtils.updateTabIcon(tab);
 
+          // frame.playerOpening flips true the moment OPEN_PLAYER is sent,
+          // well before PLAYER_LOADED sets frame.isPlayer - checking isPlayer
+          // alone leaves a window where the overlay iframe already exists on
+          // the page but goes undetected here, and a stale overlay survives
+          // an Off click that should have torn it down.
           let hasPlayer = false;
           for (const frame of tab.getFrames()) {
-            if (frame.isPlayer) {
+            if (frame.playerOpening || frame.isPlayer) {
               hasPlayer = true;
               break;
             }
@@ -146,13 +148,43 @@ async function onClicked(tabobj) {
             tab.reset();
             chrome.tabs.reload(tab.tabId);
           }
-        } else {
-          // Off -> MPV
-          tab.isOn = true;
+        } else if (tab.isOn) {
+          // On -> MPV. An active in-page player has to come down first - the
+          // same reload the plain Off/On toggle uses to undo one - because a
+          // FastStream overlay isn't something a message can cleanly retract.
+          // isMpv is set before the reload, so the freshly (re-)detected
+          // source is what onSourceRecieved forwards to mpv once the page
+          // reloads; nothing here has to redo that forwarding itself.
           tab.isMpv = true;
+          BackgroundUtils.updateTabIcon(tab);
+
+          // See the MPV -> Off branch above for why playerOpening is checked
+          // too: without it, a click landing between OPEN_PLAYER being sent
+          // and PLAYER_LOADED coming back skips the reload, and the overlay
+          // iframe is left showing at the same time mpv starts playing the
+          // same stream in its own window.
+          let hasPlayer = false;
+          for (const frame of tab.getFrames()) {
+            if (frame.playerOpening || frame.isPlayer) {
+              hasPlayer = true;
+              break;
+            }
+          }
+
+          if (hasPlayer) {
+            tab.reset();
+            chrome.tabs.reload(tab.tabId);
+          } else {
+            // No player was ever requested for this page - hand off
+            // directly from whatever sources are already tracked.
+            openMpvWithSources(tab);
+          }
+        } else {
+          // Off -> On
+          tab.isOn = true;
           tab.regexMatched = true;
           BackgroundUtils.updateTabIcon(tab);
-          openMpvWithSources(tab);
+          openPlayersWithSources(tab);
         }
       } else {
         tab.isOn = !tab.isOn;
@@ -1482,7 +1514,7 @@ function openMpvWithSources(tab) {
 
   // Entering MPV mode is an explicit start, so forget what was already sent
   // for this tab. Without this the dedupe in openStream silently swallows a
-  // re-entry that targets the same URL (toolbar cycled MPV -> On -> Off -> MPV).
+  // re-entry that targets the same URL (toolbar cycled MPV -> Off -> On -> MPV).
   tab.mpvSentUrls.clear();
 
   const seen = new Set();

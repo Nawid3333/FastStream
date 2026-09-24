@@ -375,9 +375,38 @@ state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one
 background lifetime the old in-memory logic was already right, so a test that
 never suspends the background cannot see this.
-`tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`) click the toolbar
-and suspend the background from Firefox's chrome context, which needs WebDriver
-classic, hence its own `wdio.classic.conf.mjs` (run by `test:ext`).
+`tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`, `toolbar-cycle-mpv`)
+click the toolbar and suspend the background from Firefox's chrome context,
+which needs WebDriver classic, hence its own `wdio.classic.conf.mjs` (run by
+`test:ext`).
+
+**Toolbar cycle on an allowlisted site: MPV → Off → On → MPV (2026-09-24,
+reordered from MPV → On → Off).** A click on the glowing purple icon now
+turns FastStream off outright, matching "a click stops it" everywhere else in
+the toolbar, instead of falling back to the in-page player first. This added
+a transition that never existed before: On -> MPV by a toolbar click (the old
+cycle could only reach MPV via Off). There is no message that retracts an
+in-page overlay iframe, so that transition reloads the tab - same as the
+plain Off/On toggle already does to undo one - and leans on the ordinary
+auto-forward path (`onSourceRecieved`) to hand the reload's freshly detected
+stream to mpv; it does not call `openMpvWithSources` itself. The three
+`onClicked` branches check `frame.playerOpening || frame.isPlayer`, not just
+`isPlayer`: `playerOpening` flips true the moment `OPEN_PLAYER` is sent, well
+before the player's own `PLAYER_LOADED` round trip sets `isPlayer`, and
+checking `isPlayer` alone leaves a window where a click lands after the
+overlay iframe already exists on the page but before the background has
+heard about it - for On -> MPV specifically this means both an in-page
+overlay and an mpv window are left running the same stream at once, not just
+a stale overlay. `toolbar-cycle-mpv.e2e.mjs` drives real mpv through all
+three transitions and checks the actual effect at each one (the overlay
+iframe's presence in the page, not just the toolbar badge): MPV -> Off raises
+no second mpv request, Off -> On swaps in the overlay from already-tracked
+sources with no new network request, and On -> MPV tears the overlay down and
+gets a fresh request to mpv purely from the reload. Its test page cache-busts
+the reload's video URL - the same fix `mpv-suspend.e2e.mjs` needed - since a
+repeat request for the identical URL can be satisfied out of Firefox's HTTP
+cache with no network traffic, which would leave nothing for `onHeadersReceived`
+to redetect.
 
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
