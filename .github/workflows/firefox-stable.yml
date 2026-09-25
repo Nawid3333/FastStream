@@ -56,14 +56,25 @@ jobs:
           lookup-only: true
 
   e2e:
-    name: e2e on Firefox ${{ needs.detect.outputs.version }}
+    name: e2e on Firefox ${{ needs.detect.outputs.version }} (${{ matrix.os }})
     needs: detect
     if: needs.detect.outputs.tested != 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Linux as in CI, and Windows, where FastStream is used and Firefox decodes
+        # through Media Foundation instead of ffmpeg.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -78,9 +89,15 @@ jobs:
         with:
           firefox-version: ${{ needs.detect.outputs.version }}
 
-      # Firefox on Linux decodes H.264/AAC through the system ffmpeg (see ci.yml).
-      - name: Install media codecs
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      # Linux: Firefox decodes H.264/AAC through the system ffmpeg (see ci.yml).
+      # Windows: the e2e setup builds its video fixtures with ffmpeg, which the image lacks.
+      - name: Install ffmpeg
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            choco install ffmpeg -y --no-progress
+          else
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
 
       - name: Build
         run: pnpm run build:keep
@@ -89,7 +106,8 @@ jobs:
         env:
           FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
         run: |
-          "$FIREFOX_BINARY" --version
+          # Not "$FIREFOX_BINARY --version": firefox.exe does not print it to a console on Windows.
+          echo "Testing Firefox ${{ needs.detect.outputs.version }} on $RUNNER_OS at $FIREFOX_BINARY"
           pnpm run test:e2e
 
       - name: End-to-end extension tests
@@ -97,6 +115,23 @@ jobs:
           FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
         run: pnpm run test:ext
 
+      - name: Upload e2e failure logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firefox-stable-e2e-logs-${{ matrix.os }}
+          path: logs/
+          if-no-files-found: ignore
+
+  # Only once every platform has passed, so a version is never recorded as tested while
+  # one of them still fails.
+  record:
+    name: Record the version as tested
+    needs: [detect, e2e]
+    if: needs.e2e.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Record the version as tested
         run: echo "${{ needs.detect.outputs.version }}" > .firefox-stable-tested
 
@@ -106,14 +141,6 @@ jobs:
           path: .firefox-stable-tested
           key: firefox-stable-tested-${{ needs.detect.outputs.version }}
 
-      - name: Upload e2e failure logs
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: firefox-stable-e2e-logs
-          path: logs/
-          if-no-files-found: ignore
-
   report:
     needs: [detect, e2e]
     if: always() && needs.e2e.result != 'skipped'
@@ -121,6 +148,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       issues: write
+      actions: read
     steps:
       - name: Open or close the Firefox stable issue
         env:
@@ -149,9 +177,12 @@ jobs:
             echo "Already reported Firefox $VERSION."
             exit 0
           fi
+          failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
+            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
           {
             printf '@%s The e2e suites fail on **Firefox %s**, the current stable release - already on your machine once it updates: %s\n\n' "$OWNER" "$VERSION" "$RUN_URL"
             printf 'The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
             printf 'This issue closes on its own once a run on the stable release passes.\n'
+            printf 'Failed: %s\n' "${failed:-see the run}"
           } > "$RUNNER_TEMP/body.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

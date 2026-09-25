@@ -619,6 +619,16 @@ covers the 30-minute wait.
   tests). A failure opens one issue per version; a green run closes it. Read release dates
   from that file rather than computing them - it said 157 is due 2026-10-09, not the
   2026-09-29 two-week arithmetic from 155 suggested.
+- **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
+  windows-latest) beside `verify`, and auto-release waits for the whole workflow, so a
+  release ships only when Windows passes too. `firefox-beta.yml` and `firefox-stable.yml`
+  run their e2e job on ubuntu-latest and windows-latest; the stable version is recorded
+  as tested only when both pass (a separate `record` job). Windows Firefox decodes through
+  Media Foundation where Linux uses ffmpeg, so playback can differ. Both CI jobs install
+  the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
+  image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from
+  Chocolatey for the fixtures. Do not call `firefox.exe --version` there: it does not
+  print to a console on Windows.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
