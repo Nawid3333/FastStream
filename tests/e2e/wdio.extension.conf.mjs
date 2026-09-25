@@ -96,8 +96,8 @@ export const config = {
   // Firefox runs -headless, so no X display is needed; without this the Linux runner starts
   // every worker through xvfb-run, whose Ubuntu 26.04 version (xorg 21.1.22) closes fd 3 -
   // the worker's IPC channel - and every worker dies with "write EINVAL"
-  // (webdriverio/webdriverio#15685, unfixed as of 9.32.0). ubuntu-latest moves to 26.04 in
-  // November 2026.
+  // (webdriverio/webdriverio#15685, unfixed as of 9.32.0). ubuntu-latest moves to 26.04 between
+  // October 19 and November 19, 2026.
   autoXvfb: false,
   // A spec file that fails is run once more, in a fresh browser (WebdriverIO's documented
   // specFileRetries). The Windows CI runner occasionally runs out of a timing budget on a
