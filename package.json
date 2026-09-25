@@ -30,7 +30,7 @@
     "test:ext": "wdio run tests/e2e/wdio.extension.conf.mjs && wdio run tests/e2e/wdio.classic.conf.mjs",
     "test:ext:github": "node tools/test-ext-github.mjs",
     "test:pbm": "wdio run tests/e2e/wdio.pbm.conf.mjs",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e && pnpm run test:ext && pnpm run test:ext:github && pnpm run test:pbm && pnpm run verify:ort",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm test && pnpm run build:keep && pnpm run lint:github && pnpm run lint:amo && pnpm run test:e2e && pnpm run test:ext && pnpm run test:ext:github && pnpm run test:pbm && pnpm run verify:ort && pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad",
     "verify:vtt": "node tools/verify-vtt.mjs",
     "verify:vad": "node tools/verify-vad.mjs",
     "verify:ort": "node tools/verify-ort.mjs",

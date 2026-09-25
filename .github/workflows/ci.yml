@@ -98,6 +98,14 @@ jobs:
       - name: addons-linter (firefox-github, the self-install build)
         run: pnpm run lint:github
 
+      # The three vendored files that cannot be generated from a release are proven
+      # instead: each check fetches the pinned upstream file, applies the changes
+      # docs/vendored-libraries.md lists, and compares. An edit to one of those files that
+      # is not added to its check fails here - verify:vtt was red for three days
+      # (2026-09-22 to 09-25) when nothing ran it. Early, because they take seconds.
+      - name: Vendored file provenance (vtt.js, knob, VAD model)
+        run: pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad
+
       # Real playback in a real Firefox: each case loads a stream and asserts
       # that currentTime actually advances, which is what catches a broken or
       # mismatched media library. This replaces a manual three-URL checklist

@@ -8,7 +8,7 @@
 // package either (it ships only the minified vtt.min.js).
 //
 // So instead of generating the file, this verifies it: fetch the upstream
-// bundle, apply the three changes FastStream makes, and assert the result
+// bundle, apply the four changes FastStream makes, and assert the result
 // parses to the same program as the file in the tree. That turns "trust this
 // vendored blob" into a claim anyone can re-run, which is the thing AMO's
 // review of vendored code is actually asking for.
@@ -36,10 +36,13 @@ const UPSTREAM =
 /**
  * The differences between dash.js's bundle and the file FastStream ships.
  *
- * Two of the three are *removals* of dash.js's own additions, which is the
- * useful detail: FastStream's copy is closer to videojs/vtt.js than dash.js's
- * is. The third is a real product change - subtitles are rendered at a fifth
- * of the default size relative to the container.
+ * Two are *removals* of dash.js's own additions, which is the useful detail:
+ * FastStream's copy is closer to videojs/vtt.js than dash.js's is. One is a
+ * real product change - subtitles are rendered at a fifth of the default size
+ * relative to the container. The last answers a CodeQL alert (2026-09-22).
+ *
+ * A change to vtt.mjs has to be added here in the same commit, or this check
+ * fails - which is how it is meant to work, and why CI runs it.
  */
 const CHANGES = [
   {
@@ -56,6 +59,11 @@ const CHANGES = [
     what: 'drop dash.js\'s parentId assignment',
     from: '  if(parentId) {\n    paddedOverlay.id = parentId;\n  }\n',
     to: '',
+  },
+  {
+    what: 'closing-tag token: replace every ">", not the first (CodeQL alert #8)',
+    from: 'tagStack[tagStack.length - 1] === t.substr(2).replace(">", "")',
+    to: 'tagStack[tagStack.length - 1] === t.substr(2).replace(/>/g, "")',
   },
 ];
 
