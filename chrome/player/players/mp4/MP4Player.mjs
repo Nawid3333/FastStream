@@ -2,7 +2,7 @@ import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {EmitterCancel, EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
-import {MP4Box} from '../../modules/mp4box.mjs';
+import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
@@ -23,7 +23,7 @@ export default class MP4Player extends EventEmitter {
     this.isAudioOnly = config?.isAudioOnly || false;
     this.video = document.createElement(this.isAudioOnly ? 'audio' : 'video');
 
-    this.mp4box = MP4Box.createFile(false);
+    this.mp4box = createFile(false);
 
     this.options = {
       backBufferLength: 10,
@@ -147,7 +147,9 @@ export default class MP4Player extends EventEmitter {
     }
 
 
-    const initSegs = this.mp4box.initializeSegmentation();
+    // One initialization segment per track, each for its own SourceBuffer. mp4box 2.x
+    // otherwise returns a single one for all the tracks.
+    const initSegs = this.mp4box.initializeSegmentation('per-track');
 
     let ind = 0;
     if (videoTrack) {
@@ -178,10 +180,10 @@ export default class MP4Player extends EventEmitter {
         this.onMetadataParsed(info);
       };
 
-      this.mp4box.onError = (error) => {
-        console.error('onError', error);
+      this.mp4box.onError = (module, message) => {
+        console.error('onError', module, message);
         this.running = false;
-        this.emit(DefaultPlayerEvents.ERROR, error);
+        this.emit(DefaultPlayerEvents.ERROR, message);
       };
 
       this.mediaSource = new MediaSource();

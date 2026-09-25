@@ -8,8 +8,8 @@ name: Patched libraries
 #
 #   - "Patched library update: <name> <version>" is opened when that version appears,
 #     assigned to the repo owner and @mentioning them, so GitHub emails it. It is never
-#     opened twice: closing one by hand is how a version is skipped (the mp4box 2.x
-#     rewrite, say), and it stays closed.
+#     opened twice: closing one by hand is how a version is skipped (a major rewrite
+#     not worth porting, say), and it stays closed.
 #   - It is closed on its own once the patched version has caught up with it, or the
 #     library is no longer patched.
 #

@@ -340,7 +340,7 @@ what can actually change behaviour.
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated, 2.4.1 upgrade attempted and shelved (2026-09-06)** |
+| mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
@@ -358,30 +358,13 @@ is real ESM with named `deflate`/`inflate` exports - that appended line has
 nothing to attach to any more, so the wrapper is gone too and this is now a
 verbatim copy, same as fuse.js.
 
-**mp4box 2.4.1 was sized up (2026-09-06) and shelved.** Two problems, not
-one. First, the public API changed: `MP4Box.createFile()` is gone, replaced
-by a bare `createFile()` export, which alone would mean code changes in
-`mp4merger.mjs` (3 call sites), `demuxers.mjs` and `MP4Player.mjs`. Second,
-and the real blocker: mp4box.js was rewritten in TypeScript and is now
-bundled with rolldown, which renames every internal binding to a short
-synthetic identifier (`$`, `Bn`, `Kt`, ...) and only maps back to a readable
-name at the final `export {...}` statement. Checked both the `.mjs` and
-`.cjs` output - neither keeps real names. That breaks the method this
-project otherwise relies on for exactly this kind of upgrade: hls.js's and
-dash.js's bundlers keep real function/module names, so a patch hunk can be
-found, diffed against the new release, and judged landed/superseded/still
-needed. Here, none of the five customized functions
-(`buildTrakSampleLists`, `getSample`, `getSampleList`, `flattenItemInfo`,
-`writeHeader`) are findable by name any more, and two of them
-(`samples_stored` sample-release tracking, used by `MP4Player.mjs` in core
-playback; `getSampleList()`, used by the save-to-disk DASH-to-MP4 path) are
-real behaviour, not lint noise. Porting them would mean reverse-engineering
-the rolldown output's alias chain back to the real functions first - a
-materially bigger and riskier undertaking than hls.js, on code that sits in
-the playback-critical path. 0.5.3 stays pinned + patched; that already
-satisfies AMO's actual objection (verifiable provenance), and nothing
-requires the newer release. Worth revisiting only with a lot more time
-budgeted, or if GPAC ever ships a build that preserves real names.
+**mp4box 2.4.1 was shelved on 2026-09-06 on a misreading, and taken on
+2026-09-25.** The blocker was said to be that rolldown "renames every internal
+binding to a short synthetic identifier", so none of FastStream's changes could
+be found by name. It does not: the short names (`$`, `Bn`, `Kt`) are only the
+aliases one chunk exports under and the entry point imports by. The code keeps
+its real names, and the published source maps carry the original TypeScript.
+See "mp4box - measured, migrated, then reverted" below, **Fifth**.
 
 **mp4-muxer 5.2.2 was tried (2026-09-06) and reverted.** The API surface
 `reencoder.mjs` uses (`Muxer`, `StreamTarget`, `addVideoChunk`,
@@ -922,7 +905,7 @@ spec-required to produce. Left as upstream ships it.
 `reencoder/webm.mjs` was readable `class Track { ... }` source ending in
 `window.JsWebm = JsWebm;`, whereas jswebm's npm package ships a minified
 webpack bundle in `dist/`. So the vendored file was jswebm's `src/` directory
-concatenated into one ES module - the same shape as mp4box.
+concatenated into one ES module - the same shape as mp4box 0.5.3.
 
 That turned out to be good news, because jswebm publishes `src/` in the npm
 tarball alongside the bundle. Comparing declaration by declaration with
@@ -1329,6 +1312,46 @@ changes.
 - `players/mp4/MP4Player.mjs` and `modules/dash2mp4/mp4merger.mjs` import
   `{MP4Box, DataStream}`; the vendored file exports them directly and drops
   the trailing CommonJS block
+
+**Fifth, 2.4.1 (2026-09-25).** mp4box 2.x is a TypeScript rewrite that
+rolldown bundles into an entry point, `dist/mp4box.all.mjs`, and a shared
+chunk, `dist/styp-9TIZZDLN.mjs`. Inside the chunk every class and method keeps
+its name (`class ISOFile`, `buildTrakSampleLists`, `getSample`,
+`releaseSample`), so each of the five changes above could be looked up. Only
+two still needed porting:
+
+| In the 0.5.3 patch | In 2.4.1 |
+|---|---|
+| `writeHeader` writes a uuid box's hex-string `uuid` as 16 bytes | **landed upstream** - 2.x's `Box.writeHeader` does exactly that |
+| `flattenItemInfo` without the idat offset for `construction_method` 1 | **upstream's own code, not a fork change** - it is, whitespace aside, mp4box's source as of `6ebcc41` (2023-10-26), the commit before `a6ff3ce` added that offset. It differs from both releases because Andrew's copy was built between them, like dash.js's. 2.4.1's is taken; FastStream reads no image items |
+| `samples_stored`: `buildTrakSampleLists` starts it, `getSample` records each sample whose data it loads | **ported** - `MP4Player.freeSamples` and the re-encoder's `MP4Demuxer` release exactly those |
+| `getSampleList(moof, trexList)` | **ported**, same logic; the chunk inlines most flag constants as numbers, so the port does too. `mp4merger.mjs` reads every fragment of a DASH or fMP4 HLS save with it |
+
+So `patches/mp4box@2.4.1.patch` is 5 KB against 37 KB, all of it additions to
+the chunk. The API changes are in FastStream's own code: `createFile` is an
+export of its own now (`MP4Box.createFile` is gone); `initializeSegmentation()`
+returns one initialization segment for all tracks unless asked for
+`'per-track'`, which `MP4Player`'s SourceBuffer per track needs; `onError` is
+called with `(module, message)`; and `DataStream.BIG_ENDIAN` became the
+exported `Endianness.BIG_ENDIAN` - the old name would have read `undefined`
+without a word, and only worked because big-endian is the default.
+
+The three published files - the entry point, the chunk and rolldown's
+400-byte runtime - are copied side by side into `chrome/player/modules/mp4box/`
+and the browser resolves the imports between them; nothing is bundled here.
+The chunk names are content hashes that change with every release, so
+`tools/sync-vendor.mjs` lists them (`MP4BOX_CHUNKS`) and fails the sync if the
+files import anything else.
+
+Checked by: ESLint's `no-undef`/`no-unused-vars` over the stock and the patched
+chunk (nothing either way); `plays MP4 (mp4box)` for `MP4Player`; the DASH and
+fMP4 HLS saves in `save-video.e2e.mjs` and `save-fmp4.e2e.mjs` for
+`mp4merger.mjs`; and a new test in `modules.e2e.mjs` for the re-encoder's
+`MP4Demuxer`, which no test ran before and which reads the most of mp4box's
+API - it gives the same numbers on 0.5.3 and 2.4.1. Each was mutation-checked:
+without the `samples_stored` push the demuxer test fails, with the default
+combined `initializeSegmentation()` MP4 playback fails, and with an empty
+`getSampleList()` every DASH and fMP4 save fails.
 
 Two lessons generalise. A library migration is not "provably inert" because
 its diff looks additive - only the end-to-end suite settles it. And a

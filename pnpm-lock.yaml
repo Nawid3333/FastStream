@@ -16,7 +16,7 @@ patchedDependencies:
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
   hls.js@1.7.3: 7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a
   jswebm@0.1.2: b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a
-  mp4box@0.5.3: 97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296
+  mp4box@2.4.1: b74fe3438039a2f262c9fdb1c272ff0b92b56119eb227c61f085931b12d24c29
   sweetalert2@11.26.25: e4e2461d8ac906ff5b297b0a0dc7a74262e6105483b9a7ddf5a7f6f62f66b885
 
 importers:
@@ -96,8 +96,8 @@ importers:
         specifier: 4.3.3
         version: 4.3.3
       mp4box:
-        specifier: 0.5.3
-        version: 0.5.3(patch_hash=97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296)
+        specifier: 2.4.1
+        version: 2.4.1(patch_hash=b74fe3438039a2f262c9fdb1c272ff0b92b56119eb227c61f085931b12d24c29)
       onnxruntime-web:
         specifier: 1.20.0
         version: 1.20.0
@@ -3472,8 +3472,9 @@ packages:
     resolution: {integrity: sha512-kuZWsEaZorpDAb3JTZmLeCoyDM+Jhf3QPZx7x3V7/zaxy5NC/j2tfWetVjaHG8cSJOMBrHed7p3cKHU6Lxcaxw==}
     deprecated: This library is superseded by Mediabunny. Please migrate to it.
 
-  mp4box@0.5.3:
-    resolution: {integrity: sha512-RIvyFZdPDIg3+mL6vUdPBSyQRrEfKO3ryAeJ4xJJV7HBHQUH3KfLlZRzfSpBHCd/HqR63HfbrWQI/CwXDvYENQ==}
+  mp4box@2.4.1:
+    resolution: {integrity: sha512-0HGX7nXoDIX6FKLVl4a3wtYjBlwqsN3xuQC3GXzNtKp98FXUOhDSq623azsz8DG5ptd9ZXcXodDkgbdMZOjWvw==}
+    engines: {node: '>=20.8.1'}
 
   ms@2.1.3:
     resolution: {integrity: sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==}
@@ -8282,7 +8283,7 @@ snapshots:
       '@types/dom-webcodecs': 0.1.19
       '@types/wicg-file-system-access': 2020.9.8
 
-  mp4box@0.5.3(patch_hash=97f4e72481106f0ec7cfc0e001ea0f60a76bc3e6929f0a4fe1bc27a76151c296): {}
+  mp4box@2.4.1(patch_hash=b74fe3438039a2f262c9fdb1c272ff0b92b56119eb227c61f085931b12d24c29): {}
 
   ms@2.1.3: {}
 

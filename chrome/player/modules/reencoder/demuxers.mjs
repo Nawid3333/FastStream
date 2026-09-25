@@ -1,4 +1,4 @@
-import {MP4Box} from '../mp4box.mjs';
+import {createFile} from '../mp4box/mp4box.all.mjs';
 import {JsWebm} from './webm.mjs';
 
 class AbstractDemuxer {
@@ -207,9 +207,9 @@ export class MP4Demuxer extends AbstractDemuxer {
   }
 
   createFile(buffer) {
-    const file = MP4Box.createFile(false);
-    file.onError = (e) => {
-      console.log('mp4box error', e);
+    const file = createFile(false);
+    file.onError = (module, message) => {
+      console.log('mp4box error', module, message);
     };
     return file;
   }

@@ -60,7 +60,7 @@ warnings is in third-party library code and is explained individually in
 
    ```
    Coloris@0.25.0     dashjs@5.2.1      gif.js@0.2.0     hls.js@1.7.3
-   jswebm@0.1.2       mp4box@0.5.3      sweetalert2@11.26.25
+   jswebm@0.1.2       mp4box@2.4.1      sweetalert2@11.26.25
    ```
 
    This is the key point for review: every bundled library is a **pinned
