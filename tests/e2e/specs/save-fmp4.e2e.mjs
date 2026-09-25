@@ -32,6 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
+import {pageState, phaseTimer} from './diagnostics.mjs';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
@@ -207,21 +208,47 @@ async function openPlayer(source) {
  *   trakCount, mdatBytes}
  */
 async function saveAndInspect() {
+  // Each phase is logged with its time, so a run that hits the test timeout shows which
+  // one it spent it in (a Windows CI run once did, with nothing else in the log), and a
+  // failure carries the video and OPFS state (pageState).
+  try {
+    return await saveAndInspectPhases(phaseTimer());
+  } catch (e) {
+    throw new Error(`${e.message} ${JSON.stringify(await pageState())}`);
+  }
+}
+
+async function saveAndInspectPhases(phase) {
   await browser.waitUntil(
       async () => browser.execute(() => !!document.querySelector('video')),
       {timeout: 30000, timeoutMsg: 'no <video> element was created'});
   await browser.waitUntil(
       async () => browser.execute(() => document.querySelector('video').readyState >= 2),
-      {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+      {timeout: 30000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+  phase('ready');
 
   await browser.execute(() => document.querySelector('video').play().catch(() => {}));
   // The frame counts below compare against the whole source, so everything the stream
   // has must be in before saving; a fixed pause only holds while the machine is fast.
-  await browser.waitUntil(
-      async () => browser.execute(() => window.fastStream.player.canSave().isComplete),
-      {timeout: 60000, interval: 250, timeoutMsg: 'the stream never finished downloading'});
+  try {
+    await browser.waitUntil(
+        async () => browser.execute(() => window.fastStream.player.canSave().isComplete),
+        {timeout: 45000, interval: 250});
+  } catch (e) {
+    const state = await browser.execute(() => {
+      const video = document.querySelector('video');
+      return {
+        canSave: window.fastStream.player.canSave(),
+        currentTime: video.currentTime, duration: video.duration, ended: video.ended,
+        buffered: Array.from({length: video.buffered.length},
+            (_, i) => [video.buffered.start(i), video.buffered.end(i)]),
+      };
+    });
+    throw new Error(`the stream never finished downloading: ${JSON.stringify(state)}`);
+  }
+  phase('downloaded');
 
-  return browser.executeAsync((done) => {
+  const saved = await browser.executeAsync((done) => {
     const info = {
       saveError: null, blobSize: null, decodeOk: null, duration: null,
       trakCount: null, mdatBytes: null,
@@ -303,6 +330,8 @@ async function saveAndInspect() {
       done(info);
     });
   });
+  phase('saved');
+  return saved;
 }
 
 describe('Save video (locally generated fMP4)', function() {

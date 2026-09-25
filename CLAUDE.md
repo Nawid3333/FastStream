@@ -43,7 +43,10 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   the frame), and so is the frame shown again when playback starts. So only gaps between two
   consecutive playback frames count (the frame after a seeking/play/pause event is skipped),
   the shortest such gap is the length (drops at high speed only lengthen gaps), and the step
-  works out the frame on screen from `currentTime` on the grid a playback frame anchors. Before
+  works out the frame on screen from `currentTime` on the grid a playback frame anchors
+  (`mediaTime` is rounded to whole microseconds, so `currentTime` on the anchor frame can
+  read just below the anchor; a 10 us tolerance keeps it in that frame - Windows CI hit
+  0.4176667 vs 0.417667 and stepped onto the frame it was on). Before
   any playback the length is the old 1/30 s. The usual use is play, pause, then step, which is
   what `tests/e2e/specs/keybinds.e2e.mjs` checks on `fixtures/frames-24fps.mp4` (96 frames,
   ffmpeg `testsrc2` at 24 fps, libopenh264), by the picture itself, not only the time.
@@ -619,6 +622,30 @@ covers the 30-minute wait.
   tests). A failure opens one issue per version; a green run closes it. Read release dates
   from that file rather than computing them - it said 157 is due 2026-10-09, not the
   2026-09-29 two-week arithmetic from 155 suggested.
+- **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
+  windows-latest) beside `verify`, and auto-release waits for the whole workflow, so a
+  release ships only when Windows passes too. `firefox-beta.yml` and `firefox-stable.yml`
+  run their e2e job on ubuntu-latest and windows-latest; the stable version is recorded
+  as tested only when both pass (a separate `record` job). Windows Firefox decodes through
+  Media Foundation where Linux uses ffmpeg, so playback can differ. Both CI jobs install
+  the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
+  image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from
+  Chocolatey for the fixtures. Do not call `firefox.exe --version` there: it does not
+  print to a console on Windows. The first Windows runs exposed timing races in
+  specs that had always won on fast machines, fixed in the specs: capabilities picked the
+  last window handle (sometimes the http:// opener, where WebCodecs/AudioWorklet do not
+  exist) - now found by URL; options-mpv clicked before the saved options loaded and read
+  storage once - now waits for `data-options-loaded` on the options page's `<html>` and
+  for storage to hold the change; sources-browser checked auto-hide once after 150 ms -
+  now re-queues until hidden (mutation-checked: a never-hiding bar still fails).
+  keybinds (frame step) and storage (OPFS) log where they were on a failure; save-fmp4
+  logs each phase's time (ready, downloaded, saved) and the download state if it stalls.
+  The Windows runner also exposed a real player bug: hiding a focused control sometimes
+  moves focus to `<body>` with no `focusout` there (logged `{"focusouts":0,"flag":true}`;
+  on a desktop it does fire, so it never reproduced locally), which left
+  `InterfaceController.focusingControls` stuck true and the control bar up for good.
+  `isFocusInControls()` now checks the flag against `document.activeElement`; the
+  sources-browser spec forces the stale flag, so it fails without the fix on any machine.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.

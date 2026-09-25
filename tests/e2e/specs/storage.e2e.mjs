@@ -25,11 +25,19 @@ async function runInPage(fn, timeout = 30000) {
         });
   }, fn.toString());
 
-  await browser.waitUntil(
-      async () => browser.execute(
-          () => window.__out !== undefined || window.__err !== undefined),
-      {timeout, interval: 100, timeoutMsg: 'the page never settled'},
-  );
+  try {
+    await browser.waitUntil(
+        async () => browser.execute(
+            () => window.__out !== undefined || window.__err !== undefined),
+        {timeout, interval: 100, timeoutMsg: 'the page never settled'},
+    );
+  } catch (e) {
+    // A snippet that sets window.__step says how far it got - which call never returned;
+    // one that sets window.__diag says what the storage was doing at that point.
+    const {step, diag} = await browser.execute(() => ({step: window.__step, diag: window.__diag?.()}));
+    throw new Error(`the page never settled${step ? ` (last step reached: ${step})` : ''}` +
+        (diag ? `: ${JSON.stringify(diag)}` : ''));
+  }
 
   const {out, err} = await browser.execute(
       () => ({out: window.__out, err: window.__err}));
@@ -129,15 +137,33 @@ describe('FSBlob storage backends', function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
+      // On Firefox 157 Beta on the Windows runner the first save once never returned.
+      // No sessionName means the worker's init never answered; pending names the calls
+      // that did not, with how long they have waited.
+      window.__diag = () => {
+        const opfs = blobStore.opfsManager;
+        return {
+          backend: opfs ? 'opfs' : blobStore.cache ? 'cache' : blobStore.indexedDBManager ? 'indexeddb' : 'memory',
+          sessionName: opfs?.sessionName ?? null,
+          pending: opfs ? opfs.pendingCalls() : null,
+          worker: opfs ? !!opfs.worker : null,
+        };
+      };
 
+      window.__step = 'save 1';
       const id1 = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1])]));
+      window.__step = 'save 2';
       const id2 = await blobStore.saveBlobAsync(new Blob([new Uint8Array([2])]));
 
+      window.__step = 'deleteBlob';
       await blobStore.deleteBlob(id1);
       const afterDelete = blobStore.getBlob(id1) === undefined;
 
+      window.__step = 'clear';
       await blobStore.clear();
       const afterClear = blobStore.getBlob(id2) === undefined;
+
+      window.__step = 'close';
 
       blobStore.close();
       return {afterDelete, afterClear};

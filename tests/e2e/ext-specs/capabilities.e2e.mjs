@@ -21,11 +21,19 @@ describe('platform capabilities on this Firefox', function() {
     await browser.url(OPENER_URL);
     await browser.execute((u) => window.open(u, '_blank'), ORIGIN +
       '/player/index.html');
+    // Switch to the window that shows the extension page, found by its URL: the last
+    // handle is not always the new window, and the opener is a plain http:// page, where
+    // secure-context APIs (WebCodecs, AudioWorklet) do not exist at all.
+    await browser.waitUntil(async () => {
+      for (const handle of await browser.getWindowHandles()) {
+        await browser.switchToWindow(handle);
+        if ((await browser.getUrl()).startsWith(ORIGIN)) return true;
+      }
+      return false;
+    }, {timeout: 15000, timeoutMsg: 'the extension page never opened'});
     await browser.waitUntil(
-        async () => (await browser.getWindowHandles()).length > 1,
-        {timeout: 15000, timeoutMsg: 'the extension page never opened'});
-    const handles = await browser.getWindowHandles();
-    await browser.switchToWindow(handles[handles.length - 1]);
+        async () => browser.execute(() => document.readyState === 'complete'),
+        {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
 
     const support = await browser.execute(() => {
       const has = (name) => typeof globalThis[name] !== 'undefined';

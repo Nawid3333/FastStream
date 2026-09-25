@@ -6,11 +6,23 @@ import {EnvUtils} from '../utils/EnvUtils.mjs';
 // UseIndexedDB one. All actual filesystem work happens in the worker -
 // FileSystemSyncAccessHandle only exists inside a dedicated worker, not here.
 export class OPFSManager {
+  /**
+   * Every manager whose worker is running, for diagnostics: pendingCalls() on each says
+   * which worker calls have not answered and for how long.
+   */
+  static live = new Set();
+
   constructor() {
     this.worker = null;
     this.pending = new Map();
     this.nextId = 0;
     this.sessionName = null;
+  }
+
+  /** @return {Array<{id: number, op: string, ms: number}>} Calls still waiting on the worker. */
+  pendingCalls() {
+    const now = Date.now();
+    return [...this.pending].map(([id, {op, started}]) => ({id, op, ms: now - started}));
   }
 
   static isSupported() {
@@ -45,6 +57,7 @@ export class OPFSManager {
         .replace(/\?.*$/, '')
         .replace(/\/[^/]+$/, '/');
     this.worker = new Worker(basePath + 'opfs-worker.mjs', {type: 'module'});
+    OPFSManager.live.add(this);
     this.worker.addEventListener('message', (event) => this.handleMessage(event.data));
     this.worker.addEventListener('error', (event) => this.handleWorkerCrash(event));
     const {sessionName} = await this.call('init');
@@ -124,6 +137,7 @@ export class OPFSManager {
       }
     }
     this.worker = null;
+    OPFSManager.live.delete(this);
   }
 
   call(op, payload, transfer) {
@@ -132,7 +146,7 @@ export class OPFSManager {
     }
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, {resolve, reject});
+      this.pending.set(id, {resolve, reject, op, started: Date.now()});
       this.worker.postMessage({id, op, ...payload}, transfer || []);
     });
   }
@@ -173,6 +187,7 @@ export class OPFSManager {
       this.worker.terminate();
     }
     this.worker = null;
+    OPFSManager.live.delete(this);
     for (const {reject} of this.pending.values()) {
       reject(new Error('OPFSManager closed'));
     }

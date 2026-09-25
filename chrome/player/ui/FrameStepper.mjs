@@ -5,6 +5,12 @@ export const FALLBACK_FRAME_DURATION = 1 / 30;
 const MIN_FRAME_DURATION = 1 / 240;
 const MAX_FRAME_DURATION = 1;
 
+// How far before a frame start a position still counts as in that frame. mediaTime, which
+// the anchor comes from, is rounded to whole microseconds, so currentTime on the anchor
+// frame can read a fraction of one below it; float division adds its own error on top.
+// 10 us covers both and is far below a frame (1/240 s is over 4000 us).
+const FRAME_START_TOLERANCE = 1e-5;
+
 // Events after which the next presented frame is no playback frame: a seek, and the start
 // or end of playback, present a frame stamped with the playback position, not its own.
 const DISTURBANCES = ['seeking', 'play', 'pause'];
@@ -22,8 +28,8 @@ const DISTURBANCES = ['seeking', 'play', 'pause'];
  * @return {number} The time to seek to, never below 0.
  */
 export function frameStepTarget(currentTime, frameDuration, direction, anchor = 0) {
-  // The small nudge keeps a position exactly on a frame start in that frame, not the one before.
-  const index = Math.floor((currentTime - anchor) / frameDuration + 1e-6);
+  // The nudge keeps a position on a frame start, or rounded just below it, in that frame.
+  const index = Math.floor((currentTime - anchor + FRAME_START_TOLERANCE) / frameDuration);
   const start = anchor + index * frameDuration;
   return Math.max(0, start + direction * frameDuration + frameDuration / 2);
 }
