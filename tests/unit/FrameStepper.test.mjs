@@ -65,6 +65,17 @@ describe('frameStepTarget', () => {
     const ntsc = 1001 / 24000;
     expect(frameOf(frameStepTarget(3 * ntsc, ntsc, 1, 0), ntsc)).toBe(4);
   });
+
+  it('keeps a position a rounding below the anchor in the anchor frame', () => {
+    // Measured on Windows CI, Firefox 156: mediaTime comes in whole microseconds, so the
+    // anchor read 0.417667 while currentTime on the same frame was 0.41766666..., a third
+    // of a microsecond below it. The step went to the middle of the frame on screen.
+    const anchor = 0.417667;
+    const d = 0.04166599999999998;
+    const current = 0.4176666666666667;
+    expect(frameStepTarget(current, d, 1, anchor)).toBeCloseTo(anchor + 1.5 * d, 9);
+    expect(frameStepTarget(current, d, -1, anchor)).toBeCloseTo(anchor - 0.5 * d, 9);
+  });
 });
 
 describe('FrameStepper', () => {
