@@ -109,6 +109,8 @@ export const config = {
       allowSystemAccess: true,
     },
     'moz:firefoxOptions': {
+      // Another Firefox to test, e.g. Beta in .github/workflows/firefox-beta.yml.
+      ...(process.env.FIREFOX_BINARY ? {binary: process.env.FIREFOX_BINARY} : {}),
       args: ['-headless', '-no-remote', '-new-instance'],
       prefs: {
         'browser.shell.checkDefaultBrowser': false,

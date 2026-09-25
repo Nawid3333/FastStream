@@ -1,0 +1,122 @@
+name: Firefox Beta
+
+# FastStream is Firefox-only, and the e2e suites pin what it relies on Firefox to do
+# (tests/e2e/specs/firefox.e2e.mjs: the 8x audio cap, scrollbars, and so on). Firefox
+# Beta becomes the next release about four weeks later, so running the suites against it
+# weekly turns "the Firefox update broke FastStream" into a four-week warning.
+#
+# A scheduled failure opens one issue, assigned to the owner with an @mention and naming
+# the Beta version; the first green scheduled run closes it. It also runs on a pull
+# request that changes this workflow or the e2e configs, so a change to it is tested
+# before it lands, and by hand. Nothing here releases or blocks a release: it is not
+# part of CI.
+
+on:
+  schedule:
+    - cron: '0 5 * * 3'
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/firefox-beta.yml
+      - tests/e2e/wdio*.conf.mjs
+  workflow_dispatch:
+
+concurrency:
+  group: firefox-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: e2e on Firefox Beta
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      firefox-version: ${{ steps.firefox.outputs.firefox-version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Firefox Beta
+        id: firefox
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+        with:
+          firefox-version: latest-beta
+
+      # Firefox on Linux decodes H.264/AAC through the system ffmpeg (see ci.yml).
+      - name: Install media codecs
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Build
+        run: pnpm run build:keep
+
+      - name: End-to-end playback (Firefox Beta)
+        env:
+          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
+        run: |
+          echo "Testing Firefox ${{ steps.firefox.outputs.firefox-version }} at $FIREFOX_BINARY"
+          "$FIREFOX_BINARY" --version
+          pnpm run test:e2e
+
+      - name: End-to-end extension tests (Firefox Beta)
+        env:
+          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
+        run: pnpm run test:ext
+
+      - name: Upload e2e failure logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: firefox-beta-e2e-logs
+          path: logs/
+          if-no-files-found: ignore
+
+  report:
+    needs: e2e
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or close the Firefox Beta issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ needs.e2e.result }}
+          VERSION: ${{ needs.e2e.outputs.firefox-version }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          prefix='Firefox Beta breaks FastStream'
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title | startswith(\"$prefix\")) | .number" | head -1)
+          if [ "$RESULT" = success ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --repo "$GITHUB_REPOSITORY" --comment "Firefox ${VERSION:-Beta} passes again: $RUN_URL"
+            fi
+            exit 0
+          fi
+          if [ "$RESULT" != failure ]; then
+            echo "e2e result: $RESULT - nothing to report."
+            exit 0
+          fi
+          if [ -n "$open" ]; then
+            echo "Still failing on Firefox ${VERSION:-Beta}; already reported in #$open."
+            exit 0
+          fi
+          {
+            printf '@%s The e2e suites fail on **Firefox %s**, which becomes the release in about four weeks: %s\n\n' "$OWNER" "${VERSION:-Beta}" "$RUN_URL"
+            printf 'The same suites pass on the current release in CI, so this is a change in Firefox. The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
+            printf 'This issue closes on its own once a scheduled run passes again.\n'
+          } > "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$prefix: Firefox ${VERSION:-Beta}" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
