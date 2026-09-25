@@ -26,10 +26,11 @@ updates:
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump
     # leaves the patch unapplied and fails `pnpm install --frozen-lockfile`, so
-    # a Dependabot PR for one of them could only ever be red. Upgrading one is
-    # a deliberate job: re-cut the patch against the new release and prove
-    # playback with the e2e suite (docs/vendored-libraries.md). Keep this list
-    # in step with patchedDependencies.
+    # a Dependabot PR for one of them could only ever be red. Their updates come
+    # from the Patched libraries workflow instead, which re-cuts the patch with
+    # tools/recut-patch.mjs and opens the pull request itself when that is clean
+    # (docs/updating-patched-libraries.md). Keep this list in step with
+    # patchedDependencies.
     ignore:
       - dependency-name: 'Coloris'
       - dependency-name: 'dashjs'

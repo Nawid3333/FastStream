@@ -2,24 +2,31 @@ name: Patched libraries
 
 # Dependabot ignores the libraries that ship with a pnpm patch (.github/dependabot.yml):
 # a bump would leave the patch unapplied, so its PR could only fail. This is how their
-# updates are still noticed. tools/check-patched-updates.mjs compares each patched version
+# updates arrive instead. tools/check-patched-updates.mjs compares each patched version
 # (pnpm-workspace.yaml, patchedDependencies) with the latest release on npm, or on GitHub
-# for a library installed from there, and this workflow keeps one issue per new version:
+# for a library installed from there. For each new version, tools/recut-patch.mjs tries
+# to move the patch onto it (docs/updating-patched-libraries.md):
 #
-#   - "Patched library update: <name> <version>" is opened when that version appears,
-#     assigned to the repo owner and @mentioning them, so GitHub emails it. It is never
-#     opened twice: closing one by hand is how a version is skipped (a major rewrite
-#     not worth porting, say), and it stays closed.
-#   - It is closed on its own once the patched version has caught up with it, or the
-#     library is no longer patched.
+#   - Clean, and its checks pass: a pull request "Patched library update: <name>
+#     <version>" on branch patched/<name>-<version>, with the tool's report, and CI
+#     started on it - a push by this workflow's token starts no workflow, a dispatch
+#     does. Merging it releases.
+#   - Conflicts, or a failed check: an issue with the same title and the report, to take
+#     by hand.
+#   - Too new for pnpm's minimumReleaseAge: nothing yet; the next daily run tries again.
 #
-# Same shape as the mpv repo's mpv-update.yml. Notify-only: it never changes the repo.
+# Either is assigned to the repo owner and @mentions them, so GitHub emails it. A title
+# is never raised twice, as an issue or a pull request, open or closed: closing one is how
+# a version is skipped (a major rewrite not worth porting, say), and it stays closed.
+# Both are closed on their own once the patched version has caught up with them, however
+# that happened, or the library is no longer patched.
 
 on:
   schedule:
     # Daily, 06:30 UTC, after sync-upstream.yml.
     - cron: '30 6 * * *'
-  # Right after a library was upgraded, so its issue closes without waiting a day.
+  # Right after a library was upgraded, so its issue or pull request closes without
+  # waiting a day. A push only closes; re-cutting is the daily run's job.
   push:
     branches: [main]
     paths:
@@ -28,8 +35,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
+  contents: write       # push the patched/<name>-<version> branch
+  pull-requests: write  # open the update pull request
+  issues: write         # open the issue when the re-cut stops
+  actions: write        # start CI on the branch
 
 concurrency:
   group: patched-libraries
@@ -39,61 +48,128 @@ jobs:
   check:
     name: Check patched libraries for updates
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # A dash.js re-cut lints a 3 MB bundle four times; the rest takes seconds.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          check-latest: true
+          cache: pnpm
 
-      - name: Sync update issues with the patched versions
+      # tools/recut-patch.mjs lints with the project's ESLint, and --apply installs.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync update pull requests and issues with the patched versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           PREFIX: 'Patched library update: '
+          EVENT: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           node tools/check-patched-updates.mjs --json > "$RUNNER_TEMP/libraries.jsonl"
           node tools/check-patched-updates.mjs
 
-          # --- Close what has been caught up with.
-          gh issue list --state open --limit 200 --json number,title \
-            --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
-          while read -r number name version; do
-            current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/libraries.jsonl")
-            if [ -z "$current" ]; then
-              gh issue close "$number" --comment "$name is no longer a patched library. Closing."
-            elif [ "$(printf '%s\n%s\n' "$version" "$current" | sort -V | tail -1)" = "$current" ]; then
-              gh issue close "$number" --comment "The patch is now cut against $name $current (commit $GITHUB_SHA). Closing."
-            else
-              echo "#$number ($name $version) still open: patched version is $current."
-            fi
+          # --- Close what has been caught up with: issues, and pull requests.
+          for kind in issue pr; do
+            gh "$kind" list --state open --limit 200 --json number,title \
+              --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
+            while read -r number name version; do
+              current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/libraries.jsonl")
+              if [ -z "$current" ]; then
+                gh "$kind" close "$number" --comment "$name is no longer a patched library. Closing."
+              elif [ "$(printf '%s\n%s\n' "$version" "$current" | sort -V | tail -1)" = "$current" ]; then
+                gh "$kind" close "$number" --comment "The patch is now cut against $name $current (commit $GITHUB_SHA). Closing."
+              else
+                echo "$kind #$number ($name $version) still open: patched version is $current."
+              fi
+            done
           done
 
-          # --- Open an issue for each new version, once. The whole list, filtered exactly:
-          # the search index can lag behind an issue opened minutes ago.
-          gh issue list --state all --limit 1000 --json title --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
-          jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" |
-          while read -r library; do
+          if [ "$EVENT" = push ]; then
+            echo 'A push only closes; the daily run re-cuts.'
+            exit 0
+          fi
+
+          # --- Every title raised before, as an issue or a pull request, open or closed. The
+          # whole lists, filtered exactly: the search index can lag behind one made minutes ago.
+          {
+            gh issue list --state all --limit 1000 --json title --jq '.[].title'
+            gh pr list --state all --limit 1000 --json title --jq '.[].title'
+          } > "$RUNNER_TEMP/titles.txt"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          start=$(git rev-parse HEAD)
+
+          # Not a pipe into the loop, and not on stdin either: a failed command in a piped loop
+          # only ends the subshell, and pnpm or gh inside it could read the list off stdin.
+          jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" > "$RUNNER_TEMP/behind.jsonl"
+          while read -r library <&3; do
             name=$(jq -r .name <<< "$library")
             current=$(jq -r .current <<< "$library")
             latest=$(jq -r .latest <<< "$library")
             url=$(jq -r .url <<< "$library")
             title="$PREFIX$name $latest"
             if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
-              echo "Already notified about $name $latest."
+              echo "Already raised: $title."
               continue
             fi
-            # The backticks are Markdown for the issue body, not command substitution.
-            # shellcheck disable=SC2016
-            {
-              printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
-              printf 'The patch in this repository is cut against %s %s (`pnpm-workspace.yaml`, `patches/%s@%s.patch`). Dependabot does not offer this update, because bumping the version leaves the patch unapplied.\n\n' "$name" "$current" "$name" "$current"
-              printf 'To take it: re-cut the patch against %s, update `package.json` and `patchedDependencies`, and run `pnpm run verify` - the e2e suite is what proves playback (see `docs/vendored-libraries.md`). This issue closes on its own once the patch is cut against %s or newer.\n' "$latest" "$latest"
-              if [ "${latest%%.*}" != "${current%%.*}" ]; then
-                printf '\nThis is a new **major** version (%s -> %s). It may be a rewrite rather than an update; closing this issue skips it for good.\n' "$current" "$latest"
+
+            branch="patched/$name-$latest"
+            git checkout -q -f -B "$branch" "$start"
+            status=0
+            node tools/recut-patch.mjs "$name" "$latest" --apply --out "$RUNNER_TEMP/recut-$name" \
+              > "$RUNNER_TEMP/report.txt" 2>&1 || status=$?
+            cat "$RUNNER_TEMP/report.txt"
+
+            if [ "$status" = 3 ]; then
+              echo "$name $latest is too new to install yet; the next run tries again."
+            elif [ "$status" = 0 ]; then
+              git add -A -- package.json pnpm-lock.yaml pnpm-workspace.yaml patches tools/sync-vendor.mjs
+              # Anything else changed would be a surprise worth stopping for, not committing.
+              stray=$(git status --porcelain | grep -v '^[MADR] ' || true)
+              if [ -n "$stray" ]; then
+                echo "Unexpected changes after the re-cut:"; echo "$stray"; exit 1
               fi
-            } > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
-          done
+              git commit -q -m "deps: $name $current -> $latest, patch re-cut by tools/recut-patch.mjs"
+              git push -q -f origin "$branch"
+              # The backticks are Markdown for the body, not command substitution.
+              # shellcheck disable=SC2016
+              {
+                printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
+                printf 'tools/recut-patch.mjs moved the patch from %s onto %s and its checks passed - each patched file parses, and no name is undefined or unused that neither the new release nor the old patch has. Its report:\n\n```\n' "$current" "$latest"
+                cat "$RUNNER_TEMP/report.txt"
+                printf '```\n\nThat is not the proof: CI is, and this workflow has started it on this branch - the full `pnpm run verify` suite, playback included. Green: merge, and it releases. Red, or to look closer: `docs/updating-patched-libraries.md`. Closing this pull request skips %s %s for good.\n' "$name" "$latest"
+                if [ "${latest%%.*}" != "${current%%.*}" ]; then
+                  printf '\nThis is a new **major** version (%s -> %s): read its release notes before merging.\n' "$current" "$latest"
+                fi
+                printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
+              } > "$RUNNER_TEMP/body.md"
+              gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
+                --body-file "$RUNNER_TEMP/body.md"
+              gh workflow run ci.yml --ref "$branch"
+            else
+              # shellcheck disable=SC2016
+              {
+                printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
+                printf 'The patch in this repository is cut against %s %s, and tools/recut-patch.mjs could not move it onto %s on its own:\n\n```\n' "$name" "$current" "$latest"
+                cat "$RUNNER_TEMP/report.txt"
+                printf '```\n\nTo take it: `node tools/recut-patch.mjs %s %s`, resolve what it lists, then `--resume --apply` and `pnpm run verify` (`docs/updating-patched-libraries.md`). This issue closes on its own once the patch is cut against %s or newer; closing it by hand skips %s for good.\n' "$name" "$latest" "$latest" "$latest"
+                if [ "${latest%%.*}" != "${current%%.*}" ]; then
+                  printf '\nThis is a new **major** version (%s -> %s). It may be a rewrite rather than an update.\n' "$current" "$latest"
+                fi
+                printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
+              } > "$RUNNER_TEMP/body.md"
+              gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+            fi
+            git checkout -q -f "$start"
+            git clean -q -fd
+          done 3< "$RUNNER_TEMP/behind.jsonl"

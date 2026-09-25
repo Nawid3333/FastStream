@@ -89,6 +89,7 @@ jobs:
         if: steps.release.outputs.complete == 'false'
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
 
       - name: Build the release's tag

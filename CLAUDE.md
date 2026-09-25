@@ -604,13 +604,29 @@ covers the 30-minute wait.
   and failed on CI). The e2e fixtures are built with the machine's ffmpeg: CI's has
   libx264, a local LGPL build only libopenh264, and only libx264 makes B-frames. The
   fixtures no longer depend on that (the DASH ones are encoded with `-bf 0
-  -sc_threshold 0`; the B-frame one is copied from `sample.mp4`), but to reproduce CI
-  exactly, delete everything in `tests/e2e/fixtures/` except `sample.mp4` and run
-  `pnpm run verify` with a GPL ffmpeg first on `PATH` (on this machine: winget's
-  `Gyan.FFmpeg`, gyan.dev 9.0.2 full; Chocolatey gives the Windows runner the same
-  version as the essentials build, both with libx264). For the
-  `workflows` job: rhysd/actionlint's release at the version `ci.yml` pins, with
-  koalaman/shellcheck's release passed as `-shellcheck`.
+  -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
+  both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
+  which runs CI's Linux verify job and its workflows job in WSL, once on each Ubuntu
+  release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
+  26.04 until `ubuntu-latest` moves in November 2026), read from the runner image table
+  `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
+  installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
+  date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
+  full-upgrade, installs the newest Node 22 and the current stable Firefox, apt ffmpeg
+  with libx264, and the actionlint and shellcheck binaries out of the image digest
+  `ci.yml` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
+  `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe
+  writes stdout and stderr to a redirected file at separate offsets, one over the other,
+  so both scripts merge them. The Windows build of actionlint hangs driving shellcheck on
+  some scripts; use the Linux one. On CI, `-latest` picks the OS release and GitHub
+  rebuilds each image about weekly; what the tests use is fetched fresh every run: ffmpeg
+  (apt-get update + install), Firefox `latest`, and Node 22 with `check-latest` in every
+  workflow (without it setup-node took the image's cached 22.23.2 two days after 22.23.3).
+  CI does not apt-upgrade the whole image: minutes per run, for packages the tests do not
+  touch. For CI's Windows encoder, delete everything in `tests/e2e/fixtures/` except
+  `sample.mp4` and run `pnpm run verify` with a GPL ffmpeg first on `PATH` (on this
+  machine: winget's `Gyan.FFmpeg`, gyan.dev 9.0.2 full; Chocolatey gives the Windows
+  runner the same version as the essentials build, both with libx264).
 - **`auto-release.yml`** only acts on a CI run that was a `push` to this repository's
   `main`. Before, `branches: [main]` matched a fork PR's branch named `main` too, and the
   job would have checked out that commit with a write token, pushed it and released it.
@@ -704,12 +720,21 @@ covers the 30-minute wait.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
-- **`patched-libraries.yml`** + `tools/check-patched-updates.mjs`: Dependabot ignores the
-  seven libraries in `patchedDependencies` (a bump leaves the patch unapplied), so this
-  opens one issue per new version (assigned, @mention), never twice, and closes it when
-  the patch is cut against that version or newer. Closing one by hand skips that version.
+- **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
+  (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
+  leaves the patch unapplied), so for each new version this re-cuts the patch itself.
+  Clean, checks passed: a PR from `patched/<name>-<version>`, with CI dispatched on it (a
+  push by `GITHUB_TOKEN` starts no workflow; `gh workflow run` does). Conflict or failed
+  check: an issue with the tool's report. Too new for pnpm's `minimumReleaseAge`
+  (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`): nothing until the next daily run. Both
+  assigned + @mention, never raised twice (issue or PR titles, any state), closed when
+  the patch is cut against that version or newer; closing one by hand skips the
+  version. Runbook: `docs/updating-patched-libraries.md`. The tool reproduces every
+  current patch byte for byte and replays the hand-cut hls.js 1.7.2 -> 1.7.3 upgrade
+  exactly; the workflow step was dry-run in WSL with a stub `gh` and stub tools (every
+  path: PR, issue, too new, already raised, caught up, no longer patched, push).
   `tests/unit/checkPatchedUpdates.test.mjs` fails if Dependabot's ignore list and
-  `patchedDependencies` drift apart.
+  `patchedDependencies` drift apart; `tests/unit/recutPatch.test.mjs` covers the tool.
 - All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
