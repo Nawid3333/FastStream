@@ -39,7 +39,7 @@
         "message": "Anda dapat mengubah pintasan tombol ini di pengaturan ekstensi."
     },
     "welcome_page_keybinds_content1": {
-        "message": "tombol panah - lompat 1 detik maju/mundur"
+        "message": "tombol panah - lompat 5 detik maju/mundur"
     },
     "welcome_page_keybinds_content2": {
         "message": "tombol - lompat 10 detik maju/mundur"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Mengatur kecepatan ke 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x, atau 16x - tekan tombol yang sama lagi untuk kembali"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "tombol - lompat 60 detik maju/mundur"
     },
     "perms_page_title": {
         "message": "Izin FastStream"

@@ -52,6 +52,10 @@ jobs:
   release:
     name: Build and publish release
     runs-on: ubuntu-latest
+    # AMO signing waits up to 30 minutes for approval (approvalTimeout in
+    # tools/sign-amo.mjs); after that amo-signing-failsafe.yml takes over, so
+    # the job needs those 30 minutes plus the checks, build and upload.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v7
@@ -68,8 +72,37 @@ jobs:
       # --frozen-lockfile also applies patches/ during install, which the
       # build needs: chrome/player/modules/hls.mjs is generated from the
       # patched npm package, not tracked in git.
+      # Before anything is built or signed: a release whose tag disagrees with
+      # the version inside it would sign and publish an xpi under the wrong
+      # number, and updates.json would point Firefox at it. auto-release.yml
+      # always writes both files before tagging; a tag cut by hand might not.
+      # Ported from the sibling Python repos' release.yml.
+      - name: Check the tag matches the version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          tag_version="${TAG#[vV]}"
+          pkg_version=$(node -p "require('./package.json').version")
+          manifest_version=$(node -p "require('./chrome/manifest.json').version")
+          if [ "$tag_version" != "$pkg_version" ] || [ "$tag_version" != "$manifest_version" ]; then
+            echo "::error::Tag $TAG says $tag_version, package.json says $pkg_version, chrome/manifest.json says $manifest_version."
+            echo "Set both files to $tag_version (pnpm run release $tag_version does), push, then delete and re-create the tag."
+            exit 1
+          fi
+          echo "tag $TAG matches package.json and chrome/manifest.json ($pkg_version)"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # auto-release.yml only tags a commit CI passed, but a tag pushed by hand
+      # (tools/cut-release.mjs) reaches this workflow straight away, alongside
+      # CI rather than after it. The fast checks, so no release is built from a
+      # tree that does not even lint or pass its unit tests.
+      - name: Lint and unit tests
+        run: |
+          pnpm run lint
+          pnpm run typecheck
+          pnpm test
 
       - name: Build
         run: pnpm run build:keep
@@ -98,7 +131,7 @@ jobs:
           if [ "${{ steps.sign.outcome }}" = "success" ]; then
             assets+=(web-ext-artifacts/*.xpi web-ext-artifacts/updates.json)
           else
-            echo "::warning::AMO signing failed or was already done for this version -- releasing without the signed xpi or updates.json. See the header comment in this workflow for how to attach both by hand."
+            echo "::warning::AMO signing did not finish -- releasing without the signed xpi or updates.json. amo-signing-failsafe.yml attaches both once AMO has signed the version (it checks every 3 hours)."
           fi
           gh release create "${{ github.ref_name }}" \
             "${assets[@]}" \

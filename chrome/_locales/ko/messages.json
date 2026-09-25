@@ -39,7 +39,7 @@
         "message": "이 단축키는 확장 기능 설정에서 변경할 수 있습니다."
     },
     "welcome_page_keybinds_content1": {
-        "message": "화살표 키 - 앞/뒤로 1초 이동"
+        "message": "화살표 키 - 앞/뒤로 5초 이동"
     },
     "welcome_page_keybinds_content2": {
         "message": "키 - 앞/뒤로 10초 이동"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- 속도를 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x, 16x로 설정 - 같은 키를 다시 누르면 이전 속도로 돌아갑니다"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "키 - 앞/뒤로 60초 이동"
     },
     "perms_page_title": {
         "message": "FastStream 권한"

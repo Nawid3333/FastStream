@@ -3,8 +3,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
 import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
 import {
-  KEYBINDS_VERSION, MOVED_IN_VERSION_2, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey,
-  findKeybindConflicts, seekPercentAction, speedPresetAction,
+  FIXED_SEEKS, KEYBINDS_VERSION, MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, SKIP_BUTTON_SECONDS, SEEK_PERCENTS,
+  SPEED_PRESETS, actionsForKey, findKeybindConflicts, seekPercentAction, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
@@ -39,6 +39,25 @@ describe('DefaultKeybinds', () => {
     }
   });
 
+  it('has the mpv seeks: J/K 10 s, Z/X 60 s, undo on Shift+Backspace, screenshot on Shift+S', () => {
+    expect(actionsForKey('KeyJ', DefaultKeybinds)).toEqual(['SeekBackward10s']);
+    expect(actionsForKey('KeyK', DefaultKeybinds)).toEqual(['SeekForward10s']);
+    expect(actionsForKey('KeyZ', DefaultKeybinds)).toEqual(['SeekBackward60s']);
+    expect(actionsForKey('KeyX', DefaultKeybinds)).toEqual(['SeekForward60s']);
+    expect(FIXED_SEEKS).toEqual({SeekBackward10s: -10, SeekForward10s: 10, SeekBackward60s: -60, SeekForward60s: 60});
+    expect(DefaultKeybinds.SeekForward).toBe('ArrowRight');
+    expect(DefaultOptions.seekStepSize).toBe(5);
+    expect(SKIP_BUTTON_SECONDS).toBe(10);
+    for (const [action, oldKey] of Object.entries(MOVED_IN_VERSION_3)) {
+      expect(DefaultKeybinds[action]).not.toBe(oldKey);
+    }
+    expect(DefaultKeybinds.UndoSeek).toBe('Shift+Backspace');
+    expect(DefaultKeybinds.Screenshot).toBe('Shift+KeyS');
+    expect(actionsForKey('Period', DefaultKeybinds)).toEqual(['SeekForwardFrame']);
+    expect(actionsForKey('Comma', DefaultKeybinds)).toEqual(['SeekBackwardFrame']);
+    expect(DefaultKeybinds).not.toHaveProperty('SeekForwardLarge');
+  });
+
   it('is what the options start from, at the current layout version', () => {
     expect(DefaultOptions.keybinds).toBe(DefaultKeybinds);
     expect(DefaultOptions.keybindsVersion).toBe(KEYBINDS_VERSION);
@@ -54,6 +73,13 @@ describe('welcome page', () => {
     const letters = SPEED_PRESETS.map((speed) => DefaultKeybinds[speedPresetAction(speed)].replace('Key', '').toLowerCase());
     expect(html).toContain(`<code>${letters.join('/')}</code>`);
     expect(html).toContain('<code>0-9</code>');
+  });
+
+  it('names the keys the fixed seeks and undo are on', () => {
+    const letters = (back, forward) => [back, forward].map((action) => DefaultKeybinds[action].replace('Key', '').toLowerCase()).join('/');
+    expect(html).toContain(`<code>${letters('SeekBackward10s', 'SeekForward10s')}</code>`);
+    expect(html).toContain(`<code>${letters('SeekBackward60s', 'SeekForward60s')}</code>`);
+    expect(html).toContain(`<code>${DefaultKeybinds.UndoSeek}</code>`);
   });
 
   it('has text for every keybind line in every language', () => {
@@ -155,6 +181,24 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(keybinds.SpeedPreset3).toBe('KeyQ');
     expect(keybinds.SeekPercent50).toBe('Digit5');
     expect(findKeybindConflicts(keybinds)).toEqual([]);
+  });
+
+  it('migrates options saved at version 2 to the mpv seeks and a 5 s arrow step', async () => {
+    const v2 = {
+      ...DefaultKeybinds, UndoSeek: 'KeyZ', Screenshot: 'KeyX',
+      SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
+      SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
+    };
+    for (const action of Object.keys(FIXED_SEEKS)) delete v2[action];
+    store({keybindsVersion: 2, seekStepSize: 2, keybinds: v2});
+    const options = await Utils.getOptionsFromStorage();
+    expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+    expect(options.keybinds).toEqual(DefaultKeybinds);
+    expect(options.seekStepSize).toBe(5);
+
+    // Saved again and reloaded, it stays put.
+    store(options);
+    expect(await Utils.getOptionsFromStorage()).toEqual(options);
   });
 
   it('keeps what the user chose and unbinds the new default that would have clashed', async () => {

@@ -42,7 +42,7 @@
         "message": "You can change these keybinds in extension settings"
     },
     "welcome_page_keybinds_content1": {
-        "message": "arrow keys - 1 second seek forward/back"
+        "message": "arrow keys - 5 second seek forward/back"
     },
     "welcome_page_keybinds_content2": {
         "message": "keys - 10 second seek forward/back"
@@ -73,6 +73,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Set speed to 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x or 16x - press the same key again to revert"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "keys - 60 second seek forward/back"
     },
     "perms_page_title": {
         "message": "FastStream Permissions"
@@ -927,7 +930,7 @@
         "message": "Use player to play MP4 videos when opening video URLs (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Seek keybind base step size (seconds)"
+        "message": "Arrow key seek step (seconds)"
     },
     "options_general_replace_delay": {
         "message": "Delay before auto-replacing player (ms)"

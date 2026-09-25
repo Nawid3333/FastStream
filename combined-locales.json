@@ -234,22 +234,22 @@
         "zh_TW": "可在擴充功能設定中更改這些快捷鍵"
     },
     "welcome_page_keybinds_content1": {
-        "en": "arrow keys - 1 second seek forward/back",
-        "de": "Pfeiltasten - 1 sekunde vor-/zurückspulen",
-        "es": "teclas de flecha - avance/retroceso de 1 segundo",
-        "fr": "Touches fléchées - avancer/reculer de 1 seconde",
-        "id": "tombol panah - lompat 1 detik maju/mundur",
-        "it": "tasti freccia - vai avanti/indietro di 1 secondo",
-        "ja": "矢印キー - 前後の 1 秒間隔のシーク",
-        "ko": "화살표 키 - 앞/뒤로 1초 이동",
-        "ms": "kekunci anak panah - 1 saat mencari ke hadapan/belakang",
-        "nl": "pijltjestoetsen - 1 seconde vooruit/achteruit springen",
-        "pl": "klawisze strzałek - przewijaj o 1 sekundę do przodu/tyłu",
-        "pt_BR": "Setas do teclado - 1 segundo de busca para frente/trás",
-        "ru": "клавиша со стрелкой - перемотка на 1 секунду вперёд/назад",
-        "tr": "yön tuşları - 1 saniye ileri/geri sarma",
-        "zh_CN": "方向键 - 前进/后退 1 秒",
-        "zh_TW": "方向鍵 - 前/後跳 1 秒"
+        "en": "arrow keys - 5 second seek forward/back",
+        "de": "Pfeiltasten - 5 sekunden vor-/zurückspulen",
+        "es": "teclas de flecha - avance/retroceso de 5 segundos",
+        "fr": "Touches fléchées - avancer/reculer de 5 secondes",
+        "id": "tombol panah - lompat 5 detik maju/mundur",
+        "it": "tasti freccia - vai avanti/indietro di 5 secondi",
+        "ja": "矢印キー - 前後の 5 秒間隔のシーク",
+        "ko": "화살표 키 - 앞/뒤로 5초 이동",
+        "ms": "kekunci anak panah - 5 saat mencari ke hadapan/belakang",
+        "nl": "pijltjestoetsen - 5 seconden vooruit/achteruit springen",
+        "pl": "klawisze strzałek - przewijaj o 5 sekund do przodu/tyłu",
+        "pt_BR": "Setas do teclado - 5 segundos de busca para frente/trás",
+        "ru": "клавиша со стрелкой - перемотка на 5 секунд вперёд/назад",
+        "tr": "yön tuşları - 5 saniye ileri/geri sarma",
+        "zh_CN": "方向键 - 前进/后退 5 秒",
+        "zh_TW": "方向鍵 - 前/後跳 5 秒"
     },
     "welcome_page_keybinds_content2": {
         "en": "keys - 10 second seek forward/back",
@@ -430,6 +430,24 @@
         "tr": "- Hızı 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x veya 16x olarak ayarla - geri dönmek için aynı tuşa yeniden bas",
         "zh_CN": "- 将速度设为 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一键可还原",
         "zh_TW": "- 將速度設為 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一鍵可還原"
+    },
+    "welcome_page_keybinds_content12": {
+        "de": "tasten - 60 sekunden vor-/zurückspulen",
+        "en": "keys - 60 second seek forward/back",
+        "es": "teclas - avance/retroceso de 60 segundos",
+        "fr": "Touches - avancer/reculer de 60 secondes",
+        "id": "tombol - lompat 60 detik maju/mundur",
+        "it": " - vai avanti/indietro di 60 secondi",
+        "ja": "キー - 前後の 60 秒間隔のシーク",
+        "ko": "키 - 앞/뒤로 60초 이동",
+        "ms": "kekunci - 60 saat mencari ke hadapan/belakang",
+        "nl": "toetsen - 60 seconden vooruit/achteruit springen",
+        "pl": "klawisze - przewijaj o 60 sekund do przodu/tyłu",
+        "pt_BR": "Tecla - 60 segundo de busca para frente/trás",
+        "ru": "клавиша - перемотка на 60 секунд вперёд/назад",
+        "tr": "tuşlar - 60 saniye ileri/geri sarma",
+        "zh_CN": "键 - 前进/后退 60 秒",
+        "zh_TW": "鍵 - 前/後跳 60 秒"
     },
     "perms_page_title": {
         "en": "FastStream Permissions",
@@ -5490,7 +5508,7 @@
         "zh_TW": "開啟 .mp4 連結時以播放器播放 MP4 影片"
     },
     "options_general_seekstep": {
-        "en": "Seek keybind base step size (seconds)",
+        "en": "Arrow key seek step (seconds)",
         "de": "Basis Schrittgröße für die Vor-/Zurückspul Taste (sekunden)",
         "es": "Buscar tamaño de paso base de la tecla de acceso rápido (segundos)",
         "fr": "Taille du pas pour les touches de saut (secondes)",

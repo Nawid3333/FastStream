@@ -16,16 +16,33 @@ name: Sync upstream
 #   skip it   Close the PR without merging. It is not reopened for the same
 #             upstream commit, and comes back once upstream moves again.
 #
+# Notification: the PR is assigned to the repo owner and @mentions them, and a
+# PR that is still open gets a comment (with the mention) whenever upstream moves
+# again. A PR a bot opens and edits is otherwise only watched-repo activity, which
+# GitHub does not email - sync PRs #2-#4 (2026-09-19) had no assignee at all.
+# When the new commits include one of Andrew's release tags (V1.3.77 and so on),
+# the title and body name the release.
+#
+# Closing: once main holds every upstream commit - by merging this PR, or by
+# merging upstream some other way and pushing - the open sync PR is closed with a
+# comment saying so. Every push to main runs that check, so it happens within
+# minutes; a push-triggered run never rebuilds the PR (that would rerun its CI on
+# every release push), it only closes it when nothing is left to take. The
+# "Upstream sync workflow failed" issue is closed by the next run that succeeds.
+#
 # There is no way to get a true push-based trigger from a repo this fork does not
 # own - GitHub only delivers webhooks to repos you administer, and Andrew's repo
-# is not one of them. Polling on a schedule is the closest substitute; a run is
-# cheap when nothing is behind (it exits after one git fetch).
+# is not one of them. Polling once a day is the substitute; a run is cheap when
+# nothing is behind (it exits after one git fetch).
 
 on:
   schedule:
-    # Every 6 hours. GitHub disables scheduled workflows on a repo with no
-    # activity for 60 days - re-enable from the Actions tab if that happens.
-    - cron: '0 */6 * * *'
+    # Once a day, 06:00 UTC. GitHub disables scheduled workflows on a repo with
+    # no activity for 60 days - re-enable from the Actions tab if that happens.
+    - cron: '0 6 * * *'
+  # To close the sync PR soon after main has taken everything upstream has.
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       work_branch:
@@ -36,6 +53,12 @@ on:
         description: 'Branch the sync PR is opened from. Only change this to test the workflow.'
         required: false
         default: 'sync/upstream'
+
+# A push and the daily run can start together; two runs force-pushing the sync
+# branch and editing one PR at once would race. Queue instead.
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -60,6 +83,8 @@ jobs:
   sync:
     name: Merge upstream into a PR branch
     runs-on: ubuntu-latest
+    # One git fetch when nothing is behind; a merge and a PR when something is.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v7
@@ -72,10 +97,12 @@ jobs:
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+      # Upstream's tags go to refs/upstream-tags/, never refs/tags/: this fork
+      # tags its own releases (v1.3.82.x), and the two must not mix.
       - name: Fetch upstream
         run: |
           git remote add upstream "$UPSTREAM"
-          git fetch upstream main
+          git fetch --no-tags upstream main '+refs/tags/*:refs/upstream-tags/*'
 
       - name: Merge upstream into the sync branch
         id: merge
@@ -88,12 +115,29 @@ jobs:
           BASE_SHA=$(git rev-parse --short=10 HEAD)
           UP_SHA=$(git rev-parse --short=10 upstream/main)
           echo "Commits from upstream not yet in ${WORK_BRANCH}: ${BEHIND}"
-          echo "behind=${BEHIND}" >> "$GITHUB_OUTPUT"
-          echo "base_sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
-          echo "up_sha=${UP_SHA}" >> "$GITHUB_OUTPUT"
+          {
+            echo "behind=${BEHIND}"
+            echo "base_sha=${BASE_SHA}"
+            echo "up_sha=${UP_SHA}"
+          } >> "$GITHUB_OUTPUT"
 
           if [ "$BEHIND" -eq 0 ]; then
             echo "Already up to date." >> "$GITHUB_STEP_SUMMARY"
+            # Everything upstream has is in main now, however it got there, so
+            # an open sync PR has nothing left to offer.
+            for pr in $(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[].number'); do
+              gh pr close "$pr" --comment "Closing: ${WORK_BRANCH} (${BASE_SHA}) now holds every upstream commit, up to ${UP_SHA}. Nothing left to take."
+              echo "Closed sync PR #$pr: upstream fully adopted." >> "$GITHUB_STEP_SUMMARY"
+            done
+            finish none
+            exit 0
+          fi
+
+          # A push to main only checks for the above. Rebuilding the PR on every
+          # push would force-push its branch and rerun its CI each time; the daily
+          # run brings it up to date.
+          if [ "$GITHUB_EVENT_NAME" = 'push' ]; then
+            echo "${BEHIND} upstream commits still to take; the daily run keeps the PR current." >> "$GITHUB_STEP_SUMMARY"
             finish none
             exit 0
           fi
@@ -118,6 +162,20 @@ jobs:
             exit 0
           fi
 
+          # Upstream release tags on the incoming commits: reachable from
+          # upstream/main but not yet from this project.
+          RELEASES=""
+          for ref in $(git for-each-ref --format='%(refname)' refs/upstream-tags); do
+            if git merge-base --is-ancestor "$ref" upstream/main && ! git merge-base --is-ancestor "$ref" HEAD; then
+              RELEASES="$RELEASES ${ref#refs/upstream-tags/}"
+            fi
+          done
+          # Unquoted on purpose: one tag per line for sort.
+          # shellcheck disable=SC2086
+          RELEASES=$(printf '%s\n' $RELEASES | sort -V | paste -sd' ' -)
+          echo "Upstream releases in this sync: ${RELEASES:-none}"
+          echo "releases=${RELEASES}" >> "$GITHUB_OUTPUT"
+
           git checkout -B "$SYNC_BRANCH" HEAD
 
           if git merge --no-edit upstream/main; then
@@ -141,17 +199,33 @@ jobs:
           BASE_SHA: ${{ steps.merge.outputs.base_sha }}
           UP_SHA: ${{ steps.merge.outputs.up_sha }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
+          RELEASES: ${{ steps.merge.outputs.releases }}
+          OWNER: ${{ github.repository_owner }}
         run: |
+          UPSTREAM_REPO=Andrews54757/FastStream
+          TITLE="Sync upstream (${BEHIND} commits"
+          if [ -n "$RELEASES" ]; then
+            TITLE="${TITLE}, incl. release ${RELEASES// /, }"
+          fi
+          TITLE="${TITLE})"
           if [ "$CONFLICTS" = 'true' ]; then
-            TITLE="Sync upstream (${BEHIND} commits) - CONFLICTS"
+            TITLE="${TITLE} - CONFLICTS"
             NOTE="Merging upstream/main into ${WORK_BRANCH} produced conflicts. The branch carries the conflicted state so the markers show in the diff; CI will fail until they are resolved. Fetch \`${SYNC_BRANCH}\`, resolve, and push to it."
           else
-            TITLE="Sync upstream (${BEHIND} commits)"
             NOTE="Clean merge of upstream/main into ${WORK_BRANCH}."
           fi
 
           {
-            printf '%s\n\n' "$NOTE"
+            printf '@%s %s\n\n' "$OWNER" "$NOTE"
+            if [ -n "$RELEASES" ]; then
+              printf '### Upstream releases in this sync\n\n'
+              for tag in $RELEASES; do
+                # A tag without a GitHub Release page is still listed.
+                url=$(gh api "repos/${UPSTREAM_REPO}/releases/tags/${tag}" --jq '"\(.name) - \(.html_url)"' 2>/dev/null || echo "tag only, no release page")
+                printf -- '- **%s**: %s\n' "$tag" "$url"
+              done
+              printf '\n'
+            fi
             cat <<'EOF'
           ### Deciding
 
@@ -169,11 +243,29 @@ jobs:
 
           EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
-            gh pr edit "$EXISTING" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
+            PREV_UP=$(gh pr view "$EXISTING" --json body --jq '.body' | sed -n 's/.*upstream=\([0-9a-f]*\) .*/\1/p' | head -1)
+            gh pr edit "$EXISTING" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md" --add-assignee "$OWNER"
+            # Editing a PR notifies no one; a comment with the mention does. Only
+            # when upstream itself moved: main moving also rebuilds the PR, and
+            # that is no news.
+            if [ "$PREV_UP" != "$UP_SHA" ]; then
+              gh pr comment "$EXISTING" --body "@${OWNER} upstream moved (now ${UP_SHA}): this PR carries ${BEHIND} commits${RELEASES:+, including release ${RELEASES// /, }}."
+            fi
           else
             gh pr create --base "$WORK_BRANCH" --head "$SYNC_BRANCH" \
-              --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md"
+              --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md" --assignee "$OWNER"
           fi
+
+      # A run that got this far succeeded, so an earlier failure has cleared.
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          for issue in $(gh issue list --search "Upstream sync workflow failed in:title" --state open --json number --jq '.[].number'); do
+            gh issue close "$issue" --comment "The sync ran cleanly again: $RUN_URL"
+          done
 
       # No SMTP secrets to manage: assigning a GitHub issue emails the
       # assignee under that account's default notification settings. Reuses

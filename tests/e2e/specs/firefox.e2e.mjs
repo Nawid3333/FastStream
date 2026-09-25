@@ -11,14 +11,7 @@
 //   second). If this test starts to fail at 10x, Firefox now plays faster audio and the
 //   cap, and the 16x speed key, can move up.
 
-import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
-
-const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
-const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
 
 // Loud enough to be sure of, quiet enough to leave room: the tone measures about 0.087.
 const AUDIBLE = 0.03;
@@ -58,24 +51,6 @@ describe('Options page', function() {
 });
 
 describe('Firefox audio at speed', function() {
-  before(function() {
-    // Two minutes and more of a steady tone, so 16x still has something to play.
-    if (fs.existsSync(LONG_FIXTURE)) return;
-    const args = [
-      '-y', '-v', 'error', '-stream_loop', '15', '-i', path.join(fixturesDir, 'sample.mp4'),
-      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=160',
-      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
-      '-movflags', '+faststart', LONG_FIXTURE,
-    ];
-    const {status, error, stderr} = spawnSync('ffmpeg', args, {encoding: 'utf8'});
-    if (status !== 0) {
-      throw new Error(
-          `could not build the long audio fixture with ffmpeg${error ? ` (${error.message})` : ''}. ` +
-          `CI installs ffmpeg; locally it must be on PATH.\n${stderr || ''}`,
-      );
-    }
-  });
-
   // Plays the fixture at one rate for two seconds and reports the level the audio reaches,
   // through an analyser that is not connected to the speakers, and how far the media moved.
   const measure = (rate) => browser.executeAsync((source, rate, done) => {

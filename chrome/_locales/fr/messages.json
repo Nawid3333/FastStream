@@ -39,7 +39,7 @@
         "message": "Vous pouvez modifier ces raccourcis dans les paramètres de l'extension."
     },
     "welcome_page_keybinds_content1": {
-        "message": "Touches fléchées - avancer/reculer de 1 seconde"
+        "message": "Touches fléchées - avancer/reculer de 5 secondes"
     },
     "welcome_page_keybinds_content2": {
         "message": "Touches - avancer/reculer de 10 secondes"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Régler la vitesse sur 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x ou 16x - appuyez à nouveau sur la même touche pour revenir en arrière"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "Touches - avancer/reculer de 60 secondes"
     },
     "perms_page_title": {
         "message": "Autorisations FastStream"

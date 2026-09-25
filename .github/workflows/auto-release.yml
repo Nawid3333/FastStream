@@ -29,6 +29,14 @@ name: Auto release
 # way: v1.3.82.1's tag landed with no Release run to show for it). The
 # explicit `gh workflow run` step below sidesteps it by dispatching
 # release.yml directly instead of relying on its push trigger.
+#
+# Only a push to THIS repository's main may release. workflow_run fires for
+# every completed CI run, pull requests from forks included, and `branches:
+# [main]` matches the head branch by name alone - a fork's PR from its own
+# branch called "main" matched it. That run would have checked out the
+# fork's commit (head_sha) with this job's write token, pushed it to main and
+# released it. The job condition therefore also requires a push event from
+# this repository, as the sibling Python repos' auto-release.yml does.
 
 on:
   workflow_run:
@@ -51,8 +59,14 @@ jobs:
   auto-release:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
       !startsWith(github.event.workflow_run.head_commit.message, 'chore: release ')
     runs-on: ubuntu-latest
+    # A version bump and two pushes; a hung git or gh call should not hold the
+    # runner for GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:

@@ -39,7 +39,7 @@
         "message": "Możesz zmienić te skróty w ustawieniach rozszerzenia"
     },
     "welcome_page_keybinds_content1": {
-        "message": "klawisze strzałek - przewijaj o 1 sekundę do przodu/tyłu"
+        "message": "klawisze strzałek - przewijaj o 5 sekund do przodu/tyłu"
     },
     "welcome_page_keybinds_content2": {
         "message": "klawisze - przewijaj o 10 sekund do przodu/tyłu"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Ustaw prędkość na 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x lub 16x - naciśnij ten sam klawisz ponownie, aby przywrócić"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "klawisze - przewijaj o 60 sekund do przodu/tyłu"
     },
     "perms_page_title": {
         "message": "Uprawnienia FastStream"

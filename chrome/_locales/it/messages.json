@@ -39,7 +39,7 @@
         "message": "È possibile modificare queste associazioni di tasti nelle impostazioni dell'estensione"
     },
     "welcome_page_keybinds_content1": {
-        "message": "tasti freccia - vai avanti/indietro di 1 secondo"
+        "message": "tasti freccia - vai avanti/indietro di 5 secondi"
     },
     "welcome_page_keybinds_content2": {
         "message": " - vai avanti/indietro di 10 secondi"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Imposta la velocità a 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x o 16x - premi di nuovo lo stesso tasto per ripristinare"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": " - vai avanti/indietro di 60 secondi"
     },
     "perms_page_title": {
         "message": "Autorizzazioni FastStream"

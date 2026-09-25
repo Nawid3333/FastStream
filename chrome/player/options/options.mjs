@@ -82,7 +82,13 @@ customSourcePatterns.setAttribute('spellcheck', false);
 customSourcePatterns.placeholder = '# This is a comment. Use the following format.\n[file extension] /[regex]/[flags]';
 
 // Initialize store and then load page controls
-OptionsStore.init().then(() => loadOptions(OptionsStore.get()));
+// Until the saved options are read, OptionsStore.get() gives the defaults. Showing those, even
+// for a moment, would let a change made then save the defaults over the user's options.
+let optionsLoaded = false;
+OptionsStore.init().then(() => {
+  optionsLoaded = true;
+  loadOptions(OptionsStore.get());
+});
 
 
 if (!EnvUtils.isExtension()) {
@@ -671,7 +677,7 @@ OptionsStore.subscribe(() => loadOptions(OptionsStore.get()));
 if (EnvUtils.isExtension()) {
   // Also refresh when becoming visible to catch recent changes
   const o = new IntersectionObserver(([entry]) => {
-    if (entry.isIntersecting) loadOptions(OptionsStore.get());
+    if (entry.isIntersecting && optionsLoaded) loadOptions(OptionsStore.get());
   });
   o.observe(document.body);
 

@@ -39,7 +39,7 @@
         "message": "Você pode alterar esses atalhos do teclado nas configurações da extensão"
     },
     "welcome_page_keybinds_content1": {
-        "message": "Setas do teclado - 1 segundo de busca para frente/trás"
+        "message": "Setas do teclado - 5 segundos de busca para frente/trás"
     },
     "welcome_page_keybinds_content2": {
         "message": "Tecla - 10 segundo de busca para frente/trás"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Definir a velocidade para 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x ou 16x - pressione a mesma tecla novamente para reverter"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "Tecla - 60 segundo de busca para frente/trás"
     },
     "perms_page_title": {
         "message": "Permissões do FastStream"

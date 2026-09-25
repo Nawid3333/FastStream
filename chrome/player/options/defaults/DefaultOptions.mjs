@@ -2,7 +2,7 @@ import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
 import {DaltonizerTypes} from './DaltonizerTypes.mjs';
 import {DefaultKeybinds} from './DefaultKeybinds.mjs';
-import {KEYBINDS_VERSION} from '../KeybindUtils.mjs';
+import {DEFAULT_SEEK_STEP_SIZE, KEYBINDS_VERSION} from '../KeybindUtils.mjs';
 import {MiniplayerPositions} from './MiniplayerPositions.mjs';
 import {VisChangeActions} from './VisChangeActions.mjs';
 
@@ -44,7 +44,7 @@ export const DefaultOptions = {
   maxVideoSize: 5000000000, // 5GB max size
   bufferAhead: 300, // seconds to keep buffered ahead of playback when predownloading is off/unavailable
   bufferBehind: 20, // seconds to keep buffered behind playback before trimming
-  seekStepSize: 2,
+  seekStepSize: DEFAULT_SEEK_STEP_SIZE,
   singleClickAction: ClickActions.PLAY_PAUSE,
   doubleClickAction: ClickActions.FULLSCREEN,
   tripleClickAction: ClickActions.HIDE_CONTROLS,

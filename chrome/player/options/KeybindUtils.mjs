@@ -15,8 +15,24 @@ import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds
  * 1: the layout before the percent seeks and speed presets (no version saved at all).
  * 2: percent seeks on Digit1-9, speed presets on R G B Q W A Y E H, and the six actions
  *    that used those letters moved to Shift+<letter>.
+ * 3: mpv's seeks: J/K 10 s, Z/X 60 s and the arrows 5 s (seekStepSize 2 -> 5); undo seek
+ *    moved to Shift+Backspace (mpv's revert-seek), the screenshot to Shift+S (mpv's
+ *    video-only screenshot), and the frame step from Shift+Left/Right to `,`/`.`, which
+ *    held SeekForwardLarge/SeekBackwardLarge (10 s, what J/K do now; both actions are gone).
  */
-export const KEYBINDS_VERSION = 2;
+export const KEYBINDS_VERSION = 3;
+
+/**
+ * Seconds the skip buttons seek. They were 5 x seekStepSize, which was 10 s at the old
+ * default of 2; fixed so the arrows' step could move to 5 without taking them to 25.
+ */
+export const SKIP_BUTTON_SECONDS = 10;
+
+/** Seconds the arrow keys seek by default (the seekStepSize option). */
+export const DEFAULT_SEEK_STEP_SIZE = 5;
+
+/** The seekStepSize default before version 3; a saved value equal to it is moved to the new one. */
+export const OLD_SEEK_STEP_SIZE = 2;
 
 /** Percentages the Digit1-Digit9 keys jump to. */
 export const SEEK_PERCENTS = [10, 20, 30, 40, 50, 60, 70, 80, 90];
@@ -57,6 +73,34 @@ export function speedPresetAction(speed) {
 export const ADDED_IN_VERSION_2 = [
   ...SEEK_PERCENTS.map(seekPercentAction),
   ...SPEED_PRESETS.map(speedPresetAction),
+];
+
+/** The defaults version 3 moved, by action, with the key they had. */
+export const MOVED_IN_VERSION_3 = {
+  'UndoSeek': 'KeyZ',
+  'Screenshot': 'KeyX',
+  'SeekForwardFrame': 'Shift+ArrowRight',
+  'SeekBackwardFrame': 'Shift+ArrowLeft',
+};
+
+/** The fixed seeks, in seconds, by action; negative is backward. */
+export const FIXED_SEEKS = {
+  'SeekBackward10s': -10,
+  'SeekForward10s': 10,
+  'SeekBackward60s': -60,
+  'SeekForward60s': 60,
+};
+
+/** Actions that only exist since version 3. */
+export const ADDED_IN_VERSION_3 = Object.keys(FIXED_SEEKS);
+
+/**
+ * The layout changes, oldest first. `moved` maps an action to the old default a saved
+ * binding is moved away from; `added` lists the actions that version introduced.
+ */
+const MIGRATIONS = [
+  {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2},
+  {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3},
 ];
 
 /**
@@ -195,6 +239,10 @@ export function keybindLabel(action) {
   if (preset) {
     return `Speed preset ${preset[1].replace('_', '.')}x`;
   }
+  const fixed = /^Seek(Forward|Backward)(\d+)s$/.exec(action);
+  if (fixed) {
+    return `Seek ${fixed[1]} ${fixed[2]}s`;
+  }
   return action.replace(/([A-Z])/g, ' $1').trim();
 }
 
@@ -227,12 +275,15 @@ export function isTextEntryTarget(target) {
  * Migrates saved keybinds to the current layout.
  *
  * Runs once per saved options: it is skipped when the options carry a keybindsVersion that
- * is current, and options that were never saved need nothing. A binding the user chose is
- * never overridden, and a migration never leaves one press firing two actions:
- * - a binding that still holds a plain-letter default version 2 moved is given the new one,
- *   unless another action already uses that, in which case it is left unbound;
- * - an action new in version 2 takes its default key only when no other action already
+ * is current, and options that were never saved need nothing. Each version newer than the
+ * saved one is applied in turn. A binding the user chose is never overridden, and a
+ * migration never leaves one press firing two actions:
+ * - a binding that still holds a default that version moved is given the new one, unless
+ *   another action already uses that, in which case it is left unbound;
+ * - an action new in that version takes its default key only when no other action already
  *   uses it, otherwise it is left unbound.
+ * Version 3 also moves a saved seekStepSize that still holds the old default of 2 to the
+ * new default, since the arrows are what it sets.
  *
  * @param {Object} options - The saved options merged over the defaults; changed in place.
  * @param {Object|null} stored - The options as they were saved, before the defaults were
@@ -260,17 +311,25 @@ export function migrateKeybinds(options, stored) {
       }
     };
 
-    for (const [action, oldKey] of Object.entries(MOVED_IN_VERSION_2)) {
-      if (saved[action] === oldKey) {
-        assign(action, DefaultKeybinds[action]);
+    for (const {version, moved, added} of MIGRATIONS) {
+      if (storedVersion >= version) {
+        continue;
+      }
+      for (const [action, oldKey] of Object.entries(moved)) {
+        if (saved[action] === oldKey) {
+          assign(action, DefaultKeybinds[action]);
+        }
+      }
+      for (const action of added) {
+        if (!Object.hasOwn(saved, action)) {
+          assign(action, keybinds[action]);
+        }
       }
     }
+  }
 
-    for (const action of ADDED_IN_VERSION_2) {
-      if (!Object.hasOwn(saved, action)) {
-        assign(action, keybinds[action]);
-      }
-    }
+  if (stored && storedVersion < 3 && stored.seekStepSize === OLD_SEEK_STEP_SIZE) {
+    options.seekStepSize = DEFAULT_SEEK_STEP_SIZE;
   }
 
   // Never lowered: options saved by a newer build keep their version.

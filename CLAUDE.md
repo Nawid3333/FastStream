@@ -26,6 +26,27 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
 
 - **Percent seeks**: `SeekPercent10..90` on `Digit1..Digit9`. A live stream reports an infinite
   duration, which the `currentTime` setter throws on, so `seekPercentTarget` returns null for it.
+- **mpv seeks** (layout version 3, from Nawid's mpv `input.conf`): `SeekBackward60s/SeekForward60s`
+  on `Z/X`, `SeekBackward10s/SeekForward10s` on `J/K` (`FIXED_SEEKS`), the arrows 5 s (the
+  `seekStepSize` default went 2 -> 5, and a saved 2 is moved to 5 once). Undo seek moved to
+  `Shift+Backspace` (mpv's revert-seek) and Screenshot to `Shift+S` (mpv's video-only
+  screenshot). `SeekForwardLarge/SeekBackwardLarge` (10 s on `,`/`.`, a duplicate of J/K) were
+  removed; the skip buttons seek a fixed `SKIP_BUTTON_SECONDS` (10), no longer 5 x the step, so
+  they did not become 25 s. None of these hops is saved for undo, like the arrows, and a hop
+  back is clamped at 0: the `currentTime` setter hands its value to `state.currentTime` and
+  the separate audio track unclamped. `keyboard.png` on the welcome page predates version 2
+  and is out of date; the text list above it is current.
+- **Frame step** (`,`/`.`, moved from Shift+arrows in version 3): mpv's frame-step, pause then
+  exactly one frame. `ui/FrameStepper.mjs` learns the frame length from
+  `requestVideoFrameCallback` during playback. Measured on Firefox 156: a playback frame's
+  `mediaTime` is its own start, but while paused it is the position seeked to (anywhere inside
+  the frame), and so is the frame shown again when playback starts. So only gaps between two
+  consecutive playback frames count (the frame after a seeking/play/pause event is skipped),
+  the shortest such gap is the length (drops at high speed only lengthen gaps), and the step
+  works out the frame on screen from `currentTime` on the grid a playback frame anchors. Before
+  any playback the length is the old 1/30 s. The usual use is play, pause, then step, which is
+  what `tests/e2e/specs/keybinds.e2e.mjs` checks on `fixtures/frames-24fps.mp4` (96 frames,
+  ffmpeg `testsrc2` at 24 fps, libopenh264), by the picture itself, not only the time.
 - **mpv-style speed presets** (a port of `speed-presets.lua`): `SpeedPreset1/2/2_5/3/3_5/4/5/8/16` on
   `R G B Q W A Y E H`. A press sets the speed; the same key again reverts to the speed active
   before it (per-key memory, fallback 1x; `applySpeedPreset`). One deliberate difference from
@@ -49,12 +70,20 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   binding is never overridden, so one press never fires two actions after a migration. A choice
   made afterwards, even one equal to an old default, is kept, because the saved version stops
   the migration. Options that were never saved need nothing. Imported settings files go through
-  the same migration. Add a step to `migrateKeybinds` and bump `KEYBINDS_VERSION` when a
-  default moves again.
+  the same migration. When a default moves again, add an entry to `MIGRATIONS` in KeybindUtils
+  (the moved actions with their old key, the new actions) and bump `KEYBINDS_VERSION`; each
+  entry newer than the saved version runs in turn, so version 1 options go through all of them.
 - **`getOptionsFromStorage` is async.** It once passed the unresolved promise straight to the
   migration, which skipped it silently, so the migration never ran in the extension; the unit
   tests fed plain objects and passed. `tests/unit/Keybinds.test.mjs` now goes through
   `getOptionsFromStorage` with a stubbed `getConfig`.
+- **Options page shows nothing before the saved options are read.** `OptionsStore.get()` returns
+  the defaults until `init()` has read storage, and the page's visibility refresh
+  (IntersectionObserver) used to call `loadOptions` with that, so a slow start drew the default
+  keybinds for a moment, and a change made then would have saved the defaults over the user's
+  options. The refresh now waits for `init()` (`optionsLoaded`). Found as a flaky failure of
+  `keybinds-storage.e2e.mjs` under the full `verify` load; reproduced every time with a 1.5 s
+  delay injected into `OptionsStore.init()`, and passing with the guard.
 - **Options page menu.** Rows are named by `keybindLabel` ("Seek to 50%", "Speed preset 2.5x"),
   and a row whose key another action shares is marked with a warning naming the other action
   (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
@@ -544,16 +573,58 @@ the next build number. Run it by hand right before the push you want that
 version on; auto-release's next build-number bump continues from whatever
 version that leaves in `package.json`.
 
-**AMO signing needs patience now.** `tools/sign-amo.mjs` waits up to an
-hour for AMO's approval (`approvalTimeout`, was web-ext's 15-minute
-default) — releasing on every push means far more AMO submissions than
-before, and `v1.3.82.2` shipped without a signed xpi/`updates.json`
-(breaking self-update until the next successful release) purely because
-AMO took longer than 15 minutes that one time. An hour comfortably fits
-inside `release.yml`'s job budget (GitHub's default is 6 hours) and
-covers real-world AMO review times; the sign step is still
-`continue-on-error`, so an actual failure (bad credentials, AMO down)
-still can't block the plain-zip release.
+**AMO signing no longer depends on a timer.** AMO has no webhook for "signed" (its API
+documents none), so `tools/sign-amo.mjs` uploads and polls, waiting up to 30 minutes
+(`approvalTimeout`). Measured over 30 releases: 2-6 minutes, once 15. When the wait runs
+out, the release is published without the xpi and `updates.json` (the sign step is
+`continue-on-error`), and **`amo-signing-failsafe.yml`** completes it: every 3 hours it
+checks the latest release and, if incomplete, builds that tag and asks AMO for the version
+(`tools/fetch-amo-signed.mjs`, no upload): signed -> download (byte-identical to web-ext's
+file, checked on 1.3.82.27; the regenerated `updates.json` matched the published one
+exactly) and attach both; pending -> next run; missing (never uploaded) -> sign now;
+rejected, or still incomplete after 24 h -> one issue, assigned + @mention, closed when the
+release is complete. Re-running `web-ext sign` cannot do this: AMO refuses a second upload
+of a version. v1.3.79.0 and v1.3.82.2, the two releases without an xpi, are both `public`
+on AMO - the failsafe would have collected them. `release.yml`'s `timeout-minutes: 45`
+covers the 30-minute wait.
+
+## Workflows (reworked 2026-09-25)
+
+- **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm` and `verify:ort`),
+  plus a `workflows` job: actionlint with its bundled shellcheck over every workflow.
+- **`auto-release.yml`** only acts on a CI run that was a `push` to this repository's
+  `main`. Before, `branches: [main]` matched a fork PR's branch named `main` too, and the
+  job would have checked out that commit with a write token, pushed it and released it.
+- **`release.yml`** checks the tag against `package.json` and `chrome/manifest.json` before
+  building, and runs lint + unit tests (a hand-cut tag reaches it without CI).
+- **`amo-signing-failsafe.yml`** (every 3 h) completes a release whose AMO signing did not
+  finish in `release.yml`; see "AMO signing no longer depends on a timer" above.
+- **`toolchain-updates.yml`** (weekly) + `tools/check-toolchain.mjs`: one issue for a newer
+  Node LTS than CI/`.nvmrc` use, and one for a newer pnpm major once
+  dependabot-core#15904 is fixed (pnpm 12's two-document lockfile hides every dependency
+  from GitHub's dependency graph; 12.6.0 otherwise passed the full verify on 2026-09-25).
+  A newer version supersedes and closes the older issue; moving closes it. Same-major
+  releases are not reported. Dependencies stay pinned by the lockfile on purpose (patches,
+  AMO reproducibility); Dependabot's weekly grouped PR is how they move.
+- **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
+  labelled `reminder: <month>`, so a parked issue emails its owner in that month.
+- **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
+- **`build.yml` was removed**: CI already builds and uploads the same zips.
+- **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
+  assigned to the owner and @mentions them (a bot PR alone is not emailed); a comment
+  with the mention follows only when upstream itself moved. Upstream release tags on the
+  incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
+  `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
+  commit; it never rebuilds it. The failure issue closes on the next clean run.
+- **`patched-libraries.yml`** + `tools/check-patched-updates.mjs`: Dependabot ignores the
+  seven libraries in `patchedDependencies` (a bump leaves the patch unapplied), so this
+  opens one issue per new version (assigned, @mention), never twice, and closes it when
+  the patch is cut against that version or newer. Closing one by hand skips that version.
+  `tests/unit/checkPatchedUpdates.test.mjs` fails if Dependabot's ignore list and
+  `patchedDependencies` drift apart.
+- All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
+  -> closed, push -> no rebuild, new release named, comment only on upstream movement;
+  patched libraries: open once, no duplicates, close when caught up or unpatched).
 
 ## Rules
 

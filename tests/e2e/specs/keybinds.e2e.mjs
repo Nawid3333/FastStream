@@ -17,6 +17,10 @@
 //   options.maxPlaybackRate, which is 8.
 // - The six moved defaults: plain KeyW is now the 3.5x preset, and Shift+KeyW is
 //   windowed fullscreen and must not touch the rate.
+// - The mpv seeks, on a 160 s video: Z/X 60 s, J/K 10 s, the arrows 5 s; a 60 s hop back
+//   near the start stops at 0; Shift+Backspace undoes a seek and plain Z no longer does.
+// - The mpv frame step on `,`/`.`, on a 24 fps video: it pauses, and the frame the browser
+//   presents next is exactly one frame on or back, which the old fixed 1/30 s step was not.
 // - Every default key reaches exactly one action in the running player.
 // - Typing in a text field is not a command.
 // - Options saved before the layout changed are migrated when the player loads them,
@@ -24,11 +28,11 @@
 
 import {browser, expect} from '@wdio/globals';
 
-const samplePath = () => '/player/index.html?t=' + Date.now() + '#' +
-  globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.mp4';
+const samplePath = (fixture = 'sample.mp4') => '/player/index.html?t=' + Date.now() + '#' +
+  globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/' + fixture;
 
-async function openPlayer() {
-  await browser.url(samplePath());
+async function openPlayer(fixture) {
+  await browser.url(samplePath(fixture));
   await browser.waitUntil(
       async () => browser.execute(() => {
         const video = document.querySelector('video');
@@ -48,8 +52,10 @@ const pressKey = (code, {shift} = {}) => browser.execute((code, shift) => {
     key = code.slice(5);
   } else if (code === 'Space') {
     key = ' ';
-  } else {
+  } else if (code.startsWith('Key')) {
     key = code.slice(3).toLowerCase();
+  } else {
+    key = code;
   }
   document.dispatchEvent(new KeyboardEvent('keydown', {
     code,
@@ -83,7 +89,7 @@ async function reset() {
 }
 
 describe('Keybinds', function() {
-  before(openPlayer);
+  before(() => openPlayer());
   beforeEach(reset);
 
   it('Digit1 to Digit9 seek to 10% to 90% of the duration', async function() {
@@ -410,5 +416,172 @@ describe('Keybinds saved before the layout changed', function() {
     const stored = await browser.execute(() => JSON.parse(localStorage.getItem('options')));
     expect(stored.keybinds.WindowedFullscreen).toBe('KeyW');
     expect(stored.keybindsVersion).toBeUndefined();
+  });
+});
+
+describe('mpv seek keys', function() {
+  // long-av.mp4 is 160 s, so a 60 s hop either way from the middle stays inside it.
+  before(() => openPlayer('long-av.mp4'));
+  beforeEach(reset);
+
+  const seekTo = (seconds) => browser.execute((seconds) => {
+    window.fastStream.currentTime = seconds;
+  }, seconds);
+  const landsOn = (target, what) => browser.waitUntil(async () => Math.abs((await time()) - target) <= 0.25,
+      {timeout: 10000, timeoutMsg: `${what} never landed on ${target} s`});
+
+  it('the video is long enough to tell the hops apart', async function() {
+    expect(await browser.execute(() => window.fastStream.duration)).toBeGreaterThan(150);
+    expect(await browser.execute(() => window.fastStream.options.seekStepSize)).toBe(5);
+  });
+
+  for (const [code, delta] of [
+    ['KeyX', 60], ['KeyZ', -60],
+    ['KeyK', 10], ['KeyJ', -10],
+    ['ArrowRight', 5], ['ArrowLeft', -5],
+  ]) {
+    it(`${code} seeks ${delta > 0 ? '+' : ''}${delta} s`, async function() {
+      await seekTo(80);
+      await landsOn(80, 'the start position');
+      await pressKey(code);
+      await landsOn(80 + delta, code);
+    });
+  }
+
+  it('Z near the start stops at 0 rather than handing on a negative time', async function() {
+    await seekTo(20);
+    await landsOn(20, 'the start position');
+    // Read in the same turn as the press: a timeupdate would overwrite the state with the
+    // media element's clamped time and hide a negative one.
+    const state = await browser.execute(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyZ', key: 'z', bubbles: true, cancelable: true}));
+      return window.fastStream.state.currentTime;
+    });
+    expect(state).toBe(0);
+    await landsOn(0, 'KeyZ');
+  });
+
+  it('Shift+Backspace undoes a seek, Shift+Z redoes it, and plain Z is a seek, not an undo', async function() {
+    await pressKey('Digit5');
+    await landsOn(80, 'Digit5');
+    await pressKey('KeyX');
+    await landsOn(140, 'KeyX');
+
+    // The 60 s hop is not saved for undo, like the arrows: undo goes back past it to where
+    // the percent seek started.
+    await pressKey('Backspace', {shift: true});
+    await landsOn(0, 'Shift+Backspace');
+    await pressKey('KeyZ', {shift: true});
+    await landsOn(140, 'Shift+KeyZ');
+  });
+
+  it('puts the screenshot on Shift+S, next to skip intro on S', async function() {
+    const reached = await browser.execute(() => {
+      const manager = window.fastStream.keybindManager;
+      return [manager.keyStringToKeybinds('Shift+KeyS'), manager.keyStringToKeybinds('KeyS'), manager.keyStringToKeybinds('KeyX')];
+    });
+    expect(reached).toEqual([['Screenshot'], ['SkipIntroOutro'], ['SeekForward60s']]);
+  });
+});
+
+describe('mpv frame step', function() {
+  // frames-24fps.mp4: 96 frames, each starting at exactly n/24 s, every picture different.
+  // The usual use is play, pause, then step, so the stepper learns the frame length from
+  // the playback before the pause. What is on screen is checked on the picture itself: a
+  // step must change it, and stepping back must bring back the exact earlier picture.
+  const FPS = 24;
+  before(async function() {
+    await openPlayer('frames-24fps.mp4');
+    await browser.execute(() => {
+      const video = window.fastStream.player.getVideo();
+      window.__presented = 0;
+      const onFrame = () => {
+        window.__presented++;
+        video.requestVideoFrameCallback(onFrame);
+      };
+      video.requestVideoFrameCallback(onFrame);
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 36;
+      window.__picture = () => {
+        const context = canvas.getContext('2d', {willReadFrequently: true});
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data).join(',');
+      };
+    });
+  });
+
+  // Plays the video element and does not wait on the promise, as every other spec does:
+  // window.fastStream.play() also waits for its AudioContext to resume, which on the Linux
+  // CI runner (no sound device) never settled, so awaiting it hung the test.
+  const startPlayback = () => browser.execute(() => {
+    window.fastStream.player.getVideo().play().catch(() => {});
+  });
+  const frame = () => browser.execute((fps) => Math.floor(window.fastStream.currentTime * fps + 1e-6), FPS);
+  const picture = () => browser.execute(() => window.__picture());
+  const presented = () => browser.execute(() => window.__presented);
+  // Presses a key and waits for the browser to present the frame it seeks to.
+  const press = async (code, what) => {
+    const count = await presented();
+    await pressKey(code);
+    await browser.waitUntil(async () => (await presented()) > count,
+        {timeout: 10000, timeoutMsg: `${what}: no frame was presented`});
+    await settle();
+  };
+
+  it('Firefox has requestVideoFrameCallback, which the step measures frames with', async function() {
+    expect(await browser.execute(() => typeof HTMLVideoElement.prototype.requestVideoFrameCallback)).toBe('function');
+  });
+
+  it('after playing and pausing, steps exactly one frame on and back', async function() {
+    await reset();
+    await startPlayback();
+    await browser.waitUntil(async () => (await time()) > 1, {timeout: 10000, timeoutMsg: 'never played to 1 s'});
+    await browser.execute(() => window.fastStream.pause());
+    expect(await browser.execute(() => window.fastStream.frameStepper.frameDuration)).toBeCloseTo(1 / FPS, 4);
+
+    // Just after the start of frame 10, where the old fixed 1/30 s step stayed on frame 10.
+    const count = await presented();
+    await browser.execute((fps) => {
+      window.fastStream.currentTime = 10 / fps + 0.001;
+    }, FPS);
+    await browser.waitUntil(async () => (await presented()) > count, {timeout: 10000, timeoutMsg: 'the seek presented no frame'});
+    await settle();
+    expect(await frame()).toBe(10);
+    const frame10 = await picture();
+
+    await press('Period', 'the first step on');
+    expect(await frame()).toBe(11);
+    const frame11 = await picture();
+    expect(frame11).not.toBe(frame10);
+
+    await press('Period', 'the second step on');
+    expect(await frame()).toBe(12);
+    expect(await picture()).not.toBe(frame11);
+
+    await press('Comma', 'the first step back');
+    expect(await frame()).toBe(11);
+    expect(await picture()).toBe(frame11);
+
+    await press('Comma', 'the second step back');
+    expect(await frame()).toBe(10);
+    expect(await picture()).toBe(frame10);
+    expect(await browser.execute(() => window.fastStream.paused)).toBe(true);
+  });
+
+  it('pauses a playing video before stepping, like mpv', async function() {
+    await reset();
+    await startPlayback();
+    await browser.waitUntil(async () => (await time()) > 0.5, {timeout: 10000, timeoutMsg: 'never played'});
+    await pressKey('Period');
+    await browser.waitUntil(async () => browser.execute(() => window.fastStream.paused),
+        {timeout: 5000, timeoutMsg: 'the frame step did not pause'});
+  });
+
+  it('stays on the first frame stepping back from it', async function() {
+    await reset();
+    await pressKey('Comma');
+    await settle();
+    expect(await frame()).toBe(0);
   });
 });

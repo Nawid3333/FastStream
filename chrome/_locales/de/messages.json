@@ -39,7 +39,7 @@
         "message": "Du kannst diese Tastenbelegungen in den Erweiterungseinstellungen ändern"
     },
     "welcome_page_keybinds_content1": {
-        "message": "Pfeiltasten - 1 sekunde vor-/zurückspulen"
+        "message": "Pfeiltasten - 5 sekunden vor-/zurückspulen"
     },
     "welcome_page_keybinds_content2": {
         "message": "tasten - 10 sekunden vor-/zurückspulen"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Geschwindigkeit auf 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x oder 16x setzen - dieselbe Taste nochmals drücken, um zurückzuschalten"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "tasten - 60 sekunden vor-/zurückspulen"
     },
     "perms_page_title": {
         "message": "FastStream Berechtigungen"

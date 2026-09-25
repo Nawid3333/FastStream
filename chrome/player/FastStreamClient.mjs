@@ -1,5 +1,6 @@
 import {InterfaceController} from './ui/InterfaceController.mjs';
 import {KeybindManager} from './ui/KeybindManager.mjs';
+import {FrameStepper} from './ui/FrameStepper.mjs';
 import {DownloadManager} from './network/DownloadManager.mjs';
 import {DefaultPlayerEvents} from './enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from './enums/DownloadStatus.mjs';
@@ -115,6 +116,7 @@ export class FastStreamClient extends EventEmitter {
     this.levelManager = new LevelManager(this);
     this.interfaceController = new InterfaceController(this);
     this.keybindManager = new KeybindManager(this);
+    this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
     this.sourcesBrowser = new SourcesBrowser(this);
     this.videoAnalyzer = new VideoAnalyzer(this);
@@ -889,6 +891,7 @@ export class FastStreamClient extends EventEmitter {
 
       await this.player.setSource(source);
       this.interfaceController.addVideo(this.player.getVideo());
+      this.frameStepper.watch(this.player.getVideo());
 
       if (EnvUtils.isWebAudioSupported()) {
         this.initiateWebAudio();
