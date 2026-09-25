@@ -1,5 +1,10 @@
 name: CI
 
+# Runs on every push to main and pr/** and on every pull request, and is the
+# gate for releases: auto-release.yml only acts on a green run of this
+# workflow. The steps are the same as `pnpm run verify`, so a green local
+# verify predicts a green CI run and the other way round.
+
 on:
   push:
     branches: [main, "pr/**"]
@@ -17,9 +22,29 @@ permissions:
   contents: read
 
 jobs:
+  # Every workflow file: syntax, ${{ }} expressions, action inputs, and every
+  # run: script through the shellcheck bundled in the image. A broken
+  # workflow otherwise only shows up when it next runs - for auto-release.yml
+  # or release.yml that is after a push to main. Beside `verify`, not in it:
+  # it takes seconds, and auto-release waits for the whole workflow anyway.
+  workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: actionlint
+        uses: docker://rhysd/actionlint:1.7.12
+        with:
+          args: -color
+
   verify:
     name: Lint, test and build
     runs-on: ubuntu-latest
+    # The whole job takes about 15 minutes. A test waiting on a stream that
+    # never loads would otherwise hold the runner for GitHub's 6-hour default.
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v7
@@ -89,6 +114,17 @@ jobs:
       # and differs from the AMO one (update checker, contextualIdentities).
       - name: End-to-end extension tests, GitHub build (Firefox)
         run: pnpm run test:ext:github
+
+      # The installed extension in a private window, where storage APIs
+      # behave differently (see tests/e2e/wdio.pbm.conf.mjs). Part of the
+      # local verify; CI ran everything but this and the check below.
+      - name: End-to-end extension tests, private browsing (Firefox)
+        run: pnpm run test:pbm
+
+      # The vendored ONNX Runtime binary still self-reports the build
+      # docs/vendored-libraries.md describes - the provenance AMO review asks for.
+      - name: ONNX Runtime provenance
+        run: pnpm run verify:ort
 
       - name: Upload e2e failure logs
         if: failure()

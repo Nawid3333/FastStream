@@ -1,8 +1,16 @@
-# Dependabot configuration for npm dependencies.
-# Enables weekly dependency update PRs for package.json.
+# Dependabot configuration for the npm (pnpm) dependencies and the workflow actions.
 #
 # Note: You must also enable Dependabot in the repository settings
 # (Settings > Code security > Dependabot alerts/version updates).
+#
+# Every merge to main is a release (auto-release.yml), so each Dependabot PR
+# merged is one more build pushed to Firefox. Minor and patch updates are
+# therefore grouped into one PR per ecosystem per week; a major update still
+# gets a PR of its own, because it is a decision rather than routine.
+#
+# Security updates are separate from this file (Settings > Code security >
+# Dependabot security updates) and still open a PR for any vulnerable package,
+# including the fsaunpack tool, which has its own package-lock.json.
 version: 2
 updates:
   - package-ecosystem: 'npm'
@@ -12,6 +20,24 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
+    groups:
+      npm-minor-and-patch:
+        update-types: ['minor', 'patch']
+    # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
+    # patchedDependencies), and each patch is keyed to its exact version. A bump
+    # leaves the patch unapplied and fails `pnpm install --frozen-lockfile`, so
+    # a Dependabot PR for one of them could only ever be red. Upgrading one is
+    # a deliberate job: re-cut the patch against the new release and prove
+    # playback with the e2e suite (docs/vendored-libraries.md). Keep this list
+    # in step with patchedDependencies.
+    ignore:
+      - dependency-name: 'Coloris'
+      - dependency-name: 'dashjs'
+      - dependency-name: 'gif.js'
+      - dependency-name: 'hls.js'
+      - dependency-name: 'jswebm'
+      - dependency-name: 'mp4box'
+      - dependency-name: 'sweetalert2'
 
   # Workflow actions pin a major tag, so v7.x fixes arrive on their own but a
   # new major never does. Without this the pins simply rot. Dependabot opens

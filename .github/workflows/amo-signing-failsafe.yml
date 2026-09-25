@@ -1,0 +1,168 @@
+name: AMO signing failsafe
+
+# Completes a release whose AMO signing did not finish inside release.yml.
+#
+# AMO has no webhook for "signed", so release.yml can only upload and then poll, and its
+# wait has to end somewhere (tools/sign-amo.mjs, 30 minutes). Measured over 30 releases,
+# signing took 2-6 minutes; the one that took 15 hit the old 15-minute wait, and that
+# release (v1.3.82.2), like v1.3.79.0, went out without the signed xpi and updates.json -
+# although AMO signed both shortly afterwards. Without updates.json on the latest release,
+# Firefox's update check finds nothing and the self-update path is stuck.
+#
+# Every 3 hours this looks at the latest release. If it has its xpi and updates.json, it
+# stops there. If not, it builds that tag and asks AMO about the version
+# (tools/fetch-amo-signed.mjs, which uploads nothing):
+#   signed    download the xpi (byte-identical to what web-ext saves), generate
+#             updates.json, attach both to the release
+#   pending   still in review: the next run tries again
+#   missing   AMO never received it (the upload itself failed): sign it now
+#   rejected  waiting will not help
+# When the release is still incomplete after 24 hours, or AMO rejected it, an issue is
+# opened, assigned to the owner and @mentioning them, once per release. It is closed as
+# soon as the release is complete.
+
+on:
+  schedule:
+    - cron: '15 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: amo-signing-failsafe
+  cancel-in-progress: false
+
+jobs:
+  failsafe:
+    name: Complete the latest release's AMO signing
+    runs-on: ubuntu-latest
+    # A fresh upload waits up to 30 minutes for approval (tools/sign-amo.mjs), plus the build.
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OWNER: ${{ github.repository_owner }}
+      ISSUE_PREFIX: 'AMO signing incomplete: '
+
+    steps:
+      - name: Check the latest release
+        id: release
+        run: |
+          set -euo pipefail
+          read -r tag published <<< "$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt --jq '"\(.tagName) \(.publishedAt)"')"
+          assets=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")')
+          age_hours=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 3600 ))
+          complete=false
+          if [[ " $assets " == *" updates.json "* ]] && [[ "$assets" == *.xpi* ]]; then
+            complete=true
+          fi
+          echo "Latest release $tag, published ${age_hours} h ago, complete: $complete"
+          {
+            echo "tag=$tag"
+            echo "version=${tag#[vV]}"
+            echo "age_hours=$age_hours"
+            echo "complete=$complete"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Close issues for complete releases
+        if: steps.release.outputs.complete == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title | startswith(\"$ISSUE_PREFIX\")) | .number" |
+          while read -r number; do
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
+              --comment "The latest release, $TAG, has its signed xpi and updates.json. Closing."
+          done
+
+      - uses: actions/checkout@v7
+        if: steps.release.outputs.complete == 'false'
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - uses: pnpm/action-setup@v6
+        if: steps.release.outputs.complete == 'false'
+
+      - uses: actions/setup-node@v7
+        if: steps.release.outputs.complete == 'false'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Build the release's tag
+        if: steps.release.outputs.complete == 'false'
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:keep
+
+      - name: Fetch the signed xpi from AMO, or sign it
+        id: sign
+        if: steps.release.outputs.complete == 'false'
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          code=0
+          node tools/fetch-amo-signed.mjs "$VERSION" || code=$?
+          case "$code" in
+            0) state=signed ;;
+            3) state=pending ;;
+            5) state=rejected ;;
+            4)
+              echo "AMO has no $VERSION: the upload never happened. Signing it now."
+              if pnpm run sign:amo && ls web-ext-artifacts/*.xpi > /dev/null 2>&1; then
+                state=signed
+              else
+                state=pending
+              fi
+              ;;
+            *) state=error ;;
+          esac
+          echo "Signing state for $VERSION: $state"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+
+      - name: Attach the xpi and updates.json to the release
+        if: steps.sign.outputs.state == 'signed'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          node tools/gen-update-manifest.mjs "$GITHUB_REPOSITORY" "$TAG"
+          gh release upload "$TAG" web-ext-artifacts/*.xpi web-ext-artifacts/updates.json \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          for number in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+              --jq ".[] | select(.title == \"$ISSUE_PREFIX$TAG\") | .number"); do
+            gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
+              --comment "Signed by AMO and attached to $TAG by the failsafe run. Closing."
+          done
+
+      - name: Tell the owner when waiting will not do
+        if: >
+          steps.release.outputs.complete == 'false' &&
+          steps.sign.outputs.state != 'signed' &&
+          (steps.sign.outputs.state == 'rejected' || steps.release.outputs.age_hours >= 24)
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          STATE: ${{ steps.sign.outputs.state }}
+          AGE: ${{ steps.release.outputs.age_hours }}
+        run: |
+          set -euo pipefail
+          title="$ISSUE_PREFIX$TAG"
+          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "Already reported $TAG."
+            exit 0
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # The backticks are Markdown for the issue body, not command substitution.
+          # shellcheck disable=SC2016
+          {
+            printf '@%s %s has no signed xpi and updates.json yet, %s hours after it was published. AMO says: **%s**.\n\n' "$OWNER" "$TAG" "$AGE" "$STATE"
+            printf 'Until it does, Firefox finds no update: its update check reads the latest release'"'"'s updates.json.\n\n'
+            printf -- '- `pending`: still in AMO review. This workflow keeps checking every 3 hours and closes this issue once it is attached.\n'
+            printf -- '- `rejected`: AMO disabled or rejected the version. Look it up on the AMO developer hub; waiting will not help.\n'
+            printf -- '- `error`: see the run: %s\n' "$run_url"
+          } > "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

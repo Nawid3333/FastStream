@@ -70,15 +70,14 @@ webExt.cmd.sign({
   apiKey,
   apiSecret,
   amoBaseUrl: 'https://addons.mozilla.org/api/v5/',
-  // web-ext's default approvalCheckTimeout is 15 minutes - too short now
-  // that a release happens on every green push instead of only when a
-  // human deliberately cut one. v1.3.82.2 hit exactly this: AMO's
-  // automated review took longer than 15 minutes, web-ext gave up, and
-  // that release published without a signed xpi/updates.json, breaking
-  // self-update for anyone until the next successful release. An hour
-  // comfortably covers real AMO review times and still fits well inside
-  // release.yml's job (GitHub's default job timeout is 6 hours).
-  approvalTimeout: 60 * 60 * 1000,
+  // How long to wait for AMO's approval before giving up. Measured over 30
+  // releases, signing took 2-6 minutes, once 15 (v1.3.82.2, which hit
+  // web-ext's old 15-minute default and shipped without its xpi). 30 minutes
+  // is twice the slowest seen. Giving up is not a failure any more: AMO keeps
+  // reviewing, and .github/workflows/amo-signing-failsafe.yml collects the
+  // signed xpi afterwards (tools/fetch-amo-signed.mjs), so a longer wait
+  // would only hold release.yml's runner.
+  approvalTimeout: 30 * 60 * 1000,
 }).then((result) => {
   // web-ext 10.x resolves with the downloaded files; `success` is not
   // populated, so treat a downloaded .xpi as the success signal.

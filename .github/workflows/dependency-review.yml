@@ -1,0 +1,35 @@
+name: Dependency review
+
+# Looks at what a pull request changes in pnpm-lock.yaml and fails when it
+# brings in a package version with a known vulnerability of high severity or
+# worse. Dependabot alerts only report such a package once it is on main - and
+# a push to main is a release to Firefox - so this is the same check, made
+# before the merge. It matters most for the two kinds of PR this repository
+# gets: Dependabot's, and the upstream sync PR from sync-upstream.yml, which
+# can add whatever dependencies Andrew's tree added.
+#
+# Reads the dependency graph GitHub builds from pnpm-lock.yaml (1,107 packages
+# at the time of writing), so there is nothing to install.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Review dependency changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high

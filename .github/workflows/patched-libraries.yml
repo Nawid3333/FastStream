@@ -1,0 +1,99 @@
+name: Patched libraries
+
+# Dependabot ignores the libraries that ship with a pnpm patch (.github/dependabot.yml):
+# a bump would leave the patch unapplied, so its PR could only fail. This is how their
+# updates are still noticed. tools/check-patched-updates.mjs compares each patched version
+# (pnpm-workspace.yaml, patchedDependencies) with the latest release on npm, or on GitHub
+# for a library installed from there, and this workflow keeps one issue per new version:
+#
+#   - "Patched library update: <name> <version>" is opened when that version appears,
+#     assigned to the repo owner and @mentioning them, so GitHub emails it. It is never
+#     opened twice: closing one by hand is how a version is skipped (the mp4box 2.x
+#     rewrite, say), and it stays closed.
+#   - It is closed on its own once the patched version has caught up with it, or the
+#     library is no longer patched.
+#
+# Same shape as the mpv repo's mpv-update.yml. Notify-only: it never changes the repo.
+
+on:
+  schedule:
+    # Daily, 06:30 UTC, after sync-upstream.yml.
+    - cron: '30 6 * * *'
+  # Right after a library was upgraded, so its issue closes without waiting a day.
+  push:
+    branches: [main]
+    paths:
+      - pnpm-workspace.yaml
+      - package.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: patched-libraries
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check patched libraries for updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Sync update issues with the patched versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PREFIX: 'Patched library update: '
+        run: |
+          set -euo pipefail
+          node tools/check-patched-updates.mjs --json > "$RUNNER_TEMP/libraries.jsonl"
+          node tools/check-patched-updates.mjs
+
+          # --- Close what has been caught up with.
+          gh issue list --state open --limit 200 --json number,title \
+            --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
+          while read -r number name version; do
+            current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/libraries.jsonl")
+            if [ -z "$current" ]; then
+              gh issue close "$number" --comment "$name is no longer a patched library. Closing."
+            elif [ "$(printf '%s\n%s\n' "$version" "$current" | sort -V | tail -1)" = "$current" ]; then
+              gh issue close "$number" --comment "The patch is now cut against $name $current (commit $GITHUB_SHA). Closing."
+            else
+              echo "#$number ($name $version) still open: patched version is $current."
+            fi
+          done
+
+          # --- Open an issue for each new version, once. The whole list, filtered exactly:
+          # the search index can lag behind an issue opened minutes ago.
+          gh issue list --state all --limit 1000 --json title --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
+          jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" |
+          while read -r library; do
+            name=$(jq -r .name <<< "$library")
+            current=$(jq -r .current <<< "$library")
+            latest=$(jq -r .latest <<< "$library")
+            url=$(jq -r .url <<< "$library")
+            title="$PREFIX$name $latest"
+            if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
+              echo "Already notified about $name $latest."
+              continue
+            fi
+            # The backticks are Markdown for the issue body, not command substitution.
+            # shellcheck disable=SC2016
+            {
+              printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
+              printf 'The patch in this repository is cut against %s %s (`pnpm-workspace.yaml`, `patches/%s@%s.patch`). Dependabot does not offer this update, because bumping the version leaves the patch unapplied.\n\n' "$name" "$current" "$name" "$current"
+              printf 'To take it: re-cut the patch against %s, update `package.json` and `patchedDependencies`, and run `pnpm run verify` - the e2e suite is what proves playback (see `docs/vendored-libraries.md`). This issue closes on its own once the patch is cut against %s or newer.\n' "$latest" "$latest"
+              if [ "${latest%%.*}" != "${current%%.*}" ]; then
+                printf '\nThis is a new **major** version (%s -> %s). It may be a rewrite rather than an update; closing this issue skips it for good.\n' "$current" "$latest"
+              fi
+            } > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          done
