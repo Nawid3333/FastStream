@@ -3,6 +3,15 @@ import {Localize} from '../modules/Localize.mjs';
 import {SweetAlert} from '../modules/sweetalert.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
+// Every dialog closes without the hide animation. SweetAlert2 removes a closing dialog
+// only on the popup's animationend, and when that never fires - Firefox can hold back
+// animations in a window it considers inactive, as on the Windows CI runner - the
+// invisible popup stays over the page and eats clicks (seen covering the save button;
+// sweetalert2/sweetalert2#1841). Without a hide animation it is removed at once.
+const Dialog = SweetAlert.mixin({
+  hideClass: {popup: '', backdrop: '', icon: ''},
+});
+
 /**
  * Polyfill for alert, confirm, prompt, and toast dialogs using SweetAlert.
  */
@@ -14,7 +23,7 @@ export class AlertPolyfill {
    * @return {Promise<any>} Resolves when the dialog is closed.
    */
   static async alert(message, icon = undefined) {
-    return SweetAlert.fire({
+    return Dialog.fire({
       text: message,
       icon: icon,
     });
@@ -27,7 +36,7 @@ export class AlertPolyfill {
    * @return {Promise<boolean>} Resolves with true if confirmed, false otherwise.
    */
   static async confirm(message, icon = undefined) {
-    return (await SweetAlert.fire({
+    return (await Dialog.fire({
       text: message,
       icon: icon,
       showCancelButton: true,
@@ -45,7 +54,7 @@ export class AlertPolyfill {
    * @return {Promise<string>} Resolves with the entered value.
    */
   static async prompt(message, defaultValue = '', icon = undefined, inputType = 'text') {
-    return (await SweetAlert.fire({
+    return (await Dialog.fire({
       text: message,
       icon: icon,
       input: inputType,
@@ -64,7 +73,7 @@ export class AlertPolyfill {
    * @return {Promise<any>} Resolves when the toast is closed.
    */
   static async toast(icon, message, submessage = undefined) {
-    return await SweetAlert.fire({
+    return await Dialog.fire({
       icon: icon,
       title: message,
       text: submessage,
@@ -98,7 +107,7 @@ export class AlertPolyfill {
     errorHtml.appendChild(bodyText);
     errorHtml.appendChild(stackText);
 
-    return await SweetAlert.fire({
+    return await Dialog.fire({
       title: Localize.getMessage('error_popup', [error?.message]),
       html: errorHtml,
       icon: 'error',

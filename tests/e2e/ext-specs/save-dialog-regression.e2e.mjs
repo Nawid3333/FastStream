@@ -14,6 +14,7 @@
 // is left covering the page.
 
 import {browser, expect} from '@wdio/globals';
+import {pageState} from '../specs/diagnostics.mjs';
 
 import {EXTENSION_UUID} from '../wdio.extension.conf.mjs';
 
@@ -118,11 +119,17 @@ describe('save dialog regression', function() {
     // than a slow paint. A real stuck overlay still fails, just after the
     // full timeout instead of after a single sample.
     let landscape;
-    await browser.waitUntil(async () => {
-      landscape = await readLandscape();
-      return leftoversOf(landscape).length === 0 && landscape.saveBtnStillClickable;
-    }, {timeout: 10000, interval: 500,
-      timeoutMsg: 'save button stayed covered/unclickable after the save finished'});
+    try {
+      await browser.waitUntil(async () => {
+        landscape = await readLandscape();
+        return leftoversOf(landscape).length === 0 && landscape.saveBtnStillClickable;
+      }, {timeout: 10000, interval: 500});
+    } catch (e) {
+      // What covered it, and whether the save was still waiting on OPFS: on the Windows
+      // runner saves have hung on an OPFS worker call that never answered.
+      throw new Error('save button stayed covered/unclickable after the save finished: ' +
+          JSON.stringify({landscape, page: await pageState()}));
+    }
 
     expect(leftoversOf(landscape)).toEqual([]);
     expect(landscape.saveBtnStillClickable).toBe(true);
