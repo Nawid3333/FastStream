@@ -25,7 +25,8 @@ jobs:
         include:
           - {os: ubuntu-26.04, shard: 1}
           - {os: ubuntu-24.04, shard: 1}
-    runs-on: ${{ matrix.os }}
+    # fromJSON: actionlint's label list does not know ubuntu-26.04 yet.
+    runs-on: ${{ fromJSON(format('"{0}"', matrix.os)) }}
     timeout-minutes: 40
     defaults:
       run:
