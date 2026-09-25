@@ -211,7 +211,10 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   public extension point). The AMO problem is that the vendored *bytes*
   aren't an official release — not that the integration is hacked.
 - **Vendored library versions are current**, not stale: dash.js reports
-  `VERSION = '5.1.0'`, hls.js carries 1.6.x branches.
+  `VERSION = '5.2.1'`, hls.js carries 1.6.x branches. The vendored dash.js
+  was a pre-release `development` build, not 5.1.0 - measure a patched
+  bundle against the commit it was built from, not the nearest release
+  (`docs/vendored-libraries.md`, dash.js "Status").
 
 ## Network layer: fetch() + OPFS (2026-09-10)
 

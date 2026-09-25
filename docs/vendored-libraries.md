@@ -171,6 +171,11 @@ of this change already exists.
 
 ## dash.js
 
+**Now 5.2.1 plus a 41 KB patch (2026-09-25)** - see "Status" below. The
+measurements that follow are from the first migration (2026-09-05); they are
+kept because the status section explains the one thing they got wrong, which
+is what made the patch ten times bigger than it needed to be.
+
 **Base version: 5.1.0**, confirmed rather than assumed. The npm package is
 `dashjs`, not `dash.js`, and the artifact is
 `dist/modern/esm/dash.all.debug.js`. Diff sizes against candidates:
@@ -219,40 +224,79 @@ changes: they are a different version of the transitive dependency
 is dependency drift baked into a bundle, and it is left alone - npm's newer
 copy is kept.
 
-### Status: migrated, provably inert
+### Status: 5.2.1 plus FastStream's actual changes (2026-09-25)
 
-`chrome/player/modules/dash.mjs` is no longer in git. It is generated from
-`dashjs@5.1.0` plus `patches/dashjs@5.1.0.patch`. A clean install reproduces
-the previously vendored file **byte for byte**, and the file does not appear
-in a build-output diff against the upstream baseline at all.
+`chrome/player/modules/dash.mjs` is not in git. It is generated from
+`dashjs@5.2.1` plus `patches/dashjs@5.2.1.patch` (41 KB, one file). Until
+2026-09-25 it was `dashjs@5.1.0` plus a 354 KB patch that reproduced the
+previously vendored file byte for byte.
 
-The patch is 354 KB, against hls.js's 31 KB. That is honest about the size of
-the divergence rather than hiding it, and it still gives AMO what today's tree
-does not: a hash-verifiable upstream base and a diff a reviewer can read.
+**5.1.0 was the nearest release, not the base.** Andrew's bundle was built from
+dash.js's `development` branch, at `2e7e9a91` (2025-10-22) - the head of that
+branch when he committed "Update dash.js to fix seek" upstream on 2025-10-30,
+three weeks before 5.1.0 was released. Its version string already said 5.1.0.
+So most of what was measured above against the 5.1.0 release, and all but a
+few of the 68 "customized" modules the 2026-09-06 assessment counted (which
+concluded that "0 of 68 have landed" and shelved the upgrade), were the eight
+upstream commits made between that snapshot and the release - partial
+segments, L3D, the ES6-import refactor - seen in reverse. The "75% identical,
+so the rest are genuine modifications" control above could not see that: the
+toolchain was the same, the source was not.
 
-**5.2.1 upgrade measured (2026-09-06): shelved, not attempted.** Before
-touching anything, ran the same module-boundary comparison hls.js's upgrade
-used, but three-way: stock 5.1.0 vs. the in-tree patched bundle vs. stock
-5.2.1. That isolates exactly which of dash.js's own `src/` modules FastStream
-actually customized (68, close to the 60 estimated by line-count above) from
-modules that merely drifted between releases for unrelated reasons - then
-checks, per customized module, whether 5.2.1 already contains the fix.
+How that was established rather than assumed: dash.js builds reproducibly from
+its lockfile. `npm ci --ignore-scripts`, `tsc` and
+`webpack --config build/webpack/modern/webpack.modern.prod.cjs` at the v5.1.0
+tag give npm's `dist/modern/esm/dash.all.debug.js` with 430 of 432 modules
+byte-identical; the other two differ only in comment indentation. Built the
+same way at `2e7e9a91`, the vendored bundle differs from it in **16 of
+dash.js's own modules, +264/-291 lines**. The rest of the old difference is the
+bundled `@svta/common-media-library`, an older version than the lockfile names
+(it came from Andrew's `node_modules`); 5.2.1 bundles the split `@svta/cml-*`
+packages instead, and those are taken as they are.
 
-**Result: 0 of 68 have landed.** Every customized module still differs from
-5.2.1 exactly as it differs from 5.1.0. That is a materially different
-finding than hls.js's upgrade, where most hunks turned out to already be
-upstream and the patch shrank by 90%. There is no shortcut here - dash.js
-apparently hasn't absorbed any of these fixes in the 5.1.0->5.2.1 window, so
-"upgrade the base and drop what landed" does not apply. What would remain is
-reconciling all 68 modules by hand against a new base, and most of them are
-the core streaming engine, not peripheral code: `AbrController`,
-`StreamController`, `MediaController`, `BufferController`,
-`ScheduleController`, `GapController`, `ThroughputController`, `HTTPLoader`,
-`DashHandler`, `DashManifestModel`, `DashParser` among them. That is
-realistically comparable in size to redoing most of the original vendoring
-analysis, not a version bump - shelved as its own dedicated effort rather
-than attempted under session time pressure. 5.1.0 stays pinned + patched,
-which already satisfies AMO's actual objection (verifiable provenance).
+FastStream's changes - the whole list, each used by `players/dash/`:
+
+| Where | Change | Used by |
+|---|---|---|
+| `HTTPLoader` | Downloads go through FastStream: `customData.onSuccess/onFail/onAbort` callbacks; dash.js's own retries and response interceptors are removed | `DashLoader.mjs` |
+| `Representation`, `RepresentationController`, `Stream`, `StreamProcessor` | Representations are updated lazily (`setUpdateCallback`/`checkForUpdate`), quality switches wait for it (`prepareQualityChange` is async), and a `REPRESENTATION_UPDATED` event says when one is ready | `DashPlayer.mjs` |
+| `SegmentsController` and the four segment getters, `DashHandler` | `getAllSegments()`, and `_getRequestForSegment` exported | `DashPlayer.extractFragments` |
+| `MediaController` | dash.js's own initial track filtering and selection are removed; the custom initial track selection function decides, and must be set | `setCustomInitialTrackSelectionFunction` |
+| `AbrController`, `CustomParametersModel`, `MediaPlayer` | `setCustomBitrateSelectionFunction` | `DashPlayer.mjs` |
+| `MediaPlayer`, `StreamProcessor`, `Stream` | `getStreamController`, `getRepresentations`, `getSegmentsController`, `getDashHandler`; an `initialInit` event | `DashPlayer.mjs` |
+| `PlaybackController` | `internalSeek` is cleared when the internal seek it announced arrives - Andrew's "fix seek" | seeking |
+
+**Porting them to 5.2.1** was a three-way merge per webpack module: base = the
+`2e7e9a91` build, ours = the vendored bundle, theirs = stock 5.2.1. Eleven
+modules conflicted and were resolved by hand; four merged cleanly and were
+reviewed anyway, because a clean merge is not a correct one. Two came out
+clean and broken: 5.2.1 removed `checkConfig()` from `TemplateSegmentsGetter`,
+which FastStream's `getAllSegments` still called, and webpack renumbered
+`HTTPLoader`'s `Events` import (`_MODULE_10__` to `_MODULE_9__`), which
+FastStream's `onSuccess` still named - either would have thrown on every DASH
+stream of that kind. `TimelineSegmentsGetter` was rewritten upstream
+(`_iterateSegments(cb(data))`, `getTimeBasedSegment({...})`), so its
+`getAllSegments` is re-implemented on the new API rather than merged.
+
+Checked by:
+
+- **Undefined names.** ESLint's `no-undef` and `no-unused-vars` over stock
+  5.2.1 and over the patched bundle report the same names, apart from
+  `_getL3DBootstrapTracks`, whose only caller is in the removed track
+  selection. Putting either of the two bugs above back makes it report them.
+- **Every segment getter, end to end.** `playback.e2e.mjs` plays a local
+  stream per way a manifest lists its segments - SegmentTemplate,
+  SegmentList, SegmentTimeline, SegmentBase - and compares FastStream's
+  fragment list with the segments ffmpeg wrote. Playback alone would not
+  catch a broken `getAllSegments`: `DashLoader` fetches a segment missing from
+  the list through its fallback. The four pass on 5.1.0 and on 5.2.1, and
+  making any one getter drop a segment fails that stream's test and no other.
+- The full `pnpm run verify`: the public DASH stream, and the DASH saves in
+  `save-video.e2e.mjs` and `save-fmp4.e2e.mjs`.
+
+**For the next upgrade**, the base is now a published release: merge the
+patch's changes from stock 5.2.1 onto the new stock bundle, module by module,
+and run the same two checks.
 
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF

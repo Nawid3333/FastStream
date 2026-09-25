@@ -59,7 +59,7 @@
     "@wdio/spec-reporter": "^9.31.2",
     "Coloris": "github:mdbassit/Coloris#v0.25.0",
     "acorn": "8.18.0",
-    "dashjs": "5.1.0",
+    "dashjs": "5.2.1",
     "eslint": "^10.10.0",
     "eslint-config-google": "^0.14.0",
     "eslint-plugin-import": "^2.32.0",
