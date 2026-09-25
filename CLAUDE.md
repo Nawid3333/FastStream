@@ -612,6 +612,13 @@ covers the 30-minute wait.
   naming the Beta version - about two weeks before that Firefox reaches users (two-week
   release cycle since Firefox 155, September 2026) - and the
   next green run closes it. Not part of CI; it never blocks a release.
+- **`firefox-stable.yml`** (daily): reads the current stable version from
+  product-details.mozilla.org (Mozilla sends no notification) and, once per version, runs
+  `test:e2e` + `test:ext` against exactly that version; a green run records it as an Actions
+  cache key `firefox-stable-tested-<version>`, so later days skip it (a manual run always
+  tests). A failure opens one issue per version; a green run closes it. Read release dates
+  from that file rather than computing them - it said 157 is due 2026-10-09, not the
+  2026-09-29 two-week arithmetic from 155 suggested.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
