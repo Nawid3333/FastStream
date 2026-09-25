@@ -573,6 +573,20 @@ would re-trigger `auto-release.yml` — the workflow's `if:` skips any
 `workflow_run` whose head commit message starts with `chore: release `,
 which is what stops that loop rather than looping forever.
 
+**Only when something shipped changed** (2026-09-25). Before bumping,
+auto-release downloads CI's build of the commit (the `faststream-bundles`
+artifact) and the latest release's `firefox-github-*.zip`, unzips both and
+runs `diff -rq`. Identical means the push touched only tools, tests,
+workflows, docs or dev dependencies, and the release would differ from the
+last one only in its version number (v1.3.82.33 after PR #21 was exactly
+that), so it stops with a notice and nothing is released. Any doubt - no
+release, no artifact, a failed download or unzip, any difference - releases
+as before. Checked on real history before it went in: PR #21's merge build
+against v1.3.82.32 is identical; PR #20's against v1.3.82.31 differs in the
+six dash.js/mp4box files it changed. The builds are deterministic enough for
+this: two releases from different commits differ only in `manifest.json`'s
+version. To release such a push anyway, run `pnpm run release <version>`.
+
 `tools/cut-release.mjs` (`pnpm run release <version>`) still exists for a
 deliberate version bump — a real minor/patch for a milestone rather than
 the next build number. Run it by hand right before the push you want that

@@ -5,6 +5,13 @@ name: Auto release
 # already a finished product (see CLAUDE.md), so there is no separate
 # "now ship it" step left to automate away.
 #
+# Except a push that changes nothing the extension ships (since 2026-09-25):
+# CI's build of it is compared file by file with the latest release, and when
+# they are identical there is no release - it would be the same extension
+# under a new version number (v1.3.82.33 was exactly that). Any doubt
+# releases. To release such a push anyway, bump the version by hand
+# (`pnpm run release <version>`): the manifest then differs.
+#
 # Runs on CI's completion (workflow_run) rather than on `push` directly, so
 # a push that fails lint/typecheck/tests/build is never released - only a
 # green CI run reaches this workflow at all.
@@ -73,12 +80,50 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
+      # CI uploads its build of this commit (faststream-bundles); compare it file by
+      # file with the latest release's firefox-github zip. Identical means nothing the
+      # extension ships changed - a push of tools, tests, workflows, docs or dev
+      # dependencies - and a release would differ from the last one only in its
+      # version number, so there is none. Anything short of a clean "identical"
+      # releases as before: a missing release or artifact, a failed download or
+      # unzip, any difference at all.
+      - name: Did anything shipped change since the last release?
+        id: shipped
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -uo pipefail
+          release=yes
+          new="$RUNNER_TEMP/new"
+          old="$RUNNER_TEMP/old"
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+          # An empty run id would make gh pick some other run's artifact.
+          if [ -n "$RUN_ID" ] && [ -n "$latest" ] &&
+             gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name faststream-bundles --dir "$new/zip" &&
+             gh release download "$latest" --repo "$GITHUB_REPOSITORY" --pattern 'firefox-github-*.zip' --dir "$old/zip" &&
+             unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files" &&
+             unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files"; then
+            if diff -rq "$old/files" "$new/files" > "$RUNNER_TEMP/changes.txt"; then
+              release=no
+              echo "::notice::Nothing the extension ships changed since $latest: CI's build of this commit is file-for-file identical to it. No release."
+            else
+              echo "Changed since $latest:"
+              cat "$RUNNER_TEMP/changes.txt"
+            fi
+          else
+            echo "::warning::Could not compare this build with the latest release; releasing as usual."
+          fi
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
       - name: Configure git identity
+        if: steps.shipped.outputs.release == 'yes'
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
       - name: Bump version, commit, tag, push
+        if: steps.shipped.outputs.release == 'yes'
         run: |
           CURRENT=$(node -p "require('./package.json').version")
           IFS='.' read -r major minor patch build <<< "$CURRENT"
@@ -107,6 +152,7 @@ jobs:
       # against that tag instead of waiting on a push event that never
       # comes.
       - name: Trigger the release build
+        if: steps.shipped.outputs.release == 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run release.yml --ref "$NEW_TAG"
