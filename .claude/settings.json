@@ -21,7 +21,7 @@
       "Read(./chrome/player/modules/reencoder/webm.mjs)",
       "Read(./chrome/player/modules/gif/gif.mjs)",
       "Read(./chrome/player/modules/gif/gif.worker.js)",
-      "Read(./chrome/player/modules/mp4box.mjs)",
+      "Read(./chrome/player/modules/mp4box/**)",
       "Read(./chrome/player/modules/coloris.mjs)"
     ]
   }

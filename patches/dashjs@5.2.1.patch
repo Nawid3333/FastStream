@@ -1,0 +1,981 @@
+diff --git a/dist/modern/esm/dash.all.debug.js b/dist/modern/esm/dash.all.debug.js
+index 148cfed3b9260ca84bfd655c8166a6269103236b..13b251a7280d202874a42525aa5ea3f29735cf8c 100644
+--- a/dist/modern/esm/dash.all.debug.js
++++ b/dist/modern/esm/dash.all.debug.js
+@@ -1,3 +1,5 @@
++/* eslint-disable */
++// Dash.JS
+ /******/ var __webpack_modules__ = ({
+ 
+ /***/ "./node_modules/base64-js/index.js":
+@@ -24364,7 +24366,8 @@ function DashHandler(config) {
+     initialize,
+     isLastSegmentRequested,
+     repeatSegmentRequest,
+-    reset
++    reset,
++    _getRequestForSegment
+   };
+   setup();
+   return instance;
+@@ -26479,29 +26482,28 @@ function RepresentationController(config) {
+     resetInitialSettings();
+   }
+   function updateData(availableRepresentations, isFragmented, selectedRepresentationId) {
+-    return new Promise((resolve, reject) => {
++    return new Promise(async (resolve, reject) => {
+       voAvailableRepresentations = availableRepresentations;
+       const selectedRepresentation = getRepresentationById(selectedRepresentationId);
+-      _setCurrentVoRepresentation(selectedRepresentation);
++      await _setCurrentVoRepresentation(selectedRepresentation);
+       if (type !== _streaming_constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].VIDEO && type !== _streaming_constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].ENHANCEMENT && type !== _streaming_constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].AUDIO && (type !== _streaming_constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TEXT || !isFragmented)) {
+         _endDataUpdate();
+         resolve();
+         return;
+       }
+-      const promises = [];
+       for (let i = 0, ln = voAvailableRepresentations.length; i < ln; i++) {
+         const currentRep = voAvailableRepresentations[i];
+-        promises.push(_updateRepresentation(currentRep));
++        currentRep.setUpdateCallback(_updateRepresentation);
+       }
+-      Promise.all(promises).then(() => {
+-        _onAllRepresentationsUpdated();
++      selectedRepresentation.checkForUpdate().then(() => {
++        _onSelectedRepresentationsUpdated();
+         resolve();
+       }).catch(e => {
+         reject(e);
+       });
+     });
+   }
+-  function _onAllRepresentationsUpdated() {
++  function _onSelectedRepresentationsUpdated() {
+     abrController.setPlaybackQuality(type, streamInfo, currentVoRepresentation);
+     const dvrInfo = dashMetrics.getCurrentDVRInfo(type);
+     if (dvrInfo) {
+@@ -26531,6 +26533,13 @@ function RepresentationController(config) {
+         currentRep.fragmentDuration = currentRep.segmentDuration ? currentRep.segmentDuration : currentRep.segments && currentRep.segments.length > 0 ? currentRep.segments[0].duration : NaN;
+         _setMediaFinishedInformation(currentRep);
+         _onRepresentationUpdated(currentRep);
++        if (data[0] && data[0].error || data[1] && data[1].error) {
++          // Reset if error occurs
++          currentRep.setUpdateCallback(_updateRepresentation);
++        }
++        eventBus.trigger('REPRESENTATION_UPDATED', {
++          representation: currentRep
++        });
+         resolve();
+       }).catch(e => {
+         reject(e);
+@@ -26638,15 +26647,16 @@ function RepresentationController(config) {
+    * In any case use the id to find the right Representation instance in our array of Representations.
+    * @param newRep
+    */
+-  function prepareQualityChange(newRep) {
++  async function prepareQualityChange(newRep) {
+     const voRepresentations = voAvailableRepresentations.filter(rep => {
+       return rep.id === newRep.id;
+     });
+     if (voRepresentations.length > 0) {
+-      _setCurrentVoRepresentation(voRepresentations[0]);
++      await _setCurrentVoRepresentation(voRepresentations[0]);
+     }
+   }
+-  function _setCurrentVoRepresentation(value) {
++  async function _setCurrentVoRepresentation(value) {
++    await value.checkForUpdate();
+     if (!currentVoRepresentation || currentVoRepresentation.id !== value.id) {
+       _addRepresentationSwitch(value);
+     }
+@@ -26887,6 +26897,10 @@ function SegmentsController(config) {
+   function getSegmentsGetter(representation) {
+     return representation ? representation.segments ? getters[dashConstants.SEGMENT_BASE] : getters[representation.segmentInfoType] : null;
+   }
++  function getAllSegments(representation) {
++    var getter = getSegmentsGetter(representation);
++    return getter ? getter.getAllSegments(representation) : null;
++  }
+   function getSegmentByIndex(representation, indexWithoutStartNumber, subNumberOfPartialSegmentToRequest, lastSegment) {
+     const getter = getSegmentsGetter(representation);
+     if (!getter) {
+@@ -26920,6 +26934,7 @@ function SegmentsController(config) {
+     updateSegmentData,
+     getSegmentByIndex,
+     getSegmentByTime,
++    getAllSegments,
+     getMediaFinishedInformation
+   };
+   setup();
+@@ -29960,6 +29975,20 @@ function ListSegmentsGetter(config, isDynamic) {
+     }
+     return segment;
+   }
++  function getAllSegments(representation) {
++    checkConfig();
++    let index = 0;
++    let segments = [];
++    while (true) {
++      let segment = getSegmentByIndex(representation, index);
++      if (!segment || segment.index !== index) {
++        break;
++      }
++      segments.push(segment);
++      index++;
++    }
++    return segments;
++  }
+   function getSegmentByTime(representation, requestedTime) {
+     checkConfig();
+     if (!representation) {
+@@ -29974,6 +30003,7 @@ function ListSegmentsGetter(config, isDynamic) {
+     return getSegmentByIndex(representation, index);
+   }
+   instance = {
++    getAllSegments,
+     getSegmentByIndex,
+     getSegmentByTime,
+     getMediaFinishedInformation
+@@ -30167,6 +30197,20 @@ function SegmentBaseGetter(config) {
+     }
+     return null;
+   }
++  function getAllSegments(representation) {
++    checkConfig();
++    let index = 0;
++    let segments = [];
++    while (true) {
++      let segment = getSegmentByIndex(representation, index);
++      if (!segment || segment.index !== index) {
++        break;
++      }
++      segments.push(segment);
++      index++;
++    }
++    return segments;
++  }
+   function getSegmentByTime(representation, requestedTime) {
+     checkConfig();
+     const index = getIndexByTime(representation, requestedTime);
+@@ -30195,6 +30239,7 @@ function SegmentBaseGetter(config) {
+     return idx;
+   }
+   instance = {
++    getAllSegments,
+     getSegmentByIndex,
+     getSegmentByTime,
+     getMediaFinishedInformation
+@@ -30552,6 +30597,19 @@ function TemplateSegmentsGetter(config, isDynamic) {
+     }
+     return seg;
+   }
++  function getAllSegments(representation) {
++    let index = 0;
++    let segments = [];
++    while (true) {
++      let segment = getSegmentByIndex(representation, index);
++      if (!segment || segment.index !== index) {
++        break;
++      }
++      segments.push(segment);
++      index++;
++    }
++    return segments;
++  }
+   function getSegmentByTime(representation, requestedTime) {
+     if (!representation) {
+       return null;
+@@ -30595,6 +30653,7 @@ function TemplateSegmentsGetter(config, isDynamic) {
+     return subNumberOfPartialSegmentToRequest;
+   }
+   instance = {
++    getAllSegments,
+     getMediaFinishedInformation,
+     getSegmentByIndex,
+     getSegmentByTime
+@@ -31141,6 +31200,38 @@ function TimelineSegmentsGetter(config, isDynamic) {
+       });
+     }
+   }
++  function getAllSegments(representation) {
++    checkConfig();
++    if (!representation) {
++      return null;
++    }
++    const segments = [];
++    _iterateSegments(representation, function (data) {
++      const {
++        mediaTime,
++        segmentBase,
++        segmentURL,
++        currentSElement,
++        sElementCounterIncludingRepeats,
++        sElementCounter
++      } = data;
++      const segment = (0,_SegmentsUtils_js__WEBPACK_IMPORTED_MODULE_2__.getTimeBasedSegment)({
++        timelineConverter,
++        isDynamic,
++        representation,
++        mediaTime,
++        durationInTimescale: currentSElement.d,
++        fTimescale: representation.timescale,
++        mediaUrl: _getMediaUrl(segmentBase, segmentURL, sElementCounter),
++        mediaRange: _getMediaRange(currentSElement, segmentURL, sElementCounter),
++        index: sElementCounterIncludingRepeats,
++        tManifest: currentSElement.tManifest
++      });
++      segments.push(segment);
++      return false;
++    });
++    return segments;
++  }
+   function getMediaFinishedInformation(representation) {
+     if (!representation) {
+       return 0;
+@@ -31296,6 +31387,7 @@ function TimelineSegmentsGetter(config, isDynamic) {
+     return NaN;
+   }
+   instance = {
++    getAllSegments,
+     getMediaFinishedInformation,
+     getSegmentByIndex,
+     getSegmentByTime
+@@ -32735,10 +32827,35 @@ class Representation {
+     this.startNumber = 1;
+     this.timescale = 1;
+     this.width = NaN;
++    this.updateKey = 0;
+   }
+   hasInitialization() {
+     return this.initialization !== null || this.range !== null;
+   }
++  setUpdateCallback(callback) {
++    this.updated = false;
++    this.updateCallback = callback;
++    this.updateKey++;
++  }
++  async checkForUpdate() {
++    if (this.updated || !this.updateCallback) {
++      return;
++    }
++    if (this.updatePromise) {
++      return this.updatePromise;
++    }
++    this.updatePromise = this.updateCallback(this).catch(error => {
++      console.error('Error updating representation:', error);
++    });
++    const key = this.updateKey;
++    await this.updatePromise;
++    if (this.updateKey !== key) {
++      return; // Skip if the representation has been updated again while waiting
++    }
++    this.updated = true;
++    delete this.updatePromise;
++    return this;
++  }
+   hasSegments() {
+     return this.segmentInfoType !== _constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_0__["default"].BASE_URL && this.segmentInfoType !== _constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_0__["default"].SEGMENT_BASE && !this.indexRange;
+   }
+@@ -34618,6 +34735,9 @@ function MediaPlayer() {
+     }
+     logger.info('[dash.js ' + getVersion() + '] ' + 'MediaPlayer has been initialized');
+   }
++  function getStreamController() {
++    return streamController;
++  }
+ 
+   /**
+    * Sets the MPD source and the video element to null. You can also reset the MediaPlayer by
+@@ -35805,6 +35925,9 @@ function MediaPlayer() {
+     let stream = streamId ? streamController.getStreamById(streamId) : getActiveStream();
+     return stream ? stream.getRepresentationsByType(type, filterBySettings) : [];
+   }
++  function getRepresentations(mediaInfo) {
++    return abrController.getPossibleVoRepresentations(mediaInfo, true);
++  }
+ 
+   /**
+    * This method returns the list of all available streams from a given manifest
+@@ -35997,6 +36120,14 @@ function MediaPlayer() {
+     customParametersModel.setCustomInitialTrackSelectionFunction(customFunc);
+   }
+ 
++  /**
++   * Registers a custom initial track selection function. Only one function is allowed. Calling this method will overwrite a potentially existing function.
++   * @param {function} customFunc - the custom function that returns the initial track
++   */
++  function setCustomBitrateSelectionFunction(customFunc) {
++    customParametersModel.setCustomBitrateSelectionFunction(customFunc);
++  }
++
+   /**
+    * Resets the custom initial track selection
+    * @memberof module:MediaPlayer
+@@ -37018,10 +37149,12 @@ function MediaPlayer() {
+     getProtectionData,
+     getRawThroughputData,
+     getRepresentationsByType,
++    getRepresentations,
+     getRepresentationsByTypeUnfiltered,
+     getSafeAverageThroughput,
+     getSettings,
+     getSource,
++    getStreamController,
+     getStreamsFromManifest,
+     getTTMLRenderingDiv,
+     getTargetLiveDelay,
+@@ -37069,6 +37202,7 @@ function MediaPlayer() {
+     setConfig,
+     setCurrentTrack,
+     setCustomInitialTrackSelectionFunction,
++    setCustomBitrateSelectionFunction,
+     setInitialMediaSettingsFor,
+     setMute,
+     setPlaybackRate,
+@@ -38710,6 +38844,9 @@ function Stream(config) {
+         }
+       });
+       Promise.all(promises).then(() => {
++        eventBus.trigger('initialInit', {
++          streamProcessors
++        });
+         return _createBufferSinks(previousSourceBufferSinks, representationsFromPreviousPeriod);
+       }).then(bufferSinks => {
+         if (streamProcessors.length === 0) {
+@@ -39177,10 +39314,10 @@ function Stream(config) {
+       });
+     }
+   }
+-  function prepareQualityChange(e) {
++  async function prepareQualityChange(e) {
+     const processor = _getProcessorByType(e.mediaType);
+     if (processor) {
+-      processor.prepareQualityChange(e);
++      await processor.prepareQualityChange(e);
+     }
+   }
+   function _addInlineEvents() {
+@@ -40125,6 +40262,7 @@ function StreamProcessor(config) {
+ 
+       // Update Representation Controller with the new data. Note we do not filter any Representations here as the filter values might change over time.
+       const voRepresentations = abrController.getPossibleVoRepresentations(currentMediaInfo, false);
++      currentMediaInfo.representations = voRepresentations;
+       return representationController.updateData(voRepresentations, currentMediaInfo.isFragmented, selectedValues.selectedRepresentation.id).then(() => {
+         _onDataUpdateCompleted();
+         resolve();
+@@ -40190,7 +40328,7 @@ function StreamProcessor(config) {
+    * If we want to aggressively replace existing parts in the buffer we need to make sure that the new quality is higher than the already buffered one.
+    * @param {object} e
+    */
+-  function prepareQualityChange(e) {
++  async function prepareQualityChange(e) {
+     if (!e.newRepresentation) {
+       return;
+     }
+@@ -40206,10 +40344,10 @@ function StreamProcessor(config) {
+       _prepareAdaptationSwitchQualityChange(e);
+     } else {
+       logger.debug(`Preparing quality within the same AdaptationSet for type ${type} from representation id ${e.oldRepresentation.id} to ${e.newRepresentation.id}`);
+-      _prepareNonAdaptationSwitchQualityChange(e);
++      await _prepareNonAdaptationSwitchQualityChange(e);
+     }
+   }
+-  function _prepareNonAdaptationSwitchQualityChange(e) {
++  async function _prepareNonAdaptationSwitchQualityChange(e) {
+     const newRepresentation = e.newRepresentation;
+     qualityChangeInProgress = true;
+ 
+@@ -40217,7 +40355,7 @@ function StreamProcessor(config) {
+     clearScheduleTimer();
+ 
+     // Update selected Representation in RepresentationController
+-    representationController.prepareQualityChange(newRepresentation);
++    await representationController.prepareQualityChange(newRepresentation);
+     _handleDifferentSwitchTypes(e);
+   }
+   function _prepareAdaptationSwitchQualityChange(e) {
+@@ -40904,6 +41042,12 @@ function StreamProcessor(config) {
+   function finalisePlayList(time, reason) {
+     dashMetrics.pushPlayListTraceMetrics(time, reason);
+   }
++  function getSegmentsController() {
++    return segmentsController;
++  }
++  function getDashHandler() {
++    return dashHandler;
++  }
+   function getLastSegment() {
+     return dashHandler.getLastSegment();
+   }
+@@ -40941,7 +41085,9 @@ function StreamProcessor(config) {
+     setMediaInfoArray,
+     setMediaSource,
+     setTrackSwitchInProgress,
+-    updateStreamInfo
++    updateStreamInfo,
++    getSegmentsController,
++    getDashHandler
+   };
+   setup();
+   return instance;
+@@ -42718,10 +42864,14 @@ function AbrController() {
+     }
+   }
+   function getOptimalRepresentationForBitrate(mediaInfo, bitrateInKbit, includeCompatibleMediaInfos = true) {
+-    const possibleVoRepresentations = getPossibleVoRepresentationsFilteredBySettings(mediaInfo, includeCompatibleMediaInfos);
++    let possibleVoRepresentations = getPossibleVoRepresentationsFilteredBySettings(mediaInfo, includeCompatibleMediaInfos);
+     if (!possibleVoRepresentations || possibleVoRepresentations.length === 0) {
+       return null;
+     }
++    const customBitrateSelectionFunction = customParametersModel.getCustomBitrateSelectionFunction();
++    if (customBitrateSelectionFunction) {
++      possibleVoRepresentations = customBitrateSelectionFunction(possibleVoRepresentations, bitrateInKbit, mediaInfo);
++    }
+ 
+     // If bitrate should be as small as possible return the Representation with the lowest bitrate
+     const smallestRepresentation = possibleVoRepresentations.reduce((a, b) => {
+@@ -47679,34 +47829,13 @@ function MediaController() {
+     if (!possibleTracks || possibleTracks.length === 0) {
+       return;
+     }
+-    if (!settings.get().streaming.includePreselectionsForInitialTrackSelection) {
+-      // Removing all preselections
+-      filteredTracks = possibleTracks.filter(track => !track.isPreselection);
+-      // Since each preselection always refers at least one AdaptationSet,
+-      // filteredTracks.length will always be > 0
+-    } else {
+-      filteredTracks = Array.from(possibleTracks);
+-    }
+-    if (localSettings) {
+-      logger.info('Filtering ' + filteredTracks.length + ' ' + type + ' tracks based on settings');
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsId, localSettings);
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsLang, localSettings);
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsIndex, localSettings);
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsViewPoint, localSettings);
+-      if (!(type === _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].AUDIO && !!lastSelectedTracks[type])) {
+-        filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsRole, localSettings);
+-      }
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsAccessibility, localSettings);
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsCodec, localSettings);
+-      filteredTracks = filterTracksBySettings(filteredTracks, matchSettingsAudioChannelConfig, localSettings);
+-      logger.info('Filtering ' + type + ' tracks ended, found ' + filteredTracks.length + ' matching track(s).');
+-    }
+ 
+-    // More than one possibility
+-    if (filteredTracks.length > 1) {
+-      setTrack(selectInitialTrack(type, filteredTracks));
++    // We did not apply any filter. We can select from all possible tracks
++    if (filteredTracks.length === 0) {
++      setTrack(selectInitialTrack(type, possibleTracks));
+     }
+-    // Only one possibility use this one
++
++    // We have some tracks based on the filtering we did.
+     else {
+       setTrack(filteredTracks[0]);
+     }
+@@ -47922,30 +48051,6 @@ function MediaController() {
+     let notEmpty = settings.lang || settings.viewpoint || settings.role && settings.role.length > 0 || settings.accessibility && settings.accessibility.length > 0 || settings.audioChannelConfiguration && settings.audioChannelConfiguration.length > 0;
+     return notEmpty ? settings : null;
+   }
+-  function filterTracksBySettings(tracks, filterFn, preferences) {
+-    let tracksAfterMatcher = [];
+-    tracks.forEach(function (track) {
+-      if (filterFn(preferences, track)) {
+-        tracksAfterMatcher.push(track);
+-      }
+-    });
+-    if (tracksAfterMatcher.length !== 0) {
+-      logger.info('Filter-Function (' + filterFn.name + ') resulted in ' + tracksAfterMatcher.length + ' tracks');
+-      return tracksAfterMatcher;
+-    }
+-    if (filterFn === matchSettingsRole && settings.get().streaming.assumeDefaultRoleAsMain && _compareDescriptorType(preferences.role, {
+-      schemeIdUri: _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].DASH_ROLE_SCHEME_ID,
+-      value: _dash_constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_7__["default"].MAIN
+-    })) {
+-      logger.info('no track with Role set to main - assuming main as default and searching again');
+-      tracksAfterMatcher = filterTracksBySettings(tracks, _matchRoleAbsent, null);
+-      if (tracksAfterMatcher.length !== 0) {
+-        return tracksAfterMatcher;
+-      }
+-    }
+-    logger.info('Filter-Function (' + filterFn.name + ') resulted in no tracks; setting ignored');
+-    return tracks;
+-  }
+   function matchSettingsLang(settings, track) {
+     try {
+       return !settings.lang || settings.lang instanceof RegExp ? track.lang.match(settings.lang) : track.lang !== '' ? (0,bcp_47_match__WEBPACK_IMPORTED_MODULE_10__.extendedFilter)(track.lang, (0,_utils_BCP47Utils_js__WEBPACK_IMPORTED_MODULE_5__.normalizeBcp47)(settings.lang)).length > 0 : false;
+@@ -47956,9 +48061,6 @@ function MediaController() {
+   function matchSettingsIndex(settings, track) {
+     return settings.index === undefined || settings.index === null || track.index === settings.index;
+   }
+-  function matchSettingsId(settings, track) {
+-    return settings.id === undefined || settings.id === null || track.id === settings.id;
+-  }
+   function matchSettingsViewPoint(settings, track) {
+     return !settings.viewpoint || !!track.viewpoint.filter(function (item) {
+       return _compareDescriptorType(item, settings.viewpoint);
+@@ -47973,9 +48075,6 @@ function MediaController() {
+     })[0];
+     return matchRole || track.type === _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].AUDIO && isTrackActive;
+   }
+-  function _matchRoleAbsent(_, track) {
+-    return !track.roles || track.roles.length === 0;
+-  }
+   function matchSettingsAccessibility(settings, track) {
+     let matchAccessibility;
+     if (!settings.accessibility) {
+@@ -47994,9 +48093,6 @@ function MediaController() {
+       return _compareDescriptorType(item, settings.audioChannelConfiguration);
+     })[0];
+   }
+-  function matchSettingsCodec(settings, track) {
+-    return !settings.codec || settings.codec === track.codec;
+-  }
+   function matchSettings(settings, track, isTrackActive = false) {
+     try {
+       let matchLang = false;
+@@ -48044,24 +48140,6 @@ function MediaController() {
+       text: null
+     };
+   }
+-  function getTracksWithHighestSelectionPriority(trackArr) {
+-    let max = 0;
+-    let result = [];
+-    trackArr.forEach(track => {
+-      if (!isNaN(track.selectionPriority)) {
+-        // Higher max value. Reset list and add new entry
+-        if (track.selectionPriority > max) {
+-          max = track.selectionPriority;
+-          result = [track];
+-        }
+-        // Same max value add to list
+-        else if (track.selectionPriority === max) {
+-          result.push(track);
+-        }
+-      }
+-    });
+-    return result;
+-  }
+   function getTracksWithHighestBitrate(trackArr) {
+     let max = 0;
+     let result = [];
+@@ -48181,54 +48259,9 @@ function MediaController() {
+ 
+     // If we have a custom function that selects the track we use this one
+     if (customInitialTrackSelectionFunction && typeof customInitialTrackSelectionFunction === 'function') {
+-      tmpArr = customInitialTrackSelectionFunction(tmpArr);
+-    }
+-
+-    // If we know the current selected bitrate for the media type we select the AdaptationSet that comes closest to this. This should only be relevant for multiperiod when we transition to the next period.
+-    else if (lastSelectedRepresentations[type]) {
+-      tmpArr = _trackSelectionModeClosestBitrate(tmpArr, type);
+-    }
+-
+-    // Use the track selection function that is defined in the settings
+-    else {
+-      if (!settings.get().streaming.ignoreSelectionPriority) {
+-        logger.info('Trying to find track with highest selectionPriority');
+-        tmpArr = _trackSelectionModeHighestSelectionPriority(tmpArr);
+-      }
+-      if (tmpArr.length > 1 && settings.get().streaming.prioritizeRoleMain) {
+-        logger.info('Trying to find a main track');
+-        tmpArr = filterTracksBySettings(tmpArr, matchSettingsRole, {
+-          role: {
+-            schemeIdUri: _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].DASH_ROLE_SCHEME_ID,
+-            value: _dash_constants_DashConstants_js__WEBPACK_IMPORTED_MODULE_7__["default"].MAIN
+-          }
+-        });
+-      }
+-      if (tmpArr.length > 1) {
+-        logger.info('Selecting track based on selectionModeForInitialTrack');
+-        let mode = settings.get().streaming.selectionModeForInitialTrack;
+-        switch (mode) {
+-          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_HIGHEST_BITRATE:
+-            tmpArr = _trackSelectionModeHighestBitrate(tmpArr);
+-            break;
+-          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_FIRST_TRACK:
+-            tmpArr = _trackSelectionModeFirstTrack(tmpArr);
+-            break;
+-          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_HIGHEST_EFFICIENCY:
+-            tmpArr = _trackSelectionModeHighestEfficiency(tmpArr);
+-            break;
+-          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_WIDEST_RANGE:
+-            tmpArr = _trackSelectionModeWidestRange(tmpArr);
+-            break;
+-          case _constants_Constants_js__WEBPACK_IMPORTED_MODULE_0__["default"].TRACK_SELECTION_MODE_LOWEST_STARTUP_DELAY:
+-            tmpArr = _trackSelectionModeLowestStartupDelay(tmpArr);
+-            break;
+-          default:
+-            logger.warn(`Track selection mode ${mode} is not supported. Falling back to TRACK_SELECTION_MODE_FIRST_TRACK`);
+-            tmpArr = _trackSelectionModeFirstTrack(tmpArr);
+-            break;
+-        }
+-      }
++      tmpArr = customInitialTrackSelectionFunction(mediaInfos);
++    } else {
++      throw new Error('No valid initial track selection function found!');
+     }
+     return tmpArr.length > 0 ? tmpArr[0] : mediaInfos[0];
+   }
+@@ -48322,69 +48355,6 @@ function MediaController() {
+       return mediaInfos;
+     }
+   }
+-
+-  /**
+-   * Find the track that has a bitrate that matches the currenly selected one
+-   * @param tracks
+-   * @param type
+-   * @returns {*}
+-   * @private
+-   */
+-  function _trackSelectionModeClosestBitrate(tracks, type) {
+-    if (!tracks || tracks.length === 0 || !type || !lastSelectedRepresentations[type]) {
+-      return tracks;
+-    }
+-    const targetBitrate = lastSelectedRepresentations[type].bandwidth;
+-    if (!targetBitrate || isNaN(targetBitrate)) {
+-      return tracks;
+-    }
+-    let current = {
+-      min: NaN,
+-      track: null
+-    };
+-    tracks.forEach(track => {
+-      track.bitrateList.forEach(entry => {
+-        const diff = Math.abs(entry.bandwidth - targetBitrate);
+-        if (isNaN(current.min) || diff < current.min) {
+-          current.min = diff;
+-          current.track = track;
+-        }
+-      });
+-    });
+-    return current.track ? [current.track] : tracks;
+-  }
+-  function _trackSelectionModeHighestSelectionPriority(tracks) {
+-    return getTracksWithHighestSelectionPriority(tracks);
+-  }
+-  function _trackSelectionModeHighestBitrate(tracks) {
+-    let tmpArr = getTracksWithHighestBitrate(tracks);
+-    if (tmpArr.length > 1) {
+-      tmpArr = getTracksWithWidestRange(tmpArr);
+-    }
+-    return tmpArr;
+-  }
+-  function _trackSelectionModeFirstTrack(tracks) {
+-    return tracks[0];
+-  }
+-  function _trackSelectionModeHighestEfficiency(tracks) {
+-    let tmpArr = getTracksWithHighestEfficiency(tracks);
+-    if (tmpArr.length > 1) {
+-      tmpArr = getTracksWithHighestBitrate(tmpArr);
+-    }
+-    return tmpArr;
+-  }
+-  function _trackSelectionModeLowestStartupDelay(tracks) {
+-    let tmpArr = _getL3DBootstrapTracks(tracks);
+-    const targetTracks = tmpArr.length > 0 ? tmpArr : tracks;
+-    return _trackSelectionModeHighestEfficiency(targetTracks);
+-  }
+-  function _trackSelectionModeWidestRange(tracks) {
+-    let tmpArr = getTracksWithWidestRange(tracks);
+-    if (tmpArr.length > 1) {
+-      tmpArr = getTracksWithHighestBitrate(tracks);
+-    }
+-    return tmpArr;
+-  }
+   function _compareDescriptorType(v1, v2) {
+     if (v1 && v2) {
+       let t1 = JSON.stringify({
+@@ -48436,7 +48406,6 @@ function MediaController() {
+     getCurrentTrackFor,
+     getInitialSettings,
+     getTracksFor,
+-    getTracksWithHighestSelectionPriority,
+     getTracksWithHighestBitrate,
+     getTracksWithHighestEfficiency,
+     getTracksWithWidestRange,
+@@ -49274,6 +49243,7 @@ function PlaybackController() {
+   function _onPlaybackSeeking() {
+     // Check if internal seeking to be ignored
+     if (internalSeek) {
++      internalSeek = false;
+       return;
+     }
+     let seekTime = getTime();
+@@ -56509,7 +56479,7 @@ __webpack_require__.r(__webpack_exports__);
+ 
+ const DEFAULT_XHR_WITH_CREDENTIALS = false;
+ function CustomParametersModel() {
+-  let instance, utcTimingSources, xhrWithCredentials, requestInterceptors, responseInterceptors, licenseRequestFilters, certificateRequestFilters, certificateResponseFilters, licenseResponseFilters, customCapabilitiesFilters, customInitialTrackSelectionFunction, externalSubtitles, customAbrRules, cmcdController;
++  let instance, utcTimingSources, xhrWithCredentials, requestInterceptors, responseInterceptors, licenseRequestFilters, certificateRequestFilters, certificateResponseFilters, licenseResponseFilters, customCapabilitiesFilters, customInitialTrackSelectionFunction, customBitrateSelectionFunction, externalSubtitles, customAbrRules, cmcdController;
+   const context = this.context;
+   const settings = (0,_core_Settings_js__WEBPACK_IMPORTED_MODULE_2__["default"])(context).getInstance();
+   function setup() {
+@@ -56557,6 +56527,14 @@ function CustomParametersModel() {
+     customInitialTrackSelectionFunction = null;
+   }
+ 
++  /**
++   * Registers a custom bitrate selection function. Only one function is allowed. Calling this method will overwrite a potentially existing function.
++   * @param {function} customFunc - the custom function that returns the bitrate to use
++   */
++  function setCustomBitrateSelectionFunction(customFunc) {
++    customBitrateSelectionFunction = customFunc;
++  }
++
+   /**
+    * Returns the initial track selection function
+    * @return {function}
+@@ -56565,6 +56543,14 @@ function CustomParametersModel() {
+     return customInitialTrackSelectionFunction;
+   }
+ 
++  /**
++   * Returns the custom bitrate selection function
++   * @return {function}
++   */
++  function getCustomBitrateSelectionFunction() {
++    return customBitrateSelectionFunction;
++  }
++
+   /**
+    * Returns all certificate request filters
+    * @return {array}
+@@ -56954,6 +56940,7 @@ function CustomParametersModel() {
+     getCertificateResponseFilters,
+     getCustomCapabilitiesFilters,
+     getCustomInitialTrackSelectionFunction,
++    getCustomBitrateSelectionFunction,
+     getExternalSubtitles,
+     getLicenseRequestFilters,
+     getLicenseResponseFilters,
+@@ -56979,6 +56966,7 @@ function CustomParametersModel() {
+     restoreDefaultUTCTimingSources,
+     setConfig,
+     setCustomInitialTrackSelectionFunction,
++    setCustomBitrateSelectionFunction,
+     setXHRWithCredentialsForType,
+     unregisterCertificateRequestFilter,
+     unregisterCertificateResponseFilter,
+@@ -59714,7 +59702,7 @@ function HTTPLoader(cfg) {
+    * @param {number} remainingAttempts
+    * @private
+    */
+-  function _internalLoad(config, remainingAttempts) {
++  function _internalLoad(config) {
+     /**
+      * Fired when a request has completed, whether successfully (after load) or unsuccessfully (after abort, timeout or error).
+      */
+@@ -59776,6 +59764,37 @@ function HTTPLoader(cfg) {
+         config.progress(event);
+       }
+     };
++    const onFail = function onFail() {
++      _onloadend();
++      errHandler.error(new _vo_DashJSError_js__WEBPACK_IMPORTED_MODULE_4__["default"](downloadErrorToRequestTypeMap[requestObject.type], requestObject.url + ' is not available', {
++        request: requestObject,
++        response: commonMediaResponse
++      }));
++      if (config.error) {
++        config.error(requestObject, 'error', commonMediaResponse.statusText, commonMediaResponse);
++      }
++      if (config.complete) {
++        config.complete(requestObject, commonMediaResponse.statusText);
++      }
++    };
++    const onAbort = function onAbort() {
++      _onabort();
++    };
++    const onSuccess = function onSuccess(data, responseURL) {
++      _onloadend();
++      if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MPD_TYPE) {
++        dashMetrics.addManifestUpdate(requestObject);
++        eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].MANIFEST_LOADING_FINISHED, {
++          requestObject
++        });
++      }
++      if (config.success) {
++        config.success(data, '4 DONE OK', responseURL);
++      }
++      if (config.complete) {
++        config.complete(requestObject, '4 DONE OK');
++      }
++    };
+ 
+     /**
+      * Fired when a request has been aborted, for example because the program called XMLHttpRequest.abort().
+@@ -59811,48 +59830,51 @@ function HTTPLoader(cfg) {
+       commonAccessTokenController.processResponseHeaders(commonMediaResponse);
+       _updateRequestTimingInfo();
+       _updateResourceTimingInfo();
+-      _applyResponseInterceptors(commonMediaResponse).then(_httpResponse => {
+-        commonMediaResponse = _httpResponse;
+-        _addHttpRequestMetric(commonMediaRequest, commonMediaResponse, traces);
+-
+-        // Ignore aborted requests
+-        if (aborted) {
+-          if (config.abort) {
+-            config.abort(requestObject);
+-          }
+-          return;
+-        }
+-        if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MPD_TYPE) {
+-          dashMetrics.addManifestUpdate(requestObject);
+-          eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].MANIFEST_LOADING_FINISHED, {
+-            requestObject
+-          });
+-        }
+-
+-        // POST requests are allowed to have empty response bodies (e.g. CMCD event reporting endpoints).
+-        // GET requests still need a body since dash.js consumes it (manifests, segments).
+-        const hasUsableBody = !!commonMediaResponse.data || requestObject.method === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.POST;
+-        if (commonMediaResponse.status >= 200 && commonMediaResponse.status <= 299 && hasUsableBody) {
+-          if (config.success) {
+-            config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);
+-          }
+-          if (config.complete) {
+-            config.complete(requestObject, commonMediaResponse.statusText);
+-          }
+-        } else {
+-          // If we get a 404 to a media segment we should check the client clock again and perform a UTC sync in the background.
+-          try {
+-            if (commonMediaResponse.status === 404 && settings.get().streaming.utcSynchronization.enableBackgroundSyncAfterSegmentDownloadError && requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MEDIA_SEGMENT_TYPE) {
+-              // Only trigger a sync if the loading failed for the first time
+-              const initialNumberOfAttempts = mediaPlayerModel.getRetryAttemptsForType(_vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MEDIA_SEGMENT_TYPE);
+-              if (initialNumberOfAttempts === remainingAttempts) {
+-                eventBus.trigger(_core_events_Events_js__WEBPACK_IMPORTED_MODULE_9__["default"].ATTEMPT_BACKGROUND_SYNC);
+-              }
+-            }
+-          } catch (e) {}
+-          _retriggerRequest();
++      if (aborted) {
++        if (config.abort) {
++          config.abort(requestObject);
+         }
+-      });
++        return;
++      }
++      _addHttpRequestMetric(commonMediaRequest, commonMediaResponse, traces);
++
++      //     // Ignore aborted requests
++      //     if (aborted) {
++      //         if (config.abort) {
++      //             config.abort(requestObject);
++      //         }
++      //         return;
++      //     }
++
++      //     if (requestObject.type === HTTPRequest.MPD_TYPE) {
++      //         dashMetrics.addManifestUpdate(requestObject);
++      //         eventBus.trigger(Events.MANIFEST_LOADING_FINISHED, { requestObject });
++      //     }
++
++      //     if (commonMediaResponse.status >= 200 && commonMediaResponse.status <= 299 && commonMediaResponse.data) {
++      //         if (config.success) {
++      //             config.success(commonMediaResponse.data, commonMediaResponse.statusText, commonMediaResponse.url);
++      //         }
++
++      //         if (config.complete) {
++      //             config.complete(requestObject, commonMediaResponse.statusText);
++      //         }
++      //     } else {
++      //         // If we get a 404 to a media segment we should check the client clock again and perform a UTC sync in the background.
++      //         try {
++      //             if (commonMediaResponse.status === 404 && settings.get().streaming.utcSynchronization.enableBackgroundSyncAfterSegmentDownloadError && requestObject.type === HTTPRequest.MEDIA_SEGMENT_TYPE) {
++      //                 // Only trigger a sync if the loading failed for the first time
++      //                 const initialNumberOfAttempts = mediaPlayerModel.getRetryAttemptsForType(HTTPRequest.MEDIA_SEGMENT_TYPE);
++      //                 if (initialNumberOfAttempts === remainingAttempts) {
++      //                     eventBus.trigger(Events.ATTEMPT_BACKGROUND_SYNC);
++      //                 }
++      //             }
++      //         } catch (e) {
++      //         }
++
++      //         _retriggerRequest();
++      //     }
++      // });
+     };
+     const _updateRequestTimingInfo = function () {
+       requestObject.startDate = requestStartTime;
+@@ -59876,6 +59898,9 @@ function HTTPLoader(cfg) {
+           httpRequest.customData.onprogress = _onprogress;
+           httpRequest.customData.onabort = _onabort;
+           httpRequest.customData.ontimeout = _ontimeout;
++          httpRequest.customData.onFail = onFail;
++          httpRequest.customData.onSuccess = onSuccess;
++          httpRequest.customData.onAbort = onAbort;
+           httpResponse.resourceTiming.startTime = performance.now();
+           loader.load(httpRequest, httpResponse);
+           resolve();
+@@ -59883,45 +59908,6 @@ function HTTPLoader(cfg) {
+       });
+     };
+ 
+-    /**
+-     * Retriggers the request in case we did not exceed the number of retry attempts
+-     * @private
+-     */
+-    const _retriggerRequest = function () {
+-      if (remainingAttempts > 0) {
+-        remainingAttempts--;
+-        if (config && config.request) {
+-          config.request.retryAttempts += 1;
+-        }
+-        let retryRequest = {
+-          config: config
+-        };
+-        retryRequests.push(retryRequest);
+-        retryRequest.timeout = setTimeout(function () {
+-          if (retryRequests.indexOf(retryRequest) === -1) {
+-            return;
+-          } else {
+-            retryRequests.splice(retryRequests.indexOf(retryRequest), 1);
+-          }
+-          _internalLoad(config, remainingAttempts);
+-        }, mediaPlayerModel.getRetryIntervalsForType(requestObject.type));
+-      } else {
+-        if (requestObject.type === _vo_metrics_HTTPRequest_js__WEBPACK_IMPORTED_MODULE_2__.HTTPRequest.MSS_FRAGMENT_INFO_SEGMENT_TYPE) {
+-          return;
+-        }
+-        errHandler.error(new _vo_DashJSError_js__WEBPACK_IMPORTED_MODULE_4__["default"](downloadErrorToRequestTypeMap[requestObject.type], requestObject.url + ' is not available', {
+-          request: requestObject,
+-          response: commonMediaResponse
+-        }));
+-        if (config.error) {
+-          config.error(requestObject, 'error', commonMediaResponse.statusText, commonMediaResponse);
+-        }
+-        if (config.complete) {
+-          config.complete(requestObject, commonMediaResponse.statusText);
+-        }
+-      }
+-    };
+-
+     /**
+      * Returns the request timeout value from Settings based on the request type.
+      * This reads the value dynamically so that runtime changes via updateSettings() take effect.
+@@ -60032,17 +60018,6 @@ function HTTPLoader(cfg) {
+       });
+     }, Promise.resolve(httpRequest));
+   }
+-  function _applyResponseInterceptors(response) {
+-    const interceptors = customParametersModel.getResponseInterceptors();
+-    if (!interceptors) {
+-      return Promise.resolve(response);
+-    }
+-    return interceptors.reduce((prev, next) => {
+-      return prev.then(resp => {
+-        return next(resp);
+-      });
+-    }, Promise.resolve(response));
+-  }
+   function _addHttpRequestMetric(httpRequest, httpResponse, traces) {
+     const requestObject = httpRequest.customData.request;
+     const cmsd = settings.get().streaming.cmsd && settings.get().streaming.cmsd.enabled ? cmsdModel.parseResponseHeaders(httpResponse.headers, requestObject.mediaType) : null;
+@@ -81284,5 +81259,3 @@ var __webpack_exports__Protection = __webpack_exports__.Protection;
+ var __webpack_exports__default = __webpack_exports__["default"];
+ var __webpack_exports__supportsMediaSource = __webpack_exports__.supportsMediaSource;
+ export { __webpack_exports__Constants as Constants, __webpack_exports__Debug as Debug, __webpack_exports__ExternalSubtitle as ExternalSubtitle, __webpack_exports__MediaPlayer as MediaPlayer, __webpack_exports__MediaPlayerFactory as MediaPlayerFactory, __webpack_exports__MetricsReporting as MetricsReporting, __webpack_exports__Protection as Protection, __webpack_exports__default as default, __webpack_exports__supportsMediaSource as supportsMediaSource };
+-
+-//# sourceMappingURL=dash.all.debug.js.map

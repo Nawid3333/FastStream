@@ -171,6 +171,11 @@ of this change already exists.
 
 ## dash.js
 
+**Now 5.2.1 plus a 41 KB patch (2026-09-25)** - see "Status" below. The
+measurements that follow are from the first migration (2026-09-05); they are
+kept because the status section explains the one thing they got wrong, which
+is what made the patch ten times bigger than it needed to be.
+
 **Base version: 5.1.0**, confirmed rather than assumed. The npm package is
 `dashjs`, not `dash.js`, and the artifact is
 `dist/modern/esm/dash.all.debug.js`. Diff sizes against candidates:
@@ -219,40 +224,79 @@ changes: they are a different version of the transitive dependency
 is dependency drift baked into a bundle, and it is left alone - npm's newer
 copy is kept.
 
-### Status: migrated, provably inert
+### Status: 5.2.1 plus FastStream's actual changes (2026-09-25)
 
-`chrome/player/modules/dash.mjs` is no longer in git. It is generated from
-`dashjs@5.1.0` plus `patches/dashjs@5.1.0.patch`. A clean install reproduces
-the previously vendored file **byte for byte**, and the file does not appear
-in a build-output diff against the upstream baseline at all.
+`chrome/player/modules/dash.mjs` is not in git. It is generated from
+`dashjs@5.2.1` plus `patches/dashjs@5.2.1.patch` (41 KB, one file). Until
+2026-09-25 it was `dashjs@5.1.0` plus a 354 KB patch that reproduced the
+previously vendored file byte for byte.
 
-The patch is 354 KB, against hls.js's 31 KB. That is honest about the size of
-the divergence rather than hiding it, and it still gives AMO what today's tree
-does not: a hash-verifiable upstream base and a diff a reviewer can read.
+**5.1.0 was the nearest release, not the base.** Andrew's bundle was built from
+dash.js's `development` branch, at `2e7e9a91` (2025-10-22) - the head of that
+branch when he committed "Update dash.js to fix seek" upstream on 2025-10-30,
+three weeks before 5.1.0 was released. Its version string already said 5.1.0.
+So most of what was measured above against the 5.1.0 release, and all but a
+few of the 68 "customized" modules the 2026-09-06 assessment counted (which
+concluded that "0 of 68 have landed" and shelved the upgrade), were the eight
+upstream commits made between that snapshot and the release - partial
+segments, L3D, the ES6-import refactor - seen in reverse. The "75% identical,
+so the rest are genuine modifications" control above could not see that: the
+toolchain was the same, the source was not.
 
-**5.2.1 upgrade measured (2026-09-06): shelved, not attempted.** Before
-touching anything, ran the same module-boundary comparison hls.js's upgrade
-used, but three-way: stock 5.1.0 vs. the in-tree patched bundle vs. stock
-5.2.1. That isolates exactly which of dash.js's own `src/` modules FastStream
-actually customized (68, close to the 60 estimated by line-count above) from
-modules that merely drifted between releases for unrelated reasons - then
-checks, per customized module, whether 5.2.1 already contains the fix.
+How that was established rather than assumed: dash.js builds reproducibly from
+its lockfile. `npm ci --ignore-scripts`, `tsc` and
+`webpack --config build/webpack/modern/webpack.modern.prod.cjs` at the v5.1.0
+tag give npm's `dist/modern/esm/dash.all.debug.js` with 430 of 432 modules
+byte-identical; the other two differ only in comment indentation. Built the
+same way at `2e7e9a91`, the vendored bundle differs from it in **16 of
+dash.js's own modules, +264/-291 lines**. The rest of the old difference is the
+bundled `@svta/common-media-library`, an older version than the lockfile names
+(it came from Andrew's `node_modules`); 5.2.1 bundles the split `@svta/cml-*`
+packages instead, and those are taken as they are.
 
-**Result: 0 of 68 have landed.** Every customized module still differs from
-5.2.1 exactly as it differs from 5.1.0. That is a materially different
-finding than hls.js's upgrade, where most hunks turned out to already be
-upstream and the patch shrank by 90%. There is no shortcut here - dash.js
-apparently hasn't absorbed any of these fixes in the 5.1.0->5.2.1 window, so
-"upgrade the base and drop what landed" does not apply. What would remain is
-reconciling all 68 modules by hand against a new base, and most of them are
-the core streaming engine, not peripheral code: `AbrController`,
-`StreamController`, `MediaController`, `BufferController`,
-`ScheduleController`, `GapController`, `ThroughputController`, `HTTPLoader`,
-`DashHandler`, `DashManifestModel`, `DashParser` among them. That is
-realistically comparable in size to redoing most of the original vendoring
-analysis, not a version bump - shelved as its own dedicated effort rather
-than attempted under session time pressure. 5.1.0 stays pinned + patched,
-which already satisfies AMO's actual objection (verifiable provenance).
+FastStream's changes - the whole list, each used by `players/dash/`:
+
+| Where | Change | Used by |
+|---|---|---|
+| `HTTPLoader` | Downloads go through FastStream: `customData.onSuccess/onFail/onAbort` callbacks; dash.js's own retries and response interceptors are removed | `DashLoader.mjs` |
+| `Representation`, `RepresentationController`, `Stream`, `StreamProcessor` | Representations are updated lazily (`setUpdateCallback`/`checkForUpdate`), quality switches wait for it (`prepareQualityChange` is async), and a `REPRESENTATION_UPDATED` event says when one is ready | `DashPlayer.mjs` |
+| `SegmentsController` and the four segment getters, `DashHandler` | `getAllSegments()`, and `_getRequestForSegment` exported | `DashPlayer.extractFragments` |
+| `MediaController` | dash.js's own initial track filtering and selection are removed; the custom initial track selection function decides, and must be set | `setCustomInitialTrackSelectionFunction` |
+| `AbrController`, `CustomParametersModel`, `MediaPlayer` | `setCustomBitrateSelectionFunction` | `DashPlayer.mjs` |
+| `MediaPlayer`, `StreamProcessor`, `Stream` | `getStreamController`, `getRepresentations`, `getSegmentsController`, `getDashHandler`; an `initialInit` event | `DashPlayer.mjs` |
+| `PlaybackController` | `internalSeek` is cleared when the internal seek it announced arrives - Andrew's "fix seek" | seeking |
+
+**Porting them to 5.2.1** was a three-way merge per webpack module: base = the
+`2e7e9a91` build, ours = the vendored bundle, theirs = stock 5.2.1. Eleven
+modules conflicted and were resolved by hand; four merged cleanly and were
+reviewed anyway, because a clean merge is not a correct one. Two came out
+clean and broken: 5.2.1 removed `checkConfig()` from `TemplateSegmentsGetter`,
+which FastStream's `getAllSegments` still called, and webpack renumbered
+`HTTPLoader`'s `Events` import (`_MODULE_10__` to `_MODULE_9__`), which
+FastStream's `onSuccess` still named - either would have thrown on every DASH
+stream of that kind. `TimelineSegmentsGetter` was rewritten upstream
+(`_iterateSegments(cb(data))`, `getTimeBasedSegment({...})`), so its
+`getAllSegments` is re-implemented on the new API rather than merged.
+
+Checked by:
+
+- **Undefined names.** ESLint's `no-undef` and `no-unused-vars` over stock
+  5.2.1 and over the patched bundle report the same names, apart from
+  `_getL3DBootstrapTracks`, whose only caller is in the removed track
+  selection. Putting either of the two bugs above back makes it report them.
+- **Every segment getter, end to end.** `playback.e2e.mjs` plays a local
+  stream per way a manifest lists its segments - SegmentTemplate,
+  SegmentList, SegmentTimeline, SegmentBase - and compares FastStream's
+  fragment list with the segments ffmpeg wrote. Playback alone would not
+  catch a broken `getAllSegments`: `DashLoader` fetches a segment missing from
+  the list through its fallback. The four pass on 5.1.0 and on 5.2.1, and
+  making any one getter drop a segment fails that stream's test and no other.
+- The full `pnpm run verify`: the public DASH stream, and the DASH saves in
+  `save-video.e2e.mjs` and `save-fmp4.e2e.mjs`.
+
+**For the next upgrade**, the base is now a published release: merge the
+patch's changes from stock 5.2.1 onto the new stock bundle, module by module,
+and run the same two checks.
 
 One wrinkle worth recording: npm's bundle embeds 428 stray CR characters
 inside a vendored BSD licence comment, because a bundled dependency ships CRLF
@@ -295,8 +339,8 @@ what can actually change behaviour.
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
-| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
-| mp4box | 0.5.3 | 37 KB patch, five changes, one of them an addition | **migrated, 2.4.1 upgrade attempted and shelved (2026-09-06)** |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
+| mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
@@ -314,30 +358,13 @@ is real ESM with named `deflate`/`inflate` exports - that appended line has
 nothing to attach to any more, so the wrapper is gone too and this is now a
 verbatim copy, same as fuse.js.
 
-**mp4box 2.4.1 was sized up (2026-09-06) and shelved.** Two problems, not
-one. First, the public API changed: `MP4Box.createFile()` is gone, replaced
-by a bare `createFile()` export, which alone would mean code changes in
-`mp4merger.mjs` (3 call sites), `demuxers.mjs` and `MP4Player.mjs`. Second,
-and the real blocker: mp4box.js was rewritten in TypeScript and is now
-bundled with rolldown, which renames every internal binding to a short
-synthetic identifier (`$`, `Bn`, `Kt`, ...) and only maps back to a readable
-name at the final `export {...}` statement. Checked both the `.mjs` and
-`.cjs` output - neither keeps real names. That breaks the method this
-project otherwise relies on for exactly this kind of upgrade: hls.js's and
-dash.js's bundlers keep real function/module names, so a patch hunk can be
-found, diffed against the new release, and judged landed/superseded/still
-needed. Here, none of the five customized functions
-(`buildTrakSampleLists`, `getSample`, `getSampleList`, `flattenItemInfo`,
-`writeHeader`) are findable by name any more, and two of them
-(`samples_stored` sample-release tracking, used by `MP4Player.mjs` in core
-playback; `getSampleList()`, used by the save-to-disk DASH-to-MP4 path) are
-real behaviour, not lint noise. Porting them would mean reverse-engineering
-the rolldown output's alias chain back to the real functions first - a
-materially bigger and riskier undertaking than hls.js, on code that sits in
-the playback-critical path. 0.5.3 stays pinned + patched; that already
-satisfies AMO's actual objection (verifiable provenance), and nothing
-requires the newer release. Worth revisiting only with a lot more time
-budgeted, or if GPAC ever ships a build that preserves real names.
+**mp4box 2.4.1 was shelved on 2026-09-06 on a misreading, and taken on
+2026-09-25.** The blocker was said to be that rolldown "renames every internal
+binding to a short synthetic identifier", so none of FastStream's changes could
+be found by name. It does not: the short names (`$`, `Bn`, `Kt`) are only the
+aliases one chunk exports under and the entry point imports by. The code keeps
+its real names, and the published source maps carry the original TypeScript.
+See "mp4box - measured, migrated, then reverted" below, **Fifth**.
 
 **mp4-muxer 5.2.2 was tried (2026-09-06) and reverted.** The API surface
 `reencoder.mjs` uses (`Muxer`, `StreamTarget`, `addVideoChunk`,
@@ -824,7 +851,7 @@ is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
 through v5.1.0.
 
-`chrome/player/modules/vtt.mjs` is that file with exactly three changes:
+`chrome/player/modules/vtt.mjs` is that file with exactly four changes:
 
 | Change | Why |
 |---|---|
@@ -843,7 +870,7 @@ as the vendored one.
 It cannot be generated at build time: videojs/vtt.js publishes only `lib/*` to
 npm, and dash.js's npm package ships only the minified `vtt.min.js`, not this
 bundle. So it is *verified* instead of generated. `pnpm run verify:vtt` fetches
-the upstream file, applies the three changes and asserts AST equality, and
+the upstream file, applies the four changes and asserts AST equality, and
 fails with the exact point of divergence if anything moves. That is the
 difference between a claim in a document and a claim a reviewer can re-run -
 and it is mutation-tested, so a wrong expectation fails rather than passing
@@ -878,7 +905,7 @@ spec-required to produce. Left as upstream ships it.
 `reencoder/webm.mjs` was readable `class Track { ... }` source ending in
 `window.JsWebm = JsWebm;`, whereas jswebm's npm package ships a minified
 webpack bundle in `dist/`. So the vendored file was jswebm's `src/` directory
-concatenated into one ES module - the same shape as mp4box.
+concatenated into one ES module - the same shape as mp4box 0.5.3.
 
 That turned out to be good news, because jswebm publishes `src/` in the npm
 tarball alongside the bundle. Comparing declaration by declaration with
@@ -1286,6 +1313,57 @@ changes.
   `{MP4Box, DataStream}`; the vendored file exports them directly and drops
   the trailing CommonJS block
 
+**Fifth, 2.4.1 (2026-09-25).** mp4box 2.x is a TypeScript rewrite that
+rolldown bundles into an entry point, `dist/mp4box.all.mjs`, and a shared
+chunk, `dist/styp-9TIZZDLN.mjs`. Inside the chunk every class and method keeps
+its name (`class ISOFile`, `buildTrakSampleLists`, `getSample`,
+`releaseSample`), so each of the five changes above could be looked up. Only
+two still needed porting:
+
+| In the 0.5.3 patch | In 2.4.1 |
+|---|---|
+| `writeHeader` writes a uuid box's hex-string `uuid` as 16 bytes | **landed upstream** - 2.x's `Box.writeHeader` does exactly that |
+| `flattenItemInfo` without the idat offset for `construction_method` 1 | **upstream's own code, not a fork change** - it is, whitespace aside, mp4box's source as of `6ebcc41` (2023-10-26), the commit before `a6ff3ce` added that offset. It differs from both releases because Andrew's copy was built between them, like dash.js's. 2.4.1's is taken; FastStream reads no image items |
+| `samples_stored`: `buildTrakSampleLists` starts it, `getSample` records each sample whose data it loads | **ported** - `MP4Player.freeSamples` and the re-encoder's `MP4Demuxer` release exactly those |
+| `getSampleList(moof, trexList)` | **ported**, same logic; the chunk inlines most flag constants as numbers, so the port does too. `mp4merger.mjs` reads every fragment of a DASH or fMP4 HLS save with it |
+
+So `patches/mp4box@2.4.1.patch` is 5 KB against 37 KB, all of it additions to
+the chunk. The API changes are in FastStream's own code: `createFile` is an
+export of its own now (`MP4Box.createFile` is gone); `initializeSegmentation()`
+returns one initialization segment for all tracks unless asked for
+`'per-track'`, which `MP4Player`'s SourceBuffer per track needs; `onError` is
+called with `(module, message)`; and `DataStream.BIG_ENDIAN` became the
+exported `Endianness.BIG_ENDIAN` - the old name would have read `undefined`
+without a word, and only worked because big-endian is the default.
+
+The three published files - the entry point, the chunk and rolldown's
+400-byte runtime - are copied side by side into `chrome/player/modules/mp4box/`
+and the browser resolves the imports between them; nothing is bundled here.
+The chunk names are content hashes that change with every release, so
+`tools/sync-vendor.mjs` lists them (`MP4BOX_CHUNKS`) and fails the sync if the
+files import anything else.
+
+Checked by: ESLint's `no-undef`/`no-unused-vars` over the stock and the patched
+chunk (nothing either way); `plays MP4 (mp4box)` for `MP4Player`; the DASH and
+fMP4 HLS saves in `save-video.e2e.mjs` and `save-fmp4.e2e.mjs` for
+`mp4merger.mjs`; and a new test in `modules.e2e.mjs` for the re-encoder's
+`MP4Demuxer`, which no test ran before and which reads the most of mp4box's
+API. Each was mutation-checked: without the `samples_stored` push the demuxer
+test fails, with the default combined `initializeSegmentation()` MP4 playback
+fails, and with an empty `getSampleList()` every DASH and fMP4 save fails.
+
+That demuxer test found a bug older than any of this. `getVideoChunks()` gave
+each chunk the gap to the next sample's timestamp as its duration, but samples
+come in decode order, so with B-frames the gap is often negative and
+`EncodedVideoChunk` throws - any B-frame H.264 stream that fell back from
+`mp4merger.mjs` to the re-encoder failed to save, on mp4box 0.5.3 as on 2.4.1.
+Each chunk now carries its sample's own duration. The test first passed
+locally and failed on CI: re-encoded with the machine's ffmpeg, its video had
+B-frames only where the encoder was libx264 (CI) and not libopenh264 (a local
+LGPL build). It now uses `sample.mp4`'s own H.264, copied, and checks that the
+frames really are reordered; the DASH fixtures are encoded without B-frames or
+scene-cut keyframes, so every machine builds the same ones.
+
 Two lessons generalise. A library migration is not "provably inert" because
 its diff looks additive - only the end-to-end suite settles it. And a
 comparison tool that reports a small number is not the same as a small
@@ -1315,7 +1393,7 @@ the set at all. The bundle's own module map settles it: it requires
 `./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
 paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 **dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
-v4.7.4 through v5.1.0, plus three changes and an export line.
+v4.7.4 through v5.1.0, plus four changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 

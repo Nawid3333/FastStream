@@ -27,6 +27,9 @@ const root = path.resolve(__dirname, '..');
  * pnpm-workspace.yaml, or the copied file silently loses FastStream's
  * changes and playback breaks in ways that look like a network fault.
  */
+/** The chunks mp4box's dist/mp4box.all.mjs imports; checked by checkMp4boxImports. */
+const MP4BOX_CHUNKS = ['styp-9TIZZDLN.mjs', 'rolldown-runtime-w6R9maHv.mjs'];
+
 const VENDOR = [
   {
     name: 'hls.js',
@@ -102,20 +105,26 @@ const VENDOR = [
     transform: stripInlineSourceMap,
   },
   {
-    // Proven, not assumed: the vendored copy's AST is *identical* to this
-    // build's once the project's own `eslint --fix` transformations are
-    // normalised away - one-var splitting, curly, quote style,
-    // no-var/prefer-const, and re-indentation inside a template literal.
-    // Nothing else differed, so this is the same code the fork already ships.
-    // Base is 0.5.3: 332 of 339 prototype assignments are already identical
-    // to the published release. The seven that were not are what the patch
-    // and this transform account for - see docs/vendored-libraries.md.
+    // mp4box 2.x is TypeScript that rolldown bundles into an ES module entry
+    // point importing two shared chunks. The browser resolves those imports
+    // itself, so the three files are copied as published, side by side, and
+    // nothing is bundled here. FastStream's changes are all in the chunk -
+    // patches/mp4box@2.4.1.patch, see docs/vendored-libraries.md.
+    //
+    // The chunk names carry a content hash and change with every release:
+    // checkMp4boxImports fails the sync if the entry point imports anything
+    // but the chunks listed here.
     name: 'mp4box',
-    from: 'node_modules/mp4box/dist/mp4box.all.js',
-    to: 'chrome/player/modules/mp4box.mjs',
-    transform: toMp4boxModule,
-    patched: true,
+    from: 'node_modules/mp4box/dist/mp4box.all.mjs',
+    to: 'chrome/player/modules/mp4box/mp4box.all.mjs',
+    transform: checkMp4boxImports,
   },
+  ...MP4BOX_CHUNKS.map((chunk) => ({
+    name: 'mp4box',
+    from: `node_modules/mp4box/dist/${chunk}`,
+    to: `chrome/player/modules/mp4box/${chunk}`,
+    patched: chunk.startsWith('styp-'),
+  })),
   {
     name: 'mp4-muxer',
     from: 'node_modules/mp4-muxer/build/mp4-muxer.mjs',
@@ -447,50 +456,34 @@ function toSweetAlertModule(src) {
  * @return {string} an ES module exporting GIF
  */
 /**
- * Turns mp4box's classic script into an ES module.
+ * Checks that mp4box's entry point, and the chunks it imports, import nothing
+ * but the chunks in MP4BOX_CHUNKS.
  *
- * mp4box publishes a plain script that declares two globals and, at the end,
- * assigns to `exports` if it happens to exist. FastStream imports
- * `{MP4Box, DataStream}`, so the two declarations become named exports and the
- * CommonJS tail goes.
+ * The chunk names are content hashes, so every mp4box release renames them.
+ * Renamed chunks already fail the sync as MISSING; a release that adds one
+ * would copy without complaint and fail in the browser instead, on an import
+ * of a file that was never vendored. This makes that fail here too.
  *
- * The behavioural differences from the published release are not here - they
- * are in patches/mp4box@0.5.3.patch, five changes of which
- * `ISOFile.prototype.getSampleList` is an addition that
- * modules/dash2mp4/mp4merger.mjs calls. A straight swap without that patch
- * passes every linter and then fails MP4 playback, which is how the first
- * attempt at this migration was caught.
- *
- * @param {string} src the published mp4box.all.js
- * @return {string} the module written to chrome/player/modules/mp4box.mjs
+ * @param {string} src the published dist/mp4box.all.mjs
+ * @return {string} the same file, unchanged
  */
-function toMp4boxModule(src) {
-  const exportsTail = 'if (typeof exports !== \'undefined\') {\n' +
-    '\texports.createFile = MP4Box.createFile;\n}';
-  const decls = [
-    ['var DataStream = function', 'export const DataStream = function'],
-    ['var MP4Box = {};', 'export const MP4Box = {};'],
-  ];
-
-  let out = normaliseText(src);
-  for (const [from, to] of decls) {
-    const n = out.split('\n').filter((l) => l.startsWith(from)).length;
-    if (n !== 1) {
-      throw new Error(
-          `expected exactly one top-level "${from}" in mp4box, found ${n}; ` +
-          'its dist layout changed - re-check this transform.',
-      );
-    }
-    out = out.replace(from, to);
+function checkMp4boxImports(src) {
+  const importsOf = (text) => [...text.matchAll(/^import\s[^;]*?\sfrom\s+"\.\/([^"]+)";?$/gm)].map((m) => m[1]);
+  const dist = path.join(root, 'node_modules/mp4box/dist');
+  const found = new Set(importsOf(src));
+  for (const chunk of MP4BOX_CHUNKS) {
+    const file = path.join(dist, chunk);
+    if (fs.existsSync(file)) importsOf(fs.readFileSync(file, 'utf8')).forEach((f) => found.add(f));
   }
-
-  if (!out.includes(exportsTail)) {
+  const unexpected = [...found].filter((f) => !MP4BOX_CHUNKS.includes(f));
+  const unused = MP4BOX_CHUNKS.filter((f) => !found.has(f));
+  if (unexpected.length || unused.length) {
     throw new Error(
-        'mp4box CommonJS tail not found; its dist layout changed - re-check ' +
-        'this transform before shipping a build.',
-    );
+        `mp4box's chunks changed (imported but not vendored: ${unexpected.join(', ') || 'none'}; ` +
+        `vendored but not imported: ${unused.join(', ') || 'none'}). Update MP4BOX_CHUNKS ` +
+        'and re-cut patches/mp4box@*.patch against the new chunk.');
   }
-  return out.replace(exportsTail, '').trimEnd() + '\n';
+  return src;
 }
 
 function toGifModule(src) {

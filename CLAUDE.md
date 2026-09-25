@@ -211,7 +211,10 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   public extension point). The AMO problem is that the vendored *bytes*
   aren't an official release — not that the integration is hacked.
 - **Vendored library versions are current**, not stale: dash.js reports
-  `VERSION = '5.1.0'`, hls.js carries 1.6.x branches.
+  `VERSION = '5.2.1'`, hls.js carries 1.6.x branches. The vendored dash.js
+  was a pre-release `development` build, not 5.1.0 - measure a patched
+  bundle against the commit it was built from, not the nearest release
+  (`docs/vendored-libraries.md`, dash.js "Status").
 
 ## Network layer: fetch() + OPFS (2026-09-10)
 
@@ -593,8 +596,21 @@ covers the 30-minute wait.
 
 ## Workflows (reworked 2026-09-25)
 
-- **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm` and `verify:ort`),
-  plus a `workflows` job: actionlint with its bundled shellcheck over every workflow.
+- **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm`, `verify:ort` and,
+  since 2026-09-25, `verify:vtt`/`verify:knob`/`verify:vad` - `verify:vtt` had been red
+  for three days when nothing ran it), plus a `workflows` job: actionlint with its
+  bundled shellcheck over every workflow.
+- **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
+  and failed on CI). The e2e fixtures are built with the machine's ffmpeg: CI's has
+  libx264, a local LGPL build only libopenh264, and only libx264 makes B-frames. The
+  fixtures no longer depend on that (the DASH ones are encoded with `-bf 0
+  -sc_threshold 0`; the B-frame one is copied from `sample.mp4`), but to reproduce CI
+  exactly, delete everything in `tests/e2e/fixtures/` except `sample.mp4` and run
+  `pnpm run verify` with a GPL ffmpeg first on `PATH` (on this machine: winget's
+  `Gyan.FFmpeg`, gyan.dev 9.0.2 full; Chocolatey gives the Windows runner the same
+  version as the essentials build, both with libx264). For the
+  `workflows` job: rhysd/actionlint's release at the version `ci.yml` pins, with
+  koalaman/shellcheck's release passed as `-shellcheck`.
 - **`auto-release.yml`** only acts on a CI run that was a `push` to this repository's
   `main`. Before, `branches: [main]` matched a fork PR's branch named `main` too, and the
   job would have checked out that commit with a write token, pushed it and released it.

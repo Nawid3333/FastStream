@@ -1,5 +1,5 @@
 import {EventEmitter} from '../eventemitter.mjs';
-import {MP4Box, DataStream} from '../mp4box.mjs';
+import {createFile, DataStream, Endianness} from '../mp4box/mp4box.all.mjs';
 import {MP4} from '../hls2mp4/MP4Generator.mjs';
 import {FSBlob} from '../FSBlob.mjs';
 import {BlobManager} from '../../utils/BlobManager.mjs';
@@ -96,9 +96,9 @@ export class MP4Merger extends EventEmitter {
     const blob = await entry.getData();
     const data = await BlobManager.getDataFromBlob(blob, 'arraybuffer');
     data.fileStart = 0;
-    const mp4boxfile = MP4Box.createFile(false);
-    mp4boxfile.onError = function(e) {
-      console.log('mp4box error', e);
+    const mp4boxfile = createFile(false);
+    mp4boxfile.onError = function(module, message) {
+      console.log('mp4box error', module, message);
     };
 
     mp4boxfile.appendBuffer(data);
@@ -503,7 +503,7 @@ function firstPresentedTime(chunk) {
 }
 
 function parseInitSegment(buffer, what) {
-  const file = MP4Box.createFile(false);
+  const file = createFile(false);
   buffer.fileStart = 0;
   file.appendBuffer(buffer);
   file.flush();
@@ -546,7 +546,7 @@ function findTrack(file, codecs) {
  */
 function writeSampleEntry(entry) {
   const stream = new DataStream();
-  stream.endianness = DataStream.BIG_ENDIAN;
+  stream.endianness = Endianness.BIG_ENDIAN;
   entry.write(stream);
   return stream.buffer;
 }

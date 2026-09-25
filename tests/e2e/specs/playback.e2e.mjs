@@ -16,7 +16,28 @@
 // data". A player that loads its manifest and then stalls fails here, which
 // is exactly the failure a library swap causes.
 
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
+
+const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
+
+/**
+ * A local DASH stream from DASH_FIXTURES in wdio.conf.mjs.
+ * @param {string} fixture - Its directory under fixtures/.
+ * @param {string} kind - How its manifest lists the segments.
+ * @return {Object} The STREAMS entry.
+ */
+function localDash(fixture, kind) {
+  return {
+    name: `DASH ${kind} (dash.js)`,
+    fixture,
+    get url() {
+      return globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/${fixture}/manifest.mpd`;
+    },
+  };
+}
 
 /** Streams chosen for stability and for exercising one library each. */
 const STREAMS = [
@@ -28,6 +49,10 @@ const STREAMS = [
     name: 'DASH (dash.js)',
     url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
   },
+  localDash('dash-template', 'SegmentTemplate'),
+  localDash('dash-list', 'SegmentList'),
+  localDash('dash-timeline', 'SegmentTimeline'),
+  localDash('dash-base', 'SegmentBase'),
   {
     name: 'MP4 (mp4box)',
     // Served by the local test server: same-origin, so no CORS, and no
@@ -60,6 +85,50 @@ async function openPlayer(source) {
   const bust = `?t=${Date.now()}`;
   await browser.url(
       '/player/index.html' + bust + (source ? '#' + source : ''));
+}
+
+/**
+ * Checks FastStream's fragment list for a local DASH stream against its manifest.
+ *
+ * DashPlayer.mjs builds one fragment per segment from getAllSegments(), which FastStream
+ * patches into each of dash.js's segment getters. Playback does not prove that works: a
+ * segment missing from the list is still fetched, through DashLoader's fallback, and the
+ * stream plays either way. The list itself does - every segment the manifest names, in
+ * order, at its address, with no gap in time between one and the next.
+ *
+ * @param {string} fixture - Directory under fixtures/ holding expected.json.
+ * @return {Promise<void>}
+ */
+async function expectEverySegmentListed(fixture) {
+  const expected = JSON.parse(
+      fs.readFileSync(path.join(fixturesDir, fixture, 'expected.json'), 'utf8'));
+  for (const [level, want] of Object.entries(expected)) {
+    const got = await browser.execute((level) => {
+      return (window.fastStream.getFragments(level) || []).filter(Boolean).map((frag) => ({
+        sn: frag.sn,
+        start: frag.start,
+        duration: frag.duration,
+        file: frag.request.url.split('/').pop(),
+        range: frag.request.range || null,
+      }));
+    }, level);
+    console.log(`      ${level}: ${got.length} fragments`);
+
+    const count = (want.media || want.ranges).length;
+    expect(got.map((frag) => frag.sn)).toEqual([...Array(count).keys()]);
+    if (want.media) {
+      expect(got.map((frag) => frag.file)).toEqual(want.media);
+    } else {
+      expect(got.map((frag) => frag.range)).toEqual(want.ranges);
+    }
+    got.forEach((frag, i) => {
+      expect(frag.duration).toBeGreaterThan(0);
+      if (i > 0) {
+        const previous = got[i - 1];
+        expect(Math.abs(frag.start - (previous.start + previous.duration))).toBeLessThan(0.01);
+      }
+    });
+  }
 }
 
 describe('FastStream playback', function() {
@@ -128,6 +197,10 @@ describe('FastStream playback', function() {
       });
       console.log('      state:', JSON.stringify(state));
       expect(state.error).toBe(null);
+
+      if (stream.fixture) {
+        await expectEverySegmentListed(stream.fixture);
+      }
     });
   }
 });

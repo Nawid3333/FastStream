@@ -1,4 +1,4 @@
-import {MP4Box} from '../mp4box.mjs';
+import {createFile} from '../mp4box/mp4box.all.mjs';
 import {JsWebm} from './webm.mjs';
 
 class AbstractDemuxer {
@@ -207,9 +207,9 @@ export class MP4Demuxer extends AbstractDemuxer {
   }
 
   createFile(buffer) {
-    const file = MP4Box.createFile(false);
-    file.onError = (e) => {
-      console.log('mp4box error', e);
+    const file = createFile(false);
+    file.onError = (module, message) => {
+      console.log('mp4box error', module, message);
     };
     return file;
   }
@@ -293,15 +293,15 @@ export class MP4Demuxer extends AbstractDemuxer {
     const chunks = [];
     for (let i = 0; i < samples.length - 1; i++) {
       const sample = samples[i];
-      const nextSample = samples[i + 1];
 
+      // Each sample's own duration, not the gap to the next sample's timestamp: samples
+      // come in decode order, so with B-frames the next one is often presented earlier
+      // and that gap is negative, which EncodedVideoChunk rejects.
       const timescale = sample.timescale;
-      const currentTimestamp = Math.floor(sample.cts * 1000000 / timescale);
-      const nextTimestamp = Math.floor(nextSample.cts * 1000000 / timescale);
       const chunk = new EncodedVideoChunk({
         type: sample.is_sync ? 'key' : 'delta',
-        timestamp: currentTimestamp,
-        duration: nextTimestamp - currentTimestamp,
+        timestamp: Math.floor(sample.cts * 1000000 / timescale),
+        duration: Math.floor(sample.duration * 1000000 / timescale),
         data: sample.data,
       });
       chunks.push(chunk);
