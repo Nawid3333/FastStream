@@ -606,6 +606,19 @@ covers the 30-minute wait.
   A newer version supersedes and closes the older issue; moving closes it. Same-major
   releases are not reported. Dependencies stay pinned by the lockfile on purpose (patches,
   AMO reproducibility); Dependabot's weekly grouped PR is how they move.
+- **`firefox-beta.yml`** (weekly, and on PRs touching it or the e2e configs): `test:e2e` and
+  `test:ext` against Firefox Beta (`browser-actions/setup-firefox`, `latest-beta`) through
+  the `FIREFOX_BINARY` env var the wdio configs honour. A scheduled failure opens one issue
+  naming the Beta version - about four weeks before that Firefox reaches users - and the
+  next green run closes it. Not part of CI; it never blocks a release.
+- **Every action is pinned to a commit SHA** with the exact version as a comment (and the
+  actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
+  against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
+- **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
+  libsamplerate, StreamSaver, the native ONNX Runtime wasm): measured 2026-09-25, OSV has
+  never recorded a vulnerability for any of them, so a workflow could never fire. They are
+  covered by the provenance checks instead. The lockfile-backed libraries are covered by
+  Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.

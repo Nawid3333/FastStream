@@ -39,10 +39,12 @@ updates:
       - dependency-name: 'mp4box'
       - dependency-name: 'sweetalert2'
 
-  # Workflow actions pin a major tag, so v7.x fixes arrive on their own but a
-  # new major never does. Without this the pins simply rot. Dependabot opens
-  # a PR when the next major lands, which is a decision rather than a
-  # surprise.
+  # Workflow actions are pinned to a commit SHA with the version as a comment,
+  # so a moved or hijacked tag cannot change what runs next to the AMO signing
+  # keys. Nothing arrives on its own any more; Dependabot updates the SHA and
+  # the comment together - minor and patch releases as one grouped PR a week, a
+  # new major on its own. (The actionlint image in ci.yml is pinned by digest;
+  # bump it by hand with actionlint's release.)
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
@@ -50,3 +52,6 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
+    groups:
+      actions-minor-and-patch:
+        update-types: ['minor', 'patch']

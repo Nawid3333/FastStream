@@ -194,6 +194,9 @@ export const config = {
   capabilities: [{
     'browserName': 'firefox',
     'moz:firefoxOptions': {
+      // Another Firefox to test, e.g. Beta in .github/workflows/firefox-beta.yml;
+      // otherwise geckodriver finds the installed one.
+      ...(process.env.FIREFOX_BINARY ? {binary: process.env.FIREFOX_BINARY} : {}),
       args: [
         '-headless',
         // Never hand off to, or disturb, a Firefox the developer is already
