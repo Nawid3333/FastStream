@@ -339,7 +339,7 @@ what can actually change behaviour.
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
-| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 3 changes | **verified** |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
@@ -851,7 +851,7 @@ is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
 through v5.1.0.
 
-`chrome/player/modules/vtt.mjs` is that file with exactly three changes:
+`chrome/player/modules/vtt.mjs` is that file with exactly four changes:
 
 | Change | Why |
 |---|---|
@@ -870,7 +870,7 @@ as the vendored one.
 It cannot be generated at build time: videojs/vtt.js publishes only `lib/*` to
 npm, and dash.js's npm package ships only the minified `vtt.min.js`, not this
 bundle. So it is *verified* instead of generated. `pnpm run verify:vtt` fetches
-the upstream file, applies the three changes and asserts AST equality, and
+the upstream file, applies the four changes and asserts AST equality, and
 fails with the exact point of divergence if anything moves. That is the
 difference between a claim in a document and a claim a reviewer can re-run -
 and it is mutation-tested, so a wrong expectation fails rather than passing
@@ -1348,10 +1348,21 @@ chunk (nothing either way); `plays MP4 (mp4box)` for `MP4Player`; the DASH and
 fMP4 HLS saves in `save-video.e2e.mjs` and `save-fmp4.e2e.mjs` for
 `mp4merger.mjs`; and a new test in `modules.e2e.mjs` for the re-encoder's
 `MP4Demuxer`, which no test ran before and which reads the most of mp4box's
-API - it gives the same numbers on 0.5.3 and 2.4.1. Each was mutation-checked:
-without the `samples_stored` push the demuxer test fails, with the default
-combined `initializeSegmentation()` MP4 playback fails, and with an empty
-`getSampleList()` every DASH and fMP4 save fails.
+API. Each was mutation-checked: without the `samples_stored` push the demuxer
+test fails, with the default combined `initializeSegmentation()` MP4 playback
+fails, and with an empty `getSampleList()` every DASH and fMP4 save fails.
+
+That demuxer test found a bug older than any of this. `getVideoChunks()` gave
+each chunk the gap to the next sample's timestamp as its duration, but samples
+come in decode order, so with B-frames the gap is often negative and
+`EncodedVideoChunk` throws - any B-frame H.264 stream that fell back from
+`mp4merger.mjs` to the re-encoder failed to save, on mp4box 0.5.3 as on 2.4.1.
+Each chunk now carries its sample's own duration. The test first passed
+locally and failed on CI: re-encoded with the machine's ffmpeg, its video had
+B-frames only where the encoder was libx264 (CI) and not libopenh264 (a local
+LGPL build). It now uses `sample.mp4`'s own H.264, copied, and checks that the
+frames really are reordered; the DASH fixtures are encoded without B-frames or
+scene-cut keyframes, so every machine builds the same ones.
 
 Two lessons generalise. A library migration is not "provably inert" because
 its diff looks additive - only the end-to-end suite settles it. And a
@@ -1382,7 +1393,7 @@ the set at all. The bundle's own module map settles it: it requires
 `./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
 paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 **dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
-v4.7.4 through v5.1.0, plus three changes and an export line.
+v4.7.4 through v5.1.0, plus four changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
