@@ -511,6 +511,12 @@ describe('mpv frame step', function() {
     });
   });
 
+  // Plays the video element and does not wait on the promise, as every other spec does:
+  // window.fastStream.play() also waits for its AudioContext to resume, which on the Linux
+  // CI runner (no sound device) never settled, so awaiting it hung the test.
+  const startPlayback = () => browser.execute(() => {
+    window.fastStream.player.getVideo().play().catch(() => {});
+  });
   const frame = () => browser.execute((fps) => Math.floor(window.fastStream.currentTime * fps + 1e-6), FPS);
   const picture = () => browser.execute(() => window.__picture());
   const presented = () => browser.execute(() => window.__presented);
@@ -529,7 +535,7 @@ describe('mpv frame step', function() {
 
   it('after playing and pausing, steps exactly one frame on and back', async function() {
     await reset();
-    await browser.execute(() => window.fastStream.play());
+    await startPlayback();
     await browser.waitUntil(async () => (await time()) > 1, {timeout: 10000, timeoutMsg: 'never played to 1 s'});
     await browser.execute(() => window.fastStream.pause());
     expect(await browser.execute(() => window.fastStream.frameStepper.frameDuration)).toBeCloseTo(1 / FPS, 4);
@@ -565,7 +571,7 @@ describe('mpv frame step', function() {
 
   it('pauses a playing video before stepping, like mpv', async function() {
     await reset();
-    await browser.execute(() => window.fastStream.play());
+    await startPlayback();
     await browser.waitUntil(async () => (await time()) > 0.5, {timeout: 10000, timeoutMsg: 'never played'});
     await pressKey('Period');
     await browser.waitUntil(async () => browser.execute(() => window.fastStream.paused),
