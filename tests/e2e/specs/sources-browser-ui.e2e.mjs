@@ -147,15 +147,38 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     // Re-queued on each poll: on a slow machine a mouse event arriving after
     // the dialog closed (the pointer is left where the close button was)
     // restarts the 2 s timer once, which a single 150 ms check read as failure.
+    // The pointer is still where the close button was, and once the dialog is gone that
+    // spot can be over the control bar (window size and platform decide) - where the bar
+    // rightly stays up. A user moves the mouse away; so does the test, to the top-left of
+    // the player (this spec loads no video), away from the controls at the bottom.
+    const player = await browser.$('.mainplayer');
+    const {width, height} = await player.getSize();
+    await browser.action('pointer')
+        .move({origin: player, x: -Math.floor(width / 2) + 10, y: -Math.floor(height / 2) + 10})
+        .perform();
     let hiddenWhenClosed = false;
-    await browser.waitUntil(async () => {
-      hiddenWhenClosed = await browser.execute(() => {
-        const visible = document.querySelector('.mainplayer').classList.contains('controls_visible');
-        if (visible) window.fastStream.interfaceController.queueControlsHide(20);
-        return !visible;
+    try {
+      await browser.waitUntil(async () => {
+        hiddenWhenClosed = await browser.execute(() => {
+          const visible = document.querySelector('.mainplayer').classList.contains('controls_visible');
+          if (visible) window.fastStream.interfaceController.queueControlsHide(20);
+          return !visible;
+        });
+        return hiddenWhenClosed;
+      }, {timeout: 3000, interval: 150});
+    } catch (e) {
+      // What stopped the hide - every condition queueControlsHide checks.
+      const why = await browser.execute(() => {
+        const ic = window.fastStream.interfaceController;
+        return {
+          focusingControls: ic.focusingControls, mouseOverControls: ic.mouseOverControls,
+          bigPlayButton: ic.isBigPlayButtonVisible(), playing: ic.state.playing,
+          canHideControls: ic.toolManager.canHideControls(),
+          active: document.activeElement?.className || document.activeElement?.tagName,
+        };
       });
-      return hiddenWhenClosed;
-    }, {timeout: 3000, interval: 150, timeoutMsg: 'the control bar never auto-hid once the dialog was closed'});
+      throw new Error(`the control bar never auto-hid once the dialog was closed: ${JSON.stringify(why)}`);
+    }
     expect(hiddenWhenClosed).toBe(true);
   });
 });
