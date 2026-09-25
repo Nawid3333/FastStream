@@ -1,0 +1,80 @@
+name: Stress (temporary)
+
+# TEMPORARY - remove before merging. Runs the extension e2e suite on twelve Windows
+# runners at once to catch an intermittent save hang with its diagnostics, and both
+# e2e suites on Ubuntu 26.04 and 24.04 without xvfb (autoXvfb: false).
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.os }} ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        include:
+          - {os: ubuntu-26.04, shard: 1}
+          - {os: ubuntu-24.04, shard: 1}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install ffmpeg
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then
+            choco install ffmpeg -y --no-progress
+          else
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+
+      - name: Install Firefox
+        id: firefox
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+        with:
+          firefox-version: latest
+
+      - name: Build
+        run: pnpm run build:keep
+
+      - name: End-to-end playback (Linux only)
+        if: runner.os == 'Linux'
+        env:
+          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
+        run: pnpm run test:e2e
+
+      - name: End-to-end extension tests
+        env:
+          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
+        run: pnpm run test:ext
+
+      - name: Upload e2e failure logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stress-logs-${{ matrix.os }}-${{ matrix.shard }}
+          path: logs/
+          if-no-files-found: ignore
