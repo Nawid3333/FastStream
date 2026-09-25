@@ -1,7 +1,7 @@
 name: Runner images
 
 # GitHub moves ubuntu-latest and windows-latest to a new OS version every year or two
-# (ubuntu-latest goes from 24.04 to 26.04 in November 2026, actions/runner-images#14748),
+# (ubuntu-latest goes from 24.04 to 26.04 over Oct 19 - Nov 19 2026, actions/runner-images#14748),
 # and a new image can break a workflow that passed the day before: a tool removed, a
 # path moved, a smaller /tmp. This runs CI on the new image before and after the
 # switch, and only speaks up when something needs editing.

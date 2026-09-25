@@ -331,7 +331,7 @@ what can actually change behaviour.
 
 | Library | Version | Real change beyond lint autofix | Status |
 |---|---|---|---|
-| pako | 3.0.1 | none - 3.x ships real ESM, no wrapper needed at all | **migrated** |
+| pako | 3.0.2 | none - 3.x ships real ESM, no wrapper needed at all | **migrated** |
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
@@ -354,7 +354,7 @@ code and should stay in git.
 **pako** was stock 2.1.0 with a single appended export line. The generated
 file (npm build + that line) parses to an **AST identical** to the vendored
 copy, so the replacement needed no patch and no playback test - the parsed
-program is provably the same. Since upgraded to 3.0.1, whose `dist/pako.mjs`
+program is provably the same. Since upgraded to 3.0.x (3.0.2 since 2026-09-25), whose `dist/pako.mjs`
 is real ESM with named `deflate`/`inflate` exports - that appended line has
 nothing to attach to any more, so the wrapper is gone too and this is now a
 verbatim copy, same as fuse.js.
@@ -391,6 +391,13 @@ the package is itself deprecated upstream in favor of a successor library
 ("Mediabunny"). Given a real behavioural regression, on the newest
 available version, in a package upstream has stopped investing in - reverted
 to 4.3.3 rather than shipped it or patched around it.
+
+Dependabot offered 5.2.2 again as #25 on 2026-09-25, and CI failed on this
+same test with the same error. Since no release after 5.2.2 can come,
+`.github/dependabot.yml` now ignores mp4-muxer, so it stops being offered. The
+re-encoder's own path does not reach this through a cancel (`cancel()` throws
+before `finalize()`), but it does whenever a video track ends up with no
+encoded frame. Moving on from 4.3.3 means migrating to Mediabunny.
 
 **fuse.js** needed nothing at all: 34 AST differences, every one of them lint
 autofix, and identical exports.
@@ -813,6 +820,12 @@ and a zeroed `[2,1,128]` state, exactly as `vad.mjs` does.
 | returned state | `[2,1,128]` |
 
 It works. That retires the concern rather than arguing it away.
+
+The same test is why the loader stays at 1.20.0. On 2026-09-25 Dependabot's
+group PR #23 took onnxruntime-web 1.30.0: the 1.30 loader driving this 1.20-era
+runtime failed in `checkLastError` on both Linux and Windows. `.github/dependabot.yml`
+ignores onnxruntime-web since then. A newer loader needs a runtime rebuilt to
+match (`tools/reproduce-ort-wasm.sh`).
 
 **The glue's own upstream.** `vad/vad.mjs` derives from ricky0123/vad-web:
 the `Silero` and `FrameProcessor` classes, `modelFetcher`,

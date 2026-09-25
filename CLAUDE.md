@@ -573,6 +573,20 @@ would re-trigger `auto-release.yml` — the workflow's `if:` skips any
 `workflow_run` whose head commit message starts with `chore: release `,
 which is what stops that loop rather than looping forever.
 
+**Only when something shipped changed** (2026-09-25). Before bumping,
+auto-release downloads CI's build of the commit (the `faststream-bundles`
+artifact) and the latest release's `firefox-github-*.zip`, unzips both and
+runs `diff -rq`. Identical means the push touched only tools, tests,
+workflows, docs or dev dependencies, and the release would differ from the
+last one only in its version number (v1.3.82.33 after PR #21 was exactly
+that), so it stops with a notice and nothing is released. Any doubt - no
+release, no artifact, a failed download or unzip, any difference - releases
+as before. Checked on real history before it went in: PR #21's merge build
+against v1.3.82.32 is identical; PR #20's against v1.3.82.31 differs in the
+six dash.js/mp4box files it changed. The builds are deterministic enough for
+this: two releases from different commits differ only in `manifest.json`'s
+version. To release such a push anyway, run `pnpm run release <version>`.
+
 `tools/cut-release.mjs` (`pnpm run release <version>`) still exists for a
 deliberate version bump — a real minor/patch for a milestone rather than
 the next build number. Run it by hand right before the push you want that
@@ -608,7 +622,7 @@ covers the 30-minute wait.
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
   which runs CI's Linux verify job and its workflows job in WSL, once on each Ubuntu
   release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
-  26.04 until `ubuntu-latest` moves in November 2026), read from the runner image table
+  26.04 until `ubuntu-latest` has moved, rolled out Oct 19 - Nov 19 2026), read from the runner image table
   `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
   installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
@@ -660,7 +674,7 @@ covers the 30-minute wait.
   `ubuntu-latest`/`windows-latest` and the newest GA one, and calls `ci.yml` (which takes
   `linux-runner`/`windows-runner` inputs for this) once on the newest image when it is
   newer than `-latest` - a warning before GitHub switches, as `ubuntu-latest` does to 26.04
-  in November 2026 - and once more when `-latest` moves. Green runs are recorded as cache
+  rolled out October 19 - November 19, 2026 - and once more when `-latest` moves. Green runs are recorded as cache
   keys `runner-image-{next,latest}-<images>`; a failure opens one issue per image, closed by
   the next green run. A called CI run is not a "CI" run, so it never releases. Never put a
   `schedule:` in `ci.yml`: GitHub disables a public repo's scheduled workflows after 60 days
@@ -698,7 +712,7 @@ covers the 30-minute wait.
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
-  9.32.0; found by runner-images.yml before `ubuntu-latest` moves in November).
+  9.32.0; found by runner-images.yml before `ubuntu-latest` moves, from October 19).
   `specFileRetries: 1` - a failed spec file runs once more in a fresh browser: after the two
   bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
   overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug

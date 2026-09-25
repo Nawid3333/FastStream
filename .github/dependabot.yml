@@ -3,10 +3,11 @@
 # Note: You must also enable Dependabot in the repository settings
 # (Settings > Code security > Dependabot alerts/version updates).
 #
-# Every merge to main is a release (auto-release.yml), so each Dependabot PR
-# merged is one more build pushed to Firefox. Minor and patch updates are
-# therefore grouped into one PR per ecosystem per week; a major update still
-# gets a PR of its own, because it is a decision rather than routine.
+# A merge to main is a release (auto-release.yml) when it changes what the
+# extension ships - a vendored library such as pako does, a test or build tool
+# does not and merges without one. Minor and patch updates are grouped into one
+# PR per ecosystem per week; a major update still gets a PR of its own, because
+# it is a decision rather than routine.
 #
 # Security updates are separate from this file (Settings > Code security >
 # Dependabot security updates) and still open a PR for any vulnerable package,
@@ -39,6 +40,18 @@ updates:
       - dependency-name: 'jswebm'
       - dependency-name: 'mp4box'
       - dependency-name: 'sweetalert2'
+      # Not patched, but tied to its version the same way: the voice detector runs a
+      # custom reduced ONNX Runtime wasm built from a 1.20-era commit, and only
+      # onnxruntime-web 1.20.0's loader (ort.wasm.mjs) fits it. #23 took 1.30.0 and
+      # the VAD e2e test failed in the runtime. Moving it means rebuilding that wasm
+      # (tools/reproduce-ort-wasm.sh; docs/vendored-libraries.md, "The VAD blobs").
+      - dependency-name: 'onnxruntime-web'
+      # Deprecated upstream (superseded by Mediabunny); 5.2.2 is its last release and
+      # crashes finalizing a video track that received no frames, which 4.3.3 survives
+      # and tests/e2e/specs/modules.e2e.mjs checks. Tried and reverted 2026-09-06, and
+      # again as #25 on 2026-09-25 (docs/vendored-libraries.md). No newer version can
+      # come, so there is nothing for Dependabot to offer; the way on is Mediabunny.
+      - dependency-name: 'mp4-muxer'
 
   # Workflow actions are pinned to a commit SHA with the version as a comment,
   # so a moved or hijacked tag cannot change what runs next to the AMO signing

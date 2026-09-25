@@ -28,10 +28,14 @@ describe('patchedDependencies', () => {
     expect(patchedDependencies('packages: []\n')).toEqual([]);
   });
 
-  it('is the same list Dependabot is told to ignore', () => {
+  it('is the list Dependabot is told to ignore, plus the ones pinned for their own reasons', () => {
+    // Held at one version for a reason of their own, given beside each in dependabot.yml:
+    // onnxruntime-web's loader must match a custom runtime build, and mp4-muxer's last
+    // release crashes on a video track with no frames.
+    const pinned = ['mp4-muxer', 'onnxruntime-web'];
     const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
     const ignored = [...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]).sort();
-    expect(ignored).toEqual(patchedDependencies(yaml).map(({name}) => name).sort());
+    expect(ignored).toEqual([...patchedDependencies(yaml).map(({name}) => name), ...pinned].sort());
   });
 });
 
