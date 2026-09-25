@@ -640,6 +640,12 @@ covers the 30-minute wait.
   now re-queues until hidden (mutation-checked: a never-hiding bar still fails).
   keybinds (frame step) and storage (OPFS) log where they were on a failure; save-fmp4
   logs each phase's time (ready, downloaded, saved) and the download state if it stalls.
+  The Windows runner also exposed a real player bug: hiding a focused control sometimes
+  moves focus to `<body>` with no `focusout` there (logged `{"focusouts":0,"flag":true}`;
+  on a desktop it does fire, so it never reproduced locally), which left
+  `InterfaceController.focusingControls` stuck true and the control bar up for good.
+  `isFocusInControls()` now checks the flag against `document.activeElement`; the
+  sources-browser spec forces the stale flag, so it fails without the fix on any machine.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.

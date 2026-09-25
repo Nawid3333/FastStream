@@ -982,17 +982,32 @@ export class InterfaceController {
     this.queueControlsHide();
   }
 
+  /**
+   * Whether keyboard focus is in the control bar. focusingControls follows focusin and
+   * focusout, but focus can leave without a focusout: when the focused control is hidden,
+   * Firefox moves focus to <body> and does not always fire one (seen on Firefox 156 and
+   * 157 on Windows). A stale flag kept the bar up for good, so it is checked against
+   * where focus actually is.
+   * @return {boolean}
+   */
+  isFocusInControls() {
+    if (this.focusingControls && !DOMElements.controlsContainer.contains(document.activeElement)) {
+      this.focusingControls = false;
+    }
+    return this.focusingControls;
+  }
+
   queueControlsHide(time) {
     clearTimeout(this.hideControlBarTimeout);
     this.hideControlBarTimeout = setTimeout(() => {
-      if (!this.focusingControls && !this.mouseOverControls && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
+      if (!this.isFocusInControls() && !this.mouseOverControls && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
         this.hideControlBar();
       }
     }, time || 2000);
   }
 
   hideControlBarOnAction(cooldown) {
-    if (!this.mouseOverControls && !this.focusingControls) {
+    if (!this.mouseOverControls && !this.isFocusInControls()) {
       this.mouseActivityCooldown = Date.now() + (cooldown || 500);
       if (!this.isBigPlayButtonVisible()) {
         this.hideControlBar();

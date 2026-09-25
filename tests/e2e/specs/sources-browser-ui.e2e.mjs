@@ -204,7 +204,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
   // while document.activeElement was <body>: focus had left the control bar without a
   // focusout, which is what happens when the focused element is hidden. The flag then
   // kept the bar up for good. This hides a focused control directly.
-  it('auto-hides the control bar after the focused control disappears without a focusout', async function() {
+  it('auto-hides the control bar after the focused control disappears, even without a focusout', async function() {
     await openPlayer();
     const focusedIn = await browser.execute(() => {
       const ic = window.fastStream.interfaceController;
@@ -230,6 +230,12 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     // The setup itself: focus was in the bar, and hiding moved it to <body>.
     expect(focusedIn).toBe(true);
     expect(state.active).toBe('BODY');
+    // Whether this browser fired the focusout varies: on the Windows CI runner it sometimes
+    // did not ({"focusouts":0,"flag":true}), elsewhere it does. Where it did, the flag is put
+    // back as a missed focusout leaves it, so the check below always covers that case.
+    await browser.execute(() => {
+      window.fastStream.interfaceController.focusingControls = true;
+    });
 
     let hidden = false;
     try {
