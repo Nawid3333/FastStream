@@ -264,6 +264,25 @@ function sidxRanges(file) {
   return {init: `0-${sidx.start - 1}`, index: `${sidx.start}-${sidx.start + sidx.size - 1}`, ranges};
 }
 
+// sample.mp4's own H.264 - High profile, 300 frames, 250 of them B-frames - cut into
+// fragments without re-encoding, so it is the same bytes on every platform. The DASH
+// fixtures above are re-encoded without B-frames, because libopenh264 (a local Windows
+// ffmpeg) cannot make them and libx264 (CI) would: a test that needs B-frames uses this
+// one. For modules.e2e.mjs's MP4Demuxer test.
+const FMP4_BFRAMES_DIR = path.join(fixturesDir, 'fmp4-bframes');
+
+function ensureBframesFixture() {
+  const done = path.join(FMP4_BFRAMES_DIR, '.complete');
+  if (fs.existsSync(done)) return;
+  fs.rmSync(FMP4_BFRAMES_DIR, {recursive: true, force: true});
+  fs.mkdirSync(FMP4_BFRAMES_DIR, {recursive: true});
+  runFfmpeg([
+    '-i', MP4_FIXTURE, '-map', '0:v', '-c:v', 'copy',
+    '-f', 'dash', '-seg_duration', '2', '-use_template', '1', '-use_timeline', '1', 'manifest.mpd',
+  ], 'B-frame fMP4', FMP4_BFRAMES_DIR);
+  fs.writeFileSync(done, '');
+}
+
 function ensureDashFixtures() {
   for (const [name, packaging] of Object.entries(DASH_FIXTURES)) {
     const dir = path.join(fixturesDir, name);
@@ -277,7 +296,11 @@ function ensureDashFixtures() {
     runFfmpeg([
       '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
       '-map', '0:v', '-map', '1:a', '-t', '9',
-      '-c:v', h264Encoder(name), '-pix_fmt', 'yuv420p', '-force_key_frames', 'expr:gte(t,n_forced*2)',
+      // No B-frames and no scene-cut keyframes, which libx264 would add and libopenh264
+      // cannot: every machine then builds the same frame structure, so a run here
+      // checks what CI checks.
+      '-c:v', h264Encoder(name), '-pix_fmt', 'yuv420p', '-bf', '0', '-sc_threshold', '0',
+      '-force_key_frames', 'expr:gte(t,n_forced*2)',
       '-c:a', 'aac', '-b:a', '64k',
       '-f', 'dash', '-seg_duration', '2', ...packaging,
       '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
@@ -390,6 +413,7 @@ export const config = {
     ensureLongAvFixture();
     ensureFrames24Fixture();
     ensureDashFixtures();
+    ensureBframesFixture();
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {
         const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);

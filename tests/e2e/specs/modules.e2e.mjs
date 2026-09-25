@@ -186,28 +186,32 @@ describe('vendored demuxers', function() {
     // mp4box's API than anything else - getInfo()'s track fields, sample extraction,
     // releaseSample - and it depends on `samples_stored`, which patches/mp4box@*.patch
     // adds: every sample getSample() loaded, so exactly those can be handed on and freed.
-    // Nothing else in the suite runs this code. The segments are the first two of
-    // dash-list (wdio.conf.mjs): 4 s of 640x360 H.264 at 30 fps, a keyframe every 2 s,
-    // and 44.1 kHz mono AAC.
+    // Nothing else in the suite runs this code.
+    //
+    // The video is fmp4-bframes (wdio.conf.mjs): sample.mp4's own H.264, 300 frames, 2 of
+    // them keyframes and 250 B-frames, the same bytes on every platform. B-frames are the
+    // point: samples come in decode order, so a chunk's duration cannot be the gap to the
+    // next sample's presentation time - that goes negative, and EncodedVideoChunk throws.
+    // The audio is the first two segments of dash-list: 4 s of 44.1 kHz mono AAC.
     const result = await runInPage(async () => {
       const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
-      const get = async (file) =>
-        (await fetch('/fixtures/dash-list/' + file)).arrayBuffer();
+      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
 
       const video = new MP4Demuxer();
-      video.initialize(await get('init-stream0.m4s'));
-      video.appendBuffer(await get('chunk-stream0-00001.m4s'));
-      video.appendBuffer(await get('chunk-stream0-00002.m4s'));
+      video.initialize(await get('fmp4-bframes/init-stream0.m4s'));
+      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00001.m4s'));
+      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00002.m4s'));
       const videoConfig = video.getVideoDecoderConfig();
       const videoChunks = video.getVideoChunks(true);
       const videoTrak = video.file.getTrackById(video.videoTrack.id);
       const released = videoTrak.samples_stored.slice(0, -1);
       video.clearChunks();
+      const timestamps = videoChunks.map((c) => c.timestamp);
 
       const audio = new MP4Demuxer();
-      audio.initialize(await get('init-stream1.m4s'));
-      audio.appendBuffer(await get('chunk-stream1-00001.m4s'));
-      audio.appendBuffer(await get('chunk-stream1-00002.m4s'));
+      audio.initialize(await get('dash-list/init-stream1.m4s'));
+      audio.appendBuffer(await get('dash-list/chunk-stream1-00001.m4s'));
+      audio.appendBuffer(await get('dash-list/chunk-stream1-00002.m4s'));
       const audioConfig = audio.getAudioDecoderConfig();
       const audioChunks = audio.getAudioChunks(true);
 
@@ -218,6 +222,9 @@ describe('vendored demuxers', function() {
         videoChunks: videoChunks.length,
         keyframes: videoChunks.filter((c) => c.type === 'key').length,
         firstIsKey: videoChunks[0]?.type === 'key',
+        reordered: timestamps.some((t, i) => i > 0 && t < timestamps[i - 1]),
+        distinctTimestamps: new Set(timestamps).size,
+        videoSeconds: videoChunks.reduce((sum, c) => sum + c.duration, 0) / 1e6,
         storedAfterClear: videoTrak.samples_stored.length,
         releasedStillHoldData: released.filter((s) => s.data).length,
         audioCodec: audioConfig.codec,
@@ -229,17 +236,21 @@ describe('vendored demuxers', function() {
     });
 
     console.log('      mp4:', JSON.stringify(result));
-    expect(result.videoCodec).toMatch(/^avc1\./);
+    expect(result.videoCodec).toMatch(/^avc1./);
     expect(result.width).toBe(640);
     expect(result.height).toBe(360);
-    expect(result.videoChunks).toBe(120);
-    expect(result.keyframes).toBeGreaterThanOrEqual(2);
+    expect(result.videoChunks).toBe(300);
+    expect(result.keyframes).toBe(2);
     expect(result.firstIsKey).toBe(true);
-    // clearChunks() keeps the last sample, which the next chunk's timing needs, and
-    // releases the data of every other one.
+    // Guards the fixture: without reordered frames this test proves much less.
+    expect(result.reordered).toBe(true);
+    expect(result.distinctTimestamps).toBe(300);
+    expect(Math.abs(result.videoSeconds - 10)).toBeLessThan(0.1);
+    // clearChunks() keeps the last sample, which getVideoChunks() holds back until its
+    // final call, and releases the data of every other one.
     expect(result.storedAfterClear).toBe(1);
     expect(result.releasedStillHoldData).toBe(0);
-    expect(result.audioCodec).toMatch(/^mp4a\./);
+    expect(result.audioCodec).toMatch(/^mp4a./);
     expect(result.sampleRate).toBe(44100);
     expect(result.channels).toBe(1);
     expect(result.audioChunks).toBeGreaterThan(0);
