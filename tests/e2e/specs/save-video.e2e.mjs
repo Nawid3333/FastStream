@@ -22,6 +22,7 @@
 // was ever suspected.
 
 import {browser, expect} from '@wdio/globals';
+import {pageState, phaseTimer} from './diagnostics.mjs';
 
 /**
  * Opens the web player at a given source, same seam as playback.e2e.mjs.
@@ -49,20 +50,38 @@ async function openPlayer(source) {
  *   decodeError, duration}
  */
 async function saveAndValidate() {
+  // Each phase is logged, and each wait is bounded so that a hang fails with its phase
+  // and the page state (pageState) before the test's own 120 s timeout: the DASH case
+  // once used all of it on the Windows runner with nothing in the log.
+  const phase = phaseTimer();
+  let reached = 'start';
+  try {
+    return await saveAndValidatePhases((name) => {
+      reached = name;
+      phase(name);
+    });
+  } catch (e) {
+    throw new Error(`${e.message} (last phase: ${reached}) ${JSON.stringify(await pageState())}`);
+  }
+}
+
+async function saveAndValidatePhases(phase) {
   await browser.waitUntil(
       async () => browser.execute(() => !!document.querySelector('video')),
-      {timeout: 30000, timeoutMsg: 'no <video> element was created'});
+      {timeout: 20000, timeoutMsg: 'no <video> element was created'});
   await browser.waitUntil(
       async () => browser.execute(() => document.querySelector('video').readyState >= 2),
-      {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+      {timeout: 40000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+  phase('ready');
 
   await browser.execute(() => document.querySelector('video').play().catch(() => {}));
   // Long enough for several fragments to actually download -- saveVideo can
   // run with just the one fragment behind the playhead, but a save that
   // starts before any fragment has fully landed exercises less of the path.
   await new Promise((r) => setTimeout(r, 6000));
+  phase('played');
 
-  return browser.executeAsync((done) => {
+  const saved = await browser.executeAsync((done) => {
     const info = {
       saveError: null, blobSize: null, blobType: null,
       decodeOk: null, decodeError: null, duration: null,
@@ -104,6 +123,8 @@ async function saveAndValidate() {
       done(info);
     });
   });
+  phase('saved');
+  return saved;
 }
 
 /**

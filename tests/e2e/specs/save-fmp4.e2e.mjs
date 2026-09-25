@@ -32,6 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
+import {pageState, phaseTimer} from './diagnostics.mjs';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
@@ -208,10 +209,16 @@ async function openPlayer(source) {
  */
 async function saveAndInspect() {
   // Each phase is logged with its time, so a run that hits the test timeout shows which
-  // one it spent it in (a Windows CI run once did, with nothing else in the log).
-  const started = Date.now();
-  const phase = (what) => console.log(`      ${what} after ${((Date.now() - started) / 1000).toFixed(1)} s`);
+  // one it spent it in (a Windows CI run once did, with nothing else in the log), and a
+  // failure carries the video and OPFS state (pageState).
+  try {
+    return await saveAndInspectPhases(phaseTimer());
+  } catch (e) {
+    throw new Error(`${e.message} ${JSON.stringify(await pageState())}`);
+  }
+}
 
+async function saveAndInspectPhases(phase) {
   await browser.waitUntil(
       async () => browser.execute(() => !!document.querySelector('video')),
       {timeout: 30000, timeoutMsg: 'no <video> element was created'});

@@ -138,15 +138,14 @@ describe('FSBlob storage backends', function() {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
       // On Firefox 157 Beta on the Windows runner the first save once never returned.
-      // No sessionName means the worker's init never answered; ids still pending name
-      // the calls that did not (0 is init).
+      // No sessionName means the worker's init never answered; pending names the calls
+      // that did not, with how long they have waited.
       window.__diag = () => {
         const opfs = blobStore.opfsManager;
         return {
           backend: opfs ? 'opfs' : blobStore.cache ? 'cache' : blobStore.indexedDBManager ? 'indexeddb' : 'memory',
           sessionName: opfs?.sessionName ?? null,
-          pending: opfs ? [...opfs.pending.keys()] : null,
-          nextId: opfs?.nextId ?? null,
+          pending: opfs ? opfs.pendingCalls() : null,
           worker: opfs ? !!opfs.worker : null,
         };
       };
