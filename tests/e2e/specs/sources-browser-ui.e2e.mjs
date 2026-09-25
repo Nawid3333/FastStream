@@ -107,6 +107,22 @@ describe('Sources Browser (Quellen Browser) UI', function() {
   it('keeps the popwindow still (close button reachable) while it is open, even once the control bar would auto-hide', async function() {
     await openPlayer();
 
+    // Every focus change during the test, for the failure message: on Firefox 157 Beta
+    // on the Windows CI runner focusingControls stayed true with <body> focused.
+    await browser.execute(() => {
+      const start = performance.now();
+      const name = (el) => el ? (el.className || el.tagName || String(el)).toString().slice(0, 40) : null;
+      window.__focusLog = [];
+      for (const type of ['focusin', 'focusout', 'blur', 'focus']) {
+        window.addEventListener(type, (e) => {
+          window.__focusLog.push({
+            t: Math.round(performance.now() - start), type, target: name(e.target), related: name(e.relatedTarget),
+            flag: window.fastStream?.interfaceController?.focusingControls,
+          });
+        }, true);
+      }
+    });
+
     await browser.execute(() => {
       // Isolate the control-bar-hide guard from needing a real decoding
       // video: drive the same state the auto-hide timer reads.
@@ -175,6 +191,8 @@ describe('Sources Browser (Quellen Browser) UI', function() {
           bigPlayButton: ic.isBigPlayButtonVisible(), playing: ic.state.playing,
           canHideControls: ic.toolManager.canHideControls(),
           active: document.activeElement?.className || document.activeElement?.tagName,
+          hasFocus: document.hasFocus(),
+          focusLog: window.__focusLog.slice(-20),
         };
       });
       throw new Error(`the control bar never auto-hid once the dialog was closed: ${JSON.stringify(why)}`);
