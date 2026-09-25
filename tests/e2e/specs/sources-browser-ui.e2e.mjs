@@ -181,4 +181,56 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     }
     expect(hiddenWhenClosed).toBe(true);
   });
+
+  // Firefox Beta on Windows once failed the test above with focusingControls still true
+  // while document.activeElement was <body>: focus had left the control bar without a
+  // focusout, which is what happens when the focused element is hidden. The flag then
+  // kept the bar up for good. This hides a focused control directly.
+  it('auto-hides the control bar after the focused control disappears without a focusout', async function() {
+    await openPlayer();
+    const focusedIn = await browser.execute(() => {
+      const ic = window.fastStream.interfaceController;
+      ic.hideBigPlayButton();
+      window.fastStream.state.playing = true;
+      window.__focusouts = 0;
+      document.querySelector('.mainplayer .fluid_controls_container')
+          .addEventListener('focusout', () => window.__focusouts++);
+      const button = document.querySelector('.mainplayer .fluid_button_link');
+      button.focus();
+      const focused = ic.focusingControls;
+      button.style.display = 'none';
+      return focused;
+    });
+    // The browser moves focus off a hidden element when it next renders, not at once.
+    await browser.pause(200);
+    const state = await browser.execute(() => ({
+      active: document.activeElement.tagName,
+      focusouts: window.__focusouts,
+      flag: window.fastStream.interfaceController.focusingControls,
+    }));
+    console.log('      after hiding the focused control:', JSON.stringify(state));
+    // The setup itself: focus was in the bar, and hiding moved it to <body>.
+    expect(focusedIn).toBe(true);
+    expect(state.active).toBe('BODY');
+
+    let hidden = false;
+    try {
+      await browser.waitUntil(async () => {
+        hidden = await browser.execute(() => {
+          const visible = document.querySelector('.mainplayer').classList.contains('controls_visible');
+          if (visible) window.fastStream.interfaceController.queueControlsHide(20);
+          return !visible;
+        });
+        return hidden;
+      }, {timeout: 3000, interval: 150});
+    } catch (e) {
+      const flag = await browser.execute(() => window.fastStream.interfaceController.focusingControls);
+      throw new Error(`the control bar never auto-hid after its focused control vanished (focusingControls: ${flag})`);
+    } finally {
+      await browser.execute(() => {
+        document.querySelector('.mainplayer .fluid_button_link').style.display = '';
+      });
+    }
+    expect(hidden).toBe(true);
+  });
 });
