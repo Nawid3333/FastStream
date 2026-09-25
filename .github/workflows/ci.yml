@@ -66,9 +66,13 @@ jobs:
       # local installs cannot drift apart.
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
 
+      # check-latest: otherwise the action takes the Node 22 cached in the runner
+      # image, which lags - 22.23.2 on 2026-09-25, two days after 22.23.3 was out.
+      # Every workflow here asks for the newest, as tools/linux/setup.sh does.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
 
       - name: Install dependencies
@@ -196,6 +200,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          check-latest: true
           cache: pnpm
 
       - name: Install dependencies

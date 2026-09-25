@@ -171,7 +171,8 @@ of this change already exists.
 
 ## dash.js
 
-**Now 5.2.1 plus a 41 KB patch (2026-09-25)** - see "Status" below. The
+**Now 5.2.1 plus a 41 KB patch (2026-09-25)** - see "Status" below; the next update goes
+through `docs/updating-patched-libraries.md`. The
 measurements that follow are from the first migration (2026-09-05); they are
 kept because the status section explains the one thing they got wrong, which
 is what made the patch ten times bigger than it needed to be.
