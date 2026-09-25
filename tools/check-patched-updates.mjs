@@ -71,7 +71,7 @@ async function latestRelease(name, spec) {
     const release = await getJson(`https://api.github.com/repos/${github[1]}/releases/latest`);
     return {latest: release.tag_name.replace(/^v/i, ''), url: release.html_url};
   }
-  const info = await getJson(`https://registry.npmjs.org/${name.replace('/', '%2F')}`);
+  const info = await getJson(`https://registry.npmjs.org/${name.replaceAll('/', '%2F')}`);
   const latest = info['dist-tags'].latest;
   return {latest, url: `https://www.npmjs.com/package/${name}/v/${latest}`};
 }

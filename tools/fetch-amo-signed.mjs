@@ -22,31 +22,15 @@
 //   5  rejected - AMO disabled or rejected it: waiting will not help
 //   1  error    - anything else (network, credentials)
 
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {JwtApiAuth} from 'web-ext/util/submit-addon';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const AMO_API = 'https://addons.mozilla.org/api/v5';
 
 export const EXIT = {signed: 0, error: 1, pending: 3, missing: 4, rejected: 5};
-
-/**
- * A JSON Web Token for the AMO API: HS256 over {iss, jti, iat, exp}, as AMO's
- * authentication docs describe. It may live at most five minutes.
- * @param {string} apiKey
- * @param {string} apiSecret
- * @param {number} [now] - Seconds since the epoch.
- * @return {string}
- */
-export function amoJwt(apiKey, apiSecret, now = Math.floor(Date.now() / 1000)) {
-  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  const head = encode({alg: 'HS256', typ: 'JWT'});
-  const body = encode({iss: apiKey, jti: crypto.randomUUID(), iat: now, exp: now + 60});
-  const signature = crypto.createHmac('sha256', apiSecret).update(`${head}.${body}`).digest('base64url');
-  return `${head}.${body}.${signature}`;
-}
 
 /**
  * What a version's API response says about its signing.
@@ -90,16 +74,19 @@ async function main() {
     throw new Error(`build_firefox_amo is version ${manifest.version}, not ${version}: build the right tag first`);
   }
 
+  // The same authentication web-ext's `sign` uses for every release (a short-lived HS256
+  // token per request), so this cannot drift from the path that already works.
+  const jwt = new JwtApiAuth({apiKey, apiSecret});
+  const auth = async () => ({Authorization: await jwt.getAuthHeader()});
   // The `v` prefix makes AMO look the version up by number rather than by id.
-  const auth = () => ({Authorization: `JWT ${amoJwt(apiKey, apiSecret)}`});
-  const response = await fetch(`${AMO_API}/addons/addon/${encodeURIComponent(id)}/versions/v${version}/`, {headers: auth()});
+  const response = await fetch(`${AMO_API}/addons/addon/${encodeURIComponent(id)}/versions/v${version}/`, {headers: await auth()});
   const body = response.status === 200 ? await response.json() : null;
   const state = signingState(response.status, body);
   console.log(`state=${state}`);
   console.log(`AMO: ${id} ${version}: HTTP ${response.status}${body ? `, file.status=${body.file?.status}` : ''}`);
 
   if (state === 'signed') {
-    const download = await fetch(body.file.url, {headers: auth()});
+    const download = await fetch(body.file.url, {headers: await auth()});
     if (!download.ok) {
       throw new Error(`downloading ${body.file.url}: HTTP ${download.status}`);
     }

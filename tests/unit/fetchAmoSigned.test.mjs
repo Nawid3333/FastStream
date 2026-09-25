@@ -1,28 +1,18 @@
-import crypto from 'node:crypto';
+import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
-import {EXIT, amoJwt, signingState} from '../../tools/fetch-amo-signed.mjs';
+import {EXIT, signingState} from '../../tools/fetch-amo-signed.mjs';
 
 // The AMO signing failsafe acts on what signingState answers: collect the xpi, wait,
 // upload again, or tell the owner. A wrong answer either never collects a signed build
 // or uploads a version AMO already has, which it refuses.
 
-describe('amoJwt', () => {
-  it('is an HS256 token AMO accepts: signed with the secret, issued by the key, short-lived', () => {
-    const token = amoJwt('user:123:45', 'secret', 1000);
-    const [head, body, signature] = token.split('.');
-    expect(JSON.parse(Buffer.from(head, 'base64url'))).toEqual({alg: 'HS256', typ: 'JWT'});
-    const claims = JSON.parse(Buffer.from(body, 'base64url'));
-    expect(claims.iss).toBe('user:123:45');
-    expect(claims.iat).toBe(1000);
-    // AMO rejects a token that lives longer than five minutes.
-    expect(claims.exp - claims.iat).toBeGreaterThan(0);
-    expect(claims.exp - claims.iat).toBeLessThanOrEqual(300);
-    expect(signature).toBe(crypto.createHmac('sha256', 'secret').update(`${head}.${body}`).digest('base64url'));
-  });
-
-  it('is never reused: AMO refuses a jti it has seen', () => {
-    const jti = (token) => JSON.parse(Buffer.from(token.split('.')[1], 'base64url')).jti;
-    expect(jti(amoJwt('k', 's', 1))).not.toBe(jti(amoJwt('k', 's', 1)));
+describe('authentication', () => {
+  it('uses the AMO authentication of web-ext, which every release signs with', () => {
+    // A token built by hand could drift from what AMO accepts; web-ext's is proven by
+    // every release.yml run.
+    const source = fs.readFileSync(new URL('../../tools/fetch-amo-signed.mjs', import.meta.url), 'utf8');
+    expect(source).toMatch(/import \{JwtApiAuth\} from 'web-ext\/util\/submit-addon';/);
+    expect(source).not.toMatch(/createHmac|node:crypto/);
   });
 });
 
