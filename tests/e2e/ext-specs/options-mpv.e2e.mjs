@@ -53,6 +53,11 @@ async function openExtensionPage(pagePath) {
   await browser.waitUntil(
       async () => browser.execute(() => document.readyState === 'complete'),
       {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
+  // The saved options arrive after the page has loaded, and applying them resets every
+  // control: a click made before that is undone. Wait for them.
+  await browser.waitUntil(
+      async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+      {timeout: 15000, timeoutMsg: 'the options page never loaded its options'});
 }
 
 describe('options page: search and export/import cover MPV settings', function() {
@@ -152,11 +157,20 @@ describe('options page: search and export/import cover MPV settings', function()
     // WebDriver, but Utils.getOptionsFromStorage() is the entire content of
     // that blob (see SaveManager -- options.mjs's export handler spreads
     // exactly this).
-    const exported = await browser.executeAsync((done) => {
+    // Each change is saved asynchronously (OptionsStore.replace), so wait until storage
+    // holds the last of them rather than reading it once straight after the clicks.
+    const readStored = () => browser.executeAsync((done) => {
       import('/player/utils/Utils.mjs').then((m) => {
         m.Utils.getOptionsFromStorage().then((opts) => done(opts));
       });
     });
+    await browser.waitUntil(async () => {
+      const stored = await readStored();
+      return stored.mpvMode === true && stored.mpvFullscreen === true &&
+        stored.mpvPausePage === false && stored.mpvSingleInstance === false &&
+        stored.mpvPath === mpvSettings.mpvPath;
+    }, {timeout: 10000, timeoutMsg: 'the MPV settings never reached storage'});
+    const exported = await readStored();
 
     expect(exported.mpvMode).toBe(true);
     expect(exported.mpvAllowlist).toEqual(mpvSettings.mpvAllowlist);

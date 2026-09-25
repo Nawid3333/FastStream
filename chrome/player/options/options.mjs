@@ -88,6 +88,8 @@ let optionsLoaded = false;
 OptionsStore.init().then(() => {
   optionsLoaded = true;
   loadOptions(OptionsStore.get());
+  // Lets the e2e specs wait for the saved options instead of guessing when they arrived.
+  document.documentElement.dataset.optionsLoaded = 'true';
 });
 
 

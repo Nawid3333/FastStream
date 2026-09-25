@@ -144,15 +144,18 @@ describe('Sources Browser (Quellen Browser) UI', function() {
 
     // Sanity check the guard is scoped to "a window is open", not a
     // blanket disable: with nothing open, idle auto-hide must still work.
-    await browser.execute(() => {
-      window.fastStream.interfaceController.showControlBar();
-      window.fastStream.interfaceController.queueControlsHide(20);
-    });
-    await browser.pause(150);
-
-    const hiddenWhenClosed = await browser.execute(
-        () => document.querySelector('.mainplayer')
-            .classList.contains('controls_visible'));
-    expect(hiddenWhenClosed).toBe(false);
+    // Re-queued on each poll: on a slow machine a mouse event arriving after
+    // the dialog closed (the pointer is left where the close button was)
+    // restarts the 2 s timer once, which a single 150 ms check read as failure.
+    let hiddenWhenClosed = false;
+    await browser.waitUntil(async () => {
+      hiddenWhenClosed = await browser.execute(() => {
+        const visible = document.querySelector('.mainplayer').classList.contains('controls_visible');
+        if (visible) window.fastStream.interfaceController.queueControlsHide(20);
+        return !visible;
+      });
+      return hiddenWhenClosed;
+    }, {timeout: 3000, interval: 150, timeoutMsg: 'the control bar never auto-hid once the dialog was closed'});
+    expect(hiddenWhenClosed).toBe(true);
   });
 });

@@ -521,12 +521,27 @@ describe('mpv frame step', function() {
   const picture = () => browser.execute(() => window.__picture());
   const presented = () => browser.execute(() => window.__presented);
   // Presses a key and waits for the browser to present the frame it seeks to.
+  // What the stepper and the video say, logged around each step: when a step lands on
+  // the wrong frame on another platform, the log shows whether the frame length, the
+  // grid anchor or the seek itself was off.
+  const stepperState = () => browser.execute(() => {
+    const stepper = window.fastStream.frameStepper;
+    return {
+      frameDuration: stepper.frameDuration,
+      anchor: stepper.anchor,
+      currentTime: window.fastStream.currentTime,
+      videoTime: window.fastStream.player.getVideo().currentTime,
+      paused: window.fastStream.paused,
+    };
+  });
   const press = async (code, what) => {
+    const before = await stepperState();
     const count = await presented();
     await pressKey(code);
     await browser.waitUntil(async () => (await presented()) > count,
         {timeout: 10000, timeoutMsg: `${what}: no frame was presented`});
     await settle();
+    console.log(`      ${what}: before ${JSON.stringify(before)} after ${JSON.stringify(await stepperState())}`);
   };
 
   it('Firefox has requestVideoFrameCallback, which the step measures frames with', async function() {

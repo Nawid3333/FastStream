@@ -25,11 +25,17 @@ async function runInPage(fn, timeout = 30000) {
         });
   }, fn.toString());
 
-  await browser.waitUntil(
-      async () => browser.execute(
-          () => window.__out !== undefined || window.__err !== undefined),
-      {timeout, interval: 100, timeoutMsg: 'the page never settled'},
-  );
+  try {
+    await browser.waitUntil(
+        async () => browser.execute(
+            () => window.__out !== undefined || window.__err !== undefined),
+        {timeout, interval: 100, timeoutMsg: 'the page never settled'},
+    );
+  } catch (e) {
+    // A snippet that sets window.__step says how far it got - which call never returned.
+    const step = await browser.execute(() => window.__step);
+    throw new Error(`the page never settled${step ? ` (last step reached: ${step})` : ''}`);
+  }
 
   const {out, err} = await browser.execute(
       () => ({out: window.__out, err: window.__err}));
@@ -130,14 +136,20 @@ describe('FSBlob storage backends', function() {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
 
+      window.__step = 'save 1';
       const id1 = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1])]));
+      window.__step = 'save 2';
       const id2 = await blobStore.saveBlobAsync(new Blob([new Uint8Array([2])]));
 
+      window.__step = 'deleteBlob';
       await blobStore.deleteBlob(id1);
       const afterDelete = blobStore.getBlob(id1) === undefined;
 
+      window.__step = 'clear';
       await blobStore.clear();
       const afterClear = blobStore.getBlob(id2) === undefined;
+
+      window.__step = 'close';
 
       blobStore.close();
       return {afterDelete, afterClear};

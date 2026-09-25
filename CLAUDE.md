@@ -628,7 +628,14 @@ covers the 30-minute wait.
   the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
   image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from
   Chocolatey for the fixtures. Do not call `firefox.exe --version` there: it does not
-  print to a console on Windows.
+  print to a console on Windows. The first Windows runs exposed timing races in
+  specs that had always won on fast machines, fixed in the specs: capabilities picked the
+  last window handle (sometimes the http:// opener, where WebCodecs/AudioWorklet do not
+  exist) - now found by URL; options-mpv clicked before the saved options loaded and read
+  storage once - now waits for `data-options-loaded` on the options page's `<html>` and
+  for storage to hold the change; sources-browser checked auto-hide once after 150 ms -
+  now re-queues until hidden (mutation-checked: a never-hiding bar still fails).
+  keybinds (frame step) and storage (OPFS) log where they were on a failure.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
