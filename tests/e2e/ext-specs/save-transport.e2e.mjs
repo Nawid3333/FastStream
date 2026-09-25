@@ -28,6 +28,7 @@
 // module's scope. Timeouts inside them are therefore hardcoded.
 
 import {browser, expect} from '@wdio/globals';
+import {pageState} from '../specs/diagnostics.mjs';
 
 import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 
@@ -173,6 +174,10 @@ describe('save transport on the installed extension', function() {
     });
 
     console.log('      streamSaver write/close:', JSON.stringify(result));
+    if (result.writeTimedOut || result.closeTimedOut) {
+      // Saves have hung on the Windows runner on an OPFS worker call that never answered.
+      console.log('      storage state:', JSON.stringify(await pageState()));
+    }
     // A hung transport (stream handed to a service worker that can never
     // read it) shows up as write or close never settling.
     expect(result.writeTimedOut).toBe(false);
