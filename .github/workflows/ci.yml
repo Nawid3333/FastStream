@@ -11,10 +11,22 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  # runner-images.yml runs this on a new runner image, before and after ubuntu-latest
+  # or windows-latest moves to it. A called run is not a "CI" run, so it never releases.
+  workflow_call:
+    inputs:
+      linux-runner:
+        type: string
+        default: ubuntu-latest
+      windows-runner:
+        type: string
+        default: windows-latest
 
-# Cancel superseded runs on the same branch.
+# Cancel superseded runs on the same branch. A called run takes the caller's name as
+# github.workflow; with the images in the group it never cancels a push run or another
+# image's run.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.linux-runner }}-${{ inputs.windows-runner }}
   cancel-in-progress: true
 
 # Only reads the checkout and uploads workflow-run artifacts; needs nothing else.
@@ -29,7 +41,7 @@ jobs:
   # it takes seconds, and auto-release waits for the whole workflow anyway.
   workflows:
     name: Lint workflows
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.linux-runner || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,7 +54,7 @@ jobs:
 
   verify:
     name: Lint, test and build
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.linux-runner || 'ubuntu-latest' }}
     # The whole job takes about 15 minutes. A test waiting on a stream that
     # never loads would otherwise hold the runner for GitHub's 6-hour default.
     timeout-minutes: 45
@@ -162,7 +174,7 @@ jobs:
   # workflow, so a release ships only when Windows passes too.
   e2e-windows:
     name: e2e (Windows)
-    runs-on: windows-latest
+    runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
     timeout-minutes: 60
     defaults:
       run:

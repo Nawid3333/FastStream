@@ -622,6 +622,16 @@ covers the 30-minute wait.
   tests). A failure opens one issue per version; a green run closes it. Read release dates
   from that file rather than computing them - it said 157 is due 2026-10-09, not the
   2026-09-29 two-week arithmetic from 155 suggested.
+- **`runner-images.yml`** (daily, 2026-09-25; the same file is in every repo of the owner
+  except mpv and KytyPS5): reads the actions/runner-images README for the image behind
+  `ubuntu-latest`/`windows-latest` and the newest GA one, and calls `ci.yml` (which takes
+  `linux-runner`/`windows-runner` inputs for this) once on the newest image when it is
+  newer than `-latest` - a warning before GitHub switches, as `ubuntu-latest` does to 26.04
+  in November 2026 - and once more when `-latest` moves. Green runs are recorded as cache
+  keys `runner-image-{next,latest}-<images>`; a failure opens one issue per image, closed by
+  the next green run. A called CI run is not a "CI" run, so it never releases. Never put a
+  `schedule:` in `ci.yml`: GitHub disables a public repo's scheduled workflows after 60 days
+  without a commit, and it disables the whole file, push trigger included.
 - **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
   windows-latest) beside `verify`, and auto-release waits for the whole workflow, so a
   release ships only when Windows passes too. `firefox-beta.yml` and `firefox-stable.yml`
