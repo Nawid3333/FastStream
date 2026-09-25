@@ -612,7 +612,8 @@ covers the 30-minute wait.
   `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
   installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
-  full-upgrade, installs the newest Node 22 and the current stable Firefox, apt ffmpeg
+  full-upgrade, installs the newest release of the Node major `ci.yml`'s `node-version`
+  names (so it moves with CI) and the current stable Firefox, apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
   `ci.yml` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
   `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe

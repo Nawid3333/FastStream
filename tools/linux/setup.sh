@@ -4,8 +4,8 @@
 #
 # Every run starts from what is newest, as a runner starts from a freshly built image: apt
 # updates and upgrades every package, and Node and Firefox are replaced as soon as a newer
-# one is out. What CI's verify job has, and so this gets: Node 22 (actions/setup-node, `22`
-# with check-latest), pnpm at package.json's packageManager version (through corepack),
+# one is out. What CI's verify job has, and so this gets: Node at ci.yml's major
+# (actions/setup-node with check-latest: its newest release), pnpm at package.json's packageManager version (through corepack),
 # ffmpeg from apt (libx264, as on the runner), and the current stable Firefox
 # (browser-actions/setup-firefox, `latest`). For the workflows job: the actionlint and
 # shellcheck binaries from the image ci.yml pins. Plus an unprivileged user, `faststream`,
@@ -34,8 +34,11 @@ fi
 "${apt[@]}" -y autoremove --purge > /dev/null
 echo "apt: $(. /etc/os-release && echo "$PRETTY_NAME"), $upgrades package(s) upgraded${need_apt[*]:+, installed ${need_apt[*]}}"
 
-# Node 22: the newest 22.x, checked against nodejs.org's SHASUMS256.
-node_want=$(curl -fsSL https://nodejs.org/dist/index.json | jq -r '[.[] | select(.version | startswith("v22."))][0].version')
+# Node: the newest release of the major ci.yml's node-version names, so this moves with
+# CI when the workflows do; checked against nodejs.org's SHASUMS256.
+node_major=$(sed -n 's/^ *node-version: *\([0-9]*\).*/\1/p' "$repo/.github/workflows/ci.yml" | head -1)
+node_want=$(curl -fsSL https://nodejs.org/dist/index.json |
+  jq -r --arg prefix "v$node_major." '[.[] | select(.version | startswith($prefix))][0].version')
 if [ "$(/opt/node/bin/node --version 2>/dev/null || true)" != "$node_want" ]; then
   echo "node: $node_want"
   tmp=$(mktemp -d)
