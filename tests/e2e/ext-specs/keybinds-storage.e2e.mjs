@@ -84,7 +84,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     });
 
     expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(2);
+    expect(options.keybindsVersion).toBe(3);
     expect(options.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(options.keybinds.NextChapter).toBe('Shift+KeyA');
     expect(options.keybinds.PreviousVideo).toBe('Shift+KeyB');
@@ -119,20 +119,50 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     await browser.execute(() => {
       const box = document.querySelector('.keybind-container[data-keybind="SeekPercent50"] .keybind-input');
       box.focus();
-      box.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyJ', key: 'j', bubbles: true, cancelable: true}));
+      box.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyU', key: 'u', bubbles: true, cancelable: true}));
     });
-    await browser.waitUntil(async () => (await getStored())?.keybinds?.SeekPercent50 === 'KeyJ',
+    await browser.waitUntil(async () => (await getStored())?.keybinds?.SeekPercent50 === 'KeyU',
         {timeout: 10000, timeoutMsg: 'the change was never saved to chrome.storage'});
 
     const saved = await getStored();
-    expect(saved.keybindsVersion).toBe(2);
+    expect(saved.keybindsVersion).toBe(3);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.ResetPlaybackRate).toBe('KeyY');
   });
 
+  it('moves options saved at version 2 to the mpv seeks and a 5 s arrow step', async function() {
+    await openExtensionPage('/player/options/index.html');
+    await setStored({keybindsVersion: 2, seekStepSize: 2, keybinds: {
+      UndoSeek: 'KeyZ', Screenshot: 'KeyX', PlayPause: 'KeyK',
+      SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
+      SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
+    }});
+
+    const options = await browser.executeAsync((done) => {
+      import('/player/utils/Utils.mjs')
+          .then(({Utils}) => Utils.getOptionsFromStorage())
+          .then(done, (e) => done({failed: String(e)}));
+    });
+    expect(options.failed).toBeUndefined();
+    expect(options.keybindsVersion).toBe(3);
+    expect(options.seekStepSize).toBe(5);
+    expect(options.keybinds.UndoSeek).toBe('Shift+Backspace');
+    expect(options.keybinds.Screenshot).toBe('Shift+KeyS');
+    expect(options.keybinds.SeekBackward60s).toBe('KeyZ');
+    expect(options.keybinds.SeekForward60s).toBe('KeyX');
+    expect(options.keybinds.SeekBackward10s).toBe('KeyJ');
+    // K was the user's play/pause, so the 10 s seek forward waits for a key.
+    expect(options.keybinds.PlayPause).toBe('KeyK');
+    expect(options.keybinds.SeekForward10s).toBe('None');
+    // The frame step takes `,`/`.` from the 10 s seeks, which no longer exist.
+    expect(options.keybinds.SeekForwardFrame).toBe('Period');
+    expect(options.keybinds.SeekBackwardFrame).toBe('Comma');
+    expect(options.keybinds.SeekForwardLarge).toBeUndefined();
+  });
+
   it('keeps a choice made after the migration, even one equal to an old default', async function() {
     await openExtensionPage('/player/options/index.html');
-    await setStored({keybindsVersion: 2, keybinds: {WindowedFullscreen: 'KeyW'}});
+    await setStored({keybindsVersion: 3, keybinds: {WindowedFullscreen: 'KeyW'}});
 
     const options = await browser.executeAsync((done) => {
       import('/player/utils/Utils.mjs')
@@ -140,6 +170,6 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
           .then(done, (e) => done({failed: String(e)}));
     });
     expect(options.keybinds.WindowedFullscreen).toBe('KeyW');
-    expect(options.keybindsVersion).toBe(2);
+    expect(options.keybindsVersion).toBe(3);
   });
 });

@@ -1,8 +1,8 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
 import {
-  ADDED_IN_VERSION_2, KEYBINDS_VERSION, MOVED_IN_VERSION_2, SEEK_PERCENTS, SPEED_PRESETS,
-  actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
+  ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
+  MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
   keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
 
@@ -20,6 +20,15 @@ describe('action names', () => {
       expect(DefaultKeybinds).toHaveProperty(action);
     }
     expect(ADDED_IN_VERSION_2).toHaveLength(SEEK_PERCENTS.length + SPEED_PRESETS.length);
+    for (const action of ADDED_IN_VERSION_3) {
+      expect(DefaultKeybinds).toHaveProperty(action);
+    }
+  });
+
+  it('names each fixed seek after its signed amount', () => {
+    for (const [action, seconds] of Object.entries(FIXED_SEEKS)) {
+      expect(action).toBe(`Seek${seconds < 0 ? 'Backward' : 'Forward'}${Math.abs(seconds)}s`);
+    }
   });
 });
 
@@ -143,7 +152,10 @@ describe('actionsForKey', () => {
     expect(actionsForKey('Shift+KeyW', DefaultKeybinds)).toEqual(['WindowedFullscreen']);
     expect(actionsForKey('KeyW', DefaultKeybinds)).toEqual(['SpeedPreset3_5']);
     expect(actionsForKey('Digit5', DefaultKeybinds)).toEqual(['SeekPercent50']);
-    expect(actionsForKey('KeyK', DefaultKeybinds)).toEqual([]);
+    expect(actionsForKey('KeyK', DefaultKeybinds)).toEqual(['SeekForward10s']);
+    expect(actionsForKey('KeyZ', DefaultKeybinds)).toEqual(['SeekBackward60s']);
+    expect(actionsForKey('Shift+Backspace', DefaultKeybinds)).toEqual(['UndoSeek']);
+    expect(actionsForKey('KeyU', DefaultKeybinds)).toEqual([]);
   });
 
   it('takes a map, a list of entries or an object alike', () => {
@@ -224,9 +236,14 @@ describe('keybindLabel', () => {
     expect(keybindLabel('SpeedPreset16')).toBe('Speed preset 16x');
   });
 
+  it('reads out the fixed seeks', () => {
+    expect(keybindLabel('SeekForward10s')).toBe('Seek Forward 10s');
+    expect(keybindLabel('SeekBackward60s')).toBe('Seek Backward 60s');
+  });
+
   it('spaces out every other name as before', () => {
     expect(keybindLabel('PlayPause')).toBe('Play Pause');
-    expect(keybindLabel('SeekForwardLarge')).toBe('Seek Forward Large');
+    expect(keybindLabel('SeekForwardFrame')).toBe('Seek Forward Frame');
     expect(keybindLabel('HidePlayer')).toBe('Hide Player');
   });
 
@@ -279,8 +296,14 @@ describe('migrateKeybinds', () => {
   });
 
   const mergedOver = (saved) => {
-    // What Utils.mergeOptions does with the keybinds: the defaults, overwritten by whatever was saved.
-    return {keybinds: {...DefaultKeybinds, ...(saved.keybinds || {})}, keybindsVersion: KEYBINDS_VERSION};
+    // What Utils.mergeOptions does with the keybinds: the defaults, overwritten by whatever
+    // was saved for an action that still exists.
+    const keybinds = {...DefaultKeybinds};
+    const own = saved.keybinds && typeof saved.keybinds === 'object' ? saved.keybinds : {};
+    for (const action of Object.keys(keybinds)) {
+      if (Object.hasOwn(own, action) && typeof own[action] === 'string') keybinds[action] = own[action];
+    }
+    return {keybinds, keybindsVersion: KEYBINDS_VERSION};
   };
   const legacy = {
     WindowedFullscreen: 'KeyW', NextChapter: 'KeyA', PreviousVideo: 'KeyB',
@@ -392,6 +415,97 @@ describe('migrateKeybinds', () => {
     migrateKeybinds(mergedOver(stored), stored);
     expect(info).toHaveBeenCalledTimes(1);
     expect(info.mock.calls[0][0]).toContain('SpeedPreset5');
+  });
+
+  describe('to version 3', () => {
+    // What a browser held at version 2: Z undo, X screenshot, the frame step on Shift+arrows
+    // and the 10 s seeks (an action that is gone now) on `,`/`.`.
+    const v2Binds = () => {
+      const keybinds = {
+        ...DefaultKeybinds, UndoSeek: 'KeyZ', Screenshot: 'KeyX',
+        SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
+        SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
+      };
+      for (const action of ADDED_IN_VERSION_3) delete keybinds[action];
+      return keybinds;
+    };
+    const v2 = (keybinds = {}, extra = {}) => ({keybindsVersion: 2, seekStepSize: OLD_SEEK_STEP_SIZE, keybinds: {...v2Binds(), ...keybinds}, ...extra});
+    const load = (stored) => migrateKeybinds({...mergedOver(stored), seekStepSize: stored.seekStepSize ?? DEFAULT_SEEK_STEP_SIZE}, stored);
+
+    it('moves undo and screenshot off Z and X and gives Z/X and J/K the fixed seeks', () => {
+      const options = load(v2());
+      expect(options.keybinds).toEqual(DefaultKeybinds);
+      expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+      for (const action of Object.keys(MOVED_IN_VERSION_3)) {
+        expect(options.keybinds[action]).toBe(DefaultKeybinds[action]);
+      }
+      expect(findKeybindConflicts(options.keybinds)).toEqual([]);
+      expect(info).not.toHaveBeenCalled();
+    });
+
+    it('moves the arrow step from the old default of 2 to 5, and only from that', () => {
+      expect(load(v2()).seekStepSize).toBe(5);
+      expect(load(v2({}, {seekStepSize: 3})).seekStepSize).toBe(3);
+      expect(load(v2({}, {seekStepSize: 1})).seekStepSize).toBe(1);
+      // A 2 chosen after the update is a choice.
+      const current = {keybindsVersion: 3, seekStepSize: 2, keybinds: {...DefaultKeybinds}};
+      expect(load(current).seekStepSize).toBe(2);
+    });
+
+    it('keeps undo where the user put it, and then Z is free for the 60 s seek', () => {
+      const {keybinds} = load(v2({UndoSeek: 'KeyU'}));
+      expect(keybinds.UndoSeek).toBe('KeyU');
+      expect(keybinds.SeekBackward60s).toBe('KeyZ');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves a fixed seek unbound when the user already has its key', () => {
+      const {keybinds} = load(v2({PlayPause: 'KeyK', Mute: 'KeyJ'}));
+      expect(keybinds.PlayPause).toBe('KeyK');
+      expect(keybinds.Mute).toBe('KeyJ');
+      expect(keybinds.SeekForward10s).toBe('None');
+      expect(keybinds.SeekBackward10s).toBe('None');
+      expect(keybinds.SeekForward60s).toBe('KeyX');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves the screenshot unbound when Shift+S is taken, which still frees X', () => {
+      const {keybinds} = load(v2({Mute: 'Shift+KeyS'}));
+      expect(keybinds.Screenshot).toBe('None');
+      expect(keybinds.SeekForward60s).toBe('KeyX');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('unbinds undo when the user already has Shift+Backspace, like any moved action', () => {
+      const {keybinds} = load(v2({Mute: 'Shift+Backspace'}));
+      expect(keybinds.UndoSeek).toBe('None');
+      expect(keybinds.SeekBackward60s).toBe('KeyZ');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('puts the frame step on `,`/`.`, which the dropped 10 s seeks held', () => {
+      const {keybinds} = load(v2());
+      expect(keybinds.SeekForwardFrame).toBe('Period');
+      expect(keybinds.SeekBackwardFrame).toBe('Comma');
+      expect(keybinds).not.toHaveProperty('SeekForwardLarge');
+      // Frame step moved by the user: left where it is.
+      const own = load(v2({SeekForwardFrame: 'KeyU'})).keybinds;
+      expect(own.SeekForwardFrame).toBe('KeyU');
+      expect(own.SeekBackwardFrame).toBe('Comma');
+    });
+
+    it('takes options saved before any version through both steps', () => {
+      const stored = {seekStepSize: 2, keybinds: {...v2Binds(), ...legacy}};
+      const options = load(stored);
+      expect(options.keybinds).toEqual(DefaultKeybinds);
+      expect(options.seekStepSize).toBe(5);
+    });
+
+    it('does not run the version 2 step again on version 2 options', () => {
+      // WindowedFullscreen on plain W, chosen after version 2: not moved again.
+      const {keybinds} = load(v2({WindowedFullscreen: 'KeyW'}));
+      expect(keybinds.WindowedFullscreen).toBe('KeyW');
+    });
   });
 
   it('passes through anything that is not options', () => {

@@ -39,7 +39,7 @@
         "message": "Je kunt deze toetscombinaties wijzigen in de extensie-instellingen"
     },
     "welcome_page_keybinds_content1": {
-        "message": "pijltjestoetsen - 1 seconde vooruit/achteruit springen"
+        "message": "pijltjestoetsen - 5 seconden vooruit/achteruit springen"
     },
     "welcome_page_keybinds_content2": {
         "message": "toetsen - 10 seconden vooruit/achteruit springen"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Zet snelheid op 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x of 16x - druk dezelfde toets opnieuw om terug te schakelen"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "toetsen - 60 seconden vooruit/achteruit springen"
     },
     "perms_page_title": {
         "message": "FastStream-machtigingen"

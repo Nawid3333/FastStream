@@ -39,7 +39,7 @@
         "message": "可在擴充功能設定中更改這些快捷鍵"
     },
     "welcome_page_keybinds_content1": {
-        "message": "方向鍵 - 前/後跳 1 秒"
+        "message": "方向鍵 - 前/後跳 5 秒"
     },
     "welcome_page_keybinds_content2": {
         "message": "鍵 - 前/後跳 10 秒"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- 將速度設為 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一鍵可還原"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "鍵 - 前/後跳 60 秒"
     },
     "perms_page_title": {
         "message": "FastStream 權限"

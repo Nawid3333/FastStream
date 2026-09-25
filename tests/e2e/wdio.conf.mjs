@@ -127,6 +127,58 @@ async function ensureWebmFixture() {
   }
 }
 
+/**
+ * Runs ffmpeg, and fails with what it said.
+ * @param {string[]} args - Its arguments.
+ * @param {string} what - The fixture, for the message.
+ * @return {boolean} Whether it ran without error.
+ */
+function runFfmpeg(args, what) {
+  const {status, error, stderr} = spawnSync('ffmpeg', ['-y', '-v', 'error', ...args], {encoding: 'utf8'});
+  if (status !== 0) {
+    throw new Error(
+        `could not build the ${what} fixture with ffmpeg` +
+        `${error ? ` (${error.message})` : ''}. CI installs ffmpeg; ` +
+        `locally it must be on PATH.
+${stderr || ''}`,
+    );
+  }
+  return true;
+}
+
+// 160 s of the MP4 fixture's picture over a steady tone: long enough for 16x to still have
+// something to play (firefox.e2e.mjs) and for 60 s seeks either way (keybinds.e2e.mjs).
+const LONG_AV_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
+
+function ensureLongAvFixture() {
+  if (fs.existsSync(LONG_AV_FIXTURE) && fs.statSync(LONG_AV_FIXTURE).size > 0) return;
+  runFfmpeg([
+    '-stream_loop', '15', '-i', MP4_FIXTURE,
+    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=160',
+    '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
+    '-movflags', '+faststart', LONG_AV_FIXTURE,
+  ], 'long audio');
+}
+
+// 96 frames at exactly 24 fps, every picture different, for the frame step
+// (keybinds.e2e.mjs): at 24 fps one frame is 1/24 s, which the old fixed 1/30 s step
+// could not reach. H.264 through whichever encoder this ffmpeg has: libx264 on Linux CI,
+// libopenh264 in the Windows builds.
+const FRAMES_24_FIXTURE = path.join(fixturesDir, 'frames-24fps.mp4');
+
+function ensureFrames24Fixture() {
+  if (fs.existsSync(FRAMES_24_FIXTURE) && fs.statSync(FRAMES_24_FIXTURE).size > 0) return;
+  const {stdout} = spawnSync('ffmpeg', ['-hide_banner', '-encoders'], {encoding: 'utf8'});
+  const encoder = ['libx264', 'libopenh264'].find((name) => (stdout || '').split(/\r?\n/).some((line) => line.trim().split(/\s+/)[1] === name));
+  if (!encoder) {
+    throw new Error('ffmpeg has neither libx264 nor libopenh264 for the 24 fps fixture');
+  }
+  runFfmpeg([
+    '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24:duration=4',
+    '-c:v', encoder, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', FRAMES_24_FIXTURE,
+  ], '24 fps');
+}
+
 if (!fs.existsSync(path.join(webBuildDir, 'player', 'index.html'))) {
   throw new Error(
       `Web build not found at ${webBuildDir}\nRun: pnpm run build:keep`,
@@ -194,6 +246,8 @@ export const config = {
     resetDownloadDir();
     await ensureMp4Fixture();
     await ensureWebmFixture();
+    ensureLongAvFixture();
+    ensureFrames24Fixture();
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {
         const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);

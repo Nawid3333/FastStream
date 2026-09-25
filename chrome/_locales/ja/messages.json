@@ -39,7 +39,7 @@
         "message": "これらのキーバインドは拡張機能の設定で変更できます"
     },
     "welcome_page_keybinds_content1": {
-        "message": "矢印キー - 前後の 1 秒間隔のシーク"
+        "message": "矢印キー - 前後の 5 秒間隔のシーク"
     },
     "welcome_page_keybinds_content2": {
         "message": "キー - 前後の 10 秒間隔のシーク"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- 速度を 1x・2x・2.5x・3x・3.5x・4x・5x・8x・16x に設定 - 同じキーをもう一度押すと元に戻ります"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "キー - 前後の 60 秒間隔のシーク"
     },
     "perms_page_title": {
         "message": "FastStream の権限"

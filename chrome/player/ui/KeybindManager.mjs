@@ -1,7 +1,7 @@
 import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
 import {
-  SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, isTextEntryTarget,
-  seekPercentAction, seekPercentTarget, speedPresetAction,
+  FIXED_SEEKS, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset,
+  isTextEntryTarget, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../options/KeybindUtils.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
@@ -99,18 +99,9 @@ export class KeybindManager extends EventEmitter {
       this.client.setSeekSave(true);
     });
 
-    const frameStep = 1 / 30;
-    this.on('SeekForwardFrame', (e) => {
-      this.client.setSeekSave(false);
-      this.client.currentTime += frameStep;
-      this.client.setSeekSave(true);
-    });
-
-    this.on('SeekBackwardFrame', (e) => {
-      this.client.setSeekSave(false);
-      this.client.currentTime += -frameStep;
-      this.client.setSeekSave(true);
-    });
+    // mpv's frame-step: pause, then exactly one frame, however long a frame is.
+    this.on('SeekForwardFrame', (e) => this.stepFrame(1));
+    this.on('SeekBackwardFrame', (e) => this.stepFrame(-1));
 
     this.on('PlayPause', (e) => {
       this.client.interfaceController.playPauseToggle();
@@ -125,17 +116,12 @@ export class KeybindManager extends EventEmitter {
       this.client.interfaceController.pipToggle();
     });
 
-    this.on('SeekForwardLarge', (e) => {
-      this.client.setSeekSave(false);
-      this.client.currentTime += this.client.options.seekStepSize * 5;
-      this.client.setSeekSave(true);
-    });
-
-    this.on('SeekBackwardLarge', (e) => {
-      this.client.setSeekSave(false);
-      this.client.currentTime += -this.client.options.seekStepSize * 5;
-      this.client.setSeekSave(true);
-    });
+    // mpv's fixed hops: J/K 10 s, Z/X 60 s. Relative seeks like the arrows, so they are
+    // not saved for undo either.
+    this.on('SeekBackward10s', (e) => this.seekBy(FIXED_SEEKS.SeekBackward10s));
+    this.on('SeekForward10s', (e) => this.seekBy(FIXED_SEEKS.SeekForward10s));
+    this.on('SeekBackward60s', (e) => this.seekBy(FIXED_SEEKS.SeekBackward60s));
+    this.on('SeekForward60s', (e) => this.seekBy(FIXED_SEEKS.SeekForward60s));
 
     this.on('IncreasePlaybackRate', (e) => {
       this.client.playbackRate = Math.min(this.client.playbackRate + 0.1, this.client.options.maxPlaybackRate);
@@ -285,6 +271,26 @@ export class KeybindManager extends EventEmitter {
     this.on('keybind', (keybind, e) => {
       // console.log("Keybind", keybind);
     });
+  }
+
+  seekBy(seconds) {
+    // A 60 s hop from 20 s would hand -40 to the scheduler's state and the separate
+    // audio track; the media element clamps, they do not.
+    this.client.setSeekSave(false);
+    this.client.currentTime = Math.max(0, this.client.currentTime + seconds);
+    this.client.setSeekSave(true);
+  }
+
+  async stepFrame(direction) {
+    if (!this.client.player) {
+      return;
+    }
+    if (!this.client.paused) {
+      await this.client.pause();
+    }
+    this.client.setSeekSave(false);
+    this.client.currentTime = this.client.frameStepper.step(this.client.currentTime, direction);
+    this.client.setSeekSave(true);
   }
 
   setKeybinds(keybinds) {

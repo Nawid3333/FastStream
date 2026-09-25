@@ -107,7 +107,7 @@ describe('Keybinding menu', function() {
     expect((await rowState('SpeedPreset2_5')).label).toBe('Speed preset 2.5x');
     expect((await rowState('SpeedPreset16')).label).toBe('Speed preset 16x');
     expect((await rowState('PlayPause')).label).toBe('Play Pause');
-    expect((await rowState('SeekForwardLarge')).label).toBe('Seek Forward Large');
+    expect((await rowState('SeekForwardFrame')).label).toBe('Seek Forward Frame');
   });
 
   it('shows no clash for the defaults', async function() {
@@ -168,7 +168,7 @@ describe('Keybinding menu', function() {
 
   it('restores the defaults, and the clash goes with them', async function() {
     await assignKey('Mute', 'KeyQ');
-    await assignKey('SeekPercent50', 'KeyJ');
+    await assignKey('SeekPercent50', 'KeyU');
     expect(await conflictCount()).toBe(2);
 
     await browser.execute(() => document.getElementById('resetdefault').click());
@@ -182,17 +182,17 @@ describe('Keybinding menu', function() {
 
     const expected = Object.entries(await defaults()).sort();
     await waitForSaved((saved) => JSON.stringify(Object.entries(saved.keybinds).sort()) === JSON.stringify(expected));
-    expect((await savedOptions()).keybindsVersion).toBe(2);
+    expect((await savedOptions()).keybindsVersion).toBe(3);
   });
 
   it('saves the choice with the layout version, and shows it again after a reload', async function() {
-    await assignKey('SeekPercent50', 'KeyJ');
-    await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyJ');
+    await assignKey('SeekPercent50', 'KeyU');
+    await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
     const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(2);
+    expect(saved.keybindsVersion).toBe(3);
 
     await openOptions();
-    expect((await rowState('SeekPercent50')).key).toBe('KeyJ');
+    expect((await rowState('SeekPercent50')).key).toBe('KeyU');
   });
 
   it('does not migrate again a choice made after the layout changed', async function() {
@@ -243,10 +243,10 @@ describe('Keybinding menu with options saved before the layout changed', functio
   });
 
   it('saves the migrated layout with its version once something is changed', async function() {
-    await assignKey('SeekPercent50', 'KeyJ');
-    await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyJ');
+    await assignKey('SeekPercent50', 'KeyU');
+    await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
     const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(2);
+    expect(saved.keybindsVersion).toBe(3);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.FlipVideo).toBe('KeyV');
     expect(saved.keybinds.SpeedPreset5).toBe('None');

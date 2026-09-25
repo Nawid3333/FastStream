@@ -39,7 +39,7 @@
         "message": "Bu tuş atamalarını eklenti ayarlarından değiştirebilirsiniz"
     },
     "welcome_page_keybinds_content1": {
-        "message": "yön tuşları - 1 saniye ileri/geri sarma"
+        "message": "yön tuşları - 5 saniye ileri/geri sarma"
     },
     "welcome_page_keybinds_content2": {
         "message": "tuşlar - 10 saniye ileri/geri sarma"
@@ -70,6 +70,9 @@
     },
     "welcome_page_keybinds_content11": {
         "message": "- Hızı 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x veya 16x olarak ayarla - geri dönmek için aynı tuşa yeniden bas"
+    },
+    "welcome_page_keybinds_content12": {
+        "message": "tuşlar - 60 saniye ileri/geri sarma"
     },
     "perms_page_title": {
         "message": "FastStream İzinleri"
