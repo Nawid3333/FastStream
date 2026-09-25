@@ -599,6 +599,13 @@ covers the 30-minute wait.
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI).
 - **`amo-signing-failsafe.yml`** (every 3 h) completes a release whose AMO signing did not
   finish in `release.yml`; see "AMO signing no longer depends on a timer" above.
+- **`toolchain-updates.yml`** (weekly) + `tools/check-toolchain.mjs`: one issue for a newer
+  Node LTS than CI/`.nvmrc` use, and one for a newer pnpm major once
+  dependabot-core#15904 is fixed (pnpm 12's two-document lockfile hides every dependency
+  from GitHub's dependency graph; 12.6.0 otherwise passed the full verify on 2026-09-25).
+  A newer version supersedes and closes the older issue; moving closes it. Same-major
+  releases are not reported. Dependencies stay pinned by the lockfile on purpose (patches,
+  AMO reproducibility); Dependabot's weekly grouped PR is how they move.
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.

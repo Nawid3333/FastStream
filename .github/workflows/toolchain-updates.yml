@@ -1,0 +1,97 @@
+name: Toolchain updates
+
+# Weekly check of the build toolchain (tools/check-toolchain.mjs): a newer Node.js LTS
+# than CI and .nvmrc use, and a newer pnpm major once nothing blocks it. One issue per
+# update - "Toolchain update: <name> <version>" - assigned to the repo owner with an
+# @mention so it is emailed, never opened twice, and closed on its own:
+#   - resolved: the project moved to that version or newer;
+#   - superseded: a newer one came out (Node 24, then 26 before anything moved) - the
+#     older issue is closed and the newer one opened, so only one is ever open per tool.
+# Routine same-major releases are not reported; they wait for a batched update.
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - .nvmrc
+      - package.json
+      - .github/workflows/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: toolchain-updates
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the toolchain for updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Sync update issues with the toolchain in use
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PREFIX: 'Toolchain update: '
+        run: |
+          set -euo pipefail
+          node tools/check-toolchain.mjs --json > "$RUNNER_TEMP/toolchain.jsonl"
+          node tools/check-toolchain.mjs
+
+          # --- Close issues that were resolved or superseded.
+          gh issue list --state open --limit 200 --json number,title \
+            --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number)\t\(.title[${#PREFIX}:])\"" |
+          while IFS=$'\t' read -r number rest; do
+            version="${rest##* }"
+            name="${rest% *}"
+            current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/toolchain.jsonl")
+            latest=$(jq -r --arg n "$name" 'select(.name == $n) | .latest' "$RUNNER_TEMP/toolchain.jsonl")
+            if [ -z "$current" ]; then
+              echo "#$number: $name is no longer checked; leaving it."
+            elif [ "$current" -ge "$version" ]; then
+              gh issue close "$number" --comment "The project now uses $name $current. Closing."
+            elif [ "$latest" -gt "$version" ]; then
+              gh issue close "$number" --comment "Superseded: $name $latest is out, tracked in its own issue."
+            else
+              echo "#$number ($name $version) still open: the project uses $current."
+            fi
+          done
+
+          # --- Open an issue per update, once.
+          gh issue list --state all --limit 1000 --json title --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
+          jq -c 'select(.behind)' "$RUNNER_TEMP/toolchain.jsonl" |
+          while read -r item; do
+            name=$(jq -r .name <<< "$item")
+            current=$(jq -r .current <<< "$item")
+            latest=$(jq -r .latest <<< "$item")
+            note=$(jq -r .note <<< "$item")
+            title="$PREFIX$name $latest"
+            if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
+              echo "Already notified about $name $latest."
+              continue
+            fi
+            # The backticks are Markdown for the issue body, not command substitution.
+            # shellcheck disable=SC2016
+            {
+              printf '@%s %s %s is available (%s).\n\n' "$OWNER" "$name" "$latest" "$note"
+              if [ "$name" = 'Node.js' ]; then
+                printf 'To move: set `node-version: %s` in every workflow and `%s` in `.nvmrc`, run `pnpm run verify` on Node %s, and merge through a PR (merging releases). Node only builds and tests the extension; nothing changes for users.\n' "$latest" "$latest" "$latest"
+              else
+                printf 'To move: set `"packageManager": "pnpm@<version>"` in `package.json`, run `pnpm install` and `pnpm run verify`, and check that GitHub still sees the dependencies (Insights > Dependency graph) before merging.\n'
+              fi
+              printf '\nThis issue closes on its own once the project uses %s %s or newer.\n' "$name" "$latest"
+            } > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+          done
