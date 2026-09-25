@@ -32,9 +32,11 @@ async function runInPage(fn, timeout = 30000) {
         {timeout, interval: 100, timeoutMsg: 'the page never settled'},
     );
   } catch (e) {
-    // A snippet that sets window.__step says how far it got - which call never returned.
-    const step = await browser.execute(() => window.__step);
-    throw new Error(`the page never settled${step ? ` (last step reached: ${step})` : ''}`);
+    // A snippet that sets window.__step says how far it got - which call never returned;
+    // one that sets window.__diag says what the storage was doing at that point.
+    const {step, diag} = await browser.execute(() => ({step: window.__step, diag: window.__diag?.()}));
+    throw new Error(`the page never settled${step ? ` (last step reached: ${step})` : ''}` +
+        (diag ? `: ${JSON.stringify(diag)}` : ''));
   }
 
   const {out, err} = await browser.execute(
@@ -135,6 +137,19 @@ describe('FSBlob storage backends', function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
+      // On Firefox 157 Beta on the Windows runner the first save once never returned.
+      // No sessionName means the worker's init never answered; ids still pending name
+      // the calls that did not (0 is init).
+      window.__diag = () => {
+        const opfs = blobStore.opfsManager;
+        return {
+          backend: opfs ? 'opfs' : blobStore.cache ? 'cache' : blobStore.indexedDBManager ? 'indexeddb' : 'memory',
+          sessionName: opfs?.sessionName ?? null,
+          pending: opfs ? [...opfs.pending.keys()] : null,
+          nextId: opfs?.nextId ?? null,
+          worker: opfs ? !!opfs.worker : null,
+        };
+      };
 
       window.__step = 'save 1';
       const id1 = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1])]));
