@@ -179,6 +179,72 @@ describe('vendored demuxers', function() {
     // misspelled field and so leaves undefined on every frame.
     expect(result.keyframes).toBeGreaterThan(0);
   });
+
+  it('MP4Demuxer (mp4box) demuxes fragmented MP4 the way the re-encoder feeds it', async function() {
+    // The re-encoder (reencoder.mjs) demuxes MP4 through mp4box: an initialization
+    // segment, then media segments, then the samples it extracted. That reads more of
+    // mp4box's API than anything else - getInfo()'s track fields, sample extraction,
+    // releaseSample - and it depends on `samples_stored`, which patches/mp4box@*.patch
+    // adds: every sample getSample() loaded, so exactly those can be handed on and freed.
+    // Nothing else in the suite runs this code. The segments are the first two of
+    // dash-list (wdio.conf.mjs): 4 s of 640x360 H.264 at 30 fps, a keyframe every 2 s,
+    // and 44.1 kHz mono AAC.
+    const result = await runInPage(async () => {
+      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
+      const get = async (file) =>
+        (await fetch('/fixtures/dash-list/' + file)).arrayBuffer();
+
+      const video = new MP4Demuxer();
+      video.initialize(await get('init-stream0.m4s'));
+      video.appendBuffer(await get('chunk-stream0-00001.m4s'));
+      video.appendBuffer(await get('chunk-stream0-00002.m4s'));
+      const videoConfig = video.getVideoDecoderConfig();
+      const videoChunks = video.getVideoChunks(true);
+      const videoTrak = video.file.getTrackById(video.videoTrack.id);
+      const released = videoTrak.samples_stored.slice(0, -1);
+      video.clearChunks();
+
+      const audio = new MP4Demuxer();
+      audio.initialize(await get('init-stream1.m4s'));
+      audio.appendBuffer(await get('chunk-stream1-00001.m4s'));
+      audio.appendBuffer(await get('chunk-stream1-00002.m4s'));
+      const audioConfig = audio.getAudioDecoderConfig();
+      const audioChunks = audio.getAudioChunks(true);
+
+      return {
+        videoCodec: videoConfig.codec,
+        width: videoConfig.codedWidth,
+        height: videoConfig.codedHeight,
+        videoChunks: videoChunks.length,
+        keyframes: videoChunks.filter((c) => c.type === 'key').length,
+        firstIsKey: videoChunks[0]?.type === 'key',
+        storedAfterClear: videoTrak.samples_stored.length,
+        releasedStillHoldData: released.filter((s) => s.data).length,
+        audioCodec: audioConfig.codec,
+        sampleRate: audioConfig.sampleRate,
+        channels: audioConfig.numberOfChannels,
+        audioChunks: audioChunks.length,
+        audioSeconds: audioChunks.reduce((sum, c) => sum + c.duration, 0) / 1e6,
+      };
+    });
+
+    console.log('      mp4:', JSON.stringify(result));
+    expect(result.videoCodec).toMatch(/^avc1\./);
+    expect(result.width).toBe(640);
+    expect(result.height).toBe(360);
+    expect(result.videoChunks).toBe(120);
+    expect(result.keyframes).toBeGreaterThanOrEqual(2);
+    expect(result.firstIsKey).toBe(true);
+    // clearChunks() keeps the last sample, which the next chunk's timing needs, and
+    // releases the data of every other one.
+    expect(result.storedAfterClear).toBe(1);
+    expect(result.releasedStillHoldData).toBe(0);
+    expect(result.audioCodec).toMatch(/^mp4a\./);
+    expect(result.sampleRate).toBe(44100);
+    expect(result.channels).toBe(1);
+    expect(result.audioChunks).toBeGreaterThan(0);
+    expect(Math.abs(result.audioSeconds - 4)).toBeLessThan(0.2);
+  });
 });
 
 describe('the colour picker', function() {
