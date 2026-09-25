@@ -78,8 +78,8 @@ importers:
         specifier: 7.5.0
         version: 7.5.0
       geckodriver:
-        specifier: ^6.1.1
-        version: 6.1.1(supports-color@8.1.1)
+        specifier: ^7.0.0
+        version: 7.0.0(supports-color@8.1.1)
       gif.js:
         specifier: 0.2.0
         version: 0.2.0(patch_hash=7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae)
@@ -2675,6 +2675,11 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
+  geckodriver@7.0.0:
+    resolution: {integrity: sha512-RypjU7cNcyjWK3ruEriCkWMRa9nroCT3y2qwkPynGzKTK1wG0UCWubb4AfVDTXzG9BhzRTwg29DoeK7PCRnK1w==}
+    engines: {node: '>=20.0.0'}
+    hasBin: true
+
   generator-function@2.0.1:
     resolution: {integrity: sha512-SFdFmIJi+ybC0vjlHN0ZGVGHc3lgE0DxPAT0djjVg+kjOnSqclqmj0KQ7ykTOLP6YxoqOvuAODGdcHJn+43q3g==}
     engines: {node: '>= 0.4'}
@@ -3466,6 +3471,10 @@ packages:
 
   modern-tar@0.7.7:
     resolution: {integrity: sha512-t9VmxaqrmANnEOBhpSDI6HD192Ge48k8vmWqQQL7hSFEqHEYwZbbsu49+aKLWZeRvFs3j1pMhXOqqF4kPlvjkQ==}
+    engines: {node: '>=18.0.0'}
+
+  modern-tar@0.8.5:
+    resolution: {integrity: sha512-snEhs+6G5Tjd4I7tLCDOaoln2RgE0bD19RzEKgvgK2hZ5VKy3MpLhLTZ2fWpXSTg4K2cyPwp+VHATFJhxfnOeA==}
     engines: {node: '>=18.0.0'}
 
   mp4-muxer@4.3.3:
@@ -7515,6 +7524,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  geckodriver@7.0.0(supports-color@8.1.1):
+    dependencies:
+      '@wdio/logger': 9.29.1
+      '@zip.js/zip.js': 2.14.0
+      decamelize: 6.0.1
+      http-proxy-agent: 7.0.2(supports-color@8.1.1)
+      https-proxy-agent: 7.0.6(supports-color@8.1.1)
+      modern-tar: 0.8.5
+    transitivePeerDependencies:
+      - supports-color
+
   generator-function@2.0.1: {}
 
   gensync@1.0.0-beta.2: {}
@@ -8277,6 +8297,8 @@ snapshots:
       yargs-unparser: 2.0.0
 
   modern-tar@0.7.7: {}
+
+  modern-tar@0.8.5: {}
 
   mp4-muxer@4.3.3:
     dependencies:
