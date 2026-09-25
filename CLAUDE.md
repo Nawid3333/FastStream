@@ -606,10 +606,11 @@ covers the 30-minute wait.
   A newer version supersedes and closes the older issue; moving closes it. Same-major
   releases are not reported. Dependencies stay pinned by the lockfile on purpose (patches,
   AMO reproducibility); Dependabot's weekly grouped PR is how they move.
-- **`firefox-beta.yml`** (weekly, and on PRs touching it or the e2e configs): `test:e2e` and
+- **`firefox-beta.yml`** (Monday and Thursday, and on PRs touching it or the e2e configs): `test:e2e` and
   `test:ext` against Firefox Beta (`browser-actions/setup-firefox`, `latest-beta`) through
   the `FIREFOX_BINARY` env var the wdio configs honour. A scheduled failure opens one issue
-  naming the Beta version - about four weeks before that Firefox reaches users - and the
+  naming the Beta version - about two weeks before that Firefox reaches users (two-week
+  release cycle since Firefox 155, September 2026) - and the
   next green run closes it. Not part of CI; it never blocks a release.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked

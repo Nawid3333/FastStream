@@ -1,9 +1,11 @@
 name: Firefox Beta
 
 # FastStream is Firefox-only, and the e2e suites pin what it relies on Firefox to do
-# (tests/e2e/specs/firefox.e2e.mjs: the 8x audio cap, scrollbars, and so on). Firefox
-# Beta becomes the next release about four weeks later, so running the suites against it
-# weekly turns "the Firefox update broke FastStream" into a four-week warning.
+# (tests/e2e/specs/firefox.e2e.mjs: the 8x audio cap, scrollbars, and so on). Since
+# September 2026 Firefox ships every two weeks (155, on September 1, was the first), so
+# a Beta becomes the release about two weeks later. The suites run against it twice a
+# week, so each Beta gets several runs and "the Firefox update broke FastStream" arrives
+# as a two-week warning instead of on the day the browser updates.
 #
 # A scheduled failure opens one issue, assigned to the owner with an @mention and naming
 # the Beta version; the first green scheduled run closes it. It also runs on a pull
@@ -13,7 +15,7 @@ name: Firefox Beta
 
 on:
   schedule:
-    - cron: '0 5 * * 3'
+    - cron: '0 5 * * 1,4'
   pull_request:
     branches: [main]
     paths:
@@ -115,7 +117,7 @@ jobs:
             exit 0
           fi
           {
-            printf '@%s The e2e suites fail on **Firefox %s**, which becomes the release in about four weeks: %s\n\n' "$OWNER" "${VERSION:-Beta}" "$RUN_URL"
+            printf '@%s The e2e suites fail on **Firefox %s**, which becomes the release in about two weeks: %s\n\n' "$OWNER" "${VERSION:-Beta}" "$RUN_URL"
             printf 'The same suites pass on the current release in CI, so this is a change in Firefox. The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
             printf 'This issue closes on its own once a scheduled run passes again.\n'
           } > "$RUNNER_TEMP/body.md"
