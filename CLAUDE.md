@@ -656,6 +656,20 @@ covers the 30-minute wait.
   `InterfaceController.focusingControls` stuck true and the control bar up for good.
   `isFocusInControls()` now checks the flag against `document.activeElement`; the
   sources-browser spec forces the stale flag, so it fails without the fix on any machine.
+  A second one: SweetAlert2 removes a closing dialog only on the popup's `animationend`,
+  which on the runner once never fired, leaving an invisible `swal2-hide` popup over the
+  save button. `AlertPolyfill` dialogs close without a hide animation (a `Dialog` mixin
+  with empty `hideClass`, sweetalert2#1841); `specs/dialogs.e2e.mjs` makes the animation
+  last an hour and fails without the fix. Failing save/storage specs log the page and
+  every unanswered OPFS worker call (`specs/diagnostics.mjs`, `OPFSManager.pendingCalls()`).
+- **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
+  otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
+  worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
+  9.32.0; found by runner-images.yml before `ubuntu-latest` moves in November).
+  `specFileRetries: 1` - a failed spec file runs once more in a fresh browser: after the two
+  bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
+  overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug
+  fails twice and still blocks the release.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
