@@ -1,0 +1,45 @@
+name: Reminders
+
+# On the 1st of each month, comments on every open issue labelled
+# `reminder: <month>` (e.g. `reminder: november`) and @mentions the repo owner, so the
+# reminder arrives by email in the month it is meant for. An issue only emails when it is
+# opened or changed; parked until then, it is easy to forget.
+#
+# Label an issue to schedule it; close it to stop the reminders. An issue still open a
+# year later is reminded again that month.
+
+on:
+  schedule:
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+    inputs:
+      month:
+        description: 'Month to send reminders for (e.g. november). Defaults to the current month.'
+        required: false
+
+permissions:
+  issues: write
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OWNER: ${{ github.repository_owner }}
+      MONTH_INPUT: ${{ inputs.month }}
+    steps:
+      - name: Remind
+        run: |
+          set -euo pipefail
+          month="${MONTH_INPUT:-$(date -u +%B)}"
+          month="${month,,}"
+          label="reminder: $month"
+          echo "Open issues labelled '$label':"
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --label "$label" --json number,title \
+            --jq '.[] | "\(.number)\t\(.title)"' |
+          while IFS=$'\t' read -r number title; do
+            echo "  #$number $title"
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" \
+              --body "@$OWNER Reminder for ${month^}: this is scheduled for this month."
+          done

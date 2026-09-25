@@ -599,6 +599,8 @@ covers the 30-minute wait.
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI).
 - **`amo-signing-failsafe.yml`** (every 3 h) completes a release whose AMO signing did not
   finish in `release.yml`; see "AMO signing no longer depends on a timer" above.
+- **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
+  labelled `reminder: <month>`, so a parked issue emails its owner in that month.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
 - **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
