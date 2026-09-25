@@ -32,7 +32,8 @@ broken intermediate state. See `CHECKPOINT.md`.
 Status values: `queued` (identified, not yet cut) · `cut` (branch exists,
 not yet test-merged) · `verified` (test-merged clean in the pristine clone)
 · `opened` (PR live upstream) · `merged` · `rejected` (Andrew declined —
-reason recorded, do not re-propose without new information).
+reason recorded, do not re-propose without new information) · `withdrawn`
+(closed by us — reason recorded, do not reopen).
 
 ---
 
@@ -87,7 +88,10 @@ no linter caught.
   a 50 KB vendored bundle and hard to take on faith.
 - **Note:** send this one first. It is the smallest diff in the queue and the
   only one that fixes something users can hit.
-- **Status:** `queued`
+- **Status:** `withdrawn` — opened as upstream PR #557 from `fix/resampler-wasm`,
+  closed by Nawid on 2026-09-25 ("upstream can not merge it") and the branch
+  deleted. The fix itself is in this fork's main (`40442139`, 2026-09-05), so
+  nothing is lost here.
 
 ## A1. Fix Windows build: `miniglob.mjs` `volumeNameLen` shadowing
 
