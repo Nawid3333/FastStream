@@ -53,8 +53,9 @@ export class SubtitleUtils {
     let srt = data.replace(/\r+/g, '');
     // trim white space start and end
     srt = srt.replace(/^\s+|\s+$/g, '');
-    // get cues
-    const cuelist = srt.split('\n\n');
+    // get cues; a line holding only whitespace ends a cue too, and runs of
+    // them are one separator, not empty cues that swallow the next index line
+    const cuelist = srt.split(/\n(?:[^\S\n]*\n)+/);
     let result = '';
     if (cuelist.length > 0) {
       result += 'WEBVTT\n\n';
@@ -171,10 +172,13 @@ export class SubtitleUtils {
     // get time strings
     if (s[line].match(/\d+:\d+:\d+/)) {
       // convert time string
-      const m = s[line].match(/(\d+):(\d+):(\d+)(?:,(\d+))?\s*--?>\s*(\d+):(\d+):(\d+)(?:,(\d+))?/);
+      // SRT writes ',' before the milliseconds, but '.' is common, and so are
+      // missing or short fractions; WebVTT needs exactly '.' and three digits
+      const m = s[line].match(/(\d+):(\d+):(\d+)(?:[,.](\d+))?\s*--?>\s*(\d+):(\d+):(\d+)(?:[,.](\d+))?/);
       if (m) {
-        cue += m[1] + ':' + m[2] + ':' + m[3] + '.' + m[4] + ' --> ' +
-                    m[5] + ':' + m[6] + ':' + m[7] + '.' + m[8] + '\n';
+        const ms = (fraction) => (fraction || '').padEnd(3, '0').substring(0, 3);
+        cue += m[1] + ':' + m[2] + ':' + m[3] + '.' + ms(m[4]) + ' --> ' +
+                    m[5] + ':' + m[6] + ':' + m[7] + '.' + ms(m[8]) + '\n';
         line += 1;
       } else {
         // Unrecognized timestring

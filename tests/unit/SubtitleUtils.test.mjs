@@ -108,3 +108,52 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('{\\an5}')).toBe('');
   });
 });
+
+// SRT files in the wild bend the format in a few common ways. Each case below
+// used to lose cues silently: srt2webvtt either dropped the cue or wrote a
+// timestamp vtt.js rejects. They run through the vendored vtt.js parser, the
+// one SubtitleTrack.loadText uses, so a cue counts only if the player gets it.
+describe('srt2webvtt with loosely formatted SRT', () => {
+  async function parseSrt(srt) {
+    globalThis.window ??= globalThis;
+    const {WebVTT} = await import('../../chrome/player/modules/vtt.mjs');
+    const cues = [];
+    // eslint-disable-next-line new-cap
+    const parser = new WebVTT.Parser(globalThis.window, WebVTT.StringDecoder());
+    parser.oncue = (cue) => cues.push([cue.startTime, cue.endTime, cue.text]);
+    parser.parse(SubtitleUtils.srt2webvtt(srt));
+    parser.flush();
+    return cues;
+  }
+
+  it('keeps cues whose timestamps use "." before the milliseconds', async () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nComma\n\n' +
+      '2\n00:00:03.500 --> 00:00:04.250\nDot';
+    expect(await parseSrt(srt)).toEqual([
+      [1, 2, 'Comma'],
+      [3.5, 4.25, 'Dot'],
+    ]);
+  });
+
+  it('keeps cues whose timestamps have no milliseconds', async () => {
+    const srt = '1\n00:00:01 --> 00:00:02\nWhole seconds\n\n' +
+      '2\n00:01:03,5 --> 00:01:04,25\nShort fraction';
+    expect(await parseSrt(srt)).toEqual([
+      [1, 2, 'Whole seconds'],
+      [63.5, 64.25, 'Short fraction'],
+    ]);
+  });
+
+  it('keeps cues separated by more than one blank line', async () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nA\n\n\n' +
+      '2\n00:00:03,000 --> 00:00:04,000\nB\n \t\n' +
+      '3\n00:00:05,000 --> 00:00:06,000\nC\n\n\n\n' +
+      '4\n00:00:07,000 --> 00:00:08,000\nD';
+    expect(await parseSrt(srt)).toEqual([
+      [1, 2, 'A'],
+      [3, 4, 'B'],
+      [5, 6, 'C'],
+      [7, 8, 'D'],
+    ]);
+  });
+});
