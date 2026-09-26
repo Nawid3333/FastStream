@@ -504,19 +504,34 @@ describe('mpv seek keys', function() {
     const player = await browser.execute(() => {
       const player = window.fastStream.player;
       window.__resets = 0;
+      window.__resetLog = [];
       const resetHLS = player.resetHLS.bind(player);
       player.resetHLS = (...args) => {
         window.__resets++;
+        // Where each reset came from, logged when the test fails: the time the element
+        // was at, what it had buffered, and the caller.
+        const b = player.video.buffered;
+        const ranges = [];
+        for (let i = 0; i < b.length; i++) ranges.push([b.start(i), b.end(i)]);
+        window.__resetLog.push({
+          time: player.video.currentTime, readyState: player.video.readyState, ranges,
+          stack: new Error().stack.split('\n').slice(1, 5).join(' | '),
+        });
         return resetHLS(...args);
       };
       return player.constructor.name;
     });
     expect(player).toBe('MP4Player');
+    const resets = async () => {
+      const {count, log} = await browser.execute(() => ({count: window.__resets, log: window.__resetLog}));
+      if (count) console.log(`      MP4 resets: ${JSON.stringify(log)}`);
+      return count;
+    };
 
     await pressKey('ArrowLeft');
     await landsOn(0, 'ArrowLeft');
     await settle();
-    expect(await browser.execute(() => window.__resets)).toBe(0);
+    expect(await resets()).toBe(0);
 
     // The same seek handed to the player directly, past the client's clamp: MP4Player
     // checks the time the element will actually seek to.
@@ -527,7 +542,7 @@ describe('mpv seek keys', function() {
     });
     await landsOn(0, 'a direct seek to -3 s');
     await settle();
-    expect(await browser.execute(() => window.__resets)).toBe(0);
+    expect(await resets()).toBe(0);
   });
 
   it('Shift+Backspace undoes a seek, Shift+Z redoes it, and plain Z is a seek, not an undo', async function() {
