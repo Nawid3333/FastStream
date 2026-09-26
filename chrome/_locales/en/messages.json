@@ -11,6 +11,9 @@
     "extension_toggle_label_mpv": {
         "message": "FastStream - Playing in MPV"
     },
+    "command_toggle_mpv": {
+        "message": "Turn MPV on or off for this tab"
+    },
     "welcome_page_title": {
         "message": "Welcome to FastStream"
     },

@@ -96,6 +96,12 @@
       "suggested_key": {
         "default": "Ctrl+Shift+F"
       }
+    },
+    "toggle_mpv": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+U"
+      },
+      "description": "__MSG_command_toggle_mpv__"
     }
   },
   "content_security_policy": {

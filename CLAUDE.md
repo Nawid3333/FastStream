@@ -411,8 +411,8 @@ state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one
 background lifetime the old in-memory logic was already right, so a test that
 never suspends the background cannot see this.
-`tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`, `toolbar-cycle-mpv`)
-click the toolbar and suspend the background from Firefox's chrome context,
+`tests/e2e/classic-specs/` (`toolbar-state`, `mpv-suspend`, `toolbar-cycle-mpv`,
+`mpv-shortcut`) click the toolbar, press keys, and suspend the background from Firefox's chrome context,
 which needs WebDriver classic, hence its own `wdio.classic.conf.mjs` (run by
 `test:ext`).
 
@@ -425,8 +425,9 @@ cycle could only reach MPV via Off). There is no message that retracts an
 in-page overlay iframe, so that transition reloads the tab - same as the
 plain Off/On toggle already does to undo one - and leans on the ordinary
 auto-forward path (`onSourceRecieved`) to hand the reload's freshly detected
-stream to mpv; it does not call `openMpvWithSources` itself. The three
-`onClicked` branches check `frame.playerOpening || frame.isPlayer`, not just
+stream to mpv; it does not call `openMpvWithSources` itself. The MPV
+branches go through `startMpv`/`stopMpv`, which check
+`frame.playerOpening || frame.isPlayer` (`hasOrOpeningPlayer`), not just
 `isPlayer`: `playerOpening` flips true the moment `OPEN_PLAYER` is sent, well
 before the player's own `PLAYER_LOADED` round trip sets `isPlayer`, and
 checking `isPlayer` alone leaves a window where a click lands after the
@@ -443,6 +444,42 @@ the reload's video URL - the same fix `mpv-suspend.e2e.mjs` needed - since a
 repeat request for the identical URL can be satisfied out of Firefox's HTTP
 cache with no network traffic, which would leave nothing for `onHeadersReceived`
 to redetect.
+
+**MPV shortcut: Ctrl+Shift+U, the `toggle_mpv` command (2026-09-26).** MPV
+on or off for the tab on any site, allowlisted or not, while MPV mode is on
+(off = FastStream off, as the toolbar's MPV -> Off). On a blank or new tab it
+arms MPV for the next page opened there (the tab's mode survives navigation);
+the toolbar opens the player page on a blank tab instead. **Only a video the
+user starts goes to mpv** (`tab.mpvOnPlay`, persisted): on an arbitrary site the
+first stream a page loads is as likely a preview or background clip, and Nawid
+found the automatic hand-off wrong there (2026-09-26). content.js reports a
+`play` (capture listener) that carries transient user activation
+(`navigator.userActivation.isActive`) as `MPV_USER_PLAY`; `onUserPlay` sends the
+detected source matching the video's `currentSrc` (a preloaded file is never
+detected again), else the newest source of that frame (MSE: `blob:` src), else
+the next stream detected within 15 s. The same URL again within 10 s only
+re-pauses the page (players call play() twice, or resume after the pause). On
+activation `MPV_REPORT_PLAYING` lets a frame hand over a video the user started
+and is still watching. The allowlist and the toolbar keep the automatic
+first-stream hand-off (`startMpv(tab)` without `onPlay`). Not seen: a video in a
+shadow root (media events do not leave it) and a cross-origin player started
+by a button in its parent page (activation does not reach a cross-origin
+child). The spec was checked against both mistakes it guards (the old
+automatic hand-off; no activation check): each fails 4 of its 5 tests. It shares
+`startMpv`/`stopMpv` with the toolbar, so the two cannot drift: a tab is
+always exactly one of Off / On / MPV, and the last key pressed decides.
+Ctrl+Shift+F is unchanged. The key was picked by measurement on Firefox 156:
+the Ctrl+Shift letters Firefox binds itself (browser.xhtml plus the DevTools
+keys - M is Responsive Design Mode) leave only F, L, U and Y free (V is
+paste-as-plain-text in text fields), L and Y are Bitwarden's defaults, and
+`RegisterHotKey` showed no other Windows program holding U. `mpv-shortcut.e2e.mjs`
+pins it with Firefox's own `ShortcutUtils.isSystem` check (the one
+about:addons runs) and presses it through a `TextInputProcessor` in chrome:
+`browser.keys()` synthesizes inside the content process and never reaches
+window-level shortcuts. The helper waits for the key element's `command`
+event, because Firefox gives the command the tab active when the key's round
+trip through the page ends, and a test that switches tabs straight after
+pressing sends it to the wrong tab.
 
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
