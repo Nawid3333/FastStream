@@ -2,6 +2,7 @@ import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
+import {SubtitleSyncUtils} from '../../utils/SubtitleSyncUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 
@@ -21,7 +22,18 @@ export class SubtitleSyncer extends EventEmitter {
     if (!this.started) return;
     this.trackToSync.shift(delta);
     this.client.interfaceController.subtitlesManager.renderSubtitles();
-    this.onVideoTimeUpdate();
+    // There is no onVideoTimeUpdate() here (it moved to FineTimeControls long
+    // ago), so this used to throw a TypeError on every ShiftSubtitles key.
+    // The timeline redraws on its own; only the cues in view are stale.
+    this.lastUpdate = 0;
+    this.showShift();
+  }
+
+  // The track's total shift, so the tool says where the subtitles stand
+  // instead of only "drag subtitles to resync".
+  showShift() {
+    const shift = SubtitleSyncUtils.formatShift(this.trackToSync.shiftTotal || 0);
+    this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', [shift]), 'info', 2000);
   }
 
   setup() {
@@ -37,6 +49,10 @@ export class SubtitleSyncer extends EventEmitter {
 
 
     this.ui.timelineTrack.addEventListener('mousedown', (e) => {
+      // Left button only, as the time ticks do: a right-click opens the
+      // context menu, which swallows the mouseup, and the track then followed
+      // the pointer with no button held.
+      if (e.button !== 0) return;
       isGrabbingTrack = true;
       grabStartTrack = e.clientX;
       if (window.subEditMode && !e.shiftKey) {
@@ -157,7 +173,10 @@ export class SubtitleSyncer extends EventEmitter {
         } else {
           if (window.subEditMode) return;
           this.trackToSync.shift(amount);
+          this.showShift();
         }
+        // cues dragged into view show at once, not up to 500 ms later
+        this.lastUpdate = 0;
         this.client.interfaceController.subtitlesManager.renderSubtitles();
       }
     });
@@ -236,10 +255,10 @@ export class SubtitleSyncer extends EventEmitter {
     if (now - this.lastUpdate >= 500) {
       this.lastUpdate = now;
 
-      const cues = this.trackToSync.cues;
-      this.visibleCues = cues.filter((cue) => {
-        return cue.startTime <= maxTime || cue.endTime >= minTime;
-      });
+      // `||` here kept every cue (all of them start before maxTime or end
+      // after minTime), so the whole track sat in the DOM and each cue was
+      // repositioned on every frame.
+      this.visibleCues = SubtitleSyncUtils.cuesInRange(this.trackToSync.cues, minTime, maxTime);
     }
 
 

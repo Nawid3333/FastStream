@@ -7,6 +7,8 @@ export class SubtitleTrack {
     this.language = language;
     this.cues = [];
     this.regions = [];
+    // the sum of every whole-track shift, shown by the resync tool
+    this.shiftTotal = 0;
   }
 
   loadURL(url) {
@@ -22,6 +24,7 @@ export class SubtitleTrack {
       cue.startTime += time;
       cue.endTime += time;
     });
+    this.shiftTotal += time;
   }
 
   shiftAfter(cue, time) {

@@ -955,3 +955,19 @@ detection looks for.
   function`. Fixed in `ab0719d`; candidate for upstream PR.
 - No `.gitattributes`, so Windows checkouts got CRLF and eslint's
   `linebreak-style` reported 2352 errors. Fixed in `e81b036`.
+- **The subtitle resync tool** (`SubtitleSyncer.mjs`, the hourglass on a
+  track; all three from upstream's 2023 code, fixed 2026-09-27):
+  `renderTracks()` picked the cues in view with `start <= max || end >= min`,
+  true for every cue, so the whole track sat in the DOM and every cue was
+  repositioned on each frame (300 elements instead of ~18 in the spec);
+  `shiftSubtitles()` (the ShiftSubtitlesLater/Earlier keys while the tool is
+  open) ended with a call to an `onVideoTimeUpdate()` that SubtitleSyncer does
+  not have - the TypeError never showed because `EventEmitter.emit` catches a
+  handler's error and only logs it; and the track row started a drag on any
+  button, so after a right-click (whose context menu swallows the mouseup) the
+  cues followed the pointer. The tool now also shows the track's total shift
+  (`SubtitleTrack.shiftTotal`, "Shifted subtitles +1.40s"). Pure helpers in
+  `utils/SubtitleSyncUtils.mjs` (unit-tested); `tests/e2e/specs/subtitle-sync.e2e.mjs`
+  fails on each of the three against the old code. A port of this tool lives
+  in Nawid's mpv config (`subtitle-sync.lua`), with the audio drawn by a second
+  mpv instead of the VAD model.
