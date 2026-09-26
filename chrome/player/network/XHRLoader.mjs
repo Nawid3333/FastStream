@@ -137,6 +137,12 @@ export class XHRLoader {
     }
 
     const controller = (this.controller = new AbortController());
+    // This attempt is over once teardownAttempt() has aborted its controller - a real
+    // abort, or retry() replacing it with the next attempt. A real fetch() then rejects
+    // with an AbortError, and that rejection is not a failure of the load: counting it
+    // as one called retry() a second time for the same stall, spending two retries,
+    // doubling the backoff twice and cancelling the retry that was already scheduled.
+    const isStale = () => stats.aborted || controller.signal.aborted;
 
     // setup timeout before we perform request - a stall at any point (no
     // headers yet, or no further body chunks) re-arms this the same way, see
@@ -153,7 +159,7 @@ export class XHRLoader {
         signal: controller.signal,
       });
     } catch (e) {
-      if (stats.aborted) {
+      if (isStale()) {
         // teardownAttempt() aborted this on purpose (real abort, or retry
         // tearing down the previous attempt) - not a network failure.
         return;
@@ -162,7 +168,7 @@ export class XHRLoader {
       return;
     }
 
-    if (stats.aborted) {
+    if (isStale()) {
       return;
     }
 
@@ -183,16 +189,16 @@ export class XHRLoader {
 
     let data;
     try {
-      data = await this.readBody(response, isArrayBuffer);
+      data = await this.readBody(response, isArrayBuffer, isStale);
     } catch (e) {
-      if (stats.aborted) {
+      if (isStale()) {
         return;
       }
       this.handleLoadFailure(0, e.message);
       return;
     }
 
-    if (stats.aborted) {
+    if (isStale()) {
       return;
     }
 
@@ -239,9 +245,11 @@ export class XHRLoader {
    * progressing body.
    * @param {Response} response - the fetch Response to read.
    * @param {boolean} isArrayBuffer - true to return an ArrayBuffer, false for text.
+   * @param {function(): boolean} [isStale] - true once this attempt has been torn down;
+   *   a chunk still delivered then must not re-arm the next attempt's stall timer.
    * @return {Promise<ArrayBuffer|string>} the concatenated response body.
    */
-  async readBody(response, isArrayBuffer) {
+  async readBody(response, isArrayBuffer, isStale = () => false) {
     const stats = this.stats;
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
@@ -259,6 +267,9 @@ export class XHRLoader {
     while (true) {
       const {done, value} = await reader.read();
       if (done) break;
+      if (isStale()) {
+        throw new DOMException('The attempt was torn down.', 'AbortError');
+      }
 
       chunks.push(value);
       receivedLength += value.byteLength;
