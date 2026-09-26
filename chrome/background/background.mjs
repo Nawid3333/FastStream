@@ -1536,16 +1536,18 @@ async function onSourceRecieved(details, frame, mode) {
     return;
   }
 
+  // The page's own <track> elements, read by content.js. A track seen before is
+  // replaced by its latest copy, anything new is added.
   const subs = await scrapeCaptionsTags(frame);
-  if (subs) {
+  if (Array.isArray(subs)) {
+    const subtitles = frame.getSubtitles();
     subs.forEach((s) => {
-      if (frame.subtitles.every((ss, i) => {
-        if (s.source === ss.source) {
-          frame.subtitles[i] = s;
-          return false;
-        }
-        return true;
-      })) frame.subtitles.push(s);
+      const index = subtitles.findIndex((ss) => ss.source === s.source);
+      if (index === -1) {
+        subtitles.push(s);
+      } else {
+        subtitles[index] = s;
+      }
     });
   }
 
