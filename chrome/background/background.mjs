@@ -22,6 +22,13 @@ const ManualMpvRepeatMs = 3000;
 let LastManualMpvUrl = '';
 let LastManualMpvTime = 0;
 
+// The shortcut's MPV waits for the user to start a video (onUserPlay). A play
+// whose stream is not detected yet takes the next one within MpvPlayPendingMs;
+// the same video played again within MpvPlayRepeatMs is the player repeating
+// itself, not a second request.
+const MpvPlayPendingMs = 15000;
+const MpvPlayRepeatMs = 10000;
+
 // How long a tab stays "armed" after content.js reports focus moving into
 // one of its player iframes (see the tabs.onCreated listener below). Short
 // on purpose: a popup/popunder script reacting to that same blur event fires
@@ -95,6 +102,90 @@ ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
   });
 });
 
+const EmptyTabUrls = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
+
+/**
+ * Whether the tab has FastStream's in-page player up, or on its way.
+ *
+ * frame.playerOpening flips true the moment OPEN_PLAYER is sent, well before
+ * PLAYER_LOADED sets frame.isPlayer - checking isPlayer alone leaves a window
+ * where the overlay iframe already exists on the page but goes undetected, so
+ * a stale overlay survives an Off that should have torn it down, or stays up
+ * while mpv plays the same stream in its own window.
+ *
+ * @param {Object} tab - TabHolder to check.
+ * @return {boolean} True when an in-page player is open or opening.
+ */
+function hasOrOpeningPlayer(tab) {
+  for (const frame of tab.getFrames()) {
+    if (frame.playerOpening || frame.isPlayer) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Puts a tab in MPV mode: FastStream on, streams handed to mpv.
+ *
+ * An active in-page player has to come down first - the same reload the plain
+ * Off/On toggle uses to undo one - because a FastStream overlay isn't
+ * something a message can cleanly retract. isMpv is set before the reload, so
+ * the freshly (re-)detected source is what onSourceRecieved forwards to mpv
+ * once the page reloads; nothing here has to redo that forwarding itself.
+ *
+ * With onPlay (the shortcut) nothing is handed off here or by the page's own
+ * stream requests: the tab waits for the user to start a video (onUserPlay).
+ * A video they started and are still watching counts as started now.
+ *
+ * @param {Object} tab - TabHolder to switch.
+ * @param {boolean} [onPlay] - Wait for the user to start a video.
+ */
+function startMpv(tab, onPlay = false) {
+  tab.isOn = true;
+  tab.isMpv = true;
+  tab.mpvOnPlay = onPlay;
+  BackgroundUtils.updateTabIcon(tab);
+
+  if (hasOrOpeningPlayer(tab)) {
+    tab.reset();
+    chrome.tabs.reload(tab.tabId);
+  } else if (onPlay) {
+    // A fresh start: the same video may go to mpv again.
+    tab.mpvSentUrls.clear();
+    tab.mpvLastPlaySend = null;
+    tab.mpvPlayPendingUntil = 0;
+    chrome.tabs.sendMessage(tab.tabId, {
+      type: MessageTypes.MPV_REPORT_PLAYING,
+    }, () => {
+      // A blank tab, or a page without the content script, is normal here.
+      BackgroundUtils.checkMessageError('mpv_report_playing');
+    });
+  } else {
+    // No player was ever requested for this page - hand off directly from
+    // whatever sources are already tracked.
+    openMpvWithSources(tab);
+  }
+}
+
+/**
+ * Takes a tab out of MPV mode and turns FastStream off for it, tearing down
+ * any in-page player that is up or on its way.
+ *
+ * @param {Object} tab - TabHolder to switch.
+ */
+function stopMpv(tab) {
+  tab.isOn = false;
+  tab.isMpv = false;
+  tab.mpvOnPlay = false;
+  BackgroundUtils.updateTabIcon(tab);
+
+  if (hasOrOpeningPlayer(tab)) {
+    tab.reset();
+    chrome.tabs.reload(tab.tabId);
+  }
+}
+
 async function onClicked(tabobj) {
   await ensureOptions();
 
@@ -113,8 +204,7 @@ async function onClicked(tabobj) {
     tab.url = tabobj.url;
   }
 
-  const emptyTabURLS = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
-  if (tab.url && !emptyTabURLS.includes(tab.url)) {
+  if (tab.url && !EmptyTabUrls.includes(tab.url)) {
     if (!BackgroundUtils.isUrlPlayerUrl(tab.url)) {
       // MPV mode only applies on allowlisted URLs; everywhere else the
       // toolbar keeps its original Off/On behavior.
@@ -127,58 +217,10 @@ async function onClicked(tabobj) {
         // in-page player on; a third hands the stream to mpv again.
         if (tab.isMpv) {
           // MPV -> Off
-          tab.isOn = false;
-          tab.isMpv = false;
-          BackgroundUtils.updateTabIcon(tab);
-
-          // frame.playerOpening flips true the moment OPEN_PLAYER is sent,
-          // well before PLAYER_LOADED sets frame.isPlayer - checking isPlayer
-          // alone leaves a window where the overlay iframe already exists on
-          // the page but goes undetected here, and a stale overlay survives
-          // an Off click that should have torn it down.
-          let hasPlayer = false;
-          for (const frame of tab.getFrames()) {
-            if (frame.playerOpening || frame.isPlayer) {
-              hasPlayer = true;
-              break;
-            }
-          }
-
-          if (hasPlayer) {
-            tab.reset();
-            chrome.tabs.reload(tab.tabId);
-          }
+          stopMpv(tab);
         } else if (tab.isOn) {
-          // On -> MPV. An active in-page player has to come down first - the
-          // same reload the plain Off/On toggle uses to undo one - because a
-          // FastStream overlay isn't something a message can cleanly retract.
-          // isMpv is set before the reload, so the freshly (re-)detected
-          // source is what onSourceRecieved forwards to mpv once the page
-          // reloads; nothing here has to redo that forwarding itself.
-          tab.isMpv = true;
-          BackgroundUtils.updateTabIcon(tab);
-
-          // See the MPV -> Off branch above for why playerOpening is checked
-          // too: without it, a click landing between OPEN_PLAYER being sent
-          // and PLAYER_LOADED coming back skips the reload, and the overlay
-          // iframe is left showing at the same time mpv starts playing the
-          // same stream in its own window.
-          let hasPlayer = false;
-          for (const frame of tab.getFrames()) {
-            if (frame.playerOpening || frame.isPlayer) {
-              hasPlayer = true;
-              break;
-            }
-          }
-
-          if (hasPlayer) {
-            tab.reset();
-            chrome.tabs.reload(tab.tabId);
-          } else {
-            // No player was ever requested for this page - hand off
-            // directly from whatever sources are already tracked.
-            openMpvWithSources(tab);
-          }
+          // On -> MPV
+          startMpv(tab);
         } else {
           // Off -> On
           tab.isOn = true;
@@ -226,6 +268,67 @@ async function onClicked(tabobj) {
 }
 
 chrome.action.onClicked.addListener(onClicked);
+
+/**
+ * The toggle_mpv shortcut (Ctrl+Shift+U unless the user rebinds it): MPV on or
+ * off for the tab, on any site. Unlike the toolbar cycle it does not need the
+ * site on the MPV Allowlist - pressing it is the deliberate choice the
+ * allowlist otherwise makes for the user. Off means FastStream off, the same
+ * as the toolbar's MPV -> Off step; the in-page player stays on Ctrl+Shift+F.
+ *
+ * Only a video the user starts goes to mpv (startMpv's onPlay, onUserPlay):
+ * on an arbitrary site the first stream a page loads is as likely a preview
+ * or a background clip as the video they came for.
+ *
+ * On a blank or new tab it arms MPV for the tab instead: nothing is playing
+ * yet, and the tab's mode survives navigation, so the first video of the next
+ * page opened there goes to mpv (new tab, Ctrl+Shift+U, paste a link). The
+ * toolbar opens the player page on a blank tab; that page has no video to send.
+ * On the player page itself it does nothing.
+ *
+ * Does nothing while MPV mode is off: that option is the switch for the whole
+ * mpv integration, and openMpvWithSources refuses without it.
+ *
+ * @param {Object} tabobj - The tab that was active when the key was pressed.
+ */
+async function onToggleMpv(tabobj) {
+  await ensureOptions();
+
+  if (!Options.mpvMode) {
+    return;
+  }
+
+  const hasPerms = await BackgroundUtils.checkPermissions();
+  if (!hasPerms) {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('perms.html'),
+    });
+    return;
+  }
+
+  const tab = Tabs.getTabOrCreate(tabobj.id);
+  if (tabobj.url) {
+    tab.url = tabobj.url;
+  }
+
+  if (tab.url && BackgroundUtils.isUrlPlayerUrl(tab.url)) {
+    return;
+  }
+
+  if (tab.isOn && tab.isMpv) {
+    stopMpv(tab);
+  } else {
+    startMpv(tab, true);
+  }
+
+  Tabs.saveTabState(tab);
+}
+
+chrome.commands.onCommand.addListener((command, tabobj) => {
+  if (command === 'toggle_mpv' && tabobj) {
+    onToggleMpv(tabobj);
+  }
+});
 
 
 chrome.tabs.onRemoved.addListener((tabid, removed) => {
@@ -297,6 +400,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     // already handed a stream to mpv.
     tab.mpvAutoOpened = false;
     tab.mpvSentUrls.clear();
+    tab.mpvPlayPendingUntil = 0;
 
     chrome.tabs.sendMessage(tabid, {
       type: MessageTypes.REMOVE_PLAYERS,
@@ -337,6 +441,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvMatched = true;
       tab.isOn = true;
       tab.isMpv = true;
+      // The allowlist's own rule, even if the shortcut armed this tab.
+      tab.mpvOnPlay = false;
       openMpvWithSources(tab);
     } else if (shouldAutoEnable && !tab.regexMatched) {
       tab.regexMatched = true;
@@ -344,6 +450,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       // Allowlisted sites default to MPV mode; everything else uses the
       // in-page player.
       tab.isMpv = mpvSite;
+      tab.mpvOnPlay = false;
       if (tab.isMpv) {
         openMpvWithSources(tab);
       } else {
@@ -427,6 +534,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (sender.tab) {
       Tabs.getTabOrCreate(sender.tab.id).popupGuardArmedUntil = Date.now() + PopupGuardArmMs;
     }
+    return;
+  } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
+    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '');
     return;
   }
 
@@ -1394,6 +1504,17 @@ async function onSourceRecieved(details, frame, mode) {
   // MPV mode: relay the detected source to the native mpv host instead of
   // opening the in-page player.
   if (frame.tab.isOn && frame.tab.isMpv) {
+    if (frame.tab.mpvOnPlay) {
+      // The shortcut's MPV: streams are only tracked, for onUserPlay to pick
+      // from - unless the user already pressed play and the player asked
+      // for its stream only afterwards, in which case this is that stream.
+      if (frame.tab.mpvPlayPendingUntil > Date.now()) {
+        frame.tab.mpvPlayPendingUntil = 0;
+        sendPlayedToMpv(frame.tab, {url, headers: customHeaders});
+      }
+      return;
+    }
+
     // Auto-open only the first stream found on this page. Later ones stay
     // tracked for the toolbar and the player's "send to mpv" button, but
     // they must not each spawn their own mpv window.
@@ -1492,6 +1613,104 @@ function pauseTabMedia(tabId) {
   } catch (e) {
     if (Logging) console.log('[MPV] pauseTabMedia failed:', e);
   }
+}
+
+/**
+ * A video the user started, in a tab whose MPV came from the shortcut: hands
+ * that video's stream to mpv and pauses the page.
+ *
+ * With no stream for it yet - a player that fetches only once play() was
+ * called - the next stream detected in the tab within MpvPlayPendingMs is
+ * taken as this one (see onSourceRecieved).
+ *
+ * @param {Object} sender - The message sender: its tab and frameId.
+ * @param {string} src - The video element's currentSrc.
+ */
+async function onUserPlay(sender, src) {
+  await ensureOptions();
+
+  if (!Options.mpvMode || !sender.tab || typeof sender.frameId !== 'number') {
+    return;
+  }
+
+  const tab = Tabs.getTab(sender.tab.id);
+  if (!tab || !tab.isOn || !tab.isMpv || !tab.mpvOnPlay) {
+    return;
+  }
+
+  const source = findPlayedSource(tab, sender.frameId, src);
+  if (Logging) console.log('[MPV] user started a video:', src, source && source.url);
+  if (source) {
+    sendPlayedToMpv(tab, source);
+  } else {
+    tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;
+  }
+}
+
+/**
+ * The detected source a started video plays. Its own URL first: a progressive
+ * file, often preloaded long before the click, which no later request would
+ * detect again. Otherwise the newest source of the frame it plays in, since an
+ * MSE player's src is a blob: and its manifest a request of that frame.
+ *
+ * @param {Object} tab - TabHolder the video is in.
+ * @param {number} frameId - Frame the video is in.
+ * @param {string} src - The video element's currentSrc.
+ * @return {Object|null} The source, or null when none is detected yet.
+ */
+function findPlayedSource(tab, frameId, src) {
+  if (/^https?:\/\//i.test(src)) {
+    for (const frame of tab.getFrames()) {
+      const match = getSourceFromURL(frame, src);
+      if (match) {
+        return match;
+      }
+    }
+  }
+
+  const frame = tab.getFrame(frameId);
+  if (!frame) {
+    return null;
+  }
+
+  let newest = null;
+  for (const source of frame.getSources()) {
+    if (!newest || source.time > newest.time) {
+      newest = source;
+    }
+  }
+  return newest;
+}
+
+/**
+ * Hands a video the user started to mpv, then pauses the page.
+ *
+ * The same video again within MpvPlayRepeatMs is the player repeating itself
+ * (play() called twice, or resuming after pauseTabMedia), so it only pauses
+ * the page again. openStream gets no tab: its per-page dedupe would swallow a
+ * later, deliberate play of a video already sent (after closing mpv).
+ *
+ * @param {Object} tab - TabHolder the video is in.
+ * @param {Object} source - Detected source: url and request headers.
+ */
+function sendPlayedToMpv(tab, source) {
+  const now = Date.now();
+  const last = tab.mpvLastPlaySend;
+  if (last && last.url === source.url && now - last.time < MpvPlayRepeatMs) {
+    pauseTabMedia(tab.tabId);
+    return;
+  }
+
+  tab.mpvLastPlaySend = {url: source.url, time: now};
+  Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url).then((result) => {
+    if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
+    if (result.ok) {
+      pauseTabMedia(tab.tabId);
+    } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
+      // The host never launched mpv, so let the next play try again.
+      tab.mpvLastPlaySend = null;
+    }
+  });
 }
 
 /**

@@ -80,6 +80,9 @@ export class TabHolder {
 
     this.isOn = false;
     this.isMpv = false;
+    // MPV started by its shortcut: only a video the user starts goes to mpv
+    // (background.mjs's onUserPlay), not the first stream the page loads.
+    this.mpvOnPlay = false;
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
     this.url = '';
@@ -102,6 +105,11 @@ export class TabHolder {
     // surviving hostname changes (upstream semantics for regexMatched).
     this.mpvAutoOpened = false;
     this.mpvSentUrls.clear();
+    // A user's play whose stream has not been detected yet, and the last
+    // stream a play sent, which keeps a player that calls play() twice from
+    // opening a second window.
+    this.mpvPlayPendingUntil = 0;
+    this.mpvLastPlaySend = null;
   }
   getFrames() {
     return this.frames.values();
@@ -143,10 +151,11 @@ const TabStateKeyPrefix = 'tabState:';
 // toolbar button is kept in storage.session (cleared when the browser closes,
 // the same lifetime tab ids have) so a woken background still knows it.
 // mpvAutoOpened goes with it: without it the page's next stream request after a
-// wake opens a second mpv window for a page already handed off. The rest of a
+// wake opens a second mpv window for a page already handed off. mpvOnPlay too,
+// or a woken background forwards the page's first stream after all. The rest of a
 // TabHolder - frames, detected sources - describes the current page and is
 // rebuilt as that page makes requests.
-const PersistedTabFields = ['url', 'isOn', 'isMpv', 'regexMatched', 'mpvMatched', 'mpvAutoOpened'];
+const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened'];
 
 export class TabTracker {
   constructor() {

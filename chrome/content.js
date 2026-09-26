@@ -21,6 +21,8 @@
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
     PAUSE_MEDIA: 'PAUSE_MEDIA',
     POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
+    MPV_USER_PLAY: 'MPV_USER_PLAY',
+    MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
   };
 
   const iframeMap = new Map();
@@ -82,6 +84,8 @@
       sendResponse('ok');
     } else if (request.type === MessageTypes.PAUSE_MEDIA) {
       sendResponse(pauseAllMedia());
+    } else if (request.type === MessageTypes.MPV_REPORT_PLAYING) {
+      sendResponse(reportPlayingUserVideo());
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
@@ -1436,6 +1440,47 @@
       chrome.runtime.sendMessage({type: MessageTypes.POPUP_GUARD_ARM});
     }
   });
+
+  // MPV started by its shortcut hands over only a video the user starts, not
+  // whatever the page loads or autoplays on its own (previews, background
+  // clips, a preloaded player). A 'play' while the page is still handling a
+  // click or key press carries transient user activation; an autoplay does
+  // not. Media events do not bubble, hence the capture listener. The
+  // background ignores the report unless the tab is in that mode.
+  const userStartedVideos = new WeakSet();
+
+  function reportUserPlay(video) {
+    try {
+      chrome.runtime.sendMessage({
+        type: MessageTypes.MPV_USER_PLAY,
+        src: video.currentSrc || '',
+      }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (e) {
+      // The extension was reloaded under this page: nothing to report to.
+    }
+  }
+
+  document.addEventListener('play', (e) => {
+    const video = e.target;
+    if (!video || video.tagName !== 'VIDEO') return;
+    if (!navigator.userActivation || !navigator.userActivation.isActive) return;
+    userStartedVideos.add(video);
+    reportUserPlay(video);
+  }, true);
+
+  // Pressing the shortcut while already watching a video the user started
+  // counts as starting it now.
+  function reportPlayingUserVideo() {
+    for (const video of document.querySelectorAll('video')) {
+      if (userStartedVideos.has(video) && !video.paused && !video.ended) {
+        reportUserPlay(video);
+        return true;
+      }
+    }
+    return false;
+  }
 
   window.addEventListener('beforeunload', () => {
     chrome.runtime.sendMessage({
