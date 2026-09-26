@@ -494,40 +494,77 @@ describe('mpv seek keys', function() {
     // MP4Player throws away everything it has appended and demuxes again from the seek
     // target when a seek lands outside its buffer. A hop back from 2 s landed on 0, which is
     // buffered, but the check was made against the -3 s the arrow asked for.
+    //
+    // MP4Player appends and removes through a queue per SourceBuffer, and video.buffered
+    // only shows what has been applied. reset() before this test jumped here from the end
+    // of the video, which queued a removal of everything behind appends still pending from
+    // there, so on a slow machine [0, 3] can look buffered, then empty, then refill from
+    // wherever the player was when the removal ran - and a seek in between rightly resets.
+    // So every step waits until nothing is queued, the element is not seeking, and the
+    // start really is buffered.
+    const settled = (what) => browser.waitUntil(async () => browser.execute(() => {
+      const player = window.fastStream.player;
+      const idle = (wrapper) => !wrapper ||
+        (!wrapper.updating && !wrapper.sourceBuffer.updating && wrapper.toDo.length === 0);
+      const buffered = player.buffered;
+      return idle(player.videoSourceBuffer) && idle(player.audioSourceBuffer) &&
+        !player.getVideo().seeking &&
+        buffered.length > 0 && buffered.start(0) <= 0.1 && buffered.end(0) >= 3;
+    }), {timeout: 30000, timeoutMsg: `the start of the video was never buffered and settled ${what}`});
+
+    await settled('after the reset');
     await seekTo(2);
     await landsOn(2, 'the start position');
-    await browser.waitUntil(async () => browser.execute(() => {
-      const buffered = window.fastStream.player.buffered;
-      return buffered.length > 0 && buffered.start(0) <= 0.1 && buffered.end(0) >= 3;
-    }), {timeout: 20000, timeoutMsg: 'the start of the video was never buffered'});
+    await settled('at 2 s');
 
+    // Every reset is recorded with where the video was, what was buffered and who asked
+    // for it, so a failure says why.
     const player = await browser.execute(() => {
       const player = window.fastStream.player;
-      window.__resets = 0;
+      window.__resets = [];
       const resetHLS = player.resetHLS.bind(player);
       player.resetHLS = (...args) => {
-        window.__resets++;
+        const video = player.getVideo();
+        const ranges = [];
+        for (let i = 0; i < video.buffered.length; i++) {
+          ranges.push([video.buffered.start(i), video.buffered.end(i)]);
+        }
+        window.__resets.push({
+          phase: window.__phase,
+          time: video.currentTime,
+          seeking: video.seeking,
+          readyState: video.readyState,
+          ranges,
+          stack: new Error().stack.split('\n').slice(1, 6).join(' < '),
+        });
         return resetHLS(...args);
       };
       return player.constructor.name;
     });
     expect(player).toBe('MP4Player');
+    const phase = (name) => browser.execute((name) => {
+      window.__phase = name;
+    }, name);
 
+    await phase('ArrowLeft');
     await pressKey('ArrowLeft');
     await landsOn(0, 'ArrowLeft');
-    await settle();
-    expect(await browser.execute(() => window.__resets)).toBe(0);
+    await settled('after ArrowLeft');
+    expect(await browser.execute(() => window.__resets)).toEqual([]);
 
     // The same seek handed to the player directly, past the client's clamp: MP4Player
     // checks the time the element will actually seek to.
+    await phase('seek to 2');
     await seekTo(2);
     await landsOn(2, 'the start position');
+    await settled('back at 2 s');
+    await phase('direct -3');
     await browser.execute(() => {
       window.fastStream.player.currentTime = -3;
     });
     await landsOn(0, 'a direct seek to -3 s');
     await settle();
-    expect(await browser.execute(() => window.__resets)).toBe(0);
+    expect(await browser.execute(() => window.__resets)).toEqual([]);
   });
 
   it('Shift+Backspace undoes a seek, Shift+Z redoes it, and plain Z is a seek, not an undo', async function() {
