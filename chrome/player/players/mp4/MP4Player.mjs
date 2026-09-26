@@ -579,7 +579,10 @@ export default class MP4Player extends EventEmitter {
   set currentTime(value) {
     this.video.currentTime = value;
 
-    if (!VideoUtils.isBuffered(this.buffered, value)) {
+    // What matters is where the element is going, which it has already clamped to the
+    // video: a seek to -3 s lands on 0, which may well be buffered, and throwing the whole
+    // buffer away for it made every arrow press near the start rebuffer the video.
+    if (!VideoUtils.isBuffered(this.buffered, this.video.currentTime)) {
       this.resetHLS();
     }
   }

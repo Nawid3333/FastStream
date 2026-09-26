@@ -274,10 +274,10 @@ export class KeybindManager extends EventEmitter {
   }
 
   seekBy(seconds) {
-    // A 60 s hop from 20 s would hand -40 to the scheduler's state and the separate
-    // audio track; the media element clamps, they do not.
+    // The client's currentTime setter keeps the target inside the video, as it does for
+    // the arrows.
     this.client.setSeekSave(false);
-    this.client.currentTime = Math.max(0, this.client.currentTime + seconds);
+    this.client.currentTime = this.client.currentTime + seconds;
     this.client.setSeekSave(true);
   }
 

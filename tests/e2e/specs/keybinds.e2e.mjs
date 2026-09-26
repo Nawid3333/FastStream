@@ -461,6 +461,75 @@ describe('mpv seek keys', function() {
     await landsOn(0, 'KeyZ');
   });
 
+  // The arrows are relative seeks like Z, and near either end of the video they hand on a
+  // time outside it just the same unless the time is clamped where every seek goes
+  // through: the client's currentTime setter.
+  for (const [code, from, to] of [['ArrowLeft', 2, 0], ['KeyJ', 4, 0]]) {
+    it(`${code} near the start stops at 0 as well`, async function() {
+      await seekTo(from);
+      await landsOn(from, 'the start position');
+      const state = await browser.execute((code) => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {code, key: code, bubbles: true, cancelable: true}));
+        return window.fastStream.state.currentTime;
+      }, code);
+      expect(state).toBe(to);
+      await landsOn(to, code);
+    });
+  }
+
+  it('ArrowRight and X near the end stop at the duration', async function() {
+    const duration = await browser.execute(() => window.fastStream.duration);
+    for (const code of ['ArrowRight', 'KeyX']) {
+      await seekTo(duration - 2);
+      await landsOn(duration - 2, 'the position near the end');
+      const state = await browser.execute((code) => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {code, key: code, bubbles: true, cancelable: true}));
+        return window.fastStream.state.currentTime;
+      }, code);
+      expect(state).toBe(duration);
+    }
+  });
+
+  it('a hop back to 0 keeps the MP4 buffer that already holds the start', async function() {
+    // MP4Player throws away everything it has appended and demuxes again from the seek
+    // target when a seek lands outside its buffer. A hop back from 2 s landed on 0, which is
+    // buffered, but the check was made against the -3 s the arrow asked for.
+    await seekTo(2);
+    await landsOn(2, 'the start position');
+    await browser.waitUntil(async () => browser.execute(() => {
+      const buffered = window.fastStream.player.buffered;
+      return buffered.length > 0 && buffered.start(0) <= 0.1 && buffered.end(0) >= 3;
+    }), {timeout: 20000, timeoutMsg: 'the start of the video was never buffered'});
+
+    const player = await browser.execute(() => {
+      const player = window.fastStream.player;
+      window.__resets = 0;
+      const resetHLS = player.resetHLS.bind(player);
+      player.resetHLS = (...args) => {
+        window.__resets++;
+        return resetHLS(...args);
+      };
+      return player.constructor.name;
+    });
+    expect(player).toBe('MP4Player');
+
+    await pressKey('ArrowLeft');
+    await landsOn(0, 'ArrowLeft');
+    await settle();
+    expect(await browser.execute(() => window.__resets)).toBe(0);
+
+    // The same seek handed to the player directly, past the client's clamp: MP4Player
+    // checks the time the element will actually seek to.
+    await seekTo(2);
+    await landsOn(2, 'the start position');
+    await browser.execute(() => {
+      window.fastStream.player.currentTime = -3;
+    });
+    await landsOn(0, 'a direct seek to -3 s');
+    await settle();
+    expect(await browser.execute(() => window.__resets)).toBe(0);
+  });
+
   it('Shift+Backspace undoes a seek, Shift+Z redoes it, and plain Z is a seek, not an undo', async function() {
     await pressKey('Digit5');
     await landsOn(80, 'Digit5');

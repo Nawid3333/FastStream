@@ -32,9 +32,12 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `Shift+Backspace` (mpv's revert-seek) and Screenshot to `Shift+S` (mpv's video-only
   screenshot). `SeekForwardLarge/SeekBackwardLarge` (10 s on `,`/`.`, a duplicate of J/K) were
   removed; the skip buttons seek a fixed `SKIP_BUTTON_SECONDS` (10), no longer 5 x the step, so
-  they did not become 25 s. None of these hops is saved for undo, like the arrows, and a hop
-  back is clamped at 0: the `currentTime` setter hands its value to `state.currentTime` and
-  the separate audio track unclamped. `keyboard.png` on the welcome page predates version 2
+  they did not become 25 s. None of these hops is saved for undo, like the arrows. Every seek is
+  clamped to [0, duration] in `FastStreamClient`'s `currentTime` setter (only the lower
+  bound on a live stream): the media element clamps by itself, but `state.currentTime`, the
+  separate audio track and `MP4Player`'s "is the target buffered" check did not, and an
+  arrow press near the start used to make `MP4Player` drop its whole buffer (`resetHLS`)
+  for a seek to -3 s that landed on the buffered 0. `keyboard.png` on the welcome page predates version 2
   and is out of date; the text list above it is current.
 - **Frame step** (`,`/`.`, moved from Shift+arrows in version 3): mpv's frame-step, pause then
   exactly one frame. `ui/FrameStepper.mjs` learns the frame length from

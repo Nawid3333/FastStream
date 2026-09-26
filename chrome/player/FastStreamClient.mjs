@@ -1707,9 +1707,26 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets the current playback time.
+   *
+   * Every seek comes through here, and several of them are relative (the arrows, J/K,
+   * Z/X, undo), so near either end of the video they ask for a time outside it. The media
+   * element clamps that itself; the state the download scheduler reads, the separate audio
+   * track and MP4Player's "is the target buffered" check do not, so the time is clamped to
+   * [0, duration] before it reaches any of them. A live stream's duration is Infinity and
+   * only the lower bound applies.
+   *
    * @param {number} value
    */
   set currentTime(value) {
+    if (Number.isNaN(value)) {
+      return;
+    }
+    value = Math.max(0, value);
+    const duration = this.duration;
+    if (duration > 0 && Number.isFinite(duration)) {
+      value = Math.min(value, duration);
+    }
+
     if (this.saveSeek) {
       this.savePosition();
     }
