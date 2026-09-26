@@ -579,10 +579,17 @@ export default class MP4Player extends EventEmitter {
   set currentTime(value) {
     this.video.currentTime = value;
 
-    // What matters is where the element is going, which it has already clamped to the
-    // video: a seek to -3 s lands on 0, which may well be buffered, and throwing the whole
-    // buffer away for it made every arrow press near the start rebuffer the video.
-    if (!VideoUtils.isBuffered(this.buffered, this.video.currentTime)) {
+    // What matters is where the element is going: a seek to -3 s lands on 0, which may well
+    // be buffered, and throwing the whole buffer away for it made every arrow press near the
+    // start rebuffer the video. The target is clamped here rather than read back from
+    // video.currentTime, which on Linux Firefox did not give the clamped time straight after
+    // the assignment (CI saw a reset for -3 s while a seek to 0 kept the buffer).
+    let target = Math.max(0, value);
+    const duration = this.video.duration;
+    if (Number.isFinite(duration)) {
+      target = Math.min(target, duration);
+    }
+    if (!VideoUtils.isBuffered(this.buffered, target)) {
       this.resetHLS();
     }
   }
