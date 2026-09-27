@@ -65,6 +65,10 @@ const MIME = {
   '.ort': 'application/octet-stream',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
+  // The local HLS fixtures, with the types HLS servers send.
+  '.m3u8': 'application/vnd.apple.mpegurl',
+  '.ts': 'video/mp2t',
+  '.m4s': 'video/iso.segment',
 };
 
 // The MP4 fixture is served locally rather than fetched from a public host.
@@ -264,6 +268,61 @@ function sidxRanges(file) {
   return {init: `0-${sidx.start - 1}`, index: `${sidx.start}-${sidx.start + sidx.size - 1}`, ranges};
 }
 
+// Local HLS streams, one per way sites package them: MPEG-TS segments, fMP4 segments with
+// an init segment, and a master playlist whose audio is a separate rendition (which
+// HLSPlayer loads as its own track). Without them every HLS test streamed from
+// test-streams.mux.dev, so HLS went untested whenever that host was out of reach. Encoded
+// like the DASH fixtures above - no B-frames, a keyframe every 2 s - so the segments are
+// 2 s long on every machine.
+//
+// Each directory gets expected.json: the playlist to open, and the segments each media
+// playlist lists, read from the playlists ffmpeg wrote. HLSPlayer names its levels
+// "<track>:<index>" - track 0 is the video (with its audio, if muxed), track 1 an audio
+// rendition.
+const HLS_FIXTURES = {
+  'hls-ts': {segmentType: 'mpegts', ext: 'ts'},
+  'hls-fmp4': {segmentType: 'fmp4', ext: 'm4s'},
+  'hls-audio': {segmentType: 'fmp4', ext: 'm4s', separateAudio: true},
+};
+
+function ensureHlsFixtures() {
+  for (const [name, {segmentType, ext, separateAudio}] of Object.entries(HLS_FIXTURES)) {
+    const dir = path.join(fixturesDir, name);
+    const expectedFile = path.join(dir, 'expected.json');
+    // Written last, so a run killed half way builds the fixture again.
+    if (fs.existsSync(expectedFile)) continue;
+
+    fs.rmSync(dir, {recursive: true, force: true});
+    fs.mkdirSync(dir, {recursive: true});
+    const packaging = ['-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod', '-hls_segment_type', segmentType];
+    if (segmentType === 'fmp4') {
+      packaging.push('-hls_fmp4_init_filename', 'init.mp4');
+    }
+    const output = separateAudio ?
+      ['-var_stream_map', 'v:0,agroup:aud a:0,agroup:aud,default:yes', '-master_pl_name', 'master.m3u8',
+        '-hls_segment_filename', `stream_%v/seg-%03d.${ext}`, 'stream_%v/index.m3u8'] :
+      ['-hls_segment_filename', `seg-%03d.${ext}`, 'index.m3u8'];
+    runFfmpeg([
+      '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
+      '-map', '0:v', '-map', '1:a', '-t', '9',
+      '-c:v', h264Encoder(name), '-pix_fmt', 'yuv420p', '-bf', '0', '-sc_threshold', '0',
+      '-force_key_frames', 'expr:gte(t,n_forced*2)',
+      '-c:a', 'aac', '-b:a', '64k',
+      ...packaging, ...output,
+    ], name, dir);
+
+    const segments = (playlist) => fs.readFileSync(path.join(dir, playlist), 'utf8')
+        .split(/\r?\n/).filter((line) => line && !line.startsWith('#'));
+    const levels = separateAudio ?
+      {'0:0': {media: segments('stream_0/index.m3u8')}, '1:0': {media: segments('stream_1/index.m3u8')}} :
+      {'0:0': {media: segments('index.m3u8')}};
+    fs.writeFileSync(expectedFile, JSON.stringify({
+      playlist: separateAudio ? 'master.m3u8' : 'index.m3u8',
+      levels,
+    }, null, 2));
+  }
+}
+
 // sample.mp4's own H.264 - High profile, 300 frames, 250 of them B-frames - cut into
 // fragments without re-encoding, so it is the same bytes on every platform. The DASH
 // fixtures above are re-encoded without B-frames, because libopenh264 (a local Windows
@@ -413,6 +472,7 @@ export const config = {
     ensureLongAvFixture();
     ensureFrames24Fixture();
     ensureDashFixtures();
+    ensureHlsFixtures();
     ensureBframesFixture();
     return new Promise((resolve, reject) => {
       server = http.createServer((req, res) => {

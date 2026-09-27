@@ -39,6 +39,23 @@ function localDash(fixture, kind) {
   };
 }
 
+/**
+ * A local HLS stream from HLS_FIXTURES in wdio.conf.mjs.
+ * @param {string} fixture - Its directory under fixtures/.
+ * @param {string} kind - How it is packaged.
+ * @return {Object} The STREAMS entry.
+ */
+function localHls(fixture, kind) {
+  return {
+    name: `HLS ${kind} (hls.js)`,
+    hlsFixture: fixture,
+    get url() {
+      const {playlist} = JSON.parse(fs.readFileSync(path.join(fixturesDir, fixture, 'expected.json'), 'utf8'));
+      return globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/${fixture}/${playlist}`;
+    },
+  };
+}
+
 /** Streams chosen for stability and for exercising one library each. */
 const STREAMS = [
   {
@@ -49,6 +66,9 @@ const STREAMS = [
     name: 'DASH (dash.js)',
     url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
   },
+  localHls('hls-ts', 'MPEG-TS segments'),
+  localHls('hls-fmp4', 'fMP4 segments'),
+  localHls('hls-audio', 'with a separate audio rendition'),
   localDash('dash-template', 'SegmentTemplate'),
   localDash('dash-list', 'SegmentList'),
   localDash('dash-timeline', 'SegmentTimeline'),
@@ -131,6 +151,44 @@ async function expectEverySegmentListed(fixture) {
   }
 }
 
+/**
+ * Checks FastStream's fragment list for a local HLS stream against its playlists: every
+ * segment each media playlist names, in order, with no gap in time between one and the
+ * next. HLSPlayer builds the list from hls.js's level details, per level and audio track.
+ *
+ * @param {string} fixture - Directory under fixtures/ holding expected.json.
+ * @return {Promise<void>}
+ */
+async function expectEveryHlsSegmentListed(fixture) {
+  const {levels} = JSON.parse(fs.readFileSync(path.join(fixturesDir, fixture, 'expected.json'), 'utf8'));
+  for (const [level, want] of Object.entries(levels)) {
+    let got = [];
+    // An audio rendition's playlist is loaded after the video's, so its list can lag.
+    await browser.waitUntil(async () => {
+      got = await browser.execute((level) => {
+        return (window.fastStream.getFragments(level) || []).filter(Boolean).map((frag) => ({
+          sn: frag.sn,
+          start: frag.start,
+          duration: frag.duration,
+          file: frag.getContext().url.split('/').pop(),
+        }));
+      }, level);
+      return got.length >= want.media.length;
+    }, {timeout: 15000, interval: 250}).catch(() => {});
+    console.log(`      ${level}: ${got.length} fragments`);
+
+    expect(got.map((frag) => frag.sn)).toEqual([...Array(want.media.length).keys()]);
+    expect(got.map((frag) => frag.file)).toEqual(want.media);
+    got.forEach((frag, i) => {
+      expect(frag.duration).toBeGreaterThan(0);
+      if (i > 0) {
+        const previous = got[i - 1];
+        expect(Math.abs(frag.start - (previous.start + previous.duration))).toBeLessThan(0.01);
+      }
+    });
+  }
+}
+
 describe('FastStream playback', function() {
   it('serves the player page', async function() {
     // Guards the rest of the suite: if the local server or the web build ever
@@ -200,6 +258,9 @@ describe('FastStream playback', function() {
 
       if (stream.fixture) {
         await expectEverySegmentListed(stream.fixture);
+      }
+      if (stream.hlsFixture) {
+        await expectEveryHlsSegmentListed(stream.hlsFixture);
       }
     });
   }

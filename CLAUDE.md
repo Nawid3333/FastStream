@@ -654,7 +654,7 @@ covers the 30-minute wait.
 - **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
   and failed on CI). The e2e fixtures are built with the machine's ffmpeg: CI's has
   libx264, a local LGPL build only libopenh264, and only libx264 makes B-frames. The
-  fixtures no longer depend on that (the DASH ones are encoded with `-bf 0
+  fixtures no longer depend on that (the DASH and HLS ones are encoded with `-bf 0
   -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
   which runs CI's Linux verify job and its workflows job in WSL, once on each Ubuntu
