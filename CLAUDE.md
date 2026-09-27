@@ -216,6 +216,34 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   bundle against the commit it was built from, not the nearest release
   (`docs/vendored-libraries.md`, dash.js "Status").
 
+## MP4Player and its MediaSource (2026-09-27)
+
+`MP4Player` (accelerated MP4) feeds mp4box-extracted samples into a
+MediaSource through one `SourceBufferWrapper` queue per SourceBuffer; `mainLoop()` runs
+`runLoad()` every **1 ms**. Three things that were wrong, and what now holds:
+
+- **`endOfStream()` is called** (`checkEndOfStream`) once every fragmented track's
+  `nextSample` has reached its sample count and both queues are idle. Without it Firefox
+  waited for data after the last frame: playback at the end sat buffering and never fired
+  `ended` (`FastStreamClient`'s WAITING handler papers over it for autoplay-next only:
+  waiting in the last second counts as the end), and a seek to exactly the duration never completed. An append or a
+  removal after it reopens the MediaSource by itself (MSE spec), so seeking back just works.
+- **The back buffer is trimmed only when it is worth it** (`removeBackBuffer`): while the
+  SourceBuffer is idle and holds more than 1 s beyond the 10 s kept. It used to call
+  `remove(0, time - 11)` on both SourceBuffers on every loop - measured ~2,300 removals in
+  5 s of playback, almost all of nothing - which kept the queues busy, starved appends on
+  a slow CPU (tens of thousands queued) and reopened the MediaSource after `endOfStream()`.
+  What stays behind the playhead is unchanged (MSE drops video up to the next keyframe).
+- **`SourceBuffer.abort()` and `mediaSource.duration =` throw unless the MediaSource is
+  `open`.** `destroy()` and `updateDuration()` check it; a throw in `destroy()` left the
+  player half destroyed without `DESTROYED`, which the background audio analyzer then
+  retried every animation frame.
+
+`video.buffered` shows only what the queue has applied, not what is queued: a test that
+waits for a range to be buffered after a reset can see stale appends that a queued removal
+is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
+`tests/e2e/specs/mp4-seek.e2e.mjs` covers the above.
+
 ## Network layer: fetch() + OPFS (2026-09-10)
 
 `chrome/player/network/XHRLoader.mjs` — the single loader shared by HLS,
