@@ -8,6 +8,10 @@
 // stream. With the site on the auto-enable list, a player opened before the page's own
 // player had asked for the real stream got only that source, and tried to play the page.
 //
+// What makes a page load a page is its Content-Type, not its type alone: a proxy link
+// opened in a tab is a page load too, answered with the stream itself, and Firefox plays
+// it in that load with no request of its own. Skipping every page load lost it.
+//
 // Driven on the installed extension: a page with the fixture MP4 in its query string and a
 // <video> that plays it, the site on the auto-enable list, and the sources the player ends
 // up with.
@@ -93,6 +97,33 @@ describe('A stream named in the page\'s own query string', function() {
   before(async function() {
     siteServer = http.createServer((req, res) => {
       const {pathname} = new URL(req.url, SITE);
+      if (pathname === '/stream') {
+        // A proxy link: its query string names the stream, and it answers with the stream
+        // itself. It always serves the fixture MP4, never what the query names. The player
+        // fetches it from a partitioned moz-extension:// frame, so it needs CORS, preflight
+        // included (see the harness's /fixtures/).
+        const cors = {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Range, Content-Type',
+          'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
+        };
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, cors);
+          res.end();
+          return;
+        }
+        http.get(globalThis.__EXT_FIXTURE_MP4__, (upstream) => {
+          res.writeHead(200, {
+            ...cors,
+            'Content-Type': 'video/mp4',
+            'Content-Length': upstream.headers['content-length'],
+            'Accept-Ranges': 'none',
+          });
+          upstream.pipe(res);
+        }).on('error', () => res.destroy());
+        return;
+      }
       res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
       if (pathname === '/embed') {
         // The page's own player plays the file at once.
@@ -139,6 +170,17 @@ describe('A stream named in the page\'s own query string', function() {
     const state = await playerSources();
     expect(state.sources.filter((url) => url.startsWith(SITE))).toEqual([]);
     expect(state.source).toBe(file);
+    expect(state.readyState).toBeGreaterThanOrEqual(2);
+  });
+
+  it('still takes a page load answered with the stream itself for the stream', async function() {
+    // A proxy link opened in a tab: Firefox plays the response in the page load, so the
+    // page load is the only request there is to detect.
+    const file = `${globalThis.__EXT_FIXTURE_MP4__}?t=${Date.now()}`;
+    const link = `${SITE}/stream?file=${encodeURIComponent(file)}`;
+    await browser.url(link);
+    const state = await playerSources();
+    expect(state.source).toBe(link);
     expect(state.readyState).toBeGreaterThanOrEqual(2);
   });
 
