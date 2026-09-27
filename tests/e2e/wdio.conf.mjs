@@ -33,6 +33,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {listenOrStop} from './listen-or-stop.mjs';
+
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
 const webBuildDir = path.join(root, 'built', 'web');
@@ -474,7 +476,7 @@ export const config = {
     ensureDashFixtures();
     ensureHlsFixtures();
     ensureBframesFixture();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       server = http.createServer((req, res) => {
         const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
         // Fixtures are served from the same origin as the player page on
@@ -529,8 +531,7 @@ export const config = {
         res.writeHead(200, {...headers, 'Content-Length': size});
         fs.createReadStream(abs).pipe(res);
       });
-      server.on('error', reject);
-      server.listen(PORT, '127.0.0.1', resolve);
+      listenOrStop(server, PORT, resolve);
     });
   },
 
