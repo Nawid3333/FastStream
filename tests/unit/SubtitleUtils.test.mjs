@@ -16,6 +16,15 @@ describe('vttTimeFormat / srtTimeFormat', () => {
     expect(SubtitleUtils.vttTimeFormat(65.25)).toBe('00:01:05.250');
     expect(SubtitleUtils.srtTimeFormat(65.25)).toBe('00:01:05,250');
   });
+
+  it('rounds to the nearest millisecond instead of flooring float error away', () => {
+    // 1.001 * 1000 is 1000.9999999999999, and 0.1 + 0.2 is 0.30000000000000004; a time a
+    // subtitle shift left as 1.2999999999999998 is 1.300 s, not 1.299.
+    expect(SubtitleUtils.vttTimeFormat(1.001)).toBe('00:00:01.001');
+    expect(SubtitleUtils.srtTimeFormat(1.2999999999999998)).toBe('00:00:01,300');
+    expect(SubtitleUtils.vttTimeFormat(59.9996)).toBe('00:01:00.000');
+    expect(SubtitleUtils.vttTimeFormat(3599.9999)).toBe('01:00:00.000');
+  });
 });
 
 describe('convertSrtCue', () => {
@@ -36,6 +45,11 @@ describe('convertSrtCue', () => {
     expect(out).not.toBe('');
     expect(out).toContain('00:00:01.000 --> 00:00:02.500');
     expect(out).toContain('Hello world');
+  });
+
+  it('keeps every text line of a cue that has no sequence-number line', () => {
+    const out = SubtitleUtils.convertSrtCue('00:00:01,000 --> 00:00:02,500\nLine one\nLine two\nLine three');
+    expect(out).toBe('00:00:01.000 --> 00:00:02.500\nLine one\nLine two\nLine three\n\n');
   });
 
   it('joins multi-line cue text onto one line separated by \\n', () => {
@@ -60,7 +74,89 @@ describe('convertSrtCue', () => {
   });
 });
 
+// SubRip files in the wild are loose about the timestamp line. Each case below was dropped
+// (convertSrtCue returned '') or written as a timestamp WebVTT rejects, so the cue never
+// showed; the WebVTT parser needs HH:MM:SS.mmm with exactly three digits.
+describe('convertSrtCue: timestamps as SubRip files actually write them', () => {
+  it('accepts a full stop as the millisecond separator', () => {
+    const out = SubtitleUtils.convertSrtCue('1\n00:00:01.000 --> 00:00:02.500\nHello');
+    expect(out).toBe('1\n00:00:01.000 --> 00:00:02.500\nHello\n\n');
+  });
+
+  it('writes .000 for a timestamp without milliseconds, not .undefined', () => {
+    const out = SubtitleUtils.convertSrtCue('1\n00:00:01 --> 00:00:02\nHello');
+    expect(out).toBe('1\n00:00:01.000 --> 00:00:02.000\nHello\n\n');
+  });
+
+  it('reads short milliseconds as a number of milliseconds, as ffmpeg and VLC do', () => {
+    const out = SubtitleUtils.convertSrtCue('1\n00:00:01,5 --> 00:00:02,25\nHello');
+    expect(out).toBe('1\n00:00:01.005 --> 00:00:02.025\nHello\n\n');
+  });
+
+  it('pads one-digit minutes and seconds', () => {
+    const out = SubtitleUtils.convertSrtCue('1\n0:0:1,000 --> 0:0:2,000\nHello');
+    expect(out).toBe('1\n0:00:01.000 --> 0:00:02.000\nHello\n\n');
+  });
+
+  it('keeps the cue when the sequence line holds no word characters', () => {
+    const out = SubtitleUtils.convertSrtCue('-\n00:00:01,000 --> 00:00:02,000\nHello');
+    expect(out).toBe('00:00:01.000 --> 00:00:02.000\nHello\n\n');
+  });
+});
+
 describe('srt2webvtt', () => {
+  for (const blankLines of [2, 3]) {
+    it(`keeps every cue when cues are separated by ${blankLines} blank lines`, () => {
+      // Splitting on exactly two newlines left an odd count's extra newline at the start of
+      // the next cue, which then read as having no timestamp line and was dropped.
+      const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n' + '\n'.repeat(blankLines) +
+        '2\n00:00:03,000 --> 00:00:04,000\nSecond';
+      const out = SubtitleUtils.srt2webvtt(srt);
+      expect(out).toContain('00:00:01.000 --> 00:00:02.000\nFirst');
+      expect(out).toContain('00:00:03.000 --> 00:00:04.000\nSecond');
+    });
+  }
+
+  it('keeps every cue when the blank line between them holds spaces or tabs', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n \t\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    const out = SubtitleUtils.srt2webvtt(srt);
+    expect(out).toContain('00:00:01.000 --> 00:00:02.000\nFirst');
+    expect(out).toContain('00:00:03.000 --> 00:00:04.000\nSecond');
+  });
+
+  // Each expectation below is what ffmpeg 9 (so mpv) makes of the same file, measured with
+  // `ffmpeg -i x.srt -f webvtt -`, except that ffmpeg keeps the invisible line a
+  // non-breaking-space separator leaves at the end of a cue.
+  it('starts a cue at its timestamp when no blank line comes before it', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('keeps every cue when the line between them holds only a non-breaking space', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n \n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('keeps a non-breaking-space line inside a cue as part of its text', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nTop line\n \nBottom line\n\n' +
+      '2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nTop line\n \nBottom line\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('does not take a text line that starts with a number for a sequence number', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n' +
+      '2\n00:00:03,000 --> 00:00:04,000\n12 monkeys\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\n12 monkeys\nSecond\n\n');
+  });
+
   it('produces a WEBVTT header followed by converted cues', () => {
     const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
     const out = SubtitleUtils.srt2webvtt(srt);

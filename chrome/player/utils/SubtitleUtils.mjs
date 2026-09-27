@@ -1,3 +1,9 @@
+// A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
+// milliseconds, short or missing milliseconds, and one-digit minutes and seconds.
+const SRT_TIMESTAMP = /(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
+// The same at the start of a line, which is where a cue's timestamp is.
+const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
+
 /**
  * Utility functions for subtitle parsing and conversion.
  */
@@ -53,8 +59,10 @@ export class SubtitleUtils {
     let srt = data.replace(/\r+/g, '');
     // trim white space start and end
     srt = srt.replace(/^\s+|\s+$/g, '');
-    // get cues
-    const cuelist = srt.split('\n\n');
+    // get cues: a cue ends at a blank line, however many follow it, and a line of
+    // spaces or tabs is as blank as an empty one; a cue also starts at its own timestamp
+    // when no blank line comes before it
+    const cuelist = srt.split(/\n(?:[ \t]*\n)+/).flatMap((block) => this.splitAtCueStarts(block));
     let result = '';
     if (cuelist.length > 0) {
       result += 'WEBVTT\n\n';
@@ -87,41 +95,37 @@ export class SubtitleUtils {
   }
 
   /**
+   * Formats a time in seconds as HH:MM:SS plus milliseconds, rounded to the nearest
+   * millisecond. Flooring instead turned float error such as 1.2999999999999998 (a cue
+   * shifted by 0.1 s three times) into 1.299.
+   * @param {number} sec - Time in seconds; a negative time is written as zero.
+   * @param {string} separator - What goes between the seconds and the milliseconds.
+   * @return {string} The time string.
+   */
+  static formatTimestamp(sec, separator) {
+    const total = Math.max(0, Math.round(sec * 1000));
+    const pad = (n, width) => String(n).padStart(width, '0');
+    const seconds = Math.floor(total / 1000);
+    return pad(Math.floor(seconds / 3600), 2) + ':' + pad(Math.floor(seconds / 60) % 60, 2) + ':' +
+      pad(seconds % 60, 2) + separator + pad(total % 1000, 3);
+  }
+
+  /**
    * Formats a time value in seconds to WebVTT time format.
    * @param {number} sec - Time in seconds.
-   * @return {string} WebVTT time string.
+   * @return {string} WebVTT time string (HH:MM:SS.mmm).
    */
   static vttTimeFormat(sec) {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor(sec / 60) % 60;
-    const s = Math.floor(sec % 60);
-    const ms = Math.floor(sec * 1000) % 1000;
-
-    const hh = (100 + h).toString().substring(1);
-    const mm = (100 + m).toString().substring(1);
-    const ss = (100 + s).toString().substring(1);
-    const msms = (1000 + ms).toString().substring(1);
-    // HH:MM:SS,MS
-    return hh + ':' + mm + ':' + ss + '.' + msms;
+    return this.formatTimestamp(sec, '.');
   }
 
   /**
    * Formats a time value in seconds to SRT time format.
    * @param {number} sec - Time in seconds.
-   * @return {string} SRT time string.
+   * @return {string} SRT time string (HH:MM:SS,mmm).
    */
   static srtTimeFormat(sec) {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor(sec / 60) % 60;
-    const s = Math.floor(sec % 60);
-    const ms = Math.floor(sec * 1000) % 1000;
-
-    const hh = (100 + h).toString().substring(1);
-    const mm = (100 + m).toString().substring(1);
-    const ss = (100 + s).toString().substring(1);
-    const msms = (1000 + ms).toString().substring(1);
-    // HH:MM:SS,MS
-    return hh + ':' + mm + ':' + ss + ',' + msms;
+    return this.formatTimestamp(sec, ',');
   }
 
   /**
@@ -142,6 +146,61 @@ export class SubtitleUtils {
   }
 
   /**
+   * Converts one SubRip timestamp to WebVTT's HH:MM:SS.mmm, which is all the WebVTT parser
+   * accepts. SubRip files write the milliseconds after a comma or a full stop, sometimes
+   * with fewer than three digits (read as a number of milliseconds, as ffmpeg and VLC read
+   * them) and sometimes not at all.
+   * @param {string} hours - The hours, as written.
+   * @param {string} minutes - The minutes, as written.
+   * @param {string} seconds - The seconds, as written.
+   * @param {string} [millis] - The milliseconds, as written, if any.
+   * @return {string} The WebVTT timestamp.
+   */
+  static srtTimestampToVtt(hours, minutes, seconds, millis) {
+    let ms = millis || '0';
+    ms = ms.length > 3 ? ms.substring(0, 3) : ms.padStart(3, '0');
+    return hours + ':' + minutes.padStart(2, '0') + ':' + seconds.padStart(2, '0') + '.' + ms;
+  }
+
+  /**
+   * Splits a block of SubRip text at every cue that starts inside it. A cue starts at its
+   * timestamp line, or at the sequence number just before it, and ffmpeg (so mpv) starts a
+   * new cue there even with no blank line before it. Files that leave the blank line out, or
+   * write a non-breaking space on it, lost the next cue: its timestamp became a line of the
+   * previous cue's text. A line of invisible whitespace left at the end of a cue by such a
+   * separator is dropped; inside a cue it is kept, as ffmpeg keeps it.
+   * @param {string} block - SubRip text with no blank line in it.
+   * @return {string[]} One block per cue, in order.
+   */
+  static splitAtCueStarts(block) {
+    const lines = block.split('\n');
+    const cues = [];
+    const push = (from, to) => {
+      const cue = lines.slice(from, to);
+      while (cue.length > 0 && cue[cue.length - 1].trim() === '') {
+        cue.pop();
+      }
+      if (cue.length > 0) {
+        cues.push(cue.join('\n'));
+      }
+    };
+
+    let start = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (!SRT_CUE_START.test(lines[i])) {
+        continue;
+      }
+      const cueStart = i > start && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
+      if (cueStart > start) {
+        push(start, cueStart);
+        start = cueStart;
+      }
+    }
+    push(start, lines.length);
+    return cues;
+  }
+
+  /**
    * Converts a single SRT caption to a formatted string.
    * @param {Object} caption - SRT caption object.
    * @return {string} Formatted caption string.
@@ -149,47 +208,40 @@ export class SubtitleUtils {
   static convertSrtCue(caption) {
     // remove all html tags for security reasons
     // srt = srt.replace(/<[a-zA-Z\/][^>]*>/g, '');
-    let cue = '';
-    const s = caption.split(/\n/);
-    if (s.length < 2) {
+    const lines = caption.split(/\n/);
+    if (lines.length < 2) {
       // file format error or comment lines
       return '';
     }
-    // concatenate muilt-line string separated in array into one
-    while (s.length > 3) {
-      for (let i = 3; i < s.length; i++) {
-        s[2] += '\n' + s[i];
-      }
-      s.splice(3, s.length - 3);
-    }
+
+    // The timestamp line comes first, or second after a sequence-number line.
+    const timestamp = SRT_TIMESTAMP;
     let line = 0;
-    // detect identifier
-    if (!s[0].match(/\d+:\d+:\d+/) && s[1].match(/\d+:\d+:\d+/)) {
-      cue += s[0].match(/\w+/) + '\n';
-      line += 1;
-    }
-    // get time strings
-    if (s[line].match(/\d+:\d+:\d+/)) {
-      // convert time string
-      const m = s[line].match(/(\d+):(\d+):(\d+)(?:,(\d+))?\s*--?>\s*(\d+):(\d+):(\d+)(?:,(\d+))?/);
-      if (m) {
-        cue += m[1] + ':' + m[2] + ':' + m[3] + '.' + m[4] + ' --> ' +
-                    m[5] + ':' + m[6] + ':' + m[7] + '.' + m[8] + '\n';
-        line += 1;
-      } else {
-        // Unrecognized timestring
-        return '';
+    let cue = '';
+    if (!timestamp.test(lines[0]) && timestamp.test(lines[1])) {
+      // A WebVTT cue identifier is optional, so a sequence line with nothing usable in it
+      // is left out rather than written as the word "null".
+      const identifier = lines[0].match(/\w+/);
+      if (identifier) {
+        cue += identifier[0] + '\n';
       }
-    } else {
+      line = 1;
+    }
+
+    const m = lines[line].match(timestamp);
+    if (!m) {
       // file format error or comment lines
       return '';
     }
-    // get cue text
-    if (s[line]) {
-      const cueText = s[line].replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n');
-      cue += cueText + '\n\n';
+    cue += this.srtTimestampToVtt(m[1], m[2], m[3], m[4]) + ' --> ' +
+      this.srtTimestampToVtt(m[5], m[6], m[7], m[8]) + '\n';
+
+    // Everything after the timestamp is the cue text, however many lines it has.
+    const cueText = lines.slice(line + 1).join('\n');
+    if (cueText) {
+      cue += cueText.replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n');
     }
-    return cue;
+    return cue + '\n\n';
   }
 
   /**
