@@ -496,23 +496,59 @@ describe('mpv seek keys', function() {
     // buffered, but the check was made against the -3 s the arrow asked for.
     //
     // MP4Player appends and removes through a queue per SourceBuffer, and video.buffered
-    // only shows what has been applied. reset() before this test jumped here from the end
-    // of the video, which queued a removal of everything behind appends still pending from
-    // there, so on a slow machine [0, 3] can look buffered, then empty, then refill from
-    // wherever the player was when the removal ran - and a seek in between rightly resets.
-    // So every step waits until nothing is queued, the element is not seeking, and the
-    // start really is buffered.
-    const settled = (what) => browser.waitUntil(async () => browser.execute(() => {
-      const player = window.fastStream.player;
-      const idle = (wrapper) => !wrapper ||
-        (!wrapper.updating && !wrapper.sourceBuffer.updating && wrapper.toDo.length === 0);
-      const buffered = player.buffered;
-      return idle(player.videoSourceBuffer) && idle(player.audioSourceBuffer) &&
-        !player.getVideo().seeking &&
-        buffered.length > 0 && buffered.start(0) <= 0.1 && buffered.end(0) >= 3;
-    }), {timeout: 30000, timeoutMsg: `the start of the video was never buffered and settled ${what}`});
+    // only shows what has been applied. Jumping back here from the end of the video, as
+    // reset() does after the test before this one, queues a removal of everything behind
+    // appends still pending from there, so on a slow machine [0, 3] can look buffered, then
+    // empty, then refill from wherever the player was when the removal ran - and a seek in
+    // between rightly resets. That jump can also leave the player at 0 with nothing loading
+    // at all (a separate bug, seen about once in fifteen runs on one CPU core), so this test
+    // starts from a freshly loaded video, and every step waits until nothing is queued, the
+    // element is not seeking, and the start really is buffered.
+    const settled = async (what) => {
+      let last;
+      try {
+        await browser.waitUntil(async () => {
+          last = await browser.execute(() => {
+            const player = window.fastStream.player;
+            const queue = (wrapper) => wrapper ?
+              {updating: wrapper.updating || wrapper.sourceBuffer.updating, queued: wrapper.toDo.length} : null;
+            const ranges = [];
+            for (let i = 0; i < player.buffered.length; i++) {
+              ranges.push([player.buffered.start(i), player.buffered.end(i)]);
+            }
+            return {
+              time: player.currentTime,
+              seeking: player.getVideo().seeking,
+              video: queue(player.videoSourceBuffer),
+              audio: queue(player.audioSourceBuffer),
+              ranges,
+            };
+          });
+          const idle = (q) => !q || (!q.updating && q.queued === 0);
+          return idle(last.video) && idle(last.audio) && !last.seeking &&
+            last.ranges.length > 0 && last.ranges[0][0] <= 0.1 && last.ranges[0][1] >= 3;
+        }, {timeout: 30000, interval: 250});
+      } catch (e) {
+        throw new Error(`the start of the video was never buffered and settled ${what}: ${JSON.stringify(last)}`);
+      }
+    };
 
-    await settled('after the reset');
+    // The tests before this one saved a playback position for this video, and a fresh load
+    // resumes there (storeProgress), so resuming is off for this one load: the video has to
+    // really start at 0.
+    const saved = await browser.execute(() => localStorage.getItem('options'));
+    await browser.execute((saved) => {
+      localStorage.setItem('options', JSON.stringify({...(saved ? JSON.parse(saved) : {}), storeProgress: false}));
+    }, saved);
+    await openPlayer('long-av.mp4');
+    await browser.execute((saved) => {
+      if (saved === null) {
+        localStorage.removeItem('options');
+      } else {
+        localStorage.setItem('options', saved);
+      }
+    }, saved);
+    await settled('after loading');
     await seekTo(2);
     await landsOn(2, 'the start position');
     await settled('at 2 s');
