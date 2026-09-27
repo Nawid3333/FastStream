@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
-import {EXIT, signingState} from '../../tools/fetch-amo-signed.mjs';
+import {EXIT, isNetworkError, signingState, waitForSigned} from '../../tools/fetch-amo-signed.mjs';
 
 // The AMO signing failsafe acts on what signingState answers: collect the xpi, wait,
 // upload again, or tell the owner. A wrong answer either never collects a signed build
@@ -41,5 +41,63 @@ describe('signingState', () => {
   it('maps every state to its own exit code', () => {
     expect(new Set(Object.values(EXIT)).size).toBe(Object.keys(EXIT).length);
     expect(EXIT.signed).toBe(0);
+  });
+});
+
+describe('isNetworkError', () => {
+  it('knows the error v1.3.82.37\'s signing died of, and the socket errors under it', () => {
+    // Node's fetch: TypeError('fetch failed'), the socket error as its cause.
+    expect(isNetworkError(new TypeError('fetch failed'))).toBe(true);
+    const reset = Object.assign(new Error('read ECONNRESET'), {code: 'ECONNRESET'});
+    expect(isNetworkError(Object.assign(new Error('wrapped'), {cause: reset}))).toBe(true);
+    expect(isNetworkError(Object.assign(new Error('other side closed'), {code: 'UND_ERR_SOCKET'}))).toBe(true);
+  });
+
+  it('does not take AMO\'s own answers for the network', () => {
+    // Waiting cannot help these: the upload was refused or the review is over.
+    expect(isNetworkError(new Error('Version 1.3.82.37 already exists.'))).toBe(false);
+    expect(isNetworkError(new Error('Validation failed: 1 error'))).toBe(false);
+    expect(isNetworkError(new Error('Approval: timeout exceeded.'))).toBe(false);
+    expect(isNetworkError(undefined)).toBe(false);
+  });
+});
+
+describe('waitForSigned', () => {
+  // A clock that moves only when the loop sleeps, and a check that answers from a list.
+  const run = async (answers, budget = 5 * 60 * 1000, interval = 30 * 1000) => {
+    let clock = 0;
+    const asked = [];
+    const state = await waitForSigned(async () => {
+      const answer = answers[Math.min(asked.length, answers.length - 1)];
+      asked.push(clock);
+      if (answer instanceof Error) throw answer;
+      return answer;
+    }, {
+      deadline: budget, interval, now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+      log: () => {},
+    });
+    return {state, asked};
+  };
+
+  it('keeps asking through a network failure and a pending review until the version is signed', async () => {
+    const {state, asked} = await run([new TypeError('fetch failed'), 'pending', 'pending', 'signed']);
+    expect(state).toBe('signed');
+    expect(asked).toEqual([0, 30000, 60000, 90000]);
+  });
+
+  it('stops at once on a rejected or missing version', async () => {
+    expect((await run(['pending', 'rejected'])).state).toBe('rejected');
+    expect((await run(['missing'])).asked).toEqual([0]);
+  });
+
+  it('gives up when the time runs out, saying whether AMO was still reviewing', async () => {
+    const pending = await run(['pending'], 5 * 60 * 1000);
+    expect(pending.state).toBe('pending');
+    // 0, 30 s ... 300 s: the last check is the one that still fits in the budget.
+    expect(pending.asked.length).toBe(11);
+    expect((await run([new TypeError('fetch failed')], 60 * 1000)).state).toBe('error');
   });
 });

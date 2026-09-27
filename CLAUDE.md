@@ -711,7 +711,13 @@ rejected, or still incomplete after 24 h -> one issue, assigned + @mention, clos
 release is complete. Re-running `web-ext sign` cannot do this: AMO refuses a second upload
 of a version. v1.3.79.0 and v1.3.82.2, the two releases without an xpi, are both `public`
 on AMO - the failsafe would have collected them. `release.yml`'s `timeout-minutes: 45`
-covers the 30-minute wait.
+covers the 30-minute wait. **A network error does not end the wait** (2026-09-28):
+v1.3.82.37 passed validation, then one `fetch failed` while web-ext polled for approval
+failed the step, and the release lacked its xpi and `updates.json` until the failsafe
+(run by hand) collected them 10 minutes later. `sign-amo.mjs` now goes on asking AMO
+itself with `fetch-amo-signed.mjs`'s check, every 30 s, within the same 30 minutes; a
+version AMO never received is uploaded once more. AMO's own answers (a refused upload, a
+failed validation, the approval timeout) still fail the step as before.
 
 ## Workflows (reworked 2026-09-25)
 
@@ -830,6 +836,14 @@ covers the 30-minute wait.
   reserve the range (`net.ipv4.ip_local_reserved_ports`); measured here, 47 of 8,000
   OS-picked ports landed in it without the reservation and none with it. Windows hands
   out 49152-65535 and needs nothing.
+- **One e2e run per machine at a time** (2026-09-28). The ports are fixed, and WSL's
+  mirrored networking shares them with Windows, so a second run - another checkout, or
+  `verify:linux` - finds its ports taken. wdio only logs an error thrown in `onPrepare`
+  and runs the specs anyway, so they were answered by the other run's server and tested
+  its build (a keybind spec saw a fix it was checking missing; with a port held by
+  another process, a spec passed and wdio exited 0). The suites' servers now start
+  through `tests/e2e/listen-or-stop.mjs`, which ends the run with "Port N is already in
+  use" instead.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.

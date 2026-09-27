@@ -59,11 +59,69 @@ function credentials() {
   throw new Error('no AMO credentials: .amo-credentials.json or AMO_API_KEY/AMO_API_SECRET');
 }
 
-async function main() {
-  const version = process.argv[2];
-  if (!version) {
-    throw new Error('usage: node tools/fetch-amo-signed.mjs <version>');
+/**
+ * Whether an error is the network failing rather than AMO answering. Node's fetch
+ * rejects with TypeError('fetch failed') and the socket error as its cause; web-ext
+ * passes that on unchanged ("Signing failed: fetch failed", v1.3.82.37).
+ * @param {*} error - What was thrown.
+ * @return {boolean}
+ */
+export function isNetworkError(error) {
+  const codes = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EPIPE',
+    'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT']);
+  for (let e = error; e; e = e.cause) {
+    if (e.message === 'fetch failed' || codes.has(e.code)) {
+      return true;
+    }
   }
+  return false;
+}
+
+/**
+ * Asks AMO about a version until it is signed, rejected or missing, or the time runs out.
+ * A check that throws (the network again) is asked again at the next interval.
+ * @param {function(): Promise<string>} check - Resolves with a signingState() state.
+ * @param {Object} options
+ * @param {number} options.deadline - Stop asking after this time (ms since the epoch).
+ * @param {number} [options.interval] - Wait between checks, in ms.
+ * @param {function(): number} [options.now]
+ * @param {function(number): Promise<void>} [options.sleep]
+ * @param {function(string): void} [options.log]
+ * @return {Promise<string>} 'signed', 'rejected' or 'missing'; when the time runs out,
+ *   'pending', or 'error' if the last check failed too.
+ */
+export async function waitForSigned(check, {
+  deadline,
+  interval = 30 * 1000,
+  now = Date.now,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  log = console.log,
+}) {
+  for (;;) {
+    let state;
+    try {
+      state = await check();
+    } catch (error) {
+      state = 'error';
+      log(`Asking AMO failed: ${error.message}`);
+    }
+    if (state === 'signed' || state === 'rejected' || state === 'missing') {
+      return state;
+    }
+    if (now() + interval > deadline) {
+      return state === 'error' ? 'error' : 'pending';
+    }
+    await sleep(interval);
+  }
+}
+
+/**
+ * Asks AMO for a version of the add-on in build_firefox_amo and, once it is signed,
+ * saves the xpi in web-ext-artifacts/.
+ * @param {string} version - The version, e.g. 1.3.82.37.
+ * @return {Promise<string>} Its signingState() state.
+ */
+export async function fetchSigned(version) {
   const {apiKey, apiSecret} = credentials();
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'build_firefox_amo', 'manifest.json'), 'utf8'));
   const id = manifest.browser_specific_settings?.gecko?.id;
@@ -96,7 +154,15 @@ async function main() {
     fs.writeFileSync(path.join(artifacts, name), Buffer.from(await download.arrayBuffer()));
     console.log(`Saved web-ext-artifacts/${name}`);
   }
-  process.exitCode = EXIT[state];
+  return state;
+}
+
+async function main() {
+  const version = process.argv[2];
+  if (!version) {
+    throw new Error('usage: node tools/fetch-amo-signed.mjs <version>');
+  }
+  process.exitCode = EXIT[await fetchSigned(version)];
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
