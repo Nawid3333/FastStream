@@ -90,17 +90,20 @@ async function main() {
         continue;
       }
     }
-    const wslPath = spawnSync('wsl.exe', ['-d', name, '--', 'wslpath', '-a', root], {encoding: 'utf8'}).stdout.trim();
+    // -e runs the command itself; `--` hands it to the distro's shell, which strips the
+    // backslashes of a Windows path that has no space to make Node quote it
+    // (C:\Users\... arrived as C:Users...), so the tree could not be mapped.
+    const wslPath = spawnSync('wsl.exe', ['-d', name, '-e', 'wslpath', '-a', root], {encoding: 'utf8'}).stdout.trim();
     if (!wslPath.startsWith('/')) {
       results.push(`${name}: could not map ${root} into it`);
       continue;
     }
-    let status = run('wsl.exe', ['-d', name, '-u', 'root', '--', 'bash', `${wslPath}/tools/linux/setup.sh`, wslPath]);
+    let status = run('wsl.exe', ['-d', name, '-u', 'root', '-e', 'bash', `${wslPath}/tools/linux/setup.sh`, wslPath]);
     if (status !== 0) {
       results.push(`${name}: setup failed`);
       continue;
     }
-    status = run('wsl.exe', ['-d', name, '-u', 'faststream', '--', 'bash', `${wslPath}/tools/linux/verify.sh`, wslPath, what]);
+    status = run('wsl.exe', ['-d', name, '-u', 'faststream', '-e', 'bash', `${wslPath}/tools/linux/verify.sh`, wslPath, what]);
     results.push(`${name}: ${status === 0 ? 'passed' : 'FAILED'}`);
   }
   console.log(`\n=== verify:linux ${what}\n${results.join('\n')}`);
