@@ -236,19 +236,11 @@ async function onClicked(tabobj) {
 
         if (tab.isOn) {
           openPlayersWithSources(tab);
-        } else {
-          let hasPlayer = false;
-          for (const frame of tab.getFrames()) {
-            if (frame.isPlayer) {
-              hasPlayer = true;
-              break;
-            }
-          }
-
-          if (hasPlayer) {
-            tab.reset();
-            chrome.tabs.reload(tab.tabId);
-          }
+        } else if (hasOrOpeningPlayer(tab)) {
+          // A player still loading counts: the MPV cycle already checks it, and without
+          // it an Off clicked right after On left the player on the page.
+          tab.reset();
+          chrome.tabs.reload(tab.tabId);
         }
       }
     } else {
@@ -1577,6 +1569,12 @@ async function openPlayersWithSources(tab) {
     framesWithSources = await Promise.all(framesWithSources.map(async (frame) => {
       return {frame, videoSize: await getVideoSize(frame)};
     }));
+
+    // The page's videos were measured with a round trip to it; a click that turned the
+    // tab off, or over to MPV, in the meantime decides.
+    if (!tab.isOn || tab.isMpv) {
+      return;
+    }
 
     framesWithSources.sort((a, b) => {
       return b.videoSize - a.videoSize;
