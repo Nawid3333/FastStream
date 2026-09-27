@@ -23,6 +23,7 @@
     POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
     MPV_USER_PLAY: 'MPV_USER_PLAY',
     MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
+    SCRAPE_CAPTIONS: 'SCRAPE_CAPTIONS',
     SHORTCUT_CANCELLED: 'SHORTCUT_CANCELLED',
   };
 
@@ -490,6 +491,11 @@
     return true;
   }
 
+  // The text tracks a <track> element can carry that are meant to be read on screen.
+  // 'subtitles' is also what a <track> with no kind attribute reports, which is how most
+  // pages write them.
+  const ScrapedTrackKinds = ['subtitles', 'captions'];
+
   function handleCaptionsScrape(request, sender, sendResponse) {
     const trackElements = querySelectorAllIncludingShadows('track');
     let pending = 0;
@@ -497,7 +503,7 @@
     const tracks = [];
     for (let i = 0; i < trackElements.length; i++) {
       const track = trackElements[i];
-      if (track.src && track.kind === 'captions') {
+      if (track.src && ScrapedTrackKinds.includes(track.kind)) {
         pending++;
         const source = track.src;
         httpRequest(source, (err, req, body) => {
@@ -995,6 +1001,14 @@
     }
   }
 
+  // The background opens the player only once the page's tracks have been read (see
+  // handleCaptionsScrape), so a track whose server never answers must not be waited on:
+  // without a timeout that request hung, and the player with it. What gives a request up
+  // is a stall - this long with no byte arriving - so a large track on a slow connection
+  // still loads; the longer total bounds one that only trickles.
+  const HttpRequestStallMs = 2000;
+  const HttpRequestTimeoutMs = 10000;
+
   function httpRequest(...args) {
     const url = args[0];
     let post = undefined;
@@ -1012,13 +1026,24 @@
     try {
       const xhr = new XMLHttpRequest();
       xhr.open(post ? 'POST' : 'GET', url + (bust ? ('?' + Date.now()) : ''));
+      // A timed-out or aborted request still reaches readyState 4, with status 0.
+      xhr.timeout = HttpRequestTimeoutMs;
+      let stallTimer;
+      const armStallTimer = () => {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => xhr.abort(), HttpRequestStallMs);
+      };
+      xhr.onprogress = armStallTimer;
       xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            callback(undefined, xhr, xhr.responseText);
-          } else {
-            callback(true, xhr, false);
-          }
+        if (xhr.readyState !== 4) {
+          armStallTimer();
+          return;
+        }
+        clearTimeout(stallTimer);
+        if (xhr.status === 200) {
+          callback(undefined, xhr, xhr.responseText);
+        } else {
+          callback(true, xhr, false);
         }
       };
       if (post) {
@@ -1035,6 +1060,7 @@
       }
 
       xhr.send(post);
+      armStallTimer();
     } catch (e) {
       callback(e);
     }
