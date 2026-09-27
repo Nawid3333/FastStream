@@ -1822,8 +1822,15 @@ chrome.webRequest.onHeadersReceived.addListener(
       if (!mode) {
         if (details.type === 'media') {
           mode = PlayerModes.ACCELERATED_MP4;
+        } else if (details.type === 'main_frame' || details.type === 'sub_frame') {
+          // A page is not a stream, even when its query string names one: an embed page
+          // (embed.php?file=https://cdn/.../index.m3u8) is HTML, and taking it for the
+          // stream could open the player on the page itself. The stream the page plays is
+          // detected by itself, when the page requests it.
+          return;
         } else {
-        // Check url query parameters
+          // A stream fetched through a proxy names it in the query string:
+          // proxy?url=https://cdn/.../index.m3u8.
           const urlParams = URLUtils.get_url_params(url).values();
           for (const value of urlParams) {
             if (!URLUtils.is_url(value)) continue;
