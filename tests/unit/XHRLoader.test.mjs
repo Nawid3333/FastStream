@@ -220,6 +220,93 @@ describe('XHRLoader', () => {
     expect(loader.stats.aborted).toBe(false);
   });
 
+  // The stall tests above use a fetch() that never settles. A real fetch() does settle once
+  // retry() aborts its controller: it rejects with an AbortError. That rejection belongs
+  // to an attempt that retry() has already replaced, so it must not count as a second
+  // failure - before this was handled, it went to handleLoadFailure(), which called
+  // retry() again: one stall cost two retries, doubled the backoff twice and cancelled
+  // the retry that was already scheduled.
+  it('a stall that a real fetch() reports as an AbortError costs one retry, not two', async () => {
+    const starts = [];
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn((url, init) => {
+      call++;
+      starts.push(Date.now());
+      if (call === 1) {
+        return fetchHangingUntilAborted()(url, init);
+      }
+      return Promise.resolve(new Response(new Uint8Array([7]).buffer, {status: 200}));
+    }));
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 6, retryDelay: 50, maxRetryDelay: 800}));
+    await vi.runAllTimersAsync();
+
+    expect(call).toBe(2);
+    expect(loader.stats.retry).toBe(1);
+    // The retry waits the configured delay after the stall, not twice that.
+    expect(starts[1] - starts[0]).toBe(500 + 50);
+    expect(loader.retryDelay).toBe(100);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+  });
+
+  it('a stall retried once never reports an error before the retry succeeds', async () => {
+    // maxRetry 1: the stale AbortError used to find the retry budget spent and report
+    // onError, while the retry it had not cancelled went on to report onSuccess.
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn((url, init) => {
+      call++;
+      if (call === 1) {
+        return fetchHangingUntilAborted()(url, init);
+      }
+      return Promise.resolve(new Response(new Uint8Array([7]).buffer, {status: 200}));
+    }));
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 1, retryDelay: 50}));
+    await vi.runAllTimersAsync();
+
+    expect(call).toBe(2);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onProgress', 'onSuccess']);
+  });
+
+  it('a body that stalls mid-transfer is retried once per stall', async () => {
+    // Headers arrive, then the body stops. The stall timer fires, retry() aborts the
+    // controller, and the pending reader.read() rejects - the same stale AbortError, from
+    // readBody() instead of fetch().
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn((url, init) => {
+      call++;
+      if (call === 1) {
+        const body = new ReadableStream({
+          start(streamController) {
+            streamController.enqueue(new Uint8Array([1, 2]));
+            init.signal.addEventListener('abort', () => {
+              streamController.error(new DOMException('The operation was aborted.', 'AbortError'));
+            });
+          },
+        });
+        return Promise.resolve(new Response(body, {status: 200}));
+      }
+      return Promise.resolve(new Response(new Uint8Array([1, 2, 3]).buffer, {status: 200}));
+    }));
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 6, retryDelay: 50}));
+    await vi.runAllTimersAsync();
+
+    expect(call).toBe(2);
+    expect(loader.stats.retry).toBe(1);
+    const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+    expect(new Uint8Array(response.data)).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
   it('gives up with onTimeout once retry.maxRetry/2 stall-retries are exhausted', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 

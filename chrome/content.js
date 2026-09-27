@@ -24,6 +24,7 @@
     MPV_USER_PLAY: 'MPV_USER_PLAY',
     MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
     SCRAPE_CAPTIONS: 'SCRAPE_CAPTIONS',
+    SHORTCUT_CANCELLED: 'SHORTCUT_CANCELLED',
   };
 
   const iframeMap = new Map();
@@ -1507,6 +1508,42 @@
     }
     return false;
   }
+
+  // Firefox lets a page cancel an extension's keyboard shortcut: a keydown
+  // the page calls preventDefault() on never reaches the command. Sites do it
+  // by accident - VOE's "no view-source" guard cancels every Ctrl+U, Shift or
+  // not, which swallowed Ctrl+Shift+U. So once the page is done with a key
+  // press, a cancelled one that could be a shortcut goes to the background,
+  // which runs the command bound to it, if any. A press the page left alone
+  // is Firefox's to run: reporting only cancelled ones means a shortcut never
+  // runs twice. This listener is registered before any page script, so the
+  // page cannot keep the press from it; isTrusted keeps the page from faking
+  // one.
+  const ModifierKeys = ['Control', 'Shift', 'Alt', 'AltGraph', 'Meta', 'OS'];
+
+  window.addEventListener('keydown', (e) => {
+    if (!e.isTrusted || e.repeat || e.isComposing || ModifierKeys.includes(e.key)) return;
+    // Firefox shortcuts need Ctrl, Alt or Command, except F-keys and media keys.
+    if (!e.ctrlKey && !e.altKey && !e.metaKey && !/^(F\d+|Media\w+)$/.test(e.key)) return;
+    setTimeout(() => {
+      if (!e.defaultPrevented) return;
+      try {
+        chrome.runtime.sendMessage({
+          type: MessageTypes.SHORTCUT_CANCELLED,
+          key: e.key,
+          code: e.code,
+          ctrlKey: e.ctrlKey,
+          altKey: e.altKey,
+          shiftKey: e.shiftKey,
+          metaKey: e.metaKey,
+        }, () => {
+          void chrome.runtime.lastError;
+        });
+      } catch (err) {
+        // The extension was reloaded under this page: nothing to report to.
+      }
+    }, 0);
+  }, true);
 
   window.addEventListener('beforeunload', () => {
     chrome.runtime.sendMessage({

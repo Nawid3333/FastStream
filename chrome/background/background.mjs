@@ -3,6 +3,7 @@ import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
+import {KeyShortcut} from './KeyShortcut.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
@@ -330,6 +331,31 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
   }
 });
 
+/**
+ * A key press the page cancelled, which Firefox therefore never ran as a
+ * shortcut (content.js reports only those). Runs the command it is bound to,
+ * as Firefox would have: the toolbar action for _execute_action (Ctrl+Shift+F
+ * by default), onToggleMpv for toggle_mpv. The bindings are read fresh, so a
+ * key rebound on about:addons counts at once.
+ *
+ * @param {Object} press - The key press; see KeyShortcut's KeyPress.
+ * @param {Object} tabobj - The tab it was pressed in.
+ */
+async function onCancelledShortcut(press, tabobj) {
+  const commands = await chrome.commands.getAll();
+  const isMac = navigator.platform.startsWith('Mac');
+  const command = commands.find((c) => KeyShortcut.matches(c.shortcut || '', press, isMac));
+  if (!command) {
+    return;
+  }
+  if (Logging) console.log('[Shortcut] the page cancelled', command.shortcut, '- running', command.name);
+  if (command.name === '_execute_action') {
+    onClicked(tabobj);
+  } else if (command.name === 'toggle_mpv') {
+    onToggleMpv(tabobj);
+  }
+}
+
 
 chrome.tabs.onRemoved.addListener((tabid, removed) => {
   Tabs.removeTab(tabid);
@@ -537,6 +563,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
     onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '');
+    return;
+  } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
+    if (sender.tab && typeof msg.key === 'string' && typeof msg.code === 'string') {
+      onCancelledShortcut(msg, sender.tab);
+    }
     return;
   }
 

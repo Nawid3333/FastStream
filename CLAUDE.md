@@ -481,6 +481,26 @@ event, because Firefox gives the command the tab active when the key's round
 trip through the page ends, and a test that switches tabs straight after
 pressing sends it to the wrong tab.
 
+**A page that cancels a shortcut (2026-09-27).** Firefox lets page content
+cancel an extension's shortcut: a keydown the page calls `preventDefault()` on
+never reaches the command (the extension's `<key>` has no `reserved`
+attribute). VOE's "no view-source" guard cancels every `ctrlKey && keyCode ==
+85`, Shift or not, and swallowed Ctrl+Shift+U; Nawid wants Ctrl+Shift+F and
+Ctrl+Shift+U to work on (nearly) every site. content.js's window capture
+listener - registered at document_start, before any page script - checks each
+trusted, non-repeat press with Ctrl/Alt/Command (or an F-key or media key)
+after dispatch, and reports it as `SHORTCUT_CANCELLED` only if the page
+cancelled it; the background matches it against `commands.getAll()` (fresh,
+so a key rebound on about:addons counts) with `KeyShortcut.matches` and runs
+`onClicked` or `onToggleMpv`. A press the page leaves alone is Firefox's to
+run, so the two paths never both fire. `isTrusted` matters: content-script
+listeners do receive page-dispatched events (measured). A site that uses the
+same combination for itself now gets both its own action and FastStream's.
+Not covered: a page script in an `about:blank` frame (content.js does not run
+there). `shortcut-page-cancels.e2e.mjs` fails 4 of 6 without the fix, and
+catches both mistakes it guards: reporting uncancelled presses (runs twice)
+and dropping `isTrusted` (a page fakes the key).
+
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
 stops it ever loading into — or closing — an mpv the user opened themselves.
