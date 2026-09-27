@@ -23,6 +23,10 @@ const SITE_PORT = 41983;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 
 let siteServer;
+// The file the site's page plays. The page's URL names it in its query string - the case
+// under test - but the page is built from this, never from the request, so the test
+// server echoes nothing it is sent.
+let pageFile = null;
 
 /**
  * Runs a function in a page of the extension, where chrome.* is available.
@@ -88,13 +92,12 @@ async function playerSources() {
 describe('A stream named in the page\'s own query string', function() {
   before(async function() {
     siteServer = http.createServer((req, res) => {
-      const {pathname, searchParams} = new URL(req.url, SITE);
-      const file = searchParams.get('file');
+      const {pathname} = new URL(req.url, SITE);
       res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
       if (pathname === '/embed') {
         // The page's own player plays the file at once.
         res.end(`<!doctype html><title>embed</title>
-          <video muted preload="auto" style="width: 640px; height: 360px" src="${file}"></video>`);
+          <video muted preload="auto" style="width: 640px; height: 360px" src="${pageFile}"></video>`);
       } else {
         // The page's own player asks for the file only after a while, as a player that
         // loads its script first does.
@@ -102,7 +105,7 @@ describe('A stream named in the page\'s own query string', function() {
           <video muted preload="auto" style="width: 640px; height: 360px"></video>
           <script>
             setTimeout(() => {
-              document.querySelector('video').src = ${JSON.stringify(file)};
+              document.querySelector('video').src = ${JSON.stringify(pageFile)};
             }, 2000);
           </script>`);
       }
@@ -131,6 +134,7 @@ describe('A stream named in the page\'s own query string', function() {
 
   it('keeps the page out of the player\'s sources', async function() {
     const file = `${globalThis.__EXT_FIXTURE_MP4__}?t=${Date.now()}`;
+    pageFile = file;
     await browser.url(`${SITE}/embed?file=${encodeURIComponent(file)}`);
     const state = await playerSources();
     expect(state.sources.filter((url) => url.startsWith(SITE))).toEqual([]);
@@ -140,6 +144,7 @@ describe('A stream named in the page\'s own query string', function() {
 
   it('opens the player on the page\'s stream, not on the page, when the page asks for it late', async function() {
     const file = `${globalThis.__EXT_FIXTURE_MP4__}?t=${Date.now()}`;
+    pageFile = file;
     await browser.url(`${SITE}/late?file=${encodeURIComponent(file)}`);
     const state = await playerSources();
     expect(state.source).toBe(file);
