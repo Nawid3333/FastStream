@@ -20,9 +20,8 @@ import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {inExtensionPage} from '../extension-page.mjs';
 
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const SITE_PORT = 41986;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 
@@ -45,33 +44,6 @@ let siteServer;
 // Requests for the track that never answers, kept open until the server closes.
 const hanging = new Set();
 const trickles = new Set();
-
-/**
- * Runs a function in a page of the extension, where chrome.* is available.
- * @param {Function} fn - Called as fn(arg, done).
- * @param {*} arg - A serialisable argument.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inExtensionPage(fn, arg) {
-  const opener = await browser.getWindowHandle();
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), ORIGIN + '/player/index.html?t=' + Date.now());
-  await browser.waitUntil(async () => {
-    for (const handle of await browser.getWindowHandles()) {
-      await browser.switchToWindow(handle);
-      if ((await browser.getUrl()).startsWith(ORIGIN + '/player/index.html')) {
-        return true;
-      }
-    }
-    return false;
-  }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
-  try {
-    return await browser.executeAsync(fn, arg);
-  } finally {
-    await browser.closeWindow();
-    await browser.switchToWindow(opener);
-  }
-}
 
 describe('subtitles from the page\'s <track> elements', function() {
   before(async function() {

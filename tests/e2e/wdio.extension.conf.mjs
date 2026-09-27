@@ -29,6 +29,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {listenOrStop} from './listen-or-stop.mjs';
+
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
 const fixturesDir = path.join(__dirname, '..', 'e2e', 'fixtures');
@@ -151,7 +153,7 @@ export const config = {
 
   onPrepare: function() {
     resetDownloadDir();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       server = http.createServer((req, res) => {
         const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
 
@@ -207,8 +209,7 @@ export const config = {
         res.writeHead(200, {'Content-Type': 'text/html'});
         res.end('<!doctype html><title>opener</title>');
       });
-      server.on('error', reject);
-      server.listen(PORT, '127.0.0.1', resolve);
+      listenOrStop(server, PORT, resolve);
     });
   },
 
