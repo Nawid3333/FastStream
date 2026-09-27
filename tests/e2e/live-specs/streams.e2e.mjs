@@ -107,8 +107,12 @@ async function npmFile(pkg, file) {
  * @return {string|null} The page's HTML, or null for no such page.
  */
 function sitePage(pathname, query) {
-  const stream = STREAMS[query.get('stream')];
-  const src = JSON.stringify(stream || '');
+  // Only values of this file's own reach the pages: the site server echoes nothing it is
+  // sent.
+  const key = Object.keys(STREAMS).find((name) => name === query.get('stream')) || '';
+  const player = ['hls', 'dash'].find((name) => name === query.get('player')) || 'hls';
+  const stream = STREAMS[key] || '';
+  const src = JSON.stringify(stream);
   const video = '<video id="v" muted controls playsinline preload="auto" style="width: 800px; height: 450px"></video>';
   const fullVideo = '<style>body { margin: 0 }</style>' +
     '<video id="v" muted controls playsinline preload="auto" style="display: block; width: 100vw; height: 100vh"></video>';
@@ -137,7 +141,7 @@ function sitePage(pathname, query) {
       // not is sent to the player page as a whole.
       return `<!doctype html><title>Embedding site</title>
         <h1>An article with a video</h1>
-        <iframe src="${OTHER_SITE}/${query.get('player')}?stream=${query.get('stream')}&full=1" width="820" height="470"
+        <iframe src="${OTHER_SITE}/${player}?stream=${key}&full=1" width="820" height="470"
                 ${query.get('fullscreen') === 'no' ? '' : 'allow="autoplay; fullscreen" allowfullscreen'}></iframe>`;
   }
   return null;
