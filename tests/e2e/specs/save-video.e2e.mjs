@@ -218,6 +218,27 @@ describe('Save video (download)', function() {
     expect(result.blobSize).toBeGreaterThan(0);
   });
 
+  // The same, on local streams: the remote one above is a muxed MPEG-TS stream and needs
+  // test-streams.mux.dev. fMP4 segments with an out-of-band init segment are what put
+  // transmuxer.mjs on the resetInitSegment() path the chunkMeta fix above is about, and a
+  // separate audio rendition makes it mux two tracks.
+  for (const [fixture, playlist, kind] of [
+    ['hls-ts', 'index.m3u8', 'MPEG-TS'],
+    ['hls-fmp4', 'index.m3u8', 'fMP4'],
+    ['hls-audio', 'master.m3u8', 'separate-audio'],
+  ]) {
+    it(`mux + saves a local ${kind} HLS clip into a file that actually decodes`, async function() {
+      await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/${fixture}/${playlist}`);
+      const result = await saveAndValidate();
+
+      console.log('      result:', JSON.stringify(result));
+      expect(result.saveError).toBe(null);
+      expect(result.decodeOk).toBe(true);
+      expect(result.duration).toBeGreaterThan(0);
+      expect(result.blobSize).toBeGreaterThan(0);
+    });
+  }
+
   it('mux + saves a DASH clip into a file that actually decodes', async function() {
     // Confirms the unrelated format still works -- dash2mp4/mp4merger.mjs
     // does not import transmuxer.mjs and was never suspected, but this is
