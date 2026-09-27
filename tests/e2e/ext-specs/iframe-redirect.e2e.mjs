@@ -15,7 +15,8 @@ import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {EXTENSION_UUID} from '../wdio.extension.conf.mjs';
+import {inExtensionPage} from '../extension-page.mjs';
 
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const SITE_PORT = 41981;
@@ -24,36 +25,6 @@ const SITE = `http://127.0.0.1:${SITE_PORT}`;
 const EMBED = `http://localhost:${SITE_PORT}`;
 
 let siteServer;
-
-/**
- * Runs a function in a page of the extension, where chrome.* is available.
- * @param {Function} fn - Called as fn(arg, done).
- * @param {*} arg - A serialisable argument.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inExtensionPage(fn, arg) {
-  const opener = await browser.getWindowHandle();
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), ORIGIN + '/player/index.html?t=' + Date.now());
-  let handle;
-  await browser.waitUntil(async () => {
-    for (const h of await browser.getWindowHandles()) {
-      await browser.switchToWindow(h);
-      if ((await browser.getUrl()).startsWith(ORIGIN + '/player/index.html')) {
-        handle = h;
-        return true;
-      }
-    }
-    return false;
-  }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
-  try {
-    return await browser.executeAsync(fn, arg);
-  } finally {
-    await browser.switchToWindow(handle);
-    await browser.closeWindow();
-    await browser.switchToWindow(opener);
-  }
-}
 
 describe('A video that fills an iframe without allowfullscreen', function() {
   before(async function() {
