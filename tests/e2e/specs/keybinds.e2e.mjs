@@ -461,6 +461,148 @@ describe('mpv seek keys', function() {
     await landsOn(0, 'KeyZ');
   });
 
+  // The arrows are relative seeks like Z, and near either end of the video they hand on a
+  // time outside it just the same unless the time is clamped where every seek goes
+  // through: the client's currentTime setter.
+  for (const [code, from, to] of [['ArrowLeft', 2, 0], ['KeyJ', 4, 0]]) {
+    it(`${code} near the start stops at 0 as well`, async function() {
+      await seekTo(from);
+      await landsOn(from, 'the start position');
+      const state = await browser.execute((code) => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {code, key: code, bubbles: true, cancelable: true}));
+        return window.fastStream.state.currentTime;
+      }, code);
+      expect(state).toBe(to);
+      await landsOn(to, code);
+    });
+  }
+
+  it('ArrowRight and X near the end stop at the duration', async function() {
+    const duration = await browser.execute(() => window.fastStream.duration);
+    for (const code of ['ArrowRight', 'KeyX']) {
+      await seekTo(duration - 2);
+      await landsOn(duration - 2, 'the position near the end');
+      const state = await browser.execute((code) => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {code, key: code, bubbles: true, cancelable: true}));
+        return window.fastStream.state.currentTime;
+      }, code);
+      expect(state).toBe(duration);
+    }
+  });
+
+  it('a hop back to 0 keeps the MP4 buffer that already holds the start', async function() {
+    // MP4Player throws away everything it has appended and demuxes again from the seek
+    // target when a seek lands outside its buffer. A hop back from 2 s landed on 0, which is
+    // buffered, but the check was made against the -3 s the arrow asked for.
+    //
+    // MP4Player appends and removes through a queue per SourceBuffer, and video.buffered
+    // only shows what has been applied. Jumping back here from the end of the video, as
+    // reset() does after the test before this one, queues a removal of everything behind
+    // appends still pending from there, so on a slow machine [0, 3] can look buffered, then
+    // empty, then refill from wherever the player was when the removal ran - and a seek in
+    // between rightly resets. That jump can also leave the player at 0 with nothing loading
+    // at all (a separate bug, seen about once in fifteen runs on one CPU core), so this test
+    // starts from a freshly loaded video, and every step waits until nothing is queued, the
+    // element is not seeking, and the start really is buffered.
+    const settled = async (what) => {
+      let last;
+      try {
+        await browser.waitUntil(async () => {
+          last = await browser.execute(() => {
+            const player = window.fastStream.player;
+            const queue = (wrapper) => wrapper ?
+              {updating: wrapper.updating || wrapper.sourceBuffer.updating, queued: wrapper.toDo.length} : null;
+            const ranges = [];
+            for (let i = 0; i < player.buffered.length; i++) {
+              ranges.push([player.buffered.start(i), player.buffered.end(i)]);
+            }
+            return {
+              time: player.currentTime,
+              seeking: player.getVideo().seeking,
+              video: queue(player.videoSourceBuffer),
+              audio: queue(player.audioSourceBuffer),
+              ranges,
+            };
+          });
+          const idle = (q) => !q || (!q.updating && q.queued === 0);
+          return idle(last.video) && idle(last.audio) && !last.seeking &&
+            last.ranges.length > 0 && last.ranges[0][0] <= 0.1 && last.ranges[0][1] >= 3;
+        }, {timeout: 30000, interval: 250});
+      } catch (e) {
+        throw new Error(`the start of the video was never buffered and settled ${what}: ${JSON.stringify(last)}`);
+      }
+    };
+
+    // The tests before this one saved a playback position for this video, and a fresh load
+    // resumes there (storeProgress), so resuming is off for this one load: the video has to
+    // really start at 0.
+    const saved = await browser.execute(() => localStorage.getItem('options'));
+    await browser.execute((saved) => {
+      localStorage.setItem('options', JSON.stringify({...(saved ? JSON.parse(saved) : {}), storeProgress: false}));
+    }, saved);
+    await openPlayer('long-av.mp4');
+    await browser.execute((saved) => {
+      if (saved === null) {
+        localStorage.removeItem('options');
+      } else {
+        localStorage.setItem('options', saved);
+      }
+    }, saved);
+    await settled('after loading');
+    await seekTo(2);
+    await landsOn(2, 'the start position');
+    await settled('at 2 s');
+
+    // Every reset is recorded with where the video was, what was buffered and who asked
+    // for it, so a failure says why.
+    const player = await browser.execute(() => {
+      const player = window.fastStream.player;
+      window.__resets = [];
+      const resetHLS = player.resetHLS.bind(player);
+      player.resetHLS = (...args) => {
+        const video = player.getVideo();
+        const ranges = [];
+        for (let i = 0; i < video.buffered.length; i++) {
+          ranges.push([video.buffered.start(i), video.buffered.end(i)]);
+        }
+        window.__resets.push({
+          phase: window.__phase,
+          time: video.currentTime,
+          seeking: video.seeking,
+          readyState: video.readyState,
+          ranges,
+          stack: new Error().stack.split('\n').slice(1, 6).join(' < '),
+        });
+        return resetHLS(...args);
+      };
+      return player.constructor.name;
+    });
+    expect(player).toBe('MP4Player');
+    const phase = (name) => browser.execute((name) => {
+      window.__phase = name;
+    }, name);
+
+    await phase('ArrowLeft');
+    await pressKey('ArrowLeft');
+    await landsOn(0, 'ArrowLeft');
+    await settled('after ArrowLeft');
+    expect(await browser.execute(() => window.__resets)).toEqual([]);
+
+    // The same seek handed to the player directly, past the client's clamp: MP4Player
+    // checks the time the element will actually seek to.
+    await phase('seek to 2');
+    await seekTo(2);
+    await landsOn(2, 'the start position');
+    await settled('back at 2 s');
+    await phase('direct -3');
+    await browser.execute(() => {
+      window.fastStream.player.currentTime = -3;
+    });
+    await landsOn(0, 'a direct seek to -3 s');
+    await settle();
+    expect(await browser.execute(() => window.__resets)).toEqual([]);
+  });
+
   it('Shift+Backspace undoes a seek, Shift+Z redoes it, and plain Z is a seek, not an undo', async function() {
     await pressKey('Digit5');
     await landsOn(80, 'Digit5');
