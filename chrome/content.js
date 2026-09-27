@@ -33,6 +33,10 @@
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
   let Activated = false;
+  // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
+  // not going away: the player takes it over, and asks the background for the sources
+  // detected in it.
+  let RedirectingToPlayer = false;
 
   let resizeDebounce = Date.now();
   const Config = {
@@ -257,6 +261,7 @@
           if (request.parentFrameId > -1) {
             newURL.searchParams.set('parent_frame_id', request.parentFrameId);
           }
+          RedirectingToPlayer = true;
           window.location = newURL.href;
           console.log('redirecting to player');
           sendResponse('redirect');
@@ -1546,6 +1551,12 @@
   }, true);
 
   window.addEventListener('beforeunload', () => {
+    // FRAME_REMOVED makes the background forget this frame and its sources. For the
+    // redirect to the player that is exactly wrong: the player loads in this same frame
+    // and asks for them straight away, and got none.
+    if (RedirectingToPlayer) {
+      return;
+    }
     chrome.runtime.sendMessage({
       type: MessageTypes.FRAME_REMOVED,
     });
