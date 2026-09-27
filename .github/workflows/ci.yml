@@ -125,6 +125,14 @@ jobs:
       - name: Install media codecs
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # The e2e servers listen on fixed ports from 41800 to 41999 (tests/unit/e2ePorts
+      # keeps them there), inside the range Linux hands out to outgoing connections, 32768
+      # to 60999. A connection that happens to get a test's port makes that server's
+      # listen() fail with EADDRINUSE (mpv-suspend's 41996 on PR #40); reserved ports are
+      # never handed out. Windows hands out 49152-65535 and needs nothing.
+      - name: Keep the e2e ports out of the ephemeral range
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999
+
       # The current stable Firefox, the one users run, rather than whatever release the
       # runner image carries (the Windows image had 155.0.1 when 156.0.1 was out).
       - name: Install the current stable Firefox

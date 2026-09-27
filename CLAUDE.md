@@ -754,6 +754,14 @@ covers the 30-minute wait.
   bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
   overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug
   fails twice and still blocks the release.
+- **e2e ports, 2026-09-27:** every fixed port a test server listens on is in
+  41800-41999 (`tests/unit/e2ePorts.test.mjs` fails otherwise). Linux hands 32768-60999
+  out to outgoing connections, and one that gets a test's port makes that server's
+  `listen()` fail with `EADDRINUSE` - mpv-suspend's 41996 did on PR #40's CI. The Linux
+  jobs (`ci.yml`, `firefox-beta.yml`, `firefox-stable.yml`) and `tools/linux/setup.sh`
+  reserve the range (`net.ipv4.ip_local_reserved_ports`); measured here, 47 of 8,000
+  OS-picked ports landed in it without the reservation and none with it. Windows hands
+  out 49152-65535 and needs nothing.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
