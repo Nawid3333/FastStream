@@ -10,6 +10,8 @@ import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
 const FRAGMENT_SIZE = 1000000;
+// How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
+const BACK_BUFFER_SLACK = 1;
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -320,7 +322,38 @@ export default class MP4Player extends EventEmitter {
     }
 
     this.runLoad();
+    this.checkEndOfStream();
     this.loopTimeout = setTimeout(this.mainLoop.bind(this), 1);
+  }
+
+  /**
+   * Tells the MediaSource there is no more media once every track's last sample has been
+   * appended. Without it Firefox waits for data after the last frame: playback that
+   * reaches the end sits there buffering and never fires 'ended', and a seek to exactly
+   * the end never completes. A later append or removal - a seek back, say - opens the
+   * MediaSource again by itself, and this runs again when the end is reached again.
+   */
+  checkEndOfStream() {
+    if (!this.metaData || !this.mediaSource || this.mediaSource.readyState !== 'open') {
+      return;
+    }
+
+    const wrappers = [this.videoSourceBuffer, this.audioSourceBuffer].filter(Boolean);
+    const busy = (wrapper) => wrapper.updating || wrapper.sourceBuffer.updating || wrapper.toDo.length > 0;
+    if (wrappers.length === 0 || wrappers.some(busy)) {
+      return;
+    }
+
+    const tracks = this.mp4box.fragmentedTracks;
+    if (tracks.length === 0 || tracks.some((track) => track.trak.nextSample < track.trak.samples.length)) {
+      return;
+    }
+
+    try {
+      this.mediaSource.endOfStream();
+    } catch (e) {
+      console.warn('Could not end the MediaSource stream', e);
+    }
   }
 
   initializeFragments() {
@@ -370,6 +403,29 @@ export default class MP4Player extends EventEmitter {
       this.audioSourceBuffer.remove(start, end);
     }
   }
+
+  /**
+   * Removes what is buffered before `end`. runLoad() runs every millisecond, and this used
+   * to remove [0, end) from both SourceBuffers on every run once playback was past the back
+   * buffer: about 470 removals a second, nearly all of them of nothing. Each one still put
+   * the SourceBuffer through an update, queued behind the appends playback needs (on a slow
+   * machine the queue grew into the tens of thousands and the video stalled), and reopened
+   * the MediaSource after endOfStream(). So a SourceBuffer is trimmed only while it is idle,
+   * and only once it holds a second more than the back buffer keeps.
+   * @param {number} end - Keep what is buffered from here on.
+   */
+  removeBackBuffer(end) {
+    for (const wrapper of [this.videoSourceBuffer, this.audioSourceBuffer]) {
+      if (!wrapper || wrapper.updating || wrapper.sourceBuffer.updating || wrapper.toDo.length > 0) {
+        continue;
+      }
+      const buffered = wrapper.buffered;
+      if (buffered.length > 0 && buffered.start(0) < end - BACK_BUFFER_SLACK) {
+        wrapper.remove(0, end);
+      }
+    }
+  }
+
   runLoad() {
     if (this.metaData && !this.loaded) return;
 
@@ -402,7 +458,7 @@ export default class MP4Player extends EventEmitter {
       }
     }
 
-    this.removeFromBuffers(0, Math.min(time - this.options.backBufferLength - 1, currentFragment.start));
+    this.removeBackBuffer(Math.min(time - this.options.backBufferLength - 1, currentFragment.start));
 
     const len = frags.length;
     for (let i = currentFragment.sn; i < Math.min(currentFragment.sn + this.options.maxFragmentsBuffered, len); i++) {
@@ -520,12 +576,16 @@ export default class MP4Player extends EventEmitter {
 
   destroy() {
     this.running = false;
+    // SourceBuffer.abort() throws unless the MediaSource is open, and after endOfStream()
+    // it is 'ended': the throw left the player half destroyed, without DESTROYED ever being
+    // emitted.
+    const open = this.mediaSource?.readyState === 'open';
     if (this.videoSourceBuffer) {
-      this.videoSourceBuffer.abort();
+      if (open) this.videoSourceBuffer.abort();
       this.videoSourceBuffer = null;
     }
     if (this.audioSourceBuffer) {
-      this.audioSourceBuffer.abort();
+      if (open) this.audioSourceBuffer.abort();
       this.audioSourceBuffer = null;
     }
     if (this.mediaSourceURL) {
@@ -671,7 +731,9 @@ export default class MP4Player extends EventEmitter {
 
   updateDuration() {
     const newDuration = this.calculateDuration();
-    if (newDuration !== this._duration) {
+    // The MediaSource takes a duration only while it is open; after endOfStream() it is
+    // 'ended' until the next append opens it again, and the setter would throw.
+    if (newDuration !== this._duration && this.mediaSource.readyState === 'open') {
       this._duration = newDuration;
       this.mediaSource.duration = newDuration;
       this.emit(DefaultPlayerEvents.DURATIONCHANGE);
