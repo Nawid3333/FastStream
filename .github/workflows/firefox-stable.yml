@@ -100,6 +100,11 @@ jobs:
             sudo apt-get update && sudo apt-get install -y ffmpeg
           fi
 
+      # The e2e ports, out of the range Linux hands out to outgoing connections (ci.yml).
+      - name: Keep the e2e ports out of the ephemeral range
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999
+
       - name: Build
         run: pnpm run build:keep
 

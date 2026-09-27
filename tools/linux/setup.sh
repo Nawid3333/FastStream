@@ -113,6 +113,10 @@ for bin in actionlint shellcheck; do ln -sf "/opt/actionlint/$bin" "/usr/local/b
 
 id faststream > /dev/null 2>&1 || useradd -m -s /bin/bash faststream
 
+# The e2e ports, out of the range Linux hands out to outgoing connections (ci.yml). WSL
+# distros share one kernel, so this holds for all of them until WSL restarts.
+sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999 > /dev/null
+
 echo "ready: node $(node --version), firefox $(/opt/firefox/firefox --version | awk '{print $3}')," \
   "actionlint $(actionlint -version | head -1), shellcheck $(shellcheck --version | sed -n 's/^version: //p')," \
   "ffmpeg $(ffmpeg -hide_banner -version | awk 'NR == 1 {print $3}') with $(ffmpeg -hide_banner -encoders 2>/dev/null | grep -c libx264) libx264 encoder(s)"
