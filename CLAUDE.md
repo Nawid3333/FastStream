@@ -180,6 +180,23 @@ detection path — the one real users hit. That is the more valuable test than
 a pasted manifest URL, which only exercises the declarativeNetRequest
 redirect.
 
+**Automated: `pnpm run test:live`** (after `pnpm run build:keep`; 2026-09-27).
+`tests/e2e/live-specs/streams.e2e.mjs` runs this checklist on the installed extension
+against real streams: Shaka Player's demo assets on storage.googleapis.com (HLS and DASH
+angel-one: 5 qualities, 5 audio languages; DASH Sintel, 888 s, seeked 10 minutes in; a
+live DASH stream) and a progressive MP4 on raw.githubusercontent.com. The pages are local
+and embed them the way sites do: the site's own hls.js/dash.js (the official releases of
+the versions `package.json` pins, from the npm registry, cached in the OS temp dir), a
+plain `<video src>`, a cross-origin iframe that may go fullscreen (player laid over it)
+and one that may not (the frame is sent to the player page), plus a manifest opened
+directly (`playStreamURLs`). Not in `verify` or CI: a third-party outage must not block a
+release. Two things it found on its first run: a page whose query string names a stream
+was taken for the stream, and the player that takes over an iframe without
+`allowfullscreen` got no sources (PRs #40 and #41, each with its own ext-spec). Pages
+name their stream by key (`/hls?stream=hls`), never by URL, so the suite does not depend
+on the first fix. A test that switches into a frame must switch back before
+`browser.url()`, which navigates the frame WebDriver is in.
+
 Direct manifests for testing the redirect path instead (all verified
 `200 application/dash+xml`), which need `playStreamURLs` enabled first:
 
