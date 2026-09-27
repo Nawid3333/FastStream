@@ -32,9 +32,19 @@ const VTT = {
   '/chapters.vtt': 'WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nChapter one\n',
 };
 
+// A track on a slow connection: its bytes keep coming, but the whole file takes longer
+// than content.js's 2 s stall limit (8 pieces, 450 ms apart: about 3.6 s). A 2 s limit on
+// the whole request cut it off; the file still reached the player, because the
+// background detects the .vtt request by itself, but as "slow" - its file name - without
+// the page's label and language.
+const SLOW_VTT = 'WEBVTT\n\n00:00:00.500 --> 00:00:04.000\nSlow but steady\n';
+const SLOW_PIECES = 8;
+const SLOW_PIECE_MS = 450;
+
 let siteServer;
 // Requests for the track that never answers, kept open until the server closes.
 const hanging = new Set();
+const trickles = new Set();
 
 /**
  * Runs a function in a page of the extension, where chrome.* is available.
@@ -72,6 +82,23 @@ describe('subtitles from the page\'s <track> elements', function() {
         hanging.add(res);
         return;
       }
+      if (pathname === '/slow.vtt') {
+        res.writeHead(200, {'Content-Type': 'text/vtt; charset=utf-8'});
+        res.flushHeaders();
+        const size = Math.ceil(SLOW_VTT.length / SLOW_PIECES);
+        let sent = 0;
+        const timer = setInterval(() => {
+          res.write(SLOW_VTT.slice(sent * size, (sent + 1) * size));
+          sent++;
+          if (sent === SLOW_PIECES) {
+            clearInterval(timer);
+            trickles.delete(timer);
+            res.end();
+          }
+        }, SLOW_PIECE_MS);
+        trickles.add(timer);
+        return;
+      }
       if (VTT[pathname]) {
         res.writeHead(200, {'Content-Type': 'text/vtt; charset=utf-8'});
         res.end(VTT[pathname]);
@@ -86,6 +113,7 @@ describe('subtitles from the page\'s <track> elements', function() {
           <track kind="captions" src="/de.vtt" srclang="de" label="Deutsch page track">
           <track kind="chapters" src="/chapters.vtt" srclang="en" label="Chapters">
           <track kind="subtitles" src="/never.vtt" srclang="fr" label="Never answers">
+          <track kind="subtitles" src="/slow.vtt" srclang="es" label="Slow page track">
         </video>`);
     });
     await new Promise((resolve, reject) => {
@@ -107,10 +135,11 @@ describe('subtitles from the page\'s <track> elements', function() {
 
   after(async function() {
     hanging.forEach((res) => res.destroy());
+    trickles.forEach((timer) => clearInterval(timer));
     if (siteServer) await new Promise((resolve) => siteServer.close(resolve));
   });
 
-  it('hands the player the page\'s subtitles and captions, and not its chapters, without waiting on a track that never loads', async function() {
+  it('hands the player the page\'s subtitles and captions, and not its chapters, without waiting on a track that never loads, and with one that loads slowly', async function() {
     await browser.url(`${SITE}/watch`);
 
     await browser.waitUntil(async () => browser.execute(() => {
@@ -131,7 +160,7 @@ describe('subtitles from the page\'s <track> elements', function() {
             text: track.cues.map((cue) => cue.text),
           }));
         });
-        return tracks.length >= 2;
+        return tracks.length >= 3;
       }, {timeout: 20000, interval: 500});
     } catch (e) {
       throw new Error('the player has these subtitle tracks: ' + JSON.stringify(tracks));
@@ -140,7 +169,9 @@ describe('subtitles from the page\'s <track> elements', function() {
     }
 
     const byLabel = Object.fromEntries(tracks.map((track) => [track.label, track]));
-    expect(Object.keys(byLabel).sort()).toEqual(['Deutsch page track', 'English page track']);
+    expect(Object.keys(byLabel).sort()).toEqual(['Deutsch page track', 'English page track', 'Slow page track']);
+    expect(byLabel['Slow page track'].language).toBe('es');
+    expect(byLabel['Slow page track'].text).toEqual(['Slow but steady']);
     expect(byLabel['English page track'].language).toBe('en');
     expect(byLabel['English page track'].text).toEqual(['Hello from the page']);
     expect(byLabel['Deutsch page track'].language).toBe('de');

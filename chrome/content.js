@@ -1002,8 +1002,11 @@
 
   // The background opens the player only once the page's tracks have been read (see
   // handleCaptionsScrape), so a track whose server never answers must not be waited on:
-  // without a timeout that request hung, and the player with it.
-  const HttpRequestTimeoutMs = 2000;
+  // without a timeout that request hung, and the player with it. What gives a request up
+  // is a stall - this long with no byte arriving - so a large track on a slow connection
+  // still loads; the longer total bounds one that only trickles.
+  const HttpRequestStallMs = 2000;
+  const HttpRequestTimeoutMs = 10000;
 
   function httpRequest(...args) {
     const url = args[0];
@@ -1022,15 +1025,24 @@
     try {
       const xhr = new XMLHttpRequest();
       xhr.open(post ? 'POST' : 'GET', url + (bust ? ('?' + Date.now()) : ''));
-      // A timed-out request still reaches readyState 4, with status 0.
+      // A timed-out or aborted request still reaches readyState 4, with status 0.
       xhr.timeout = HttpRequestTimeoutMs;
+      let stallTimer;
+      const armStallTimer = () => {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => xhr.abort(), HttpRequestStallMs);
+      };
+      xhr.onprogress = armStallTimer;
       xhr.onreadystatechange = function() {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            callback(undefined, xhr, xhr.responseText);
-          } else {
-            callback(true, xhr, false);
-          }
+        if (xhr.readyState !== 4) {
+          armStallTimer();
+          return;
+        }
+        clearTimeout(stallTimer);
+        if (xhr.status === 200) {
+          callback(undefined, xhr, xhr.responseText);
+        } else {
+          callback(true, xhr, false);
         }
       };
       if (post) {
@@ -1047,6 +1059,7 @@
       }
 
       xhr.send(post);
+      armStallTimer();
     } catch (e) {
       callback(e);
     }
