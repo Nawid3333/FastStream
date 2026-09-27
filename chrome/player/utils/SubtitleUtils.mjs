@@ -1,3 +1,9 @@
+// A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
+// milliseconds, short or missing milliseconds, and one-digit minutes and seconds.
+const SRT_TIMESTAMP = /(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
+// The same at the start of a line, which is where a cue's timestamp is.
+const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
+
 /**
  * Utility functions for subtitle parsing and conversion.
  */
@@ -54,8 +60,9 @@ export class SubtitleUtils {
     // trim white space start and end
     srt = srt.replace(/^\s+|\s+$/g, '');
     // get cues: a cue ends at a blank line, however many follow it, and a line of
-    // spaces or tabs is as blank as an empty one
-    const cuelist = srt.split(/\n(?:[ \t]*\n)+/);
+    // spaces or tabs is as blank as an empty one; a cue also starts at its own timestamp
+    // when no blank line comes before it
+    const cuelist = srt.split(/\n(?:[ \t]*\n)+/).flatMap((block) => this.splitAtCueStarts(block));
     let result = '';
     if (cuelist.length > 0) {
       result += 'WEBVTT\n\n';
@@ -156,6 +163,44 @@ export class SubtitleUtils {
   }
 
   /**
+   * Splits a block of SubRip text at every cue that starts inside it. A cue starts at its
+   * timestamp line, or at the sequence number just before it, and ffmpeg (so mpv) starts a
+   * new cue there even with no blank line before it. Files that leave the blank line out, or
+   * write a non-breaking space on it, lost the next cue: its timestamp became a line of the
+   * previous cue's text. A line of invisible whitespace left at the end of a cue by such a
+   * separator is dropped; inside a cue it is kept, as ffmpeg keeps it.
+   * @param {string} block - SubRip text with no blank line in it.
+   * @return {string[]} One block per cue, in order.
+   */
+  static splitAtCueStarts(block) {
+    const lines = block.split('\n');
+    const cues = [];
+    const push = (from, to) => {
+      const cue = lines.slice(from, to);
+      while (cue.length > 0 && cue[cue.length - 1].trim() === '') {
+        cue.pop();
+      }
+      if (cue.length > 0) {
+        cues.push(cue.join('\n'));
+      }
+    };
+
+    let start = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (!SRT_CUE_START.test(lines[i])) {
+        continue;
+      }
+      const cueStart = i > start && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
+      if (cueStart > start) {
+        push(start, cueStart);
+        start = cueStart;
+      }
+    }
+    push(start, lines.length);
+    return cues;
+  }
+
+  /**
    * Converts a single SRT caption to a formatted string.
    * @param {Object} caption - SRT caption object.
    * @return {string} Formatted caption string.
@@ -170,7 +215,7 @@ export class SubtitleUtils {
     }
 
     // The timestamp line comes first, or second after a sequence-number line.
-    const timestamp = /(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
+    const timestamp = SRT_TIMESTAMP;
     let line = 0;
     let cue = '';
     if (!timestamp.test(lines[0]) && timestamp.test(lines[1])) {

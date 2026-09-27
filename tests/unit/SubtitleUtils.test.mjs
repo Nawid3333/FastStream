@@ -124,6 +124,39 @@ describe('srt2webvtt', () => {
     expect(out).toContain('00:00:03.000 --> 00:00:04.000\nSecond');
   });
 
+  // Each expectation below is what ffmpeg 9 (so mpv) makes of the same file, measured with
+  // `ffmpeg -i x.srt -f webvtt -`, except that ffmpeg keeps the invisible line a
+  // non-breaking-space separator leaves at the end of a cue.
+  it('starts a cue at its timestamp when no blank line comes before it', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('keeps every cue when the line between them holds only a non-breaking space', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n \n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('keeps a non-breaking-space line inside a cue as part of its text', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nTop line\n \nBottom line\n\n' +
+      '2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nTop line\n \nBottom line\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
+  it('does not take a text line that starts with a number for a sequence number', () => {
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n' +
+      '2\n00:00:03,000 --> 00:00:04,000\n12 monkeys\nSecond';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\nFirst\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\n12 monkeys\nSecond\n\n');
+  });
+
   it('produces a WEBVTT header followed by converted cues', () => {
     const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
     const out = SubtitleUtils.srt2webvtt(srt);
