@@ -176,7 +176,12 @@ jobs:
   # unit tests, the AMO linters) stay in `verify`. auto-release.yml waits for the whole
   # workflow, so a release ships only when Windows passes too.
   e2e-windows:
-    name: e2e (Windows)
+    # TRIAL, removed before merge: five runs at once, to see whether mpv holds on CI.
+    name: e2e (Windows) trial ${{ matrix.trial }}
+    strategy:
+      fail-fast: false
+      matrix:
+        trial: [1, 2, 3, 4, 5]
     runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
     timeout-minutes: 60
     defaults:
@@ -202,6 +207,57 @@ jobs:
       - name: e2e setup
         uses: ./.github/actions/e2e-setup
 
+      # mpv and the FastStream native host, so the MPV-mode specs (ext-specs/mpv,
+      # classic-specs/mpv-*) run here instead of skipping: they check the request mpv
+      # itself makes for the stream, headers included, through the real host. Stock mpv,
+      # pinned by version and checksum; the maintainer's own build is covered by the
+      # local verify. install.ps1 is the installer users run.
+      - name: Install mpv and the native host
+        shell: pwsh
+        env:
+          MPV_URL: https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-x86_64-w64-mingw32.zip
+          MPV_SHA256: a49811c0752c108b8260636f9c6f6fcb97406641c98b30f1e7b500dfb20177de
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'mpv.zip'
+          $dir = Join-Path $env:RUNNER_TEMP 'mpv'
+          foreach ($attempt in 1..3) {
+            try {
+              Invoke-WebRequest -Uri $env:MPV_URL -OutFile $zip
+              break
+            } catch {
+              if ($attempt -eq 3) { throw }
+              Write-Warning "Download attempt $attempt failed: $_"
+              Start-Sleep -Seconds 15
+            }
+          }
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+          if ($hash -ne $env:MPV_SHA256) {
+            throw "mpv.zip has SHA-256 $hash, expected $env:MPV_SHA256"
+          }
+          # The release zip holds one more zip, with mpv.exe and its DLLs at its root.
+          Expand-Archive -LiteralPath $zip -DestinationPath "$dir-outer"
+          $inner = @(Get-ChildItem -LiteralPath "$dir-outer" -Filter *.zip)
+          if ($inner.Count -ne 1) { throw "Expected one zip inside mpv.zip, found $($inner.Count)" }
+          Expand-Archive -LiteralPath $inner[0].FullName -DestinationPath $dir
+          $mpv = Join-Path $dir 'mpv.exe'
+          & (Join-Path $dir 'mpv.com') --no-config --version | Select-Object -First 1
+          # mpv reads only portable_config next to its exe: its log goes with the e2e
+          # logs. Each mpv started writes it anew, so it is the last one's.
+          New-Item -ItemType Directory -Force -Path (Join-Path $dir 'portable_config'), logs | Out-Null
+          $log = (Join-Path $env:GITHUB_WORKSPACE 'logs\mpv.log') -replace '\\', '/'
+          "log-file=$log" | Set-Content -LiteralPath (Join-Path $dir 'portable_config\mpv.conf') -Encoding ASCII
+          ./native-host/install.ps1 -MpvPath $mpv -NodePath (Get-Command node).Source
+          # What the specs check before they run, rather than skip: the registry key, and
+          # the manifest it names.
+          $manifest = (Get-ItemProperty -LiteralPath 'HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv').'(default)'
+          if (-not $manifest -or -not (Test-Path -LiteralPath $manifest)) {
+            throw "The native host is not registered: '$manifest'"
+          }
+          Get-Content -LiteralPath $manifest
+          # The host logs what it is asked and what it starts, for a failed run's artifact.
+          'FASTSTREAM_MPV_DEBUG=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Build all targets
         run: pnpm run build:keep
 
@@ -217,11 +273,21 @@ jobs:
       - name: End-to-end extension tests, private browsing (Windows Firefox)
         run: pnpm run test:pbm
 
+      - name: Add the native host's log
+        if: failure()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost\faststream-mpv-host.log'
+          if (Test-Path -LiteralPath $log) {
+            New-Item -ItemType Directory -Force -Path logs | Out-Null
+            Copy-Item -LiteralPath $log -Destination logs
+          }
+
       - name: Upload e2e failure logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-logs-windows
+          name: e2e-logs-windows-${{ matrix.trial }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
