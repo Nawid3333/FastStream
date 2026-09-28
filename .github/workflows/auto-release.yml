@@ -116,14 +116,31 @@ jobs:
           fi
           echo "release=$release" >> "$GITHUB_OUTPUT"
 
-      - name: Configure git identity
+      # A push that landed while CI ran is on main now, on top of this commit, and its own
+      # CI run releases this commit's changes with its own. Bumping here would be refused
+      # at the push (main is no longer this commit) and the run would go red for nothing.
+      - name: Is this commit still main's newest?
+        id: head
         if: steps.shipped.outputs.release == 'yes'
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          main=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$main" = "$HEAD_SHA" ]; then
+            echo "current=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::main moved on to ${main:0:8} while CI ran on ${HEAD_SHA:0:8}. That push's own run releases both; nothing to do here."
+            echo "current=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git identity
+        if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
         run: |
           git config user.name  'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
       - name: Bump version, commit, tag, push
-        if: steps.shipped.outputs.release == 'yes'
+        if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
         run: |
           CURRENT=$(node -p "require('./package.json').version")
           IFS='.' read -r major minor patch build <<< "$CURRENT"
@@ -150,9 +167,16 @@ jobs:
       # release.yml's own `on: push: tags:` trigger will not fire for the
       # tag just pushed - see the header comment - so dispatch it directly
       # against that tag instead of waiting on a push event that never
-      # comes.
+      # comes. Should that fail three times, amo-signing-failsafe.yml finds the tag
+      # without a release within 3 hours and starts release.yml for it.
       - name: Trigger the release build
-        if: steps.shipped.outputs.release == 'yes'
+        if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run release.yml --ref "$NEW_TAG"
+        run: |
+          for attempt in 1 2 3; do
+            gh workflow run release.yml --ref "$NEW_TAG" && exit 0
+            echo "Starting release.yml failed (attempt $attempt of 3); trying again in 20 s."
+            sleep 20
+          done
+          exit 1
