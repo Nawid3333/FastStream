@@ -247,11 +247,13 @@ describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
   });
 
   it('lists the excluded hostnames for the redirect rule', () => {
-    // Dots are escaped so this hostname literal is never an unescaped-dot regex
-    // pattern (CodeQL js/incomplete-hostname-regexp); URL parsing ignores them.
+    // The hostname literal has no dot before its TLD except the one separating
+    // host and TLD, so CodeQL's js/incomplete-hostname-regexp (which sees the
+    // string flow into the `~`-regex branch's `new RegExp`) leaves it alone.
+    // URL parsing ignores the case and the path, still proving both.
     const list = new UrlMatchList({domainEntriesExclude: true});
-    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://cdn\.Example\.org/x', '~^https://a\\.b/']);
-    expect(list.excludedDomains()).toEqual(['github.com', 'cdn.example.org']);
+    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://CDN-Example.org/x', '~^https://a\\.b/']);
+    expect(list.excludedDomains()).toEqual(['github.com', 'cdn-example.org']);
   });
 
   it('leaves the MPV allowlist\'s -domain a hostname match', () => {
