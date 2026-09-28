@@ -1,0 +1,79 @@
+name: e2e setup
+description: >-
+  What every e2e job needs besides the checkout and its dependencies: ffmpeg, the e2e
+  ports kept out of Linux's ephemeral range, and the Firefox to test, exported as
+  FIREFOX_BINARY for the wdio configs. Used by ci.yml (Linux and Windows),
+  firefox-beta.yml, firefox-stable.yml and live-streams.yml, which each carried their own
+  copy before. The downloads come from Chocolatey, apt and Mozilla; each is tried again
+  before the job fails, because a hiccup there is not a FastStream failure.
+
+inputs:
+  firefox-version:
+    description: What browser-actions/setup-firefox installs - latest, latest-beta, or a version.
+    default: latest
+
+outputs:
+  firefox-path:
+    description: The Firefox binary the e2e suites use.
+    value: ${{ steps.firefox.outputs.firefox-path || steps.firefox-again.outputs.firefox-path }}
+  firefox-version:
+    description: Its version.
+    value: ${{ steps.firefox.outputs.firefox-version || steps.firefox-again.outputs.firefox-version }}
+
+runs:
+  using: composite
+  steps:
+    # Linux: Firefox decodes H.264/AAC through the system ffmpeg; without it every stream
+    # loads and never reaches HAVE_CURRENT_DATA, which looks exactly like a broken media
+    # library. Windows: the e2e setup builds its video fixtures with ffmpeg, and the image
+    # has Chocolatey but no ffmpeg.
+    - name: Install ffmpeg
+      shell: bash
+      run: |
+        for attempt in 1 2 3; do
+          if [ "$RUNNER_OS" = Windows ]; then
+            choco install ffmpeg -y --no-progress && break
+          else
+            sudo apt-get update && sudo apt-get install -y ffmpeg && break
+          fi
+          echo "::warning::Installing ffmpeg failed (attempt $attempt of 3); trying again in 30 s."
+          sleep 30
+        done
+        # sed, not head: head would close the pipe early, and pipefail fail the step.
+        ffmpeg -hide_banner -version | sed -n 1p
+
+    # The e2e servers listen on fixed ports from 41800 to 41999 (tests/unit/e2ePorts keeps
+    # them there), inside the range Linux hands out to outgoing connections, 32768 to 60999.
+    # A connection that happens to get a test's port makes that server's listen() fail with
+    # EADDRINUSE (mpv-suspend's 41996 on PR #40); reserved ports are never handed out.
+    # Windows hands out 49152-65535 and needs nothing.
+    - name: Keep the e2e ports out of the ephemeral range
+      if: runner.os == 'Linux'
+      shell: bash
+      run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999
+
+    # The Firefox asked for, not whatever release the runner image carries (the Windows
+    # image had 155.0.1 when 156.0.1 was out).
+    - name: Install Firefox ${{ inputs.firefox-version }}
+      id: firefox
+      continue-on-error: true
+      uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+      with:
+        firefox-version: ${{ inputs.firefox-version }}
+
+    - name: Install Firefox ${{ inputs.firefox-version }}, second try
+      id: firefox-again
+      if: steps.firefox.outcome == 'failure'
+      uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+      with:
+        firefox-version: ${{ inputs.firefox-version }}
+
+    - name: Use it for the e2e suites
+      shell: bash
+      env:
+        FIREFOX_PATH: ${{ steps.firefox.outputs.firefox-path || steps.firefox-again.outputs.firefox-path }}
+        FIREFOX_VERSION: ${{ steps.firefox.outputs.firefox-version || steps.firefox-again.outputs.firefox-version }}
+      run: |
+        echo "FIREFOX_BINARY=$FIREFOX_PATH" >> "$GITHUB_ENV"
+        # Not "firefox --version": firefox.exe does not print it to a console on Windows.
+        echo "Firefox $FIREFOX_VERSION at $FIREFOX_PATH"
