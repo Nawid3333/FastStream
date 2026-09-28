@@ -11,9 +11,12 @@
 // .github/workflows/amo-signing-failsafe.yml asks AMO for that version with this script.
 // The file it downloads is byte-identical to what web-ext saves (checked on 1.3.82.27).
 //
-// Usage: node tools/fetch-amo-signed.mjs <version>
+// Usage: node tools/fetch-amo-signed.mjs <version> [--wait <minutes>]
 //   Credentials as in tools/sign-amo.mjs: .amo-credentials.json, or AMO_API_KEY and
 //   AMO_API_SECRET. The add-on id is read from build_firefox_amo/manifest.json.
+//   --wait keeps asking, every 30 s, while the version is pending or the network fails,
+//   for up to that many minutes: the failsafe runs right after a release whose signing
+//   did not finish, when AMO is often minutes from done.
 //
 // Prints `state=<state>` for the workflow and exits with:
 //   0  signed   - the xpi is saved in web-ext-artifacts/
@@ -79,7 +82,8 @@ export function isNetworkError(error) {
 
 /**
  * Asks AMO about a version until it is signed, rejected or missing, or the time runs out.
- * A check that throws (the network again) is asked again at the next interval.
+ * A check the network failed is asked again at the next interval; any other error (no
+ * credentials, the wrong build) is thrown at once, as waiting cannot mend it.
  * @param {function(): Promise<string>} check - Resolves with a signingState() state.
  * @param {Object} options
  * @param {number} options.deadline - Stop asking after this time (ms since the epoch).
@@ -102,6 +106,9 @@ export async function waitForSigned(check, {
     try {
       state = await check();
     } catch (error) {
+      if (!isNetworkError(error)) {
+        throw error;
+      }
       state = 'error';
       log(`Asking AMO failed: ${error.message}`);
     }
@@ -157,12 +164,33 @@ export async function fetchSigned(version) {
   return state;
 }
 
-async function main() {
-  const version = process.argv[2];
-  if (!version) {
-    throw new Error('usage: node tools/fetch-amo-signed.mjs <version>');
+/**
+ * Reads the command line.
+ * @param {string[]} args - process.argv after the script.
+ * @return {{version: string, waitMinutes: number}}
+ */
+export function parseArgs(args) {
+  const [version, ...rest] = args;
+  if (!version || version.startsWith('-')) {
+    throw new Error('usage: node tools/fetch-amo-signed.mjs <version> [--wait <minutes>]');
   }
-  process.exitCode = EXIT[await fetchSigned(version)];
+  let waitMinutes = 0;
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] === '--wait' && /^\d+$/.test(rest[i + 1] || '')) {
+      waitMinutes = Number(rest[++i]);
+    } else {
+      throw new Error(`unknown argument: ${rest[i]}`);
+    }
+  }
+  return {version, waitMinutes};
+}
+
+async function main() {
+  const {version, waitMinutes} = parseArgs(process.argv.slice(2));
+  const state = waitMinutes > 0 ?
+    await waitForSigned(() => fetchSigned(version), {deadline: Date.now() + waitMinutes * 60 * 1000}) :
+    await fetchSigned(version);
+  process.exitCode = EXIT[state];
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

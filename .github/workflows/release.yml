@@ -8,26 +8,26 @@ name: Release
 # build plus the Firefox AMO build, signed by Mozilla so it installs with no
 # "unverified" warning.
 #
-# Fires on a version tag push - from tools/cut-release.mjs (a deliberate
-# manual version bump) or from auto-release.yml (an automatic build-number
-# bump after every green push to main). Either way, by the
-# time the tag lands here package.json and chrome/manifest.json already
-# agree with it. workflow_dispatch is for re-running by hand against an
-# existing tag if a release needs to be redone.
+# Fires on a version tag push from tools/cut-release.mjs (a deliberate manual
+# version bump), and is dispatched by auto-release.yml (the automatic
+# build-number bump after every green push to main; its tag push cannot fire
+# this, see there) and by amo-signing-failsafe.yml (a tag left without a
+# release). Either way, by the time the tag lands here package.json and
+# chrome/manifest.json already agree with it. Only lowercase v tags: the
+# capital-V ones in this repository are upstream's (V1.3.77 and so on), copied
+# when it was forked. Run again for a tag that already has a release, it
+# replaces that release's files instead of failing.
 #
-# This is the only AMO signing path now -- the old publish-amo.yml, which
-# signed continuously on every merge to main, was removed
-# once this workflow made it redundant (both existed briefly). AMO signing
-# happens once per release, right here.
+# AMO signing happens once per release, right here (the old publish-amo.yml,
+# which signed on every merge to main, was removed).
 #
-# continue-on-error on the sign step is worth keeping: a credential rotation,
-# a network blip, or AMO taking too long to review can all fail it
-# independently of anything else in the release, and none of those should
-# hold back the three unsigned zips. When it does fail, fix the cause, then
-# attach the xpi by hand with `gh release upload <tag> <file>` once a manual
-# `pnpm run sign:amo` produces one -- and regenerate updates.json (see below)
-# the same way, or the self-update path stays stuck on the last release that
-# had one.
+# continue-on-error on the sign step: AMO taking longer than the 30-minute wait,
+# or a credential problem, fails it independently of everything else in the
+# release, and should not hold back the zip. tools/sign-amo.mjs already waits
+# out a network error. Whatever the outcome, the last step starts
+# amo-signing-failsafe.yml, which attaches the xpi and updates.json once AMO
+# has signed, re-runs a release that failed before publishing, checks the
+# update path Firefox uses, and opens an issue when any of that needs a person.
 #
 # Self-hosted auto-update: the AMO build's manifest points
 # browser_specific_settings.gecko.update_url at
@@ -42,11 +42,12 @@ on:
   push:
     tags:
       - "v*.*.*"
-      - "V*.*.*"
   workflow_dispatch:
 
 permissions:
   contents: write
+  # The last step starts amo-signing-failsafe.yml.
+  actions: write
 
 jobs:
   release:
@@ -70,9 +71,6 @@ jobs:
           check-latest: true
           cache: pnpm
 
-      # --frozen-lockfile also applies patches/ during install, which the
-      # build needs: chrome/player/modules/hls.mjs is generated from the
-      # patched npm package, not tracked in git.
       # Before anything is built or signed: a release whose tag disagrees with
       # the version inside it would sign and publish an xpi under the wrong
       # number, and updates.json would point Firefox at it. auto-release.yml
@@ -92,6 +90,9 @@ jobs:
           fi
           echo "tag $TAG matches package.json and chrome/manifest.json ($pkg_version)"
 
+      # --frozen-lockfile also applies patches/ during install, which the
+      # build needs: chrome/player/modules/hls.mjs is generated from the
+      # patched npm package, not tracked in git.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -125,16 +126,38 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          SIGNED: ${{ steps.sign.outcome }}
         run: |
           assets=(
             built/firefox-github-*.zip
           )
-          if [ "${{ steps.sign.outcome }}" = "success" ]; then
+          if [ "$SIGNED" = "success" ]; then
             assets+=(web-ext-artifacts/*.xpi web-ext-artifacts/updates.json)
           else
-            echo "::warning::AMO signing did not finish -- releasing without the signed xpi or updates.json. amo-signing-failsafe.yml attaches both once AMO has signed the version (it checks every 3 hours)."
+            echo "::warning::AMO signing did not finish -- releasing without the signed xpi or updates.json. amo-signing-failsafe.yml, started below, attaches both once AMO has signed the version."
           fi
-          gh release create "${{ github.ref_name }}" \
-            "${assets[@]}" \
-            --title "FastStream ${{ github.ref_name }}" \
-            --generate-notes
+          # A tag released before (a run by hand to redo a release) gets its files
+          # replaced; `gh release create` would fail on it.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" \
+              --title "FastStream $TAG" --generate-notes
+          fi
+
+      # After every run, published or not: the failsafe completes a release whose
+      # signing did not finish, re-runs one that failed before publishing, and checks
+      # the update path Firefox reads. Waiting for its schedule could leave Firefox
+      # without the update for hours.
+      - name: Start the release failsafe
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for attempt in 1 2 3; do
+            gh workflow run amo-signing-failsafe.yml --repo "$GITHUB_REPOSITORY" && exit 0
+            echo "Starting the failsafe failed (attempt $attempt of 3); trying again in 20 s."
+            sleep 20
+          done
+          echo "::warning::Could not start amo-signing-failsafe.yml; its schedule runs it within 3 hours."
