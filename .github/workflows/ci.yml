@@ -1,13 +1,14 @@
 name: CI
 
-# Runs on every push to main and pr/** and on every pull request, and is the
-# gate for releases: auto-release.yml only acts on a green run of this
-# workflow. The steps are the same as `pnpm run verify`, so a green local
-# verify predicts a green CI run and the other way round.
+# Runs on every push to main and on every pull request, and is the gate for
+# releases: auto-release.yml only acts on a green run of this workflow. The steps
+# are the same as `pnpm run verify`, so a green local verify predicts a green CI
+# run and the other way round. (Pushes to pr/** also ran it while this fork sent
+# pull requests upstream from such branches; that ended in September 2026.)
 
 on:
   push:
-    branches: [main, "pr/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -110,6 +111,11 @@ jobs:
       - name: Vendored file provenance (vtt.js, knob, VAD model)
         run: pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad
 
+      # ffmpeg (Firefox on Linux decodes H.264/AAC through it), the e2e ports reserved,
+      # and the current stable Firefox - the one users run - as FIREFOX_BINARY.
+      - name: e2e setup
+        uses: ./.github/actions/e2e-setup
+
       # Real playback in a real Firefox: each case loads a stream and asserts
       # that currentTime actually advances, which is what catches a broken or
       # mismatched media library. This replaces a manual three-URL checklist
@@ -118,34 +124,6 @@ jobs:
       # It needs network access for the HLS and DASH streams; the MP4 fixture
       # is fetched once and cached. Not marked continue-on-error: a library
       # swap that stops video decoding should fail the build.
-      # Firefox on Linux decodes H.264/AAC through ffmpeg's libavcodec rather
-      # than shipping its own. Without this the runner loads every stream and
-      # then never reaches HAVE_CURRENT_DATA, which looks exactly like a broken
-      # media library but is a missing codec.
-      - name: Install media codecs
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      # The e2e servers listen on fixed ports from 41800 to 41999 (tests/unit/e2ePorts
-      # keeps them there), inside the range Linux hands out to outgoing connections, 32768
-      # to 60999. A connection that happens to get a test's port makes that server's
-      # listen() fail with EADDRINUSE (mpv-suspend's 41996 on PR #40); reserved ports are
-      # never handed out. Windows hands out 49152-65535 and needs nothing.
-      - name: Keep the e2e ports out of the ephemeral range
-        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999
-
-      # The current stable Firefox, the one users run, rather than whatever release the
-      # runner image carries (the Windows image had 155.0.1 when 156.0.1 was out).
-      - name: Install the current stable Firefox
-        id: firefox
-        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
-        with:
-          firefox-version: latest
-
-      - name: Use it for the e2e suites
-        run: |
-          echo "FIREFOX_BINARY=${{ steps.firefox.outputs.firefox-path }}" >> "$GITHUB_ENV"
-          "${{ steps.firefox.outputs.firefox-path }}" --version
-
       - name: End-to-end playback (Firefox)
         run: pnpm run test:e2e
 
@@ -179,13 +157,18 @@ jobs:
           name: e2e-logs
           path: logs/
           if-no-files-found: ignore
+          retention-days: 30
 
+      # auto-release.yml downloads this within minutes of the run, to compare what ships
+      # with the latest release; nothing reads it later. GitHub's default kept every
+      # run's copy for 90 days (57 of them, 469 MB, in September 2026).
       - name: Upload extension bundles
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: faststream-bundles
           path: built/*.zip
           if-no-files-found: error
+          retention-days: 7
 
   # The same e2e suites on Windows Firefox - the platform FastStream is used on.
   # Windows decodes H.264/AAC through Media Foundation where Linux uses ffmpeg, so
@@ -214,23 +197,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The e2e setup builds its video fixtures with ffmpeg (tests/e2e/wdio.conf.mjs);
-      # the Windows image has Chocolatey but no ffmpeg.
-      - name: Install ffmpeg
-        run: choco install ffmpeg -y --no-progress
-
-      - name: Install the current stable Firefox
-        id: firefox
-        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
-        with:
-          firefox-version: latest
-
-      - name: Use it for the e2e suites
-        run: |
-          echo "FIREFOX_BINARY=${{ steps.firefox.outputs.firefox-path }}" >> "$GITHUB_ENV"
-          # firefox.exe does not print --version to a console on Windows; the action says.
-          echo "Firefox ${{ steps.firefox.outputs.firefox-version }} at ${{ steps.firefox.outputs.firefox-path }}"
-          ffmpeg -hide_banner -version | head -1
+      # ffmpeg (the e2e setup builds its video fixtures with it) and the current stable
+      # Firefox as FIREFOX_BINARY.
+      - name: e2e setup
+        uses: ./.github/actions/e2e-setup
 
       - name: Build all targets
         run: pnpm run build:keep
@@ -254,3 +224,4 @@ jobs:
           name: e2e-logs-windows
           path: logs/
           if-no-files-found: ignore
+          retention-days: 30

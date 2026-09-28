@@ -1,25 +1,37 @@
-name: AMO signing failsafe
+name: Release failsafe
 
-# Completes a release whose AMO signing did not finish inside release.yml.
+# Makes sure every release reaches Firefox, and says so when it cannot. (The file keeps
+# its first name, from when it only completed AMO signing.)
 #
-# AMO has no webhook for "signed", so release.yml can only upload and then poll, and its
-# wait has to end somewhere (tools/sign-amo.mjs, 30 minutes). Measured over 30 releases,
-# signing took 2-6 minutes; the one that took 15 hit the old 15-minute wait, and that
-# release (v1.3.82.2), like v1.3.79.0, went out without the signed xpi and updates.json -
-# although AMO signed both shortly afterwards. Without updates.json on the latest release,
-# Firefox's update check finds nothing and the self-update path is stuck.
+# release.yml starts this after every run, published or not; a schedule runs it every 3
+# hours as well, for anything that slipped past. Each run looks at:
 #
-# Every 3 hours this looks at the latest release. If it has its xpi and updates.json, it
-# stops there. If not, it builds that tag and asks AMO about the version
-# (tools/fetch-amo-signed.mjs, which uploads nothing):
-#   signed    download the xpi (byte-identical to what web-ext saves), generate
-#             updates.json, attach both to the release
-#   pending   still in review: the next run tries again
-#   missing   AMO never received it (the upload itself failed): sign it now
-#   rejected  waiting will not help
-# When the release is still incomplete after 24 hours, or AMO rejected it, an issue is
-# opened, assigned to the owner and @mentioning them, once per release. It is closed as
-# soon as the release is complete.
+# 1. The newest version tag. A tag without a release means release.yml failed before it
+#    published - a build error, the network failing during the install - or was never
+#    started. This starts release.yml for the tag again, at most twice in all, and when
+#    that has not helped opens the issue "Release <tag> failed". Firefox does not get a
+#    version until it is published.
+#
+# 2. The latest release. Complete means it has the zip, the signed xpi and updates.json;
+#    Firefox's update check reads the latest release's updates.json, so without it the
+#    self-update path is stuck.
+#    - Incomplete: build its tag and ask AMO about the version (tools/fetch-amo-signed.mjs,
+#      which uploads nothing), waiting up to 40 minutes, through network failures, for
+#      the signature - release.yml's own wait ends after 30 minutes, and AMO has taken 15.
+#        signed    download the xpi (byte-identical to what web-ext saves), generate
+#                  updates.json, attach both (and the zip, if that is missing too)
+#        pending   the next run asks again
+#        missing   AMO never received it (the upload itself failed): sign it now
+#        rejected  waiting will not help
+#      Rejected, or still incomplete 24 hours after it was published: the issue "AMO
+#      signing incomplete: <tag>".
+#    - Complete: follow the update path the way Firefox does (tools/check-update-path.mjs):
+#      the update_url redirect, updates.json, the xpi's hash, Mozilla's signature, the
+#      version and the add-on id. Broken: the issue "Update path broken: <tag>". A check
+#      the network stopped is not reported; the next run makes it again.
+#
+# Every issue is assigned to the owner and @mentions them, so it arrives by email; it is
+# opened once, and closed by the first run that finds it resolved.
 
 on:
   schedule:
@@ -29,6 +41,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: write   # start release.yml again for a tag it did not publish
 
 concurrency:
   group: amo-signing-failsafe
@@ -36,17 +49,24 @@ concurrency:
 
 jobs:
   failsafe:
-    name: Complete the latest release's AMO signing
+    name: Make sure the latest release reaches Firefox
     runs-on: ubuntu-latest
-    # A fresh upload waits up to 30 minutes for approval (tools/sign-amo.mjs), plus the build.
-    timeout-minutes: 45
+    # Up to 15 minutes for a release.yml run to finish, the build, and 40 for AMO.
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       OWNER: ${{ github.repository_owner }}
-      ISSUE_PREFIX: 'AMO signing incomplete: '
+      SIGNING_PREFIX: 'AMO signing incomplete: '
+      PATH_PREFIX: 'Update path broken: '
 
     steps:
-      - name: Check the latest release
+      # main, with every tag: the release tools below are main's, and a tag is checked out
+      # only to build it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Look at the newest tag and the latest release
         id: release
         run: |
           set -euo pipefail
@@ -54,33 +74,155 @@ jobs:
           assets=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")')
           age_hours=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 3600 ))
           complete=false
-          if [[ " $assets " == *" updates.json "* ]] && [[ "$assets" == *.xpi* ]]; then
+          if [[ " $assets " == *" updates.json "* ]] && [[ "$assets" == *.xpi* ]] && [[ "$assets" == *firefox-github-*.zip* ]]; then
             complete=true
           fi
-          echo "Latest release $tag, published ${age_hours} h ago, complete: $complete"
+          # The project's own tags only: lowercase v. The capital-V ones are upstream's,
+          # copied when the repository was forked.
+          newest=$(git tag -l 'v*' | grep -E '^v[0-9]+(\.[0-9]+)+$' | sort -V | tail -1 || true)
+          orphan=
+          if [ -n "$newest" ] && [ "$newest" != "$tag" ] &&
+             [ "$(printf '%s\n%s\n' "$tag" "$newest" | sort -V | tail -1)" = "$newest" ] &&
+             ! gh release view "$newest" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            orphan=$newest
+          fi
+          echo "Latest release $tag, published ${age_hours} h ago, complete: $complete. Newest tag: ${newest:-none}${orphan:+, which has no release}."
           {
             echo "tag=$tag"
             echo "version=${tag#[vV]}"
+            echo "assets=$assets"
             echo "age_hours=$age_hours"
             echo "complete=$complete"
+            echo "orphan=$orphan"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Close issues for complete releases
+      - name: Close the issues that are resolved
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          COMPLETE: ${{ steps.release.outputs.complete }}
+        run: |
+          set -euo pipefail
+          open_issues() { # title prefix -> "number<TAB>title" of each open issue
+            gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+              --jq ".[] | select(.title | startswith(\"$1\")) | \"\(.number)\t\(.title)\""
+          }
+          if [ "$COMPLETE" = true ]; then
+            open_issues "$SIGNING_PREFIX" | while IFS=$'\t' read -r number _; do
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
+                --comment "The latest release, $TAG, has its signed xpi and updates.json. Closing."
+            done
+          fi
+          open_issues 'Release v' | while IFS=$'\t' read -r number title; do
+            failed=${title#Release }
+            failed=${failed% failed}
+            if [ "$title" = "Release $failed failed" ] && gh release view "$failed" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "$failed has its release now. Closing."
+            fi
+          done
+
+      - name: Start release.yml again for a tag it did not publish
+        if: steps.release.outputs.orphan != ''
+        env:
+          ORPHAN: ${{ steps.release.outputs.orphan }}
+        run: |
+          set -euo pipefail
+          runs() { # jq filter over this tag's release.yml runs
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$ORPHAN" --limit 20 \
+              --json status --jq "$1"
+          }
+          # release.yml starts this failsafe as its last step, so its run for the tag is
+          # usually still finishing.
+          for _ in $(seq 1 30); do
+            [ "$(runs '[.[] | select(.status != "completed")] | length')" = 0 ] && break
+            sleep 30
+          done
+          if gh release view "$ORPHAN" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$ORPHAN has been published meanwhile."
+            exit 0
+          fi
+          attempts=$(runs '[.[] | select(.status == "completed")] | length')
+          tagged=$(git for-each-ref --format='%(creatordate:unix)' "refs/tags/$ORPHAN")
+          age_minutes=$(( ( $(date +%s) - tagged ) / 60 ))
+          if [ "$attempts" -eq 0 ] && [ "$age_minutes" -lt 10 ]; then
+            echo "$ORPHAN was tagged $age_minutes min ago and release.yml has not run for it yet: auto-release.yml starts it."
+            exit 0
+          fi
+          if [ "$attempts" -lt 2 ]; then
+            echo "$ORPHAN has no release after $attempts release.yml run(s). Starting another."
+            gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$ORPHAN"
+            exit 0
+          fi
+          title="Release $ORPHAN failed"
+          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "Already reported: $title."
+            exit 0
+          fi
+          runs_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/release.yml?query=branch%3A$ORPHAN"
+          # The backticks are Markdown for the issue body, not command substitution.
+          # shellcheck disable=SC2016
+          {
+            printf '@%s %s is tagged but has no release: release.yml failed %s times for it, the last of them started by this failsafe. Firefox does not get this version until it is published.\n\n' "$OWNER" "$ORPHAN" "$attempts"
+            printf 'The runs: %s\n\n' "$runs_url"
+            printf 'Fix what they report, then run release.yml for the tag again: `gh workflow run release.yml --ref %s`. This issue closes on its own once %s has its release.\n' "$ORPHAN" "$ORPHAN"
+          } > "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+      # --- The latest release is complete: check the update path Firefox follows.
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.release.outputs.complete == 'true'
+        with:
+          node-version: 22
+          check-latest: true
+
+      - name: Check the update path Firefox follows
         if: steps.release.outputs.complete == 'true'
         env:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
-          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
-            --jq ".[] | select(.title | startswith(\"$ISSUE_PREFIX\")) | .number" |
-          while read -r number; do
-            gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
-              --comment "The latest release, $TAG, has its signed xpi and updates.json. Closing."
-          done
+          set -euo pipefail
+          code=0
+          node tools/check-update-path.mjs "$GITHUB_REPOSITORY" "$TAG" > "$RUNNER_TEMP/path.txt" 2>&1 || code=$?
+          cat "$RUNNER_TEMP/path.txt"
+          if [ "$code" = 2 ]; then
+            echo "::notice::The network stopped the update path check; the next run makes it again."
+            exit 0
+          fi
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title | startswith(\"$PATH_PREFIX\")) | .number")
+          if [ "$code" = 0 ]; then
+            for number in $open; do
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "The update path of $TAG holds. Closing."
+            done
+            exit 0
+          fi
+          # The issue is the notice; a red run every 3 hours on top would only repeat it.
+          echo "::warning::The update path of $TAG is broken; see the issue \"$PATH_PREFIX$TAG\"."
+          title="$PATH_PREFIX$TAG"
+          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "Already reported: $title."
+            exit 0
+          fi
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          {
+            printf '@%s Firefox cannot update to %s: its update check follows the latest release'"'"'s updates.json, and a link on that path does not hold.\n\n' "$OWNER" "$TAG"
+            printf '```\n'
+            cat "$RUNNER_TEMP/path.txt"
+            printf '```\n\nThe run: %s\nThis issue closes on its own once a run finds the path whole.\n' "$run_url"
+          } > "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # --- The latest release is incomplete: collect what AMO signed.
+
+      # The build is the tag's; the release tools stay main's, since a tag's own copies may
+      # predate what this workflow asks of them (--wait, the network retries).
+      - name: Check out the release's tag, with main's release tools
         if: steps.release.outputs.complete == 'false'
-        with:
-          ref: ${{ steps.release.outputs.tag }}
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git checkout -q "$TAG"
+          git checkout -q "$GITHUB_SHA" -- tools/fetch-amo-signed.mjs tools/sign-amo.mjs tools/gen-update-manifest.mjs
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         if: steps.release.outputs.complete == 'false'
@@ -107,7 +249,7 @@ jobs:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           code=0
-          node tools/fetch-amo-signed.mjs "$VERSION" || code=$?
+          node tools/fetch-amo-signed.mjs "$VERSION" --wait 40 || code=$?
           case "$code" in
             0) state=signed ;;
             3) state=pending ;;
@@ -129,13 +271,17 @@ jobs:
         if: steps.sign.outputs.state == 'signed'
         env:
           TAG: ${{ steps.release.outputs.tag }}
+          ASSETS: ${{ steps.release.outputs.assets }}
         run: |
           set -euo pipefail
           node tools/gen-update-manifest.mjs "$GITHUB_REPOSITORY" "$TAG"
-          gh release upload "$TAG" web-ext-artifacts/*.xpi web-ext-artifacts/updates.json \
-            --repo "$GITHUB_REPOSITORY" --clobber
+          files=(web-ext-artifacts/*.xpi web-ext-artifacts/updates.json)
+          if [[ "$ASSETS" != *firefox-github-*.zip* ]]; then
+            files+=(built/firefox-github-*.zip)
+          fi
+          gh release upload "$TAG" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           for number in $(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
-              --jq ".[] | select(.title == \"$ISSUE_PREFIX$TAG\") | .number"); do
+              --jq ".[] | select(.title == \"$SIGNING_PREFIX$TAG\") | .number"); do
             gh issue close "$number" --repo "$GITHUB_REPOSITORY" \
               --comment "Signed by AMO and attached to $TAG by the failsafe run. Closing."
           done
@@ -151,7 +297,7 @@ jobs:
           AGE: ${{ steps.release.outputs.age_hours }}
         run: |
           set -euo pipefail
-          title="$ISSUE_PREFIX$TAG"
+          title="$SIGNING_PREFIX$TAG"
           if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
             echo "Already reported $TAG."
             exit 0

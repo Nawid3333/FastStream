@@ -11,8 +11,8 @@
 //   }
 //
 // In CI (no file on the runner), AMO_API_KEY / AMO_API_SECRET env vars are
-// used instead - see .github/workflows/publish-amo.yml, which injects them
-// from repo secrets.
+// used instead: .github/workflows/release.yml and amo-signing-failsafe.yml
+// inject them from the repository's secrets.
 //
 // Usage
 // -----

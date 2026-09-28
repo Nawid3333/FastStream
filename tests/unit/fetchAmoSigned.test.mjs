@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
-import {EXIT, isNetworkError, signingState, waitForSigned} from '../../tools/fetch-amo-signed.mjs';
+import {EXIT, isNetworkError, parseArgs, signingState, waitForSigned} from '../../tools/fetch-amo-signed.mjs';
 
 // The AMO signing failsafe acts on what signingState answers: collect the xpi, wait,
 // upload again, or tell the owner. A wrong answer either never collects a signed build
@@ -99,5 +99,25 @@ describe('waitForSigned', () => {
     // 0, 30 s ... 300 s: the last check is the one that still fits in the budget.
     expect(pending.asked.length).toBe(11);
     expect((await run([new TypeError('fetch failed')], 60 * 1000)).state).toBe('error');
+  });
+
+  it('does not wait out an error the network did not cause', async () => {
+    // No credentials, or a build of another version: 40 minutes of asking cannot mend it.
+    const noCredentials = new Error('no AMO credentials: .amo-credentials.json or AMO_API_KEY/AMO_API_SECRET');
+    await expect(run([noCredentials, 'signed'])).rejects.toBe(noCredentials);
+  });
+});
+
+describe('parseArgs', () => {
+  it('reads the version, and --wait in minutes', () => {
+    expect(parseArgs(['1.3.82.37'])).toEqual({version: '1.3.82.37', waitMinutes: 0});
+    expect(parseArgs(['1.3.82.37', '--wait', '40'])).toEqual({version: '1.3.82.37', waitMinutes: 40});
+  });
+
+  it('refuses what it does not know, rather than ignoring it', () => {
+    expect(() => parseArgs([])).toThrow(/usage/);
+    expect(() => parseArgs(['--wait', '40'])).toThrow(/usage/);
+    expect(() => parseArgs(['1.3.82.37', '--wait'])).toThrow(/unknown argument/);
+    expect(() => parseArgs(['1.3.82.37', '--wait', 'soon'])).toThrow(/unknown argument/);
   });
 });

@@ -84,41 +84,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Firefox ${{ needs.detect.outputs.version }}
-        id: firefox
-        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+      # ffmpeg, the e2e ports reserved, and exactly this Firefox as FIREFOX_BINARY.
+      - name: e2e setup
+        uses: ./.github/actions/e2e-setup
         with:
           firefox-version: ${{ needs.detect.outputs.version }}
-
-      # Linux: Firefox decodes H.264/AAC through the system ffmpeg (see ci.yml).
-      # Windows: the e2e setup builds its video fixtures with ffmpeg, which the image lacks.
-      - name: Install ffmpeg
-        run: |
-          if [ "$RUNNER_OS" = Windows ]; then
-            choco install ffmpeg -y --no-progress
-          else
-            sudo apt-get update && sudo apt-get install -y ffmpeg
-          fi
-
-      # The e2e ports, out of the range Linux hands out to outgoing connections (ci.yml).
-      - name: Keep the e2e ports out of the ephemeral range
-        if: runner.os == 'Linux'
-        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=41800-41999
 
       - name: Build
         run: pnpm run build:keep
 
       - name: End-to-end playback
-        env:
-          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
-        run: |
-          # Not "$FIREFOX_BINARY --version": firefox.exe does not print it to a console on Windows.
-          echo "Testing Firefox ${{ needs.detect.outputs.version }} on $RUNNER_OS at $FIREFOX_BINARY"
-          pnpm run test:e2e
+        run: pnpm run test:e2e
 
       - name: End-to-end extension tests
-        env:
-          FIREFOX_BINARY: ${{ steps.firefox.outputs.firefox-path }}
         run: pnpm run test:ext
 
       - name: Upload e2e failure logs
@@ -128,6 +106,7 @@ jobs:
           name: firefox-stable-e2e-logs-${{ matrix.os }}
           path: logs/
           if-no-files-found: ignore
+          retention-days: 30
 
   # Only once every platform has passed, so a version is never recorded as tested while
   # one of them still fails.
