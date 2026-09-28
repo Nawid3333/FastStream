@@ -202,7 +202,7 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
     });
 
     cdnServer = http.createServer((req, res) => {
-      requests.push({url: req.url, headers: req.headers});
+      requests.push({url: req.url, headers: req.headers, time: Date.now()});
       res.writeHead(200, {
         'Content-Type': 'video/mp4',
         'Content-Length': String(clip.length),
@@ -299,7 +299,16 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
           timeout: 15000,
           timeoutMsg: 'the in-page player never appeared after Off -> On',
         });
-        expect(requests.length).toBe(cdnRequestsAtOn);
+        // TRIAL diagnostics, removed before merge.
+        const tOverlay = Date.now();
+        const said = (r) => `${isMpvRequest(r) ? 'mpv' : 'browser'} ${r.url}` +
+          `${r.headers.range ? ' range=' + r.headers.range : ''} @${r.time - tOverlay}ms`;
+        const atOverlay = requests.slice(cdnRequestsAtOn).map(said);
+        await browser.pause(3000);
+        console.log('      [trial] before Off -> On: ' + JSON.stringify(requests.slice(0, cdnRequestsAtOn).map(said)));
+        console.log('      [trial] when the overlay appeared: ' + JSON.stringify(atOverlay));
+        console.log('      [trial] 3 s later: ' + JSON.stringify(requests.slice(cdnRequestsAtOn).map(said)));
+        expect(atOverlay.length).toBe(0);
 
         // 4. On -> MPV: the overlay has to come down (there is no message
         //    that retracts one, so the tab reloads), and the reload's fresh
