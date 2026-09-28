@@ -256,6 +256,9 @@ async function loadOptions() {
   try {
     OPTIONS = await Utils.getOptionsFromStorage();
     window.fastStream.setOptions(OPTIONS);
+    // Marked for tests: the client exists before its options do, and the first
+    // ones can be clobbered by this call seconds after a test forced them.
+    window.fastStream.optionsApplied = true;
   } catch (e) {
     console.error(e);
   }

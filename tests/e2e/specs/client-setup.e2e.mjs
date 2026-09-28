@@ -19,6 +19,13 @@ async function openEmptyPlayer() {
   await browser.url(`/player/index.html?t=${Date.now()}`);
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
       {timeout: 30000, timeoutMsg: 'the player never started'});
+  // setOptions() runs after the client exists (main.mjs loads its options from
+  // storage) and would clobber the overrides below when it lands; main.mjs sets
+  // optionsApplied when it has run. preload.mjs also sets a theme early, so the
+  // page's dataset is not a reliable sign here.
+  await browser.waitUntil(async () => browser.execute(() => !!(
+    window.fastStream && window.fastStream.optionsApplied)),
+      {timeout: 30000, timeoutMsg: 'the player options never loaded'});
   await browser.execute(() => {
     window.fastStream.options.autoPlay = false;
     window.fastStream.options.storeProgress = false;
