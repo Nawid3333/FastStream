@@ -248,7 +248,7 @@ describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
 
   it('lists the excluded hostnames for the redirect rule', () => {
     const list = new UrlMatchList({domainEntriesExclude: true});
-    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://cdn.Example.org/x', '~^https://a\.b/']);
+    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://cdn.Example.org/x', '~^https://a\\.b/']);
     expect(list.excludedDomains()).toEqual(['github.com', 'cdn.example.org']);
   });
 

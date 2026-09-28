@@ -13,14 +13,14 @@ import {MultiRegexMatcher} from '../../chrome/background/MultiRegexMatcher.mjs';
 describe('parseCustomSourcePatterns', () => {
   it('parses well-formed lines', () => {
     const {patterns, errors} = parseCustomSourcePatterns([
-      'hls /\/live\/\d+/i',
-      '  mp4   /video\.cdn\.example\/[a-z]+/  ',
+      'hls /\\/live\\/\\d+/i',
+      '  mp4   /video\\.cdn\\.example\\/[a-z]+/  ',
       'dash /manifest with spaces/ms',
     ].join('\n'));
     expect(errors).toEqual([]);
     expect(patterns).toEqual([
-      {ext: 'hls', regex: '\/live\/\d+', flags: 'i'},
-      {ext: 'mp4', regex: 'video\.cdn\.example\/[a-z]+', flags: ''},
+      {ext: 'hls', regex: '\\/live\\/\\d+', flags: 'i'},
+      {ext: 'mp4', regex: 'video\\.cdn\\.example\\/[a-z]+', flags: ''},
       {ext: 'dash', regex: 'manifest with spaces', flags: 'ms'},
     ]);
   });
@@ -54,7 +54,7 @@ describe('parseCustomSourcePatterns', () => {
 
   it('never yields a pattern that matches an ordinary asset URL', () => {
     const matcher = new MultiRegexMatcher();
-    for (const {regex, flags, ext} of parseCustomSourcePatterns('hls\nhls /\nhls //\nhls live\nmp4 /\.mp4$/').patterns) {
+    for (const {regex, flags, ext} of parseCustomSourcePatterns('hls\nhls /\nhls //\nhls live\nmp4 /\\.mp4$/').patterns) {
       matcher.addRegex(regex, flags, ext);
     }
     matcher.compile();

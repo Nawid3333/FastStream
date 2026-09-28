@@ -111,7 +111,7 @@ describe('match', () => {
 // regex matches everything, routing every URL to its output.
 describe('flags and empty patterns', () => {
   it('matches a pattern added with the g flag', () => {
-    const m = build([['\.m3u8', 'g', 'hls']]);
+    const m = build([['\\.m3u8', 'g', 'hls']]);
     expect(m.match('https://example.com/a.m3u8')).toBe('hls');
     expect(m.match('https://example.com/b.m3u8')).toBe('hls');
   });
