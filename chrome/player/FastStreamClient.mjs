@@ -911,7 +911,11 @@ export class FastStreamClient extends EventEmitter {
       this.setSeekSave(true);
 
       if (this.player.getSource()) {
-        await this.setupPreviewPlayer();
+        // The seek preview is an extra: one that fails to build must not cost the video
+        // the rest of this setup.
+        await this.setupPreviewPlayer().catch((e) => {
+          console.warn('The preview player failed to build', e);
+        });
 
         await this.videoAnalyzer.setSource(this.player.getSource());
 
@@ -930,12 +934,17 @@ export class FastStreamClient extends EventEmitter {
       }
 
       this.loadProgressData().then(async () => {
+        // Another source came in meanwhile: this one's time and progress are not for it,
+        // and switching progress saving off here would switch it off for that one.
+        if (this.source !== source) return;
         this.disableProgressSave = true;
 
         // Wait for the player to be ready
         if (this.initPromise) {
           await this.initPromise;
         }
+        // The wait ends when whichever player is current is ready: maybe the next source's.
+        if (this.source !== source) return;
 
         if (timeFromURL) {
           this.setSeekSave(false);
@@ -1651,7 +1660,11 @@ export class FastStreamClient extends EventEmitter {
   undoSeek() {
     if (this.pastSeeks.length) {
       this.pastUnseeks.push(this.player.currentTime);
-      this.player.currentTime = this.pastSeeks.pop();
+      // Through the setter, so a separate audio track follows at once; not saved, or
+      // the undo would be a seek to undo.
+      this.setSeekSave(false);
+      this.currentTime = this.pastSeeks.pop();
+      this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
   }
@@ -1662,7 +1675,9 @@ export class FastStreamClient extends EventEmitter {
   redoSeek() {
     if (this.pastUnseeks.length) {
       this.pastSeeks.push(this.player.currentTime);
-      this.player.currentTime = this.pastUnseeks.pop();
+      this.setSeekSave(false);
+      this.currentTime = this.pastUnseeks.pop();
+      this.setSeekSave(true);
       this.interfaceController.updateMarkers();
     }
   }

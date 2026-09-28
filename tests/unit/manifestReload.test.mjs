@@ -1,0 +1,140 @@
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+
+// A live stream's playlist (HLS) or manifest (DASH) is loaded again and again, each time
+// with what is new. The download manager answers a URL it has already downloaded from its
+// store, so every reload got the first answer back, and a live stream stopped where its
+// first window ended (tests/e2e/specs/hls-live.e2e.mjs shows it in the browser for HLS).
+// These run the real loaders, download manager, downloader and fetch() loader, with only
+// fetch() and the blob storage stood in for (a unit test has no FileReader or OPFS).
+
+vi.mock('../../chrome/player/utils/BlobManager.mjs', () => ({
+  BlobManager: {
+    createBlob: (parts) => parts[0],
+    getDataFromBlob: async (data) => data,
+  },
+}));
+
+vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
+  FSBlob: class {
+    constructor() {
+      this.blobs = new Map();
+    }
+    async saveBlobAsync(blob, key) {
+      this.blobs.set(key, blob);
+    }
+    getBlob(key) {
+      return this.blobs.get(key);
+    }
+    deleteBlob(key) {
+      this.blobs.delete(key);
+    }
+    close() {}
+  },
+}));
+
+const {DownloadManager} = await import('../../chrome/player/network/DownloadManager.mjs');
+const {HLSLoaderFactory: hlsLoaderFactory} = await import('../../chrome/player/players/hls/HLSLoader.mjs');
+const {DASHLoaderFactory: dashLoaderFactory} = await import('../../chrome/player/players/dash/DashLoader.mjs');
+
+let requests;
+
+beforeEach(() => {
+  globalThis.self = globalThis;
+  requests = [];
+  // Every answer is new, as a live playlist's is.
+  vi.stubGlobal('fetch', vi.fn(async (url) => {
+    requests.push(url);
+    return new Response(`answer ${requests.length}`, {status: 200});
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+/**
+ * A download manager with one downloader, and a player around it.
+ * @return {Object} The player.
+ */
+function makePlayer() {
+  const client = {predownloadFragments() {}, resetFailed() {}, options: {maximumDownloaders: 1}};
+  const downloadManager = new DownloadManager(client);
+  downloadManager.addDownloader();
+  return {
+    source: {headers: {}},
+    activeRequests: [],
+    getIdentifier: (trackID, level) => `${trackID}:${level}`,
+    client: {getFragment: () => null},
+    getClient: () => ({downloadManager}),
+  };
+}
+
+/**
+ * Loads one URL through HLSLoader, as hls.js does.
+ * @param {Object} player
+ * @param {Object} context - hls.js's loader context.
+ * @return {Promise<string>} What the loader answered.
+ */
+function loadHls(player, context) {
+  return new Promise((resolve, reject) => {
+    new (hlsLoaderFactory(player))().load({responseType: 'text', ...context}, {}, {
+      onSuccess: (response) => resolve(response.data),
+      onError: (error) => reject(new Error(`onError ${error.code}`)),
+      onTimeout: () => reject(new Error('onTimeout')),
+      onAbort: () => reject(new Error('onAbort')),
+    });
+  });
+}
+
+/**
+ * Loads one URL through DashLoader, as dash.js does.
+ * @param {Object} player
+ * @param {string} url
+ * @param {string} type - dash.js's request type.
+ * @return {Promise<string>} What the loader answered.
+ */
+function loadDash(player, url, type) {
+  return new Promise((resolve, reject) => {
+    dashLoaderFactory(player)().load({
+      url, method: 'GET', headers: {},
+      customData: {
+        request: {type, responseType: 'text'},
+        onSuccess: (data) => resolve(data),
+        onFail: () => reject(new Error('onFail')),
+        onAbort: () => reject(new Error('onAbort')),
+      },
+    });
+  });
+}
+
+describe('reloading a live stream\'s playlist or manifest', () => {
+  it('downloads an HLS playlist again each time hls.js loads it', async () => {
+    const player = makePlayer();
+    const context = {url: 'http://127.0.0.1/live.m3u8', type: 'level'};
+    expect(await loadHls(player, context)).toBe('answer 1');
+    expect(await loadHls(player, context)).toBe('answer 2');
+    expect(requests).toHaveLength(2);
+  });
+
+  it('downloads a DASH manifest again each time dash.js loads it', async () => {
+    const player = makePlayer();
+    expect(await loadDash(player, 'http://127.0.0.1/live.mpd', 'MPD')).toBe('answer 1');
+    expect(await loadDash(player, 'http://127.0.0.1/live.mpd', 'MPD')).toBe('answer 2');
+    expect(requests).toHaveLength(2);
+  });
+
+  it('still downloads an HLS key only once', async () => {
+    const player = makePlayer();
+    const context = {url: 'http://127.0.0.1/key.bin', frag: {sn: 3}, keyInfo: {}};
+    expect(await loadHls(player, context)).toBe('answer 1');
+    expect(await loadHls(player, context)).toBe('answer 1');
+    expect(requests).toHaveLength(1);
+  });
+
+  it('still downloads a DASH index segment only once', async () => {
+    const player = makePlayer();
+    expect(await loadDash(player, 'http://127.0.0.1/video.mp4', 'IndexSegment')).toBe('answer 1');
+    expect(await loadDash(player, 'http://127.0.0.1/video.mp4', 'IndexSegment')).toBe('answer 1');
+    expect(requests).toHaveLength(1);
+  });
+});

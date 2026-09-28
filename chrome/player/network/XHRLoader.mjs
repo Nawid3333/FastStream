@@ -132,6 +132,12 @@ export class XHRLoader {
       return;
     }
 
+    // Aborted while the background set the headers: the answer would be thrown away, so
+    // do not ask for it.
+    if (stats.aborted) {
+      return;
+    }
+
     if (request.rangeEnd) {
       fetchHeaders['Range'] = 'bytes=' + request.rangeStart + '-' + (request.rangeEnd - 1);
     }

@@ -104,9 +104,7 @@ export class DownloadEntry {
     } catch (e) {
       console.error(e);
       this.status = DownloadStatus.DOWNLOAD_FAILED;
-      this.watchers.forEach((watcher) => {
-        watcher.callbacks.onFail(this);
-      });
+      this.notifyWatchers('onFail', this);
       this.cleanup();
       return;
     }
@@ -125,9 +123,7 @@ export class DownloadEntry {
     this.stats = stats;
     this.responseURL = response.url;
 
-    this.watchers.forEach((watcher) => {
-      watcher.callbacks.onSuccess(this, xhr);
-    });
+    this.notifyWatchers('onSuccess', this, xhr);
 
     if (this.transferFile) {
       this.transferFile(this);
@@ -143,9 +139,7 @@ export class DownloadEntry {
     this.status = DownloadStatus.DOWNLOAD_FAILED;
     this.stats = stats;
 
-    this.watchers.forEach((watcher) => {
-      watcher.callbacks.onFail(this);
-    });
+    this.notifyWatchers('onFail', this);
     this.cleanup();
   }
 
@@ -153,10 +147,25 @@ export class DownloadEntry {
     if (stats) this.stats = stats;
     this.status = DownloadStatus.DOWNLOAD_FAILED;
 
-    this.watchers.forEach((watcher) => {
-      if (watcher.callbacks.onAbort) watcher.callbacks.onAbort(this);
-    });
+    this.notifyWatchers('onAbort', this);
     this.cleanup();
+  }
+
+  /**
+   * Calls one callback of every watcher. A watcher that throws is logged, and neither
+   * keeps the others from hearing nor the entry from being cleaned up: the downloader
+   * would otherwise never be freed, and a save waiting on the same entry never answered.
+   * @param {string} name - The callback, e.g. 'onSuccess'.
+   * @param {...*} args - Its arguments.
+   */
+  notifyWatchers(name, ...args) {
+    this.watchers.forEach((watcher) => {
+      try {
+        watcher.callbacks[name]?.(...args);
+      } catch (e) {
+        console.error(`A download watcher's ${name} threw:`, e);
+      }
+    });
   }
 
   onProgress(stats, context, data, xhr) {

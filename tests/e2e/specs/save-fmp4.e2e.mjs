@@ -18,6 +18,10 @@
 // - fMP4 with a video track and no audio at all. Its init segment made
 //   HLSPlayer.saveVideo pass an audio-less level to a path that required both.
 //
+// And two things around the init segments: a save of an HLS level whose init segment is
+// not downloaded yet (a level just switched to), and a save that fails while getting one,
+// which must leave no fragment pinned.
+//
 // Both streams are cut from the MP4 fixture by ffmpeg, the same way the WebM
 // fixture is, so nothing large is committed. The fixtures directory is
 // gitignored and rebuilt when missing.
@@ -204,21 +208,23 @@ async function openPlayer(source) {
  * file that has a valid header and no media in it. trakCount and mdatBytes are
  * read from the boxes themselves for that reason.
  *
+ * @param {Function} [prepare] - Run in the page once everything has downloaded, before
+ *   the save.
  * @return {Promise<Object>} {saveError, blobSize, decodeOk, duration,
  *   trakCount, mdatBytes}
  */
-async function saveAndInspect() {
+async function saveAndInspect(prepare) {
   // Each phase is logged with its time, so a run that hits the test timeout shows which
   // one it spent it in (a Windows CI run once did, with nothing else in the log), and a
   // failure carries the video and OPFS state (pageState).
   try {
-    return await saveAndInspectPhases(phaseTimer());
+    return await saveAndInspectPhases(phaseTimer(), prepare);
   } catch (e) {
     throw new Error(`${e.message} ${JSON.stringify(await pageState())}`);
   }
 }
 
-async function saveAndInspectPhases(phase) {
+async function saveAndInspectPhases(phase, prepare) {
   await browser.waitUntil(
       async () => browser.execute(() => !!document.querySelector('video')),
       {timeout: 30000, timeoutMsg: 'no <video> element was created'});
@@ -247,6 +253,7 @@ async function saveAndInspectPhases(phase) {
     throw new Error(`the stream never finished downloading: ${JSON.stringify(state)}`);
   }
   phase('downloaded');
+  if (prepare) await browser.execute(prepare);
 
   const saved = await browser.executeAsync((done) => {
     const info = {
@@ -404,4 +411,66 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.audio.duration).toBeLessThan(10.6);
     expect(decoded.audioToneShare).toBeGreaterThan(0.8);
   });
+
+  it('saves an fMP4 level whose init segment has not been downloaded', async function() {
+    // As on a level just switched to. HLSPlayer.saveVideo read the init segment's entry
+    // without downloading it, and there was none to read.
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-video/index.m3u8');
+    const result = await saveAndInspect(() => {
+      const client = window.fastStream;
+      client.freeFragment(client.getFragments(client.player.getCurrentVideoLevelID())[-1]);
+    });
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
+
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
+    expect(result.saveError).toBe(null);
+    expect(result.decodeOk).toBe(true);
+    expect(result.trakCount).toBe(1);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(sourceFrameCount());
+  });
+
+  // A save pins every fragment it will write, so that none is freed before it is read,
+  // and unpins each once read or when the save fails. A failure while fetching the init
+  // segments came before the part that unpins: every fragment stayed pinned, and was never
+  // freed again for as long as the player was open.
+  const PINNED = [
+    ['HLS', '/fixtures/hls-fmp4-video/index.m3u8'],
+    ['DASH', '/fixtures/dash-separate/manifest.mpd'],
+  ];
+  for (const [name, source] of PINNED) {
+    it(`leaves no fragment pinned after a ${name} save whose init segment failed`, async function() {
+      await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + source);
+      await browser.waitUntil(
+          async () => browser.execute(() => document.querySelector('video')?.readyState >= 2),
+          {timeout: 30000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
+
+      const result = await browser.executeAsync((done) => {
+        import('/player/enums/ReferenceTypes.mjs').then(async ({ReferenceTypes}) => {
+          const client = window.fastStream;
+          const player = client.player;
+          const levels = [player.getCurrentVideoLevelID(), player.getCurrentAudioLevelID()].filter(Boolean);
+          // The init segment is not there, and downloading it fails.
+          client.freeFragment(client.getFragments(levels[0])[-1]);
+          player.downloadFragment = () => Promise.reject(new Error('Failed to download fragment'));
+
+          let error = null;
+          try {
+            await player.saveVideo({onProgress: () => {}, registerCancel: () => {}, partialSave: false});
+          } catch (e) {
+            error = e.message;
+          }
+          const pinned = levels.flatMap((level) => (client.getFragments(level) || [])
+              .filter((frag) => frag && frag.references.includes(ReferenceTypes.SAVER))
+              .map((frag) => `${level}/${frag.sn}`));
+          done({error, pinned});
+        }).catch((e) => done({error: 'test setup: ' + e.message, pinned: null}));
+      });
+      console.log('      result:', JSON.stringify(result));
+
+      expect(result.error).toBe('Failed to download fragment');
+      expect(result.pinned).toEqual([]);
+    });
+  }
 });

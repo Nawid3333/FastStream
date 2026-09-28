@@ -266,6 +266,43 @@ waits for a range to be buffered after a reset can see stale appends that a queu
 is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 `tests/e2e/specs/mp4-seek.e2e.mjs` covers the above.
 
+## Player core: what the loaders tell the libraries (2026-09-28)
+
+- **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
+  `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
+  and `XHRLoader`'s `stats.error` (`{code, text}`). Fragments and keys still get `onAbort`
+  after 1 s, and hls.js picks them again: upstream's design, on top of `XHRLoader`'s own
+  six retries.
+- **`<video>` fires no `error` for a manifest that never loaded.** `HLSPlayer` passes a
+  fatal `Hls.Events.ERROR` on as `DefaultPlayerEvents.ERROR` (after a fatal error hls.js
+  loads nothing more). `DashPlayer` does the same for dash.js's manifest codes
+  (`MediaPlayer.errors` 10, 11, 25) until `initialInit`. Before that, a dead `.m3u8` or
+  `.mpd` spun forever (`failed-load.e2e.mjs`).
+- **`DownloadManager.getFile` answers a finished download from its store** (keyed by URL,
+  range and type). So a playlist or manifest that gets loaded again must be removed once
+  loaded, and `HLSLoader` and `DashLoader` do that. Before, a live HLS stream stopped
+  where its first window ended: one request reached the server in 30 s
+  (`hls-live.e2e.mjs`). dash.js reloads a live manifest only once playback has started
+  (`ManifestUpdater`'s `isPaused`), and a local live MPD never got that far in the web
+  player. So the DASH side is covered only by `tests/unit/manifestReload.test.mjs`, which
+  runs the real loaders and download manager.
+- **`HLSPlayer.trackUpdated` starts at `levelDetails.fragments[0].start`.** hls.js has
+  aligned a live playlist to its timeline before `LEVEL_UPDATED`; a VOD playlist's first
+  fragment is at 0.
+- **mp4box 2.x's `info.fragment_duration` is a `{num, den}` fraction.** Without a `mehd`
+  box it is also only what had been parsed when the metadata was read. So
+  `MP4Player.calculateDuration` reads `mehd` itself, and otherwise the tracks as they grow.
+  Dividing the fraction gave NaN, and every fragmented MP4 died at the start. A long
+  fragmented MP4 still stops after about 3 s in `MP4Player` (not fixed).
+- **A save pins its fragments (`ReferenceTypes.SAVER`) last**, just before the `try` whose
+  `catch` unpins them. Anything that throws in between leaves them pinned for the session.
+- **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
+  nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
+  downloader stays busy for good.
+- **`setSourceInternal`'s progress chain returns if another source came in**, both before
+  it switches progress saving off and after it waits for the player. The wait ends when
+  whichever player is current is ready, which may be the next source's.
+
 ## Network layer: fetch() + OPFS (2026-09-10)
 
 `chrome/player/network/XHRLoader.mjs` — the single loader shared by HLS,
