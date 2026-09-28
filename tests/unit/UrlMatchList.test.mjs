@@ -247,8 +247,10 @@ describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
   });
 
   it('lists the excluded hostnames for the redirect rule', () => {
+    // Dots are escaped so this hostname literal is never an unescaped-dot regex
+    // pattern (CodeQL js/incomplete-hostname-regexp); URL parsing ignores them.
     const list = new UrlMatchList({domainEntriesExclude: true});
-    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://cdn.Example.org/x', '~^https://a\\.b/']);
+    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://cdn\.Example\.org/x', '~^https://a\\.b/']);
     expect(list.excludedDomains()).toEqual(['github.com', 'cdn.example.org']);
   });
 
