@@ -12,14 +12,24 @@
  * anime/movie shader selection on the mpv side (see getContentType); it is
  * unused by any other allowlist that reuses this class.
  *
- * Matching follows the same precedence as the AutoEnableList in
- * background.mjs: entries are evaluated from last to first, so a negative
- * entry on a later line overrides positive entries above it.
+ * Entries are evaluated from last to first, so a negative entry on a later
+ * line overrides positive entries above it. Both lists use this class: the
+ * MPV allowlist, and background.mjs's AutoEnableList (with
+ * domainEntriesExclude), which had its own copy of the parser that dropped
+ * every `-domain` line and let a lone `~` match every page.
  */
 export class UrlMatchList {
-  constructor() {
+  /**
+   * @param {Object} [options]
+   * @param {boolean} [options.domainEntriesExclude] - Make every `-domain` entry an
+   *   exclusion. The Auto-enable URLs list uses `-` that way: "exclude specific domains by
+   *   prepending -" (upstream #241), for sites whose manifest links FastStream must leave
+   *   alone. The MPV allowlist keeps `-` a plain hostname match.
+   */
+  constructor({domainEntriesExclude = false} = {}) {
     /** @type {Array<Object>} */
     this.entries = [];
+    this.domainEntriesExclude = domainEntriesExclude;
   }
 
   /**
@@ -33,9 +43,20 @@ export class UrlMatchList {
     for (const line of lines || []) {
       const entry = UrlMatchList.parseEntry(line);
       if (entry) {
+        if (entry.exclude_domain && this.domainEntriesExclude) {
+          entry.negative = true;
+        }
         this.entries.push(entry);
       }
     }
+  }
+
+  /**
+   * The hostnames of the list's `-domain` entries.
+   * @return {Array<string>}
+   */
+  excludedDomains() {
+    return this.entries.filter((entry) => entry.exclude_domain).map((entry) => /** @type {string} */ (entry.match));
   }
 
   /**
@@ -83,8 +104,9 @@ export class UrlMatchList {
 
     if (entry.exclude_domain) {
       try {
-        // Check if starts with http or https, add it if not
-        if (!urlStr.startsWith('http')) {
+        // A bare hostname gets a scheme to parse with. Checked in any case: with a
+        // case-sensitive check, `-HTTPS://example.com` parsed as the hostname "https".
+        if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(urlStr)) {
           urlStr = 'http://' + urlStr;
         }
 
@@ -93,6 +115,11 @@ export class UrlMatchList {
         return null;
       }
     } else if (entry.regex) {
+      // An empty regex matches every URL: a stray `~` line would put every site on the
+      // list (or, as `!~`, take every site off it).
+      if (urlStr.length === 0) {
+        return null;
+      }
       try {
         entry.match = new RegExp(urlStr, 'i');
       } catch (e) {

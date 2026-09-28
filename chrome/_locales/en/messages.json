@@ -11,6 +11,9 @@
     "extension_toggle_label_mpv": {
         "message": "FastStream - Playing in MPV"
     },
+    "command_toggle_player": {
+        "message": "Turn the FastStream player on or off for this tab"
+    },
     "command_toggle_mpv": {
         "message": "Turn MPV on or off for this tab"
     },
@@ -1065,7 +1068,7 @@
         "message": "Auto-enable URLs"
     },
     "options_autourl_body": {
-        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!)."
+        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
     },
     "options_autourl_hint": {
         "message": "Hint: Test regex on"

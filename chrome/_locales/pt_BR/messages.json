@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "Alternar FastStream"
     },
+    "command_toggle_player": {
+        "message": "Alternar o player FastStream nesta aba"
+    },
+    "command_toggle_mpv": {
+        "message": "Alternar o MPV nesta aba"
+    },
     "welcome_page_title": {
         "message": "Bem-vindo ao FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "Habilitar URLs automaticamente"
     },
     "options_autourl_body": {
-        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validados. Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!)."
+        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validados. Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!). Para deixar um site inteiro de lado - sem ativação automática, e seus links de streaming não são abertos no player - coloque um sinal de menos (-) na frente do domínio."
     },
     "options_autourl_hint": {
         "message": "Dica: Teste a expressão regular em"

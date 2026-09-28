@@ -10,6 +10,12 @@
 // player was on its way, and the Off path did not look at it. The MPV toolbar cycle checks
 // both (hasOrOpeningPlayer); the plain On/Off toggle now does too, and the player is not
 // opened for a tab that was turned off while its videos were being measured.
+//
+// All of that lives in the background's memory. Firefox keeps the background running
+// while a player is open (an extension page), but can still stop it - after a hang, or
+// with about:debugging's Terminate - and a restarted background knew no player, so Off
+// left it playing under a toolbar that said Off. Now it asks the tab (tabHasPlayer):
+// each frame's content script looks for a player iframe.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -72,6 +78,26 @@ async function clickToolbar(times) {
   }, EXTENSION_ID, times);
   if (!result || !result.ok) {
     throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
+  }
+}
+
+/**
+ * Suspends the background event page, as Firefox does once it has been idle.
+ * @return {Promise<void>}
+ */
+async function suspendBackground() {
+  const result = await inChrome((extId, done) => {
+    (async () => {
+      try {
+        await WebExtensionPolicy.getByID(extId).extension.terminateBackground();
+        done({ok: true});
+      } catch (e) {
+        done({err: String(e)});
+      }
+    })();
+  }, EXTENSION_ID);
+  if (!result || !result.ok) {
+    throw new Error('could not suspend the background: ' + JSON.stringify(result));
   }
 }
 
@@ -222,6 +248,19 @@ describe('Toolbar: Off right after On', function() {
     // Logged, not asserted: whether this click beat the player's announcement is up to
     // the machine. When it did not, this is the baseline's case.
     console.log('      player announced before Off:', await playerAnnounced());
+    await clickToolbar(1);
+    await browser.pause(4000);
+    expect(await tabMode()).toBe('off');
+    expect(await hasOverlayPlayer()).toBe(false);
+  });
+
+  it('removes the player when Off is clicked after the background was suspended', async function() {
+    await openSite();
+    await clickToolbar(1);
+    await browser.waitUntil(playerAnnounced, {timeout: 15000, timeoutMsg: 'the player never announced itself'});
+    // Stopped the way Firefox stops a hung background: what it knew about the page's
+    // frames goes with it, and the player stays.
+    await suspendBackground();
     await clickToolbar(1);
     await browser.pause(4000);
     expect(await tabMode()).toBe('off');

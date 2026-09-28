@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "切換 FastStream"
     },
+    "command_toggle_player": {
+        "message": "切換此分頁的 FastStream 播放器"
+    },
+    "command_toggle_mpv": {
+        "message": "切換此分頁的 MPV"
+    },
     "welcome_page_title": {
         "message": "歡迎使用 FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "自動啟用網址"
     },
     "options_autourl_body": {
-        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。"
+        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。若要讓整個網站不受影響 - 不會自動啟用，其串流連結也不會在播放器中開啟 - 請在網域前面加上減號 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此測試正則表達式"

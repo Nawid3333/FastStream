@@ -2,7 +2,8 @@
 // tab by a real key press, on a site that is not on the MPV Allowlist, and
 // then hands over only a video the user starts: never one the page autoplays
 // (the muted preview here) or merely preloads (the main video, until its play
-// button is clicked).
+// button is clicked). With Ctrl+Shift+F, the in-page player's own key, it
+// switches straight between MPV and the player.
 //
 // Firefox lets an extension's suggested key win over nothing: a combination
 // Firefox itself binds is refused on about:addons' shortcuts page ("already
@@ -17,11 +18,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
 import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
+import {closeSpecMpv, hostInstalled} from '../mpvTestProcesses.mjs';
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -42,41 +43,7 @@ const requests = [];
 let extHandle;
 let siteHandle;
 
-/** @return {boolean} Whether the native host is registered for Firefox. */
-function hostInstalled() {
-  try {
-    const key = ['HKCU', 'Software', 'Mozilla', 'NativeMessagingHosts',
-      'com.faststream.mpv'].join('\\');
-    const out = execFileSync('reg', ['query', key],
-        {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
-    const match = out.match(/REG_SZ\s+(.+)/);
-    return !!(match && fs.existsSync(match[1].trim()));
-  } catch (e) {
-    return false;
-  }
-}
-
 const HAVE_HOST = hostInstalled();
-
-/** @return {Array<number>} Process ids of every running mpv.exe. */
-function mpvPids() {
-  if (process.platform !== 'win32') {
-    return [];
-  }
-  try {
-    const out = execFileSync('tasklist',
-        ['/FI', 'IMAGENAME eq mpv.exe', '/FO', 'CSV', '/NH'],
-        {encoding: 'utf8'});
-    return out.split(String.fromCharCode(10))
-        .map((line) => /^"mpv\.exe","(\d+)"/.exec(line.trim()))
-        .filter(Boolean)
-        .map((m) => Number(m[1]));
-  } catch (e) {
-    return [];
-  }
-}
-
-const preexistingMpvPids = new Set(mpvPids());
 
 /**
  * Runs an async function in Firefox's chrome context.
@@ -94,7 +61,8 @@ async function inChrome(fn, ...args) {
 }
 
 /**
- * Presses Ctrl+Shift+U with the site page focused, as a user would.
+ * Presses Ctrl+Shift+U (or Ctrl+Shift+F, the in-page player's key) with the site
+ * page focused, as a user would.
  *
  * browser.keys() is no good here: WebDriver synthesizes its key events inside
  * the page's content process, where Firefox's window-level shortcuts - the
@@ -109,18 +77,20 @@ async function inChrome(fn, ...args) {
  * iframe that round trip is slow enough for the next step here (switching to
  * the extension's tab to read the icon) to win the race, and the command then
  * lands on the wrong tab.
+ *
+ * @param {string} [letter] - 'U' or 'F'.
  */
-async function pressShortcut() {
+async function pressShortcut(letter = 'U') {
   await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, done) => {
+  const result = await inChrome((extId, letter, done) => {
     try {
       const {ExtensionCommon} = ChromeUtils.importESModule(
           'resource://gre/modules/ExtensionCommon.sys.mjs');
       const win = Services.wm.getMostRecentWindow('navigator:browser');
       const keysetId = 'ext-keyset-id-' + ExtensionCommon.makeWidgetId(extId);
-      const keyEl = win.document.querySelector(`keyset[id="${keysetId}"] key[key="U"]`);
+      const keyEl = win.document.querySelector(`keyset[id="${keysetId}"] key[key="${letter}"]`);
       if (!keyEl) {
-        done({err: 'the extension has no Ctrl+Shift+U key'});
+        done({err: `the extension has no Ctrl+Shift+${letter} key`});
         return;
       }
       const timer = win.setTimeout(() => {
@@ -143,19 +113,19 @@ async function pressShortcut() {
       const KE = win.KeyboardEvent;
       const ctrl = new KE('', {key: 'Control', code: 'ControlLeft', keyCode: KE.DOM_VK_CONTROL});
       const shift = new KE('', {key: 'Shift', code: 'ShiftLeft', keyCode: KE.DOM_VK_SHIFT});
-      const u = new KE('', {key: 'U', code: 'KeyU', keyCode: KE.DOM_VK_U});
+      const key = new KE('', {key: letter, code: 'Key' + letter, keyCode: KE['DOM_VK_' + letter]});
       tip.keydown(ctrl);
       tip.keydown(shift);
-      tip.keydown(u);
-      tip.keyup(u);
+      tip.keydown(key);
+      tip.keyup(key);
       tip.keyup(shift);
       tip.keyup(ctrl);
     } catch (e) {
       done({err: String(e)});
     }
-  }, EXTENSION_ID);
+  }, EXTENSION_ID, letter);
   if (!result || !result.ok) {
-    throw new Error('could not press Ctrl+Shift+U: ' + JSON.stringify(result));
+    throw new Error(`could not press Ctrl+Shift+${letter}: ` + JSON.stringify(result));
   }
 }
 
@@ -188,23 +158,51 @@ async function clickToolbar() {
  * @return {Promise<string>} 'mpv', 'on' or 'off'.
  */
 async function tabMode(prefix = SITE + '/') {
+  const tabId = await tabIdOf(prefix);
+  return tabId === null ? 'no site tab' : await modeOfTab(tabId);
+}
+
+/**
+ * @param {string} prefix - Start of the tab's URL.
+ * @return {Promise<?number>} The id of the first tab whose URL starts so.
+ */
+async function tabIdOf(prefix) {
   await browser.switchToWindow(extHandle);
   return await browser.executeAsync((site, done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site));
-      if (!tab) {
-        done('no site tab');
-        return;
-      }
-      chrome.action.getTitle({tabId: tab.id}, (title) => {
-        chrome.action.getBadgeText({tabId: tab.id}, (badge) => {
-          if (title.includes('MPV')) done('mpv');
-          else if (badge === 'On') done('on');
-          else done('off');
-        });
-      });
+      done(tab ? tab.id : null);
     });
   }, prefix);
+}
+
+/**
+ * Reads a tab's mode off its toolbar button.
+ * @param {number} tabId - The tab.
+ * @return {Promise<string>} 'mpv', 'on' or 'off'.
+ */
+async function modeOfTab(tabId) {
+  await browser.switchToWindow(extHandle);
+  return await browser.executeAsync((tabId, done) => {
+    chrome.action.getTitle({tabId}, (title) => {
+      chrome.action.getBadgeText({tabId}, (badge) => {
+        if (title.includes('MPV')) done('mpv');
+        else if (badge === 'On') done('on');
+        else done('off');
+      });
+    });
+  }, tabId);
+}
+
+/**
+ * @param {number} tabId - The tab.
+ * @return {Promise<string>} Its URL.
+ */
+async function urlOfTab(tabId) {
+  await browser.switchToWindow(extHandle);
+  return await browser.executeAsync((tabId, done) => {
+    chrome.tabs.get(tabId, (tab) => done(tab.url || ''));
+  }, tabId);
 }
 
 /**
@@ -321,6 +319,23 @@ async function mainPlaying() {
   });
 }
 
+/**
+ * Saves FastStream's options and has the background load them.
+ * @param {Object} options - The whole options object to store.
+ */
+async function setOptions(options) {
+  await browser.switchToWindow(extHandle);
+  await browser.executeAsync((json, done) => {
+    chrome.storage.local.set({options: json}, () => {
+      chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
+        void chrome.runtime.lastError;
+        done(true);
+      });
+    });
+  }, JSON.stringify(options));
+  await browser.pause(500);
+}
+
 describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
   before(async function() {
     const clip = fs.readFileSync(path.join(root, 'tests/e2e/fixtures/sample.mp4'));
@@ -405,16 +420,7 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
   after(async function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
-    for (const pid of mpvPids()) {
-      if (preexistingMpvPids.has(pid)) {
-        continue;
-      }
-      try {
-        execFileSync('taskkill', ['/F', '/PID', String(pid)], {stdio: 'ignore'});
-      } catch (e) {
-        // Already gone.
-      }
-    }
+    closeSpecMpv([SITE, CDN]);
   });
 
   it('is a key Firefox leaves free, and is bound to the extension', async function() {
@@ -513,6 +519,138 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     await expectMode('off', 'pressing Ctrl+Shift+U again');
   });
 
+  // Ctrl+Shift+F used to be the toolbar button (_execute_action), and a click on MPV
+  // goes to Off, so after Ctrl+Shift+U the key turned FastStream off and the player
+  // took a second press. Each key now has its own command.
+  it('binds Ctrl+Shift+F to the player\'s own command, not the toolbar button', async function() {
+    await browser.switchToWindow(extHandle);
+    const commands = await browser.executeAsync((done) => {
+      chrome.commands.getAll().then((all) => done(all.map((c) => [c.name, c.shortcut || ''])));
+    });
+    expect(Object.fromEntries(commands)).toEqual({
+      toggle_player: 'Ctrl+Shift+F',
+      toggle_mpv: 'Ctrl+Shift+U',
+    });
+  });
+
+  // Each key turns on its own mode whatever mode the tab is in; neither has to be
+  // switched off first to get the other.
+  it('switches between MPV and the in-page player by their keys alone', async function() {
+    await browser.switchToWindow(siteHandle);
+    let since = requests.length;
+    await browser.url(`${SITE}/watch`);
+    await pageVideosLoaded(since);
+    await expectMode('off', 'the start of this test');
+
+    await pressShortcut('U');
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with FastStream off');
+
+    // MPV -> On, from the sources already tracked.
+    await pressShortcut('F');
+    await expectMode('on', 'pressing Ctrl+Shift+F in MPV mode');
+    await browser.waitUntil(hasOverlayPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'the in-page player never appeared after Ctrl+Shift+F in MPV mode',
+    });
+
+    // On -> MPV: the player comes down with a reload.
+    since = requests.length;
+    await pressShortcut('U');
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with the in-page player open');
+    await browser.waitUntil(async () => !(await hasOverlayPlayer()), {
+      timeout: 15000,
+      timeoutMsg: 'the in-page player stayed up after Ctrl+Shift+U',
+    });
+    await pageVideosLoaded(since);
+    await expectNothingInMpv('switching back to MPV, before any play');
+
+    // And to the player again, from the reloaded page's sources.
+    await pressShortcut('F');
+    await expectMode('on', 'pressing Ctrl+Shift+F in MPV mode, after the reload');
+    await browser.waitUntil(hasOverlayPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'the in-page player never appeared after the second Ctrl+Shift+F',
+    });
+
+    // The player's key again is its Off, and the player comes down.
+    await pressShortcut('F');
+    await expectMode('off', 'pressing Ctrl+Shift+F with the in-page player open');
+    await browser.waitUntil(async () => !(await hasOverlayPlayer()), {
+      timeout: 15000,
+      timeoutMsg: 'the in-page player stayed up after Ctrl+Shift+F turned it off',
+    });
+  });
+
+  // A stream found while the player is on opens it after Options.replaceDelay. That
+  // timer only checked "on", and MPV is on too: switching to MPV inside the delay
+  // found no player to reload away, and the timer then opened one under MPV.
+  it('opens no in-page player under MPV that was due just before the switch', async function() {
+    await setOptions({mpvMode: true, mpvAllowlist: [], replaceDelay: 8000});
+    try {
+      // Streams found while off start no timer, and Off -> On opens the player at once.
+      await browser.switchToWindow(siteHandle);
+      let since = requests.length;
+      await browser.url(`${SITE}/watch`);
+      await pageVideosLoaded(since);
+      await expectMode('off', 'the start of this test');
+      await pressShortcut('F');
+      await expectMode('on', 'pressing Ctrl+Shift+F');
+      await browser.waitUntil(hasOverlayPlayer, {
+        timeout: 15000,
+        timeoutMsg: 'the in-page player never appeared after Ctrl+Shift+F',
+      });
+
+      // A new page on the same site keeps the tab on, so its streams start the timer.
+      since = requests.length;
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}/watch?again`);
+      await pageVideosLoaded(since);
+      await pressShortcut('U');
+      await expectMode('mpv', 'pressing Ctrl+Shift+U before the player was due');
+
+      await browser.pause(10000);
+      expect(await hasOverlayPlayer()).toBe(false);
+      await expectMode('mpv', 'the delay running out');
+
+      await pressShortcut('U');
+      await expectMode('off', 'pressing Ctrl+Shift+U again');
+    } finally {
+      await setOptions({mpvMode: true, mpvAllowlist: []});
+    }
+  });
+
+  // The player page has no MPV mode. Ctrl+Shift+F on a blank tab opens it, and on a
+  // tab Ctrl+Shift+U had armed, the MPV icon used to stay on it.
+  it('drops the MPV arm when Ctrl+Shift+F opens the player page', async function() {
+    await browser.switchToWindow(siteHandle);
+    await browser.url('about:blank');
+    await expectMode('off', 'opening a blank tab', 'about:blank');
+    const tabId = await tabIdOf('about:blank');
+
+    await pressShortcut('U');
+    await expectMode('mpv', 'pressing Ctrl+Shift+U on a blank tab', 'about:blank');
+
+    await pressShortcut('F');
+    await browser.waitUntil(async () => (await urlOfTab(tabId)).startsWith(ORIGIN + '/player/'), {
+      timeout: 15000,
+      timeoutMsg: 'Ctrl+Shift+F on the blank tab never opened the player page',
+    });
+    let mode;
+    try {
+      await browser.waitUntil(async () => (mode = await modeOfTab(tabId)) === 'on', {
+        timeout: 10000,
+        interval: 250,
+      });
+    } catch (e) {
+      throw new Error(`the player page opened on the armed tab shows '${mode}', not 'on'`);
+    }
+
+    // Leaving the player page turns FastStream off, for the tests after this one.
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/watch`);
+    await expectMode('off', 'leaving the player page');
+  });
+
   it('arms MPV on a blank tab, for the video started on the next page', async function() {
     await browser.switchToWindow(siteHandle);
     await browser.url('about:blank');
@@ -537,6 +675,41 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
 
     await pressShortcut();
     await expectMode('off', 'pressing Ctrl+Shift+U on that page');
+  });
+
+  // The Auto-enable URLs list turns the in-page player on for a site. A tab armed with the
+  // shortcut is the user's own choice for that tab, and outranks the list: it used to open
+  // the in-page player there and drop the arm.
+  it('keeps the arm on a site on the Auto-enable URLs list', async function() {
+    await setOptions({mpvMode: true, mpvAllowlist: [], autoEnableURLs: [SITE]});
+    try {
+      await browser.switchToWindow(siteHandle);
+      await browser.url('about:blank');
+      await expectMode('off', 'opening a blank tab', 'about:blank');
+
+      await pressShortcut();
+      await expectMode('mpv', 'pressing Ctrl+Shift+U on a blank tab', 'about:blank');
+
+      await browser.switchToWindow(siteHandle);
+      const since = requests.length;
+      await browser.url(`${SITE}/watch`);
+      await expectMode('mpv', 'opening an Auto-enable site in the armed tab');
+      await pageVideosLoaded(since);
+      expect(await hasOverlayPlayer()).toBe(false);
+      await expectNothingInMpv('the Auto-enable site opened in the armed tab, before any play');
+
+      const before = mpvCount();
+      await clickPlay();
+      if (HAVE_HOST) {
+        await expectMainInMpv(before, 'clicking play on the Auto-enable site');
+      }
+      expect(await hasOverlayPlayer()).toBe(false);
+
+      await pressShortcut();
+      await expectMode('off', 'pressing Ctrl+Shift+U on that page');
+    } finally {
+      await setOptions({mpvMode: true, mpvAllowlist: []});
+    }
   });
 
   it('hands over a video the user is already watching', async function() {

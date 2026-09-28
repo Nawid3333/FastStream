@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "Aktifkan/Nonaktifkan FastStream"
     },
+    "command_toggle_player": {
+        "message": "Aktifkan/Nonaktifkan pemutar FastStream untuk tab ini"
+    },
+    "command_toggle_mpv": {
+        "message": "Aktifkan/Nonaktifkan MPV untuk tab ini"
+    },
     "welcome_page_title": {
         "message": "Selamat datang di FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "Aktifkan Otomatis untuk URL"
     },
     "options_autourl_body": {
-        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok. Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!)."
+        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok. Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!). Untuk membiarkan seluruh situs apa adanya - tanpa pengaktifan otomatis, dan tautan streamingnya tidak dibuka di pemutar - tambahkan tanda minus (-) di depan domainnya."
     },
     "options_autourl_hint": {
         "message": "Petunjuk: Uji regex di"

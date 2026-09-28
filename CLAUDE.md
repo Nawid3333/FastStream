@@ -422,6 +422,17 @@ registers the host under `HKCU\Software\Mozilla\NativeMessagingHosts`.
 Editing `native-host/faststream-mpv-host.mjs` in the repo changes nothing
 until it is copied to the install directory — a rebuild does **not** ship it.
 
+**Only http(s) goes to mpv, and a bare `mpv` is looked up (2026-09-28).** mpv opens
+local files and UNC paths too, and a UNC path makes Windows sign in to that host with
+the user's credentials. The player page is web-accessible, so a page could build a
+player around such a "source" and have the user send it to mpv. `MpvBackend.isStreamUrl`
+and the host's `isStreamUrl` accept an `http://`/`https://` string only (the prefix is
+checked on the raw string: the URL parser reads `https:\host\share` as https). And the
+host no longer passes a bare `mpv` on unchecked - "Test mpv connection" said mpv was
+there on a machine without it, and WMI's provider searches its own PATH, not the user's -
+`findMpvOnPath` returns `mpv.exe`'s absolute path from the user's PATH, or nothing.
+Both need `install.ps1` run again on a machine, like any host change.
+
 Four things here are counter-intuitive enough that each shipped broken once:
 
 - **A child of the host does not survive the browser.** Firefox runs a native
@@ -446,6 +457,20 @@ Four things here are counter-intuitive enough that each shipped broken once:
   button physically cannot forward it and the background restores
   `navigator.userAgent` on arrival. Without it mpv identifies itself to CDNs
   as `libmpv` and gets refused.
+
+**An open extension page keeps the event page running (measured 2026-09-28).** With
+idle unloading on at Firefox's 30 s default, the background stayed `running` through
+60 idle seconds while a FastStream player was on the page, or the player page was open
+in a tab, and went `stopped` once neither was. So idling alone never takes the frame
+registry away from under an open player; a stop that does (a hung background Firefox
+restarts, about:debugging's Terminate) left Off unable to see the player, which stayed
+on the page. `tabHasPlayer` asks the tab when the registry knows none: `HAS_PLAYER`
+goes to every frame, and a content script that finds a player iframe in its document
+(by URL, so a loading one counts) answers, as does a player page itself (a page frame
+that navigated to the player). The e2e harness runs with
+`extensions.background.idle.enabled = false`, so a spec never sees an idle unload:
+stop the background with `extension.terminateBackground()` from the chrome context
+(`toolbar-state`, `toolbar-off-race`, `mpv-suspend`).
 
 **Tab state has to outlive the event page (2026-09-24).** Firefox unloads the
 background after ~30 idle seconds, and every `TabHolder` goes with it. A reload
@@ -518,7 +543,20 @@ child). The spec was checked against both mistakes it guards (the old
 automatic hand-off; no activation check): each fails 4 of its 5 tests. It shares
 `startMpv`/`stopMpv` with the toolbar, so the two cannot drift: a tab is
 always exactly one of Off / On / MPV, and the last key pressed decides.
-Ctrl+Shift+F is unchanged. The key was picked by measurement on Firefox 156:
+**Ctrl+Shift+F is its own command, `toggle_player` (2026-09-28)**, not the
+toolbar button (`_execute_action`) any more. `_execute_action` fires the
+button's own `action.onClicked`, as a click does, so the background cannot
+tell the key from the button, and a click on MPV goes to
+Off: Ctrl+Shift+F after Ctrl+Shift+U turned FastStream off, and getting the
+player took a second press (Nawid, 2026-09-28). Now `onClicked(tab,
+{playerKey: true})` goes MPV -> On straight away (from the allowlist's MPV
+too) and is the plain Off/On toggle otherwise, on the allowlist as well; the
+button keeps its cycle. The player page drops an MPV arm (Ctrl+Shift+F on a
+new tab opens it). The delayed `openPlayer` in `onSourceRecieved` checks
+`!isMpv` as well, since MPV is "on" too: a switch to MPV inside
+`replaceDelay` otherwise got a player opened under it. `manifestCommands.test.mjs`
+checks each command is run on both paths (Firefox's and the cancelled-key
+fallback); `mpv-shortcut.e2e.mjs` drives F and U through every switch. The key was picked by measurement on Firefox 156:
 the Ctrl+Shift letters Firefox binds itself (browser.xhtml plus the DevTools
 keys - M is Responsive Design Mode) leave only F, L, U and Y free (V is
 paste-as-plain-text in text fields), L and Y are Bitwarden's defaults, and
@@ -542,7 +580,7 @@ trusted, non-repeat press with Ctrl/Alt/Command (or an F-key or media key)
 after dispatch, and reports it as `SHORTCUT_CANCELLED` only if the page
 cancelled it; the background matches it against `commands.getAll()` (fresh,
 so a key rebound on about:addons counts) with `KeyShortcut.matches` and runs
-`onClicked` or `onToggleMpv`. A press the page leaves alone is Firefox's to
+the command's handler, as `commands.onCommand` does. A press the page leaves alone is Firefox's to
 run, so the two paths never both fire. `isTrusted` matters: content-script
 listeners do receive page-dispatched events (measured). A site that uses the
 same combination for itself now gets both its own action and FastStream's.
@@ -1083,6 +1121,27 @@ detection looks for.
 
 ## Known upstream bugs fixed here
 
+- **"Auto-enable URLs" parsing** (review, 2026-09-28): the background had its own
+  parser for the list. A `-domain` line - "You can now exclude specific domains by
+  prepending -" (upstream #241, still open there) - set `domain` but left `match`
+  null and was dropped, so the site was neither excluded from auto-enable nor from the
+  "Use player to load" redirect rule's `excludedRequestDomains`; a lone `~` became the
+  empty regex and auto-enabled every site. The list is now a
+  `UrlMatchList({domainEntriesExclude: true})` (a `-domain` entry is an exclusion there,
+  a plain hostname match in the MPV allowlist), matched case-insensitively like the
+  allowlist, and `options_autourl_body` documents `-`. A unit test keeps a second parser
+  from coming back. Candidate for upstream PR ("fixes #241").
+- **Custom source patterns** (review, 2026-09-28): `loadCustomPatternsFile` took the
+  text between the first character and the last slash whatever it was, so `hls` alone
+  was the empty regex and every response became an HLS source. Parsed by
+  `CustomSourcePatterns.mjs` now (`<type> /<regex>/<flags>`, bad lines reported and left
+  out); `MultiRegexMatcher` refuses the empty regex and drops `g`/`y`, with which a
+  pattern never matched. Candidate for upstream PR.
+- **A frame stuck "opening a player"** (review, 2026-09-28): `openPlayer` cleared
+  `frame.playerOpening` only on `'no_video'`; a failed `OPEN_PLAYER` (frame navigated
+  away, no content script) left it set, and that frame never got a player again.
+  `BackgroundUtils.isPlayerOpeningResponse` names the answers that keep it, and a unit
+  test ties them to what `content.js` sends. Candidate for upstream PR.
 - `miniglob.mjs` `cleanGlobPath` shadowed the module-level `volumeNameLen`
   with a parameter of the same name, then called it. Callers pass a number,
   so **every Windows build failed** with `TypeError: volumeNameLen is not a

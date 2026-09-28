@@ -20,6 +20,12 @@ if (EnvUtils.isExtension()) {
           window.parent.postMessage(request.key, '*');
           sendResponse('ok');
           return;
+        } else if (request.type === MessageTypes.HAS_PLAYER) {
+          // The background asks the tab when it restarted and forgot the players. The
+          // page's content script sees player iframes; a page frame that navigated to the
+          // player has no content script left, so the player answers.
+          sendResponse(true);
+          return;
         } else if (request.type === MessageTypes.SOURCES && window.fastStream) {
           recieveSources(request, sendResponse);
           return true;

@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "FastStream'i Aç/Kapat"
     },
+    "command_toggle_player": {
+        "message": "Bu sekmede FastStream oynatıcısını Aç/Kapat"
+    },
+    "command_toggle_mpv": {
+        "message": "Bu sekmede MPV'yi Aç/Kapat"
+    },
     "welcome_page_title": {
         "message": "FastStream'e hoş geldiniz"
     },
@@ -1050,7 +1056,7 @@
         "message": "Otomatik Etkinleştirilen URL'ler"
     },
     "options_autourl_body": {
-        "message": "Bu URL'leri ziyaret ettiğinizde uzantıyı otomatik olarak etkinleştirir ve ayrılınca devre dışı bırakır. Her satıra bir URL yazın; o URL ile başlayan sayfalar da eşleşir. Regex için başına tilde (~) koyun. Her satıra bir regex. Siteleri hariç tutmak için başına ünlem işareti (!) ekleyin."
+        "message": "Bu URL'leri ziyaret ettiğinizde uzantıyı otomatik olarak etkinleştirir ve ayrılınca devre dışı bırakır. Her satıra bir URL yazın; o URL ile başlayan sayfalar da eşleşir. Regex için başına tilde (~) koyun. Her satıra bir regex. Siteleri hariç tutmak için başına ünlem işareti (!) ekleyin. Bir sitenin tamamını kendi haline bırakmak için - otomatik etkinleştirme olmaz ve akış bağlantıları oynatıcıda açılmaz - alan adının başına eksi işareti (-) koyun."
     },
     "options_autourl_hint": {
         "message": "İpucu: Regex'i burada test edin"

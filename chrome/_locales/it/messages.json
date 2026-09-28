@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "Attiva/disattiva FastStream"
     },
+    "command_toggle_player": {
+        "message": "Attiva/disattiva il lettore FastStream per questa scheda"
+    },
+    "command_toggle_mpv": {
+        "message": "Attiva/disattiva MPV per questa scheda"
+    },
     "welcome_page_title": {
         "message": "Ti diamo il benvenuto su FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "Abilita automaticamente gli URL"
     },
     "options_autourl_body": {
-        "message": "Abiliterà automaticamente l'estensione quando si visitano questi URL e la disabiliterà quando li si lascia. Un URL per riga, anche le pagine che iniziano con quell'URL corrisponderanno. Per le regex, anteponi una tilde (~). Una regex per riga. Per escludere dei siti, anteponi un punto esclamativo (!)."
+        "message": "Abiliterà automaticamente l'estensione quando si visitano questi URL e la disabiliterà quando li si lascia. Un URL per riga, anche le pagine che iniziano con quell'URL corrisponderanno. Per le regex, anteponi una tilde (~). Una regex per riga. Per escludere dei siti, anteponi un punto esclamativo (!). Per lasciare un intero sito in pace - nessuna attivazione automatica, e i suoi link di stream non vengono aperti nel lettore - anteponi un segno meno (-) al suo dominio."
     },
     "options_autourl_hint": {
         "message": "Suggerimento: testa le regex su"
