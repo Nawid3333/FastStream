@@ -176,12 +176,7 @@ jobs:
   # unit tests, the AMO linters) stay in `verify`. auto-release.yml waits for the whole
   # workflow, so a release ships only when Windows passes too.
   e2e-windows:
-    # TRIAL, removed before merge: five runs at once, to see whether mpv holds on CI.
-    name: e2e (Windows) trial ${{ matrix.trial }}
-    strategy:
-      fail-fast: false
-      matrix:
-        trial: [1, 2, 3, 4, 5]
+    name: e2e (Windows)
     runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
     timeout-minutes: 60
     defaults:
@@ -208,10 +203,10 @@ jobs:
         uses: ./.github/actions/e2e-setup
 
       # mpv and the FastStream native host, so the MPV-mode specs (ext-specs/mpv,
-      # classic-specs/mpv-*) run here instead of skipping: they check the request mpv
-      # itself makes for the stream, headers included, through the real host. Stock mpv,
-      # pinned by version and checksum; the maintainer's own build is covered by the
-      # local verify. install.ps1 is the installer users run.
+      # classic-specs/mpv-*, toolbar-cycle-mpv) run here instead of skipping: they check
+      # the request mpv itself makes for the stream, headers included, through the real
+      # host. Stock mpv, pinned by version and checksum; the maintainer's own build is
+      # covered by the local verify. install.ps1 is the installer users run.
       - name: Install mpv and the native host
         shell: pwsh
         env:
@@ -287,7 +282,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-logs-windows-${{ matrix.trial }}
+          name: e2e-logs-windows
           path: logs/
           if-no-files-found: ignore
           retention-days: 30

@@ -601,7 +601,13 @@ reach for it before theorising.
 **Testing.** `tests/e2e/ext-specs/mpv.e2e.mjs` drives the real chain —
 allowlisted page, webRequest detection, native host, mpv, HTTP request —
 against two local origins, because a same-origin media request carries no
-`Origin` header. It skips rather than fails when the host is not installed.
+`Origin` header. It skips rather than fails when the host is not installed,
+and so do `classic-specs/mpv-shortcut`, `mpv-suspend` and `toolbar-cycle-mpv`.
+CI's `e2e-windows` job installs the host, so there they run: stock mpv 0.41.0
+(the mpv-player/mpv release zip, pinned by version and SHA-256, logging
+through `portable_config`) registered by `native-host/install.ps1`, the step
+failing if the registry key or its manifest is missing rather than letting
+the specs skip. The maintainer's own mpv build is covered by the local verify.
 The host itself is covered by no suite; verify it by driving
 `com.faststream.mpv.bat` with a length-prefixed message, and by checking
 survival inside a real kill-on-close job object.
@@ -851,6 +857,13 @@ the change went in.
   with empty `hideClass`, sweetalert2#1841); `specs/dialogs.e2e.mjs` makes the animation
   last an hour and fails without the fix. Failing save/storage specs log the page and
   every unanswered OPFS worker call (`specs/diagnostics.mjs`, `OPFSManager.pendingCalls()`).
+  The MPV-mode specs joined the Windows job on 2026-09-28, after three five-job trials;
+  the third, with the fix below, passed every MPV spec on the first attempt.
+  The first two showed `toolbar-cycle-mpv` racing: its Off -> On step allowed no new CDN
+  request, but the in-page player it opens loads the detected stream, on the runner from
+  1.3 s before the iframe was found to 0.5 s after. It now checks what a reload changes
+  (the page is loaded again, and the page cache-busts its stream URL on every load) and
+  fails when `chrome.tabs.reload()` is added to that branch.
 - **e2e config, 2026-09-25:** `autoXvfb: false` - Firefox runs `-headless`, and WebdriverIO
   otherwise spawns workers through `xvfb-run`, whose Ubuntu 26.04 version closes fd 3, the
   worker IPC channel: every worker died with `write EINVAL` (webdriverio#15685, unfixed in
