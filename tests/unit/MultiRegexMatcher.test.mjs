@@ -105,3 +105,24 @@ describe('match', () => {
     expect(m.match('xyz')).toBe('nested-group');
   });
 });
+
+// Two ways a pattern went wrong without a word. With the `g` flag String.prototype.match
+// returns all matches and no groups, so match() never found the output. And the empty
+// regex matches everything, routing every URL to its output.
+describe('flags and empty patterns', () => {
+  it('matches a pattern added with the g flag', () => {
+    const m = build([['\\.m3u8', 'g', 'hls']]);
+    expect(m.match('https://example.com/a.m3u8')).toBe('hls');
+    expect(m.match('https://example.com/b.m3u8')).toBe('hls');
+  });
+
+  it('gives the same answer every time with the y flag', () => {
+    const m = build([['https', 'y', 'web']]);
+    expect(m.match('https://a/')).toBe('web');
+    expect(m.match('https://b/')).toBe('web');
+  });
+
+  it('refuses the empty regex', () => {
+    expect(() => new MultiRegexMatcher().addRegex('', '', 'hls')).toThrow(/Empty regex/);
+  });
+});

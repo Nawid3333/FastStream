@@ -80,7 +80,39 @@ function readConfig() {
   }
 }
 
-function resolveMpvPath(messagePath) {
+/**
+ * Finds mpv on the PATH, as an absolute path.
+ *
+ * A bare `mpv` handed on as-is was trusted without a look: "Test mpv connection" said
+ * mpv was there on a machine without it. And on Windows mpv is started through WMI,
+ * whose provider process searches its own PATH, not the user's, so a per-user install
+ * (scoop, a portable folder on the user's PATH) was not found there either. Looks for
+ * mpv.exe on Windows: PATHEXT order would find mpv.com first, the console wrapper.
+ *
+ * @param {Object<string, string|undefined>} [env] - The environment to search.
+ * @param {string} [platform] - process.platform, or a stand-in.
+ * @return {string|null} The executable, or null when no PATH directory has it.
+ */
+export function findMpvOnPath(env = process.env, platform = process.platform) {
+  const windows = platform === 'win32';
+  // Windows keeps it as Path; a copied environment may have either spelling.
+  const key = Object.keys(env).find((name) => name.toUpperCase() === 'PATH');
+  const dirs = String((key && env[key]) || '').split(windows ? ';' : ':').filter(Boolean);
+  for (const dir of dirs) {
+    const file = path.join(dir.replace(/^"(.*)"$/, '$1'), windows ? 'mpv.exe' : 'mpv');
+    try {
+      if (fs.statSync(file).isFile()) {
+        fs.accessSync(file, fs.constants.X_OK);
+        return file;
+      }
+    } catch (e) {
+      // Not in this directory.
+    }
+  }
+  return null;
+}
+
+export function resolveMpvPath(messagePath) {
   const config = readConfig();
   const candidates = [
     messagePath,
@@ -90,8 +122,11 @@ function resolveMpvPath(messagePath) {
 
   for (const candidate of candidates) {
     if (candidate === 'mpv') {
-      // Trust PATH resolution without stat-ing a bare name.
-      return candidate;
+      const found = findMpvOnPath();
+      if (found) {
+        return found;
+      }
+      continue;
     }
     try {
       // Accept both the exe itself and its folder (e.g. the user entered
@@ -297,6 +332,27 @@ function withFragmentTag(streamUrl, tag) {
 
   const existingFragment = streamUrl.slice(hashIndex + 1);
   return existingFragment.length > 0 ? `${streamUrl}&${tag}` : `${streamUrl}${tag}`;
+}
+
+/**
+ * Whether a URL may be handed to mpv: http or https only. mpv also opens local files
+ * and UNC paths, and a UNC path makes Windows sign in to that host with the user's
+ * credentials. The extension checks this too (MpvBackend.isStreamUrl); the host checks
+ * again because anything that can talk to it gets this far. The string itself has to
+ * start with the scheme: the URL parser alone reads `https:\\host\share` as https://host/share.
+ * @param {*} url - The candidate.
+ * @return {boolean}
+ */
+export function isStreamUrl(url) {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+    return false;
+  }
+  try {
+    const {protocol} = new URL(url);
+    return protocol === 'http:' || protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
@@ -712,6 +768,12 @@ async function main() {
   }
 
   if (message.type === 'open' && typeof message.url === 'string' && message.url.length > 0) {
+    if (!isStreamUrl(message.url)) {
+      debugLog(config, 'refused', {url: message.url});
+      await sendMessage({ok: false, error: 'mpv is only given http(s) streams'});
+      process.exit(0);
+      return;
+    }
     const mpvPath = resolveMpvPath(message.mpvPath);
     if (!mpvPath) {
       await sendMessage({ok: false, error: 'mpv executable not found'});

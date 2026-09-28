@@ -14,11 +14,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import {execFileSync} from 'node:child_process';
 import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
+import {closeSpecMpv, hostInstalled} from '../mpvTestProcesses.mjs';
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -37,41 +37,7 @@ let siteServer;
 let cdnServer;
 const requests = [];
 
-/** @return {boolean} Whether the native host is registered for Firefox. */
-function hostInstalled() {
-  try {
-    const key = ['HKCU', 'Software', 'Mozilla', 'NativeMessagingHosts',
-      'com.faststream.mpv'].join('\\');
-    const out = execFileSync('reg', ['query', key],
-        {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
-    const match = out.match(/REG_SZ\s+(.+)/);
-    return !!(match && fs.existsSync(match[1].trim()));
-  } catch (e) {
-    return false;
-  }
-}
-
 const HAVE_HOST = hostInstalled();
-
-/** @return {Array<number>} Process ids of every running mpv.exe. */
-function mpvPids() {
-  if (process.platform !== 'win32') {
-    return [];
-  }
-  try {
-    const out = execFileSync('tasklist',
-        ['/FI', 'IMAGENAME eq mpv.exe', '/FO', 'CSV', '/NH'],
-        {encoding: 'utf8'});
-    return out.split(String.fromCharCode(10))
-        .map((line) => /^"mpv\.exe","(\d+)"/.exec(line.trim()))
-        .filter(Boolean)
-        .map((m) => Number(m[1]));
-  } catch (e) {
-    return [];
-  }
-}
-
-const preexistingMpvPids = new Set(mpvPids());
 
 /**
  * Suspends the background event page, as Firefox does once it has been idle.
@@ -150,17 +116,8 @@ describe('MPV mode across a suspended background', function() {
   after(async function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
-    // Only the mpv windows this run started; see mpv.e2e.mjs.
-    for (const pid of mpvPids()) {
-      if (preexistingMpvPids.has(pid)) {
-        continue;
-      }
-      try {
-        execFileSync('taskkill', ['/F', '/PID', String(pid)], {stdio: 'ignore'});
-      } catch (e) {
-        // Already gone.
-      }
-    }
+    // Only the mpv windows this run started; see mpvTestProcesses.mjs.
+    closeSpecMpv([SITE, CDN]);
   });
 
   (HAVE_HOST ? it : it.skip)(

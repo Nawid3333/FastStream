@@ -43,6 +43,28 @@ export class MpvBackend {
   }
 
   /**
+   * Whether a URL may be handed to mpv: http or https, and nothing else. mpv opens
+   * local files and UNC paths too, and a UNC path makes Windows sign in to that host
+   * with the user's credentials. FastStream only ever finds http(s) streams, so the
+   * rest can only come from a page that made one up (the player page is web-accessible).
+   * The string itself has to start with the scheme: the URL parser alone would read
+   * `https:\\host\share` as https://host/share.
+   * @param {*} url - The candidate.
+   * @return {boolean}
+   */
+  static isStreamUrl(url) {
+    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
+      return false;
+    }
+    try {
+      const {protocol} = new URL(url);
+      return protocol === 'http:' || protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
    * Picks the headers worth relaying to mpv from a webRequest header list.
    * Duplicates are dropped, keeping the first value seen for each name.
    * @param {Array<{name: string, value: string}>|undefined} headerList
@@ -88,6 +110,10 @@ export class MpvBackend {
    * @return {Promise<{ok: boolean, error?: string}>} Host response.
    */
   openStream(url, tab, headers, contentType, pageUrl) {
+    if (!MpvBackend.isStreamUrl(url)) {
+      return Promise.resolve({ok: false, error: 'mpv is only given http(s) streams'});
+    }
+
     if (tab && tab.mpvSentUrls) {
       if (tab.mpvSentUrls.has(url)) {
         return Promise.resolve({ok: true});

@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "Włącz/wyłącz FastStream"
     },
+    "command_toggle_player": {
+        "message": "Włącz/wyłącz odtwarzacz FastStream dla tej karty"
+    },
+    "command_toggle_mpv": {
+        "message": "Włącz/wyłącz MPV dla tej karty"
+    },
     "welcome_page_title": {
         "message": "Witamy w FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "Automatyczne włączanie adresów URL"
     },
     "options_autourl_body": {
-        "message": "Będzie automatycznie włączać rozszerzenie po wejściu na podane adresy URL i wyłączać po opuszczeniu. Jeden adres URL w linii; strony zaczynające się od tego adresu też będą dopasowane. Dla wyrażeń regularnych poprzedź je tyldą (~). Jeden regex na linię. Aby wykluczyć strony, poprzedź je wykrzyknikiem (!)."
+        "message": "Będzie automatycznie włączać rozszerzenie po wejściu na podane adresy URL i wyłączać po opuszczeniu. Jeden adres URL w linii; strony zaczynające się od tego adresu też będą dopasowane. Dla wyrażeń regularnych poprzedź je tyldą (~). Jeden regex na linię. Aby wykluczyć strony, poprzedź je wykrzyknikiem (!). Aby zostawić całą stronę w spokoju - bez automatycznego włączania, a jej linki do strumieni nie będą otwierane w odtwarzaczu - poprzedź jej domenę minusem (-)."
     },
     "options_autourl_hint": {
         "message": "Wskazówka: przetestuj regex na"

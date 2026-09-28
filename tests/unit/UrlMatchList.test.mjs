@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {UrlMatchList} from '../../chrome/background/UrlMatchList.mjs';
 
@@ -191,5 +193,88 @@ describe('getContentType', () => {
     const list = new UrlMatchList();
     list.setEntries(['!https://example.com/ads/ @anime']);
     expect(list.getContentType('https://example.com/ads/1')).toBeNull();
+  });
+});
+
+// A regex entry with nothing after the `~` is the empty regex, which matches every URL:
+// one stray line put every site on the list, or took every site off it (`!~`). The
+// Auto-enable URLs list had the same flaw in its own copy of the parser.
+describe('an empty regex entry', () => {
+  it.each(['~', '!~', '~ @anime', '!~~'])('%s is rejected, not a catch-all', (raw) => {
+    expect(UrlMatchList.parseEntry(raw)).toBeNull();
+  });
+
+  it('does not put every page on the list', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/', '~']);
+    expect(list.matches('https://bank.example/')).toBe(false);
+    expect(list.matches('https://example.com/watch')).toBe(true);
+  });
+
+  it('does not take every page off the list', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/', '!~']);
+    expect(list.matches('https://example.com/watch')).toBe(true);
+  });
+});
+
+// A `-domain` entry is parsed by giving a bare hostname a scheme. The check for one was
+// case-sensitive, so `-HTTPS://example.com` became http://HTTPS://example.com, hostname
+// "https", and the entry matched nothing.
+describe('a domain entry written with a scheme', () => {
+  it.each(['-HTTP://Example.com', '-Https://example.com/some/page', '-https://example.com', '-example.com'])(
+      '%s matches by the hostname example.com', (raw) => {
+        expect(UrlMatchList.parseEntry(raw).match).toBe('example.com');
+      });
+});
+
+// For the Auto-enable URLs list, `-domain` means "leave this site alone" (upstream #241:
+// "You can now exclude specific domains by prepending -"): it is not auto-enabled, and its
+// manifest links are not redirected into the player. Its old parser dropped every such
+// line, so the exclusion never worked.
+describe('domainEntriesExclude (the Auto-enable URLs list)', () => {
+  it('makes a -domain entry an exclusion', () => {
+    const list = new UrlMatchList({domainEntriesExclude: true});
+    list.setEntries(['https://', '-github.com']);
+    expect(list.matches('https://github.com/user/repo/blob/main/4k.m3u8')).toBe(false);
+    expect(list.matches('https://example.com/')).toBe(true);
+  });
+
+  it('keeps the later-line-wins order', () => {
+    const later = new UrlMatchList({domainEntriesExclude: true});
+    later.setEntries(['-github.com', 'https://github.com/']);
+    expect(later.matches('https://github.com/x')).toBe(true);
+  });
+
+  it('lists the excluded hostnames for the redirect rule', () => {
+    // The hostname literal has no dot before its TLD except the one separating
+    // host and TLD, so CodeQL's js/incomplete-hostname-regexp (which sees the
+    // string flow into the `~`-regex branch's `new RegExp`) leaves it alone.
+    // URL parsing ignores the case and the path, still proving both.
+    const list = new UrlMatchList({domainEntriesExclude: true});
+    list.setEntries(['https://example.com/', '-github.com', '-HTTPS://CDN-Example.org/x', '~^https://a\\.b/']);
+    expect(list.excludedDomains()).toEqual(['github.com', 'cdn-example.org']);
+  });
+
+  it('leaves the MPV allowlist\'s -domain a hostname match', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['-example.com']);
+    expect(list.matches('https://example.com/watch')).toBe(true);
+  });
+});
+
+// Two lists share this syntax. background.mjs once had its own parser for the Auto-enable
+// URLs list, and it drifted: it dropped -domain lines and accepted a lone `~`. Both lists
+// now go through this class; this keeps a second parser from coming back.
+describe('background.mjs', () => {
+  const source = fs.readFileSync(path.resolve(import.meta.dirname, '../../chrome/background/background.mjs'), 'utf8');
+
+  it('builds both URL lists from UrlMatchList', () => {
+    expect(source).toMatch(/const AutoEnableList = new UrlMatchList\(\{domainEntriesExclude: true\}\);/);
+    expect(source).toMatch(/const MpvAllowlist = new UrlMatchList\(\);/);
+  });
+
+  it('has no list parser of its own', () => {
+    expect(source).not.toMatch(/exclude_domain|urlStr\[0\] === '[!~-]'/);
   });
 });

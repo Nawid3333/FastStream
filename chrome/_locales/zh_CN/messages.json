@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "切换 FastStream"
     },
+    "command_toggle_player": {
+        "message": "切换此标签页的 FastStream 播放器"
+    },
+    "command_toggle_mpv": {
+        "message": "切换此标签页的 MPV"
+    },
     "welcome_page_title": {
         "message": "欢迎使用 FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "自动启用 URL"
     },
     "options_autourl_body": {
-        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配。使用正则时在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。"
+        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配。使用正则时在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。要让整个站点不受影响 - 不自动启用，其流媒体链接也不会在播放器中打开 - 在域名前面加一个减号 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此处测试正则"

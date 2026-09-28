@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "FastStream in-/uitschakelen"
     },
+    "command_toggle_player": {
+        "message": "FastStream-speler in-/uitschakelen voor dit tabblad"
+    },
+    "command_toggle_mpv": {
+        "message": "MPV in-/uitschakelen voor dit tabblad"
+    },
     "welcome_page_title": {
         "message": "Welkom bij FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "URL's automatisch inschakelen"
     },
     "options_autourl_body": {
-        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen. Voor regex, plaats een tilde (~) vooraan. Eén regex per regel. Om sites uit te sluiten, plaats een uitroepteken (!)."
+        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen. Voor regex, plaats een tilde (~) vooraan. Eén regex per regel. Om sites uit te sluiten, plaats een uitroepteken (!). Om een hele site met rust te laten - geen automatisch inschakelen, en de streamlinks worden niet in de speler geopend - plaats een minteken (-) vóór het domein."
     },
     "options_autourl_hint": {
         "message": "Tip: test regex op"

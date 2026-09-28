@@ -377,16 +377,37 @@ describe('FastStream shortcuts on a page that cancels them', function() {
 
     await focusPage();
     expect(await press(KEYS.ctrlShiftF)).toBe(true);
-    // From MPV the toolbar action is Off on a site off the allowlist too.
-    await expectMode('off', 'after Ctrl+Shift+F');
+    // From MPV, Ctrl+Shift+F goes straight to the in-page player; run twice it
+    // would go on to Off.
+    await expectMode('on', 'after Ctrl+Shift+F');
+
+    await focusPage();
+    expect(await press(KEYS.ctrlShiftF)).toBe(true);
+    await expectMode('off', 'after Ctrl+Shift+F again');
+  });
+
+  it('Ctrl+Shift+F switches from MPV to the player on a page that cancels it', async function() {
+    await openPage(SITE + '/cancel-modified');
+    await expectMode('off', 'on opening the page');
+
+    await focusPage();
+    expect(await press(KEYS.ctrlShiftU)).toBe(false);
+    await expectMode('mpv', 'after Ctrl+Shift+U');
+
+    await focusPage();
+    expect(await press(KEYS.ctrlShiftF)).toBe(false);
+    await expectMode('on', 'after Ctrl+Shift+F');
+
+    await focusPage();
+    await press(KEYS.ctrlShiftF);
+    await expectMode('off', 'after Ctrl+Shift+F again');
   });
 
   it('a key event the page makes up runs nothing', async function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
-    // One at a time: run together, U then F would take the tab to MPV and
-    // straight back to Off, and hide both.
+    // One at a time, so each key's own effect would show.
     for (const key of ['U', 'F']) {
       await browser.switchToWindow(siteHandle);
       await browser.execute((key) => {

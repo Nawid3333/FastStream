@@ -3,6 +3,7 @@ import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
+import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
@@ -14,7 +15,9 @@ import {UrlMatchList} from './UrlMatchList.mjs';
 let Options = {};
 const OptionsCache = {};
 
-const AutoEnableList = [];
+// "Auto-enable URLs": prefix, `~` regex and `!` exclusion like the MPV allowlist, and
+// `-domain` to exclude a whole site, from the redirect of manifest links too.
+const AutoEnableList = new UrlMatchList({domainEntriesExclude: true});
 const MpvAllowlist = new UrlMatchList();
 const Mpv = new MpvBackend();
 
@@ -126,6 +129,37 @@ function hasOrOpeningPlayer(tab) {
   return false;
 }
 
+// How long the tab gets to say it holds a player. Each frame answers at once or not at
+// all, so this only runs out for a tab without one.
+const HasPlayerTimeoutMs = 1000;
+
+/**
+ * Whether the tab has an in-page player, asking the tab itself when this background
+ * knows of none. What it knows lives in memory, and a background that was stopped and
+ * started again knows nothing, while the player stays on the page. Idling does not do
+ * that while a player is open - an open extension page keeps the event page running
+ * (measured 2026-09-28: 60 s idle, still running; closed, it stopped) - but Firefox can
+ * still stop it, after a hang or with about:debugging's Terminate. Off then left the
+ * player playing under a toolbar that said Off.
+ *
+ * @param {Object} tab - TabHolder to check.
+ * @return {Promise<boolean>}
+ */
+async function tabHasPlayer(tab) {
+  if (hasOrOpeningPlayer(tab)) {
+    return true;
+  }
+  return await new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), HasPlayerTimeoutMs);
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.HAS_PLAYER}, (response) => {
+      // No content script (a blank or privileged page) is a tab without a player.
+      void chrome.runtime.lastError;
+      clearTimeout(timer);
+      resolve(response === true);
+    });
+  });
+}
+
 /**
  * Puts a tab in MPV mode: FastStream on, streams handed to mpv.
  *
@@ -141,14 +175,15 @@ function hasOrOpeningPlayer(tab) {
  *
  * @param {Object} tab - TabHolder to switch.
  * @param {boolean} [onPlay] - Wait for the user to start a video.
+ * @return {Promise<void>}
  */
-function startMpv(tab, onPlay = false) {
+async function startMpv(tab, onPlay = false) {
   tab.isOn = true;
   tab.isMpv = true;
   tab.mpvOnPlay = onPlay;
   BackgroundUtils.updateTabIcon(tab);
 
-  if (hasOrOpeningPlayer(tab)) {
+  if (await tabHasPlayer(tab)) {
     tab.reset();
     chrome.tabs.reload(tab.tabId);
   } else if (onPlay) {
@@ -174,20 +209,36 @@ function startMpv(tab, onPlay = false) {
  * any in-page player that is up or on its way.
  *
  * @param {Object} tab - TabHolder to switch.
+ * @return {Promise<void>}
  */
-function stopMpv(tab) {
+async function stopMpv(tab) {
   tab.isOn = false;
   tab.isMpv = false;
   tab.mpvOnPlay = false;
   BackgroundUtils.updateTabIcon(tab);
 
-  if (hasOrOpeningPlayer(tab)) {
+  if (await tabHasPlayer(tab)) {
     tab.reset();
     chrome.tabs.reload(tab.tabId);
   }
 }
 
-async function onClicked(tabobj) {
+/**
+ * The toolbar button, and the toggle_player shortcut (Ctrl+Shift+F unless the user
+ * rebinds it) with playerKey.
+ *
+ * The button cycles MPV -> Off -> On -> MPV on a site on the MPV Allowlist, and turns
+ * FastStream off or on everywhere else; from MPV a click is Off. The key is the in-page
+ * player's own switch: from MPV - the allowlist's or Ctrl+Shift+U's - it goes straight
+ * to the player, and otherwise turns the player off or on, on the allowlist too. So
+ * each key turns on its own mode whatever mode the tab is in, and the last key pressed
+ * decides. The key used to be the button (_execute_action), and after Ctrl+Shift+U it
+ * turned FastStream off: getting the player took a second press.
+ *
+ * @param {Object} tabobj - The tab the button was clicked or the key pressed in.
+ * @param {{playerKey?: boolean}} [how] - playerKey: the shortcut, not the button.
+ */
+async function onClicked(tabobj, {playerKey = false} = {}) {
   await ensureOptions();
 
   const tab = Tabs.getTabOrCreate(tabobj.id);
@@ -207,9 +258,17 @@ async function onClicked(tabobj) {
 
   if (tab.url && !EmptyTabUrls.includes(tab.url)) {
     if (!BackgroundUtils.isUrlPlayerUrl(tab.url)) {
-      // MPV mode only applies on allowlisted URLs; everywhere else the
-      // toolbar keeps its original Off/On behavior.
-      if (Options.mpvMode && MpvAllowlist.matches(tab.url)) {
+      if (playerKey && tab.isOn && tab.isMpv) {
+        // MPV -> On. MPV never opens an in-page player, so there is none to take down
+        // (a player on the page when MPV started was reloaded away), and the page's
+        // video goes to the player from the sources already tracked, as Off -> On does.
+        tab.isMpv = false;
+        tab.mpvOnPlay = false;
+        BackgroundUtils.updateTabIcon(tab);
+        openPlayersWithSources(tab);
+      } else if (!playerKey && Options.mpvMode && MpvAllowlist.matches(tab.url)) {
+        // MPV mode only applies on allowlisted URLs; everywhere else the
+        // toolbar keeps its original Off/On behavior.
         if (Logging) console.log('[MPV] toolbar cycle on allowlisted URL:', tab.url);
         // Cycle: MPV → Off → On → MPV. A click on the glowing purple icon
         // turns FastStream off outright (matching the ordinary Off/On
@@ -218,10 +277,10 @@ async function onClicked(tabobj) {
         // in-page player on; a third hands the stream to mpv again.
         if (tab.isMpv) {
           // MPV -> Off
-          stopMpv(tab);
+          await stopMpv(tab);
         } else if (tab.isOn) {
           // On -> MPV
-          startMpv(tab);
+          await startMpv(tab);
         } else {
           // Off -> On
           tab.isOn = true;
@@ -237,7 +296,7 @@ async function onClicked(tabobj) {
 
         if (tab.isOn) {
           openPlayersWithSources(tab);
-        } else if (hasOrOpeningPlayer(tab)) {
+        } else if (await tabHasPlayer(tab)) {
           // A player still loading counts: the MPV cycle already checks it, and without
           // it an Off clicked right after On left the player on the page.
           tab.reset();
@@ -260,14 +319,16 @@ async function onClicked(tabobj) {
   Tabs.saveTabState(tab);
 }
 
-chrome.action.onClicked.addListener(onClicked);
+// Not onClicked itself: the click's OnClickData would land in its second parameter.
+chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
 
 /**
  * The toggle_mpv shortcut (Ctrl+Shift+U unless the user rebinds it): MPV on or
  * off for the tab, on any site. Unlike the toolbar cycle it does not need the
  * site on the MPV Allowlist - pressing it is the deliberate choice the
  * allowlist otherwise makes for the user. Off means FastStream off, the same
- * as the toolbar's MPV -> Off step; the in-page player stays on Ctrl+Shift+F.
+ * as the toolbar's MPV -> Off step. From the in-page player it goes straight to
+ * MPV, as Ctrl+Shift+F goes from MPV straight to the player (onClicked).
  *
  * Only a video the user starts goes to mpv (startMpv's onPlay, onUserPlay):
  * on an arbitrary site the first stream a page loads is as likely a preview
@@ -309,16 +370,21 @@ async function onToggleMpv(tabobj) {
   }
 
   if (tab.isOn && tab.isMpv) {
-    stopMpv(tab);
+    await stopMpv(tab);
   } else {
-    startMpv(tab, true);
+    await startMpv(tab, true);
   }
 
   Tabs.saveTabState(tab);
 }
 
 chrome.commands.onCommand.addListener((command, tabobj) => {
-  if (command === 'toggle_mpv' && tabobj) {
+  if (!tabobj) {
+    return;
+  }
+  if (command === 'toggle_player') {
+    onClicked(tabobj, {playerKey: true});
+  } else if (command === 'toggle_mpv') {
     onToggleMpv(tabobj);
   }
 });
@@ -326,9 +392,8 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
 /**
  * A key press the page cancelled, which Firefox therefore never ran as a
  * shortcut (content.js reports only those). Runs the command it is bound to,
- * as Firefox would have: the toolbar action for _execute_action (Ctrl+Shift+F
- * by default), onToggleMpv for toggle_mpv. The bindings are read fresh, so a
- * key rebound on about:addons counts at once.
+ * as Firefox would have: toggle_player (Ctrl+Shift+F by default) or toggle_mpv.
+ * The bindings are read fresh, so a key rebound on about:addons counts at once.
  *
  * @param {Object} press - The key press; see KeyShortcut's KeyPress.
  * @param {Object} tabobj - The tab it was pressed in.
@@ -341,8 +406,8 @@ async function onCancelledShortcut(press, tabobj) {
     return;
   }
   if (Logging) console.log('[Shortcut] the page cancelled', command.shortcut, '- running', command.name);
-  if (command.name === '_execute_action') {
-    onClicked(tabobj);
+  if (command.name === 'toggle_player') {
+    onClicked(tabobj, {playerKey: true});
   } else if (command.name === 'toggle_mpv') {
     onToggleMpv(tabobj);
   }
@@ -428,22 +493,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       BackgroundUtils.checkMessageError('remove_players');
     });
 
-    const match = AutoEnableList.find((item) => {
-      try {
-        if (!item.regex) {
-          return changeInfo.url.substring(0, item.match.length) === item.match;
-        } else if (item.exclude_domain) {
-          return item.domain === url.hostname;
-        } else {
-          return item.match.test(changeInfo.url);
-        }
-      } catch (e) {
-
-      }
-      return false;
-    });
-
-    const shouldAutoEnable = match && !match.negative;
+    const shouldAutoEnable = AutoEnableList.matches(changeInfo.url);
 
     const isPlayerUrl = BackgroundUtils.isUrlPlayerUrl(tab.url);
     const mpvSite = !!Options.mpvMode && MpvAllowlist.matches(tab.url);
@@ -452,6 +502,10 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
+      // The player page has no MPV mode. Ctrl+Shift+U's arm on a new tab would show
+      // there (Ctrl+Shift+F on that tab opens this page), with nothing to send.
+      tab.isMpv = false;
+      tab.mpvOnPlay = false;
     } else if (mpvSite && !tab.mpvMatched) {
       // Visiting an allowlisted site auto-starts MPV mode.
       if (Logging) console.log('[MPV] auto-start on allowlisted URL:', tab.url);
@@ -462,7 +516,9 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       // The allowlist's own rule, even if the shortcut armed this tab.
       tab.mpvOnPlay = false;
       openMpvWithSources(tab);
-    } else if (shouldAutoEnable && !tab.regexMatched) {
+    } else if (shouldAutoEnable && !tab.regexMatched && !(tab.isMpv && tab.mpvOnPlay)) {
+      // Not for a tab armed with the MPV shortcut: the user's own choice for the tab
+      // outranks the standing list, so the first video they start here still goes to mpv.
       tab.regexMatched = true;
       tab.isOn = true;
       // Allowlisted sites default to MPV mode; everything else uses the
@@ -645,28 +701,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     frame.loadedCallbacks.clear();
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
-    const toRemove = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
-    const playerCount = toRemove.resetSelfAndChildren();
-    tab.playerCount -= playerCount;
-    tab.playerCount = Math.max(0, tab.playerCount);
-
-    if (toRemove.parent) {
-      toRemove.parent.removeChildFrame(toRemove);
-    }
-
-    // The frame is gone and will never send whatever "main loaded" event
-    // would otherwise resolve these - settle them now so a caller awaiting
-    // WAIT_UNTIL_MAIN_LOADED doesn't hang forever.
-    toRemove.loadedCallbacks.forEach((callback) => {
-      try {
-        callback(null);
-      } catch (e) {
-        console.error(e);
-      }
-    });
-    toRemove.loadedCallbacks.clear();
-
-    tab.removeFrame(toRemove.frameId);
+    tab.forgetFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame);
   } else if (msg.type === MessageTypes.WAIT_UNTIL_MAIN_LOADED) {
     frame.loadedCallbacks.add(sendResponse);
 
@@ -707,6 +742,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       f.getSources().length = 0;
     }
     sendResponse('cleared');
+    return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
     if (msg.commands.length) {
       ruleManager.addHeaderRule(msg.url, sender.tab.id, msg.commands).then((rule) => {
@@ -1158,61 +1194,7 @@ async function loadOptions(newOptions) {
   newOptions = newOptions || await Utils.getOptionsFromStorage();
   Options = newOptions;
 
-  AutoEnableList.length = 0;
-  Options.autoEnableURLs.forEach((urlStr) => {
-    if (urlStr.length === 0) {
-      return;
-    }
-
-    const obj = {
-      exclude_domain: false,
-      negative: false,
-      regex: false,
-      match: null,
-    };
-
-    while (urlStr.length > 0) {
-      if (urlStr[0] === '!') {
-        obj.negative = true;
-        urlStr = urlStr.substring(1);
-      } else if (urlStr[0] === '~') {
-        obj.regex = true;
-        urlStr = urlStr.substring(1);
-      } else if (urlStr[0] === '-') {
-        obj.exclude_domain = true;
-        urlStr = urlStr.substring(1);
-      } else {
-        break;
-      }
-    }
-
-    if (obj.exclude_domain) {
-      try {
-        // Check if starts with http or https, add it if not
-        if (!urlStr.startsWith('http')) {
-          urlStr = 'http://' + urlStr;
-        }
-
-        obj.domain = new URL(urlStr).hostname;
-      } catch (e) {
-      }
-    } else if (obj.regex) {
-      try {
-        obj.match = new RegExp(urlStr);
-      } catch (e) {
-
-      }
-    } else {
-      obj.match = urlStr;
-    }
-
-    if (obj.match) {
-      AutoEnableList.push(obj);
-    }
-  });
-
-  // Reverse auto enable list
-  AutoEnableList.reverse();
+  AutoEnableList.setEntries(Options.autoEnableURLs);
 
   MpvAllowlist.setEntries(Options.mpvAllowlist);
   Mpv.mpvPath = Options.mpvPath || '';
@@ -1248,11 +1230,11 @@ async function loadOptions(newOptions) {
 async function setupRedirectRule(ruleID, filetypes) {
   const excludedRequestDomains = [(new URL(BackgroundUtils.getPlayerUrl())).hostname];
 
-  AutoEnableList.forEach((item) => {
-    if (item.exclude_domain && item.domain && !excludedRequestDomains.includes(item.domain)) {
-      excludedRequestDomains.push(item.domain);
+  for (const domain of AutoEnableList.excludedDomains()) {
+    if (!excludedRequestDomains.includes(domain)) {
+      excludedRequestDomains.push(domain);
     }
-  });
+  }
 
   const rule = {
     id: ruleID,
@@ -1296,31 +1278,13 @@ async function loadCustomPatterns() {
 }
 
 async function loadCustomPatternsFile(matcher, fileStr, isPrimary = false) {
-  const lines = fileStr.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-
-    if (line.length === 0) continue;
-
-    if (line.startsWith('#') || line.startsWith('//')) continue; // comment
-
-    if (line.startsWith('@')) { // command, do nothing for now. Future use
-      // line = line.substring(1);
-      // const command = line.substring(0, line.indexOf(' '));
-      // const body = line.substring(line.indexOf(' ') + 1);
-      continue;
-    }
-
-    const args = line.split(' ');
-    const extStr = args[0];
-    const regexStr = args.slice(1).join(' ');
-
-    // parse regex and flags
-    const regex = regexStr.substring(1, regexStr.lastIndexOf('/'));
-    const flags = regexStr.substring(regexStr.lastIndexOf('/') + 1);
-
+  const {patterns, errors} = parseCustomSourcePatterns(fileStr);
+  for (const {line, text, reason} of errors) {
+    console.warn(`Custom source pattern on line ${line} left out (${reason}): ${text}`);
+  }
+  for (const {ext, regex, flags} of patterns) {
     try {
-      matcher.addRegex(regex, flags, extStr);
+      matcher.addRegex(regex, flags, ext);
     } catch (e) {
       console.warn(e);
     }
@@ -1476,7 +1440,7 @@ async function openPlayer(frame) {
     }, (response) => {
       BackgroundUtils.checkMessageError('player');
 
-      if (response === 'no_video') {
+      if (!BackgroundUtils.isPlayerOpeningResponse(response)) {
         frame.playerOpening = false;
       }
 
@@ -1577,7 +1541,9 @@ async function onSourceRecieved(details, frame, mode) {
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
     frame.openTimeout = setTimeout(() => {
-      if (frame.tab.isOn) {
+      // MPV counts as on too: a switch to it within the delay found no player to
+      // reload away, and this would open one under it.
+      if (frame.tab.isOn && !frame.tab.isMpv) {
         openPlayer(frame);
       }
     }, Options.replaceDelay);

@@ -11,6 +11,16 @@ export class MultiRegexMatcher {
   }
 
   addRegex(regex, flags, output) {
+    // The empty regex matches every string: added by mistake, it would route every URL
+    // to this output.
+    if (!regex) {
+      throw new Error('Empty regex: it would match everything');
+    }
+    // match() needs the groups of the first match. With `g`, String.prototype.match
+    // returns every match and no groups, so the pattern never matched; `y` would keep a
+    // lastIndex between calls. Neither means anything for a yes/no match.
+    flags = String(flags || '').replace(/[gy]/g, '');
+
     // check if regex is valid
     try {
       new RegExp(regex, flags);

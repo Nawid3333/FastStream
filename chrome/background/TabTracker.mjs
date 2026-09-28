@@ -129,6 +129,41 @@ export class TabHolder {
     this.frames.delete(frameId);
   }
 
+  /**
+   * Forgets a frame the page removed, with every frame inside it (FRAME_REMOVED).
+   * Whatever waits for one of them to load (WAIT_UNTIL_MAIN_LOADED) is answered with
+   * null, as it never will. A frame this background never knew - Firefox unloaded it
+   * while the page kept its frames - is nothing to forget; it used to throw here.
+   * @param {FrameHolder|undefined} frame - The removed frame.
+   */
+  forgetFrame(frame) {
+    if (!frame) {
+      return;
+    }
+    const gone = [];
+    const collect = (f) => {
+      gone.push(f);
+      f.children.forEach(collect);
+    };
+    collect(frame);
+
+    this.playerCount = Math.max(0, (this.playerCount || 0) - frame.resetSelfAndChildren());
+    if (frame.parent) {
+      frame.parent.removeChildFrame(frame);
+    }
+    for (const f of gone) {
+      f.loadedCallbacks.forEach((callback) => {
+        try {
+          callback(null);
+        } catch (e) {
+          console.error(e);
+        }
+      });
+      f.loadedCallbacks.clear();
+    }
+    this.removeFrame(frame.frameId);
+  }
+
   getMainPlayer() {
     if (!BackgroundUtils.isUrlPlayerUrl(this.url)) {
       return null;

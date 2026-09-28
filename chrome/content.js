@@ -25,6 +25,7 @@
     MPV_REPORT_PLAYING: 'MPV_REPORT_PLAYING',
     SCRAPE_CAPTIONS: 'SCRAPE_CAPTIONS',
     SHORTCUT_CANCELLED: 'SHORTCUT_CANCELLED',
+    HAS_PLAYER: 'HAS_PLAYER',
   };
 
   const iframeMap = new Map();
@@ -80,6 +81,13 @@
     } else if (request.type === MessageTypes.FRAME_LINK_SENDER) {
       window.parent.postMessage(request.key, '*');
       sendResponse('ok');
+      return;
+    } else if (request.type === MessageTypes.HAS_PLAYER) {
+      // Sent to every frame of the tab; only a frame holding a player answers, so the
+      // background's first answer is a yes, and a tab without one answers nothing.
+      if (hasPlayerIframe()) {
+        sendResponse(true);
+      }
       return;
     } else if (request.type === MessageTypes.PING_TAB) {
       sendResponse(MessageTypes.PONG_TAB);
@@ -1069,6 +1077,17 @@
     } catch (e) {
       callback(e);
     }
+  }
+
+  /**
+   * Whether this frame's document holds a FastStream player iframe, loaded or still
+   * loading. Read from the page, not from iframeMap: a player is linked there only once
+   * it has loaded.
+   * @return {boolean}
+   */
+  function hasPlayerIframe() {
+    const playerUrl = chrome.runtime.getURL('player/index.html');
+    return querySelectorAllIncludingShadows('iframe').some((iframe) => iframe.src.startsWith(playerUrl));
   }
 
   function querySelectorAllIncludingShadows(query, currentElement = document.body, results = []) {

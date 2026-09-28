@@ -8,6 +8,12 @@
     "extension_toggle_label": {
         "message": "Togol FastStream"
     },
+    "command_toggle_player": {
+        "message": "Togol pemain FastStream untuk tab ini"
+    },
+    "command_toggle_mpv": {
+        "message": "Togol MPV untuk tab ini"
+    },
     "welcome_page_title": {
         "message": "Selamat datang ke FastStream"
     },
@@ -1050,7 +1056,7 @@
         "message": "Auto-enable URLs"
     },
     "options_autourl_body": {
-        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line."
+        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. Untuk membiarkan seluruh laman begitu sahaja - tiada pengaktifan automatik, dan pautan strimnya tidak dibuka dalam pemain - letakkan tanda tolak (-) di hadapan domainnya."
     },
     "options_autourl_hint": {
         "message": "Hint: Test regex on"

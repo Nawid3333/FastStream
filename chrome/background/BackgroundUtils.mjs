@@ -2,6 +2,25 @@
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
 export class BackgroundUtils {
+  /**
+   * The answers content.js gives OPEN_PLAYER when a player is on its way: the frame is
+   * sent to the player page, or a player iframe goes over or in place of the page's video.
+   * PLAYER_LOADED follows, and clears frame.playerOpening.
+   */
+  static PlayerOpeningResponses = ['redirect', 'replaceall', 'replace'];
+
+  /**
+   * Whether an OPEN_PLAYER answer means a player is on its way. 'no_video' does not, and
+   * neither does no answer at all - the frame navigated away, or has no content script -
+   * after which frame.playerOpening used to stay set, so that frame never opened a player
+   * again.
+   * @param {*} response - What content.js answered, undefined on a failed send.
+   * @return {boolean}
+   */
+  static isPlayerOpeningResponse(response) {
+    return BackgroundUtils.PlayerOpeningResponses.includes(response);
+  }
+
   static checkMessageError(message, suppress = false) {
     if (chrome.runtime.lastError) {
       if (!suppress) console.warn(`Unable to send message '${message}'`, chrome.runtime.lastError);
