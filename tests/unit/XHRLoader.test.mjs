@@ -366,6 +366,30 @@ describe('XHRLoader', () => {
     });
   });
 
+  it('does not fetch a load aborted while SET_HEADERS was on its way', async () => {
+    let answer;
+    globalThis.chrome = {
+      extension: {},
+      runtime: {sendMessage: vi.fn(() => new Promise((resolve) => (answer = resolve)))},
+    };
+    const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 200});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({headers: {referer: 'https://origin.example/'}}), makeConfig());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(globalThis.chrome.runtime.sendMessage).toHaveBeenCalledTimes(1);
+
+    loader.abort();
+    answer();
+    await vi.runAllTimersAsync();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(recorder.calls).toEqual([]);
+  });
+
   it('does not call SET_HEADERS outside an extension context, and still sends the request', async () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 200});
     vi.stubGlobal('fetch', fetchMock);

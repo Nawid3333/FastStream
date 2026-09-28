@@ -122,11 +122,12 @@ export default class MP4Player extends EventEmitter {
 
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
       // console.log(id, sampleNumber)
-      if (videoTrack.id === id) {
+      // A file can have no video track (audio only) or no audio track.
+      if (videoTrack?.id === id) {
         this.videoSourceBuffer.appendBuffer(buffer);
 
         this.freeSamples(id);
-      } else if (audioTrack.id === id) {
+      } else if (audioTrack?.id === id) {
         this.audioSourceBuffer.appendBuffer(buffer);
 
         this.freeSamples(id);
@@ -720,7 +721,14 @@ export default class MP4Player extends EventEmitter {
   calculateDuration() {
     if (!this.metaData) return 0;
     const info = this.metaData;
-    let duration = ((info.isFragmented ? info.fragment_duration : info.duration) || 0) / info.timescale;
+    // A fragmented file's length is in its mehd box, if it has one. info.fragment_duration
+    // was that box's value in mp4box 0.5; since 2.x it is a {num, den} fraction (a number
+    // divided by it is NaN, which the MediaSource refuses), and without a mehd box it is
+    // what had been parsed when the metadata was read, which does not grow.
+    const mehd = this.mp4box.moov?.mvex?.mehd;
+    let duration = info.isFragmented ?
+      (mehd ? mehd.fragment_duration / this.mp4box.moov.mvhd.timescale : 0) :
+      (info.duration || 0) / info.timescale;
     if (duration === 0 && info.isFragmented) {
       duration = this.mp4box.moov.traks.reduce((acc, track) => {
         return Math.max(acc, track.samples_duration / track.samples[0].timescale, 0);

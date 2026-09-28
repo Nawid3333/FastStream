@@ -89,8 +89,12 @@ export class StandardDownloader {
 
   async onSuccess(response, stats, entry, xhr) {
     this.updateSpeed(stats);
-    await this.entry.onSuccess(response, stats, this.entry, xhr);
-    this.cleanup();
+    try {
+      await this.entry.onSuccess(response, stats, this.entry, xhr);
+    } finally {
+      // Whatever went wrong in there, a downloader left busy would never download again.
+      this.cleanup();
+    }
   }
 
   onError(stats, entry, xhr) {

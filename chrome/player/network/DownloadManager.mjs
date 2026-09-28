@@ -100,6 +100,9 @@ export class DownloadManager {
   }
 
   destroy() {
+    // queueNext's retry after a failure would find no downloaders left.
+    clearTimeout(this.failCooldown);
+    this.failCooldown = null;
     this.downloaders.forEach((downloader) => {
       downloader.destroy();
     });

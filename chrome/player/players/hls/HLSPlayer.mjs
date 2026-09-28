@@ -143,6 +143,19 @@ export default class HLSPlayer extends EventEmitter {
     };
   }
 
+  /**
+   * Reads an init segment, downloading it first if hls.js has not yet (a level just
+   * switched to), as DashPlayer's save does.
+   * @param {HLSFragment} init - The level's fragment -1.
+   * @return {Promise<Uint8Array>}
+   */
+  async readInitSegment(init) {
+    if (init.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
+      await this.downloadFragment(init, -1);
+    }
+    return new Uint8Array(await this.client.downloadManager.getEntry(init.getContext()).getDataFromBlob());
+  }
+
   async saveVideo(options) {
     const fragments = this.client.getFragments(this.getCurrentVideoLevelID()) || [];
     const audioFragments = this.client.getFragments(this.getCurrentAudioLevelID()) || [];
@@ -160,6 +173,22 @@ export default class HLSPlayer extends EventEmitter {
       options.registerCancel(() => {
         cancelled = true;
       });
+    }
+
+    const level = this.hls.levels[this.getIndexes(this.getCurrentVideoLevelID()).levelID];
+    const audioLevel = this.hls.audioTracks[this.hls.audioTrack];
+
+    // Read before the fragments are pinned below: a pinned fragment is unpinned only by
+    // its getEntry or by the catch at the end, so nothing between the two may throw.
+    let levelInitData = null;
+    let audioLevelInitData = null;
+
+    if (fragments[-1]) {
+      levelInitData = await this.readInitSegment(fragments[-1]);
+    }
+
+    if (audioFragments[-1]) {
+      audioLevelInitData = await this.readInitSegment(audioFragments[-1]);
     }
 
     zippedFragments.forEach((data) => {
@@ -184,20 +213,6 @@ export default class HLSPlayer extends EventEmitter {
         return this.client.downloadManager.getEntry(data.fragment.getContext());
       };
     });
-
-    const level = this.hls.levels[this.getIndexes(this.getCurrentVideoLevelID()).levelID];
-    const audioLevel = this.hls.audioTracks[this.hls.audioTrack];
-
-    let levelInitData = null;
-    let audioLevelInitData = null;
-
-    if (fragments[-1]) {
-      levelInitData = new Uint8Array(await this.client.downloadManager.getEntry(fragments[-1].getContext()).getDataFromBlob());
-    }
-
-    if (audioFragments[-1]) {
-      audioLevelInitData = new Uint8Array(await this.client.downloadManager.getEntry(audioFragments[-1].getContext()).getDataFromBlob());
-    }
 
     // A level is fMP4 exactly when its playlist named an initialization segment, and
     // those belong to the merger - HLS2MP4 below demuxes transport streams and cannot
@@ -318,11 +333,20 @@ export default class HLSPlayer extends EventEmitter {
     this.hls.on(Hls.Events.AUDIO_TRACK_UPDATED, (a, data) => {
       this.trackUpdated(data.details, 1);
     });
+
+    // After a fatal error hls.js loads nothing more. A manifest or playlist that could not
+    // be loaded gives <video> no error of its own, so without this the player would wait
+    // forever instead of saying it failed.
+    this.hls.on(Hls.Events.ERROR, (event, data) => {
+      if (data.fatal) this.emit(DefaultPlayerEvents.ERROR, data);
+    });
   }
 
   trackUpdated(levelDetails, trackID) {
     levelDetails.trackID = trackID;
-    let time = 0;
+    // A live playlist's window moves on: its first fragment starts where hls.js placed
+    // it, not at 0, or each refresh would place its new fragments over the old ones.
+    let time = levelDetails.fragments[0]?.start || 0;
     levelDetails.fragments.forEach((fragment, i) => {
       const identifier = this.getIdentifier(levelDetails.trackID, fragment.level);
       if (fragment.initSegment && i === 0) {

@@ -1,4 +1,15 @@
 /**
+ * Whether two hls.js fragments name the same bytes.
+ * @param {Object} a - An hls.js fragment.
+ * @param {Object} b - Another.
+ * @return {boolean}
+ */
+function isSameSegment(a, b) {
+  return a.url === b.url && a.byteRangeStartOffset === b.byteRangeStartOffset &&
+    a.byteRangeEndOffset === b.byteRangeEndOffset;
+}
+
+/**
      * Calling load() will start retrieving content located at given URL (HTTP GET).
      *
      * @param {object} context - loader context
@@ -88,7 +99,12 @@ export function HLSLoaderFactory(player) {
           sn = -1;
         }
         const identifier = player.getIdentifier(this.context.frag.trackID, this.context.frag.level);
-        const frag = player.client.getFragment(identifier, sn);
+        let frag = player.client.getFragment(identifier, sn);
+        // One init segment is kept per level, but a playlist can change its EXT-X-MAP:
+        // the kept one is only this request's if it is the same segment.
+        if (frag && sn === -1 && !isSameSegment(frag.getFrag(), this.context.frag)) {
+          frag = null;
+        }
         if (!frag) {
           console.error('Fragment not found', identifier, this.context.frag);
           this.loadNonFragmentInternal();
@@ -149,7 +165,10 @@ export function HLSLoaderFactory(player) {
     }
 
     loadNonFragmentInternal() {
-      this.loader = player.getClient().downloadManager.getFile({
+      // A playlist, not a key or a fragment. hls.js loads one again to see what is new.
+      const isPlaylist = this.context.frag === undefined;
+      const downloadManager = player.getClient().downloadManager;
+      this.loader = downloadManager.getFile({
         ...this.context,
         config: this.config,
         headers: {
@@ -160,6 +179,9 @@ export function HLSLoaderFactory(player) {
         onSuccess: async (entry, xhr) => {
           this.copyStats(entry.stats);
           const data = await entry.getDataFromBlob();
+          // Or the next load of a live playlist would be answered with this one from the
+          // store, and the stream would stop where this window ends.
+          if (isPlaylist) downloadManager.removeFile(entry);
 
           if (this.callbacks) {
             this.callbacks.onSuccess({
@@ -175,8 +197,15 @@ export function HLSLoaderFactory(player) {
         onFail: (entry) => {
           setTimeout(() => {
             this.copyStats(entry.stats);
-            if (this.callbacks) {
-              if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, this.context, null, null);
+            if (!this.callbacks) return;
+            if (isPlaylist) {
+              // hls.js's playlist loader passes no onAbort, so a failure reported as one
+              // reached nobody, and the player waited forever. As an error, hls.js retries
+              // the playlist, and fails the player once it gives up.
+              const error = this.stats.error || {code: 0, text: 'Download failed'};
+              this.callbacks.onError?.(error, this.context, null, this.stats);
+            } else {
+              this.callbacks.onAbort?.(this.stats, this.context, null, null);
             }
           }, 1000);
         },

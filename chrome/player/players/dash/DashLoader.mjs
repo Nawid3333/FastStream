@@ -1,6 +1,20 @@
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 
+/**
+ * decodeURI, but a URL it cannot decode (a `%` not followed by two hex digits, which a
+ * manifest or a page may well contain) is used as it is instead of throwing.
+ * @param {string} url
+ * @return {string}
+ */
+function decodeUrl(url) {
+  try {
+    return decodeURI(url);
+  } catch (e) {
+    return url;
+  }
+}
+
 
 export function DASHLoaderFactory(player) {
   return (cfg) => {
@@ -103,7 +117,7 @@ export function DASHLoaderFactory(player) {
         delete httpRequest.headers.Range;
       }
       const context = {
-        url: decodeURI(httpRequest.url),
+        url: decodeUrl(httpRequest.url),
         method: httpRequest.method || 'GET',
         responseType: request.responseType,
         rangeStart: rangeStart,
@@ -120,7 +134,8 @@ export function DASHLoaderFactory(player) {
         },
       };
 
-      const loader = player.getClient().downloadManager.getFile({
+      const downloadManager = player.getClient().downloadManager;
+      const loader = downloadManager.getFile({
         ...context,
         preProcessor: async (entry, request) => {
           if (isSegment && player.preProcessFragment) {
@@ -137,6 +152,9 @@ export function DASHLoaderFactory(player) {
       }, {
         onSuccess: async (entry, xhr) => {
           const data = await entry.getDataFromBlob();
+          // dash.js loads a live manifest again to learn of new segments; from the store,
+          // every reload would be this one, and the stream would stop where it ends.
+          if (request.type === 'MPD') downloadManager.removeFile(entry);
           httpRequest.customData.onSuccess(data, entry.responseURL);
         },
         onProgress: (stats, context, data, xhr)=> {
