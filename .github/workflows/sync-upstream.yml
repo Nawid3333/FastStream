@@ -232,7 +232,7 @@ jobs:
           - **Take it.** Resolve any conflicts on this branch, keep only what this project wants, and merge. The merge commit records every commit below as handled, kept or not, so the next sync shows only newer ones.
           - **Skip it.** Close this PR without merging. It is not reopened for the same upstream commit, and comes back once upstream moves again.
           - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
-          - Do not merge on green CI alone: lint and unit tests do not cover playback. Load the built extension and run the HLS / DASH / MP4 checklist first.
+          - CI runs the full suite on this PR, playback in Firefox on Linux and Windows included. For a change to the player, the loaders or a media library, also run `pnpm run test:live` (real streams and sites) before merging.
 
           ### Upstream commits not yet in this project (merge commits are not listed)
 
@@ -270,7 +270,7 @@ jobs:
       # No SMTP secrets to manage: assigning a GitHub issue emails the
       # assignee under that account's default notification settings. Reuses
       # one issue by title instead of opening a new one on every failed run
-      # (this fires every 6 hours) so repeated failures don't pile up.
+      # (daily, and on every push to main) so repeated failures don't pile up.
       - name: Notify on failure
         if: failure()
         env:

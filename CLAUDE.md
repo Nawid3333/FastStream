@@ -183,7 +183,9 @@ detection path — the one real users hit. That is the more valuable test than
 a pasted manifest URL, which only exercises the declarativeNetRequest
 redirect.
 
-**Automated: `pnpm run test:live`** (after `pnpm run build:keep`; 2026-09-27).
+**Automated: `pnpm run test:live`** (after `pnpm run build:keep`; 2026-09-27), and every
+Monday on Linux and Windows in `live-streams.yml` (2026-09-28; an issue when it fails,
+closed by the next green run - never part of CI, so an outage elsewhere holds nothing back).
 `tests/e2e/live-specs/streams.e2e.mjs` runs this checklist on the installed extension
 against real streams: Shaka Player's demo assets on storage.googleapis.com (HLS and DASH
 angel-one: 5 qualities, 5 audio languages; DASH Sintel, 888 s, seeked 10 minutes in; a
@@ -702,9 +704,11 @@ version that leaves in `package.json`.
 documents none), so `tools/sign-amo.mjs` uploads and polls, waiting up to 30 minutes
 (`approvalTimeout`). Measured over 30 releases: 2-6 minutes, once 15. When the wait runs
 out, the release is published without the xpi and `updates.json` (the sign step is
-`continue-on-error`), and **`amo-signing-failsafe.yml`** completes it: every 3 hours it
-checks the latest release and, if incomplete, builds that tag and asks AMO for the version
-(`tools/fetch-amo-signed.mjs`, no upload): signed -> download (byte-identical to web-ext's
+`continue-on-error`), and **`amo-signing-failsafe.yml`** ("Release failsafe") completes it:
+`release.yml` starts it after every run, and a schedule every 3 hours as well. It checks the
+latest release and, if incomplete, builds that tag and asks AMO for the version
+(`tools/fetch-amo-signed.mjs --wait 40`, no upload; the tools are main's, the build the
+tag's): signed -> download (byte-identical to web-ext's
 file, checked on 1.3.82.27; the regenerated `updates.json` matched the published one
 exactly) and attach both; pending -> next run; missing (never uploaded) -> sign now;
 rejected, or still incomplete after 24 h -> one issue, assigned + @mention, closed when the
@@ -718,6 +722,17 @@ failed the step, and the release lacked its xpi and `updates.json` until the fai
 itself with `fetch-amo-signed.mjs`'s check, every 30 s, within the same 30 minutes; a
 version AMO never received is uploaded once more. AMO's own answers (a refused upload, a
 failed validation, the approval timeout) still fail the step as before.
+
+**Every release is checked to reach Firefox** (2026-09-28, the failsafe). A version tag
+without a release - `release.yml` failed before publishing, or was never started, which no
+one heard of before, since the bot starts it - gets `release.yml` started again, at most
+twice, then the issue "Release <tag> failed". A complete latest release gets its update
+path followed the way Firefox does (`tools/check-update-path.mjs`: the `update_url`
+redirect, `updates.json`, the xpi's sha256, `META-INF/mozilla.rsa` and `cose.sig`, the
+version and the add-on id `build.mjs` sets); broken -> the issue "Update path broken:
+<tag>". Both close on their own; the run stays green once the issue is open, so it is not
+repeated by mail. The decision steps were dry-run with a stub `gh` (17 scenarios) before
+the change went in.
 
 ## Workflows (reworked 2026-09-25)
 
@@ -756,10 +771,26 @@ failed validation, the approval timeout) still fail the step as before.
 - **`auto-release.yml`** only acts on a CI run that was a `push` to this repository's
   `main`. Before, `branches: [main]` matched a fork PR's branch named `main` too, and the
   job would have checked out that commit with a write token, pushed it and released it.
+  When `main` has moved past the commit while CI ran, it stops with a notice (2026-09-28):
+  the later push's run releases both, and pushing the bump would only be refused.
 - **`release.yml`** checks the tag against `package.json` and `chrome/manifest.json` before
-  building, and runs lint + unit tests (a hand-cut tag reaches it without CI).
-- **`amo-signing-failsafe.yml`** (every 3 h) completes a release whose AMO signing did not
-  finish in `release.yml`; see "AMO signing no longer depends on a timer" above.
+  building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
+  lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at
+  the fork. Run again for a tag that has a release, it replaces the files. Its last step,
+  whatever happened, starts the failsafe.
+- **`amo-signing-failsafe.yml`** ("Release failsafe"; after every release run, and every
+  3 h): completes a release whose AMO signing did not finish, re-runs one that did not
+  publish, checks the update path; see "AMO signing no longer depends on a timer" and
+  "Every release is checked to reach Firefox" above.
+- **`live-streams.yml`** (Mondays; 2026-09-28): `pnpm run test:live` on Linux and Windows,
+  one issue while it fails. Also on a PR that changes the live suite or the e2e setup.
+- **`.github/actions/e2e-setup`** (2026-09-28): ffmpeg, the e2e port reservation and the
+  Firefox to test (`firefox-version`, exported as `FIREFOX_BINARY`), for every e2e job - the
+  four copies differed already. Each download (Chocolatey, apt, Mozilla) is retried before
+  the job fails. A change to it runs Firefox Beta and the live suite on the PR.
+- **Artifacts** (2026-09-28): `faststream-bundles` is kept 7 days (auto-release reads it
+  minutes after the run; the 90-day default had piled up 57 copies, 469 MB), failure logs
+  30 days.
 - **`toolchain-updates.yml`** (weekly) + `tools/check-toolchain.mjs`: one issue for a newer
   Node LTS than CI/`.nvmrc` use, and one for a newer pnpm major once
   dependabot-core#15904 is fixed (pnpm 12's two-document lockfile hides every dependency
