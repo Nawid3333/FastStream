@@ -43,6 +43,8 @@ const isMpvRequest = (r) => 'icy-metadata' in r.headers;
 let siteServer;
 let cdnServer;
 const requests = [];
+// Loads of the page itself: a reload is one more.
+let pageLoads = 0;
 let extHandle;
 let siteHandle;
 
@@ -183,6 +185,8 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
     const clip = fs.readFileSync(path.join(root, 'tests/e2e/fixtures/sample.mp4'));
 
     siteServer = http.createServer((req, res) => {
+      // Not /favicon.ico, which the same server answers.
+      if (req.url.startsWith('/watch')) pageLoads++;
       res.writeHead(200, {'Content-Type': 'text/html'});
       res.end(`<!doctype html><title>toolbar cycle test</title>
         <video id="v" muted autoplay loop preload="auto"
@@ -291,15 +295,25 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
 
         // 3. Off -> On: the overlay iframe actually replaces the page's
         //    video, built from the stream already detected while idle - no
-        //    reload, so no new network request for it either.
+        //    reload. The new player then loads that same stream, and when its
+        //    request comes depends on how fast it starts: on the Windows
+        //    runner it came up to 1.3 s before the iframe was found, and up
+        //    to 0.5 s after. A reload shows up as a new load of the page and
+        //    a new stream URL, since the page cache-busts it on every load.
+        const pageLoadsAtOn = pageLoads;
         const cdnRequestsAtOn = requests.length;
+        const detected = requests.filter((r) => !isMpvRequest(r)).pop().url;
         await clickToolbar();
         await expectMode('on', 'clicking Off');
         await browser.waitUntil(hasOverlayPlayer, {
           timeout: 15000,
           timeoutMsg: 'the in-page player never appeared after Off -> On',
         });
-        expect(requests.length).toBe(cdnRequestsAtOn);
+        expect(pageLoads).toBe(pageLoadsAtOn);
+        const strays = requests.slice(cdnRequestsAtOn)
+            .filter((r) => isMpvRequest(r) || r.url !== detected)
+            .map((r) => `${isMpvRequest(r) ? 'mpv' : 'browser'} ${r.url}`);
+        expect(strays).toEqual([]);
 
         // 4. On -> MPV: the overlay has to come down (there is no message
         //    that retracts one, so the tab reloads), and the reload's fresh
