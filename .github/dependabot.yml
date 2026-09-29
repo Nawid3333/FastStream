@@ -22,7 +22,8 @@
 #
 # Security updates are separate from this file (Settings > Code security >
 # Dependabot security updates) and still open a PR for any vulnerable package,
-# including the fsaunpack tool, which has its own package-lock.json.
+# including the fsaunpack tool, which has its own package-lock.json (and its own
+# entry below for version updates).
 version: 2
 updates:
   - package-ecosystem: 'npm'
@@ -71,6 +72,22 @@ updates:
       # again as #25 on 2026-09-25 (docs/vendored-libraries.md). No newer version can
       # come, so there is nothing for Dependabot to offer; the way on is Mediabunny.
       - dependency-name: 'mp4-muxer'
+
+  # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
+  # express (fsaunpack/, its own package.json and package-lock.json). It is not
+  # part of the extension, and CI neither installs nor runs it, so a green run says
+  # nothing about an update here. Every one waits for the owner: update-prs.yml
+  # merges only PRs that change nothing but the root package.json and
+  # pnpm-lock.yaml.
+  - package-ecosystem: 'npm'
+    directory: '/fsaunpack'
+    schedule:
+      interval: 'weekly'
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 5
+    labels:
+      - 'dependencies'
 
   # Workflow actions are pinned to a commit SHA with the version as a comment,
   # so a moved or hijacked tag cannot change what runs next to the AMO signing
