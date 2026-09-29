@@ -7,7 +7,6 @@ import {streamSaver} from '../modules/StreamSaver.mjs';
 import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {FastStreamArchiveUtils} from '../utils/FastStreamArchiveUtils.mjs';
-import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {URLUtils} from '../utils/URLUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
@@ -429,17 +428,8 @@ export class SaveManager {
         newSource = new VideoSource(file, {}, mode);
         newSource.identifier = file.name + 'size' + file.size;
       } else if (ext === 'fsa') {
-        // Read once, then drop the URL - an .fsa archive is a whole video, so
-        // holding this would pin the entire file for the tab's lifetime.
-        const archiveURL = window.URL.createObjectURL(file);
-        let buffer;
         try {
-          buffer = await RequestUtils.httpGetLarge(archiveURL);
-        } finally {
-          window.URL.revokeObjectURL(archiveURL);
-        }
-        try {
-          const {source, entries, currentLevel, currentAudioLevel} = await FastStreamArchiveUtils.parseFSA(buffer, (progress)=>{
+          const {source, entries, currentLevel, currentAudioLevel} = await FastStreamArchiveUtils.parseFSAFile(file, (progress)=>{
             this.setStatusMessage('save-video', Localize.getMessage('player_archive_loading', [Math.floor(progress * 100)]), 'info');
           }, this.client.downloadManager);
 

@@ -135,6 +135,15 @@ export function DASHLoaderFactory(player) {
       };
 
       const downloadManager = player.getClient().downloadManager;
+      if (request.type === 'MPD') {
+        // A player's first load of the manifest may be answered from the store, and the copy
+        // has to stay there for "dump buffer" archives, a player opened from one, and the
+        // seek preview. dash.js loads a live manifest again to learn of new segments: then
+        // the stored copy is the old one, and the stream would stop where it ends.
+        const key = downloadManager.getIdentifier(context);
+        if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(context);
+        player.loadedManifests.add(key);
+      }
       const loader = downloadManager.getFile({
         ...context,
         preProcessor: async (entry, request) => {
@@ -152,9 +161,6 @@ export function DASHLoaderFactory(player) {
       }, {
         onSuccess: async (entry, xhr) => {
           const data = await entry.getDataFromBlob();
-          // dash.js loads a live manifest again to learn of new segments; from the store,
-          // every reload would be this one, and the stream would stop where it ends.
-          if (request.type === 'MPD') downloadManager.removeFile(entry);
           httpRequest.customData.onSuccess(data, entry.responseURL);
         },
         onProgress: (stats, context, data, xhr)=> {

@@ -16,7 +16,8 @@ function loadManifest(url) {
   const getFile = vi.fn(() => ({abort() {}}));
   const player = {
     source: {headers: {}},
-    getClient: () => ({downloadManager: {getFile, removeFile: vi.fn()}}),
+    loadedManifests: new Set(),
+    getClient: () => ({downloadManager: {getFile, getIdentifier: (details) => details.url, forgetCompletedFile: vi.fn()}}),
   };
   dashLoaderFactory(player)().load({
     url,

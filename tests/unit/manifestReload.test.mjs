@@ -53,20 +53,40 @@ afterEach(() => {
 });
 
 /**
- * A download manager with one downloader, and a player around it.
- * @return {Object} The player.
+ * A download manager with one downloader.
+ * @return {DownloadManager}
  */
-function makePlayer() {
+function makeDownloadManager() {
   const client = {predownloadFragments() {}, resetFailed() {}, options: {maximumDownloaders: 1}};
   const downloadManager = new DownloadManager(client);
   downloadManager.addDownloader();
+  return downloadManager;
+}
+
+/**
+ * A player around a download manager: its own, or one it shares, as the seek preview
+ * shares the main player's.
+ * @param {DownloadManager} [downloadManager]
+ * @return {Object} The player.
+ */
+function makePlayer(downloadManager = makeDownloadManager()) {
   return {
     source: {headers: {}},
     activeRequests: [],
+    loadedManifests: new Set(),
     getIdentifier: (trackID, level) => `${trackID}:${level}`,
     client: {getFragment: () => null},
     getClient: () => ({downloadManager}),
   };
+}
+
+/**
+ * The URLs the player's download manager holds, finished.
+ * @param {Object} player
+ * @return {string[]}
+ */
+function stored(player) {
+  return player.getClient().downloadManager.getCompletedEntries().map((entry) => entry.url);
 }
 
 /**
@@ -136,5 +156,44 @@ describe('reloading a live stream\'s playlist or manifest', () => {
     expect(await loadDash(player, 'http://127.0.0.1/video.mp4', 'IndexSegment')).toBe('answer 1');
     expect(await loadDash(player, 'http://127.0.0.1/video.mp4', 'IndexSegment')).toBe('answer 1');
     expect(requests).toHaveLength(1);
+  });
+});
+
+// But the copy a player downloaded stays in the store. "Dump buffer" writes the store into
+// an .fsa archive, and a player opened from that archive finds its manifest there - with
+// the manifest dropped after every load, an archive could not be opened without the
+// network. The seek preview shares the main player's download manager, and finds the copy
+// there too instead of downloading it a second time. Only the same player loading it again
+// is a reload (tests/e2e/specs/archive-roundtrip.e2e.mjs shows the archive in the browser).
+describe('a playlist or manifest a player has loaded', () => {
+  it('stays in the store, and another player gets it from there: HLS', async () => {
+    const main = makePlayer();
+    const context = {url: 'http://127.0.0.1/index.m3u8', type: 'level'};
+    expect(await loadHls(main, context)).toBe('answer 1');
+    expect(stored(main)).toContain('http://127.0.0.1/index.m3u8');
+
+    const other = makePlayer(main.getClient().downloadManager);
+    expect(await loadHls(other, context)).toBe('answer 1');
+    expect(requests).toHaveLength(1);
+  });
+
+  it('stays in the store, and another player gets it from there: DASH', async () => {
+    const main = makePlayer();
+    expect(await loadDash(main, 'http://127.0.0.1/stream.mpd', 'MPD')).toBe('answer 1');
+    expect(stored(main)).toContain('http://127.0.0.1/stream.mpd');
+
+    const other = makePlayer(main.getClient().downloadManager);
+    expect(await loadDash(other, 'http://127.0.0.1/stream.mpd', 'MPD')).toBe('answer 1');
+    expect(requests).toHaveLength(1);
+  });
+
+  it('is replaced in the store by what a reload downloads', async () => {
+    const player = makePlayer();
+    const context = {url: 'http://127.0.0.1/live.m3u8', type: 'level'};
+    await loadHls(player, context);
+    await loadHls(player, context);
+    const entries = player.getClient().downloadManager.getCompletedEntries();
+    expect(entries.map((entry) => entry.url)).toEqual(['http://127.0.0.1/live.m3u8']);
+    expect(await entries[0].getDataFromBlob()).toBe('answer 2');
   });
 });

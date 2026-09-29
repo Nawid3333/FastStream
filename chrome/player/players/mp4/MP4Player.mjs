@@ -350,11 +350,29 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
+    // A fragmented file's sample list grows with each moof parsed, so "every sample
+    // appended" also holds between two fragments, whenever a range ends there: ending the
+    // stream then cuts the duration to what is buffered, and the video stops early. Its
+    // samples are all known only once the range with the file's last byte is in.
+    if (this.metaData.isFragmented && !this.hasLastRange()) {
+      return;
+    }
+
     try {
       this.mediaSource.endOfStream();
     } catch (e) {
       console.warn('Could not end the MediaSource stream', e);
     }
+  }
+
+  /**
+   * Whether the range holding the file's last byte has reached mp4box since the last
+   * reset: resetHLS() empties currentFragments and seeks. False while the file's length is
+   * not known.
+   * @return {boolean}
+   */
+  hasLastRange() {
+    return this.fileLength > 0 && this.currentFragments.some((frag) => frag.rangeEnd >= this.fileLength);
   }
 
   initializeFragments() {
@@ -489,6 +507,19 @@ export default class MP4Player extends EventEmitter {
             if (this.loader === loader) {
               this.loader = null;
             } else return;
+
+            // The file's length has to be known before mp4box parses the data: parsing the
+            // moov runs onMetadataParsed, which otherwise works the length out from the
+            // samples known so far. For a fragmented file those are only the fragments in
+            // this range, so the ranges after it were never made, and the file was
+            // taken to end there.
+            if (!this.fileLength) {
+              const total = parseInt(entry.responseHeaders['content-range']?.split('/')[1]);
+              if (total > 0) {
+                this.fileLength = total;
+                this.initializeFragments();
+              }
+            }
 
             this.mp4box.appendBuffer(data);
             this.currentFragments.push(frag);

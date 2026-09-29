@@ -1,5 +1,48 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {RuleManager} from '../../chrome/background/NetRequestRuleManager.mjs';
+
+// The header rule's urlFilter is the request URL minus its scheme, as is.
+// declarativeNetRequest's urlFilter has no escape character, so "escaping" a
+// `*` as `\*` made the rule require a backslash that no URL contains, and
+// streams whose URL has a `*` (Akamai `acl=/*` tokens) lost their
+// Referer/Origin. tests/e2e/ext-specs/header-rules.e2e.mjs proves the same on
+// Firefox's real rule engine.
+describe('RuleManager.addHeaderRule', () => {
+  let added;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    added = [];
+    globalThis.chrome = {
+      declarativeNetRequest: {
+        getSessionRules: async () => [],
+        updateSessionRules: async (update) => {
+          added.push(...(update.addRules || []));
+        },
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    delete globalThis.chrome;
+  });
+
+  it.each([
+    ['https://cdn.test/hls/master.m3u8', 'cdn.test/hls/master.m3u8'],
+    ['http://cdn.test/v.mp4?acl=/*~hmac=1f', 'cdn.test/v.mp4?acl=/*~hmac=1f'],
+    ['https://cdn.test/s^1/v.mpd?a=b|c', 'cdn.test/s^1/v.mpd?a=b|c'],
+  ])('matches %s by the URL itself, with nothing escaped', async (url, rest) => {
+    const manager = new RuleManager();
+    const commands = [{operation: 'set', header: 'referer', value: 'https://site.test/'}];
+    await manager.addHeaderRule(url, 7, commands);
+
+    expect(added).toHaveLength(1);
+    expect(added[0].condition).toEqual({urlFilter: '||' + rest, tabIds: [7]});
+    expect(added[0].condition.urlFilter.includes(String.fromCharCode(92))).toBe(false);
+    expect(added[0].action.requestHeaders).toEqual(commands);
+  });
+});
 
 // getInsertionIndex() is a hand-rolled binary search over this.rules (sorted
 // by id) - classic off-by-one territory, and RuleManager's real constructor

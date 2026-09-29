@@ -670,7 +670,12 @@ export class SubtitlesManager extends EventEmitter {
         if (!cue.dom) {
           cue.dom = WebVTT.convertCueToDOMTree(window, cue.text);
         }
-        toAdd.push(cue.dom);
+        // A cue with no text (a SubRip cue with nothing under its timestamp) has no tree,
+        // and appending null throws: timeUpdated() then stopped here for as long as the
+        // cue lasted, before the other tracks and the skip segments.
+        if (cue.dom) {
+          toAdd.push(cue.dom);
+        }
         cueIndex++;
       }
 

@@ -6,8 +6,13 @@
 // - Fragmented (moof boxes, as ffmpeg's frag_keyframe and live recorders write). Since
 //   mp4box 2.x a fragmented file's duration comes as a {num, den} fraction, and MP4Player
 //   divided it by the timescale: NaN, which the MediaSource refuses, and nothing played.
-//   (A long fragmented file, 160 s cut the same way, now starts but stops after about
-//   3 s. That is a limit of MP4Player beyond this fix, and not covered here.)
+// - Long and fragmented (the long fixture cut the same way). MP4Player worked out the
+//   file's length from the samples mp4box knew after the first 1 MB range, not from the
+//   server's Content-Range: for a fragmented file those end with that range, so the file
+//   looked 10 s long, and the rest was never loaded. (Still a limit, not covered here:
+//   MP4Player picks the range to load from the samples it knew when the metadata was
+//   parsed, so of a fragmented file longer than its 30 buffered ranges, 30 MB, it plays
+//   those and cannot seek past them. Measured with a 480 s, 51 MB file.)
 // - From a server that answers ranges without the file's length (`bytes 0-1023/*`, which
 //   RFC 9110 allows). This one was already fine - the length is then worked out from the
 //   file's sample table - and is held here: a file that fits in MP4Player's first 1 MB
@@ -108,6 +113,7 @@ describe('MP4 files of other shapes', function() {
   before(async function() {
     ensureFile('audio-only.mp4', ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=10', '-c:a', 'aac', '-b:a', '64k']);
     ensureFile('fragmented.mp4', ['-i', MP4_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
+    ensureFile('long-fragmented.mp4', ['-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
 
     const bytes = fs.readFileSync(LONG_FIXTURE);
     server = http.createServer((req, res) => {
@@ -156,6 +162,21 @@ describe('MP4 files of other shapes', function() {
     expect(state.currentTime).toBeGreaterThan(1);
     expect(state.duration).toBeCloseTo(10, 0);
     expect(state.failed).toBe(false);
+  });
+
+  it('plays a long fragmented MP4, far into it', async function() {
+    const start = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-fragmented.mp4`);
+    expect(start.currentTime).toBeGreaterThan(1);
+    // Without a mehd box, the duration is what has been parsed, and grows as ranges come in.
+    let duration = 0;
+    await browser.waitUntil(async () => {
+      duration = await browser.execute(() => window.fastStream.duration);
+      return duration > 150;
+    }, {timeout: 30000, interval: 500}).catch(() => {});
+    expect(duration).toBeGreaterThan(150);
+    const later = await seekAndPlay(120);
+    expect(later.currentTime).toBeGreaterThan(121);
+    expect(later.failed).toBe(false);
   });
 
   it('plays an MP4 from a server that does not give its length, far into it', async function() {

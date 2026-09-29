@@ -149,6 +149,16 @@ describe('srt2webvtt', () => {
       '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
   });
 
+  it('keeps a line of spaces or tabs inside a cue, and the text below it', () => {
+    for (const blank of ['  ', '\t']) {
+      const srt = '1\n00:00:01,000 --> 00:00:02,000\nTop line\n' + blank + '\nBottom line\n\n' +
+        '2\n00:00:03,000 --> 00:00:04,000\nSecond';
+      expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
+        '1\n00:00:01.000 --> 00:00:02.000\nTop line\n' + blank + '\nBottom line\n\n' +
+        '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+    }
+  });
+
   it('does not take a text line that starts with a number for a sequence number', () => {
     const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n\n' +
       '2\n00:00:03,000 --> 00:00:04,000\n12 monkeys\nSecond';
