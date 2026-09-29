@@ -43,8 +43,9 @@ export class StreamLengths {
 
   /**
    * @param {string} url - A stream's URL.
-   * @return {number|null|undefined} Its length in seconds (Infinity when live), null when
-   *   it cannot be told, undefined while it is not read yet.
+   * @return {number|null|undefined} Its length in seconds (Infinity when live, PIECE_LENGTH
+   *   for a piece of a stream), null when it cannot be told, undefined while it is not read
+   *   yet.
    */
   lengthOf(url) {
     return this.known.get(url)?.duration;
@@ -53,7 +54,7 @@ export class StreamLengths {
   /**
    * Starts reading a stream's length, unless that has started already.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @return {Promise<number|null>} Its length, or null.
+   * @return {Promise<number|null>} Its length (as lengthOf tells it), or null.
    */
   probe(source) {
     const known = this.known.get(source.url);
@@ -74,20 +75,34 @@ export class StreamLengths {
   }
 
   /**
-   * Waits until the lengths of the sources are read, or waitMs passed.
-   * @param {Array<Object>} sources - Detected sources.
+   * Waits until the lengths of the sources are read, those of sources detected meanwhile
+   * too, or waitMs passed. An HLS or DASH player keeps fetching segments, each a source of
+   * its own, and one not read yet ranks as a stream of unknown length: above a short
+   * stream, and as the newest, the one that plays. The caller takes the sources right
+   * after, before another can come.
+   * @param {function(): Array<Object>} getSources - The detected sources as they are now,
+   *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
    * @return {Promise<void>}
    */
-  async settle(sources, waitMs) {
-    let timer;
-    await Promise.race([
-      Promise.all(sources.map((source) => this.probe(source))),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, waitMs);
-      }),
-    ]);
-    clearTimeout(timer);
+  async settle(getSources, waitMs) {
+    const deadline = Date.now() + waitMs;
+    let sources = getSources();
+    while (sources.some((source) => this.lengthOf(source.url) === undefined)) {
+      const left = deadline - Date.now();
+      if (left <= 0) {
+        return;
+      }
+      let timer;
+      await Promise.race([
+        Promise.all(sources.map((source) => this.probe(source))),
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, left);
+        }),
+      ]);
+      clearTimeout(timer);
+      sources = getSources();
+    }
   }
 
   /**
@@ -111,7 +126,7 @@ export class StreamLengths {
   /**
    * Reads a source's length.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @return {Promise<number|null>} Seconds, or null.
+   * @return {Promise<number|null>} Seconds (PIECE_LENGTH for a piece of a stream), or null.
    */
   async read(source) {
     if (!/^https?:\/\//i.test(source.url)) {
@@ -158,7 +173,8 @@ export class StreamLengths {
         if (!response || (offset > 0 && !response.partial)) {
           return null;
         }
-        const result = StreamLength.fromFile(response.bytes, offset);
+        // Fewer bytes than asked for: the file ends with them.
+        const result = StreamLength.fromFile(response.bytes, offset, response.bytes.length < FILE_CHUNK_BYTES);
         if (!result || 'duration' in result) {
           return result ? result.duration : null;
         }

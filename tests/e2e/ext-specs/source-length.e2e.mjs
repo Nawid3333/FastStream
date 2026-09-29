@@ -9,6 +9,10 @@
 // A manifest served with no extension in its URL, known only by its Content-Type, was not
 // detected at all (cineby's Simplify server, anikage's og.bakayaro.live/m3u8/<token>).
 //
+// The pieces of a stream - an init segment, media segments - named .mp4, as Shaka Packager
+// names them, are detected as MP4 sources of their own. Read as unknown, they ranked as ten
+// minutes, and the player opened one fragment of any shorter title (Shaka's demo HLS).
+//
 // Driven on the installed extension, the site on the auto-enable list: pages that load an
 // ad and a longer stream, and the stream the player ends up playing.
 
@@ -149,6 +153,12 @@ describe('Of a page\'s streams, the player', function() {
     const segments = new Map(fs.readdirSync(segmentDir).filter((name) => name.endsWith('.ts'))
         .map((name) => [`/hls-ts/${name}`, path.join(segmentDir, name)]));
 
+    // The 9-second fMP4 fixture, its media segments served as .mp4 like its init segment.
+    const fmp4Dir = path.join(FIXTURES, 'hls-fmp4');
+    const fmp4Playlist = fs.readFileSync(path.join(fmp4Dir, 'index.m3u8'), 'utf8').replace(/\.m4s$/gm, '.mp4');
+    const pieces = new Map(fs.readdirSync(fmp4Dir).filter((name) => /\.(m4s|mp4)$/.test(name))
+        .map((name) => [`/fmp4/${name.replace(/\.m4s$/, '.mp4')}`, path.join(fmp4Dir, name)]));
+
     // The pages are the same whatever they are asked with: each builds its URLs from its
     // own location, so the server echoes nothing it is sent.
     siteServer = http.createServer((req, res) => {
@@ -170,6 +180,10 @@ describe('Of a page\'s streams, the player', function() {
         serveFile(req, res, filmFile, 'video/mp4');
       } else if (segments.has(pathname)) {
         serveFile(req, res, segments.get(pathname), 'video/mp2t');
+      } else if (pieces.has(pathname)) {
+        serveFile(req, res, pieces.get(pathname), 'video/mp4');
+      } else if (pathname === '/fmp4/index.m3u8') {
+        text(HLS_TYPE, fmp4Playlist);
       } else if (pathname === '/hls/intro.m3u8') {
         text(HLS_TYPE, playlist(9));
       } else if (pathname === '/hls/extra.m3u8') {
@@ -209,6 +223,14 @@ describe('Of a page\'s streams, the player', function() {
               fetch('/hls/intro.m3u8?c=' + c)
                   .then(() => fetch('/watch?v=' + c))
                   .then(() => fetch('/manifest?id=' + c));`));
+      } else if (pathname === '/page/pieces') {
+        // A short title, and the pieces of it its player fetched: the init segment, then
+        // media segments.
+        text('text/html; charset=utf-8', page('pieces', '', `
+              fetch('/fmp4/index.m3u8' + location.search)
+                  .then(() => fetch('/fmp4/init.mp4' + location.search))
+                  .then(() => fetch('/fmp4/seg-000.mp4' + location.search))
+                  .then(() => fetch('/fmp4/seg-001.mp4' + location.search));`));
       } else if (pathname === '/page/private') {
         // A 12-minute stream first, then the half-hour one only the site's pages may read.
         text('text/html; charset=utf-8', page('private', '', `
@@ -260,6 +282,16 @@ describe('Of a page\'s streams, the player', function() {
       `${SITE}/hls/intro.m3u8?c=${c}`, `${SITE}/watch?v=${c}`, `${SITE}/manifest?id=${c}`,
     ]));
     expect(state.source).toBe(`${SITE}/watch?v=${c}`);
+  });
+
+  it('plays a short stream, not the pieces of it the page fetched', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/pieces?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([
+      `${SITE}/fmp4/index.m3u8?c=${c}`, `${SITE}/fmp4/init.mp4?c=${c}`, `${SITE}/fmp4/seg-001.mp4?c=${c}`,
+    ]));
+    expect(state.source).toBe(`${SITE}/fmp4/index.m3u8?c=${c}`);
   });
 
   it('reads a length with the page\'s own headers, and waits for a slow one', async function() {

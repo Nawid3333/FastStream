@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {StreamLengths} from '../../chrome/background/StreamLengths.mjs';
 import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
+import {PIECE_LENGTH} from '../../chrome/player/utils/StreamLength.mjs';
 
 // Not a divisor of the 64 KiB a file read takes: the last chunk read runs past it.
 const CHUNK = 10000;
@@ -224,6 +225,39 @@ describe('StreamLengths', () => {
     expect(await lengths.probe({url: 'https://cdn.example/expired.m3u8', mode: HLS})).toBeNull();
   });
 
+  it('tells an HLS or DASH stream\'s pieces by their first read, and an init segment by reaching its end', async () => {
+    // A fragmented movie header: an mvhd with no length of its own, then mvex.
+    const header = box('moov', concat(box('mvhd', new Uint8Array(100)), box('mvex', box('trex', new Uint8Array(24)))));
+    const fragments = concat(box('moof', box('mfhd', new Uint8Array(8))), box('mdat', new Uint8Array(200000)));
+    const files = {
+      'https://cdn.example/v/init.mp4': {body: concat(ftyp, header)},
+      'https://cdn.example/v/s1.mp4': {body: concat(box('styp', new TextEncoder().encode('msdh')), fragments)},
+      'https://cdn.example/v/whole.mp4': {body: concat(ftyp, header, fragments)},
+    };
+    const {fetch, calls} = server(files);
+    const lengths = new StreamLengths({fetch});
+    expect(await lengths.probe({url: 'https://cdn.example/v/init.mp4', mode: MP4})).toBe(PIECE_LENGTH);
+    expect(await lengths.probe({url: 'https://cdn.example/v/s1.mp4', mode: MP4})).toBe(PIECE_LENGTH);
+    // A whole fragmented file, its length not given: unknown, its fragments after the header.
+    expect(await lengths.probe({url: 'https://cdn.example/v/whole.mp4', mode: MP4})).toBeNull();
+    expect(calls).toHaveLength(3);
+
+    // A whole one whose movie header ends right where the first read does: 60 s by its mehd.
+    const mehd = box('mehd', new Uint8Array(8));
+    new DataView(mehd.buffer).setUint32(12, 60000);
+    const mvhd = box('mvhd', new Uint8Array(100));
+    new DataView(mvhd.buffer).setUint32(20, 1000);
+    const fill = 64 * 1024 - ftyp.length - 24 - mvhd.length - mehd.length;
+    const cut = concat(ftyp, box('moov', concat(mvhd, box('mvex', mehd), box('free', new Uint8Array(fill)))));
+    expect(cut.length).toBe(64 * 1024);
+    const long = server({'https://cdn.example/v/long.mp4': {body: concat(cut, fragments)}});
+    expect(await new StreamLengths({fetch: long.fetch}).probe({url: 'https://cdn.example/v/long.mp4', mode: MP4})).toBe(60);
+
+    // From a server that ignores the range: the whole init segment comes.
+    const other = server(files, {ranges: false});
+    expect(await new StreamLengths({fetch: other.fetch}).probe({url: 'https://cdn.example/v/init.mp4', mode: MP4})).toBe(PIECE_LENGTH);
+  });
+
   it('gives up on a file too short to hold a box, after one read', async () => {
     const {fetch, calls} = server({'https://cdn.example/tiny.mp4': {body: new Uint8Array([0, 0, 0, 1])}});
     const lengths = new StreamLengths({fetch});
@@ -255,7 +289,7 @@ describe('StreamLengths', () => {
   it('waits for the lengths no longer than asked', async () => {
     const lengths = new StreamLengths({fetch: () => new Promise(() => {})});
     const started = Date.now();
-    await lengths.settle([{url: 'https://cdn.example/slow.m3u8', mode: HLS}], 30);
+    await lengths.settle(() => [{url: 'https://cdn.example/slow.m3u8', mode: HLS}], 30);
     expect(Date.now() - started).toBeLessThan(1000);
     expect(lengths.lengthOf('https://cdn.example/slow.m3u8')).toBeUndefined();
   });
@@ -263,8 +297,32 @@ describe('StreamLengths', () => {
   it('waits for the lengths until they are read', async () => {
     const {fetch} = server({'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'}});
     const lengths = new StreamLengths({fetch});
-    await lengths.settle([{url: 'https://cdn.example/p.m3u8', mode: HLS}], 60000);
+    await lengths.settle(() => [{url: 'https://cdn.example/p.m3u8', mode: HLS}], 60000);
     expect(lengths.lengthOf('https://cdn.example/p.m3u8')).toBe(60);
+  });
+
+  it('waits for the lengths of sources detected while it waits', async () => {
+    // The page's player fetches a segment while the manifest is read.
+    const segment = concat(box('styp', new TextEncoder().encode('msdh')), box('moof', box('mfhd', new Uint8Array(8))));
+    const {fetch} = server({
+      'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+      'https://cdn.example/s1.mp4': {body: segment},
+    });
+    const lengths = new StreamLengths({fetch});
+    const manifest = {url: 'https://cdn.example/p.m3u8', mode: HLS};
+    let asked = 0;
+    await lengths.settle(() => (asked++ === 0 ? [manifest] : [manifest, {url: 'https://cdn.example/s1.mp4', mode: MP4}]), 60000);
+    expect(lengths.lengthOf('https://cdn.example/p.m3u8')).toBe(60);
+    expect(lengths.lengthOf('https://cdn.example/s1.mp4')).toBe(PIECE_LENGTH);
+  });
+
+  it('stops waiting at its limit, however many sources keep coming', async () => {
+    // Each read ends at once, and each time a new source has come.
+    const lengths = new StreamLengths({fetch: async () => new Response('', {status: 404})});
+    let asked = 0;
+    const started = Date.now();
+    await lengths.settle(() => [{url: `https://cdn.example/s${asked++}.mp4`, mode: MP4}], 30);
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it('gives up on a server that never answers', async () => {
