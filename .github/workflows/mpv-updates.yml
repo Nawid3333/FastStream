@@ -17,7 +17,8 @@ name: mpv updates
 #     repository, and a pull request a day would be an email a day. The pin ships nothing,
 #     so auto-release.yml does not release it (and a push by this token starts no CI).
 #     Every mpv/* branch is deleted, and the failure issue, if open, is closed.
-#   - Failed: the branch stays, to look at and as the record that this build was tried:
+#   - Failed (an attempt still running after 65 minutes is cancelled, and counts as
+#     failed): the branch stays, to look at and as the record that this build was tried:
 #     it is not tried again. Delete the branch to try it again. The failure goes on ONE
 #     issue, "mpv update failed: <what>", assigned to the owner and @mentioning them, so
 #     GitHub emails it: opened, or retitled and commented while it is open. CI keeps the
@@ -30,9 +31,9 @@ name: mpv updates
 # there.
 #
 # Not reported on the issue: this workflow's own failure (shinchiro renaming the builds,
-# the API down, a run past its time limit). That fails the run, and GitHub emails a
-# failed scheduled run. A run that ends that way after pushing its branch leaves the
-# build counted as tried; the next newer build is tried as usual.
+# the API down). That fails the run, and GitHub emails a failed scheduled run. If CI
+# could not be started on the branch, the branch is deleted first, so the next run tries
+# the build again.
 #
 # A pull request that changes this file runs it as a dry run: everything is read and
 # what a real run would do is printed, but nothing is pushed, started or reported.
@@ -62,8 +63,8 @@ jobs:
   update:
     name: Try shinchiro's latest mpv build
     runs-on: ubuntu-latest
-    # Its own work takes a minute. The rest is CI on the branch: about 45 minutes a run,
-    # twice with the rerun, plus the wait for runners.
+    # Its own work takes a minute. The rest is CI on the branch: about 32 minutes a run,
+    # twice with the rerun, plus the wait for runners. Each attempt is given 65 minutes.
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -169,12 +170,12 @@ jobs:
             fi
           }
 
-          # Waits for an attempt of the CI run to end and prints its conclusion. A rerun keeps
-          # the run's id and counts its attempt up; until it registers, the run still reads as
-          # the earlier attempt, completed.
+          # Waits for an attempt of the CI run to end and prints its conclusion, or timed_out
+          # after 65 minutes. A rerun keeps the run's id and counts its attempt up; until it
+          # registers, the run still reads as the earlier attempt, completed.
           conclusion_of() { # <attempt>
             local seen='' now
-            while :; do
+            for _ in $(seq 65); do
               sleep 60
               now=$(gh run view "$run_id" --json attempt,status,conclusion \
                 --jq '"\(.attempt) \(.status) \(.conclusion)"' || true)
@@ -183,6 +184,7 @@ jobs:
                 "$1 completed "*) echo "${now##* }"; return ;;
               esac
             done
+            echo timed_out
           }
 
           moved=0
@@ -204,18 +206,24 @@ jobs:
             commit=$(git rev-parse HEAD)
             git push -q origin "$branch"
 
-            # The dispatch gives no run id. The branch is new, so the one workflow_dispatch
-            # run of CI on it is this one.
-            gh workflow run ci.yml --ref "$branch"
+            # Until CI runs on it, a failure takes the branch down again: the next run tries
+            # this build anew instead of counting it as tried.
+            if ! gh workflow run ci.yml --ref "$branch"; then
+              git push -q origin --delete "$branch"
+              exit 1
+            fi
+            # The dispatch gives no run id. The run is the workflow_dispatch one on the
+            # branch's commit: a branch deleted to try a build again leaves its runs listed.
             run_id=''
             for _ in $(seq 24); do
               sleep 5
               run_id=$(gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch \
-                --json databaseId --jq '.[0].databaseId // ""' || true)
+                --json databaseId,headSha --jq "[.[] | select(.headSha == \"$commit\")][0].databaseId // \"\"" || true)
               if [ -n "$run_id" ]; then break; fi
             done
             if [ -z "$run_id" ]; then
               echo "CI was started on $branch, but no run showed up within two minutes." >&2
+              git push -q origin --delete "$branch"
               exit 1
             fi
             run_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
@@ -223,9 +231,13 @@ jobs:
 
             conclusion=$(conclusion_of 1)
             rerun=0
-            if [ "$conclusion" != success ] && gh run rerun "$run_id" --failed; then
+            if [ "$conclusion" != success ] && [ "$conclusion" != timed_out ] \
+              && gh run rerun "$run_id" --failed; then
               rerun=1
               conclusion=$(conclusion_of 2)
+            fi
+            if [ "$conclusion" = timed_out ]; then
+              gh run cancel "$run_id" || true
             fi
 
             if [ "$conclusion" = success ]; then
@@ -233,20 +245,23 @@ jobs:
               landed=0
               for _ in 1 2 3 4; do
                 git fetch -q origin main
-                if [ "$(git show origin/main:.github/mpv-build.json | jq -r .release)" = "$latest" ]; then
-                  landed=1  # pinned there meanwhile, by hand
+                main_pin=$(git show origin/main:.github/mpv-build.json | jq -r .release)
+                # Pinned there meanwhile by hand, to this build or a newer one.
+                if [ "$main_pin" -ge "$latest" ] 2> /dev/null; then
+                  landed=1
                   break
                 fi
                 git checkout -q -B land origin/main
                 if git cherry-pick "$commit" && git push -q origin HEAD:main; then
                   landed=1
+                  main_pin=$latest
                   break
                 fi
                 git cherry-pick --abort 2> /dev/null || true
               done
               if [ "$landed" = 1 ]; then
                 moved=1
-                echo "main pins $latest now."
+                echo "main pins $main_pin now."
                 # This build's branch, and the failed builds' ones, kept until a build passed.
                 refs=$(git ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
                 if [ -n "$refs" ]; then
@@ -254,7 +269,7 @@ jobs:
                   git push -q origin --delete ${refs//refs\/heads\//}
                 fi
                 if [ -n "$issue" ]; then
-                  gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url), and main pins it now. Closing."
+                  gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url), and main pins $main_pin now. Closing."
                 fi
               else
                 # shellcheck disable=SC2016 # backticks are Markdown
@@ -269,8 +284,10 @@ jobs:
                 --jq '.[0] | "\(if .conclusion == "" then "still running" else .conclusion end), \(.url)"' || echo 'unknown')
               # shellcheck disable=SC2016 # backticks are Markdown
               {
-                if [ "$rerun" = 1 ]; then
-                  printf '@%s mpv %s from shinchiro failed CI twice: its failed jobs were run once more, in case a test was flaky.\n\n' "$OWNER" "$latest"
+                if [ "$conclusion" = timed_out ]; then
+                  printf '@%s CI with mpv %s from shinchiro was still running after 65 minutes, so it was cancelled.\n\n' "$OWNER" "$latest"
+                elif [ "$rerun" = 1 ]; then
+                  printf '@%s mpv %s from shinchiro failed CI. Its failed jobs were run once more, in case a test was flaky, and that ended in %s.\n\n' "$OWNER" "$latest" "$conclusion"
                 else
                   printf '@%s mpv %s from shinchiro failed CI (%s), and its failed jobs could not be run again.\n\n' "$OWNER" "$latest" "$conclusion"
                 fi

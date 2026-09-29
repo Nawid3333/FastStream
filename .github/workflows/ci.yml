@@ -235,7 +235,9 @@ jobs:
           7z x -y "-o$dir" $archive
           if ($LASTEXITCODE -ne 0) { throw "7z x exited with $LASTEXITCODE" }
           $mpv = Join-Path $dir 'mpv.exe'
-          & (Join-Path $dir 'mpv.com') --no-config --version | Select-Object -First 1
+          $version = & (Join-Path $dir 'mpv.com') --no-config --version
+          if ($LASTEXITCODE -ne 0) { throw "mpv --version exited with $LASTEXITCODE" }
+          $version | Select-Object -First 1
           # mpv reads only portable_config next to its exe: its log goes with the e2e
           # logs. Each mpv started writes it anew, so it is the last one's.
           New-Item -ItemType Directory -Force -Path (Join-Path $dir 'portable_config'), logs | Out-Null
