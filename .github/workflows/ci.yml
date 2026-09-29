@@ -48,10 +48,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: actionlint
-        # Pinned to the image digest as well as the tag, like every action here.
-        uses: docker://rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
-        with:
-          args: -color
+        # The image is pinned to its digest as well as its tag, like every action here, in
+        # .github/actionlint/Dockerfile: Dependabot updates it there, and cannot in a
+        # docker:// line of a workflow.
+        run: |
+          image=$(sed -n 's/^FROM //p' .github/actionlint/Dockerfile)
+          if ! [[ $image =~ ^rhysd/actionlint:[0-9.]+@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error file=.github/actionlint/Dockerfile::expected one line 'FROM rhysd/actionlint:<version>@sha256:<digest>', found: $image"
+            exit 1
+          fi
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo "$image" -color
 
   verify:
     name: Lint, test and build

@@ -69,6 +69,68 @@ describe('every workflow takes Node from .nvmrc', () => {
   });
 });
 
+// A tool pinned in a form Dependabot does not update stays on its version, and nobody
+// hears of it: the actionlint image (a docker:// line in ci.yml) did until it moved to
+// .github/actionlint/Dockerfile, and the composite actions' pins would have without
+// their own directory in .github/dependabot.yml.
+describe('every pinned tool is one Dependabot updates', () => {
+  const root = new URL('../../', import.meta.url);
+  const read = (path) => fs.readFileSync(new URL(path, root), 'utf8');
+  const workflows = fs.readdirSync(new URL('.github/workflows/', root))
+      .filter((file) => /\.ya?ml$/.test(file)).map((file) => `.github/workflows/${file}`);
+  const actions = fs.readdirSync(new URL('.github/actions/', root), {withFileTypes: true})
+      .filter((entry) => entry.isDirectory()).map((entry) => `.github/actions/${entry.name}/action.yml`);
+  const dependabot = read('.github/dependabot.yml');
+  // One ecosystem's entry, up to the next one.
+  const entry = (ecosystem) => dependabot.split(/^ {2}- package-ecosystem: /m)
+      .find((part) => part.startsWith(`'${ecosystem}'`)) ?? '';
+
+  it('pins every action to a commit, with its version beside it', () => {
+    let pins = 0;
+    for (const file of [...workflows, ...actions]) {
+      for (const [, ref] of read(file).matchAll(/^ *(?:- )?uses: *(.*)$/gm)) {
+        if (ref.startsWith('./')) continue; // this repository's own action or workflow
+        pins++;
+        expect(ref, file).toMatch(/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+(\.\d+)*$/);
+      }
+    }
+    expect(pins).toBeGreaterThanOrEqual(40);
+  });
+
+  it('runs no docker:// image, and no job container or service image', () => {
+    // Dependabot updates none of these in a workflow.
+    for (const file of [...workflows, ...actions]) {
+      expect(read(file), file).not.toMatch(/^ *(?:- )?uses: *['"]?docker:/m);
+      expect(read(file), file).not.toMatch(/^ +(?:container|services):/m);
+    }
+  });
+
+  it('keeps an actionlint image update waiting for the owner', () => {
+    // A CI check changes only with a person's review; update-prs.yml gives the kind a
+    // reason, and a pull request with any reason waits.
+    const gate = read('.github/workflows/update-prs.yml');
+    expect(gate).toMatch(/^ +dependabot\/docker\/\*\) kind=docker ;;$/m);
+    expect(gate).toMatch(/^ +docker\) reasons\+=\('[^']+'\) ;;$/m);
+  });
+
+  it('has Dependabot watch the workflows and every composite action', () => {
+    const github = entry('github-actions');
+    expect(github).toMatch(/^ +- '\/'$/m);
+    expect(github).toMatch(/^ +- '\/\.github\/actions\/\*'$/m);
+    expect(actions.length).toBeGreaterThan(0);
+    for (const file of actions) expect(fs.existsSync(new URL(file, root)), file).toBe(true);
+  });
+
+  it('pins the actionlint image by tag and digest where Dependabot updates it', () => {
+    const from = read('.github/actionlint/Dockerfile').split('\n').filter((line) => /^FROM\b/i.test(line));
+    expect(from).toEqual([expect.stringMatching(/^FROM rhysd\/actionlint:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/)]);
+    expect(entry('docker')).toMatch(/^ +directory: '\/\.github\/actionlint'$/m);
+    // Both readers of the pin read it from there.
+    expect(read('.github/workflows/ci.yml')).toContain('sed -n \'s/^FROM //p\' .github/actionlint/Dockerfile');
+    expect(read('tools/linux/setup.sh')).toContain('"$repo/.github/actionlint/Dockerfile"');
+  });
+});
+
 describe('newestOfMajor', () => {
   const day = 24 * 60 * 60 * 1000;
   const now = Date.parse('2026-09-29T12:00:00Z');

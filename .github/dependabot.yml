@@ -95,10 +95,14 @@ updates:
   # the comment together - minor and patch releases as one grouped PR a week, a
   # new major on its own. These always wait for the owner: they change workflow
   # files, which are reviewed by a person (and which a workflow's token may not
-  # merge). (The actionlint image in ci.yml is pinned by digest; bump it by hand
-  # with actionlint's release.)
+  # merge). (The actionlint image ci.yml runs is pinned by digest too, in
+  # .github/actionlint/Dockerfile; the docker entry below updates it.)
+  # '/' covers .github/workflows only; the composite actions (.github/actions/<name>,
+  # e2e-setup's setup-firefox) need their own directory, or they are never updated.
   - package-ecosystem: 'github-actions'
-    directory: '/'
+    directories:
+      - '/'
+      - '/.github/actions/*'
     schedule:
       interval: 'weekly'
     cooldown:
@@ -109,3 +113,18 @@ updates:
     groups:
       actions-minor-and-patch:
         update-types: ['minor', 'patch']
+
+  # The actionlint image that ci.yml's workflows job runs and the WSL verify takes
+  # actionlint and shellcheck from. Its tag and digest are in .github/actionlint/Dockerfile,
+  # because Dependabot does not update a docker:// line in a workflow. A new version, or
+  # a new digest for the same tag, waits for the owner in update-prs.yml: it changes the
+  # check every workflow file has to pass, and CI's checks are reviewed by a person.
+  - package-ecosystem: 'docker'
+    directory: '/.github/actionlint'
+    schedule:
+      interval: 'weekly'
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 2
+    labels:
+      - 'dependencies'

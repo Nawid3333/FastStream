@@ -8,7 +8,7 @@
 # (actions/setup-node with check-latest: its newest release), pnpm at package.json's packageManager version (through corepack),
 # ffmpeg from apt (libx264, as on the runner), and the current stable Firefox
 # (browser-actions/setup-firefox, `latest`). For the workflows job: the actionlint and
-# shellcheck binaries from the image ci.yml pins. Plus an unprivileged user, `faststream`,
+# shellcheck binaries from the image .github/actionlint/Dockerfile pins. Plus an unprivileged user, `faststream`,
 # since Firefox is not meant to run as root.
 set -euo pipefail
 # wsl.exe writes stdout and stderr to a redirected file each at its own offset, so one
@@ -74,9 +74,14 @@ if [ "$ff_have" != "$ff_want" ]; then
 fi
 
 # actionlint and shellcheck: the binaries in the image ci.yml's workflows job runs, taken
-# from its layers by the digest ci.yml pins, each download checked against its digest.
-# apt's shellcheck is another version (0.9.0 on 24.04), and versions differ in findings.
-image=$(sed -n 's|.*docker://rhysd/actionlint:\([0-9.]*@sha256:[0-9a-f]*\).*|\1|p' "$repo/.github/workflows/ci.yml" | head -1)
+# from its layers by the digest .github/actionlint/Dockerfile pins, each download checked
+# against its digest. apt's shellcheck is another version (0.9.0 on 24.04), and versions
+# differ in findings.
+image=$(sed -n 's|^FROM rhysd/actionlint:\([0-9.]*@sha256:[0-9a-f]\{64\}\).*|\1|p' "$repo/.github/actionlint/Dockerfile" | head -1)
+if [ -z "$image" ]; then
+  echo "actionlint: no line 'FROM rhysd/actionlint:<version>@sha256:<digest>' in .github/actionlint/Dockerfile"
+  exit 1
+fi
 digest=${image#*@}
 if [ "$(cat /opt/actionlint/digest 2>/dev/null || true)" != "$digest" ]; then
   echo "actionlint: rhysd/actionlint:$image"
