@@ -55,9 +55,12 @@ const OverlayGuard = (() => {
   // outermost one below the ancestor they share with the iframe.
   function overlaysOf(iframe, box) {
     const picks = new Set();
+    const players = [...document.querySelectorAll(`iframe[src^="${PLAYER_URL}"]`)];
     // Every element, not only the body's: ad layers are often put straight into <html>.
     for (const el of document.querySelectorAll('*')) {
       if (el === iframe || el.contains(iframe) || iframe.contains(el) || isPlayerFrame(el)) continue;
+      // Inside one already picked, which goes as a whole.
+      if ([...picks].some((pick) => pick.contains(el))) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1 || overlap(r, box) < 16) continue;
       // Painted above the iframe where the two overlap?
@@ -67,9 +70,13 @@ const OverlayGuard = (() => {
       const iframeAt = stack.indexOf(iframe);
       const elAt = stack.indexOf(el);
       if (iframeAt === -1 || elAt === -1 || elAt > iframeAt) continue;
+      // Its ancestors go with it while they are painted above the iframe too. A layout
+      // wrapper under the player that holds an ad over it (and the page's nav) stays.
       let pick = null;
       for (let a = el; a && !a.contains(iframe); a = a.parentElement) {
-        if (belongsToPlayer(a, box) && !a.querySelector(`iframe[src^="${PLAYER_URL}"]`)) {
+        const at = stack.indexOf(a);
+        if (at === -1 || at > iframeAt) break;
+        if (belongsToPlayer(a, box) && !players.some((player) => a.contains(player))) {
           pick = a;
         }
       }
@@ -79,6 +86,11 @@ const OverlayGuard = (() => {
   }
 
   function hide(guard, el) {
+    // One guard holds an element: a second one (another player's, in the same page) would
+    // take the first one's "hidden" for the page's own value and put it back for good.
+    for (const other of guards.values()) {
+      if (other !== guard && other.hidden.has(el)) return;
+    }
     if (!guard.hidden.has(el)) {
       guard.hidden.set(el, {
         value: el.style.getPropertyValue('visibility'),

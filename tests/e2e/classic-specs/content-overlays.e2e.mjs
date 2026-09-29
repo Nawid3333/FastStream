@@ -52,6 +52,29 @@ const barPage = (t) => `<!doctype html><title>bar</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
+// A layout wrapper that holds the page's nav, a side column and an ad over the player,
+// but not the player: it covers the player's box, and it is painted under it. Only the ad
+// is the player's; hiding the wrapper would take the nav and the column with it.
+const stagePage = (t) => `<!doctype html><title>stage</title>
+<style>
+  body { margin: 0; }
+  #ui { width: 1000px; height: 700px; }
+  #nav { height: 60px; background: #333; }
+  #aside { position: absolute; left: 660px; top: 80px; width: 300px; height: 360px; background: #666; }
+  #promo { position: absolute; left: 220px; top: 200px; width: 200px; height: 100px; z-index: 5; background: #c00; }
+  #stage { position: absolute; left: 0; top: 80px; width: 640px; height: 360px; }
+  #stage video { width: 640px; height: 360px; display: block; }
+</style>
+<div id="ui">
+  <div id="nav"></div>
+  <div id="aside"></div>
+  <div id="promo"></div>
+</div>
+<div id="stage"><video id="main" muted preload="auto" src="/clip.mp4?stage=${t}"></video></div>
+<script>
+  window.leave = () => history.pushState({}, '', location.pathname + '/next');
+</script>`;
+
 // The embedding page: the player's iframe fills it, and its bar lies on top.
 const embeddingPage = (t) => `<!doctype html><title>embedding</title>
 <style>
@@ -227,7 +250,7 @@ describe('A site\'s overlays around an in-page player', function() {
       server.listen(port, '127.0.0.1', () => resolve(server));
     });
     servers = [
-      await serve(SITE_PORT, {'/bar': barPage, '/embedding': embeddingPage}),
+      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/embedding': embeddingPage}),
       await serve(EMBED_PORT, {'/embed': embedPage}),
     ];
 
@@ -282,6 +305,22 @@ describe('A site\'s overlays around an in-page player', function() {
         {timeout: 15000, timeoutMsg: 'the site\'s bar was not given back'}).catch(() => {});
     expect(await visibilities(ids)).toEqual({controls: 'visible', play: 'visible', header: 'visible', topbar: 'visible'});
     expect(await inPage(() => document.getElementById('controls').style.visibility)).toBe('');
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('hides an ad over the player, and not the page wrapper under the player that holds it', async function() {
+    await openPage('/stage');
+    const ids = ['promo', 'nav', 'aside', 'ui'];
+    expect(await visibilities(ids)).toEqual({promo: 'visible', nav: 'visible', aside: 'visible', ui: 'visible'});
+    await clickToolbar();
+    await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the ad stayed over the player'}).catch(() => {});
+    expect(await visibilities(ids)).toEqual({promo: 'hidden', nav: 'visible', aside: 'visible', ui: 'visible'});
+
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'visible',
+        {timeout: 15000, timeoutMsg: 'the ad was not given back'}).catch(() => {});
+    expect(await visibilities(ids)).toEqual({promo: 'visible', nav: 'visible', aside: 'visible', ui: 'visible'});
     expect(await takeContentErrors()).toEqual([]);
   });
 
