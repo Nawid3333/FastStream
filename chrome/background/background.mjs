@@ -1402,9 +1402,10 @@ async function sendSources(frame) {
   }
 
   const {subtitles, sources} = collectSources(frame, true);
-  for (const source of sources) {
-    source.duration = Lengths.lengthOf(source.url);
-  }
+  const lengths = Lengths.lengthsOf(sources);
+  sources.forEach((source, i) => {
+    source.duration = lengths[i];
+  });
 
   chrome.tabs.sendMessage(frame.tab.tabId, {
     type: MessageTypes.SOURCES,
@@ -1726,7 +1727,8 @@ async function findPlayedSource(tab, frameId, src) {
  * @return {Object|null} One of them, or null when there are none.
  */
 function newestOfLongest(sources) {
-  const longest = StreamLength.longest(sources.map((source) => ({source, duration: Lengths.lengthOf(source.url)})));
+  const lengths = Lengths.lengthsOf(sources);
+  const longest = StreamLength.longest(sources.map((source, i) => ({source, duration: lengths[i]})));
   let newest = null;
   for (const {source} of longest) {
     if (!newest || source.time > newest.time) {

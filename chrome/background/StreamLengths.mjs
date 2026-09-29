@@ -1,6 +1,6 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {RequestUtils} from '../player/utils/RequestUtils.mjs';
-import {StreamLength} from '../player/utils/StreamLength.mjs';
+import {PIECE_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
 import {VideoSource} from '../player/VideoSource.mjs';
 
 // A manifest longer than this is not read whole: a three-hour film in two-second segments
@@ -52,6 +52,42 @@ export class StreamLengths {
   }
 
   /**
+   * The lengths of a page's sources, as lengthOf tells them, but a file not read yet, or
+   * not readable, counts as a piece of a stream when another of them was read as one and
+   * has the same URL but for its numbers (seg-14.mp4, seg-15.mp4). An HLS or DASH player
+   * keeps fetching pieces, and the newest, still unread when the player opens, would rank
+   * as a stream of unknown length: above a short title's manifest, and as the newest, the
+   * one that plays. A manifest never counts as a piece: it may share an address with them
+   * (/proxy?id=123).
+   * @param {Array<{url: string, mode: string}>} sources - The detected sources.
+   * @return {Array<number|null|undefined>} Their lengths, in the same order.
+   */
+  lengthsOf(sources) {
+    const pieces = new Set(sources.filter((source) => this.lengthOf(source.url) === PIECE_LENGTH)
+        .map((source) => StreamLengths.shape(source.url)));
+    return sources.map((source) => {
+      const length = this.lengthOf(source.url);
+      const file = source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
+      if (file && (length === undefined || length === null) && pieces.has(StreamLengths.shape(source.url))) {
+        return PIECE_LENGTH;
+      }
+      return length;
+    });
+  }
+
+  /**
+   * What the pieces of one stream have in common: the URL, each run of digits as one 0, no
+   * fragment. The query stays, so letters in it tell files apart, but numbers do not: on a
+   * site that fetches everything by number through one address (/get?id=123), a film whose
+   * length is still unread counts as a piece once one of the others was read as one.
+   * @param {string} url - A URL.
+   * @return {string} Its shape.
+   */
+  static shape(url) {
+    return url.split('#')[0].replace(/\d+/g, '0');
+  }
+
+  /**
    * Starts reading a stream's length, unless that has started already.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
    * @return {Promise<number|null>} Its length (as lengthOf tells it), or null.
@@ -79,7 +115,8 @@ export class StreamLengths {
    * too, or waitMs passed. An HLS or DASH player keeps fetching segments, each a source of
    * its own, and one not read yet ranks as a stream of unknown length: above a short
    * stream, and as the newest, the one that plays. The caller takes the sources right
-   * after, before another can come.
+   * after, before another can come, and their lengths from lengthsOf, which counts one
+   * still unread at the deadline, or not readable, as a piece when its like was read as one.
    * @param {function(): Array<Object>} getSources - The detected sources as they are now,
    *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
