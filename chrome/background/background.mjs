@@ -1,14 +1,17 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
+import {StreamLength} from '../player/utils/StreamLength.mjs';
 import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
+import {modeFromContentType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
+import {StreamLengths} from './StreamLengths.mjs';
 import {TabTracker} from './TabTracker.mjs';
 import {UrlMatchList} from './UrlMatchList.mjs';
 
@@ -88,6 +91,17 @@ const ExtensionVersion = chrome.runtime.getManifest().version;
 const Logging = false;
 const Tabs = new TabTracker();
 const ruleManager = new RuleManager();
+
+// How long each detected stream plays, so that the longest of a page's streams plays and
+// not the ad (StreamLength.longest). The reads go out from this background, in no tab:
+// the rule that gives them the page's headers matches on that.
+const Lengths = new StreamLengths({
+  setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
+});
+// The longest a player waits for the lengths still being read.
+const SourceLengthWaitMs = 2500;
+// Where this background's own requests come from.
+const OwnOrigin = chrome.runtime.getURL('');
 
 
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
@@ -1370,11 +1384,20 @@ function collectSources(frame, remove = false) {
   return {subtitles, sources};
 }
 
-function sendSources(frame) {
-  const {subtitles, sources} = collectSources(frame, true);
-
+async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
+
+  // The player plays the longest of them: a little time for the lengths still being read.
+  const pending = collectSources(frame).sources;
+  if (pending.length > 1) {
+    await Lengths.settle(pending, SourceLengthWaitMs);
+  }
+
+  const {subtitles, sources} = collectSources(frame, true);
+  for (const source of sources) {
+    source.duration = Lengths.lengthOf(source.url);
+  }
 
   chrome.tabs.sendMessage(frame.tab.tabId, {
     type: MessageTypes.SOURCES,
@@ -1487,6 +1510,10 @@ async function onSourceRecieved(details, frame, mode) {
   if (getSourceFromURL(frame, url)) return;
 
   addSource(frame, url, mode, customHeaders);
+  // Its length, read now: by the time a player asks for the page's streams, it is known.
+  if (frame.tab.isOn) {
+    Lengths.probe({url, mode, headers: customHeaders});
+  }
 
   // MPV mode: relay the detected source to the native mpv host instead of
   // opening the in-page player.
@@ -1635,7 +1662,11 @@ async function onUserPlay(sender, src) {
     return;
   }
 
-  const source = findPlayedSource(tab, sender.frameId, src);
+  const source = await findPlayedSource(tab, sender.frameId, src);
+  // The tab may have left MPV while the lengths were read.
+  if (!tab.isOn || !tab.isMpv || !tab.mpvOnPlay) {
+    return;
+  }
   if (Logging) console.log('[MPV] user started a video:', src, source && source.url);
   if (source) {
     sendPlayedToMpv(tab, source);
@@ -1647,15 +1678,18 @@ async function onUserPlay(sender, src) {
 /**
  * The detected source a started video plays. Its own URL first: a progressive
  * file, often preloaded long before the click, which no later request would
- * detect again. Otherwise the newest source of the frame it plays in, since an
- * MSE player's src is a blob: and its manifest a request of that frame.
+ * detect again. Otherwise the newest of the longest sources of the frame it
+ * plays in, since an MSE player's src is a blob: and its manifest a request of
+ * that frame - and one that ran an ad first has the ad's among them. Their
+ * lengths may not be read yet: the page can have asked for them before this
+ * tab's MPV started, when nothing read them.
  *
  * @param {Object} tab - TabHolder the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
- * @return {Object|null} The source, or null when none is detected yet.
+ * @return {Promise<Object|null>} The source, or null when none is detected yet.
  */
-function findPlayedSource(tab, frameId, src) {
+async function findPlayedSource(tab, frameId, src) {
   if (/^https?:\/\//i.test(src)) {
     for (const frame of tab.getFrames()) {
       const match = getSourceFromURL(frame, src);
@@ -1670,8 +1704,25 @@ function findPlayedSource(tab, frameId, src) {
     return null;
   }
 
+  const sources = frame.getSources();
+  if (sources.length > 1) {
+    await Lengths.settle(sources, SourceLengthWaitMs);
+  }
+  return newestOfLongest(sources);
+}
+
+/**
+ * The newest of the longest sources: an ad runs for seconds, the video for minutes
+ * (StreamLength.longest), and of streams that tie, the one the page asked for last is
+ * the one it plays now.
+ *
+ * @param {Array<Object>} sources - Detected sources.
+ * @return {Object|null} One of them, or null when there are none.
+ */
+function newestOfLongest(sources) {
+  const longest = StreamLength.longest(sources.map((source) => ({source, duration: Lengths.lengthOf(source.url)})));
   let newest = null;
-  for (const source of frame.getSources()) {
+  for (const {source} of longest) {
     if (!newest || source.time > newest.time) {
       newest = source;
     }
@@ -1711,13 +1762,14 @@ function sendPlayedToMpv(tab, source) {
 }
 
 /**
- * Sends the most recently detected source tracked on the tab to mpv via the
+ * Sends the newest of the longest sources tracked on the tab to mpv via the
  * native messaging host.
  *
  * Only one source is sent. mpv opens a window per invocation, and a page
  * routinely exposes several sources (ads, previews, one per quality), so
- * sending them all would bury the user in mpv windows. The newest source is
- * the one the page just started playing; the rest stay tracked, so the
+ * sending them all would bury the user in mpv windows. An ad or a preview
+ * runs for seconds, the video for minutes, and of those that tie the newest
+ * is the one the page just started playing; the rest stay tracked, so the
  * player's "send to mpv" button can still reach them.
  *
  * @param {Object} tab - TabHolder whose tracked sources should open in mpv.
@@ -1745,11 +1797,7 @@ function openMpvWithSources(tab) {
     }
   }
 
-  sources.sort((a, b) => {
-    return b.time - a.time;
-  });
-
-  const source = sources[0];
+  const source = newestOfLongest(sources);
   if (!source) {
     return false;
   }
@@ -1805,6 +1853,10 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
+      // This background's own reads (StreamLengths) are no page's stream.
+      if (details.tabId === chrome.tabs.TAB_ID_NONE && details.originUrl?.startsWith(OwnOrigin)) {
+        return;
+      }
       const url = details.url;
       let ext = URLUtils.get_url_extension(url);
       const tab = Tabs.getTabOrCreate(details.tabId);
@@ -1828,6 +1880,10 @@ chrome.webRequest.onHeadersReceived.addListener(
       }
 
       let mode = URLUtils.getModeFromExtension(ext);
+      if (!mode) {
+        // A manifest whose URL names no type: its Content-Type does (ManifestTypes).
+        mode = modeFromContentType(details.responseHeaders);
+      }
       if (!mode) {
         if (details.type === 'media') {
           mode = PlayerModes.ACCELERATED_MP4;
