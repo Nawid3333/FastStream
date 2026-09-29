@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "集 #"
     },
+    "player_opensubtitles_type": {
+        "message": "类型"
+    },
     "player_opensubtitles_type_all": {
         "message": "全部"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "拖动字幕以重新同步"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "请编辑字幕文本"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "保存字幕文件"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "已保存归档！"
+    },
+    "player_archiver_fail": {
+        "message": "保存归档失败！"
     },
     "player_quality_current": {
         "message": "(当前)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "无下混"
     },
+    "audioconvolver_decodeerror": {
+        "message": "无法将此文件解码为音频。脉冲响应未更改。"
+    },
+    "audioconvolver_fileerror": {
+        "message": "保存脉冲响应文件失败！"
+    },
     "options_title": {
         "message": "FastStream 选项"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "重置为默认"
+    },
+    "options_keybinds_press": {
+        "message": "请按任意键"
     },
     "options_autourl_header": {
         "message": "自动启用 URL"

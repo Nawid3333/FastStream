@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Bölüm #"
     },
+    "player_opensubtitles_type": {
+        "message": "Tür"
+    },
     "player_opensubtitles_type_all": {
         "message": "Tümü"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Altyazıları yeniden senkronize etmek için sürükleyin"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Altyazı metnini düzenleyin"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Altyazı dosyasını kaydet"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Arşiv kaydedildi!"
+    },
+    "player_archiver_fail": {
+        "message": "Arşiv kaydedilemedi!"
     },
     "player_quality_current": {
         "message": "(mevcut)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Downmix Yok"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Bu dosya ses olarak kod çözülemedi. İmpuls tepkisi değiştirilmedi."
+    },
+    "audioconvolver_fileerror": {
+        "message": "İmpuls tepkisi dosyası kaydedilemedi!"
+    },
     "options_title": {
         "message": "FastStream Seçenekleri"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Varsayılara Sıfırla"
+    },
+    "options_keybinds_press": {
+        "message": "Bir tuşa basın"
     },
     "options_autourl_header": {
         "message": "Otomatik Etkinleştirilen URL'ler"

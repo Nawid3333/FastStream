@@ -67,7 +67,20 @@ function isSameSegment(a, b) {
 export function HLSLoaderFactory(player) {
   return class HLSLoader {
     constructor() {
-      this.stats = {};
+      // The shape of hls.js's LoadStats, since hls.js reads it before any download has
+      // reported: a seek during a fragment load asks stats.loading.first, which threw on
+      // {} and cut hls.js's seek handling short.
+      this.stats = {
+        aborted: false,
+        loaded: 0,
+        total: 0,
+        retry: 0,
+        chunkCount: 0,
+        bwEstimate: 0,
+        loading: {start: 0, first: 0, end: 0},
+        parsing: {start: 0, end: 0},
+        buffering: {start: 0, first: 0, end: 0},
+      };
     }
 
     copyStats(stats) {

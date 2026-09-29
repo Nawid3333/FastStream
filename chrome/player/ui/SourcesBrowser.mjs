@@ -149,7 +149,7 @@ export class SourcesBrowser {
 
 
     const sourceSetBtn = WebUtils.create('div', null, 'linkui-source-set-button');
-    sourceSetBtn.textContent = 'Play';
+    sourceSetBtn.textContent = Localize.getMessage('player_source_playbtn');
     sourceSetBtn.addEventListener('click', async (e) => {
       // Check if source url is empty
       if (!source.url) {

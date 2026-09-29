@@ -38,13 +38,8 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
     span.style.cursor = 'text';
     span.addEventListener('input', (e) => {
       const value = span.textContent;
-      for (let i = 0; i < itemListElement.children.length; i++) {
-        const element = itemListElement.children[i];
-        if (element.dataset.val === container.dataset.val) {
-          element.textContent = value;
-          break;
-        }
-      }
+      // Nothing rebuilds the dropdown after an edit, so its list and label follow it here.
+      renameDropdownChoice(container, value);
       editableCallback(container.dataset.val, value);
       e.stopPropagation();
     });
@@ -63,6 +58,23 @@ export function createDropdown(defaultChoice, title, items, call, editableCallba
     });
   }
   return container;
+}
+
+/**
+ * Shows a new name for the chosen item of a dropdown, in its field, its list and its label,
+ * without rebuilding it: a rebuild under the pointer loses the click that is on its way.
+ * @param {HTMLElement} container - The dropdown, from createDropdown.
+ * @param {string} value - The name.
+ */
+export function renameDropdownChoice(container, value) {
+  const text = container.children[0];
+  const span = text.querySelector('.dropdown_text');
+  // Set only when it differs, or the caret of an edit in progress would jump.
+  if (span.textContent !== value) span.textContent = value;
+  const item = Array.from(container.querySelector('.items').children).find((el) => el.dataset.val === container.dataset.val);
+  if (item) item.textContent = value;
+  // The label is the title's text node ("Profile: ") and the name.
+  container.ariaLabel = text.firstChild.textContent + value;
 }
 
 
@@ -88,6 +100,8 @@ function setupDropdown(itemListElement, text, container, call, title) {
         nextElement.style.backgroundColor = 'var(--popwindow-dropdown-item-selected-background-color)';
         main.textContent = nextElement.textContent;
         container.dataset.val = nextElement.dataset.val;
+        // As a click on an item does, or a screen reader keeps the old value.
+        container.ariaLabel = title + ': ' + nextElement.textContent;
         if (call) call(container.dataset.val, element.dataset.val);
         break;
       }

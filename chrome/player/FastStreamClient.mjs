@@ -1357,6 +1357,9 @@ export class FastStreamClient extends EventEmitter {
 
     const promises = [];
     this.lastTime = 0;
+    // The next video starts at 0. Until its first time update, the previous one's time
+    // stayed on the progress bar, and the downloads were planned around it.
+    this.state.currentTime = 0;
 
     this.fragmentsStore = {};
     this.pastSeeks.length = 0;

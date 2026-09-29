@@ -98,3 +98,90 @@ describe('A live HLS stream', function() {
     });
   });
 });
+
+// A live playlist that moves on by more than a window: segments 0-2, then segment 4
+// alone, as a reload that came too late sees it. Segment 3 is never listed.
+// - That leaves a gap in the player's list of fragments, and the progress bar, which draws
+//   that list, threw on a gap after a fragment, on every tick.
+// - hls.js seeks to the new window while a fragment is loading, and asks the loader how
+//   far along it is (stats.loading.first); FastStream's loader had no such stats before
+//   its download first reported, which threw in hls.js's seek handling.
+const JUMP_PORT = 41887;
+const JUMP_ORIGIN = `http://127.0.0.1:${JUMP_PORT}`;
+
+describe('A live HLS stream that skips a segment', function() {
+  let started = null;
+  let jump;
+
+  /**
+   * A playlist of the hls-ts fixture's segments.
+   * @param {number[]} sns - The segments' sequence numbers, in order, without gaps.
+   * @return {string}
+   */
+  const playlist = (sns) => {
+    const lines = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-TARGETDURATION:2', `#EXT-X-MEDIA-SEQUENCE:${sns[0]}`];
+    for (const sn of sns) {
+      lines.push(`#EXTINF:${SEGMENTS[sn].toFixed(6)},`,
+          `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/hls-ts/seg-${String(sn).padStart(3, '0')}.ts`);
+    }
+    return lines.join('\n') + '\n';
+  };
+
+  before(async function() {
+    jump = http.createServer((req, res) => {
+      started ??= Date.now();
+      res.writeHead(200, {
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Content-Type': 'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-store',
+      });
+      res.end(playlist(Date.now() - started < STEP_MS ? [0, 1, 2] : [4]));
+    });
+    await new Promise((resolve, reject) => {
+      jump.on('error', reject);
+      jump.listen(JUMP_PORT, '127.0.0.1', resolve);
+    });
+  });
+
+  after(async function() {
+    await new Promise((resolve) => jump.close(resolve));
+  });
+
+  it('goes on past a gap in a live window, and draws the fragments on both sides of it', async function() {
+    await browser.url(`/player/index.html?t=${Date.now()}#${JUMP_ORIGIN}/jump.m3u8`);
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream), {timeout: 30000});
+    // The page's uncaught errors, from the start.
+    await browser.execute(() => {
+      window.__errors = [];
+      window.__stacks = [];
+      window.addEventListener('error', (e) => {
+        window.__errors.push(String(e.message));
+        window.__stacks.push(String(e.error?.stack || '').split('\n').slice(0, 6).join(' < '));
+      });
+    });
+    let fragments = [];
+    await browser.waitUntil(async () => {
+      fragments = await browser.execute(() => {
+        const client = window.fastStream;
+        const level = client?.player?.getCurrentVideoLevelID?.();
+        return (level ? client.getFragments(level) || [] : []).filter(Boolean)
+            .map((frag) => ({sn: frag.sn, start: frag.start, end: frag.end}));
+      });
+      return fragments.some((frag) => frag.sn === 4);
+    }, {timeout: 30000, interval: 250, timeoutMsg: 'segment 4 was never listed'}).catch(() => {});
+    // The bar is drawn once a second.
+    await browser.pause(2500);
+    const state = await browser.execute(() => ({
+      errors: window.__errors.slice(0, 3),
+      stacks: [...new Set(window.__stacks)].slice(0, 3),
+      bar: window.fastStream.interfaceController.progressBar.progressCache.map((entry) => ({start: entry.start, width: entry.width})),
+    }));
+    console.log('      fragments:', JSON.stringify(fragments), 'state:', JSON.stringify(state));
+    expect(fragments.map((frag) => frag.sn)).toEqual([0, 1, 2, 4]);
+    expect(state.errors).toEqual([]);
+    // Segment 4 is drawn from its own start, not from where segment 2 ended.
+    const four = fragments.find((frag) => frag.sn === 4);
+    expect(state.bar.some((entry) => Math.abs(entry.start - four.start) < 0.1)).toBe(true);
+  });
+});

@@ -117,6 +117,16 @@ export class ProgressBar extends EventEmitter {
     this.progressCacheAudio = [];
     this.skipSegments = [];
     this.hasShownSkip = false;
+    // updateSkipSegments() redraws these only once the next video has a duration, and one
+    // that never gets one kept the previous video's markers and skip button.
+    this.skipSegmentsCache.forEach((element) => element.remove());
+    this.skipSegmentsCache = [];
+    this.chapterCache.forEach((element) => element.remove());
+    this.chapterCache = [];
+    DOMElements.skipButton.style.display = 'none';
+    DOMElements.skipButton.classList.remove('shiftup');
+    DOMElements.nextVideoBannerButton.style.display = 'none';
+    DOMElements.progressContainer.classList.remove('skip_freeze');
   }
 
   collectProgressbarData(fragments) {
@@ -129,6 +139,9 @@ export class ProgressBar extends EventEmitter {
     while (i < fragments.length) {
       const frag = fragments[i];
       if (!frag) {
+        // A gap, which a live stream leaves when its window moves past fragments that were
+        // never listed: the fragment after it starts from its own start.
+        currentTime = -1;
         i++;
         continue;
       }
@@ -167,7 +180,7 @@ export class ProgressBar extends EventEmitter {
 
       i++;
 
-      while (i < fragments.length && fragments[i].status === frag.status) {
+      while (i < fragments.length && fragments[i] && fragments[i].status === frag.status) {
         end = currentTime + fragments[i].duration;
         currentTime = end;
         i++;

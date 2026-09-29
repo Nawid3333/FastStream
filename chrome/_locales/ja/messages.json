@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "エピソード #"
     },
+    "player_opensubtitles_type": {
+        "message": "タイプ"
+    },
     "player_opensubtitles_type_all": {
         "message": "すべて"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "字幕をドラッグして再同期してください"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "字幕テキストを編集"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "字幕ファイルを保存"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "アーカイブを保存しました!"
+    },
+    "player_archiver_fail": {
+        "message": "アーカイブの保存に失敗しました!"
     },
     "player_quality_current": {
         "message": "(現在)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "ダウンミックスなし"
     },
+    "audioconvolver_decodeerror": {
+        "message": "このファイルはオーディオとしてデコードできませんでした。インパルス応答は変更されていません。"
+    },
+    "audioconvolver_fileerror": {
+        "message": "インパルス応答ファイルの保存に失敗しました!"
+    },
     "options_title": {
         "message": "FastStream のオプション"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "デフォルトにリセット"
+    },
+    "options_keybinds_press": {
+        "message": "キーを押してください"
     },
     "options_autourl_header": {
         "message": "URL で自動的に有効化"

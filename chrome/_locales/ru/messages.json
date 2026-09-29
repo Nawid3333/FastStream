@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Серия #"
     },
+    "player_opensubtitles_type": {
+        "message": "Тип"
+    },
     "player_opensubtitles_type_all": {
         "message": "Все"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Перетащите субтитры для повторной синхронизации"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Измените текст субтитров"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Сохранить файл субтитров"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Архив сохранён!"
+    },
+    "player_archiver_fail": {
+        "message": "Не удалось сохранить архив!"
     },
     "player_quality_current": {
         "message": "(текущее)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Без сведения"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Не удалось декодировать этот файл как аудио. Импульсная характеристика не изменилась."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Не удалось сохранить файл импульсной характеристики!"
+    },
     "options_title": {
         "message": "Параметры FastStream"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Сбросить по умолчанию"
+    },
+    "options_keybinds_press": {
+        "message": "Нажмите клавишу"
     },
     "options_autourl_header": {
         "message": "Автовключение по ссылкам"

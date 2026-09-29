@@ -182,6 +182,12 @@ export class LoopMenu extends EventEmitter {
       this.loopStart = this.timecodeToSeconds(this.loopTimeSettings.start);
       this.loopEnd = this.timecodeToSeconds(this.loopTimeSettings.end);
 
+      // A start field that holds no time (emptied, or half typed) is the start of the video,
+      // as the video's own loop already made it. NaN never let a GIF record a frame, and
+      // with the end emptied too, the recording ran at 4x for good.
+      if (!Number.isFinite(this.loopStart)) {
+        this.loopStart = 0;
+      }
       if (this.loopEnd <= 0) {
         this.loopEnd = this.client.duration;
       }

@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "集 #"
     },
+    "player_opensubtitles_type": {
+        "message": "類型"
+    },
     "player_opensubtitles_type_all": {
         "message": "全部"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "拖曳字幕以重新同步"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "編輯字幕文字"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "儲存字幕檔案"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "已存檔！"
+    },
+    "player_archiver_fail": {
+        "message": "儲存封存檔失敗！"
     },
     "player_quality_current": {
         "message": "(目前)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "無下混"
     },
+    "audioconvolver_decodeerror": {
+        "message": "無法將此檔案解碼為音訊。脈衝響應未變更。"
+    },
+    "audioconvolver_fileerror": {
+        "message": "儲存脈衝響應檔案失敗！"
+    },
     "options_title": {
         "message": "FastStream 選項"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "回復預設"
+    },
+    "options_keybinds_press": {
+        "message": "按任意鍵"
     },
     "options_autourl_header": {
         "message": "自動啟用網址"

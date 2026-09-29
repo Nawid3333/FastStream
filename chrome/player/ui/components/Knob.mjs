@@ -97,6 +97,12 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
 
   knobValue.addEventListener('blur', (e)=>{
     const val = parseFloat(knobValue.textContent.replace(units, ''));
+    // An emptied field goes to the suggested value, which the callback snaps NaN to. A knob
+    // without one handed NaN on to its setting; it keeps its value instead.
+    if (isNaN(val) && (suggestedValue === null || isNaN(suggestedValue))) {
+      knobValue.textContent = knob.val().toFixed(decimals) + ' ' + units;
+      return;
+    }
     knob.val(val);
   });
 

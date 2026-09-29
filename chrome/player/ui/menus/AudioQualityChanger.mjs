@@ -81,6 +81,9 @@ export class AudioQualityChanger extends EventEmitter {
     });
 
     DOMElements.audioConfigBtn.addEventListener('keydown', (e) => {
+      // The button keeps the focus after a click; with the list closed, its keys are the
+      // player's again (the arrows are the volume), not a choice in a list no one sees.
+      if (!this.isOpen()) return;
       const candidates = Array.from(DOMElements.audioSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {

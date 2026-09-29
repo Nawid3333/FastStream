@@ -539,6 +539,10 @@ export class FineTimeControls extends EventEmitter {
 
     const video = this.client.player.getVideo();
     const duration = video.duration;
+    // Opened on a video with no duration yet (or a live one's Infinity), new Array(NaN)
+    // below threw on every frame; the syncer draws on the 'render' this emits, so it waits
+    // too.
+    if (!(duration > 0) || !Number.isFinite(duration)) return;
 
     const timePerWidth = window.subEditMode ? 30 : 60;
     const minTime = Math.floor(Math.max(0, time - timePerWidth / 2 - 5));

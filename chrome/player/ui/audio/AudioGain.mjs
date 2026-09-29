@@ -43,6 +43,9 @@ export class AudioGain extends AbstractAudioModule {
         this.getOutputNode().disconnectFrom(this.gainNode);
         this.getInputNode().connect(this.getOutputNode());
         this.gainNode = null;
+      } else if (this.gainNode) {
+        // The node goes once the volume has settled; until then the old volume stayed on.
+        this.gainNode.gain.value = 1;
       }
     }
   }

@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Épisode #"
     },
+    "player_opensubtitles_type": {
+        "message": "Type"
+    },
     "player_opensubtitles_type_all": {
         "message": "Tous"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Faites glisser les sous-titres pour les resynchroniser"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Modifiez le texte du sous-titre"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Enregistrer le fichier de sous-titres"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Archive enregistrée !"
+    },
+    "player_archiver_fail": {
+        "message": "Échec de la sauvegarde de l'archive !"
     },
     "player_quality_current": {
         "message": "(actuel)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Pas de mixage"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Ce fichier n'a pas pu être décodé en tant qu'audio. La réponse impulsionnelle n'a pas été modifiée."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Échec de la sauvegarde du fichier de réponse impulsionnelle !"
+    },
     "options_title": {
         "message": "Options de FastStream"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Réinitialiser aux valeurs par défaut"
+    },
+    "options_keybinds_press": {
+        "message": "Appuyez sur une touche"
     },
     "options_autourl_header": {
         "message": "Activation automatique par URL"

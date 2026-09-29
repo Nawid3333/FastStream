@@ -150,3 +150,19 @@ describe('HLSLoader, init segments', () => {
     expect(getFile).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('HLSLoader, before a download has reported', () => {
+  it('has the load stats hls.js reads while a load is on its way', () => {
+    // A seek during a fragment load asks the loader's stats.loading.first
+    // (isFragmentNearlyDownloaded), and a loader that started from {} threw there.
+    const {player} = makePlayer();
+    const loader = new (hlsLoaderFactory(player))();
+    loader.load({url: 'http://127.0.0.1/seg5.ts', frag: {sn: 5, trackID: 0, level: 0}}, {}, fragmentCallbacks());
+    const stats = loader.stats;
+    expect(stats.loading).toEqual({start: 0, first: 0, end: 0});
+    expect(stats.parsing).toEqual({start: 0, end: 0});
+    expect(stats.buffering).toEqual({start: 0, first: 0, end: 0});
+    expect(stats.total - stats.loaded).toBe(0);
+    expect(stats.aborted).toBe(false);
+  });
+});

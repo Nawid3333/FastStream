@@ -206,6 +206,8 @@ export class InterfaceController {
     this.failed = false;
     this.setStatusMessage('error', null, 'error');
     this.setStatusMessage('chapter', null, 'error');
+    // The next video may never have fragments to count, and then nothing else hides it.
+    DOMElements.resetFailed.style.display = 'none';
     this.stopProgressLoop();
     this.state.playing = false;
     this.updatePlayPauseButton();
@@ -215,6 +217,8 @@ export class InterfaceController {
     this.fineTimeControls.reset();
     this.playbackRateChanger.reset();
     this.loopControls.reset();
+    // A video that never loads sends no time update, and kept the previous one's time.
+    this.timeUpdated();
   }
 
   failedToLoad(reason) {
@@ -1073,7 +1077,9 @@ export class InterfaceController {
   timeUpdated() {
     const duration = this.client.duration;
     if (!this.progressBar.isSeeking) {
-      DOMElements.currentProgress.style.width = Utils.clamp(this.state.currentTime / duration, 0, 1) * 100 + '%';
+      // Until the duration is known, 0 / 0 made a width the style refused, which left the
+      // previous video's progress on the bar.
+      DOMElements.currentProgress.style.width = (duration > 0 ? Utils.clamp(this.state.currentTime / duration, 0, 1) * 100 : 0) + '%';
     }
     DOMElements.duration.textContent = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
 
@@ -1081,9 +1087,8 @@ export class InterfaceController {
     if (chapters.length > 0) {
       const time = this.state.currentTime;
       const chapter = chapters.find((chapter) => chapter.startTime <= time && chapter.endTime >= time);
-      if (chapter) {
-        this.setStatusMessage('chapter', chapter.name, 'info');
-      }
+      // Chapters can leave gaps, and a gap is no chapter.
+      this.setStatusMessage('chapter', chapter ? chapter.name : null, 'info');
     } else {
       this.setStatusMessage('chapter', null, 'info');
     }

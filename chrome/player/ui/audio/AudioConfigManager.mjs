@@ -5,7 +5,7 @@ import {InterfaceUtils} from '../../utils/InterfaceUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
-import {createDropdown} from '../components/Dropdown.mjs';
+import {createDropdown, renameDropdownChoice} from '../components/Dropdown.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 import {AudioChannelMixer} from './AudioChannelMixer.mjs';
 import {AudioCrosstalk} from './AudioCrosstalk.mjs';
@@ -227,8 +227,12 @@ export class AudioConfigManager extends AbstractAudioModule {
         },
     );
 
-    this.ui.profileDropdown.children[0].children[0].addEventListener('blur', ()=>{
-      this.updateProfileDropdown(parseInt(this.ui.profileDropdown.dataset.val.substring(1)));
+    const dropdown = this.ui.profileDropdown;
+    dropdown.children[0].children[0].addEventListener('blur', ()=>{
+      // The name as it was stored (trimmed, or "Unnamed Profile"), shown in place: rebuilding the
+      // dropdown under the pointer lost the click on another profile that ended the edit.
+      const label = this.getDropdownProfile()?.label;
+      if (label !== undefined) renameDropdownChoice(dropdown, label);
     });
 
     this.ui.profileDropdown.classList.add('profile_selector');
@@ -396,7 +400,7 @@ export class AudioConfigManager extends AbstractAudioModule {
     this.ui.deleteButton.textContent = Localize.getMessage('player_audioconfig_profile_delete');
     this.ui.profileManager.appendChild(this.ui.deleteButton);
 
-    const deleteTimeout = null;
+    let deleteTimeout = null;
     this.ui.deleteButton.addEventListener('click', async (e) => {
       const profile = this.getDropdownProfile();
       if (!profile) {
@@ -412,8 +416,10 @@ export class AudioConfigManager extends AbstractAudioModule {
 
       await this.deleteProfile(profile);
       this.ui.deleteButton.textContent = Localize.getMessage('player_audioconfig_profile_deleted');
+      // Kept, as the save and download buttons keep theirs: a second delete within the
+      // second had its "Deleted" put back by the first one's timer.
       clearTimeout(deleteTimeout);
-      setTimeout(() => {
+      deleteTimeout = setTimeout(() => {
         this.ui.deleteButton.textContent = Localize.getMessage('player_audioconfig_profile_delete');
       }, 1000);
     });

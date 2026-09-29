@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Episode #"
     },
+    "player_opensubtitles_type": {
+        "message": "Jenis"
+    },
     "player_opensubtitles_type_all": {
         "message": "Semua"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Seret subtitle untuk menyinkronkan ulang"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Sunting teks subtitle"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Simpan file subtitle"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Arsip tersimpan!"
+    },
+    "player_archiver_fail": {
+        "message": "Gagal menyimpan arsip!"
     },
     "player_quality_current": {
         "message": "(saat ini)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Tanpa Downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Berkas ini tidak dapat didekode sebagai audio. Respon impuls tidak diubah."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Gagal menyimpan berkas respon impuls!"
+    },
     "options_title": {
         "message": "Opsi FastStream"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Kembalikan ke Default"
+    },
+    "options_keybinds_press": {
+        "message": "Tekan tombol"
     },
     "options_autourl_header": {
         "message": "Aktifkan Otomatis untuk URL"

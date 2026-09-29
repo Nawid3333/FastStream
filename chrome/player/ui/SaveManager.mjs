@@ -364,7 +364,7 @@ export class SaveManager {
       this.setStatusMessage('save-video', Localize.getMessage('player_archiver_saved'), 'info', 2000);
     } catch (e) {
       console.error(e);
-      this.setStatusMessage('save-video', 'Unreachable Error', 'error', 2000);
+      this.setStatusMessage('save-video', Localize.getMessage('player_archiver_fail'), 'error', 2000);
       AlertPolyfill.errorSendToDeveloper(e);
     }
   }
@@ -402,7 +402,15 @@ export class SaveManager {
 
       if (ext === 'json') {
         const fsprofile = await file.text();
-        const data = JSON.parse(fsprofile);
+        // A .json that is not JSON is skipped, rather than failing the whole drop and
+        // with it the video dropped alongside.
+        let data;
+        try {
+          data = JSON.parse(fsprofile);
+        } catch (e) {
+          console.warn('Skipped a dropped .json that is not JSON:', file.name, e);
+          continue;
+        }
 
         if (data?.type === 'audioProfile') {
           this.client.audioConfigManager.loadProfileFile(data);

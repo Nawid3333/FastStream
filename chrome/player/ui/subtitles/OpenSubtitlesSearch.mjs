@@ -21,6 +21,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     super();
     this.subui = {};
     this.version = version;
+    this.searchCount = 0;
     this.setupUI();
   }
 
@@ -110,7 +111,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
     this.subui.episodeInput = episodeInput;
 
     const typeSelector = createDropdown('all',
-        'Type', {
+        Localize.getMessage('player_opensubtitles_type'), {
           'all': Localize.getMessage('player_opensubtitles_type_all'),
           'movie': Localize.getMessage('player_opensubtitles_type_movie'),
           'episode': Localize.getMessage('player_opensubtitles_type_episode'),
@@ -294,6 +295,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
     container.textContent = Localize.getMessage('player_opensubtitles_searching');
     this.subui.results.appendChild(container);
 
+    // A search started while this one waits is the one to show: an answer that came later
+    // for this one put its results over the newer search's.
+    const searchNumber = ++this.searchCount;
     let response;
     try {
       response = (await RequestUtils.request({
@@ -312,18 +316,29 @@ export class OpenSubtitlesSearch extends EventEmitter {
           },
         ],
       })).response;
+      if (searchNumber !== this.searchCount) {
+        return;
+      }
 
       if (response.errors) {
         container.textContent = Localize.getMessage('player_opensubtitles_error', [response.errors.join(', ')]);
+        // The last search's pages would search again for its query.
+        this.subui.pages.replaceChildren();
         return;
       }
     } catch (e) {
       console.log(e);
-      if (!chrome?.extension) {
+      if (searchNumber !== this.searchCount) {
+        return;
+      }
+      // EnvUtils, since `chrome` is not declared at all in the web build, where
+      // chrome?.extension threw and "Searching..." stayed.
+      if (!EnvUtils.isExtension()) {
         container.textContent = Localize.getMessage('player_opensubtitles_disabled');
       } else {
         container.textContent = Localize.getMessage('player_opensubtitles_error_down');
       }
+      this.subui.pages.replaceChildren();
       return;
     }
 
@@ -454,8 +469,10 @@ export class OpenSubtitlesSearch extends EventEmitter {
           }
         } catch (e) {
           console.log(e);
-          if (DOMElements.subuiContainer.style.display === 'none') return;
+          // Before the check below: with the search closed during the download, the result
+          // stayed "downloading" and ignored every click after.
           item.downloading = false;
+          if (DOMElements.subuiContainer.style.display === 'none') return;
           await AlertPolyfill.alert(Localize.getMessage('player_opensubtitles_down_alert'), 'error');
           if (await AlertPolyfill.confirm(Localize.getMessage('player_opensubtitles_askopen'), 'question')) {
             EnvUtils.openExternalURL(item.attributes.url);

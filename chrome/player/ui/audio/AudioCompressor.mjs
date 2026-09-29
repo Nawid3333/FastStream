@@ -75,13 +75,19 @@ export class AudioCompressor extends AbstractAudioModule {
 
   async updateChannelCount() {
     const count = this.numberOfChannelsGetter ? await this.numberOfChannelsGetter() : 2;
-    if (count && this.compressorNode) {
+    if (count && !this.compressorNode && this.compressorConfig?.enabled) {
+      // A recount (each new video brings one) drops the count a build is waiting for, and
+      // the build gave up: the compressor stayed off for the whole video.
+      this.updateCompressor();
+    } else if (count && this.compressorNode) {
+      // Rebuilt through updateCompressor, which also sets the new nodes to the settings;
+      // built alone, they had the defaults.
       if (count > 2 && (!this.splitterNode || this.splitterNode.numberOfOutputs !== count)) {
         this.destroyCompressorNodes();
-        this.createCompressorNodes();
+        this.updateCompressor();
       } else if (count <= 2 && this.splitterNode) {
         this.destroyCompressorNodes();
-        this.createCompressorNodes();
+        this.updateCompressor();
       }
     }
   }
@@ -110,7 +116,8 @@ export class AudioCompressor extends AbstractAudioModule {
 
   async createCompressorNodes() {
     const numChannels = this.numberOfChannelsGetter ? await this.numberOfChannelsGetter() : 2;
-    if (numChannels === 0 || this.compressorNode) return;
+    // Switched off while the count was on its way, it was built anyway and kept running.
+    if (numChannels === 0 || this.compressorNode || !this.compressorConfig?.enabled) return;
 
     const audioContext = this.audioContext;
 
