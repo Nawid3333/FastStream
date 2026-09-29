@@ -352,7 +352,8 @@ export default class MP4Player extends EventEmitter {
     const now = performance.now();
     if (time !== this.stallTime) {
       // It moved. A nudge moves it too, and counts as moving only once it plays on from there.
-      if (!video.seeking && time !== this.stallNudgedTo) {
+      // Firefox keeps whole microseconds, so where a nudge lands can differ in the last digits.
+      if (!(Math.abs(time - this.stallNudgedTo) < 0.001)) {
         this.stallNudges = 0;
       }
       this.stallTime = time;
@@ -375,7 +376,6 @@ export default class MP4Player extends EventEmitter {
     this.stallNudgedTo = time + STALL_NUDGE * this.stallNudges;
     console.warn(`Playback stuck at ${time} with media buffered ahead, nudging it to ${this.stallNudgedTo}`);
     video.currentTime = this.stallNudgedTo;
-    this.stallNudgedTo = video.currentTime;
   }
 
   /**
