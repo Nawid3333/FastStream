@@ -59,10 +59,11 @@ export class SubtitleUtils {
     let srt = data.replace(/\r+/g, '');
     // trim white space start and end
     srt = srt.replace(/^\s+|\s+$/g, '');
-    // get cues: a cue ends at a blank line, however many follow it, and a line of
-    // spaces or tabs is as blank as an empty one; a cue also starts at its own timestamp
-    // when no blank line comes before it
-    const cuelist = srt.split(/\n(?:[ \t]*\n)+/).flatMap((block) => this.splitAtCueStarts(block));
+    // get cues: a cue ends at a blank line, however many follow it, and a cue also starts
+    // at its own timestamp when no blank line comes before it. So a line of spaces ends
+    // the cue before a timestamp, and inside a cue it is text, as ffmpeg and VLC read it:
+    // splitting at it too lost the text below it.
+    const cuelist = srt.split(/\n\n+/).flatMap((block) => this.splitAtCueStarts(block));
     let result = '';
     if (cuelist.length > 0) {
       result += 'WEBVTT\n\n';
