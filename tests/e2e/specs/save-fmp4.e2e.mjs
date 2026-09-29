@@ -156,9 +156,11 @@ const DASH_OUTPUT = [
   '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
 ];
 
+// No -shortest: where it cut the video depended on the ffmpeg build (one from 2026-04 kept
+// 298 of the 300 frames), and the tests count the saved frames against sample.mp4's.
 const TONE_INPUT = [
   '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
-  '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
+  '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k',
 ];
 
 /**
@@ -173,13 +175,18 @@ const TONE_INPUT = [
 function ensureFixture(name, indexFile, inputArgs, outputArgs) {
   const dir = path.join(fixturesDir, name);
   // The playlist is written before the last segment is, so the index file alone says
-  // nothing about a run that was killed half way. The marker is written last.
+  // nothing about a run that was killed half way. The marker is written last, and holds
+  // the arguments, so that a fixture made with other arguments is made again.
   const done = path.join(dir, '.complete');
-  if (fs.existsSync(done) && fs.existsSync(path.join(dir, indexFile))) return;
+  const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
+  const recipe = JSON.stringify(args);
+  if (fs.existsSync(path.join(dir, indexFile)) && fs.existsSync(done) &&
+      fs.readFileSync(done, 'utf8') === recipe) {
+    return;
+  }
 
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
-  const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
   const {status, error, stderr} = spawnSync('ffmpeg', args, {cwd: dir, encoding: 'utf8'});
   if (status !== 0) {
     throw new Error(
@@ -188,7 +195,7 @@ function ensureFixture(name, indexFile, inputArgs, outputArgs) {
         `locally it must be on PATH.\n${stderr || ''}`,
     );
   }
-  fs.writeFileSync(done, '');
+  fs.writeFileSync(done, recipe);
 }
 
 /**
@@ -349,6 +356,9 @@ describe('Save video (locally generated fMP4)', function() {
     ensureFixture('hls-fmp4-muxed', 'index.m3u8', TONE_INPUT, HLS_OUTPUT);
     // The same content as two separately delivered tracks.
     ensureFixture('dash-separate', 'manifest.mpd', TONE_INPUT, DASH_OUTPUT);
+    // Video-only, cut after 298 of its 300 frames in decode order. The cut depends on no
+    // encoder or muxer choice, as the video is copied.
+    ensureFixture('hls-fmp4-cut', 'index.m3u8', ['-i', MP4_FIXTURE, '-c', 'copy', '-frames:v', '298'], HLS_OUTPUT);
   });
 
   it('saves a video-only fMP4 level into a file that decodes and holds media', async function() {
@@ -366,6 +376,22 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.decodeErrors).toBe('');
     expect(decoded.video.frames).toBe(sourceFrameCount());
     expect(decoded.audio).toBe(null);
+  });
+
+  it('keeps a frame that is shown after the last one decoded', async function() {
+    // A stream cut in decode order, as a recording that stopped inside a group of pictures
+    // is: the last two frames decoded are gone, and a frame decoded before them is shown
+    // after the point where the decode timeline ends. The edit list ended at that point,
+    // so players left the frame out, and the saved file had 297 frames.
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-cut/index.m3u8');
+    const result = await saveAndInspect();
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
+
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
+    expect(result.saveError).toBe(null);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(298);
   });
 
   it('saves an fMP4 level that carries its own audio, keeping both tracks', async function() {
