@@ -77,10 +77,14 @@ export class RuleManager {
         requestHeaders: requestHeaderCommands,
       },
       condition: {
-        // Escape urlFilter's special characters (\ * ^ |) so a URL that
-        // happens to contain one is matched literally instead of being
-        // reinterpreted as a wildcard/anchor by declarativeNetRequest.
-        urlFilter: '||' + url.replace('https://', '').replace('http://', '').replace(/[\\*^|]/g, '\\$&'),
+        // The URL itself, unescaped: urlFilter has no escape character. A `\`
+        // is a literal character to match (Firefox's CompiledUrlFilter in
+        // ExtensionDNR.sys.mjs; Chrome documents only * | || ^), so escaping
+        // a `*` made the rule demand a backslash no URL has, and a stream URL
+        // like an Akamai `acl=/*` token got no Referer/Origin. Unescaped, a
+        // `*`, `^` or `|` from the URL can only widen the match, never exclude
+        // the URL itself, and the rule is limited to one tab and 5 seconds.
+        urlFilter: '||' + url.replace('https://', '').replace('http://', ''),
         tabIds: [tabId],
       },
     };
