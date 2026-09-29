@@ -67,6 +67,10 @@
         return;
       }
 
+      // Asked of each frame above a player as it opens: what this page lays over that
+      // iframe lies over the player too (overlay-guard.js).
+      OverlayGuard.guard(iframeObj.iframe);
+
       const parents = getParentElementsWithSameBounds(iframeObj.iframe);
       if (parents.length > 0 && parents[parents.length - 1].tagName === 'BODY') {
         sendResponse(true);
@@ -565,6 +569,7 @@
 
   function removePlayers() {
     MiniplayerCooldown = Date.now() + 1000;
+    OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
       if (iframeObj.replacedData) {
