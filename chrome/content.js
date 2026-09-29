@@ -5,6 +5,7 @@
     PONG_TAB: 'PONG_TAB',
     OPEN_PLAYER: 'OPEN_PLAYER',
     GET_VIDEO_SIZE: 'GET_VIDEO_SIZE',
+    GET_PLAYED_VIDEO: 'GET_PLAYED_VIDEO',
     FRAME_ADDED: 'FRAME_ADDED',
     REMOVE_PLAYERS: 'REMOVE_PLAYERS',
     IS_FULL: 'IS_FULL',
@@ -111,6 +112,11 @@
         sendResponse(video ? video.size : 0);
       });
       return true;
+    } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
+      // The asking player's, once it linked up with its iframe; before that, the latest
+      // replaced (one player opens per frame at a time, background.mjs openPlayer).
+      const linked = iframeMap.get(request.frameId);
+      sendResponse(replacedVideo(linked ? linked.replacedData : replacedPlayerQueue[replacedPlayerQueue.length - 1]));
     } else if (request.type === MessageTypes.SCRAPE_CAPTIONS) {
       return handleCaptionsScrape(request, sender, sendResponse);
     } else if (request.type === MessageTypes.TOGGLE_MINIPLAYER) {
@@ -319,6 +325,13 @@
           softReplace,
           fillScreen: playerFillsScreen,
         };
+        // The video itself, for the stream it played (GET_PLAYED_VIDEO). A site's own query
+        // may have found its player's box: the one video in it, and none when there are
+        // more, an ad's or a preview's among them as likely as not.
+        const inBox = video.highest.tagName === 'VIDEO' ? [video.highest] :
+          querySelectorAllIncludingShadows('video', video.highest);
+        pobj.video = video.video || (inBox.length === 1 ? inBox[0] : null);
+        pobj.played = playedVideo(pobj.video);
         replacedPlayerQueue.push(pobj);
 
         updateReplacedPlayer(video.highest, iframe, softReplace);
@@ -1577,6 +1590,41 @@
     }
   });
 
+  /**
+   * What a video plays, for the player to play the same stream (StreamPick.played).
+   * @param {HTMLVideoElement|null|undefined} video - The video.
+   * @return {?{src: string, duration: ?number, playing: string}} Its file's URL (not a
+   *   blob: URL, which a detected source never has), its length in seconds (Infinity when
+   *   live), and its currentSrc as it is, blob: or not; or null for no video.
+   */
+  function playedVideo(video) {
+    if (!video) {
+      return null;
+    }
+    const src = video.currentSrc || '';
+    return {
+      src: /^https?:\/\//i.test(src) ? src : '',
+      duration: video.duration > 0 ? video.duration : null,
+      playing: src,
+    };
+  }
+
+  /**
+   * What the video a player replaced plays: as it is now, while it plays what it played
+   * then (a page's player sets its length a moment after it asked for the manifest), or
+   * else as it was then.
+   * @param {Object|undefined} player - The replaced player (replacedPlayerQueue).
+   * @return {?{src: string, duration: ?number}} See playedVideo.
+   */
+  function replacedVideo(player) {
+    if (!player || !player.played) {
+      return null;
+    }
+    const now = playedVideo(player.video);
+    const {src, duration} = now && now.playing === player.played.playing ? now : player.played;
+    return {src, duration};
+  }
+
   // MPV started by its shortcut hands over only a video the user starts, not
   // whatever the page loads or autoplays on its own (previews, background
   // clips, a preloaded player). A 'play' while the page is still handling a
@@ -1590,6 +1638,7 @@
       chrome.runtime.sendMessage({
         type: MessageTypes.MPV_USER_PLAY,
         src: video.currentSrc || '',
+        video: playedVideo(video),
       }, () => {
         void chrome.runtime.lastError;
       });

@@ -1,5 +1,6 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {StreamLength} from '../player/utils/StreamLength.mjs';
+import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
@@ -625,7 +626,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
-    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '');
+    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null);
     return;
   } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
     if (sender.tab && typeof msg.key === 'string' && typeof msg.code === 'string') {
@@ -1396,9 +1397,18 @@ async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
 
-  // The player plays the longest of them: a little time for the lengths still being read.
+  // The player plays the one the page's video played, or the longest of them: a little
+  // time for the lengths still being read. The video is asked about after that, when the
+  // page's player has most likely set its length; then a wait for the sources detected
+  // meanwhile, if any (one still unread from before is not waited for twice).
+  let video = null;
   if (collectSources(frame).sources.length > 1) {
     await Lengths.settle(() => collectSources(frame).sources, SourceLengthWaitMs);
+    if (frame.parent) {
+      const known = new Set(collectSources(frame).sources.map((source) => source.url));
+      video = await getPlayedVideo(frame);
+      await Lengths.settle(() => collectSources(frame).sources.filter((source) => !known.has(source.url)), SourceLengthWaitMs);
+    }
   }
 
   const {subtitles, sources} = collectSources(frame, true);
@@ -1411,6 +1421,7 @@ async function sendSources(frame) {
     type: MessageTypes.SOURCES,
     subtitles: subtitles,
     sources: sources,
+    video,
     autoSetSource: true,
     continuationOptions: continuationOptions,
   }, {
@@ -1433,6 +1444,27 @@ async function scrapeCaptionsTags(frame) {
     }, (sub) => {
       BackgroundUtils.checkMessageError('scrape_captions');
       resolve(sub);
+    });
+  });
+}
+
+/**
+ * What the page's video that a player replaced played (content.js replacedVideo), asked
+ * of the frame the player's iframe is in.
+ * @param {Object} player - The player's frame.
+ * @return {Promise<?{src: string, duration: ?number}>} Its file's URL and its length, or
+ *   null when the player replaced no video (it fills the page).
+ */
+async function getPlayedVideo(player) {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(player.tab.tabId, {
+      type: MessageTypes.GET_PLAYED_VIDEO,
+      frameId: player.frameId,
+    }, {
+      frameId: player.parent.frameId,
+    }, (video) => {
+      BackgroundUtils.checkMessageError('get_played_video');
+      resolve(video || null);
     });
   });
 }
@@ -1657,8 +1689,9 @@ function pauseTabMedia(tabId) {
  *
  * @param {Object} sender - The message sender: its tab and frameId.
  * @param {string} src - The video element's currentSrc.
+ * @param {?Object} video - What it plays (content.js playedVideo).
  */
-async function onUserPlay(sender, src) {
+async function onUserPlay(sender, src, video) {
   await ensureOptions();
 
   if (!Options.mpvMode || !sender.tab || typeof sender.frameId !== 'number') {
@@ -1670,7 +1703,7 @@ async function onUserPlay(sender, src) {
     return;
   }
 
-  const source = await findPlayedSource(tab, sender.frameId, src);
+  const source = await findPlayedSource(tab, sender.frameId, src, video);
   // The tab may have left MPV while the lengths were read.
   if (!tab.isOn || !tab.isMpv || !tab.mpvOnPlay) {
     return;
@@ -1686,18 +1719,20 @@ async function onUserPlay(sender, src) {
 /**
  * The detected source a started video plays. Its own URL first: a progressive
  * file, often preloaded long before the click, which no later request would
- * detect again. Otherwise the newest of the longest sources of the frame it
- * plays in, since an MSE player's src is a blob: and its manifest a request of
- * that frame - and one that ran an ad first has the ad's among them. Their
+ * detect again. Otherwise the stream as long as the video (StreamPick), or the
+ * newest of the longest sources of the frame it plays in, since an MSE player's
+ * src is a blob: and its manifest a request of that frame - and one that ran an
+ * ad first has the ad's among them. Their
  * lengths may not be read yet: the page can have asked for them before this
  * tab's MPV started, when nothing read them.
  *
  * @param {Object} tab - TabHolder the video is in.
  * @param {number} frameId - Frame the video is in.
  * @param {string} src - The video element's currentSrc.
+ * @param {?Object} video - What it plays (content.js playedVideo).
  * @return {Promise<Object|null>} The source, or null when none is detected yet.
  */
-async function findPlayedSource(tab, frameId, src) {
+async function findPlayedSource(tab, frameId, src, video) {
   if (/^https?:\/\//i.test(src)) {
     for (const frame of tab.getFrames()) {
       const match = getSourceFromURL(frame, src);
@@ -1715,20 +1750,22 @@ async function findPlayedSource(tab, frameId, src) {
   if (frame.getSources().length > 1) {
     await Lengths.settle(() => frame.getSources(), SourceLengthWaitMs);
   }
-  return newestOfLongest(frame.getSources());
+  return newestOfLongest(frame.getSources(), video);
 }
 
 /**
- * The newest of the longest sources: an ad runs for seconds, the video for minutes
- * (StreamLength.longest), and of streams that tie, the one the page asked for last is
- * the one it plays now.
+ * The newest of the streams a video plays (StreamPick.played), or else of the longest
+ * sources: an ad runs for seconds, the video for minutes (StreamLength.longest). Of
+ * streams that tie, the one the page asked for last is the one it plays now.
  *
  * @param {Array<Object>} sources - Detected sources.
+ * @param {?Object} [video] - What the page's video plays (content.js playedVideo).
  * @return {Object|null} One of them, or null when there are none.
  */
-function newestOfLongest(sources) {
+function newestOfLongest(sources, video = null) {
   const lengths = Lengths.lengthsOf(sources);
-  const longest = StreamLength.longest(sources.map((source, i) => ({source, duration: lengths[i]})));
+  const measured = sources.map((source, i) => ({source, url: source.url, duration: lengths[i]}));
+  const longest = StreamPick.played(measured, video) || StreamLength.longest(measured);
   let newest = null;
   for (const {source} of longest) {
     if (!newest || source.time > newest.time) {

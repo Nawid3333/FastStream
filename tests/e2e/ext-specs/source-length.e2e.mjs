@@ -16,6 +16,11 @@
 // (the live test's HLS in a cross-origin iframe): it counts as a piece when an earlier one
 // of the same name, but for its numbers, was read as one.
 //
+// The longest is a guess. What the page's own video played says more: the player plays its
+// file, or the stream as long as it is (StreamPick), when a page loads the next episode or
+// another longer stream beside it - unless a stream five times as long plays: then the video
+// is an ad, a trailer or a preview as likely as not, and the longest plays, as before.
+//
 // Driven on the installed extension, the site on the auto-enable list: pages that load an
 // ad and a longer stream, and the stream the player ends up playing.
 
@@ -194,6 +199,11 @@ describe('Of a page\'s streams, the player', function() {
         const file = pieces.get(pathname.replace('/fmp4-slow/', '/fmp4/'));
         const delay = pathname === '/fmp4-slow/seg-002.mp4' && req.headers.range ? 5000 : 0;
         setTimeout(() => serveFile(req, res, file, 'video/mp4'), delay);
+      } else if (pathname === '/mse/init.m4s') {
+        // The init segment a page's MSE player appends: .m4s, which is not detected.
+        serveFile(req, res, path.join(fmp4Dir, 'init.mp4'), 'video/mp4');
+      } else if (pathname === '/hls/clip.m3u8') {
+        text(HLS_TYPE, playlist(180));
       } else if (pathname === '/hls/intro.m3u8') {
         text(HLS_TYPE, playlist(9));
       } else if (pathname === '/hls/extra.m3u8') {
@@ -249,6 +259,31 @@ describe('Of a page\'s streams, the player', function() {
                   .then(() => fetch('/fmp4-slow/seg-000.mp4' + location.search))
                   .then(() => fetch('/fmp4-slow/seg-001.mp4' + location.search))
                   .then(() => fetch('/fmp4-slow/seg-002.mp4' + location.search));`));
+      } else if (pathname === '/page/film-and-stream') {
+        // The film in the page's video, then a longer stream the page loads beside it.
+        text('text/html; charset=utf-8', page('film and stream', '', `
+              document.querySelector('video').src = '/media/film.mp4' + location.search;
+              setTimeout(() => fetch('/hls/extra.m3u8' + location.search), 200);`));
+      } else if (pathname === '/page/ad-in-video') {
+        // A 10-second ad in the page's video, and the 12-minute stream.
+        text('text/html; charset=utf-8', page('ad in video', '', `
+              document.querySelector('video').src = '/media/ad.mp4' + location.search;
+              setTimeout(() => fetch('/hls/extra.m3u8' + location.search), 200);`));
+      } else if (pathname === '/page/mse') {
+        // An MSE player, as hls.js is: the video's length is the manifest's, set on the
+        // MediaSource. The 3-minute clip it plays, then a 12-minute stream the page loads
+        // beside it.
+        text('text/html; charset=utf-8', page('mse', '', `
+              const video = document.querySelector('video');
+              const media = new MediaSource();
+              video.src = URL.createObjectURL(media);
+              media.addEventListener('sourceopen', async () => {
+                const buffer = media.addSourceBuffer('video/mp4; codecs="avc1.42c01e,mp4a.40.2"');
+                buffer.appendBuffer(await (await fetch('/mse/init.m4s')).arrayBuffer());
+                await new Promise((resolve) => buffer.addEventListener('updateend', resolve, {once: true}));
+                media.duration = 180;
+                fetch('/hls/clip.m3u8' + location.search).then(() => fetch('/hls/extra.m3u8' + location.search));
+              });`));
       } else if (pathname === '/page/private') {
         // A 12-minute stream first, then the half-hour one only the site's pages may read.
         text('text/html; charset=utf-8', page('private', '', `
@@ -322,6 +357,31 @@ describe('Of a page\'s streams, the player', function() {
     expect(state.source).toBe(`${SITE}/fmp4-slow/index.m3u8?c=${c}`);
     // Its length was asked for: the piece was among the sources while the player waited.
     expect(requests.some((r) => r.path === '/fmp4-slow/seg-002.mp4' && r.search === `?c=${c}` && r.range)).toBe(true);
+  });
+
+  it('plays the film in the page\'s video, not a longer stream the page loads beside it', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/film-and-stream?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/media/film.mp4?c=${c}`, `${SITE}/hls/extra.m3u8?c=${c}`]));
+    // The longest is the 12-minute stream; the page's video plays the 160-second film.
+    expect(state.source).toBe(`${SITE}/media/film.mp4?c=${c}`);
+  });
+
+  it('plays the stream as long as the page\'s MSE video, not a longer one', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/mse?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/clip.m3u8?c=${c}`, `${SITE}/hls/extra.m3u8?c=${c}`]));
+    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
+  });
+
+  it('plays the longest over a short video in the page: an ad', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/ad-in-video?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/media/ad.mp4?c=${c}`, `${SITE}/hls/extra.m3u8?c=${c}`]));
+    expect(state.source).toBe(`${SITE}/hls/extra.m3u8?c=${c}`);
   });
 
   it('reads a length with the page\'s own headers, and waits for a slow one', async function() {
