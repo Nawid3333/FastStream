@@ -841,8 +841,8 @@ the change went in.
   `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
   installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
-  full-upgrade, installs the newest release of the Node major `ci.yml`'s `node-version`
-  names (so it moves with CI) and the current stable Firefox, apt ffmpeg
+  full-upgrade, installs the newest release of the Node major `.nvmrc` names
+  (so it moves with CI) and the current stable Firefox, apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
   `ci.yml` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
   `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe
@@ -850,8 +850,9 @@ the change went in.
   so both scripts merge them. The Windows build of actionlint hangs driving shellcheck on
   some scripts; use the Linux one. On CI, `-latest` picks the OS release and GitHub
   rebuilds each image about weekly; what the tests use is fetched fresh every run: ffmpeg
-  (apt-get update + install), Firefox `latest`, and Node 22 with `check-latest` in every
-  workflow (without it setup-node took the image's cached 22.23.2 two days after 22.23.3).
+  (apt-get update + install), Firefox `latest`, and Node from `.nvmrc` in every workflow
+  (`node-version-file: .nvmrc`, `check-latest` - without it setup-node took the image's
+  cached 22.23.2 two days after 22.23.3).
   CI does not apt-upgrade the whole image: minutes per run, for packages the tests do not
   touch. For CI's Windows encoder, delete everything in `tests/e2e/fixtures/` except
   `sample.mp4` and run `pnpm run verify` with a GPL ffmpeg first on `PATH` (on this
@@ -880,13 +881,82 @@ the change went in.
 - **Artifacts** (2026-09-28): `faststream-bundles` is kept 7 days (auto-release reads it
   minutes after the run; the 90-day default had piled up 57 copies, 469 MB), failure logs
   30 days.
-- **`toolchain-updates.yml`** (weekly) + `tools/check-toolchain.mjs`: one issue for a newer
-  Node LTS than CI/`.nvmrc` use, and one for a newer pnpm major once
-  dependabot-core#15904 is fixed (pnpm 12's two-document lockfile hides every dependency
-  from GitHub's dependency graph; 12.6.0 otherwise passed the full verify on 2026-09-25).
-  A newer version supersedes and closes the older issue; moving closes it. Same-major
-  releases are not reported. Dependencies stay pinned by the lockfile on purpose (patches,
-  AMO reproducibility); Dependabot's weekly grouped PR is how they move.
+- **`toolchain-updates.yml`** (weekly, Mondays 07:00 UTC; a push to `main` touching
+  `.nvmrc`/`package.json` only closes) + `tools/check-toolchain.mjs`: a pull request
+  per update, "Toolchain update: <name> <version>", on `toolchain/node-<major>` or
+  `toolchain/pnpm-<version>`, with CI started on the branch by `gh workflow run ci.yml`
+  (a `GITHUB_TOKEN` push starts no workflow). A newer Node LTS major changes `.nvmrc`
+  and waits for the owner. `.nvmrc` is the one place the Node major is named, so a
+  Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
+  push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
+  if a workflow names its own `node-version` or a setup-node step lacks
+  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
+  5 days old, changes `packageManager` in `package.json` and nothing else, and is merged
+  by `update-prs.yml`. Nothing from npm runs in that job, beside its write token: CI
+  installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
+  wants it rewritten fails CI and reaches the owner. A newer pnpm major waits
+  for the owner, and for dependabot-core#15904 to close (pnpm 12's two-document
+  lockfile hides every dependency from GitHub's dependency graph; 12.6.0 otherwise
+  passed the full verify on 2026-09-25).
+  A title is never used twice (issue or PR, open or closed): closing one skips that
+  version for good. An open PR closes itself when the project reaches that version,
+  or when a newer one on the same track gets its own PR (on a push, which raises
+  nothing, only an open one counts: `--close-only`). The weekly run also rebuilds on
+  `main` an open one `main` has moved into conflict with (the two pnpm tracks change
+  the same line) when all its commits are the bot's, rebuilt on a freshly fetched
+  `main`, and starts CI on one whose head has no run that decides (a lost dispatch, or
+  only cancelled runs). Only the bot's own titles and pull requests count (author
+  `github-actions[bot]`, never a fork's): anyone's PR with such a title neither blocks
+  an update nor is closed or rebuilt; `patched-libraries.yml` filters the same way. A
+  failed run opens one issue "Toolchain updates workflow failed". Node 24 was skipped on
+  purpose (issue #11 closed); Node 26 arrives as a PR when it becomes LTS (late
+  October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
+  unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
+  reproducibility); Dependabot's weekly grouped PRs are how they move, each release
+  proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
+  updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
+  (fuse.js, pako, sortablejs - the unpatched libraries `tools/sync-vendor.mjs` copies
+  into the extension) and `tooling-minor-and-patch` (everything else), so a tooling
+  update is not held back by a shipped one; `update-prs.yml` merges the green
+  tooling PR, a shipped one waits for the owner.
+- **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`)
+  for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and `sync/upstream`
+  branches, and never checks out PR code. CI red: failed jobs are rerun once; still
+  red, one comment @mentions the owner with a table of failed job, step and what the
+  step checks, the last 40 lines of each failed log and `main`'s latest CI status, and
+  the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
+  Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
+  only when that bot opened it (not a draft, against `main`) and its commits are the
+  bot's or this workflow's merges of `main`, only `package.json` and
+  `pnpm-lock.yaml` change (for pnpm: only `packageManager`, to the branch's version,
+  against the merge base; the lockfile untouched), there is no major, Dependabot's dependency review passed,
+  it is mergeable, it contains the newest `main` (otherwise GitHub's update-branch
+  runs, CI restarts and that run decides, at most 3 times), and CI's build of the
+  extension (the `faststream-bundles` artifact, firefox-github zip) is file-for-file
+  identical to the latest release's zip apart from `manifest.json`'s version -
+  `auto-release.yml`'s own test, so such a merge releases nothing and nothing reaches
+  Firefox untested by the owner. Every other green PR (Node, pnpm major, GitHub
+  Actions updates, patched libraries, the upstream sync, a Dependabot update of a
+  shipped library or of a major) gets one comment @mentioning the owner - CI is
+  green, and why it waits - and is assigned to them. A comment with the same verdict
+  as the last one is edited in place, so it sends no new mail: the owner hears when a
+  verdict changes. The merge is made with `GITHUB_TOKEN`, which starts no workflow:
+  no CI on `main`, no release - fine, because the merged tree is exactly the tested
+  one and nothing shipped changed. The "behind main" check is the last call before the
+  merge; if another merge still lands in between (two update PRs decided at once), the
+  squash commit's parent is not the checked `main`, and the merged comment @mentions
+  the owner that `main` holds an untested combination. A merge or branch update refused
+  because the branch moved on meanwhile (Dependabot rebased it), or the PR was closed,
+  is no failure: the new commit's CI run decides, or there is nothing to decide. A
+  cancelled or skipped CI run decides nothing. The waiting comment keeps one key while
+  it waits, so a changed reason edits it without a new email. A merged branch is
+  deleted. Only updates that ship nothing merge themselves (the
+  owner's choice, 2026-09-29): a Node major is a PR the owner merges; `main`'s ruleset
+  blocks force-pushes and deletion only, no required checks, so direct pushes and
+  `mpv-updates.yml`'s pin commits keep working. If `update-prs.yml` itself fails, it
+  opens one issue "Update PRs workflow failed" (the decide step has its own
+  `timeout-minutes` under the job's, so running out of time fails the step and still
+  reaches the report).
 - **`firefox-beta.yml`** (Monday and Thursday, and on PRs touching it or the e2e configs): `test:e2e` and
   `test:ext` against Firefox Beta (`browser-actions/setup-firefox`, `latest-beta`) through
   the `FIREFOX_BINARY` env var the wdio configs honour. A scheduled failure opens one issue
@@ -972,7 +1042,8 @@ the change went in.
   through `tests/e2e/listen-or-stop.mjs`, which ends the run with "Port N is already in
   use" instead.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
-  actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly. Checked
+  actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly, and
+  `update-prs.yml` never merges them (they change workflow files). Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
   libsamplerate, StreamSaver, the native ONNX Runtime wasm): measured 2026-09-25, OSV has

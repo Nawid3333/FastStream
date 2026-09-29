@@ -37,6 +37,25 @@ describe('patchedDependencies', () => {
     const ignored = [...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]).sort();
     expect(ignored).toEqual([...patchedDependencies(yaml).map(({name}) => name), ...pinned].sort());
   });
+
+  it('leaves the other libraries the build copies to Dependabot\'s shipped group', () => {
+    // In the tooling group, a shipped library's update would make the whole tooling pull
+    // request change the extension, and wait for the owner (update-prs.yml).
+    const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
+    const ignored = new Set([...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]));
+    const vendor = fs.readFileSync(new URL('../../tools/sync-vendor.mjs', import.meta.url), 'utf8');
+    // A package name after node_modules/, ended by a path separator or the string's end.
+    const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((match) => match[1]));
+    expect(copied.size).toBeGreaterThanOrEqual(12);
+    const names = (list) => {
+      expect(list).not.toBeNull();
+      return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
+    };
+    const patterns = names(dependabot.match(/shipped-minor-and-patch:\n\s+patterns: \[([^\]]*)\]/));
+    expect(patterns).toEqual([...copied].filter((name) => !ignored.has(name)).sort());
+    // The tooling group leaves out the same names.
+    expect(names(dependabot.match(/tooling-minor-and-patch:\n\s+exclude-patterns: \[([^\]]*)\]/))).toEqual(patterns);
+  });
 });
 
 describe('compareVersions', () => {

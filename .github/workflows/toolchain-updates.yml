@@ -1,28 +1,44 @@
 name: Toolchain updates
 
-# Weekly check of the build toolchain (tools/check-toolchain.mjs): a newer Node.js LTS
-# than CI and .nvmrc use, and a newer pnpm major once nothing blocks it. One issue per
-# update - "Toolchain update: <name> <version>" - assigned to the repo owner with an
-# @mention so it is emailed, never opened twice, and closed on its own:
-#   - resolved: the project moved to that version or newer;
-#   - superseded: a newer one came out (Node 24, then 26 before anything moved) - the
-#     older issue is closed and the newer one opened, so only one is ever open per tool.
-# Routine same-major releases are not reported; they wait for a batched update.
+# Weekly check of the build toolchain (tools/check-toolchain.mjs), which turns each update
+# into a pull request "Toolchain update: <name> <version>" on branch toolchain/<name>-<version>,
+# with CI started on it (a push by this workflow's token starts no workflow; a dispatch
+# does):
+#   - Node.js, a newer LTS major: .nvmrc, the file every workflow's setup-node reads (this
+#     token may not push a workflow file). A decision: update-prs.yml tells the owner when
+#     CI is green or red, and the merge is theirs.
+#   - pnpm, the newest release of the pinned major at least 5 days old: "packageManager"
+#     in package.json, and nothing else. Routine: update-prs.yml merges it once CI passes
+#     and nothing the extension ships has changed.
+#   - pnpm, the next major, once nothing blocks it: the same change; a decision, as Node.
+# The weekly run also rebuilds an open one on main when main has moved into conflict with
+# it, and starts CI on one whose head has none.
+# A title is never used twice, as a pull request or an issue, open or closed: closing one
+# is how an update is skipped, and it stays skipped. An open one is closed on its own once
+# the project uses that version or newer, or once a newer one on its track gets its own
+# pull request. Node only builds and tests the extension, so none of these changes what
+# users get, and merging one releases nothing (auto-release.yml finds the build unchanged).
+#
+# Until September 2026 these arrived as issues with instructions (#11), because every
+# workflow named its own Node major; they read .nvmrc now.
 
 on:
   schedule:
     - cron: '0 7 * * 1'
+  # Right after a toolchain file changed on main, so a pull request the change made
+  # obsolete closes without waiting a week. A push only closes.
   push:
     branches: [main]
     paths:
       - .nvmrc
       - package.json
-      - .github/workflows/**
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
+  contents: write       # push the toolchain/<name>-<version> branch
+  pull-requests: write  # open the pull request
+  issues: write         # close an issue left from before, when it is resolved
+  actions: write        # start CI on the branch
 
 concurrency:
   group: toolchain-updates
@@ -32,67 +48,241 @@ jobs:
   check:
     name: Check the toolchain for updates
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           check-latest: true
 
-      - name: Sync update issues with the toolchain in use
+      - name: Open, and close, the toolchain update pull requests
+        # Under the job's limit: a step that runs out of time fails, and the report runs.
+        timeout-minutes: 13
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
+          EVENT: ${{ github.event_name }}
           PREFIX: 'Toolchain update: '
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          node tools/check-toolchain.mjs --json > "$RUNNER_TEMP/toolchain.jsonl"
           node tools/check-toolchain.mjs
 
-          # --- Close issues that were resolved or superseded.
-          gh issue list --state open --limit 200 --json number,title \
-            --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number)\t\(.title[${#PREFIX}:])\"" |
-          while IFS=$'\t' read -r number rest; do
-            version="${rest##* }"
-            name="${rest% *}"
-            current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/toolchain.jsonl")
-            latest=$(jq -r --arg n "$name" 'select(.name == $n) | .latest' "$RUNNER_TEMP/toolchain.jsonl")
-            if [ -z "$current" ]; then
-              echo "#$number: $name is no longer checked; leaving it."
-            elif [ "$current" -ge "$version" ]; then
-              gh issue close "$number" --comment "The project now uses $name $current. Closing."
-            elif [ "$latest" -gt "$version" ]; then
-              gh issue close "$number" --comment "Superseded: $name $latest is out, tracked in its own issue."
-            else
-              echo "#$number ($name $version) still open: the project uses $current."
-            fi
-          done
+          # This workflow's open pull requests and issues, and every title it ever used: the issues
+          # endpoint lists pull requests too, and pages through all of them. Lists, filtered
+          # exactly: the search index can lag behind one made minutes ago. Only its own count:
+          # anyone's pull request with such a title neither blocks an update nor gets closed.
+          {
+            gh pr list --state open --limit 200 --json number,title,author
+            gh issue list --state open --limit 200 --json number,title,author
+          } | jq -s --arg p "$PREFIX" '[.[][] | select((.title | startswith($p)) and .author.login == "app/github-actions") | {number, title}]' \
+            > "$RUNNER_TEMP/open.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .title' > "$RUNNER_TEMP/titles.txt"
+          # A push raises nothing, so there a newer version replaces only an open pull request.
+          mode=()
+          if [ "$EVENT" = push ]; then mode=(--close-only); fi
+          node tools/check-toolchain.mjs --plan "$RUNNER_TEMP/open.json" "$RUNNER_TEMP/titles.txt" "${mode[@]}" > "$RUNNER_TEMP/plan.json"
+          jq . "$RUNNER_TEMP/plan.json"
 
-          # --- Open an issue per update, once.
-          gh issue list --state all --limit 1000 --json title --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
-          jq -c 'select(.behind)' "$RUNNER_TEMP/toolchain.jsonl" |
-          while read -r item; do
-            name=$(jq -r .name <<< "$item")
-            current=$(jq -r .current <<< "$item")
-            latest=$(jq -r .latest <<< "$item")
-            note=$(jq -r .note <<< "$item")
-            title="$PREFIX$name $latest"
-            if grep -qxF "$title" "$RUNNER_TEMP/titles.txt"; then
-              echo "Already notified about $name $latest."
-              continue
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          start=$(git rev-parse HEAD)
+
+          # The one change an update makes, committed on its branch off main and pushed: .nvmrc
+          # for Node, packageManager for pnpm. Nothing from npm runs here, beside this job's write
+          # token: CI installs the lockfile as it is with the new pnpm (frozen), so a pnpm that
+          # wants it rewritten fails CI, and that reaches the owner. Sets $was (the version
+          # before) and $what (the change, for the pull request).
+          # shellcheck disable=SC2016 # the backticks in $what are Markdown
+          build() { # <name> <version> <branch>
+            local allowed changed file
+            git checkout -q -f -B "$3" "$start"
+            case $1 in
+              Node.js)
+                was=$(tr -d '[:space:]' < .nvmrc)
+                printf '%s\n' "$2" > .nvmrc
+                allowed='.nvmrc'
+                what='`.nvmrc`'
+                ;;
+              pnpm)
+                was=$(jq -r '.packageManager // "" | ltrimstr("pnpm@")' package.json)
+                VERSION=$2 node -e "
+                  const fs = require('fs');
+                  const d = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                  d.packageManager = 'pnpm@' + process.env.VERSION;
+                  fs.writeFileSync('package.json', JSON.stringify(d, null, 2) + '\n');
+                "
+                allowed='package.json'
+                what='`packageManager` in `package.json`'
+                ;;
+              *)
+                echo "No recipe for $1." >&2
+                exit 1
+                ;;
+            esac
+            # Anything else changed, or nothing at all, is a surprise worth stopping for: the
+            # checker and the recipe disagree, and a red run is what reaches the owner.
+            changed=$(git status --porcelain --untracked-files=all | cut -c4-)
+            if [ -z "$changed" ]; then
+              echo "$1 $2 changes nothing here, though the checker says the project is behind." >&2
+              exit 1
             fi
-            # The backticks are Markdown for the issue body, not command substitution.
-            # shellcheck disable=SC2016
-            {
-              printf '@%s %s %s is available (%s).\n\n' "$OWNER" "$name" "$latest" "$note"
-              if [ "$name" = 'Node.js' ]; then
-                printf 'To move: set `node-version: %s` in every workflow and `%s` in `.nvmrc`, run `pnpm run verify` on Node %s, and merge through a PR (merging releases). Node only builds and tests the extension; nothing changes for users.\n' "$latest" "$latest" "$latest"
-              else
-                printf 'To move: set `"packageManager": "pnpm@<version>"` in `package.json`, run `pnpm install` and `pnpm run verify`, and check that GitHub still sees the dependencies (Insights > Dependency graph) before merging.\n'
+            for file in $changed; do
+              case " $allowed " in
+                *" $file "*) ;;
+                *) echo "Unexpected change for $1 $2: $file" >&2; git status --porcelain >&2; exit 1 ;;
+              esac
+            done
+            # shellcheck disable=SC2086 # one path per word
+            git add -- $allowed
+            git commit -q -m "build: $1 $was -> $2"
+            git push -q -f origin "$3"
+            git checkout -q -f "$start"
+          }
+          version_on_main() { # <name>: the version $start has
+            case $1 in
+              Node.js) git show "$start:.nvmrc" | tr -d '[:space:]' ;;
+              pnpm) git show "$start:package.json" | jq -r '.packageManager // "" | ltrimstr("pnpm@")' ;;
+            esac
+          }
+          branch_of() { # <name> <version>
+            case $1 in
+              Node.js) echo "toolchain/node-$2" ;;
+              *) echo "toolchain/$1-$2" ;;
+            esac
+          }
+          # Retried once: a pull request left without CI would wait for good (until the weekly
+          # run below finds it).
+          start_ci() { # <branch>
+            gh workflow run ci.yml --ref "$1" || { sleep 30; gh workflow run ci.yml --ref "$1"; }
+          }
+
+          # --- Raise each update: its branch, a pull request, CI.
+          raised=()
+          if [ "$EVENT" != push ]; then
+            # Made once, if missing (Dependabot makes it too); an existing one is left as it is.
+            gh label create dependencies --color 0366d6 --description 'Pull requests that update a dependency file' 2> /dev/null || true
+            # Not a pipe into the loop, and not on stdin: a failed command in a piped loop only
+            # ends the subshell, and gh inside it could read the list off stdin.
+            jq -c '.raise[]' "$RUNNER_TEMP/plan.json" > "$RUNNER_TEMP/raise.jsonl"
+            while read -r update <&3; do
+              name=$(jq -r .name <<< "$update")
+              latest=$(jq -r .latest <<< "$update")
+              title=$(jq -r .title <<< "$update")
+              branch=$(branch_of "$name" "$latest")
+              build "$name" "$latest" "$branch"
+              # The backticks are Markdown for the body, not command substitution.
+              # shellcheck disable=SC2016
+              {
+                printf '%s %s -> %s (%s).\n\n' "$name" "$was" "$latest" "$(jq -r .note <<< "$update")"
+                printf 'This pull request changes only %s, and CI has been started on it: the whole of `pnpm run verify`, on Linux and on Windows.\n\n' "$what"
+                if [ "$(jq -r .automerge <<< "$update")" = true ]; then
+                  printf 'Routine: `update-prs.yml` merges it once CI passes, and tells @%s only if it fails.\n' "$OWNER"
+                else
+                  printf 'A decision: `update-prs.yml` tells @%s when CI is green or red, and the merge is theirs. Closing this pull request skips %s %s for good.\n' "$OWNER" "$name" "$latest"
+                fi
+                if [ "$name" = pnpm ]; then
+                  printf '\nThe lockfile is left as it is. Should this pnpm want it rewritten, CI fails at the install: run `pnpm install` with it and push `pnpm-lock.yaml` here (the pull request then waits for you).\n'
+                fi
+                printf '\nNothing here is part of the extension: its build should come out unchanged, and a merge then releases nothing (auto-release.yml compares the builds).\n'
+                printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
+              } > "$RUNNER_TEMP/body.md"
+              gh pr create --base main --head "$branch" --title "$title" --label dependencies \
+                --body-file "$RUNNER_TEMP/body.md"
+              start_ci "$branch"
+              raised+=("$branch")
+            done 3< "$RUNNER_TEMP/raise.jsonl"
+          else
+            echo 'A push only closes; the weekly run raises.'
+          fi
+
+          # --- Close what is resolved or replaced: pull requests (and their branches), and the
+          # issues from before pull requests. One merged or closed meanwhile (update-prs.yml
+          # merges the routine ones, maybe in this very minute) is left as it is; the next run
+          # retries any other close that fails.
+          jq -c '.close[]' "$RUNNER_TEMP/plan.json" > "$RUNNER_TEMP/close.jsonl"
+          while read -r item <&3; do
+            number=$(jq -r .number <<< "$item")
+            comment=$(jq -r .comment <<< "$item")
+            if state=$(gh pr view "$number" --json state --jq .state 2> /dev/null); then
+              if [ "$state" = OPEN ]; then
+                gh pr close "$number" --delete-branch --comment "$comment" ||
+                  echo "::warning::Could not close #$number (merged meanwhile?); the next run tries again."
               fi
-              printf '\nThis issue closes on its own once the project uses %s %s or newer.\n' "$name" "$latest"
-            } > "$RUNNER_TEMP/body.md"
-            gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
-          done
+            elif [ "$(gh issue view "$number" --json state --jq .state)" = OPEN ]; then
+              gh issue close "$number" --comment "$comment" ||
+                echo "::warning::Could not close #$number; the next run tries again."
+            fi
+          done 3< "$RUNNER_TEMP/close.jsonl"
+
+          # --- Keep this workflow's open pull requests mergeable and tested (not on a push; never
+          # a fork's). One main has moved into conflict with (the two pnpm tracks change the same
+          # line) is rebuilt on today's main, when it holds only this workflow's commits: a push
+          # of someone else's is never overwritten. One with no CI run on its head that decides
+          # (a lost dispatch; a cancelled or broken run, which update-prs.yml passes over) gets
+          # one.
+          if [ "$EVENT" != push ]; then
+            git fetch -q --depth=1 origin main
+            start=$(git rev-parse FETCH_HEAD)
+            gh pr list --state open --limit 200 --json number,title,headRefName,headRefOid,author,isCrossRepository > "$RUNNER_TEMP/prs.json"
+            jq -c --arg p "$PREFIX" '.[] | select((.title | startswith($p)) and .author.login == "app/github-actions" and (.isCrossRepository | not))' \
+              "$RUNNER_TEMP/prs.json" > "$RUNNER_TEMP/mine.jsonl"
+            while read -r pr <&3; do
+              number=$(jq -r .number <<< "$pr")
+              branch=$(jq -r .headRefName <<< "$pr")
+              rest=$(jq -r --arg p "$PREFIX" '.title | ltrimstr($p)' <<< "$pr")
+              name=${rest% *}
+              version=${rest##* }
+              case $name in Node.js|pnpm) ;; *) continue ;; esac
+              if [ "$branch" != "$(branch_of "$name" "$version")" ]; then continue; fi
+              case " ${raised[*]} " in *" $branch "*) continue ;; esac
+              state=UNKNOWN
+              for _ in $(seq 10); do
+                state=$(gh pr view "$number" --json mergeable --jq .mergeable)
+                if [ "$state" != UNKNOWN ]; then break; fi
+                sleep 6
+              done
+              if [ "$state" = CONFLICTING ]; then
+                others=$(gh pr view "$number" --json commits \
+                  --jq '[.commits[] | select([.authors[].login] | all(. == "github-actions[bot]") | not)] | length')
+                if [ "$others" != 0 ]; then
+                  echo "#$number conflicts with main, and holds someone else's commits: left to them."
+                  continue
+                fi
+                if [ "$(version_on_main "$name")" = "$version" ]; then
+                  echo "#$number: main has $name $version by now; the next run closes it."
+                  continue
+                fi
+                build "$name" "$version" "$branch"
+                echo "#$number conflicted with main: rebuilt on it."
+                start_ci "$branch"
+              elif [ "$(gh run list --workflow ci.yml --commit "$(jq -r .headRefOid <<< "$pr")" --limit 20 --json status,conclusion \
+                   --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
+                echo "#$number has no CI run on its head that decides: starting one."
+                start_ci "$branch"
+              fi
+            done 3< "$RUNNER_TEMP/mine.jsonl"
+          fi
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as update-prs.yml does.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Toolchain updates workflow failed'
+        run: |
+          set -euo pipefail
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s toolchain-updates.yml failed: %s\n\nThe run log names the failed command; a pull request it was raising or rebuilding may be half done (the next run finishes it). Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

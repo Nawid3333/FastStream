@@ -6,8 +6,19 @@
 # A merge to main is a release (auto-release.yml) when it changes what the
 # extension ships - a vendored library such as pako does, a test or build tool
 # does not and merges without one. Minor and patch updates are grouped into one
-# PR per ecosystem per week; a major update still gets a PR of its own, because
-# it is a decision rather than routine.
+# PR per week; a major update still gets a PR of its own, because it is a
+# decision rather than routine.
+#
+# What happens to each PR once CI has run is update-prs.yml's job: a red one is
+# reported to the owner, a green one merged when it is routine - minor or patch,
+# package.json and pnpm-lock.yaml only, and the built extension identical to the
+# latest release, so nothing reaches Firefox - and otherwise handed to the owner.
+# The libraries the extension ships (tools/sync-vendor.mjs copies them into it)
+# are grouped apart for that reason, so a tooling update is not held back by one.
+#
+# cooldown: a release is proposed once it is 5 days old. A package taken over to
+# publish malware is usually caught and pulled within days, and routine PRs now
+# merge without anyone reading them. Security updates skip the wait.
 #
 # Security updates are separate from this file (Settings > Code security >
 # Dependabot security updates) and still open a PR for any vulnerable package,
@@ -18,11 +29,19 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 5
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
     groups:
-      npm-minor-and-patch:
+      # Keep in step with tools/sync-vendor.mjs: the unpatched libraries it copies.
+      # The patched ones are ignored below.
+      shipped-minor-and-patch:
+        patterns: ['fuse.js', 'pako', 'sortablejs']
+        update-types: ['minor', 'patch']
+      tooling-minor-and-patch:
+        exclude-patterns: ['fuse.js', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump
@@ -57,12 +76,16 @@ updates:
   # so a moved or hijacked tag cannot change what runs next to the AMO signing
   # keys. Nothing arrives on its own any more; Dependabot updates the SHA and
   # the comment together - minor and patch releases as one grouped PR a week, a
-  # new major on its own. (The actionlint image in ci.yml is pinned by digest;
-  # bump it by hand with actionlint's release.)
+  # new major on its own. These always wait for the owner: they change workflow
+  # files, which are reviewed by a person (and which a workflow's token may not
+  # merge). (The actionlint image in ci.yml is pinned by digest; bump it by hand
+  # with actionlint's release.)
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
       interval: 'weekly'
+    cooldown:
+      default-days: 5
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
