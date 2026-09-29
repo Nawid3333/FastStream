@@ -214,9 +214,16 @@ describe('MP4 files of other shapes', function() {
     expect(times.backwards).toEqual([]);
     const later = await seekAndPlay(450);
     expect(later.currentTime).toBeGreaterThan(451);
-    // Back to where the ranges played through have been let go.
+    // Back to where the ranges played through have been let go. Firefox sometimes stops here,
+    // playing with minutes buffered ahead, until MP4Player's stall watchdog nudges it on; it
+    // must play on from about 60 s, not from where the element's clock ran on to.
     const back = await seekAndPlay(60);
+    console.log('      nudged to:', await browser.execute(() => {
+      const to = window.fastStream.player.stallWatchdog.nudgedTo;
+      return Number.isNaN(to) ? 'not nudged' : to;
+    }));
     expect(back.currentTime).toBeGreaterThan(61);
+    expect(back.currentTime).toBeLessThan(70);
     expect(back.failed).toBe(false);
   });
 

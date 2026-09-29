@@ -9,6 +9,7 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
+import {StallWatchdog} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
 const BACK_BUFFER_SLACK = 1;
@@ -52,6 +53,8 @@ export default class MP4Player extends EventEmitter {
     this.currentFragments = [];
 
     this._duration = 0;
+
+    this.stallWatchdog = new StallWatchdog();
   }
 
 
@@ -326,6 +329,7 @@ export default class MP4Player extends EventEmitter {
 
     this.runLoad();
     this.checkEndOfStream();
+    this.stallWatchdog.check(this.video);
     this.loopTimeout = setTimeout(this.mainLoop.bind(this), 1);
   }
 
