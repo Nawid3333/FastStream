@@ -274,7 +274,7 @@ jobs:
                 jq -r '.packageManager // ""')
               version=${BRANCH#toolchain/pnpm-}
               pinned=${pinned#pnpm@}
-              if [ "${version%%.*}" != "${pinned%%.*}" ]; then reasons+=("pnpm $version is a new major (main has $pinned): your decision"); fi
+              if [ "${version%%.*}" != "${pinned%%.*}" ]; then reasons+=("pnpm $version is another major than main's $pinned: your decision"); fi
               # The one change toolchain-updates.yml makes: packageManager, to the branch's
               # version. The lockfile stays as it is (CI installed it frozen with this pnpm);
               # any other change is not routine. Against the merge base, so a main that moved on
@@ -320,11 +320,16 @@ jobs:
 
           # The branch moved on while this ran (Dependabot rebased it, say): that commit's own
           # CI run decides, so a merge or update refused for it is no failure.
+          # Or it was merged or closed meanwhile (a newer version replaced it, say): nothing to do.
           head_moved() {
-            local head
-            head=$(gh pr view "$number" --json headRefOid --jq .headRefOid)
-            if [ "$head" != "$SHA" ]; then
-              echo "The branch moved on to ${head:0:8} meanwhile: that commit's CI run decides."
+            local now
+            now=$(gh pr view "$number" --json state,headRefOid --jq '"\(.state) \(.headRefOid)"')
+            if [ "${now%% *}" != OPEN ]; then
+              echo "The pull request is ${now%% *} meanwhile: nothing to do."
+              exit 0
+            fi
+            if [ "${now#* }" != "$SHA" ]; then
+              echo "The branch moved on to ${now:5:8} meanwhile: that commit's CI run decides."
               exit 0
             fi
           }
@@ -389,13 +394,21 @@ jobs:
               parent=$(gh api "repos/$GH_REPO/commits/$merge_commit" --jq '.parents[0].sha' || true)
             fi
             key=merged
-            if [ "$parent" != "$base" ]; then
+            if [ -z "$parent" ]; then
+              printf '\n(The merge commit could not be read to confirm that main did not move meanwhile.)\n' >> "$RUNNER_TEMP/body.md"
+            elif [ "$parent" != "$base" ]; then
               key='merged untested'
-              onto=${parent:0:8}
               printf '\n@%s main moved on between the last check (%s) and the merge (onto %s): main now holds a combination no CI run built. Your next push runs CI on it; to run it now, start the CI workflow on main by hand.\n' \
-                "$OWNER" "${base:0:8}" "${onto:-a commit this run could not read}" >> "$RUNNER_TEMP/body.md"
+                "$OWNER" "${base:0:8}" "${parent:0:8}" >> "$RUNNER_TEMP/body.md"
             fi
             say "$key" "$RUNNER_TEMP/body.md"
+            # Its branch is done with; one GitHub already deleted is fine.
+            gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$BRANCH" > /dev/null 2>&1 || echo "The branch $BRANCH was not deleted (already gone?)."
+            exit 0
+          fi
+          # Merged or closed while this ran: a verdict on it would be noise.
+          if [ "$(gh pr view "$number" --json state --jq .state)" != OPEN ]; then
+            echo 'The pull request is no longer open: nothing to say.'
             exit 0
           fi
           # shellcheck disable=SC2016

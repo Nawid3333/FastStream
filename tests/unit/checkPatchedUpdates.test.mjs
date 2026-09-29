@@ -44,7 +44,8 @@ describe('patchedDependencies', () => {
     const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
     const ignored = new Set([...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]));
     const vendor = fs.readFileSync(new URL('../../tools/sync-vendor.mjs', import.meta.url), 'utf8');
-    const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)\//g)].map((match) => match[1]));
+    // A package name after node_modules/, ended by a path separator or the string's end.
+    const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((match) => match[1]));
     expect(copied.size).toBeGreaterThanOrEqual(12);
     const group = dependabot.match(/shipped-minor-and-patch:\n\s+patterns: \[([^\]]*)\]/);
     expect(group).not.toBeNull();

@@ -81,8 +81,8 @@ jobs:
 
           # --- Close what has been caught up with: issues, and pull requests.
           for kind in issue pr; do
-            gh "$kind" list --state open --limit 200 --json number,title \
-              --jq ".[] | select(.title | startswith(\"$PREFIX\")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
+            gh "$kind" list --state open --limit 200 --json number,title,author \
+              --jq ".[] | select((.title | startswith(\"$PREFIX\")) and .author.login == \"app/github-actions\") | \"\(.number) \(.title[${#PREFIX}:])\"" |
             while read -r number name version; do
               current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/libraries.jsonl")
               if [ -z "$current" ]; then
@@ -95,42 +95,57 @@ jobs:
             done
           done
 
+          # --- Supersede. An open pull request replaces its library's older open issues and pull
+          # requests; an open issue, only its older issues (an older pull request is still a step
+          # forward while the newer version needs work). On every run, and again after raising,
+          # so a close that failed once is done the next time.
+          supersede() {
+            {
+              gh pr list --state open --limit 200 --json number,title,url,author \
+                --jq ".[] | select((.title | startswith(\"$PREFIX\")) and .author.login == \"app/github-actions\") | \"pr \(.number) \(.url) \(.title[${#PREFIX}:])\""
+              gh issue list --state open --limit 200 --json number,title,url,author \
+                --jq ".[] | select((.title | startswith(\"$PREFIX\")) and .author.login == \"app/github-actions\") | \"issue \(.number) \(.url) \(.title[${#PREFIX}:])\""
+            } > "$RUNNER_TEMP/open-items.txt"
+            local kind number name version k url n v by by_url
+            while read -r kind number _ name version <&3; do
+              by=''
+              by_url=''
+              while read -r k _ url n v; do
+                if [ "$n" != "$name" ] || [ "$v" = "$version" ]; then continue; fi
+                if [ "$kind" = pr ] && [ "$k" = issue ]; then continue; fi
+                if [ "$(printf '%s\n%s\n' "$version" "$v" | sort -V | tail -1)" != "$v" ]; then continue; fi
+                if [ -z "$by" ] || [ "$(printf '%s\n%s\n' "$by" "$v" | sort -V | tail -1)" = "$v" ]; then
+                  by=$v
+                  by_url=$url
+                fi
+              done < "$RUNNER_TEMP/open-items.txt"
+              if [ -z "$by" ]; then continue; fi
+              if [ "$kind" = pr ]; then
+                gh pr close "$number" --delete-branch --comment "Superseded by $name $by: $by_url" ||
+                  echo "::warning::Could not close #$number as superseded by $name $by; the next run tries again."
+              else
+                gh issue close "$number" --comment "Superseded by $name $by: $by_url" ||
+                  echo "::warning::Could not close #$number as superseded by $name $by; the next run tries again."
+              fi
+            done 3< "$RUNNER_TEMP/open-items.txt"
+          }
+          supersede
+
           if [ "$EVENT" = push ]; then
             echo 'A push only closes; the daily run re-cuts.'
             exit 0
           fi
 
-          # --- Every title raised before, as an issue or a pull request, open or closed. The
-          # whole lists, filtered exactly: the search index can lag behind one made minutes ago.
-          {
-            gh issue list --state all --limit 1000 --json title --jq '.[].title'
-            gh pr list --state all --limit 1000 --json title --jq '.[].title'
-          } > "$RUNNER_TEMP/titles.txt"
+          # --- Every title raised before, as an issue or a pull request, open or closed: the issues
+          # endpoint lists pull requests too, and pages through all of them. Not the search index,
+          # which can lag behind one made minutes ago.
+          # Only this workflow's own: anyone's pull request with such a title blocks nothing.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .title' > "$RUNNER_TEMP/titles.txt"
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           start=$(git rev-parse HEAD)
-
-          # Closes this library's open items of the given kinds at an older version than
-          # $latest, pointing to what replaced them.
-          supersede() { # <kinds> <replacement URL>
-            local kind number version
-            for kind in $1; do
-              gh "$kind" list --state open --limit 200 --json number,title \
-                --jq ".[] | select(.title | startswith(\"$PREFIX$name \")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
-              while read -r number _ version; do
-                if [ "$version" = "$latest" ] ||
-                   [ "$(printf '%s\n%s\n' "$version" "$latest" | sort -V | tail -1)" != "$latest" ]; then
-                  continue
-                fi
-                if [ "$kind" = pr ]; then
-                  gh pr close "$number" --delete-branch --comment "Superseded by $name $latest: $2"
-                else
-                  gh issue close "$number" --comment "Superseded by $name $latest: $2"
-                fi
-              done
-            done
-          }
 
           # Not a pipe into the loop, and not on stdin either: a failed command in a piped loop
           # only ends the subshell, and pnpm or gh inside it could read the list off stdin.
@@ -176,10 +191,9 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              created=$(gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
-                --body-file "$RUNNER_TEMP/body.md")
+              gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
+                --body-file "$RUNNER_TEMP/body.md"
               gh workflow run ci.yml --ref "$branch"
-              supersede 'issue pr' "$created"
             else
               # shellcheck disable=SC2016
               {
@@ -192,9 +206,9 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              created=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
-              supersede issue "$created"
+              gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
             fi
             git checkout -q -f "$start"
             git clean -q -fd
           done 3< "$RUNNER_TEMP/behind.jsonl"
+          supersede

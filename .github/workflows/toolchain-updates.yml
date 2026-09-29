@@ -58,6 +58,8 @@ jobs:
           check-latest: true
 
       - name: Open, and close, the toolchain update pull requests
+        # Under the job's limit: a step that runs out of time fails, and the report runs.
+        timeout-minutes: 13
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
@@ -68,14 +70,17 @@ jobs:
           set -euo pipefail
           node tools/check-toolchain.mjs
 
-          # Open pull requests and issues with the prefix, and every title ever used: the issues
+          # This workflow's open pull requests and issues, and every title it ever used: the issues
           # endpoint lists pull requests too, and pages through all of them. Lists, filtered
-          # exactly: the search index can lag behind one made minutes ago.
+          # exactly: the search index can lag behind one made minutes ago. Only its own count:
+          # anyone's pull request with such a title neither blocks an update nor gets closed.
           {
-            gh pr list --state open --limit 200 --json number,title
-            gh issue list --state open --limit 200 --json number,title
-          } | jq -s --arg p "$PREFIX" '[.[][] | select(.title | startswith($p))]' > "$RUNNER_TEMP/open.json"
-          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" --jq '.[].title' > "$RUNNER_TEMP/titles.txt"
+            gh pr list --state open --limit 200 --json number,title,author
+            gh issue list --state open --limit 200 --json number,title,author
+          } | jq -s --arg p "$PREFIX" '[.[][] | select((.title | startswith($p)) and .author.login == "app/github-actions") | {number, title}]' \
+            > "$RUNNER_TEMP/open.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=all&per_page=100" \
+            --jq '.[] | select(.user.login == "github-actions[bot]") | .title' > "$RUNNER_TEMP/titles.txt"
           # A push raises nothing, so there a newer version replaces only an open pull request.
           mode=()
           if [ "$EVENT" = push ]; then mode=(--close-only); fi
@@ -137,6 +142,12 @@ jobs:
             git push -q -f origin "$3"
             git checkout -q -f "$start"
           }
+          version_on_main() { # <name>: the version $start has
+            case $1 in
+              Node.js) git show "$start:.nvmrc" | tr -d '[:space:]' ;;
+              pnpm) git show "$start:package.json" | jq -r '.packageManager // "" | ltrimstr("pnpm@")' ;;
+            esac
+          }
           branch_of() { # <name> <version>
             case $1 in
               Node.js) echo "toolchain/node-$2" ;;
@@ -190,25 +201,35 @@ jobs:
 
           # --- Close what is resolved or replaced: pull requests (and their branches), and the
           # issues from before pull requests. One merged or closed meanwhile (update-prs.yml
-          # merges the routine ones) is left as it is.
+          # merges the routine ones, maybe in this very minute) is left as it is; the next run
+          # retries any other close that fails.
           jq -c '.close[]' "$RUNNER_TEMP/plan.json" > "$RUNNER_TEMP/close.jsonl"
           while read -r item <&3; do
             number=$(jq -r .number <<< "$item")
             comment=$(jq -r .comment <<< "$item")
             if state=$(gh pr view "$number" --json state --jq .state 2> /dev/null); then
-              if [ "$state" = OPEN ]; then gh pr close "$number" --delete-branch --comment "$comment"; fi
+              if [ "$state" = OPEN ]; then
+                gh pr close "$number" --delete-branch --comment "$comment" ||
+                  echo "::warning::Could not close #$number (merged meanwhile?); the next run tries again."
+              fi
             elif [ "$(gh issue view "$number" --json state --jq .state)" = OPEN ]; then
-              gh issue close "$number" --comment "$comment"
+              gh issue close "$number" --comment "$comment" ||
+                echo "::warning::Could not close #$number; the next run tries again."
             fi
           done 3< "$RUNNER_TEMP/close.jsonl"
 
-          # --- Keep the open ones mergeable and tested (not on a push). One main has moved into
-          # conflict with (the two pnpm tracks change the same line) is rebuilt on main, when it
-          # holds only this workflow's commits: a push of someone else's is never overwritten.
-          # One without a CI run on its head (a lost dispatch) gets one.
+          # --- Keep this workflow's open pull requests mergeable and tested (not on a push; never
+          # a fork's). One main has moved into conflict with (the two pnpm tracks change the same
+          # line) is rebuilt on today's main, when it holds only this workflow's commits: a push
+          # of someone else's is never overwritten. One with no CI run on its head that decides
+          # (a lost dispatch; a cancelled or broken run, which update-prs.yml passes over) gets
+          # one.
           if [ "$EVENT" != push ]; then
-            gh pr list --state open --limit 200 --json number,title,headRefName,headRefOid > "$RUNNER_TEMP/prs.json"
-            jq -c --arg p "$PREFIX" '.[] | select(.title | startswith($p))' "$RUNNER_TEMP/prs.json" > "$RUNNER_TEMP/mine.jsonl"
+            git fetch -q --depth=1 origin main
+            start=$(git rev-parse FETCH_HEAD)
+            gh pr list --state open --limit 200 --json number,title,headRefName,headRefOid,author,isCrossRepository > "$RUNNER_TEMP/prs.json"
+            jq -c --arg p "$PREFIX" '.[] | select((.title | startswith($p)) and .author.login == "app/github-actions" and (.isCrossRepository | not))' \
+              "$RUNNER_TEMP/prs.json" > "$RUNNER_TEMP/mine.jsonl"
             while read -r pr <&3; do
               number=$(jq -r .number <<< "$pr")
               branch=$(jq -r .headRefName <<< "$pr")
@@ -231,12 +252,37 @@ jobs:
                   echo "#$number conflicts with main, and holds someone else's commits: left to them."
                   continue
                 fi
+                if [ "$(version_on_main "$name")" = "$version" ]; then
+                  echo "#$number: main has $name $version by now; the next run closes it."
+                  continue
+                fi
                 build "$name" "$version" "$branch"
                 echo "#$number conflicted with main: rebuilt on it."
                 start_ci "$branch"
-              elif [ "$(gh run list --workflow ci.yml --commit "$(jq -r .headRefOid <<< "$pr")" --limit 1 --json databaseId --jq length)" = 0 ]; then
-                echo "#$number has no CI run on its head: starting one."
+              elif [ "$(gh run list --workflow ci.yml --commit "$(jq -r .headRefOid <<< "$pr")" --limit 20 --json status,conclusion \
+                   --jq '[.[] | select(.status != "completed" or .conclusion == "success" or .conclusion == "failure" or .conclusion == "timed_out")] | length')" = 0 ]; then
+                echo "#$number has no CI run on its head that decides: starting one."
                 start_ci "$branch"
               fi
             done 3< "$RUNNER_TEMP/mine.jsonl"
           fi
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as update-prs.yml does.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Toolchain updates workflow failed'
+        run: |
+          set -euo pipefail
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s toolchain-updates.yml failed: %s\n\nThe run log names the failed command; a pull request it was raising or rebuilding may be half done (the next run finishes it). Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

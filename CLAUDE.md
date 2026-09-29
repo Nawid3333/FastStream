@@ -903,8 +903,12 @@ the change went in.
   or when a newer one on the same track gets its own PR (on a push, which raises
   nothing, only an open one counts: `--close-only`). The weekly run also rebuilds on
   `main` an open one `main` has moved into conflict with (the two pnpm tracks change
-  the same line) when all its commits are the bot's, and starts CI on one whose head
-  has no run (a lost dispatch). Node 24 was skipped on
+  the same line) when all its commits are the bot's, rebuilt on a freshly fetched
+  `main`, and starts CI on one whose head has no run that decides (a lost dispatch, or
+  only cancelled runs). Only the bot's own titles and pull requests count (author
+  `github-actions[bot]`, never a fork's): anyone's PR with such a title neither blocks
+  an update nor is closed or rebuilt; `patched-libraries.yml` filters the same way. A
+  failed run opens one issue "Toolchain updates workflow failed". Node 24 was skipped on
   purpose (issue #11 closed); Node 26 arrives as a PR when it becomes LTS (late
   October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
@@ -922,7 +926,8 @@ the change went in.
   step checks, the last 40 lines of each failed log and `main`'s latest CI status, and
   the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
   Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
-  only when that bot opened it and it holds only its commits, only `package.json` and
+  only when that bot opened it (not a draft, against `main`) and its commits are the
+  bot's or this workflow's merges of `main`, only `package.json` and
   `pnpm-lock.yaml` change (for pnpm: only `packageManager`, to the branch's version,
   against the merge base; the lockfile untouched), there is no major, Dependabot's dependency review passed,
   it is mergeable, it contains the newest `main` (otherwise GitHub's update-branch
@@ -941,8 +946,11 @@ the change went in.
   merge; if another merge still lands in between (two update PRs decided at once), the
   squash commit's parent is not the checked `main`, and the merged comment @mentions
   the owner that `main` holds an untested combination. A merge or branch update refused
-  because the branch moved on meanwhile (Dependabot rebased it) is no failure: the new
-  commit's CI run decides. Only updates that ship nothing merge themselves (the
+  because the branch moved on meanwhile (Dependabot rebased it), or the PR was closed,
+  is no failure: the new commit's CI run decides, or there is nothing to decide. A
+  cancelled or skipped CI run decides nothing. The waiting comment keeps one key while
+  it waits, so a changed reason edits it without a new email. A merged branch is
+  deleted. Only updates that ship nothing merge themselves (the
   owner's choice, 2026-09-29): a Node major is a PR the owner merges; `main`'s ruleset
   blocks force-pushes and deletion only, no required checks, so direct pushes and
   `mpv-updates.yml`'s pin commits keep working. If `update-prs.yml` itself fails, it

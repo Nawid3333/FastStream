@@ -39,7 +39,7 @@ describe('projectNodeMajor', () => {
 // still see the old major and never close it.
 describe('every workflow takes Node from .nvmrc', () => {
   const dir = new URL('../../.github/workflows/', import.meta.url);
-  const files = fs.readdirSync(dir).filter((file) => file.endsWith('.yml'));
+  const files = fs.readdirSync(dir).filter((file) => /\.ya?ml$/.test(file));
 
   it('names no version of its own', () => {
     for (const file of files) {
@@ -52,10 +52,13 @@ describe('every workflow takes Node from .nvmrc', () => {
     let steps = 0;
     for (const file of files) {
       const text = fs.readFileSync(new URL(file, dir), 'utf8');
-      // Each setup-node step, up to the next step.
-      for (const match of text.matchAll(/uses: actions\/setup-node@[^\n]*\n((?:(?!\s*- )[^\n]*\n)*)/g)) {
+      // Each setup-node step, up to the next step, however its uses: line is written; and
+      // every mention of the action is one of them.
+      const found = [...text.matchAll(/uses:\s*['"]?actions\/setup-node@[^\n]*\n((?:(?!\s*- )[^\n]*\n)*)/g)];
+      expect(found.length, `${file}: setup-node steps read`).toBe(text.match(/actions\/setup-node@/g)?.length ?? 0);
+      for (const match of found) {
         steps++;
-        expect(match[1], `${file}: a setup-node step`).toMatch(/^\s*node-version-file: \.nvmrc$/m);
+        expect(match[1], `${file}: a setup-node step`).toMatch(/^\s*node-version-file:\s*['"]?\.nvmrc['"]?\s*$/m);
       }
     }
     expect(steps).toBeGreaterThanOrEqual(9);
