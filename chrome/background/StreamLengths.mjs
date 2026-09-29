@@ -77,8 +77,9 @@ export class StreamLengths {
 
   /**
    * What the pieces of one stream have in common: the URL, each run of digits as one 0, no
-   * fragment. The query stays, letters and all: a site that fetches everything through one
-   * address, pieces and films alike, tells them apart there.
+   * fragment. The query stays, so letters in it tell files apart, but numbers do not: on a
+   * site that fetches everything by number through one address (/get?id=123), a film whose
+   * length is still unread counts as a piece once one of the others was read as one.
    * @param {string} url - A URL.
    * @return {string} Its shape.
    */
@@ -115,7 +116,7 @@ export class StreamLengths {
    * its own, and one not read yet ranks as a stream of unknown length: above a short
    * stream, and as the newest, the one that plays. The caller takes the sources right
    * after, before another can come, and their lengths from lengthsOf, which counts one
-   * still unread at the deadline as a piece when its like was read as one.
+   * still unread at the deadline, or not readable, as a piece when its like was read as one.
    * @param {function(): Array<Object>} getSources - The detected sources as they are now,
    *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
