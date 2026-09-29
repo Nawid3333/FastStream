@@ -31,7 +31,10 @@ describe('RuleManager.addHeaderRule', () => {
   it.each([
     ['https://cdn.test/hls/master.m3u8', 'cdn.test/hls/master.m3u8'],
     ['http://cdn.test/v.mp4?acl=/*~hmac=1f', 'cdn.test/v.mp4?acl=/*~hmac=1f'],
-    ['https://cdn.test/s^1/v.mpd?a=b|c', 'cdn.test/s^1/v.mpd?a=b|c'],
+    // As the browser requests it: a `^` in the path, an accent or a space goes out
+    // percent-encoded, and Firefox refuses a urlFilter that is not ASCII.
+    ['https://cdn.test/s^1/v.mpd?a=b|c', 'cdn.test/s%5E1/v.mpd?a=b|c'],
+    ['https://cdn.test/vidéo 1.mp4?q=é x', 'cdn.test/vid%C3%A9o%201.mp4?q=%C3%A9%20x'],
   ])('matches %s by the URL itself, with nothing escaped', async (url, rest) => {
     const manager = new RuleManager();
     const commands = [{operation: 'set', header: 'referer', value: 'https://site.test/'}];
