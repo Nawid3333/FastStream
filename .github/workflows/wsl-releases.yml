@@ -1,0 +1,108 @@
+name: WSL releases
+
+# WSL runs on the owner's PC, where `pnpm run verify:linux` checks the extension on the
+# Ubuntu releases CI uses (tools/verify-linux.mjs). The Ubuntu inside it updates itself
+# before every run (tools/linux/setup.sh); WSL itself does not, and nothing on GitHub can
+# update it. So once a day this looks up WSL's latest release (microsoft/WSL, pre-releases
+# not counted), and for a version it has not told about yet it opens one issue,
+# "WSL update: <version>", assigned to the owner and @mentioning them, so it arrives by
+# email with the commands to update.
+#
+# GitHub cannot see which WSL the PC has, so the issue does not close on its own: the
+# owner closes it once WSL is updated, or to skip that version. A title is never used
+# twice, open or closed, so a closed one stays closed. A newer release closes the open
+# issue and opens its own. Nothing here reads or changes the repository's files.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write  # open the "WSL update" issue, close the one it replaces
+
+concurrency:
+  group: wsl-releases
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check for a new WSL release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      PREFIX: 'WSL update: '
+    steps:
+      - name: Open the issue for a new release
+        run: |
+          set -euo pipefail
+          release=$(gh api repos/microsoft/WSL/releases/latest)
+          # Another project's data: only a plain version number goes into the title and links.
+          version=$(jq -r .tag_name <<< "$release")
+          if ! [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]]; then
+            echo "microsoft/WSL's latest release is tagged '$version', not a version number."
+            exit 1
+          fi
+          published=$(jq -r '.published_at // "" | .[0:10]' <<< "$release")
+          if ! [[ "$published" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then published='date unknown'; fi
+          title="$PREFIX$version"
+          echo "Latest WSL release: $version ($published)"
+
+          # Every issue this workflow ever opened, open or closed: the issues endpoint lists
+          # pull requests too, and pages through all of them. A list, not a search: the
+          # search index can lag behind an issue opened minutes ago.
+          gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | [.number, .state, .title] | @tsv' \
+            > "$RUNNER_TEMP/mine.tsv"
+          if cut -f3 "$RUNNER_TEMP/mine.tsv" | grep -qxF "$title"; then
+            echo "Already told in an issue \"$title\"; nothing to do."
+            exit 0
+          fi
+
+          {
+            printf '@%s WSL %s is out (%s): https://github.com/microsoft/WSL/releases/tag/%s\n\n' \
+              "$OWNER" "$version" "$published" "$version"
+            cat <<'EOF'
+          To update WSL on your PC, in PowerShell:
+
+          ```powershell
+          wsl --version    # the version you have now
+          wsl --update     # Windows may ask for administrator rights
+          wsl --shutdown   # stops WSL, so its next start runs the new version
+          ```
+
+          If `wsl --version` still shows the old version afterwards, Microsoft has not rolled it out to you yet; `wsl --update --web-download` takes it from GitHub instead.
+
+          Close this issue once WSL is updated, or to skip this version. GitHub can't see your PC, so it won't close on its own. If a newer WSL comes out first, this issue is closed and a new one opened.
+          EOF
+          } > "$RUNNER_TEMP/body.md"
+          url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+          echo "Opened $url"
+
+          # An open issue for an older version: the new one replaces it.
+          while IFS=$'\t' read -r number state _; do
+            [ "$state" = open ] || continue
+            gh issue close "$number" --reason 'not planned' --comment "WSL $version is out: $url replaces this issue."
+            echo "Closed #$number"
+          done < "$RUNNER_TEMP/mine.tsv"
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as toolchain-updates.yml does.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'WSL releases workflow failed'
+        run: |
+          set -euo pipefail
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s wsl-releases.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
