@@ -57,15 +57,16 @@
       }
 
       // video_dash_manifest
+      // Nothing for a response that is not an object (a JSON number or string).
       const objs = findPropertyRecursive(data, 'video_dash_manifest');
 
-      if (objs.length === 0) {
+      if (!objs || objs.length === 0) {
         console.error('No video_dash_manifest found');
         return;
       }
 
-      // Find non empty value
-      const value = objs.find((o)=>!!o.value).value;
+      // Find non empty value. Every one can be empty (media still being processed).
+      const value = objs.find((o)=>!!o.value)?.value;
 
       if (!value) {
         console.error('No value found', data);
