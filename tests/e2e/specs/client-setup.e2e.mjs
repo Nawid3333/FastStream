@@ -132,4 +132,90 @@ describe('FastStreamClient setup', function() {
     expect(moves.afterRedo.audio).toEqual([5, 0, 5]);
     expect(moves.afterRedo.state).toBe(5);
   });
+
+  it('does not start a video at the remembered time of the one before it', async function() {
+    // Looking up a video's remembered time takes two PBKDF2 hashes. The lookup of a video
+    // replaced meanwhile wrote its record after the next video's reset: that video then
+    // skipped its own lookup, started at the other's time, and saved into its record.
+    await openEmptyPlayer();
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.progressMemory),
+        {timeout: 30000, timeoutMsg: 'the progress memory never loaded'});
+
+    const result = await browser.executeAsync((firstUrl, secondUrl, done) => {
+      (async () => {
+        const [{VideoSource}, {URLUtils}] =
+          await Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')]);
+        const client = window.fastStream;
+        const memory = client.progressMemory;
+        const source = (url) => new VideoSource(url, {}, URLUtils.getModeFromURL(url));
+        const first = source(firstUrl);
+        const second = source(secondUrl);
+        client.options.storeProgress = true;
+        const firstHashes = await memory.getHashes(first.identifier);
+        const secondHashes = await memory.getHashes(second.identifier);
+        await memory.setFile(firstHashes, {lastTime: 3});
+        // The hashes are ArrayBuffers.
+        const hex = (buffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, '0')).join('');
+        window.hexOfHash = hex;
+
+        // The first video's lookup is held until the second video's reset has run, and the
+        // second's player is made only once that lookup is done, or after a second when
+        // it gives up, as it should.
+        let lookupStarted;
+        const started = new Promise((resolve) => lookupStarted = resolve);
+        let releaseLookup;
+        const released = new Promise((resolve) => releaseLookup = resolve);
+        let lookupDone;
+        const finished = new Promise((resolve) => lookupDone = resolve);
+        const getHashes = memory.getHashes.bind(memory);
+        memory.getHashes = async (identifier) => {
+          const hashes = await getHashes(identifier);
+          if (identifier === first.identifier) {
+            lookupStarted();
+            await released;
+          }
+          return hashes;
+        };
+        const getFile = memory.getFile.bind(memory);
+        memory.getFile = async (hashes) => {
+          const file = await getFile(hashes);
+          if (hex(hashes.identifierHash) === hex(firstHashes.identifierHash)) setTimeout(lookupDone);
+          return file;
+        };
+
+        client.addSource(first, true);
+        await started;
+        const resetPlayer = client.resetPlayer.bind(client);
+        client.resetPlayer = async (...args) => {
+          await resetPlayer(...args);
+          releaseLookup();
+        };
+        const loader = client.playerLoader;
+        const createPlayer = loader.createPlayer.bind(loader);
+        loader.createPlayer = async (mode, owner, options) => {
+          if (!options?.isPreview) {
+            await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, 1000))]);
+          }
+          return createPlayer(mode, owner, options);
+        };
+        await client.addSource(second, true);
+        return {secondRecord: hex(secondHashes.identifierHash)};
+      })().then(done, (e) => done({error: String(e)}));
+    }, missingUrl(), mp4Url());
+    expect(result.error).toBe(undefined);
+
+    await waitForPicture();
+    // The seek to a remembered time comes once the player is ready.
+    await browser.pause(1500);
+    const state = await browser.execute(() => {
+      const hashes = window.fastStream.progressHashesCache;
+      return {
+        currentTime: window.fastStream.currentTime,
+        record: hashes ? window.hexOfHash(hashes.identifierHash) : null,
+      };
+    });
+    console.log('      state:', JSON.stringify(state));
+    expect(state.currentTime).toBeLessThan(1);
+    expect(state.record).toBe(result.secondRecord);
+  });
 });

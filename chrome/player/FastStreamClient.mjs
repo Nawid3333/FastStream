@@ -1009,11 +1009,19 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
 
+    // The lookup takes a while (two PBKDF2 hashes). If another video is set meanwhile,
+    // resetPlayer() has cleared this state for it, and writing this video's record now would
+    // make the next video start at this one's time and save its progress into this record.
+    const player = this.player;
     this.disableProgressSave = true;
-    this.progressHashesCache = await this.progressMemory.getHashes(this.player.getSource().identifier);
-    this.progressData = (await this.progressMemory.getFile(this.progressHashesCache)) || {
+    const hashes = await this.progressMemory.getHashes(player.getSource().identifier);
+    if (this.player !== player) return;
+    const progressData = (await this.progressMemory.getFile(hashes)) || {
       lastTime: 0,
     };
+    if (this.player !== player) return;
+    this.progressHashesCache = hashes;
+    this.progressData = progressData;
     this.disableProgressSave = false;
   }
 
