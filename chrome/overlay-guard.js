@@ -71,11 +71,12 @@ const OverlayGuard = (() => {
       const elAt = stack.indexOf(el);
       if (iframeAt === -1 || elAt === -1 || elAt > iframeAt) continue;
       // Its ancestors go with it while they are painted above the iframe too. A layout
-      // wrapper under the player that holds an ad over it (and the page's nav) stays.
+      // wrapper under the player that holds an ad over it (and the page's nav) stays. One
+      // missing from the stack says nothing of where it is painted: pointer-events: none,
+      // as a see-through veil holding a clickable ad has. It goes by its size, as before.
       let pick = null;
       for (let a = el; a && !a.contains(iframe); a = a.parentElement) {
-        const at = stack.indexOf(a);
-        if (at === -1 || at > iframeAt) break;
+        if (stack.indexOf(a) > iframeAt) break;
         if (belongsToPlayer(a, box) && !players.some((player) => a.contains(player))) {
           pick = a;
         }

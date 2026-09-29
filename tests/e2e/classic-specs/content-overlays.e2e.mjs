@@ -76,6 +76,24 @@ const stagePage = (t) => `<!doctype html><title>stage</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
+// A see-through veil over the whole page, with a clickable ad in it over the player. The
+// veil lets clicks through (pointer-events: none), so the browser's hit test never finds
+// it; it covers the player, so it goes with the ad. The page's nav, under it, stays.
+const veilPage = (t) => `<!doctype html><title>veil</title>
+<style>
+  body { margin: 0; }
+  #nav { height: 60px; background: #333; }
+  .stage, .stage video { width: 640px; height: 360px; display: block; }
+  #veil { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 50; background: rgba(0, 0, 0, 0.5); pointer-events: none; }
+  #promo { position: absolute; left: 220px; top: 200px; width: 200px; height: 100px; background: #c00; pointer-events: auto; }
+</style>
+<div id="nav"></div>
+<div class="stage"><video id="main" muted preload="auto" src="/clip.mp4?veil=${t}"></video></div>
+<div id="veil"><div id="promo"></div></div>
+<script>
+  window.leave = () => history.pushState({}, '', location.pathname + '/next');
+</script>`;
+
 // The embedding page: the player's iframe fills it, and its bar lies on top.
 const embeddingPage = (t) => `<!doctype html><title>embedding</title>
 <style>
@@ -251,7 +269,7 @@ describe('A site\'s overlays around an in-page player', function() {
       server.listen(port, '127.0.0.1', () => resolve(server));
     });
     servers = [
-      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/embedding': embeddingPage}),
+      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/veil': veilPage, '/embedding': embeddingPage}),
       await serve(EMBED_PORT, {'/embed': embedPage}),
     ];
 
@@ -322,6 +340,25 @@ describe('A site\'s overlays around an in-page player', function() {
     await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'visible',
         {timeout: 15000, timeoutMsg: 'the ad was not given back'}).catch(() => {});
     expect(await visibilities(ids)).toEqual({promo: 'visible', nav: 'visible', aside: 'visible', ui: 'visible'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('hides a see-through veil that holds an ad over the player, though clicks pass through it', async function() {
+    await openPage('/veil');
+    const ids = ['veil', 'promo', 'nav'];
+    expect(await visibilities(ids)).toEqual({veil: 'visible', promo: 'visible', nav: 'visible'});
+    await clickToolbar();
+    await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the ad stayed over the player'}).catch(() => {});
+    // Found through the ad, the veil goes with it. The case above's ancestor stop at first
+    // took a veil missing from the hit test for one under the player: only the ad went, and
+    // the veil stayed, dimming the player.
+    expect(await visibilities(ids)).toEqual({veil: 'hidden', promo: 'hidden', nav: 'visible'});
+
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => (await visibilities(['veil'])).veil === 'visible',
+        {timeout: 15000, timeoutMsg: 'the veil was not given back'}).catch(() => {});
+    expect(await visibilities(ids)).toEqual({veil: 'visible', promo: 'visible', nav: 'visible'});
     expect(await takeContentErrors()).toEqual([]);
   });
 
