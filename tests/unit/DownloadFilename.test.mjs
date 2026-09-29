@@ -37,6 +37,35 @@ describe('sanitizeDownloadFilename', () => {
     });
   });
 
+  describe('every character class Firefox refuses, measured on Firefox 156', () => {
+    const between = (code) => 'a' + String.fromCodePoint(code) + 'b.txt';
+
+    it('replaces the C1 control characters too', () => {
+      for (const code of [0x80, 0x85, 0x8F, 0x9F]) {
+        expect(sanitizeDownloadFilename(between(code))).toBe('a_b.txt');
+      }
+    });
+
+    it('removes every format character: soft hyphen, joiners, marks, tags', () => {
+      for (const code of [0xAD, 0x600, 0x61C, 0x6DD, 0x70F, 0x8E2, 0x200C, 0x200D, 0x206A, 0x206F,
+        0xFFF9, 0xFFFB, 0x110BD, 0x1D173, 0xE0001, 0xE0067]) {
+        expect(sanitizeDownloadFilename(between(code))).toBe('ab.txt');
+      }
+    });
+
+    it('turns every other space, line and paragraph separator into a space', () => {
+      for (const code of [0x1680, 0x2000, 0x200A, 0x2028, 0x2029]) {
+        expect(sanitizeDownloadFilename(between(code))).toBe('a b.txt');
+      }
+    });
+
+    it('keeps the characters Firefox accepts: combining marks, variation selectors, fillers', () => {
+      for (const code of [0x34F, 0x17B4, 0xFE0F, 0x1160, 0x115F, 0xFFA0, 0x2800, 0x1F600]) {
+        expect(sanitizeDownloadFilename(between(code))).toBe(between(code));
+      }
+    });
+  });
+
   describe('rule 2: invisible, direction and unusual space characters', () => {
     it('removes the refused invisible and direction characters', () => {
       expect(sanitizeDownloadFilename('na\u200Bme.txt')).toBe('name.txt');
@@ -72,6 +101,18 @@ describe('sanitizeDownloadFilename', () => {
       expect(sanitizeDownloadFilename('ends. ')).toBe('ends');
       expect(sanitizeDownloadFilename('ends .')).toBe('ends');
       expect(sanitizeDownloadFilename('end.txt ')).toBe('end.txt');
+    });
+
+    it('removes leading dots, which Firefox refuses', () => {
+      expect(sanitizeDownloadFilename('...And_Justice_for_All@00_05.png')).toBe('And_Justice_for_All@00_05.png');
+      expect(sanitizeDownloadFilename('.hack__Sign.srt')).toBe('hack__Sign.srt');
+      expect(sanitizeDownloadFilename(' .a.txt')).toBe('a.txt');
+      expect(sanitizeDownloadFilename('. .a.txt')).toBe('a.txt');
+    });
+
+    it('keeps a name that is only an extension, after the fallback name', () => {
+      expect(sanitizeDownloadFilename('.hidden')).toBe('download.hidden');
+      expect(sanitizeDownloadFilename('..txt')).toBe('download.txt');
     });
 
     it('keeps spaces and dots inside the name', () => {

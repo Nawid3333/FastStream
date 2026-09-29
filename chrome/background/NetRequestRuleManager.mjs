@@ -98,7 +98,9 @@ export class RuleManager {
         // like an Akamai `acl=/*` token got no Referer/Origin. Unescaped, a
         // `*`, `^` or `|` from the URL can only widen the match, never exclude
         // the URL itself, and the rule is limited to one tab and 5 seconds.
-        urlFilter: '||' + asRequested(url).replace('https://', '').replace('http://', ''),
+        // Only the scheme at the start: an http URL whose query holds an https one
+        // lost that "https://" instead.
+        urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, ''),
         tabIds: [tabId],
       },
     };

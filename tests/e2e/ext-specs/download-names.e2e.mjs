@@ -19,6 +19,10 @@ describe('Download names', function() {
   const cases = [
     ['a screenshot', 'Big_Buck_Bunny@00:05.png', 'Big_Buck_Bunny@00_05.png'],
     ['a subtitle track with a colon in its title', 'someone_-_Mission:_Impossible.srt', 'someone_-_Mission__Impossible.srt'],
+    // Firefox refuses a name that starts with a dot.
+    ['a screenshot of a title that starts with dots', '...And_Justice_for_All@00:05.png', 'And_Justice_for_All@00_05.png'],
+    // A soft hyphen, as a page's title can carry: Firefox refuses every format character.
+    ['a title with a soft hyphen', 'Donau' + String.fromCodePoint(0xAD) + 'dampf.srt', 'Donaudampf.srt'],
   ];
 
   for (const [name, asked, saved] of cases) {

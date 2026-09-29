@@ -66,6 +66,8 @@ describe('Header rules for a stream URL', function() {
     ['a URL with a *', 'star', '/stream/master.m3u8?acl=/*~hmac=5f&id=star'],
     ['a URL with a ^ and a |', 'caret', '/stream/master.m3u8?sig=a^b|c&id=caret'],
     ['a URL with a ^ in its path', 'caretpath', '/stream/s^1/master.m3u8?id=caretpath'],
+    // This server is http, so the rule has to strip "http://" and nothing else.
+    ['an http URL with an https URL in its query', 'nested', '/stream/master.m3u8?u=https://cdn.test/v&id=nested'],
     // As a source typed or pasted in: fetch() sends these percent-encoded.
     ['a URL written with a space', 'space', '/stream/video 1.mp4?id=space'],
     ['a URL written with an é and a space', 'accent', '/stream/vidéo 1.mp4?id=accent'],

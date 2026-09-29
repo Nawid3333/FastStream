@@ -9,21 +9,32 @@
 
 // Firefox refuses names containing these, so each becomes "_"; "/" and "\"
 // would not be refused, but they make subfolders instead of staying in the name.
-const FORBIDDEN = /["*:<>?|\/\\\u0000-\u001F\u007F]/g;
+// Cc is every control character, U+0000-U+001F and U+007F-U+009F.
+const FORBIDDEN = /["*:<>?|\/\\\p{Cc}]/gu;
 
-// Invisible and text-direction characters: Firefox refuses some of them
-// (U+202E, U+200B) and the rest would be saved unseen, so remove them.
-const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+// Firefox refuses every format character (Cf: the soft hyphen, zero-width and
+// text-direction marks, the joiners inside emoji sequences, tags), and they would
+// be saved unseen anyway, so they are removed.
+const INVISIBLE = /\p{Cf}/gu;
 
-// Every space character that is not the ordinary space; Firefox refuses
-// U+00A0, so turn all of them into a plain space.
-const UNUSUAL_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
+// Firefox refuses the space, line and paragraph separators (Z) other than the
+// ordinary space, so each becomes an ordinary space.
+const UNUSUAL_SPACES = /(?! )\p{Z}/gu;
 
 // Windows refuses these names before the first dot, in any letter case.
 const DEVICE_NAMES = /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
 
 const MAX_LENGTH = 200;
 const FALLBACK_NAME = 'download';
+
+/**
+ * @param {string} text - What follows a name's last dot.
+ * @return {boolean} Whether it is kept as the extension: 1-10 characters, no
+ *     space or dot.
+ */
+function isExtension(text) {
+  return text.length >= 1 && text.length <= 10 && !/[ .]/.test(text);
+}
 
 /**
  * @param {string} filename - The name the player asked for.
@@ -39,8 +50,15 @@ export function sanitizeDownloadFilename(filename) {
       .replace(INVISIBLE, '')
       .replace(UNUSUAL_SPACES, ' ');
 
-  // Only the edges of the name; spaces and dots inside it stay.
-  name = name.replace(/^ +/, '').replace(/[. ]+$/, '');
+  // Only the edges of the name; spaces and dots inside it stay. Firefox refuses
+  // a name that starts with a space or a dot, or ends with one.
+  name = name.replace(/[. ]+$/, '');
+  const start = /^[. ]*/.exec(name)[0];
+  name = name.slice(start.length);
+  // A name that was only an extension (".png") keeps it, after the fallback name.
+  if (start.endsWith('.') && isExtension(name)) {
+    name = FALLBACK_NAME + '.' + name;
+  }
 
   if (name === '') {
     return FALLBACK_NAME;
@@ -57,7 +75,7 @@ export function sanitizeDownloadFilename(filename) {
   let extension = '';
   if (lastDot !== -1) {
     const after = name.slice(lastDot + 1);
-    if (after.length >= 1 && after.length <= 10 && !after.includes(' ')) {
+    if (isExtension(after)) {
       extension = name.slice(lastDot);
       base = name.slice(0, lastDot);
     }
