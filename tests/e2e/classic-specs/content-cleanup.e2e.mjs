@@ -436,6 +436,20 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  it('keeps the player in the box the page\'s #id rule gives its element', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    // The soft replace measures the element again on each update: a resize, and 8 times in
+    // its first 2 s. It measured it without the id it had handed to the player, so the
+    // page's #wrap rule no longer sized it, and the player took the page's whole width.
+    await browser.pause(2500);
+    expect(await inPage(() => {
+      const r = window.playerIframe().getBoundingClientRect();
+      return [r.left, r.top, r.width, r.height].map(Math.round);
+    })).toEqual([0, 0, 640, 360]);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   it('cleans up after a page that removed the player itself', async function() {
     await openPage('/cleanup');
     await openPlayer();

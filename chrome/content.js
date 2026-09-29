@@ -963,6 +963,13 @@
     let final_size;
     if (softReplace) {
       showSoft(old);
+      // Measured with its id, as a hard replace is: transferStyles handed it to the iframe,
+      // and without it the page's #id rules no longer sized or placed the element. From the
+      // second update on (the resize observer's first call), the player took the element's
+      // unstyled box: the page's whole width, below the page's content.
+      if (!Config.customIframeId) {
+        transferId(iframe, old);
+      }
       final_size = transferStyles(old, iframe, true);
       hideSoft(old);
     } else {

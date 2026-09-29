@@ -54,7 +54,8 @@ const barPage = (t) => `<!doctype html><title>bar</title>
 
 // A layout wrapper that holds the page's nav, a side column and an ad over the player,
 // but not the player: it covers the player's box, and it is painted under it. Only the ad
-// is the player's; hiding the wrapper would take the nav and the column with it.
+// is the player's; hiding the wrapper would take the nav and the column with it. The
+// player's box is placed by a class, which the player takes over with the box.
 const stagePage = (t) => `<!doctype html><title>stage</title>
 <style>
   body { margin: 0; }
@@ -62,15 +63,15 @@ const stagePage = (t) => `<!doctype html><title>stage</title>
   #nav { height: 60px; background: #333; }
   #aside { position: absolute; left: 660px; top: 80px; width: 300px; height: 360px; background: #666; }
   #promo { position: absolute; left: 220px; top: 200px; width: 200px; height: 100px; z-index: 5; background: #c00; }
-  #stage { position: absolute; left: 0; top: 80px; width: 640px; height: 360px; }
-  #stage video { width: 640px; height: 360px; display: block; }
+  .stage { position: absolute; left: 0; top: 80px; width: 640px; height: 360px; }
+  .stage video { width: 640px; height: 360px; display: block; }
 </style>
 <div id="ui">
   <div id="nav"></div>
   <div id="aside"></div>
   <div id="promo"></div>
 </div>
-<div id="stage"><video id="main" muted preload="auto" src="/clip.mp4?stage=${t}"></video></div>
+<div class="stage"><video id="main" muted preload="auto" src="/clip.mp4?stage=${t}"></video></div>
 <script>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
