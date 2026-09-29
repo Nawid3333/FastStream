@@ -289,7 +289,7 @@ describe('StreamLengths', () => {
   it('waits for the lengths no longer than asked', async () => {
     const lengths = new StreamLengths({fetch: () => new Promise(() => {})});
     const started = Date.now();
-    await lengths.settle([{url: 'https://cdn.example/slow.m3u8', mode: HLS}], 30);
+    await lengths.settle(() => [{url: 'https://cdn.example/slow.m3u8', mode: HLS}], 30);
     expect(Date.now() - started).toBeLessThan(1000);
     expect(lengths.lengthOf('https://cdn.example/slow.m3u8')).toBeUndefined();
   });
@@ -297,8 +297,32 @@ describe('StreamLengths', () => {
   it('waits for the lengths until they are read', async () => {
     const {fetch} = server({'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'}});
     const lengths = new StreamLengths({fetch});
-    await lengths.settle([{url: 'https://cdn.example/p.m3u8', mode: HLS}], 60000);
+    await lengths.settle(() => [{url: 'https://cdn.example/p.m3u8', mode: HLS}], 60000);
     expect(lengths.lengthOf('https://cdn.example/p.m3u8')).toBe(60);
+  });
+
+  it('waits for the lengths of sources detected while it waits', async () => {
+    // The page's player fetches a segment while the manifest is read.
+    const segment = concat(box('styp', new TextEncoder().encode('msdh')), box('moof', box('mfhd', new Uint8Array(8))));
+    const {fetch} = server({
+      'https://cdn.example/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+      'https://cdn.example/s1.mp4': {body: segment},
+    });
+    const lengths = new StreamLengths({fetch});
+    const manifest = {url: 'https://cdn.example/p.m3u8', mode: HLS};
+    let asked = 0;
+    await lengths.settle(() => (asked++ === 0 ? [manifest] : [manifest, {url: 'https://cdn.example/s1.mp4', mode: MP4}]), 60000);
+    expect(lengths.lengthOf('https://cdn.example/p.m3u8')).toBe(60);
+    expect(lengths.lengthOf('https://cdn.example/s1.mp4')).toBe(PIECE_LENGTH);
+  });
+
+  it('stops waiting at its limit, however many sources keep coming', async () => {
+    // Each read ends at once, and each time a new source has come.
+    const lengths = new StreamLengths({fetch: async () => new Response('', {status: 404})});
+    let asked = 0;
+    const started = Date.now();
+    await lengths.settle(() => [{url: `https://cdn.example/s${asked++}.mp4`, mode: MP4}], 30);
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 
   it('gives up on a server that never answers', async () => {

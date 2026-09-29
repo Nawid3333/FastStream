@@ -1397,9 +1397,8 @@ async function sendSources(frame) {
   frame.tab.continuationOptions = null;
 
   // The player plays the longest of them: a little time for the lengths still being read.
-  const pending = collectSources(frame).sources;
-  if (pending.length > 1) {
-    await Lengths.settle(pending, SourceLengthWaitMs);
+  if (collectSources(frame).sources.length > 1) {
+    await Lengths.settle(() => collectSources(frame).sources, SourceLengthWaitMs);
   }
 
   const {subtitles, sources} = collectSources(frame, true);
@@ -1712,11 +1711,10 @@ async function findPlayedSource(tab, frameId, src) {
     return null;
   }
 
-  const sources = frame.getSources();
-  if (sources.length > 1) {
-    await Lengths.settle(sources, SourceLengthWaitMs);
+  if (frame.getSources().length > 1) {
+    await Lengths.settle(() => frame.getSources(), SourceLengthWaitMs);
   }
-  return newestOfLongest(sources);
+  return newestOfLongest(frame.getSources());
 }
 
 /**

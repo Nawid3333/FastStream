@@ -75,20 +75,34 @@ export class StreamLengths {
   }
 
   /**
-   * Waits until the lengths of the sources are read, or waitMs passed.
-   * @param {Array<Object>} sources - Detected sources.
+   * Waits until the lengths of the sources are read, those of sources detected meanwhile
+   * too, or waitMs passed. An HLS or DASH player keeps fetching segments, each a source of
+   * its own, and one not read yet ranks as a stream of unknown length: above a short
+   * stream, and as the newest, the one that plays. The caller takes the sources right
+   * after, before another can come.
+   * @param {function(): Array<Object>} getSources - The detected sources as they are now,
+   *   asked again after each wait.
    * @param {number} waitMs - The longest to wait.
    * @return {Promise<void>}
    */
-  async settle(sources, waitMs) {
-    let timer;
-    await Promise.race([
-      Promise.all(sources.map((source) => this.probe(source))),
-      new Promise((resolve) => {
-        timer = setTimeout(resolve, waitMs);
-      }),
-    ]);
-    clearTimeout(timer);
+  async settle(getSources, waitMs) {
+    const deadline = Date.now() + waitMs;
+    let sources = getSources();
+    while (sources.some((source) => this.lengthOf(source.url) === undefined)) {
+      const left = deadline - Date.now();
+      if (left <= 0) {
+        return;
+      }
+      let timer;
+      await Promise.race([
+        Promise.all(sources.map((source) => this.probe(source))),
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, left);
+        }),
+      ]);
+      clearTimeout(timer);
+      sources = getSources();
+    }
   }
 
   /**
