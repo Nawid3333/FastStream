@@ -102,6 +102,10 @@ const Lengths = new StreamLengths({
 });
 // The longest a player waits for the lengths still being read.
 const SourceLengthWaitMs = 2500;
+// The longest a player waits for the page to say what its video played (getPlayedVideo).
+// The page answers within milliseconds unless its own scripts keep it busy; then the
+// longest decides, as before the question.
+const PlayedVideoWaitMs = 1000;
 // Where this background's own requests come from.
 const OwnOrigin = chrome.runtime.getURL('');
 
@@ -1453,10 +1457,14 @@ async function scrapeCaptionsTags(frame) {
  * of the frame the player's iframe is in.
  * @param {Object} player - The player's frame.
  * @return {Promise<?{src: string, duration: ?number}>} Its file's URL and its length, or
- *   null when the player replaced no video (it fills the page).
+ *   null when the player replaced no video (it fills the page), or the page did not answer
+ *   within PlayedVideoWaitMs.
  */
 async function getPlayedVideo(player) {
   return new Promise((resolve) => {
+    // Content scripts share the page's event loop: a page that never lets go would hold
+    // the player without sources.
+    const timer = setTimeout(() => resolve(null), PlayedVideoWaitMs);
     chrome.tabs.sendMessage(player.tab.tabId, {
       type: MessageTypes.GET_PLAYED_VIDEO,
       frameId: player.frameId,
@@ -1464,6 +1472,7 @@ async function getPlayedVideo(player) {
       frameId: player.parent.frameId,
     }, (video) => {
       BackgroundUtils.checkMessageError('get_played_video');
+      clearTimeout(timer);
       resolve(video || null);
     });
   });
