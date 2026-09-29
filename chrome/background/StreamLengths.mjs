@@ -54,7 +54,7 @@ export class StreamLengths {
   /**
    * Starts reading a stream's length, unless that has started already.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @return {Promise<number|null>} Its length, or null.
+   * @return {Promise<number|null>} Its length (as lengthOf tells it), or null.
    */
   probe(source) {
     const known = this.known.get(source.url);
@@ -112,7 +112,7 @@ export class StreamLengths {
   /**
    * Reads a source's length.
    * @param {{url: string, mode: string, headers: *}} source - The detected source.
-   * @return {Promise<number|null>} Seconds, or null.
+   * @return {Promise<number|null>} Seconds (PIECE_LENGTH for a piece of a stream), or null.
    */
   async read(source) {
     if (!/^https?:\/\//i.test(source.url)) {

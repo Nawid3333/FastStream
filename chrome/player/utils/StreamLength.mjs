@@ -151,6 +151,9 @@ export class StreamLength {
   static fromMp4(bytes, offset = 0, ended = false) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let pos = 0;
+    // Whether the file holds media data before this point: then it plays some itself. A
+    // later read comes after boxes it skipped, media data most often.
+    let media = offset > 0;
     while (pos + 8 <= bytes.length) {
       let size = view.getUint32(pos);
       const type = StreamLength.fourCC(bytes, pos + 4);
@@ -181,8 +184,8 @@ export class StreamLength {
         const end = Math.min(bytes.length, pos + size);
         const moov = bytes.subarray(pos + header, end);
         // An init segment: the movie header of fragments that come as files of their own,
-        // and the file ends with it. A whole fragmented file has its fragments after it.
-        if (ended && pos + size === bytes.length && StreamLength.isFragmented(moov)) {
+        // and all the file holds. A whole fragmented file has its fragments after it.
+        if (ended && !media && pos + size === bytes.length && StreamLength.isFragmented(moov)) {
           return {duration: PIECE_LENGTH};
         }
         const duration = StreamLength.movieLength(moov);
@@ -199,6 +202,9 @@ export class StreamLength {
 
       if (size === Infinity) {
         return null;
+      }
+      if (type === 'mdat') {
+        media = true;
       }
       pos += size;
     }

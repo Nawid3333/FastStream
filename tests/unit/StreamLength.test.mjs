@@ -180,6 +180,11 @@ describe('StreamLength.fromMp4', () => {
     expect(StreamLength.fromFile(whole, 0, true)).toEqual({duration: 60.021});
     // Nor a file that is not fragmented and ends with its movie header.
     expect(StreamLength.fromFile(concat(ftyp, box('moov', mvhd(0, 1000, 90500))), 0, true)).toEqual({duration: 90.5});
+    // Nor one with media data of its own before its header, seen from its start or read
+    // after it.
+    const own = box('moov', mvhd(0, 1000, 60000), box('mvex', box('trex')));
+    expect(StreamLength.fromFile(concat(ftyp, box('mdat', new Uint8Array(64)), own), 0, true)).toEqual({duration: 60});
+    expect(StreamLength.fromMp4(own, 5000, true)).toEqual({duration: 60});
   });
 
   it('takes no other bytes for an MP4', () => {
