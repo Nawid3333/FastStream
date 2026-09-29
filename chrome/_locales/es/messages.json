@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Alternar FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Reproduciendo en MPV"
+    },
     "command_toggle_player": {
         "message": "Activar o desactivar el reproductor FastStream en esta pestaña"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Tamaño máximo de video predescargado"
     },
+    "options_general_bufferahead": {
+        "message": "Segundos de vídeo que se mantienen en el búfer por delante de la reproducción (se usa cuando la descarga previa se detiene o se queda sin espacio)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Segundos que se mantienen en el búfer por detrás de la reproducción antes de descartarse"
+    },
+    "options_general_blockpopups": {
+        "message": "Bloquear los popups/popunders que se abren justo después de hacer clic en el reproductor"
+    },
     "options_general_previewenabled": {
         "message": "Muestra la vista previa al pasar el cursor sobre la línea de tiempo"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Estos patrones se utilizan para detectar fuentes de video personalizadas en páginas web. Se aplican en orden y se usa la primera coincidencia. Solo para usuarios avanzados."
+    },
+    "options_mpv_header": {
+        "message": "Modo MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Abrir las transmisiones detectadas en mpv (reproductor externo)"
+    },
+    "options_mpv_body": {
+        "message": "Cuando el modo MPV está activado, el botón de la barra de herramientas alterna entre Desactivado, Activado (reproductor integrado) y MPV. En los sitios de la lista de permitidos, las transmisiones detectadas se abren directamente en mpv en tu ordenador en lugar del reproductor del navegador. Requiere el host mpv de FastStream – consulta la carpeta native-host del repositorio para ver las instrucciones de configuración."
+    },
+    "options_mpv_allowlist": {
+        "message": "Lista de permitidos de MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Los sitios de esta lista abren las transmisiones detectadas en mpv. Una URL por línea; las páginas que empiezan por esa URL también coinciden. Usa ~ para las expresiones regulares y ! para excluir. Los sitios sin etiqueta usan Película por defecto para la selección de shaders de mpv – añade @anime al final de la línea para los sitios que no lo son. También se acepta @movie, si lo quieres escribir completo. El botón mpv del reproductor puede anular esto para cada vídeo."
+    },
+    "options_mpv_path": {
+        "message": "Ruta de mpv (opcional, la usa el host nativo cuando mpv no está en PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Abrir mpv en pantalla completa"
+    },
+    "options_mpv_pausepage": {
+        "message": "Pausar el vídeo en el navegador cuando se entrega a mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Reutilizar una sola ventana de mpv en lugar de abrir una nueva cada vez"
+    },
+    "options_mpv_test": {
+        "message": "Probar la conexión con mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv encontrado"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host accesible, pero no se encontró mpv"
+    },
+    "options_mpv_test_fail": {
+        "message": "Host mpv no disponible"
+    },
+    "player_mpv_label": {
+        "message": "Abrir esta transmisión en mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Enviando a mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Enviado a mpv"
+    },
+    "player_mpv_fail": {
+        "message": "No se pudo abrir en mpv. ¿Está instalado el host mpv de FastStream?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Abrir esta transmisión en mpv (tipo de contenido: automático – Película, salvo que el sitio esté etiquetado con @anime; clic derecho para cambiarlo en este vídeo)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Abrir esta transmisión en mpv (tipo de contenido: Anime – clic derecho para cambiarlo)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Abrir esta transmisión en mpv (tipo de contenido: Película – clic derecho para cambiarlo)"
     },
     "options_help_header": {
         "message": "Ayuda"

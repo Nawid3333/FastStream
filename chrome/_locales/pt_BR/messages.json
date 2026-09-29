@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Alternar FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Reproduzindo no MPV"
+    },
     "command_toggle_player": {
         "message": "Alternar o player FastStream nesta aba"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Tamanho máximo do vídeo pré-baixado"
     },
+    "options_general_bufferahead": {
+        "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download para ou fica sem espaço)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"
+    },
+    "options_general_blockpopups": {
+        "message": "Bloquear pop-ups/popunders abertos logo após clicar no reprodutor"
+    },
     "options_general_previewenabled": {
         "message": "Mostrar visualização ao passar o mouse sobre a linha do tempo"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Esses padrões são usados para detectar fontes de vídeo personalizadas em páginas da Web. Serão aplicados em ordem, e a primeira correspondência será usada. Somente para usuários avançados."
+    },
+    "options_mpv_header": {
+        "message": "Modo MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Abrir streams detectados no mpv (reprodutor externo)"
+    },
+    "options_mpv_body": {
+        "message": "Com o Modo MPV ativado, o botão da barra de ferramentas alterna entre Desativado, Ativado (reprodutor integrado) e MPV. Em sites da lista de permissões, os streams detectados abrem diretamente no mpv do seu computador em vez do reprodutor do navegador. Requer o host mpv do FastStream – veja a pasta native-host do repositório para instruções de configuração."
+    },
+    "options_mpv_allowlist": {
+        "message": "Lista de permissões do MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem. Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo."
+    },
+    "options_mpv_path": {
+        "message": "Caminho do mpv (opcional, usado pelo host nativo quando o mpv não está no PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Abrir o mpv em tela cheia"
+    },
+    "options_mpv_pausepage": {
+        "message": "Pausar o vídeo no navegador quando ele for entregue ao mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Reutilizar uma janela do mpv em vez de abrir uma nova a cada vez"
+    },
+    "options_mpv_test": {
+        "message": "Testar conexão com o mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv encontrado"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host acessível, mas o mpv não foi encontrado"
+    },
+    "options_mpv_test_fail": {
+        "message": "Host mpv indisponível"
+    },
+    "player_mpv_label": {
+        "message": "Abrir este stream no mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Enviando para o mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Enviado para o mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Não foi possível abrir no mpv. O host mpv do FastStream está instalado?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Abrir este stream no mpv (tipo de conteúdo: automático – Filme, a menos que o site esteja marcado com @anime; clique com o botão direito para mudar neste vídeo)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Abrir este stream no mpv (tipo de conteúdo: Anime – clique com o botão direito para mudar)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Abrir este stream no mpv (tipo de conteúdo: Filme – clique com o botão direito para mudar)"
     },
     "options_help_header": {
         "message": "Ajuda"

@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "切换 FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - 正在 MPV 中播放"
+    },
     "command_toggle_player": {
         "message": "切换此标签页的 FastStream 播放器"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "预下载视频的最大大小"
     },
+    "options_general_bufferahead": {
+        "message": "在播放位置前方保留缓冲的秒数（预下载停止或空间用尽后使用）"
+    },
+    "options_general_bufferbehind": {
+        "message": "在播放位置后方、裁剪前保留缓冲的秒数"
+    },
+    "options_general_blockpopups": {
+        "message": "屏蔽点击播放器后立即打开的弹出窗口/底层弹窗"
+    },
     "options_general_previewenabled": {
         "message": "在时间轴悬停时显示预览"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "这些模式用于检测网页上的自定义视频来源。按顺序应用，采用第一个匹配项。仅供高级用户使用。"
+    },
+    "options_mpv_header": {
+        "message": "MPV 模式"
+    },
+    "options_mpv_toggle": {
+        "message": "在 mpv（外部播放器）中打开检测到的视频流"
+    },
+    "options_mpv_body": {
+        "message": "开启 MPV 模式后，工具栏按钮会在关闭、开启（内置播放器）和 MPV 之间切换。在允许列表中的网站会把检测到的视频流直接交给电脑上的 mpv，而不是使用浏览器播放器。需要 FastStream mpv 主机，设置说明请见代码库中的 native-host 文件夹。"
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV 允许列表"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也匹配。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；如非如此，请在该行结尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
+    },
+    "options_mpv_path": {
+        "message": "mpv 路径（可选，当 mpv 不在 PATH 中时由原生主机使用）"
+    },
+    "options_mpv_fullscreen": {
+        "message": "以全屏模式打开 mpv"
+    },
+    "options_mpv_pausepage": {
+        "message": "将视频交给 mpv 时，暂停浏览器中的播放"
+    },
+    "options_mpv_singleinstance": {
+        "message": "复用同一个 mpv 窗口，而不是每次都打开新窗口"
+    },
+    "options_mpv_test": {
+        "message": "测试 mpv 连接"
+    },
+    "options_mpv_test_ok": {
+        "message": "已找到 mpv"
+    },
+    "options_mpv_test_nompv": {
+        "message": "主机可达，但未找到 mpv"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv 主机不可用"
+    },
+    "player_mpv_label": {
+        "message": "在 mpv 中打开此视频流"
+    },
+    "player_mpv_sending": {
+        "message": "正在发送到 mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "已发送到 mpv"
+    },
+    "player_mpv_fail": {
+        "message": "无法在 mpv 中打开。是否已安装 FastStream mpv 主机？"
+    },
+    "player_mpv_content_unset": {
+        "message": "在 mpv 中打开此视频流（内容类型：自动——除非网站标记 @anime，否则为电影；右键点击可为该视频覆盖）"
+    },
+    "player_mpv_content_anime": {
+        "message": "在 mpv 中打开此视频流（内容类型：动画——右键点击可更改）"
+    },
+    "player_mpv_content_movie": {
+        "message": "在 mpv 中打开此视频流（内容类型：电影——右键点击可更改）"
     },
     "options_help_header": {
         "message": "帮助"

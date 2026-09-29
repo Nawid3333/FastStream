@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "FastStream'i Aç/Kapat"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - MPV'de oynatılıyor"
+    },
     "command_toggle_player": {
         "message": "Bu sekmede FastStream oynatıcısını Aç/Kapat"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Önceden indirilen videonun maksimum boyutu"
     },
+    "options_general_bufferahead": {
+        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme durduğunda ya da yer kalmadığında kullanılır)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
+    },
+    "options_general_blockpopups": {
+        "message": "Oynatıcıya tıkladıktan hemen sonra açılan açılır pencereleri/popunder'ları engelle"
+    },
     "options_general_previewenabled": {
         "message": "Zaman çizelgesinde üzerine gelince önizlemeyi göster"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Bu desenler, web sayfalarında özel video kaynaklarını tespit etmek için kullanılır. Sırayla uygulanır ve ilk eşleşme kullanılır. Sadece ileri düzey kullanıcılar içindir."
+    },
+    "options_mpv_header": {
+        "message": "MPV modu"
+    },
+    "options_mpv_toggle": {
+        "message": "Algılanan akışları mpv'de (dış oynatıcı) aç"
+    },
+    "options_mpv_body": {
+        "message": "MPV modu açıkken araç çubuğu düğmesi Kapalı, Açık (yerleşik oynatıcı) ve MPV arasında geçiş yapar. İzin listesindeki sitelerde algılanan akışlar tarayıcı oynatıcısı yerine bilgisayarınızdaki mpv'de doğrudan açılır. FastStream mpv host'u gerekir – kurulum yönergeleri için depodaki native-host klasörüne bakın."
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV izin listesi"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir. Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — Film olmayan siteler için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir."
+    },
+    "options_mpv_path": {
+        "message": "mpv yolu (isteğe bağlı; mpv PATH üzerinde değilken yerel host tarafından kullanılır)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "mpv'yi tam ekranda aç"
+    },
+    "options_mpv_pausepage": {
+        "message": "Video mpv'ye verildiğinde tarayıcıdaki videoyu duraklat"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Her seferinde yeni pencere açmak yerine tek mpv penceresini yeniden kullan"
+    },
+    "options_mpv_test": {
+        "message": "mpv bağlantısını test et"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv bulundu"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host'a ulaşıldı, ancak mpv bulunamadı"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv host'u kullanılamıyor"
+    },
+    "player_mpv_label": {
+        "message": "Bu akışı mpv'de aç"
+    },
+    "player_mpv_sending": {
+        "message": "mpv'ye gönderiliyor..."
+    },
+    "player_mpv_sent": {
+        "message": "mpv'ye gönderildi"
+    },
+    "player_mpv_fail": {
+        "message": "mpv'de açılamadı. FastStream mpv host'u kurulu mu?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Bu akışı mpv'de aç (içerik türü: Anime — sağ tıklayarak değiştirin)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Bu akışı mpv'de aç (içerik türü: Film — sağ tıklayarak değiştirin)"
     },
     "options_help_header": {
         "message": "Yardım"

@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Activer/Désactiver FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Lecture dans MPV"
+    },
     "command_toggle_player": {
         "message": "Activer/Désactiver le lecteur FastStream pour cet onglet"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Taille maximale de la vidéo préchargée"
     },
+    "options_general_bufferahead": {
+        "message": "Secondes à conserver en mémoire tampon devant la lecture (utilisé une fois que le pré-téléchargement s'arrête ou arrive à court d'espace)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"
+    },
+    "options_general_blockpopups": {
+        "message": "Bloquer les popups/popunders ouverts juste après avoir cliqué sur le lecteur"
+    },
     "options_general_previewenabled": {
         "message": "Afficher l'aperçu au survol de la barre temporelle"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Ces modèles sont utilisés pour détecter des sources vidéo personnalisées sur les pages web. Ils sont appliqués dans l'ordre, et la première correspondance est utilisée. Réservé aux utilisateurs avancés."
+    },
+    "options_mpv_header": {
+        "message": "Mode MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Ouvrir les flux détectés dans mpv (lecteur externe)"
+    },
+    "options_mpv_body": {
+        "message": "Lorsque le mode MPV est activé, le bouton de la barre d'outils bascule entre Désactivé, Activé (lecteur intégré) et MPV. Sur les sites de la liste d'autorisation, les flux détectés s'ouvrent directement dans mpv sur votre ordinateur au lieu du lecteur du navigateur. Nécessite l'hôte mpv FastStream – voir le dossier native-host du dépôt pour les instructions d'installation."
+    },
+    "options_mpv_allowlist": {
+        "message": "Liste d'autorisation MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Les sites de cette liste ouvrent dans mpv les flux détectés. Une URL par ligne ; les pages commençant par cette URL correspondent aussi. Utilisez ~ pour les regex et ! pour exclure. Les sites sans balise utilisent Film par défaut pour la sélection de shaders de mpv – ajoutez @anime à la fin d'une ligne pour les sites qui n'en sont pas. @movie est aussi accepté, si vous souhaitez l'écrire en toutes lettres. Le bouton mpv du lecteur peut remplacer cela pour chaque vidéo."
+    },
+    "options_mpv_path": {
+        "message": "Chemin de mpv (facultatif, utilisé par l'hôte natif lorsque mpv n'est pas dans le PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Ouvrir mpv en plein écran"
+    },
+    "options_mpv_pausepage": {
+        "message": "Mettre en pause la vidéo dans le navigateur lorsqu'elle est confiée à mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Réutiliser une seule fenêtre mpv au lieu d'en ouvrir une nouvelle à chaque fois"
+    },
+    "options_mpv_test": {
+        "message": "Tester la connexion à mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv trouvé"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Hôte joignable, mais mpv introuvable"
+    },
+    "options_mpv_test_fail": {
+        "message": "Hôte mpv indisponible"
+    },
+    "player_mpv_label": {
+        "message": "Ouvrir ce flux dans mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Envoi vers mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Envoyé vers mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Impossible d'ouvrir dans mpv. L'hôte mpv de FastStream est-il installé ?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Ouvrir ce flux dans mpv (type de contenu : Anime – clic droit pour le changer)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Ouvrir ce flux dans mpv (type de contenu : Film – clic droit pour le changer)"
     },
     "options_help_header": {
         "message": "Aide"

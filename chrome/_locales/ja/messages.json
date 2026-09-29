@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "FastStream に切り替える"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - MPV で再生中"
+    },
     "command_toggle_player": {
         "message": "このタブで FastStream プレイヤーをオン/オフにする"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "プリダウンローダーの最大サイズ"
     },
+    "options_general_bufferahead": {
+        "message": "再生位置より先をバッファーに保持する秒数（事前ダウンロードが停止した後または容量が尽きた後に使用）"
+    },
+    "options_general_bufferbehind": {
+        "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
+    },
+    "options_general_blockpopups": {
+        "message": "プレーヤーをクリックした直後に開かれるポップアップ/ポップアンダーをブロックする"
+    },
     "options_general_previewenabled": {
         "message": "タイムライン上でマウスを移動するとプレビューが表示されます"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "これらのパターンは、Web ページ上のカスタム動画ソースを検出するために使用されます。順番に適用され、最初に一致したものが使用されます。上級者向け。"
+    },
+    "options_mpv_header": {
+        "message": "MPV モード"
+    },
+    "options_mpv_toggle": {
+        "message": "検出したストリームを mpv（外部プレーヤー）で開く"
+    },
+    "options_mpv_body": {
+        "message": "MPV モードが有効なとき、ツールバーのボタンは「オフ」「オン（内蔵プレーヤー）」「MPV」を切り替えます。許可リストのサイトでは、検出されたストリームはブラウザーのプレーヤーではなく、コンピューター上の mpv で直接開かれます。FastStream mpv ホストが必要です。セットアップ手順はリポジトリーの native-host フォルダーを参照してください。"
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV 許可リスト"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "このリストにあるサイトは、検出されたストリームを mpv で開きます。1 行に 1 つの URL。その URL で始まるページも一致します。正規表現には ~ を、除外には ! を使用します。タグのないサイトは、mpv のシェーダー選択に既定で映画が使われます。該当しないサイトは行末に @anime を追加してください。明示的に書きたい場合は @movie も受け付けます。プレーヤーの mpv ボタンから動画ごとに上書きできます。"
+    },
+    "options_mpv_path": {
+        "message": "mpv のパス（省略可。PATH 上に mpv がない場合にネイティブホストが使用）"
+    },
+    "options_mpv_fullscreen": {
+        "message": "mpv を全画面で開く"
+    },
+    "options_mpv_pausepage": {
+        "message": "動画を mpv に渡すとき、ブラウザー側で一時停止する"
+    },
+    "options_mpv_singleinstance": {
+        "message": "毎回新しいウィンドウを開かず、1 つの mpv ウィンドウを再利用する"
+    },
+    "options_mpv_test": {
+        "message": "mpv 接続をテスト"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv が見つかりました"
+    },
+    "options_mpv_test_nompv": {
+        "message": "ホストには到達できましたが、mpv が見つかりません"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv ホストを利用できません"
+    },
+    "player_mpv_label": {
+        "message": "このストリームを mpv で開く"
+    },
+    "player_mpv_sending": {
+        "message": "mpv に送信中..."
+    },
+    "player_mpv_sent": {
+        "message": "mpv に送信済み"
+    },
+    "player_mpv_fail": {
+        "message": "mpv で開けませんでした。FastStream mpv ホストはインストールされていますか？"
+    },
+    "player_mpv_content_unset": {
+        "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
+    },
+    "player_mpv_content_anime": {
+        "message": "このストリームを mpv で開く（コンテンツタイプ：アニメ — 右クリックで変更）"
+    },
+    "player_mpv_content_movie": {
+        "message": "このストリームを mpv で開く（コンテンツタイプ：映画 — 右クリックで変更）"
     },
     "options_help_header": {
         "message": "ヘルプ"

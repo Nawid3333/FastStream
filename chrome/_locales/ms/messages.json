@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Togol FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Sedang dimainkan dalam MPV"
+    },
     "command_toggle_player": {
         "message": "Togol pemain FastStream untuk tab ini"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Maximum size of predownloaded video"
     },
+    "options_general_bufferahead": {
+        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan sebaik pramuat turun berhenti atau kehabisan ruang)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"
+    },
+    "options_general_blockpopups": {
+        "message": "Sekat popup/popunder yang dibuka sejurus selepas mengklik pemain"
+    },
     "options_general_previewenabled": {
         "message": "Show preview when hovering over the timeline"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "These patterns are used to detect custom video sources on webpages. They are applied in order, and the first match is used. For advanced users only."
+    },
+    "options_mpv_header": {
+        "message": "Mod MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Buka strim yang dikesan dalam mpv (pemain luaran)"
+    },
+    "options_mpv_body": {
+        "message": "Apabila Mod MPV dihidupkan, butang bar alat bertukar antara Mati, Hidup (pemain terbina dalam) dan MPV. Pada tapak dalam senarai dibenarkan, strim yang dikesan dibuka terus dalam mpv pada komputer anda dan bukan pemain pelayar. Memerlukan hos mpv FastStream – lihat folder native-host dalam repositori untuk arahan persediaan."
+    },
+    "options_mpv_allowlist": {
+        "message": "Senarai Dibenarkan MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan. Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak yang bukan Filem. @movie juga diterima, jika anda mahu menulisnya dengan penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video."
+    },
+    "options_mpv_path": {
+        "message": "Laluan mpv (pilihan, digunakan oleh hos asli apabila mpv tiada dalam PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Buka mpv dalam skrin penuh"
+    },
+    "options_mpv_pausepage": {
+        "message": "Jeda video dalam pelayar apabila ia diserahkan kepada mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Guna semula satu tetingkap mpv dan bukan membuka yang baharu setiap kali"
+    },
+    "options_mpv_test": {
+        "message": "Uji sambungan mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv ditemui"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Hos boleh dihubungi, tetapi mpv tidak ditemui"
+    },
+    "options_mpv_test_fail": {
+        "message": "Hos mpv tidak tersedia"
+    },
+    "player_mpv_label": {
+        "message": "Buka strim ini dalam mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Menghantar ke mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Dihantar ke mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Tidak dapat dibuka dalam mpv. Adakah hos mpv FastStream dipasang?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Buka strim ini dalam mpv (jenis kandungan: Anime – klik kanan untuk mengubah)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Buka strim ini dalam mpv (jenis kandungan: Filem – klik kanan untuk mengubah)"
     },
     "options_help_header": {
         "message": "Help"
