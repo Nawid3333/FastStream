@@ -1,0 +1,277 @@
+// Of a page's streams, the player plays the longest.
+//
+// A page that runs an ad or an intro first has its stream among the sources FastStream
+// detects, and the player used to pick by kind and age alone: the first HLS or DASH stream,
+// or else the newest MP4 - the ad, as often as not. The background now reads how long each
+// stream runs (StreamLengths: the manifest, or the start of the file) with the page's own
+// headers, and the player picks the longest; an ad runs for seconds, the video for minutes.
+//
+// A manifest served with no extension in its URL, known only by its Content-Type, was not
+// detected at all (cineby's Simplify server, anikage's og.bakayaro.live/m3u8/<token>).
+//
+// Driven on the installed extension, the site on the auto-enable list: pages that load an
+// ad and a longer stream, and the stream the player ends up playing.
+
+import {spawnSync} from 'node:child_process';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+
+import {browser, expect} from '@wdio/globals';
+
+import {inExtensionPage} from '../extension-page.mjs';
+import {loopedPlaylist} from '../loopedPlaylist.mjs';
+
+const SITE_PORT = 41980;
+const SITE = `http://127.0.0.1:${SITE_PORT}`;
+const FIXTURES = path.resolve(import.meta.dirname, '../fixtures');
+
+let siteServer;
+let workDir;
+// The film: long-av.mp4 (160 s) as most encoders write one, its movie header after the
+// media data, where a read of the file's start does not find it.
+let filmFile;
+let filmMoovAt;
+// Every request the server got: the reads of the film's movie header are the background's.
+const requests = [];
+
+// The player fetches from a partitioned moz-extension:// frame, so everything it plays
+// needs CORS, preflight included (see embed-page-query).
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Range, Content-Type',
+  'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
+};
+
+const HLS_TYPE = 'application/vnd.apple.mpegurl';
+const playlist = (seconds) => loopedPlaylist(seconds, '/hls-ts/');
+
+/**
+ * Serves a file, byte ranges included, as a video server does.
+ * @param {http.IncomingMessage} req - The request.
+ * @param {http.ServerResponse} res - The response.
+ * @param {string} file - The file.
+ * @param {string} type - Its Content-Type.
+ */
+function serveFile(req, res, file, type) {
+  const size = fs.statSync(file).size;
+  const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+  if (range) {
+    const start = Number(range[1]);
+    const end = Math.min(size - 1, range[2] ? Number(range[2]) : size - 1);
+    if (start >= size) {
+      res.writeHead(416, {...CORS, 'Content-Range': `bytes */${size}`});
+      res.end();
+      return;
+    }
+    res.writeHead(206, {...CORS, 'Content-Type': type, 'Accept-Ranges': 'bytes',
+      'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1});
+    fs.createReadStream(file, {start, end}).pipe(res);
+    return;
+  }
+  res.writeHead(200, {...CORS, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': size});
+  fs.createReadStream(file).pipe(res);
+}
+
+/**
+ * A page with a video for the player to replace, which loads what its script says.
+ * @param {string} title - The page's title.
+ * @param {string} body - More of the page.
+ * @param {string} script - Its script.
+ * @return {string} The page.
+ */
+function page(title, body, script) {
+  return `<!doctype html><title>${title}</title>
+    <video muted preload="auto" style="width: 640px; height: 360px"></video>${body}
+    <script>${script}</script>`;
+}
+
+/**
+ * Waits for FastStream's player to replace the page's video, switches into it, and reads
+ * the source it plays and its list of sources.
+ * @return {Promise<Object>} What the player has.
+ */
+async function playerSources() {
+  await browser.waitUntil(async () => browser.execute(() => {
+    return Array.from(document.querySelectorAll('iframe')).some((f) => f.src.includes('player/index.html'));
+  }), {timeout: 30000, timeoutMsg: 'the in-page player never replaced the page\'s video'});
+  await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+  await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.source),
+      {timeout: 30000, timeoutMsg: 'the player never got a source'});
+  // A player on its source decodes it; give it the time to, for the log.
+  let state;
+  await browser.waitUntil(async () => {
+    state = await browser.execute(() => {
+      const client = window.fastStream;
+      const video = client.player?.getVideo?.();
+      return {
+        source: client.source.url,
+        sources: client.sourcesBrowser.sources.map((source) => source.url).filter(Boolean),
+        readyState: video ? video.readyState : null,
+      };
+    });
+    return state.readyState >= 2;
+  }, {timeout: 15000, interval: 250}).catch(() => {});
+  await browser.switchFrame(null);
+  console.log('      player:', JSON.stringify(state));
+  return state;
+}
+
+describe('Of a page\'s streams, the player', function() {
+  before(async function() {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'faststream-length-'));
+    filmFile = path.join(workDir, 'film.mp4');
+    // Without +faststart, ffmpeg writes the movie header last.
+    const {status, stderr} = spawnSync('ffmpeg', ['-y', '-v', 'error', '-i', path.join(FIXTURES, 'long-av.mp4'),
+      '-c', 'copy', filmFile], {encoding: 'utf8'});
+    if (status !== 0) {
+      throw new Error(`could not remux the film fixture with ffmpeg: ${stderr}`);
+    }
+    // Where the movie header starts: the premise of the case that plays the film.
+    const bytes = fs.readFileSync(filmFile);
+    for (let pos = 0; pos + 8 <= bytes.length;) {
+      const size = bytes.readUInt32BE(pos);
+      const type = bytes.toString('latin1', pos + 4, pos + 8);
+      if (type === 'moov') {
+        filmMoovAt = pos;
+        break;
+      }
+      pos += size === 1 ? Number(bytes.readBigUInt64BE(pos + 8)) : size;
+    }
+    if (!(filmMoovAt > 64 * 1024)) {
+      throw new Error(`the film's movie header is at ${filmMoovAt}, not after its media data`);
+    }
+
+    // The playlists' segments, by the path they are served at.
+    const segmentDir = path.join(FIXTURES, 'hls-ts');
+    const segments = new Map(fs.readdirSync(segmentDir).filter((name) => name.endsWith('.ts'))
+        .map((name) => [`/hls-ts/${name}`, path.join(segmentDir, name)]));
+
+    // The pages are the same whatever they are asked with: each builds its URLs from its
+    // own location, so the server echoes nothing it is sent.
+    siteServer = http.createServer((req, res) => {
+      const {pathname, search} = new URL(req.url, SITE);
+      requests.push({path: pathname, search, range: req.headers.range || '', referer: req.headers.referer || ''});
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, CORS);
+        res.end();
+        return;
+      }
+      const text = (type, body, status = 200) => {
+        res.writeHead(status, {...CORS, 'Content-Type': type});
+        res.end(body);
+      };
+
+      if (pathname === '/media/ad.mp4') {
+        serveFile(req, res, path.join(FIXTURES, 'sample.mp4'), 'video/mp4');
+      } else if (pathname === '/media/film.mp4') {
+        serveFile(req, res, filmFile, 'video/mp4');
+      } else if (segments.has(pathname)) {
+        serveFile(req, res, segments.get(pathname), 'video/mp2t');
+      } else if (pathname === '/hls/intro.m3u8') {
+        text(HLS_TYPE, playlist(9));
+      } else if (pathname === '/hls/extra.m3u8') {
+        text(HLS_TYPE, playlist(720));
+      } else if (pathname.startsWith('/hls/private')) {
+        // A CDN that serves the site's pages only.
+        if (!(req.headers.referer || '').startsWith(SITE + '/')) {
+          text('text/plain', 'forbidden', 403);
+        } else if (pathname === '/hls/private.m3u8') {
+          text(HLS_TYPE, '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000\nprivate-720p.m3u8\n');
+        } else if (pathname === '/hls/private-720p.m3u8') {
+          // Slowly. Only the length's read and the player's own playback ask for this; the
+          // page asked for the master alone, which is when the stream was detected. The
+          // player asks for the page's streams before the length is known, and its pick
+          // waits for it.
+          setTimeout(() => text(HLS_TYPE, playlist(1800)), 2000);
+        } else {
+          text('text/plain', 'not found', 404);
+        }
+      } else if (pathname === '/watch') {
+        // A playlist known by its Content-Type alone.
+        text(`${HLS_TYPE}; charset=utf-8`, playlist(1800));
+      } else if (pathname === '/manifest') {
+        text('application/dash+xml', fs.readFileSync(path.join(FIXTURES, 'dash-template/manifest.mpd'), 'utf8'));
+      } else if (pathname === '/page/mp4') {
+        // The film at once, the ad after it: the newest MP4, which the player used to pick.
+        text('text/html; charset=utf-8', page('film and ad',
+            '<video muted preload="auto" id="ad" style="width: 160px; height: 90px"></video>', `
+              document.querySelector('video').src = '/media/film.mp4' + location.search;
+              setTimeout(() => {
+                document.getElementById('ad').src = '/media/ad.mp4' + location.search;
+              }, 200);`));
+      } else if (pathname === '/page/manifests') {
+        // A 9-second intro with an extension, then the episode and a DASH manifest without.
+        text('text/html; charset=utf-8', page('manifests', '', `
+              const c = new URLSearchParams(location.search).get('c');
+              fetch('/hls/intro.m3u8?c=' + c)
+                  .then(() => fetch('/watch?v=' + c))
+                  .then(() => fetch('/manifest?id=' + c));`));
+      } else if (pathname === '/page/private') {
+        // A 12-minute stream first, then the half-hour one only the site's pages may read.
+        text('text/html; charset=utf-8', page('private', '', `
+              fetch('/hls/extra.m3u8' + location.search)
+                  .then(() => fetch('/hls/private.m3u8' + location.search));`));
+      } else {
+        text('text/plain', 'not found', 404);
+      }
+    });
+    await new Promise((resolve, reject) => {
+      siteServer.on('error', reject);
+      siteServer.listen(SITE_PORT, '127.0.0.1', resolve);
+    });
+
+    // The site on the auto-enable list: the player opens by itself once a source is
+    // detected, and the background reads the lengths of what it detects.
+    await inExtensionPage((site, done) => {
+      chrome.storage.local.set({options: JSON.stringify({autoEnableURLs: [site + '/']})}, () => {
+        chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
+          void chrome.runtime.lastError;
+          setTimeout(() => done(true), 500);
+        });
+      });
+    }, SITE);
+  });
+
+  after(async function() {
+    await browser.switchFrame(null);
+    if (siteServer) await new Promise((resolve) => siteServer.close(resolve));
+    if (workDir) fs.rmSync(workDir, {recursive: true, force: true});
+  });
+
+  it('plays the film, not the ad the page loaded after it', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/mp4?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/media/film.mp4?c=${c}`, `${SITE}/media/ad.mp4?c=${c}`]));
+    expect(state.source).toBe(`${SITE}/media/film.mp4?c=${c}`);
+    // Its length came from its movie header, read where the media data ends.
+    const header = requests.filter((r) => r.path === '/media/film.mp4' && r.range === `bytes=${filmMoovAt}-${filmMoovAt + 65535}`);
+    expect(header.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('finds manifests by their Content-Type, and plays the longest stream', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/manifests?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([
+      `${SITE}/hls/intro.m3u8?c=${c}`, `${SITE}/watch?v=${c}`, `${SITE}/manifest?id=${c}`,
+    ]));
+    expect(state.source).toBe(`${SITE}/watch?v=${c}`);
+  });
+
+  it('reads a length with the page\'s own headers, and waits for a slow one', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/private?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/extra.m3u8?c=${c}`, `${SITE}/hls/private.m3u8?c=${c}`]));
+    // Read without the page's Referer, or not waited for, the half-hour stream's length is
+    // unknown: it ranks as ten minutes, under the twelve of the other.
+    expect(state.source).toBe(`${SITE}/hls/private.m3u8?c=${c}`);
+    const privateReads = requests.filter((r) => r.path.startsWith('/hls/private'));
+    expect(privateReads.map((r) => r.path)).toContain('/hls/private-720p.m3u8');
+    expect(privateReads.filter((r) => !r.referer)).toEqual([]);
+  });
+});

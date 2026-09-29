@@ -7,6 +7,7 @@ import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {RequestUtils} from './utils/RequestUtils.mjs';
+import {StreamLength} from './utils/StreamLength.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
@@ -91,9 +92,13 @@ async function recieveSources(request, sendResponse) {
     return;
   }
 
+  // Of the longest: an ad or an intro runs for seconds, the video for minutes or hours.
+  // The rest stay in the list, to choose by hand.
+  const candidates = StreamLength.longest(sources);
+
   // Sources are ordered by time, so we can just choose the first one and it will be the oldest.
   // But we also want to minimize depth
-  let autoSetSource = sources.reduce((result, curr) => {
+  let autoSetSource = candidates.reduce((result, curr) => {
     // Choose lower depth
     if (result.depth > curr.depth) {
       return curr;
@@ -106,11 +111,11 @@ async function recieveSources(request, sendResponse) {
     }
 
     return result;
-  }, sources[0]);
+  }, candidates[0]);
 
   // Play the newest source at lowest depth if it is mp4
   if (autoSetSource.mode === PlayerModes.ACCELERATED_MP4) {
-    const mp4SourceCandidates = sources.filter((item) => {
+    const mp4SourceCandidates = candidates.filter((item) => {
       return item !== autoSetSource && item.mode === PlayerModes.ACCELERATED_MP4;
     });
 
