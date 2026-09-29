@@ -30,6 +30,7 @@ import path from 'node:path';
 import * as url from 'node:url';
 
 import {listenOrStop} from './listen-or-stop.mjs';
+import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -219,6 +220,15 @@ export const config = {
       if (!server) return resolve();
       server.close(resolve);
     });
+  },
+
+  // The player's speed preset keys: see speedWatch.mjs.
+  beforeTest: async function(test) {
+    await speedBeforeTest(test);
+  },
+
+  afterTest: async function(test, context, {passed}) {
+    await speedAfterTest(test, passed);
   },
 
   before: async function() {

@@ -34,6 +34,7 @@ import path from 'node:path';
 import * as url from 'node:url';
 
 import {listenOrStop} from './listen-or-stop.mjs';
+import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -539,7 +540,13 @@ export const config = {
   // screenshot distinguishes the cases that matter and look identical from the
   // message alone: the page never loaded, the player rendered but no video
   // element appeared, or the video is there and simply not decoding.
+  // The player's speed preset keys: see speedWatch.mjs.
+  beforeTest: async function(test) {
+    await speedBeforeTest(test);
+  },
+
   afterTest: async function(test, context, {passed}) {
+    await speedAfterTest(test, passed);
     if (passed) return;
     const dir = path.join(root, 'logs');
     fs.mkdirSync(dir, {recursive: true});
