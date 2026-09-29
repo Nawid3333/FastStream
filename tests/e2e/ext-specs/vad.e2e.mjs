@@ -87,7 +87,13 @@ describe('the voice activity detector', function() {
           stateShape: quiet.stateN ? quiet.stateN.dims : null,
         };
       })().catch((e) => {
-        window.__err = (e && e.stack) || String(e);
+        // Firefox's stack holds only the frames, not the message. ONNX Runtime
+        // runs threads only on a cross-origin isolated page, up to half the
+        // cores, so say what the page had.
+        window.__err = `${String(e)}\n${(e && e.stack) || ''}` +
+          `hardwareConcurrency ${navigator.hardwareConcurrency}, ` +
+          `crossOriginIsolated ${window.crossOriginIsolated}, ` +
+          `SharedArrayBuffer ${typeof SharedArrayBuffer}`;
       });
     });
 
