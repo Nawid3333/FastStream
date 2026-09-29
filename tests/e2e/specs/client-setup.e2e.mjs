@@ -215,8 +215,13 @@ describe('FastStreamClient setup', function() {
     expect(result.error).toBe(undefined);
 
     await waitForPicture();
+    // The lookup keeps its hashes when it is done: the second video's own, or with the bug,
+    // the first's. A fixed wait could end before the second's two hashes on a slow runner,
+    // and the test would then blame the race.
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.progressHashesCache),
+        {timeout: 30000, timeoutMsg: 'the second video\'s remembered-time lookup never finished'});
     // The seek to a remembered time comes once the player is ready.
-    await browser.pause(1500);
+    await browser.pause(500);
     const state = await browser.execute(() => {
       const hashes = window.fastStream.progressHashesCache;
       return {
