@@ -5,6 +5,7 @@ import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
+import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
 import {modeFromContentType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
@@ -762,6 +763,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       ruleManager.addHeaderRule(msg.url, sender.tab.id, msg.commands).then((rule) => {
         if (Logging) console.log('Added rule', msg, rule);
         sendResponse();
+      }).catch((e) => {
+        // Refused (a header set to nothing, say): answered all the same, so the request goes
+        // out without it. Unanswered, the player's request failed.
+        console.warn('Header rule refused', e);
+        sendResponse();
       });
       return true;
     }
@@ -775,7 +781,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }, frame, mode);
   } else if (msg.type === MessageTypes.DOWNLOAD) {
     const url = msg.url;
-    const filename = msg.filename;
+    // Firefox refuses a name with a colon and some other characters, and the download then
+    // silently did not happen: every screenshot ("@00:05") and any title with a colon.
+    const filename = sanitizeDownloadFilename(msg.filename);
     // Check if cookieStoreId is set
     if (sender.tab.cookieStoreId && sender.tab.cookieStoreId !== 'firefox-default') {
       chrome.tabs.create({

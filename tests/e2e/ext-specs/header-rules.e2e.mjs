@@ -65,6 +65,12 @@ describe('Header rules for a stream URL', function() {
     ['a plain URL (the control)', 'plain', '/stream/master.m3u8?id=plain'],
     ['a URL with a *', 'star', '/stream/master.m3u8?acl=/*~hmac=5f&id=star'],
     ['a URL with a ^ and a |', 'caret', '/stream/master.m3u8?sig=a^b|c&id=caret'],
+    ['a URL with a ^ in its path', 'caretpath', '/stream/s^1/master.m3u8?id=caretpath'],
+    // This server is http, so the rule has to strip "http://" and nothing else.
+    ['an http URL with an https URL in its query', 'nested', '/stream/master.m3u8?u=https://cdn.test/v&id=nested'],
+    // As a source typed or pasted in: fetch() sends these percent-encoded.
+    ['a URL written with a space', 'space', '/stream/video 1.mp4?id=space'],
+    ['a URL written with an é and a space', 'accent', '/stream/vidéo 1.mp4?id=accent'],
   ];
 
   for (const [name, id, path] of cases) {
@@ -75,4 +81,20 @@ describe('Header rules for a stream URL', function() {
       expect(seen.get(id)).toBe(REFERER);
     });
   }
+
+  it('answers when Firefox refuses the header rule, so the load does not wait on it', async function() {
+    // "Referer:" left empty in the source's header box: Firefox refuses a set with no value
+    // ("value is required"), and the background never answered, so the request failed.
+    const page = await inExtensionPage((args, done) => {
+      const answer = chrome.runtime.sendMessage({
+        type: 'SET_HEADERS',
+        url: args.url,
+        commands: [{operation: 'set', header: 'referer', value: ''}],
+      }).then(() => 'answered', (e) => 'rejected: ' + e);
+      const wait = new Promise((resolve) => setTimeout(() => resolve('no answer in 5 s'), 5000));
+      Promise.race([answer, wait]).then((outcome) => done({outcome}));
+    }, {url: SITE + '/stream/master.m3u8?id=refused'});
+    console.log('      page:', JSON.stringify(page));
+    expect(page.outcome).toBe('answered');
+  });
 });

@@ -1,3 +1,17 @@
+/**
+ * The URL as Firefox requests it: a raw "é" or space goes out percent-encoded. The rule has
+ * to match that form, and Firefox refuses a rule whose urlFilter is not ASCII.
+ * @param {string} url - The URL as the player has it.
+ * @return {string}
+ */
+function asRequested(url) {
+  try {
+    return new URL(url).href;
+  } catch (e) {
+    return url;
+  }
+}
+
 export class RuleEntry {
   constructor(id) {
     this.id = id;
@@ -84,7 +98,9 @@ export class RuleManager {
         // like an Akamai `acl=/*` token got no Referer/Origin. Unescaped, a
         // `*`, `^` or `|` from the URL can only widen the match, never exclude
         // the URL itself, and the rule is limited to one tab and 5 seconds.
-        urlFilter: '||' + url.replace('https://', '').replace('http://', ''),
+        // Only the scheme at the start: an http URL whose query holds an https one
+        // lost that "https://" instead.
+        urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, ''),
         tabIds: [tabId],
       },
     };
