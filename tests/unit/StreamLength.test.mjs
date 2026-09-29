@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {StreamLength, UNKNOWN_LENGTH_S} from '../../chrome/player/utils/StreamLength.mjs';
+import {PIECE_LENGTH, StreamLength, UNKNOWN_LENGTH_S} from '../../chrome/player/utils/StreamLength.mjs';
 
 // MP4 boxes: a 32-bit size, a four-character type, the payload.
 function box(type, ...payloads) {
@@ -149,9 +149,37 @@ describe('StreamLength.fromMp4', () => {
 
   it('tells no length for an unknown one, or a movie header without one', () => {
     expect(StreamLength.fromFile(concat(ftyp, box('moov', mvhd(0, 1000, 0xFFFFFFFF))))).toBeNull();
-    // An init segment: no length of its own.
+    // A fragmented movie header without its length, and fragments may follow it.
     expect(StreamLength.fromFile(concat(ftyp, box('moov', mvhd(0, 1000, 0), box('mvex', box('trex')))))).toBeNull();
     expect(StreamLength.fromFile(concat(ftyp, box('moov', box('trak'))))).toBeNull();
+  });
+
+  // An HLS or DASH stream's pieces are files of their own, and a page's player fetches them
+  // by URLs ending in .mp4, detected as sources. Shaka's 60-second demo HLS: read as
+  // unknown, they ranked above its manifest, and the player opened one 4-second fragment.
+  it('takes a media segment for a piece of a stream: fragments, no movie header before them', () => {
+    const fragments = concat(box('moof', box('mfhd', u32(0, 15))), boxHeader('mdat', 64000));
+    const sidx = box('sidx', new Uint8Array(24));
+    expect(StreamLength.fromFile(concat(box('styp', new TextEncoder().encode('msdh')), sidx, fragments)))
+        .toEqual({duration: PIECE_LENGTH});
+    expect(StreamLength.fromFile(concat(sidx, fragments))).toEqual({duration: PIECE_LENGTH});
+    expect(StreamLength.fromFile(concat(box('emsg', new Uint8Array(12)), fragments))).toEqual({duration: PIECE_LENGTH});
+    expect(StreamLength.fromFile(fragments)).toEqual({duration: PIECE_LENGTH});
+  });
+
+  it('takes an init segment for a piece of a stream: a fragmented movie header the file ends with', () => {
+    const init = concat(ftyp, box('moov', mvhd(0, 1000, 0), box('mvex', box('trex'))));
+    expect(StreamLength.fromFile(init, 0, true)).toEqual({duration: PIECE_LENGTH});
+    // With its title's length in mehd, as Shaka's: it plays none of it itself.
+    const titled = concat(ftyp, box('moov', mvhd(0, 1000, 0), box('mvex', mehd(0, 60021))));
+    expect(StreamLength.fromFile(titled, 0, true)).toEqual({duration: PIECE_LENGTH});
+    // Not where the read stopped short of the file's end, and not in a whole fragmented
+    // file, with its fragments after the header.
+    expect(StreamLength.fromFile(titled)).toEqual({duration: 60.021});
+    const whole = concat(titled, box('moof', box('mfhd', u32(0, 1))), box('mdat', new Uint8Array(16)));
+    expect(StreamLength.fromFile(whole, 0, true)).toEqual({duration: 60.021});
+    // Nor a file that is not fragmented and ends with its movie header.
+    expect(StreamLength.fromFile(concat(ftyp, box('moov', mvhd(0, 1000, 90500))), 0, true)).toEqual({duration: 90.5});
   });
 
   it('takes no other bytes for an MP4', () => {
@@ -294,6 +322,14 @@ describe('StreamLength.longest', () => {
     const tie = 0.9 * UNKNOWN_LENGTH_S;
     expect(names([src('unknown', null), src('edge', tie)])).toEqual(['unknown', 'edge']);
     expect(names([src('unknown', null), src('under', tie - 1)])).toEqual(['unknown']);
+  });
+
+  it('ranks a piece of a stream below every stream, and keeps the pieces when there is nothing else', () => {
+    // Shaka's 60-second demo HLS: its manifests, init segments and media segments.
+    const piece = (name) => src(name, PIECE_LENGTH);
+    expect(names([src('hls', 60), src('playlist', 60), piece('init'), piece('s1'), piece('s15')])).toEqual(['hls', 'playlist']);
+    expect(names([piece('s1'), src('ad', 5), src('unknown', null)])).toEqual(['unknown']);
+    expect(names([piece('init'), piece('s1')])).toEqual(['init', 's1']);
   });
 
   it('takes a live stream over any recording', () => {

@@ -14,13 +14,20 @@
 // the read away, or the file keeps it where a few reads do not reach.
 export const UNKNOWN_LENGTH_S = 10 * 60;
 
+// The length of a piece of a stream: an HLS or DASH init or media segment, which plays
+// nothing by itself. It ranks below every stream, so a page's manifest is kept over its own
+// pieces; read as unknown, they outranked the manifest of any title under 9 minutes.
+export const PIECE_LENGTH = -1;
+
 // Streams at least this share of the longest one's length tie with it, and the caller's
 // own rule chooses among them: the same video in two formats differs by a second or two,
 // two episodes by a few minutes, an ad and the video by far more.
 const TIE_SHARE = 0.9;
 
-// The boxes an MP4 file can start with.
-const MP4_FIRST_BOXES = ['ftyp', 'styp', 'moov', 'mdat', 'free', 'skip', 'wide', 'pdin', 'uuid'];
+// The boxes an MP4 file can start with, a media segment's among them (sidx, emsg, prft,
+// moof).
+const MP4_FIRST_BOXES = ['ftyp', 'styp', 'moov', 'mdat', 'free', 'skip', 'wide', 'pdin', 'uuid',
+  'sidx', 'emsg', 'prft', 'moof'];
 
 // The most an mvhd box takes, version 1: enough of a moov to read its length from.
 const MVHD_MAX_BYTES = 120;
@@ -117,17 +124,19 @@ export class StreamLength {
    * @param {Uint8Array} bytes - Bytes of the file, from offset on.
    * @param {number} [offset=0] - Where in the file the bytes start. A top-level MP4 box
    *   starts there.
-   * @return {{duration: number}|{next: number}|null} The length in seconds; or, for an MP4
-   *   whose movie header lies further on (after its media data, most often), the file
-   *   offset to read from next; or null for bytes that are neither, or tell no length.
+   * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
+   * @return {{duration: number}|{next: number}|null} The length in seconds (PIECE_LENGTH
+   *   for a piece of a stream); or, for an MP4 whose movie header lies further on (after
+   *   its media data, most often), the file offset to read from next; or null for bytes
+   *   that are neither, or tell no length.
    */
-  static fromFile(bytes, offset = 0) {
+  static fromFile(bytes, offset = 0, ended = false) {
     if (offset === 0 && bytes.length >= 4 &&
         new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0) === EBML_MAGIC) {
       const duration = StreamLength.fromWebm(bytes);
       return duration ? {duration} : null;
     }
-    return StreamLength.fromMp4(bytes, offset);
+    return StreamLength.fromMp4(bytes, offset, ended);
   }
 
   /**
@@ -136,9 +145,10 @@ export class StreamLength {
    * @param {Uint8Array} bytes - Bytes of the file, from offset on.
    * @param {number} [offset=0] - Where in the file the bytes start; a top-level box starts
    *   there.
+   * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
    * @return {{duration: number}|{next: number}|null} See fromFile.
    */
-  static fromMp4(bytes, offset = 0) {
+  static fromMp4(bytes, offset = 0, ended = false) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let pos = 0;
     while (pos + 8 <= bytes.length) {
@@ -161,9 +171,21 @@ export class StreamLength {
         return null;
       }
 
+      // A media segment: fragments, and no movie header before them. That is the stream's
+      // init segment, a file of its own.
+      if (type === 'moof') {
+        return {duration: PIECE_LENGTH};
+      }
+
       if (type === 'moov') {
         const end = Math.min(bytes.length, pos + size);
-        const duration = StreamLength.movieLength(bytes.subarray(pos + header, end));
+        const moov = bytes.subarray(pos + header, end);
+        // An init segment: the movie header of fragments that come as files of their own,
+        // and the file ends with it. A whole fragmented file has its fragments after it.
+        if (ended && pos + size === bytes.length && StreamLength.isFragmented(moov)) {
+          return {duration: PIECE_LENGTH};
+        }
+        const duration = StreamLength.movieLength(moov);
         if (duration) {
           return {duration};
         }
@@ -181,6 +203,21 @@ export class StreamLength {
       pos += size;
     }
     return {next: offset + pos};
+  }
+
+  /**
+   * Whether a moov box's movie comes in fragments: it has an mvex box.
+   * @param {Uint8Array} moov - The box's contents, after its header.
+   * @return {boolean} Whether it does.
+   */
+  static isFragmented(moov) {
+    let fragmented = false;
+    StreamLength.forEachBox(moov, (type) => {
+      if (type === 'mvex') {
+        fragmented = true;
+      }
+    });
+    return fragmented;
   }
 
   /**
@@ -318,7 +355,7 @@ export class StreamLength {
 
   /**
    * The streams to choose from: the longest, and those that tie with it. A stream of
-   * unknown length ranks as UNKNOWN_LENGTH_S long.
+   * unknown length ranks as UNKNOWN_LENGTH_S long, a piece of one (PIECE_LENGTH) as 0.
    * @template {{duration?: number|null}} T
    * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
    * @return {T[]} Those of them, in the order they came.
@@ -335,6 +372,9 @@ export class StreamLength {
    * @return {number} Seconds.
    */
   static rankLength(duration) {
+    if (duration === PIECE_LENGTH) {
+      return 0;
+    }
     return typeof duration === 'number' && duration > 0 ? duration : UNKNOWN_LENGTH_S;
   }
 

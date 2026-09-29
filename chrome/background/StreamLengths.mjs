@@ -43,8 +43,9 @@ export class StreamLengths {
 
   /**
    * @param {string} url - A stream's URL.
-   * @return {number|null|undefined} Its length in seconds (Infinity when live), null when
-   *   it cannot be told, undefined while it is not read yet.
+   * @return {number|null|undefined} Its length in seconds (Infinity when live, PIECE_LENGTH
+   *   for a piece of a stream), null when it cannot be told, undefined while it is not read
+   *   yet.
    */
   lengthOf(url) {
     return this.known.get(url)?.duration;
@@ -158,7 +159,8 @@ export class StreamLengths {
         if (!response || (offset > 0 && !response.partial)) {
           return null;
         }
-        const result = StreamLength.fromFile(response.bytes, offset);
+        // Fewer bytes than asked for: the file ends with them.
+        const result = StreamLength.fromFile(response.bytes, offset, response.bytes.length < FILE_CHUNK_BYTES);
         if (!result || 'duration' in result) {
           return result ? result.duration : null;
         }
