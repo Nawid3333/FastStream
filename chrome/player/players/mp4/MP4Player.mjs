@@ -61,6 +61,13 @@ export default class MP4Player extends EventEmitter {
     this.currentFragments = [];
 
     this._duration = 0;
+
+    // checkStall(): the time last seen and since when, and how many nudges there have been
+    // and where the last one went (NaN: none).
+    this.stallTime = null;
+    this.stallSince = 0;
+    this.stallNudges = 0;
+    this.stallNudgedTo = NaN;
   }
 
 
