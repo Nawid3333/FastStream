@@ -1055,6 +1055,12 @@ the change went in.
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
+- **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
+  and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
+  microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:
+  <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
+  can't see the PC): the owner closes it; a title is never used twice; a newer release
+  closes the open one. Permissions: `issues: write` only, no checkout.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
 - **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
