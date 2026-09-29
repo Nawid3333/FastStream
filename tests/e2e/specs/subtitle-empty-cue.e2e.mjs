@@ -13,15 +13,7 @@ describe('A subtitle cue with no text', function() {
       globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.mp4');
     await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.player),
         {timeout: 60000, timeoutMsg: 'the player never loaded'});
-    await browser.execute(() => {
-      const client = window.fastStream;
-      client.currentVideo.pause();
-      client.currentTime = 1;
-    });
-    await browser.waitUntil(async () => browser.execute(() => {
-      const time = window.fastStream.state.currentTime;
-      return time > 0.5 && time < 4;
-    }), {timeout: 20000, timeoutMsg: 'the player never got to 1 s'});
+    await browser.execute(() => window.fastStream.currentVideo.pause());
   });
 
   it('leaves the tracks after it and the rest of the time update running', async function() {
@@ -45,9 +37,10 @@ describe('A subtitle cue with no text', function() {
           return track;
         };
 
-        const empty = load('Empty cue', '1\n00:00:00,000 --> 00:00:05,000\n\n' +
-          '2\n00:00:05,000 --> 00:00:06,000\nLater\n');
-        const other = load('Other', 'WEBVTT\n\n00:00:00.000 --> 00:00:05.000\nShown\n');
+        // Both cues span the whole 10 s video, so whatever time it is at, they are on.
+        const empty = load('Empty cue', '1\n00:00:00,000 --> 00:00:10,000\n\n' +
+          '2\n00:00:10,000 --> 00:00:11,000\nLater\n');
+        const other = load('Other', 'WEBVTT\n\n00:00:00.000 --> 00:00:10.000\nShown\n');
         attempt('activate the empty cue\'s track', () => manager.activateTrack(empty));
         attempt('activate the other track', () => manager.activateTrack(other));
 
