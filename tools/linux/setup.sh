@@ -77,7 +77,7 @@ fi
 # from its layers by the digest .github/actionlint/Dockerfile pins, each download checked
 # against its digest. apt's shellcheck is another version (0.9.0 on 24.04), and versions
 # differ in findings.
-image=$(sed -n 's|^FROM rhysd/actionlint:\([0-9.]*@sha256:[0-9a-f]*\).*|\1|p' "$repo/.github/actionlint/Dockerfile" | head -1)
+image=$(sed -n 's|^FROM rhysd/actionlint:\([0-9.]*@sha256:[0-9a-f]\{64\}\).*|\1|p' "$repo/.github/actionlint/Dockerfile" | head -1)
 if [ -z "$image" ]; then
   echo "actionlint: no line 'FROM rhysd/actionlint:<version>@sha256:<digest>' in .github/actionlint/Dockerfile"
   exit 1

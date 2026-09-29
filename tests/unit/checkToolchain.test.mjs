@@ -97,10 +97,20 @@ describe('every pinned tool is one Dependabot updates', () => {
     expect(pins).toBeGreaterThanOrEqual(40);
   });
 
-  it('runs no docker:// image', () => {
+  it('runs no docker:// image, and no job container or service image', () => {
+    // Dependabot updates none of these in a workflow.
     for (const file of [...workflows, ...actions]) {
       expect(read(file), file).not.toMatch(/^ *(?:- )?uses: *['"]?docker:/m);
+      expect(read(file), file).not.toMatch(/^ +(?:container|services):/m);
     }
+  });
+
+  it('keeps an actionlint image update waiting for the owner', () => {
+    // A CI check changes only with a person's review; update-prs.yml gives the kind a
+    // reason, and a pull request with any reason waits.
+    const gate = read('.github/workflows/update-prs.yml');
+    expect(gate).toMatch(/^ +dependabot\/docker\/\*\) kind=docker ;;$/m);
+    expect(gate).toMatch(/^ +docker\) reasons\+=\('[^']+'\) ;;$/m);
   });
 
   it('has Dependabot watch the workflows and every composite action', () => {
