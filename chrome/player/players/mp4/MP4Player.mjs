@@ -508,6 +508,19 @@ export default class MP4Player extends EventEmitter {
               this.loader = null;
             } else return;
 
+            // The file's length has to be known before mp4box parses the data: parsing the
+            // moov runs onMetadataParsed, which otherwise works the length out from the
+            // samples known so far. For a fragmented file those are only the fragments in
+            // this range, so the ranges after it were never made, and the file was
+            // taken to end there.
+            if (!this.fileLength) {
+              const total = parseInt(entry.responseHeaders['content-range']?.split('/')[1]);
+              if (total > 0) {
+                this.fileLength = total;
+                this.initializeFragments();
+              }
+            }
+
             this.mp4box.appendBuffer(data);
             this.currentFragments.push(frag);
             frag.addReference(ReferenceTypes.MP4PLAYER, true);

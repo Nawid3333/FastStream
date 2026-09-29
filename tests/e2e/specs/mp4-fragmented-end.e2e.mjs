@@ -10,6 +10,11 @@
 // fragment is moved, with a `free` box in front of it, to start 8 bytes before the end of
 // MP4Player's first range. The server holds that second range back for a while, the moment
 // in which the stream was wrongly ended.
+//
+// Knowing where the file ends needs its length, and MP4Player took that from the samples
+// mp4box knew once the first range was parsed, not from the server's Content-Range. For a
+// fragmented file those end with the first range: the file looked complete, the stream
+// was ended there, and the second range was never asked for.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -129,7 +134,7 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
     if (server) await new Promise((resolve) => server.close(resolve));
   });
 
-  it('keeps the stream open and the whole duration until the last range is in', async function() {
+  it('keeps the stream open until the last range is in, and plays to the end', async function() {
     await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}/fragmented-gap.mp4`);
 
     // The first range is in: everything before the second fragment is buffered.
@@ -139,14 +144,15 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
       return state.buffered > 7;
     }, {timeout: 30000, interval: 200, timeoutMsg: 'the first range never played'});
 
-    // While the second range is held back, the stream is not over.
+    // While the second range is held back, the stream is not over. (The duration is what
+    // has been parsed so far: an empty_moov file, as ffmpeg writes it, has no mehd box to
+    // give it up front. It grows as the rest comes in - unless the stream was ended.)
     const seen = [];
     const until = Date.now() + 2500;
     while (Date.now() < until && !secondRangeAnswered) {
       state = await playerState();
       seen.push(`${state.mediaSource} ${Number(state.duration).toFixed(2)}`);
       expect(state.mediaSource).toBe('open');
-      expect(state.duration).toBeGreaterThan(9.5);
       await browser.pause(250);
     }
     console.log('      while the second range was held:', [...new Set(seen)].join(', '));
