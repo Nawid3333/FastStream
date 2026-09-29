@@ -678,11 +678,19 @@ allowlisted page, webRequest detection, native host, mpv, HTTP request —
 against two local origins, because a same-origin media request carries no
 `Origin` header. It skips rather than fails when the host is not installed,
 and so do `classic-specs/mpv-shortcut`, `mpv-suspend` and `toolbar-cycle-mpv`.
-CI's `e2e-windows` job installs the host, so there they run: stock mpv 0.41.0
-(the mpv-player/mpv release zip, pinned by version and SHA-256, logging
-through `portable_config`) registered by `native-host/install.ps1`, the step
-failing if the registry key or its manifest is missing rather than letting
-the specs skip. The maintainer's own mpv build is covered by the local verify.
+CI's `e2e-windows` job installs the host, so there they run: shinchiro's
+x86_64-v3 Windows build, the one the maintainer runs (release, asset and
+SHA-256 pinned in `.github/mpv-build.json`, logging through
+`portable_config`), registered by `native-host/install.ps1`, the step failing
+if the registry key or its manifest is missing rather than letting the specs
+skip. `mpv-updates.yml` moves the pin by itself: each day it pushes shinchiro's
+newest build as `mpv/<release>`, dispatches CI on it, reruns failed jobs once,
+and on a pass puts the pin commit on main (no PR; the push by `GITHUB_TOKEN`
+starts no CI and so no release, and the pin ships nothing). A failed build,
+or a pinned release gone upstream (shinchiro keeps about 30), opens or updates
+one assigned issue, "mpv update failed: ...", which a later pass closes. A
+failed build keeps its branch, so it is not tried again; delete the branch to
+retry it.
 The host itself is covered by no suite; verify it by driving
 `com.faststream.mpv.bat` with a length-prefixed message, and by checking
 survival inside a real kill-on-close job object.

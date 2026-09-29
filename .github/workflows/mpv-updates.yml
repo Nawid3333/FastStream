@@ -1,0 +1,312 @@
+name: mpv updates
+
+# CI's Windows job installs shinchiro's daily Windows build of mpv
+# (github.com/shinchiro/mpv-winbuild-cmake), the x86_64-v3 one the maintainer runs, so
+# the MPV-mode e2e specs run against the mpv in use. .github/mpv-build.json pins it by
+# release, asset and SHA-256. A data file, not the workflow: this workflow's token cannot
+# push a change to .github/workflows/*. The pin cannot stand still for long either:
+# shinchiro keeps only about the 30 newest releases, and CI downloads the pinned one.
+#
+# Every day this reads shinchiro's latest release and its one x86_64-v3 build. When it
+# is newer than the pin:
+#
+#   - Branch mpv/<release> is main with the pin moved, and CI is started on it: a push by
+#     this workflow's token starts no workflow, a dispatch does. When it fails, its failed
+#     jobs run once more, so one flaky test does not count.
+#   - Passed: the pin commit goes onto main, with no pull request. The owner watches this
+#     repository, and a pull request a day would be an email a day. The pin ships nothing,
+#     so auto-release.yml does not release it (and a push by this token starts no CI).
+#     Every mpv/* branch is deleted, and the failure issue, if open, is closed.
+#   - Failed (an attempt still running after 65 minutes is cancelled, and counts as
+#     failed): the branch stays, to look at and as the record that this build was tried:
+#     it is not tried again. Delete the branch to try it again. The failure goes on ONE
+#     issue, "mpv update failed: <what>", assigned to the owner and @mentioning them, so
+#     GitHub emails it: opened, or retitled and commented while it is open. CI keeps the
+#     pinned build meanwhile.
+#
+# Every run also checks that the pinned release still exists upstream. Once it is gone,
+# every CI run fails at the mpv install, so that goes on the same issue too. Each thing
+# is reported once: a report carries a key, and one already on the open issue is not
+# made again. The issue also closes once main pins the latest build, however it got
+# there.
+#
+# Not reported on the issue: this workflow's own failure (shinchiro renaming the builds,
+# the API down). That fails the run, and GitHub emails a failed scheduled run. If CI
+# could not be started on the branch, the branch is deleted first, so the next run tries
+# the build again.
+#
+# A pull request that changes this file runs it as a dry run: everything is read and
+# what a real run would do is printed, but nothing is pushed, started or reported.
+
+on:
+  schedule:
+    # Daily, 03:45 UTC. shinchiro's builds come out at about 00:30 UTC.
+    - cron: '45 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/mpv-updates.yml
+
+permissions:
+  contents: write  # push mpv/<release>, then the pin to main
+  issues: write    # the failure issue
+  actions: write   # start CI on the branch, and rerun its failed jobs
+
+# One real run at a time, queued. A pull request's dry run has a group of its own: in this
+# one it would wait behind a real run, and could push a waiting scheduled run out of the
+# queue (a group keeps one pending run).
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('mpv-updates-pr-{0}', github.event.number) || 'mpv-updates' }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Try shinchiro's latest mpv build
+    runs-on: ubuntu-latest
+    # Its own work takes a minute. The rest is CI on the branch: about 32 minutes a run,
+    # twice with the rerun, plus the wait for runners. Each attempt is given 65 minutes.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Move the pin to the latest build, if CI passes with it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          EVENT: ${{ github.event_name }}
+          UPSTREAM: shinchiro/mpv-winbuild-cmake
+          PREFIX: 'mpv update failed: '
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ] && [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "Run this on main: it reads the pin there and moves it there." >&2
+            exit 1
+          fi
+
+          # --- The pin, and shinchiro's latest x86_64-v3 build. Not exactly one such asset,
+          # or no digest for it, means shinchiro changed how builds are named or published:
+          # nothing to guess around, the run fails.
+          pinned=$(jq -r .release .github/mpv-build.json)
+          gh api "repos/$UPSTREAM/releases/latest" > "$RUNNER_TEMP/latest.json"
+          latest=$(jq -r .tag_name "$RUNNER_TEMP/latest.json")
+          jq '[.assets[] | select(.name | test("^mpv-x86_64-v3-[0-9]{8}-git-[0-9a-f]+[.]7z$"))]' \
+            "$RUNNER_TEMP/latest.json" > "$RUNNER_TEMP/asset.json"
+          if [ "$(jq length "$RUNNER_TEMP/asset.json")" != 1 ]; then
+            echo "Release $latest has no single mpv-x86_64-v3-<date>-git-<hash>.7z. Its assets:" >&2
+            jq -r '.assets[].name' "$RUNNER_TEMP/latest.json" >&2
+            exit 1
+          fi
+          asset=$(jq -r '.[0].name' "$RUNNER_TEMP/asset.json")
+          digest=$(jq -r '.[0].digest // ""' "$RUNNER_TEMP/asset.json")
+          if ! [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "$asset has no SHA-256 digest (digest: '$digest')." >&2
+            exit 1
+          fi
+          # Releases are tagged by date, so the pin can be compared: a newer pin (shinchiro
+          # took their latest release down) is not moved back.
+          if ! [[ $latest =~ ^[0-9]{8}$ && $pinned =~ ^[0-9]{8}$ ]]; then
+            echo "Expected dates as the release tags: pinned '$pinned', latest '$latest'." >&2
+            exit 1
+          fi
+          branch="mpv/$latest"
+          echo "Pinned: $pinned. Latest: $latest, $asset."
+
+          # --- Tried before: only a build that failed leaves its mpv/<release> branch.
+          status=0
+          git ls-remote --exit-code --heads origin "refs/heads/$branch" > /dev/null || status=$?
+          case $status in
+            0) tried=1 ;;
+            2) tried=0 ;;
+            *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
+          esac
+
+          # --- The pinned release still upstream. Any failure but a 404 is not an answer.
+          gone=0
+          if ! err=$(gh api "repos/$UPSTREAM/releases/tags/$pinned" 2>&1 > /dev/null); then
+            case $err in
+              *'(HTTP 404)'*) gone=1 ;;
+              *) echo "Reading release $pinned failed: $err" >&2; exit 1 ;;
+            esac
+          fi
+
+          # --- The open failure issue. The whole list, filtered exactly: the search index can
+          # lag behind an issue opened minutes ago.
+          issue=$(gh issue list --state open --limit 200 --json number,title \
+            --jq "[.[] | select(.title | startswith(\"$PREFIX\"))][0].number // \"\"")
+
+          if [ "$EVENT" = pull_request ]; then
+            echo 'Dry run: nothing is pushed, started or reported.'
+            if [ "$latest" -le "$pinned" ]; then
+              echo "Would do nothing: the pin is on the latest build, or newer."
+            elif [ "$tried" = 1 ]; then
+              echo "Would do nothing: branch $branch exists, so $latest failed before."
+            else
+              echo "Would push $branch with the pin on $latest, run CI on it, and move main's pin if it passes."
+            fi
+            if [ "$gone" = 1 ]; then echo "Would report: the pinned $pinned is gone upstream."; fi
+            if [ -n "$issue" ]; then echo "Open failure issue: #$issue."; fi
+            exit 0
+          fi
+
+          # A report is made once: its key goes into it, and a key already on the open issue
+          # (its text or a comment) is not reported again.
+          report() { # <key> <title after the prefix> <body file>
+            if [ -n "$issue" ]; then
+              texts=$(gh issue view "$issue" --json body,comments --jq '.body, .comments[].body')
+              if grep -qF "<!-- mpv-updates: $1 -->" <<< "$texts"; then
+                echo "Reported on #$issue before: $1."
+                return
+              fi
+            fi
+            printf '\n<sub>Reported by %s</sub>\n<!-- mpv-updates: %s -->\n' "$RUN_URL" "$1" >> "$3"
+            if [ -n "$issue" ]; then
+              gh issue edit "$issue" --title "$PREFIX$2" --add-assignee "$OWNER"
+              gh issue comment "$issue" --body-file "$3"
+            else
+              url=$(gh issue create --title "$PREFIX$2" --assignee "$OWNER" --body-file "$3")
+              issue=${url##*/}
+            fi
+          }
+
+          # Waits for an attempt of the CI run to end and prints its conclusion, or timed_out
+          # after 65 minutes. A rerun keeps the run's id and counts its attempt up; until it
+          # registers, the run still reads as the earlier attempt, completed.
+          conclusion_of() { # <attempt>
+            local seen='' now
+            for _ in $(seq 65); do
+              sleep 60
+              now=$(gh run view "$run_id" --json attempt,status,conclusion \
+                --jq '"\(.attempt) \(.status) \(.conclusion)"' || true)
+              if [ "$now" != "$seen" ]; then echo "CI: attempt, status, conclusion: $now" >&2; seen=$now; fi
+              case $now in
+                "$1 completed "*) echo "${now##* }"; return ;;
+              esac
+            done
+            echo timed_out
+          }
+
+          moved=0
+          if [ "$latest" -le "$pinned" ]; then
+            echo "The pin is on the latest build already, or newer: $pinned."
+            if [ -n "$issue" ] && [ "$gone" = 0 ]; then
+              gh issue close "$issue" --comment "main pins $pinned, and shinchiro has no newer build. Closing."
+            fi
+          elif [ "$tried" = 1 ]; then
+            echo "Branch $branch exists: $latest failed before, so it is not tried again."
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git fetch -q origin main
+            git checkout -q -B "$branch" origin/main
+            jq -n --arg release "$latest" --arg asset "$asset" --arg sha256 "${digest#sha256:}" \
+              '{release: $release, asset: $asset, sha256: $sha256}' > .github/mpv-build.json
+            git commit -q -m "ci: mpv $latest (shinchiro)" -- .github/mpv-build.json
+            commit=$(git rev-parse HEAD)
+            git push -q origin "$branch"
+
+            # Until CI runs on it, a failure takes the branch down again: the next run tries
+            # this build anew instead of counting it as tried.
+            if ! gh workflow run ci.yml --ref "$branch"; then
+              git push -q origin --delete "$branch"
+              exit 1
+            fi
+            # The dispatch gives no run id. The run is the workflow_dispatch one on the
+            # branch's commit: a branch deleted to try a build again leaves its runs listed.
+            run_id=''
+            for _ in $(seq 24); do
+              sleep 5
+              run_id=$(gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch \
+                --json databaseId,headSha --jq "[.[] | select(.headSha == \"$commit\")][0].databaseId // \"\"" || true)
+              if [ -n "$run_id" ]; then break; fi
+            done
+            if [ -z "$run_id" ]; then
+              echo "CI was started on $branch, but no run showed up within two minutes." >&2
+              git push -q origin --delete "$branch"
+              exit 1
+            fi
+            run_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
+            echo "CI on $branch: $run_url"
+
+            conclusion=$(conclusion_of 1)
+            rerun=0
+            if [ "$conclusion" != success ] && [ "$conclusion" != timed_out ] \
+              && gh run rerun "$run_id" --failed; then
+              rerun=1
+              conclusion=$(conclusion_of 2)
+            fi
+            if [ "$conclusion" = timed_out ]; then
+              gh run cancel "$run_id" || true
+            fi
+
+            if [ "$conclusion" = success ]; then
+              # Onto the newest main. A push can lose to another push, so up to four tries.
+              landed=0
+              for _ in 1 2 3 4; do
+                git fetch -q origin main
+                main_pin=$(git show origin/main:.github/mpv-build.json | jq -r .release)
+                # Pinned there meanwhile by hand, to this build or a newer one.
+                if [ "$main_pin" -ge "$latest" ] 2> /dev/null; then
+                  landed=1
+                  break
+                fi
+                git checkout -q -B land origin/main
+                if git cherry-pick "$commit" && git push -q origin HEAD:main; then
+                  landed=1
+                  main_pin=$latest
+                  break
+                fi
+                git cherry-pick --abort 2> /dev/null || true
+              done
+              if [ "$landed" = 1 ]; then
+                moved=1
+                echo "main pins $main_pin now."
+                # This build's branch, and the failed builds' ones, kept until a build passed.
+                refs=$(git ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
+                if [ -n "$refs" ]; then
+                  # shellcheck disable=SC2086 # one ref per word
+                  git push -q origin --delete ${refs//refs\/heads\//}
+                fi
+                if [ -n "$issue" ]; then
+                  gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url), and main pins $main_pin now. Closing."
+                fi
+              else
+                # shellcheck disable=SC2016 # backticks are Markdown
+                {
+                  printf '@%s mpv %s from shinchiro passed CI, but its pin could not be put on main: the push lost to other pushes, or the pin commit did not apply. It is on branch `%s`.\n\n' "$OWNER" "$latest" "$branch"
+                  printf -- '- CI run: %s\n' "$run_url"
+                } > "$RUNNER_TEMP/body.md"
+                report "land $latest" "$latest passed CI but did not land on main" "$RUNNER_TEMP/body.md"
+              fi
+            else
+              main_ci=$(gh run list --workflow ci.yml --branch main --event push --limit 1 --json conclusion,url \
+                --jq '.[0] | "\(if .conclusion == "" then "still running" else .conclusion end), \(.url)"' || echo 'unknown')
+              # shellcheck disable=SC2016 # backticks are Markdown
+              {
+                if [ "$conclusion" = timed_out ]; then
+                  printf '@%s CI with mpv %s from shinchiro was still running after 65 minutes, so it was cancelled.\n\n' "$OWNER" "$latest"
+                elif [ "$rerun" = 1 ]; then
+                  printf '@%s mpv %s from shinchiro failed CI. Its failed jobs were run once more, in case a test was flaky, and that ended in %s.\n\n' "$OWNER" "$latest" "$conclusion"
+                else
+                  printf '@%s mpv %s from shinchiro failed CI (%s), and its failed jobs could not be run again.\n\n' "$OWNER" "$latest" "$conclusion"
+                fi
+                printf -- '- CI run: %s\n' "$run_url"
+                printf -- '- Branch: `%s`, which is main with the pin moved and nothing else\n' "$branch"
+                printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
+                printf -- '- The latest CI run on main: %s. If that failed too, the cause may not be mpv.\n\n' "$main_ci"
+                printf 'CI keeps installing the pinned %s meanwhile. Each newer build is tried the day it comes out: one that passes moves the pin and closes this issue. shinchiro keeps only about the 30 newest releases, so a pin left behind for weeks disappears; this issue will say so if it does.\n\n' "$pinned"
+                printf 'To try %s again: delete the branch, then run the workflow (Actions, mpv updates, Run workflow).\n' "$latest"
+              } > "$RUNNER_TEMP/body.md"
+              report "failed $latest" "$latest" "$RUNNER_TEMP/body.md"
+            fi
+          fi
+
+          if [ "$gone" = 1 ] && [ "$moved" = 0 ]; then
+            # shellcheck disable=SC2016 # backticks are Markdown
+            {
+              printf '@%s The pinned mpv build, %s from shinchiro, is gone upstream: shinchiro keeps only about the 30 newest releases. CI downloads it from there, so every CI run now fails at "Install mpv and the native host", and nothing is released.\n\n' "$OWNER" "$pinned"
+              printf 'The pin moves on its own once a newer build passes CI. To move it by hand: put a release, its `mpv-x86_64-v3-...7z` asset and the SHA-256 of that asset into `.github/mpv-build.json`.\n'
+            } > "$RUNNER_TEMP/body.md"
+            report "gone $pinned" "the pinned $pinned is gone upstream" "$RUNNER_TEMP/body.md"
+          fi
