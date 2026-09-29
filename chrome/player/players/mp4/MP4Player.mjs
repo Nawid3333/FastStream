@@ -9,18 +9,10 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
+import {StallWatchdog} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
 const BACK_BUFFER_SLACK = 1;
-// A video that says it is playing, with this much buffered ahead of it, is stuck once its
-// time has not moved for STALL_TIMEOUT_MS; it is then nudged forward STALL_NUDGE seconds,
-// one step further each time, at most STALL_MAX_NUDGES times until it moves again. The
-// numbers are hls.js's for the same nudge (highBufferWatchdogPeriod, nudgeOffset,
-// nudgeMaxRetry).
-const STALL_MIN_AHEAD = 1;
-const STALL_TIMEOUT_MS = 2000;
-const STALL_NUDGE = 0.1;
-const STALL_MAX_NUDGES = 3;
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -62,12 +54,7 @@ export default class MP4Player extends EventEmitter {
 
     this._duration = 0;
 
-    // checkStall(): the time last seen and since when, and how many nudges there have been
-    // and where the last one went (NaN: none).
-    this.stallTime = null;
-    this.stallSince = 0;
-    this.stallNudges = 0;
-    this.stallNudgedTo = NaN;
+    this.stallWatchdog = new StallWatchdog();
   }
 
 
@@ -342,62 +329,8 @@ export default class MP4Player extends EventEmitter {
 
     this.runLoad();
     this.checkEndOfStream();
-    this.checkStall();
+    this.stallWatchdog.check(this.video);
     this.loopTimeout = setTimeout(this.mainLoop.bind(this), 1);
-  }
-
-  /**
-   * Firefox sometimes stops a video that says it is playing: after a seek back into what is
-   * buffered, the element is not paused and not seeking, at readyState 2 with minutes
-   * buffered ahead, and its time and frame count stay where they are. play() gets it going,
-   * but at the time its clock has run on to, a minute later; a seek starts it where it was
-   * sought to. So a stuck video is sought a little forward, as hls.js does for its streams.
-   */
-  checkStall() {
-    const video = this.video;
-    const time = video.currentTime;
-    const now = performance.now();
-    if (time !== this.stallTime) {
-      // It moved. A nudge moves it too, and counts as moving only once it plays on from there.
-      // Firefox keeps whole microseconds, so where a nudge lands can differ in the last digits.
-      if (!(Math.abs(time - this.stallNudgedTo) < 0.001)) {
-        this.stallNudges = 0;
-      }
-      this.stallTime = time;
-      this.stallSince = now;
-      return;
-    }
-
-    if (video.paused || video.seeking || video.ended || !video.playbackRate || video.readyState < 2 ||
-        this.bufferedAhead(time) < STALL_MIN_AHEAD) {
-      // Not meant to move, or waiting for media, which is runLoad()'s job.
-      this.stallSince = now;
-      return;
-    }
-
-    if (now - this.stallSince < STALL_TIMEOUT_MS || this.stallNudges >= STALL_MAX_NUDGES) {
-      return;
-    }
-    this.stallNudges++;
-    this.stallSince = now;
-    this.stallNudgedTo = time + STALL_NUDGE * this.stallNudges;
-    console.warn(`Playback stuck at ${time} with media buffered ahead, nudging it to ${this.stallNudgedTo}`);
-    video.currentTime = this.stallNudgedTo;
-  }
-
-  /**
-   * How far the buffered range that holds a time runs past it.
-   * @param {number} time - Seconds.
-   * @return {number} Seconds; 0 when the time is not buffered.
-   */
-  bufferedAhead(time) {
-    const buffered = this.buffered;
-    for (let i = 0; i < buffered.length; i++) {
-      if (time >= buffered.start(i) && time <= buffered.end(i)) {
-        return buffered.end(i) - time;
-      }
-    }
-    return 0;
   }
 
   /**

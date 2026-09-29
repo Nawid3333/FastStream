@@ -219,7 +219,7 @@ describe('MP4 files of other shapes', function() {
     // must play on from about 60 s, not from where the element's clock ran on to.
     const back = await seekAndPlay(60);
     console.log('      nudged to:', await browser.execute(() => {
-      const to = window.fastStream.player.stallNudgedTo;
+      const to = window.fastStream.player.stallWatchdog.nudgedTo;
       return Number.isNaN(to) ? 'not nudged' : to;
     }));
     expect(back.currentTime).toBeGreaterThan(61);
