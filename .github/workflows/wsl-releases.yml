@@ -57,10 +57,7 @@ jobs:
           gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
             --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | [.number, .state, .title] | @tsv' \
             > "$RUNNER_TEMP/mine.tsv"
-          if cut -f3 "$RUNNER_TEMP/mine.tsv" | grep -qxF "$title"; then
-            echo "Already told in an issue \"$title\"; nothing to do."
-            exit 0
-          fi
+          current=$(awk -F '\t' -v title="$title" '$3 == title {print "#" $1; exit}' "$RUNNER_TEMP/mine.tsv")
 
           {
             printf '@%s WSL %s is out (%s): https://github.com/microsoft/WSL/releases/tag/%s\n\n' \
@@ -79,14 +76,22 @@ jobs:
           Close this issue once WSL is updated, or to skip this version. GitHub can't see your PC, so it won't close on its own. If a newer WSL comes out first, this issue is closed and a new one opened.
           EOF
           } > "$RUNNER_TEMP/body.md"
-          url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
-          echo "Opened $url"
+          if [ -n "$current" ]; then
+            echo "Already told in $current, \"$title\"."
+          else
+            current=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+            echo "Opened $current"
+          fi
 
-          # An open issue for an older version: the new one replaces it.
-          while IFS=$'\t' read -r number state _; do
-            [ "$state" = open ] || continue
-            gh issue close "$number" --reason 'not planned' --comment "WSL $version is out: $url replaces this issue."
-            echo "Closed #$number"
+          # An open issue for an older version: the current one replaces it. Checked on every
+          # run, so one whose close failed is closed the next day. An issue for a newer
+          # version (the latest release went back) stays open.
+          while IFS=$'\t' read -r number state old; do
+            old=${old#"$PREFIX"}
+            if [ "$state" != open ] || [ "$old" = "$version" ]; then continue; fi
+            if [ "$(printf '%s\n%s\n' "$old" "$version" | sort -V | tail -n 1)" != "$version" ]; then continue; fi
+            gh issue close "$number" --reason 'not planned' --comment "WSL $version is out: $current replaces this issue."
+            echo "Closed #$number (WSL $old)"
           done < "$RUNNER_TEMP/mine.tsv"
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
