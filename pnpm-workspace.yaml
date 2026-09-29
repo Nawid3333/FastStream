@@ -14,6 +14,13 @@ overrides:
   # and its 1.0.5 changelog fixes exactly this symlink-at-final-path-component
   # class of bug. Same package name everywhere it's required, so no code change.
   extract-zip: npm:@electron-internal/extract-zip@^1.0.5
+  # Dependabot #30-#42: webdriver (undici ^6.27.0) and addons-linter's cheerio
+  # (undici ^7.19.0) both allow the patched undici (6.28.1, 7.29.1), but pnpm
+  # keeps the locked 6.28.0 and 7.29.0 even on `pnpm update undici`, and
+  # Dependabot's own update ends in update_not_possible. One override per major,
+  # so each keeps its own.
+  undici@6: ^6.28.1
+  undici@7: ^7.29.1
 allowBuilds:
   geckodriver: true
   esbuild: true
