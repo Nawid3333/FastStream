@@ -90,7 +90,7 @@ describe('SourceBufferWrapper', () => {
     expect(wrapper.updating).toBe(false);
   });
 
-  it('runs the operations queued behind one that throws, in order', async () => {
+  it('runs the operations queued behind ones that throw, in order', async () => {
     const {sourceBuffer, wrapper} = makeWrapper();
     const order = [];
     sourceBuffer.appendBuffer.mockImplementation((buffer) => order.push(['append', buffer.byteLength]));
@@ -101,12 +101,14 @@ describe('SourceBufferWrapper', () => {
 
     const first = wrapper.appendBuffer(new ArrayBuffer(1));
     const bad = wrapper.remove(5, 5);
+    const worse = wrapper.remove(7, 3);
     const good = wrapper.remove(0, 10);
     const last = wrapper.appendBuffer(new ArrayBuffer(2));
     expect(order).toEqual([['append', 1]]);
 
     sourceBuffer.updateEnd();
     await expect(bad).rejects.toThrow(TypeError);
+    await expect(worse).rejects.toThrow(TypeError);
     expect(order).toEqual([['append', 1], ['remove', 0, 10]]);
 
     sourceBuffer.updateEnd();
