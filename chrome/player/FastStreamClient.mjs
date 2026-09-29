@@ -1014,11 +1014,22 @@ export class FastStreamClient extends EventEmitter {
     // make the next video start at this one's time and save its progress into this record.
     const player = this.player;
     this.disableProgressSave = true;
-    const hashes = await this.progressMemory.getHashes(player.getSource().identifier);
-    if (this.player !== player) return;
-    const progressData = (await this.progressMemory.getFile(hashes)) || {
-      lastTime: 0,
-    };
+    let hashes = null;
+    let progressData = null;
+    try {
+      hashes = await this.progressMemory.getHashes(player.getSource().identifier);
+      if (this.player !== player) return;
+      progressData = (await this.progressMemory.getFile(hashes)) || {
+        lastTime: 0,
+      };
+    } catch (e) {
+      // A record that cannot be read (IndexedDB failing, or data that does not decrypt) is
+      // no remembered time. Thrown on, it stopped the rest of the video's setup, which
+      // waits on this: the seek to the time in its URL, and autoplay. Without hashes there
+      // is no record to save to.
+      console.warn('Could not read the remembered time', e);
+      progressData = hashes ? {lastTime: 0} : null;
+    }
     if (this.player !== player) return;
     this.progressHashesCache = hashes;
     this.progressData = progressData;

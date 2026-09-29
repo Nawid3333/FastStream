@@ -218,4 +218,28 @@ describe('FastStreamClient setup', function() {
     expect(state.currentTime).toBeLessThan(1);
     expect(state.record).toBe(result.secondRecord);
   });
+
+  it('finishes setting up a video whose remembered time cannot be read', async function() {
+    // The lookup threw on (a record that does not decrypt, IndexedDB failing), and the rest
+    // of the setup waits on it: the seek to the time in the URL never came.
+    await openEmptyPlayer();
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.progressMemory),
+        {timeout: 30000, timeoutMsg: 'the progress memory never loaded'});
+    await browser.execute(() => {
+      window.fastStream.options.storeProgress = true;
+      window.fastStream.progressMemory.getFile = async () => {
+        throw new Error('OperationError: the record does not decrypt');
+      };
+    });
+    await addSource(`${mp4Url()}?faststream-timestamp=4`);
+    await waitForPicture();
+
+    let currentTime = 0;
+    await browser.waitUntil(async () => {
+      currentTime = await browser.execute(() => window.fastStream.currentTime);
+      return currentTime >= 3.9;
+    }, {timeout: 10000, interval: 250}).catch(() => {});
+    console.log('      currentTime:', currentTime);
+    expect(currentTime).toBeGreaterThanOrEqual(3.9);
+  });
 });
