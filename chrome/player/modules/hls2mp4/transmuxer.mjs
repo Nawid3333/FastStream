@@ -245,8 +245,12 @@ export default class Transmuxer {
     // TSDemuxer.demux only reads chunkMeta.iframe, and false.iframe reads as
     // undefined rather than throwing -- but a real object is used for
     // consistency with the other two call sites, which do throw on it.
+    // The flag after it is isSampleAes, then flush: 1.6.9's demux(data, timeOffset,
+    // isSampleAes, flush) took this call's `true` as flush, and 1.7.2 as isSampleAes. Without
+    // the flush, the PES data left at the end of the last segment was never parsed, and a
+    // save lost the video's last frames and the audio's last packet.
     const {audioTrack, videoTrack} = this.demuxer.demux(
-        data, null, makeChunkMeta(this.transmuxConfig.duration), true);
+        data, null, makeChunkMeta(this.transmuxConfig.duration), false, true);
 
 
     const videoStartPTS = videoTrack.samples.length ? this.getVideoStartPts(videoTrack.samples) : 0;

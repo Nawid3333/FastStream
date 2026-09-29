@@ -58,7 +58,6 @@ export class HLS2MP4 extends EventEmitter {
           use64Offsets: false,
           nextChunkId: 1,
           elst: [],
-          padding: 0,
         };
       }
 
@@ -104,7 +103,6 @@ export class HLS2MP4 extends EventEmitter {
           use64Offsets: false,
           nextChunkId: 1,
           elst: [],
-          padding: 0,
         };
       }
 
@@ -147,7 +145,6 @@ export class HLS2MP4 extends EventEmitter {
           use64Offsets: false,
           nextChunkId: 1,
           elst: [],
-          padding: 0,
         };
       }
 
@@ -212,39 +209,44 @@ export class HLS2MP4 extends EventEmitter {
     }
 
     const len = tracks[0].chunks.length;
-    let minDts = tracks[0].chunks[0].startDTS;
+    // The chunks' times are in seconds. The movie starts with the first frame shown by either
+    // track, as MP4Merger's does.
+    let minStart = Infinity;
 
     for (let i = 0; i < tracks.length; i++) {
       if (tracks[i].chunks.length !== len) {
         console.log('WARNING: chunk length is not equal', tracks[i].chunks.length, len);
       }
 
-      if (tracks[i].chunks[0].startDTS < minDts) {
-        minDts = tracks[i].chunks[0].startDTS;
-      }
+      minStart = Math.min(minStart, tracks[i].chunks[0].startPTS);
     }
-
-    tracks.forEach((track) => {
-      const trackDTS = track.chunks[0].startDTS;
-      const diff = trackDTS - minDts;
-      if (diff > 0.01) {
-        const cts = track.chunks[0].startPTS - track.chunks[0].startDTS;
-        track.elst.push({
-          media_time: -1,
-          segment_duration: Math.floor((diff + cts) * track.timescale),
-        });
-        track.padding = diff;
-      }
-    });
-
 
     const movieTimescale = tracks[0].timescale;
     tracks.forEach((track) => {
       track.movieTimescale = movieTimescale;
 
+      const first = track.chunks[0];
+      // An empty edit holds back the track that starts later, and is counted in the movie's
+      // timescale. It was counted in the track's own and from the first decode time, so a
+      // 44100 Hz audio track started 44 ms later against the video than in the stream.
+      const delay = Math.round((first.startPTS - minStart) * movieTimescale);
+      if (delay > 0) {
+        track.elst.push({
+          media_time: -1,
+          segment_duration: delay,
+        });
+      }
+
+      const decoded = track.chunks[track.chunks.length - 1].endDTS - first.startDTS;
+      // A chunk's endPTS is where its last shown frame ends. A stream cut in decode order
+      // (a recording that stopped inside a group of pictures) shows a frame after the decode
+      // timeline ends: the edit stopped short of it, and players left the frame out.
+      const presented = Math.max(...track.chunks.map((chunk) => chunk.endPTS)) - first.startPTS;
+      // The edit lasts as long as the track's media. It was shortened by the empty edit
+      // before it, which cut the last audio frame off a transport stream's save.
       track.elst.push({
-        media_time: (track.chunks[0].startPTS - track.chunks[0].startDTS) * movieTimescale,
-        segment_duration: (track.chunks[track.chunks.length - 1].endDTS - track.chunks[0].startDTS - track.padding) * movieTimescale,
+        media_time: Math.round((first.startPTS - first.startDTS) * track.timescale),
+        segment_duration: Math.round(Math.max(decoded, presented) * movieTimescale),
       });
 
       track.samples = [];

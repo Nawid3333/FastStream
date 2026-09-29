@@ -328,9 +328,14 @@ export class MP4Merger extends EventEmitter {
       // decode order presents its first frame a little after that. Starting the edit
       // any earlier points it at a frame that is not there and the first one is lost.
       // Media times are counted in the track's own timescale.
+      const firstPresented = firstPresentedTime(track.chunks[0]);
+      // The chunks' ends are decode times. A stream cut in decode order (a recording that
+      // stopped inside a group of pictures) can show a frame after that: the edit stopped
+      // short of it, and players left the frame out.
+      const presented = (lastPresentedEnd(track.chunks) - firstPresented) / track.timescale;
       track.elst.push({
-        media_time: firstPresentedTime(track.chunks[0]),
-        segment_duration: Math.round((end - start) * movieTimescale),
+        media_time: firstPresented,
+        segment_duration: Math.round(Math.max(end - start, presented) * movieTimescale),
       });
 
       track.samples = [];
@@ -500,6 +505,26 @@ function firstPresentedTime(chunk) {
   });
 
   return Math.max(0, earliest);
+}
+
+/**
+ * When a track's last shown frame ends, counted as firstPresentedTime() counts: from decode
+ * time zero, in the track's timescale, over all its chunks.
+ * @param {Array} chunks - The track's chunks, in order.
+ * @return {number}
+ */
+function lastPresentedEnd(chunks) {
+  let decodeTime = 0;
+  let latest = 0;
+
+  chunks.forEach((chunk) => {
+    chunk.samples.forEach((sample) => {
+      latest = Math.max(latest, decodeTime + sample.cts + sample.duration);
+      decodeTime += sample.duration;
+    });
+  });
+
+  return latest;
 }
 
 function parseInitSegment(buffer, what) {

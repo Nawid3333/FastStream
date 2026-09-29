@@ -108,19 +108,33 @@ describe('FSBlob storage backends', function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const blobStore = new FSBlob();
+      // On the Windows runner this case twice never settled (#52's CI run) without saying
+      // where. As in the next case: the step reached, and the calls still waiting.
+      window.__diag = () => {
+        const opfs = blobStore.opfsManager;
+        return {
+          backend: opfs ? 'opfs' : blobStore.cache ? 'cache' : blobStore.indexedDBManager ? 'indexeddb' : 'memory',
+          sessionName: opfs?.sessionName ?? null,
+          pending: opfs ? opfs.pendingCalls() : null,
+          worker: opfs ? !!opfs.worker : null,
+        };
+      };
 
       const COUNT = 12;
       const payloads = Array.from({length: COUNT}, (_, i) =>
         new Uint8Array(50).fill(i + 1));
 
+      window.__step = 'saves';
       const identifiers = await Promise.all(
           payloads.map((payload) => blobStore.saveBlobAsync(new Blob([payload]))),
       );
 
+      window.__step = 'reads';
       const readBacks = await Promise.all(
           identifiers.map((id) => blobStore.getBlob(id).arrayBuffer()),
       );
 
+      window.__step = 'close';
       blobStore.close();
 
       return readBacks.every((buf, i) => {

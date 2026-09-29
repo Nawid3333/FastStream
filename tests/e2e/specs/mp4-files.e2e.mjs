@@ -9,10 +9,11 @@
 // - Long and fragmented (the long fixture cut the same way). MP4Player worked out the
 //   file's length from the samples mp4box knew after the first 1 MB range, not from the
 //   server's Content-Range: for a fragmented file those end with that range, so the file
-//   looked 10 s long, and the rest was never loaded. (Still a limit, not covered here:
-//   MP4Player picks the range to load from the samples it knew when the metadata was
-//   parsed, so of a fragmented file longer than its 30 buffered ranges, 30 MB, it plays
-//   those and cannot seek past them. Measured with a 480 s, 51 MB file.)
+//   looked 10 s long, and the rest was never loaded.
+// - Fragmented and bigger than MP4Player's 30 buffered ranges (the long fixture three
+//   times over: 480 s, 51 MB). MP4Player picked the range to load from the samples it
+//   knew when the metadata was parsed, and a fragmented file's samples become known one
+//   moof at a time, so it played the first 30 ranges, 30 MB, and could not seek past them.
 // - From a server that answers ranges without the file's length (`bytes 0-1023/*`, which
 //   RFC 9110 allows). This one was already fine - the length is then worked out from the
 //   file's sample table - and is held here: a file that fits in MP4Player's first 1 MB
@@ -109,11 +110,29 @@ async function seekAndPlay(time) {
   return playPast(time + 1, `after a seek to ${time} s`);
 }
 
+/**
+ * Waits until the player's duration passes a time. A fragmented file without a mehd box
+ * has the duration that has been parsed, which grows as its ranges come in.
+ * @param {number} time - Seconds.
+ * @return {Promise<number>} The duration when the wait ended.
+ */
+async function durationPast(time) {
+  let duration = 0;
+  await browser.waitUntil(async () => {
+    duration = await browser.execute(() => window.fastStream.duration);
+    return duration > time;
+  }, {timeout: 30000, interval: 500}).catch(() => {});
+  console.log(`      duration: ${duration}`);
+  return duration;
+}
+
 describe('MP4 files of other shapes', function() {
   before(async function() {
     ensureFile('audio-only.mp4', ['-f', 'lavfi', '-i', 'sine=frequency=440:duration=10', '-c:a', 'aac', '-b:a', '64k']);
     ensureFile('fragmented.mp4', ['-i', MP4_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
     ensureFile('long-fragmented.mp4', ['-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
+    ensureFile('longer-fragmented.mp4',
+        ['-stream_loop', '2', '-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
 
     const bytes = fs.readFileSync(LONG_FIXTURE);
     server = http.createServer((req, res) => {
@@ -167,16 +186,38 @@ describe('MP4 files of other shapes', function() {
   it('plays a long fragmented MP4, far into it', async function() {
     const start = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-fragmented.mp4`);
     expect(start.currentTime).toBeGreaterThan(1);
-    // Without a mehd box, the duration is what has been parsed, and grows as ranges come in.
-    let duration = 0;
-    await browser.waitUntil(async () => {
-      duration = await browser.execute(() => window.fastStream.duration);
-      return duration > 150;
-    }, {timeout: 30000, interval: 500}).catch(() => {});
-    expect(duration).toBeGreaterThan(150);
+    expect(await durationPast(150)).toBeGreaterThan(150);
     const later = await seekAndPlay(120);
     expect(later.currentTime).toBeGreaterThan(121);
     expect(later.failed).toBe(false);
+  });
+
+  it('plays a fragmented MP4 bigger than its buffered ranges, past them and back', async function() {
+    const start = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/longer-fragmented.mp4`);
+    expect(start.currentTime).toBeGreaterThan(1);
+    // The first 30 ranges reach about 280 s of the 480.
+    expect(await durationPast(250)).toBeGreaterThan(250);
+    const middle = await seekAndPlay(250);
+    expect(middle.currentTime).toBeGreaterThan(251);
+    expect(await durationPast(450)).toBeGreaterThan(450);
+    // The ranges' times, which say which ones have been played through and can go. The one
+    // at the parse edge was given the metadata's duration as its end, 0 without a mehd box.
+    const times = await browser.execute(() => {
+      const client = window.fastStream;
+      const frags = client.getFragments(client.player.getCurrentVideoLevelID()) || [];
+      const timed = frags.filter((frag) => frag && frag.start !== undefined);
+      return {count: frags.length, timed: timed.length,
+        backwards: timed.filter((frag) => !(frag.end >= frag.start)).map((frag) => [frag.sn, frag.start, frag.end])};
+    });
+    console.log('      ranges:', JSON.stringify(times));
+    expect(times.timed).toBeGreaterThan(30);
+    expect(times.backwards).toEqual([]);
+    const later = await seekAndPlay(450);
+    expect(later.currentTime).toBeGreaterThan(451);
+    // Back to where the ranges played through have been let go.
+    const back = await seekAndPlay(60);
+    expect(back.currentTime).toBeGreaterThan(61);
+    expect(back.failed).toBe(false);
   });
 
   it('plays an MP4 from a server that does not give its length, far into it', async function() {

@@ -93,7 +93,7 @@ function toneShare(file, frequency) {
  *
  * @param {string} base64 - The saved file.
  * @return {Object} {decodeErrors, video, audio, audioToneShare}, video and audio
- *   being {frames, duration} or null when the file has no such stream, and the
+ *   being {frames, duration, start} or null when the file has no such stream, and the
  *   last the share of the audio that is the fixtures' 440 Hz tone (see toneShare).
  */
 function decodeWithFfmpeg(base64) {
@@ -102,7 +102,7 @@ function decodeWithFfmpeg(base64) {
   try {
     const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
     const probe = spawnSync('ffprobe', [
-      '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,duration',
+      '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,duration,start_time',
       '-of', 'json', file,
     ], {encoding: 'utf8'});
     const missing = decode.error || probe.error;
@@ -112,7 +112,9 @@ function decodeWithFfmpeg(base64) {
     const streams = JSON.parse(probe.stdout || '{"streams":[]}').streams;
     const summarise = (type) => {
       const found = streams.find((stream) => stream.codec_type === type);
-      return found ? {frames: Number(found.nb_read_frames), duration: Number(found.duration)} : null;
+      return found ? {
+        frames: Number(found.nb_read_frames), duration: Number(found.duration), start: Number(found.start_time),
+      } : null;
     };
     const audio = summarise('audio');
     return {
@@ -143,10 +145,34 @@ function sourceFrameCount() {
   return Number(stdout.trim());
 }
 
+/**
+ * Counts the frames of each kind in a fixture, as ffmpeg decodes it from its playlist,
+ * and finds when each kind starts.
+ * @param {string} name - Directory under fixtures/, holding index.m3u8.
+ * @return {Object} {frames, start} per codec type ('video', 'audio').
+ */
+function fixtureStreams(name) {
+  const {stdout, error} = spawnSync('ffprobe', [
+    '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,start_time',
+    '-of', 'json', path.join(fixturesDir, name, 'index.m3u8'),
+  ], {encoding: 'utf8'});
+  if (error) {
+    throw new Error(`ffprobe must be on PATH to count a fixture's frames: ${error.message}`);
+  }
+  return Object.fromEntries(JSON.parse(stdout).streams.map((stream) =>
+    [stream.codec_type, {frames: Number(stream.nb_read_frames), start: Number(stream.start_time)}]));
+}
+
 const HLS_OUTPUT = [
   '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod',
   '-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4',
   '-hls_segment_filename', 'seg%d.m4s', 'index.m3u8',
+];
+
+// Transport-stream segments, which HLS2MP4 remuxes, where MP4Merger takes fMP4 ones.
+const HLS_TS_OUTPUT = [
+  '-f', 'hls', '-hls_time', '2', '-hls_playlist_type', 'vod',
+  '-hls_segment_filename', 'seg%d.ts', 'index.m3u8',
 ];
 
 // Separate adaptation sets, so the video and the audio arrive as two tracks with
@@ -156,9 +182,11 @@ const DASH_OUTPUT = [
   '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
 ];
 
+// No -shortest: where it cut the video depended on the ffmpeg build (one from 2026-04 kept
+// 298 of the 300 frames), and the tests count the saved frames against sample.mp4's.
 const TONE_INPUT = [
   '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
-  '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
+  '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k',
 ];
 
 /**
@@ -173,13 +201,18 @@ const TONE_INPUT = [
 function ensureFixture(name, indexFile, inputArgs, outputArgs) {
   const dir = path.join(fixturesDir, name);
   // The playlist is written before the last segment is, so the index file alone says
-  // nothing about a run that was killed half way. The marker is written last.
+  // nothing about a run that was killed half way. The marker is written last, and holds
+  // the arguments, so that a fixture made with other arguments is made again.
   const done = path.join(dir, '.complete');
-  if (fs.existsSync(done) && fs.existsSync(path.join(dir, indexFile))) return;
+  const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
+  const recipe = JSON.stringify(args);
+  if (fs.existsSync(path.join(dir, indexFile)) && fs.existsSync(done) &&
+      fs.readFileSync(done, 'utf8') === recipe) {
+    return;
+  }
 
   fs.rmSync(dir, {recursive: true, force: true});
   fs.mkdirSync(dir, {recursive: true});
-  const args = ['-y', '-v', 'error', ...inputArgs, ...outputArgs];
   const {status, error, stderr} = spawnSync('ffmpeg', args, {cwd: dir, encoding: 'utf8'});
   if (status !== 0) {
     throw new Error(
@@ -188,7 +221,7 @@ function ensureFixture(name, indexFile, inputArgs, outputArgs) {
         `locally it must be on PATH.\n${stderr || ''}`,
     );
   }
-  fs.writeFileSync(done, '');
+  fs.writeFileSync(done, recipe);
 }
 
 /**
@@ -349,7 +382,51 @@ describe('Save video (locally generated fMP4)', function() {
     ensureFixture('hls-fmp4-muxed', 'index.m3u8', TONE_INPUT, HLS_OUTPUT);
     // The same content as two separately delivered tracks.
     ensureFixture('dash-separate', 'manifest.mpd', TONE_INPUT, DASH_OUTPUT);
+    // Video-only, cut after 298 of its 300 frames in decode order. The cut depends on no
+    // encoder or muxer choice, as the video is copied.
+    ensureFixture('hls-fmp4-cut', 'index.m3u8', ['-i', MP4_FIXTURE, '-c', 'copy', '-frames:v', '298'], HLS_OUTPUT);
+    // The same in transport streams, which HLS2MP4 remuxes: the whole video with the tone,
+    // and the cut video.
+    ensureFixture('hls-ts-muxed', 'index.m3u8', TONE_INPUT, HLS_TS_OUTPUT);
+    ensureFixture('hls-ts-cut', 'index.m3u8', ['-i', MP4_FIXTURE, '-c', 'copy', '-frames:v', '298'], HLS_TS_OUTPUT);
+    // The tone starting half a second after the video, so that the audio is the track held back.
+    ensureFixture('hls-ts-late-audio', 'index.m3u8', [
+      '-i', MP4_FIXTURE, '-itsoffset', '0.5', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=9.5',
+      '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k',
+    ], HLS_TS_OUTPUT);
   });
+
+  // HLS2MP4 handed hls.js's demuxer its flush flag where hls.js 1.7 takes isSampleAes, so
+  // the data left at the end of the last segment was never parsed: every save lost the
+  // video's last two frames and the audio's last packet. As MP4Merger did, it ended the
+  // edit list where the decode timeline ends. And it placed the audio by decode times in
+  // the wrong timescale, then shortened its edit by that delay: the tone fixture's audio
+  // began 44 ms late against the video and lost its last frame, and audio that starts after
+  // the video lost more.
+  for (const [fixture, what] of [
+    ['hls-ts-muxed', 'every frame of a transport stream, video and audio, in sync'],
+    ['hls-ts-cut', 'a frame shown after the last one decoded, from a transport stream'],
+    ['hls-ts-late-audio', 'the audio of a transport stream that starts after its video, in sync'],
+  ]) {
+    it(`keeps ${what}`, async function() {
+      const source = fixtureStreams(fixture);
+      await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + `/fixtures/${fixture}/index.m3u8`);
+      const result = await saveAndInspect();
+      const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+      delete result.base64;
+
+      console.log('      source:', JSON.stringify(source), 'result:', JSON.stringify(result),
+          'ffmpeg:', JSON.stringify(decoded));
+      expect(result.saveError).toBe(null);
+      expect(decoded.decodeErrors).toBe('');
+      expect(decoded.video.frames).toBe(source.video.frames);
+      expect(decoded.audio?.frames ?? null).toBe(source.audio?.frames ?? null);
+      if (source.audio) {
+        // To 5 ms: the audio's start against the video's, as in the stream.
+        expect(decoded.audio.start - decoded.video.start).toBeCloseTo(source.audio.start - source.video.start, 2);
+      }
+    });
+  }
 
   it('saves a video-only fMP4 level into a file that decodes and holds media', async function() {
     await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-video/index.m3u8');
@@ -366,6 +443,22 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.decodeErrors).toBe('');
     expect(decoded.video.frames).toBe(sourceFrameCount());
     expect(decoded.audio).toBe(null);
+  });
+
+  it('keeps a frame that is shown after the last one decoded', async function() {
+    // A stream cut in decode order, as a recording that stopped inside a group of pictures
+    // is: the last two frames decoded are gone, and a frame decoded before them is shown
+    // after the point where the decode timeline ends. The edit list ended at that point,
+    // so players left the frame out, and the saved file had 297 frames.
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/hls-fmp4-cut/index.m3u8');
+    const result = await saveAndInspect();
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
+
+    console.log('      result:', JSON.stringify(result), 'ffmpeg:', JSON.stringify(decoded));
+    expect(result.saveError).toBe(null);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.frames).toBe(298);
   });
 
   it('saves an fMP4 level that carries its own audio, keeping both tracks', async function() {

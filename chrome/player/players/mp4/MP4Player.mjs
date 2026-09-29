@@ -250,6 +250,7 @@ export default class MP4Player extends EventEmitter {
         track: info.videoTracks[this.currentVideoTrack],
         samples: samples,
         sortedSamples: this.sortSamples(samples),
+        sortedCount: samples.length,
       });
     }
     //  }
@@ -264,6 +265,7 @@ export default class MP4Player extends EventEmitter {
         track: info.audioTracks[l],
         samples: samples,
         sortedSamples: this.sortSamples(samples),
+        sortedCount: samples.length,
       });
     }
 
@@ -385,6 +387,24 @@ export default class MP4Player extends EventEmitter {
     }
   }
 
+  /**
+   * A fragmented file's samples become known one moof at a time, as its ranges are parsed;
+   * mp4box adds them to the track's sample list. The keyframe index that picks the range to
+   * load, and the fragments' times, were made only from the samples known when the metadata
+   * was parsed, so the player loaded the first maxFragmentsBuffered ranges (30 MB) and
+   * stopped there. Both are made again whenever the list has grown.
+   */
+  refreshSampleIndex() {
+    if (!this.metaData?.isFragmented) return;
+    const tracks = [...this.videoTracks, ...this.audioTracks];
+    if (tracks.every((track) => track.sortedCount === track.samples.length)) return;
+    tracks.forEach((track) => {
+      track.sortedSamples = this.sortSamples(track.samples);
+      track.sortedCount = track.samples.length;
+    });
+    this.setFragmentTimes();
+  }
+
   setFragmentTimes() {
     this.getVideoLevels().forEach((level, l) => {
       const frags = this.client.getFragments(l.toString());
@@ -403,7 +423,9 @@ export default class MP4Player extends EventEmitter {
         }
       }
 
-      currentFragment.end = Math.ceil(this.metaData.duration / this.metaData.timescale);
+      // The duration as the player counts it: a fragmented file without a mehd box has none
+      // in its metadata (0), and this last fragment then ended at 0.
+      currentFragment.end = Math.ceil(this.calculateDuration());
       currentFragment.duration = currentFragment.end - currentFragment.start;
     });
   }
@@ -496,7 +518,11 @@ export default class MP4Player extends EventEmitter {
         break;
       }
 
-      if (i !== currentFragment.sn && frag.start > this.video.currentTime + this.options.maxBufferLength) {
+      // A fragmented file says where a time is only once the ranges before it are parsed,
+      // so it is read ahead by ranges (maxFragmentsBuffered), not by seconds: that is how
+      // its duration, and a seek far into it, come to be known.
+      if (i !== currentFragment.sn && !this.metaData?.isFragmented &&
+          frag.start > this.video.currentTime + this.options.maxBufferLength) {
         break;
       }
 
@@ -522,6 +548,7 @@ export default class MP4Player extends EventEmitter {
             }
 
             this.mp4box.appendBuffer(data);
+            this.refreshSampleIndex();
             this.currentFragments.push(frag);
             frag.addReference(ReferenceTypes.MP4PLAYER, true);
 
