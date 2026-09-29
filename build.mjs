@@ -384,6 +384,7 @@ async function buildWeb() {
   spliceAndCopy(chromeSourceDir, webBuildDir, ['WEB', 'NO_UPDATE_CHECKER'], [
     'manifest.json',
     'content.js',
+    'overlay-guard.js',
     'background',
     '_locales',
     'perms.html',

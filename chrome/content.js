@@ -30,6 +30,8 @@
 
   const iframeMap = new Map();
   const replacedPlayerQueue = [];
+  // Players laid over the whole page (a video that fills it), with their pause watchers.
+  const overlayPlayers = [];
   const elementsChangedByFillscreen = [];
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
@@ -64,6 +66,10 @@
         sendResponse(false);
         return;
       }
+
+      // Asked of each frame above a player as it opens: what this page lays over that
+      // iframe lies over the player too (overlay-guard.js).
+      OverlayGuard.guard(iframeObj.iframe);
 
       const parents = getParentElementsWithSameBounds(iframeObj.iframe);
       if (parents.length > 0 && parents[parents.length - 1].tagName === 'BODY') {
@@ -279,10 +285,11 @@
           iframe.src = newURL.href;
           iframe.allowFullscreen = true;
           iframe.allow = 'autoplay; fullscreen; picture-in-picture';
-          pauseAllWithin(document.body);
+          const watcher = pauseAllWithin(document.body);
           // Remove everything from the document
           document.body.appendChild(iframe);
           fillScreenIframe(iframe);
+          overlayPlayers.push({iframe, watcher});
           console.log('Overlaying iframe');
           sendResponse('replaceall');
         }
@@ -546,7 +553,8 @@
    */
   function pauseAllMedia() {
     let paused = 0;
-    document.querySelectorAll('video, audio').forEach((media) => {
+    // Shadow roots too: a player built as a web component keeps its <video> in one.
+    querySelectorAllIncludingShadows('video, audio', document.documentElement).forEach((media) => {
       try {
         if (!media.paused) {
           media.pause();
@@ -561,20 +569,11 @@
 
   function removePlayers() {
     MiniplayerCooldown = Date.now() + 1000;
+    OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
       if (iframeObj.replacedData) {
-        const replacedData = iframeObj.replacedData;
-        if (replacedData.softReplace) {
-          showSoft(replacedData.old);
-          replacedData.iframe.parentNode.removeChild(replacedData.iframe);
-        } else {
-          replacedData.iframe.parentNode.replaceChild(replacedData.old, replacedData.iframe);
-        }
-        removePauseListeners(replacedData.old, replacedData.watcher);
-
-        replacedData.resizeObserver.disconnect();
-
+        restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
 
         chrome.runtime.sendMessage({
@@ -586,17 +585,14 @@
 
     undoFillScreenIframe();
 
-    replacedPlayerQueue.forEach((replacedData) => {
-      if (replacedData.softReplace) {
-        showSoft(replacedData.old);
-        replacedData.iframe.parentNode.removeChild(replacedData.iframe);
-      } else {
-        replacedData.iframe.parentNode.replaceChild(replacedData.old, replacedData.iframe);
-      }
-      removePauseListeners(replacedData.old, replacedData.watcher);
-    });
-
+    replacedPlayerQueue.forEach(restoreReplaced);
     replacedPlayerQueue.length = 0;
+
+    overlayPlayers.forEach(({iframe, watcher}) => {
+      iframe.remove();
+      removePauseListeners(watcher);
+    });
+    overlayPlayers.length = 0;
 
     if (Activated) {
       Activated = false;
@@ -605,6 +601,32 @@
         value: false,
       });
     }
+  }
+
+  /**
+   * Puts the page's own element back where a player replaced it, and lets its media play
+   * again. The page may have taken the player's iframe out itself (a re-render): remove()
+   * and replaceWith() do nothing for a detached iframe, where removeChild on its missing
+   * parent threw and left the rest of the cleanup undone.
+   * @param {Object} replacedData - The replacement, from handlePlayerOpen.
+   */
+  function restoreReplaced(replacedData) {
+    const {iframe, old} = replacedData;
+    if (replacedData.softReplace) {
+      showSoft(old);
+      iframe.remove();
+    } else {
+      iframe.replaceWith(old);
+    }
+    // transferStyles gave the iframe the element's id, so the page's CSS for it applied to
+    // the player. The element gets it back; it used to keep none, and the page's own rules
+    // and scripts for it stopped working until a reload.
+    if (!Config.customIframeId) {
+      transferId(iframe, old);
+    }
+    restoreTransition(old);
+    removePauseListeners(replacedData.watcher);
+    replacedData.resizeObserver?.disconnect();
   }
 
   function updateMiniPlayer(iframeObj) {
@@ -827,7 +849,33 @@
     return addedElements;
   }
 
+  // hideSoft and showSoft switch the element's transitions off, so the size changes they
+  // make don't animate. The page's own transition is kept until the element is given
+  // back (restoreTransition); it used to stay "none !important" for good.
+  function rememberTransition(player) {
+    if (!('fsTransition' in player.dataset)) {
+      player.dataset.fsTransition = player.style.getPropertyValue('transition');
+      player.dataset.fsTransitionPriority = player.style.getPropertyPriority('transition');
+    }
+  }
+
+  function restoreTransition(player) {
+    if (!('fsTransition' in player.dataset)) {
+      return;
+    }
+    const value = player.dataset.fsTransition;
+    const priority = player.dataset.fsTransitionPriority;
+    delete player.dataset.fsTransition;
+    delete player.dataset.fsTransitionPriority;
+    if (value) {
+      player.style.setProperty('transition', value, priority);
+    } else {
+      player.style.removeProperty('transition');
+    }
+  }
+
   function hideSoft(player) {
+    rememberTransition(player);
     // player.style.setProperty('display', 'none', 'important');
     // set height and width to 0, overflow hidden
 
@@ -860,6 +908,7 @@
   }
 
   function showSoft(player) {
+    rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
     if (player.style.width === '0px') {
       player.style.width = player.dataset.oldWidth || '';
@@ -904,6 +953,12 @@
 
   function updateReplacedPlayer(old, iframe, softReplace) {
     const parent = iframe.parentNode;
+    // A hard-replaced player the page took out has nowhere to measure the page's element:
+    // insertBefore on the missing parent threw, on every resize, and the players after it
+    // in iframeMap were never updated.
+    if (!softReplace && !parent) {
+      return 0;
+    }
     iframe.style.display = 'none';
     let final_size;
     if (softReplace) {
@@ -925,26 +980,32 @@
   }
 
   function pauseAllWithin(element) {
-    const videos = querySelectorAllIncludingShadows('video', element);
-    videos.forEach((video) => {
+    // Every element hooked, so all of them are let go again, wherever the page has moved
+    // them by then. The cleanup used to unhook the videos still inside the element only,
+    // which left an <audio> added meanwhile pausing itself on every play, for good.
+    const hooked = new Set();
+    const hook = (media) => {
       try {
-        video.pause();
+        media.pause();
       } catch (e) {
         console.error(e);
       }
+      media.addEventListener('play', pauseOnPlay);
+      hooked.add(media);
+    };
 
-      video.addEventListener('play', pauseOnPlay);
-    });
+    querySelectorAllIncludingShadows('video', element).forEach(hook);
 
-    // Add mutation observer to pause videos added later
+    // Add mutation observer to pause videos added later: added themselves, or inside an
+    // added subtree, as a re-render of the page's player puts them.
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList') {
-          const addedNodes = Array.from(mutation.addedNodes);
-          addedNodes.forEach((node) => {
+          mutation.addedNodes.forEach((node) => {
             if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
-              node.pause();
-              node.addEventListener('play', pauseOnPlay);
+              hook(node);
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              querySelectorAllIncludingShadows('video, audio', node).forEach(hook);
             }
           });
         }
@@ -954,15 +1015,15 @@
 
     return {
       observer,
+      hooked,
     };
   }
 
-  function removePauseListeners(element, watcher) {
-    const videos = querySelectorAllIncludingShadows('video', element);
-    videos.forEach((video) => {
-      video.removeEventListener('play', pauseOnPlay);
+  function removePauseListeners(watcher) {
+    watcher.hooked.forEach((media) => {
+      media.removeEventListener('play', pauseOnPlay);
     });
-
+    watcher.hooked.clear();
     watcher.observer.disconnect();
   }
 
@@ -1416,7 +1477,12 @@
           return similar[nextIndex];
         }
 
-        return similar[nextIndex].querySelector('a');
+        // A neighbour without a link ends this match only: another one may lead to the
+        // episode (a side list that links here too, before the real episode list).
+        const link = similar[nextIndex].querySelector('a');
+        if (link) {
+          return link;
+        }
       }
     }
     return null;
@@ -1436,6 +1502,16 @@
     }
 
     if (!current || !current.href) {
+      return;
+    }
+
+    // A click that opens the link somewhere else - a new tab or window (Ctrl, Command,
+    // Shift, target="_blank"), a download (Alt, or the download attribute) - leaves this
+    // page and its player where they are.
+    const target = (current.getAttribute('target') || '').toLowerCase();
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
+        current.hasAttribute('download') ||
+        (target && !['_self', '_parent', '_top'].includes(target))) {
       return;
     }
 
