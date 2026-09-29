@@ -209,6 +209,11 @@ export class PlaybackRateChanger extends EventEmitter {
     this.client.audioAnalyzer.removeVolumeDependent(this);
     this.client.audioAnalyzer.removeBackgroundDependent(this);
     this.closeSilenceSkipperUI();
+    // Turned off in a silence, the video kept the skip speed, and so did the next video
+    // (reset() lands here).
+    if (this.client.playbackRate !== this.regularSpeed) {
+      this.client.playbackRate = this.regularSpeed;
+    }
   }
 
   toggleSilenceSkipper() {

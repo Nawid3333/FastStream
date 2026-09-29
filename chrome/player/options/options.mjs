@@ -391,7 +391,7 @@ function createKeybindElement(keybind) {
   });
 
   keybindInput.addEventListener('click', (e) => {
-    keybindInput.textContent = 'Press a key';
+    keybindInput.textContent = Localize.getMessage('options_keybinds_press');
   });
 
   keybindInput.addEventListener('blur', (e) => {

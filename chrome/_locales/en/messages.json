@@ -254,6 +254,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Episode #"
     },
+    "player_opensubtitles_type": {
+        "message": "Type"
+    },
     "player_opensubtitles_type_all": {
         "message": "All"
     },
@@ -367,6 +370,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Drag subtitles to resync"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Edit subtitle text"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Save subtitle file"
@@ -544,6 +550,9 @@
     },
     "player_archiver_saved": {
         "message": "Archive saved!"
+    },
+    "player_archiver_fail": {
+        "message": "Failed to save archive!"
     },
     "player_quality_current": {
         "message": "(current)"
@@ -821,6 +830,12 @@
     "audioconvolver_downmix_off": {
         "message": "No Downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "This file could not be decoded as audio. The impulse response was not changed."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Failed to save the impulse response file!"
+    },
     "options_title": {
         "message": "FastStream Options"
     },
@@ -1063,6 +1078,9 @@
     },
     "options_keybinds_reset": {
         "message": "Reset to Defaults"
+    },
+    "options_keybinds_press": {
+        "message": "Press a key"
     },
     "options_autourl_header": {
         "message": "Auto-enable URLs"

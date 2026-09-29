@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Folge #"
     },
+    "player_opensubtitles_type": {
+        "message": "Typ"
+    },
     "player_opensubtitles_type_all": {
         "message": "Alle"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Ziehe Untertitle zum neusynchonisieren"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Untertiteltext bearbeiten"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Untertiteldatei speichern"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Archiv gespeichert!"
+    },
+    "player_archiver_fail": {
+        "message": "Archiv speichern fehlgeschlagen!"
     },
     "player_quality_current": {
         "message": "(aktuell)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Kein Downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Diese Datei konnte nicht als Audio dekodiert werden. Die Impulsantwort wurde nicht geändert."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Impulsantwortdatei speichern fehlgeschlagen!"
+    },
     "options_title": {
         "message": "FastStream Optionen"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Zu Werkseinstellung zurück setzen"
+    },
+    "options_keybinds_press": {
+        "message": "Drücke eine Taste"
     },
     "options_autourl_header": {
         "message": "URLs für automatische Aktivierung"

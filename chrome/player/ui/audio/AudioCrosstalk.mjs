@@ -110,7 +110,9 @@ export class AudioCrosstalk extends AbstractAudioModule {
     try {
       await this.crosstalkNode.init();
     } catch (e) {
-      this.crosstalkNode = null;
+      if (this.crosstalkNode === node) {
+        this.crosstalkNode = null;
+      }
       console.error('Failed to initialize crosstalk', e);
       return;
     }
@@ -127,6 +129,14 @@ export class AudioCrosstalk extends AbstractAudioModule {
 
   removeCrosstalkNode() {
     if (!this.crosstalkNode) {
+      return;
+    }
+
+    // Still starting, it is not wired in yet: dropped here, createCrosstalkNode destroys
+    // it once it has started. Disconnecting it threw, and it was then wired in with the
+    // toggle off.
+    if (this.getInputNode().indexConnectedTo(this.crosstalkNode.getInputNode()) === -1) {
+      this.crosstalkNode = null;
       return;
     }
 
@@ -195,6 +205,12 @@ export class AudioCrosstalk extends AbstractAudioModule {
 
     speakerDistanceInput.addEventListener('input', () => {
       const val = parseFloat(speakerDistanceInput.value);
+      // An emptied or half-typed field is no distance: its NaN became the suggested delay
+      // and decay, which the filter then used, and was saved as null, which lost both
+      // distances.
+      if (!Number.isFinite(val)) {
+        return;
+      }
       if (val !== this.speakerDistance) {
         this.speakerDistance = val;
         this.updateSuggestions();
@@ -217,6 +233,10 @@ export class AudioCrosstalk extends AbstractAudioModule {
 
     headDistanceInput.addEventListener('input', () => {
       const val = parseFloat(headDistanceInput.value);
+      // As the speaker distance's.
+      if (!Number.isFinite(val)) {
+        return;
+      }
       if (val !== this.headDistance) {
         this.headDistance = val;
         this.updateSuggestions();

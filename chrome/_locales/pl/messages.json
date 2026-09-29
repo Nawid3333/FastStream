@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Odcinek #"
     },
+    "player_opensubtitles_type": {
+        "message": "Typ"
+    },
     "player_opensubtitles_type_all": {
         "message": "Wszystkie"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Przeciągnij napisy, aby je zsynchronizować"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Edytuj tekst napisów"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Zapisz plik z napisami"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Archiwum zapisane!"
+    },
+    "player_archiver_fail": {
+        "message": "Nie udało się zapisać archiwum!"
     },
     "player_quality_current": {
         "message": "(aktualne)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Brak downmiksu"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Ten plik nie mógł zostać zdekodowany jako audio. Odpowiedź impulsowa nie została zmieniona."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Nie udało się zapisać pliku odpowiedzi impulsowej!"
+    },
     "options_title": {
         "message": "Opcje FastStream"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Przywróć domyślne"
+    },
+    "options_keybinds_press": {
+        "message": "Naciśnij klawisz"
     },
     "options_autourl_header": {
         "message": "Automatyczne włączanie adresów URL"

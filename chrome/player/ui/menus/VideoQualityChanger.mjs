@@ -79,6 +79,9 @@ export class VideoQualityChanger extends EventEmitter {
     });
 
     DOMElements.videoSource.addEventListener('keydown', (e) => {
+      // The button keeps the focus after a click closes the list; its keys are then the
+      // player's again (the arrows are the volume), not a choice in a list no one sees.
+      if (!this.isOpen()) return;
       const candidates = Array.from(DOMElements.videoSourceList.children);
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {

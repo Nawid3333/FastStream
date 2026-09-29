@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Episod #"
     },
+    "player_opensubtitles_type": {
+        "message": "Jenis"
+    },
     "player_opensubtitles_type_all": {
         "message": "Semua"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Seret sarikata untuk disegerakkan semula"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Edit teks sarikata"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Simpan fail sarikata"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Arkib disimpan!"
+    },
+    "player_archiver_fail": {
+        "message": "Gagal menyimpan arkib!"
     },
     "player_quality_current": {
         "message": "(current)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "No Downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Fail ini tidak dapat dinyahkod sebagai audio. Impulse Response tidak diubah."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Gagal menyimpan fail Impulse Response!"
+    },
     "options_title": {
         "message": "FastStream Options"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Reset to Defaults"
+    },
+    "options_keybinds_press": {
+        "message": "Tekan kekunci"
     },
     "options_autourl_header": {
         "message": "Auto-enable URLs"

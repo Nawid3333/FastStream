@@ -1,12 +1,28 @@
 import {Localize} from '../../modules/Localize.mjs';
 import {IndexedDBManager} from '../../network/IndexedDBManager.mjs';
+import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
-import {createDropdown} from '../components/Dropdown.mjs';
+import {createDropdown, renameDropdownChoice} from '../components/Dropdown.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 import {AudioConvolverControl} from './config/AudioConvolverControl.mjs';
 import {CHANNEL_NAMES, MAX_AUDIO_CHANNELS} from './config/AudioProfile.mjs';
+
+/**
+ * Whether a file decodes as audio, without the player's audio context (there is none
+ * before a video plays).
+ * @param {File} file - The file.
+ * @return {Promise<boolean>}
+ */
+async function canDecodeAudio(file) {
+  try {
+    await new OfflineAudioContext(1, 1, 44100).decodeAudioData(await file.arrayBuffer());
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 export class OutputConvolver extends AbstractAudioModule {
   constructor(configManager) {
@@ -319,8 +335,13 @@ export class OutputConvolver extends AbstractAudioModule {
         },
     );
 
-    this.ui.profileDropdown.children[0].children[0].addEventListener('blur', ()=>{
-      this.updateProfileDropdown(parseInt(this.ui.profileDropdown.dataset.val.substring(1)));
+    const dropdown = this.ui.profileDropdown;
+    dropdown.children[0].children[0].addEventListener('blur', ()=>{
+      // As in AudioConfigManager: the name as it was stored, shown in place, since a
+      // rebuild lost the click on another profile that ended the edit.
+      const id = parseInt(dropdown.dataset.val.substring(1));
+      const label = this.config.profiles.find((profile) => profile.id === id)?.label;
+      if (label !== undefined) renameDropdownChoice(dropdown, label);
     });
 
     if (oldDropdown) {
@@ -516,12 +537,20 @@ export class OutputConvolver extends AbstractAudioModule {
 
           const input = WebUtils.create('input');
           input.type = 'file';
-          input.accept = '.wav,.mp3,.ogg,.flac,.aiff,.aif';
+          // What Firefox decodes; the AIFF this offered too, it does not.
+          input.accept = '.wav,.mp3,.ogg,.flac';
           input.style.display = 'none';
           document.body.appendChild(input);
           const name = this.getImpulseNameForChannel(this.currentProfile.id, i);
           input.addEventListener('change', async (event) => {
             const file = event.target.files[0];
+            // Checked before it is stored: a file that did not decode replaced the stored
+            // impulse response, which was then lost.
+            if (file && !await canDecodeAudio(file)) {
+              document.body.removeChild(input);
+              AlertPolyfill.alert(Localize.getMessage('audioconvolver_decodeerror'), 'error');
+              return;
+            }
             if (file) {
               try {
                 await this.setImpulseResponse(name, file);

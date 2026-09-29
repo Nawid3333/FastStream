@@ -34,8 +34,9 @@ export class VolumeControls extends EventEmitter {
         e.stopPropagation();
       } else if (e.key === 'ArrowLeft') {
         this.setVolume(Math.max(0, this.volume - 0.1));
+        e.stopPropagation();
       } else if (e.key === 'ArrowRight') {
-        this.setVolume(Math.min(1, this.volume + 0.1));
+        this.setVolume(Math.min(MAX_VOLUME, this.volume + 0.1));
         e.stopPropagation();
       }
     });

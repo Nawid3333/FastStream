@@ -76,7 +76,12 @@ export class LanguageChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
     DOMElements.languageButton.addEventListener('keydown', (e) => {
-      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'));
+      // The button keeps the focus after a click closes the menu; its keys are then the
+      // player's again (the arrows are the volume), not a choice in a menu no one sees.
+      if (!this.isOpen()) return;
+      // A filler is the empty cell of a language that has no track of that type.
+      const candidates = Array.from(DOMElements.languageMenu.getElementsByClassName('language_track'))
+          .filter((el) => !el.classList.contains('language_track_filler'));
       let current = candidates.find((el) => el.classList.contains('candidate'));
       if (!current) {
         current = candidates.find((el) => el.classList.contains('active'));

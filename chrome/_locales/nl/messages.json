@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Aflevering #"
     },
+    "player_opensubtitles_type": {
+        "message": "Type"
+    },
     "player_opensubtitles_type_all": {
         "message": "Alles"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Sleep ondertitels om te resynchroniseren"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Bewerk de ondertiteltekst"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Ondertitelbestand opslaan"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Archief opgeslagen!"
+    },
+    "player_archiver_fail": {
+        "message": "Archief opslaan mislukt!"
     },
     "player_quality_current": {
         "message": "(huidig)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Geen downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Dit bestand kon niet als audio worden gedecodeerd. De impulsrespons is niet gewijzigd."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Impulsresponsbestand opslaan mislukt!"
+    },
     "options_title": {
         "message": "FastStream-opties"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Herstel standaardinstellingen"
+    },
+    "options_keybinds_press": {
+        "message": "Druk op een toets"
     },
     "options_autourl_header": {
         "message": "URL's automatisch inschakelen"

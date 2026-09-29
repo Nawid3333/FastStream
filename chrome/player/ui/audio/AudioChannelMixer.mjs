@@ -345,11 +345,16 @@ export class AudioChannelMixer extends AbstractAudioModule {
     const els = this.createMixerElements();
     els.channelTitle.textContent = channel.isMaster() ? 'Master' : CHANNEL_NAMES[channel.id];
 
-    if (channel.isMaster()) {
-      WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_master_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-    } else {
-      WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-    }
+    // The fader's label, which a screen reader reads as its value: kept up to date by every
+    // way of moving the fader (the wheel and the arrow keys left it stale), and with -∞ dB,
+    // as the scale writes it, rather than "-Infinity".
+    const updateLabel = () => {
+      const db = AudioUtils.gainToDB(channel.gain);
+      const dbText = Number.isFinite(db) ? Math.round(db) : '-∞';
+      const key = channel.isMaster() ? 'audiomixer_volume_master_handle_label' : 'audiomixer_volume_handle_label';
+      WebUtils.setLabels(els.volumeHandle, Localize.getMessage(key, [els.channelTitle.textContent, dbText, Math.round(channel.gain * 100)]));
+    };
+    updateLabel();
 
     els.volumeHandle.style.top = `${AudioUtils.mixerDBToPositionRatio(AudioUtils.gainToDB(channel.gain)) * 100}%`;
 
@@ -381,12 +386,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
       els.volumeHandle.style.top = `${newYPercent}%`;
       channel.gain = AudioUtils.dbToGain(db);
       this.updateNodes();
-
-      if (channel.isMaster()) {
-        WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_master_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-      } else {
-        WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-      }
+      updateLabel();
     };
 
     const mouseUp = (e) => {
@@ -405,12 +405,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
       channel.gain = 1;
       els.volumeHandle.style.top = `${zeroPos * 100}%`;
       this.updateNodes();
-
-      if (channel.isMaster()) {
-        WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_master_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-      } else {
-        WebUtils.setLabels(els.volumeHandle, Localize.getMessage('audiomixer_volume_handle_label', [els.channelTitle.textContent, Math.round(AudioUtils.gainToDB(channel.gain)), Math.round(channel.gain * 100)]));
-      }
+      updateLabel();
     });
 
     els.volumeTrack.addEventListener('click', (e) => {
@@ -430,6 +425,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
       els.volumeHandle.style.top = `${AudioUtils.mixerDBToPositionRatio(db) * 100}%`;
       channel.gain = AudioUtils.dbToGain(db);
       this.updateNodes();
+      updateLabel();
     });
 
     const toggleMute = () => {
@@ -482,6 +478,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
         els.volumeHandle.style.top = `${AudioUtils.mixerDBToPositionRatio(db) * 100}%`;
         channel.gain = AudioUtils.dbToGain(db);
         this.updateNodes();
+        updateLabel();
       } else if (e.key === 'ArrowDown') {
         e.stopPropagation();
         e.preventDefault();
@@ -490,6 +487,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
         els.volumeHandle.style.top = `${AudioUtils.mixerDBToPositionRatio(db) * 100}%`;
         channel.gain = AudioUtils.dbToGain(db);
         this.updateNodes();
+        updateLabel();
       } else if (e.key === 'm') {
         e.stopPropagation();
         e.preventDefault();

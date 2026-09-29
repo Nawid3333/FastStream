@@ -251,6 +251,9 @@
     "player_opensubtitles_episodenum": {
         "message": "Episódio #"
     },
+    "player_opensubtitles_type": {
+        "message": "Tipo"
+    },
     "player_opensubtitles_type_all": {
         "message": "Tudo"
     },
@@ -364,6 +367,9 @@
     },
     "player_subtitlesmenu_resynctool_instructions": {
         "message": "Arraste as legendas para sincronizar novamente"
+    },
+    "player_subtitlesmenu_resynctool_edit": {
+        "message": "Edite o texto da legenda"
     },
     "player_subtitlesmenu_savetool_label": {
         "message": "Salvar arquivo de legenda"
@@ -541,6 +547,9 @@
     },
     "player_archiver_saved": {
         "message": "Arquivo salvo!"
+    },
+    "player_archiver_fail": {
+        "message": "Falha ao salvar o arquivo!"
     },
     "player_quality_current": {
         "message": "(atual)"
@@ -818,6 +827,12 @@
     "audioconvolver_downmix_off": {
         "message": "Sem downmix"
     },
+    "audioconvolver_decodeerror": {
+        "message": "Não foi possível decodificar este arquivo como áudio. A resposta ao impulso não foi alterada."
+    },
+    "audioconvolver_fileerror": {
+        "message": "Falha ao salvar o arquivo de resposta ao impulso!"
+    },
     "options_title": {
         "message": "Opções do FastStream"
     },
@@ -1051,6 +1066,9 @@
     },
     "options_keybinds_reset": {
         "message": "Redefinir para os padrões"
+    },
+    "options_keybinds_press": {
+        "message": "Pressione uma tecla"
     },
     "options_autourl_header": {
         "message": "Habilitar URLs automaticamente"

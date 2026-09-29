@@ -141,7 +141,11 @@ export class AudioEqualizer extends AbstractAudioModule {
 
     this.ui.equalizer.addEventListener('mouseout', (e) => {
       this.ui.zeroLineNode.style.display = 'none';
-      zeroLineNodeShowHide(e);
+      // Decided again only for a move onto something inside: leaving the widget at mid
+      // height showed the add-a-node marker again, and it stayed there.
+      if (this.ui.equalizer.contains(e.relatedTarget)) {
+        zeroLineNodeShowHide(e);
+      }
     });
   }
 

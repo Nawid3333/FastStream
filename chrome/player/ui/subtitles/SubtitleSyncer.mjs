@@ -87,7 +87,11 @@ export class SubtitleSyncer extends EventEmitter {
         return time >= c.startTime && time <= c.endTime;
       });
       if (cue) {
-        AlertPolyfill.prompt('Edit subtitle text', cue.text).then((newText) => {
+        AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_resynctool_edit'), cue.text).then((newText) => {
+          // A cancelled prompt gives undefined, which removed the cue like emptied text.
+          if (newText === undefined || newText === null) {
+            return;
+          }
           if (newText) {
             cue.text = newText;
             cue.dom2 = null; // reset cached DOM tree so it will be regenerated with new text
@@ -117,7 +121,7 @@ export class SubtitleSyncer extends EventEmitter {
         // sort cues by start time
         this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
         this.client.interfaceController.subtitlesManager.renderSubtitles();
-        AlertPolyfill.prompt('Edit subtitle text', newCue.text).then((newText) => {
+        AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_resynctool_edit'), newCue.text).then((newText) => {
           if (newText) {
             newCue.text = newText;
             newCue.dom2 = null; // reset cached DOM tree so it will be regenerated with new text
@@ -132,6 +136,12 @@ export class SubtitleSyncer extends EventEmitter {
               el.element.title = newCue.text;
             }
             this.client.interfaceController.subtitlesManager.renderSubtitles();
+          } else {
+            // Cancelled, or emptied: no new cue, rather than one reading "New subtitle".
+            const index = this.trackToSync.cues.indexOf(newCue);
+            if (index !== -1) {
+              this.trackToSync.cues.splice(index, 1);
+            }
           }
         });
       }

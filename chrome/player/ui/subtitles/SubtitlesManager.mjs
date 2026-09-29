@@ -3,6 +3,7 @@ import {Localize} from '../../modules/Localize.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
+import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
 import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -230,6 +231,9 @@ export class SubtitlesManager extends EventEmitter {
         this.addTrack(track);
       };
       reader.readAsText(file);
+      // Picking the file the input still holds fires no change, so the same file could not
+      // be added again (after removing it, say).
+      filechooser.value = '';
     });
     DOMElements.playerContainer.appendChild(filechooser);
 
@@ -369,14 +373,24 @@ export class SubtitlesManager extends EventEmitter {
 
     downloadTrack.addEventListener('click', async (e) => {
       e.stopPropagation();
-      const suggestedName = trackElement.textContent.replaceAll(' ', '_');
-      const dlname = chrome?.extension?.inIncognitoContext ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+      // Taken now: the prompt below waits, and tracks that changed meanwhile (a new video)
+      // had another track saved under this one's name, or an emptied list threw.
+      const track = this.tracks[i];
+      if (!track) {
+        return;
+      }
+      // The track's name, as its tooltip has it: the row shows it cut to 30 characters and,
+      // with more than one track on, after its place ("1: ").
+      const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_');
+      // EnvUtils, since `chrome` is not declared at all in the web build, where
+      // chrome?.extension threw a ReferenceError and the button did nothing.
+      const dlname = EnvUtils.isIncognito() ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
       if (!dlname) {
         return;
       }
 
-      const srt = SubtitleUtils.cuesToSrt(this.tracks[i].cues);
+      const srt = SubtitleUtils.cuesToSrt(track.cues);
       const blob = new Blob([srt], {
         type: 'text/plain',
       });
@@ -434,6 +448,11 @@ export class SubtitlesManager extends EventEmitter {
 
 
     trackElement.addEventListener('keydown', (e) => {
+      // The row has the focus whenever the mouse is over it; a combination is the player's
+      // or the browser's (Shift+Backspace undoes a seek, Ctrl+D bookmarks), not the row's.
+      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) {
+        return;
+      }
       if (e.code === 'Delete' || e.code === 'Backspace') {
         e.stopPropagation();
         removeTrack.click();
