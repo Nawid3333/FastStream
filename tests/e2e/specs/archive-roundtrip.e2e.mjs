@@ -1,5 +1,5 @@
 // "Dump buffer" writes what the player has downloaded into an .fsa archive; dropping the
-// archive on the player opens the video again from it. Two ways that broke:
+// archive on a player opens the video again from it. Two ways that broke:
 //
 // - The archive had no manifest. To keep live streams moving, the HLS and DASH loaders
 //   removed every playlist and MPD from the download store right after loading it, and
@@ -10,9 +10,11 @@
 //   any archive over 500 MB (two 250 MB chunks) ended in "archive failed". Here the chunk
 //   size is lowered to 64 KB, so that this small archive spans many chunks.
 //
-// Each case plays a local stream, writes its archive in memory the way dumpBuffer does,
-// drops it on the player through its own drop handler, and checks that the video plays
-// again with no manifest fetched from the network.
+// Each case plays a local stream, writes its archive the way dumpBuffer does, drops it on
+// a fresh player page through the player's own drop handler, and checks that the video
+// plays again with no manifest fetched from the network. (A fresh page, as when an
+// archive is opened later: dropped on the player still showing the same video, the
+// archive's source is taken for the one already in the list.)
 
 import {browser, expect} from '@wdio/globals';
 
@@ -81,7 +83,7 @@ describe('An archive written by "dump buffer"', function() {
       // The control: Resource Timing does see the player's manifest downloads.
       expect((await fetchedManifests(manifests)).length).toBeGreaterThan(0);
 
-      const dropped = await browser.executeAsync((done) => {
+      const written = await browser.executeAsync((done) => {
         (async () => {
           const client = window.fastStream;
           const {FastStreamArchiveUtils} = await import('/player/utils/FastStreamArchiveUtils.mjs');
@@ -94,30 +96,47 @@ describe('An archive written by "dump buffer"', function() {
           }), client.player, entries);
           await new Promise((resolve) => setTimeout(resolve, 100));
           const file = new File(chunks, 'roundtrip.fsa');
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+          });
+          return {stored: entries.map((entry) => entry.url), size: file.size, base64: dataUrl.split(',')[1]};
+        })().then(done, (e) => done({error: String(e)}));
+      });
+      console.log('      archive:', JSON.stringify({error: written.error, stored: written.stored?.length, size: written.size}));
+      expect(written.error).toBeUndefined();
 
+      // Every manifest the player loaded is in the archive, which spans many chunks.
+      for (const manifest of manifests) {
+        expect(written.stored).toContain(manifest);
+      }
+      expect(written.size).toBeGreaterThan(4 * 64 * 1024);
+
+      // A fresh player page, with nothing loaded, gets the archive dropped on it.
+      await browser.url(`/player/index.html?t=${Date.now()}`);
+      await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.interfaceController?.saveManager),
+          {timeout: 30000, timeoutMsg: 'the empty player never set up'});
+      const dropped = await browser.executeAsync((base64, done) => {
+        (async () => {
+          const client = window.fastStream;
+          const {FastStreamArchiveUtils} = await import('/player/utils/FastStreamArchiveUtils.mjs');
+          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+          const file = new File([bytes], 'roundtrip.fsa');
           FastStreamArchiveUtils.fileChunkSize = 64 * 1024;
+          performance.setResourceTimingBufferSize(100000);
           performance.clearResourceTimings();
           await client.interfaceController.saveManager.onFileDrop({
             stopPropagation() {},
             preventDefault() {},
             dataTransfer: {files: [file]},
           });
-          return {
-            stored: entries.map((entry) => entry.url),
-            size: file.size,
-            fromArchive: !!client.source?.loadedFromArchive,
-          };
+          return {fromArchive: !!client.source?.loadedFromArchive};
         })().then(done, (e) => done({error: String(e)}));
-      });
-      console.log('      archive:', JSON.stringify({...dropped, stored: dropped.stored?.length}));
+      }, written.base64);
+      console.log('      dropped:', JSON.stringify(dropped));
       expect(dropped.error).toBeUndefined();
-
-      // Every manifest the player loaded is in the archive...
-      for (const manifest of manifests) {
-        expect(dropped.stored).toContain(manifest);
-      }
-      // ...the archive spans many chunks, and it opened.
-      expect(dropped.size).toBeGreaterThan(4 * 64 * 1024);
       expect(dropped.fromArchive).toBe(true);
 
       const again = await waitForPlayback('from the archive');
