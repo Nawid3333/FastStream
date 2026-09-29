@@ -18,9 +18,9 @@ describe('StreamPick.played', () => {
   });
 
   it('takes the file the video plays, over a longer stream', () => {
-    const film = source('film.mp4', 160);
+    const film = source('film.mp4', 320);
     const extra = source('extra.m3u8', 720);
-    expect(urls(StreamPick.played([film, extra], {src: film.url, duration: 160}))).toEqual([film.url]);
+    expect(urls(StreamPick.played([film, extra], {src: film.url, duration: 320}))).toEqual([film.url]);
     // The file's own length, when the video has not read it yet.
     expect(urls(StreamPick.played([film, extra], {src: film.url, duration: null}))).toEqual([film.url]);
   });
@@ -81,10 +81,30 @@ describe('StreamPick.played', () => {
     expect(StreamPick.played([ad, source('stream.m3u8', null)], {src: ad.url, duration: 30})).toBeNull();
   });
 
-  it('takes a short video when nothing far longer plays', () => {
-    const clip = source('clip.mp4', 42);
-    expect(urls(StreamPick.played([clip, source('other.mp4', 60)], {src: clip.url, duration: 42}))).toEqual([clip.url]);
-    // A five-minute video beside a twenty-minute stream: under five times as long.
+  it('does not take a video under three minutes over any longer stream', () => {
+    // A 30-second pre-roll before a 2:10 clip: not five times as long, and still the ad.
+    const clip = source('clip.m3u8', 130);
+    expect(StreamPick.played([ad, clip], {src: ad.url, duration: 30})).toBeNull();
+    // A 90-second trailer beside a six-minute film.
+    expect(StreamPick.played([source('trailer.mp4', 90), source('film.mp4', 360)], {duration: 90})).toBeNull();
+    // A stream of unknown length ranks as ten minutes, longer.
+    expect(StreamPick.played([clip, source('other.m3u8', null)], {duration: 130})).toBeNull();
+    // At three minutes, the rule for any length: under five times as long.
+    const three = source('three.m3u8', 180);
+    expect(urls(StreamPick.played([three, source('long.m3u8', 890)], {duration: 180}))).toEqual([three.url]);
+  });
+
+  it('takes a short video beside streams no longer than it', () => {
+    const shortClip = source('clip.mp4', 42);
+    // The same clip in another rendition, a moment longer.
+    const rendition = source('clip-720p.m3u8', 43);
+    expect(urls(StreamPick.played([shortClip, rendition, source('intro.mp4', 8)], {src: shortClip.url, duration: 42})))
+        .toEqual([shortClip.url]);
+    expect(urls(StreamPick.played([rendition, shortClip], {duration: 42}))).toEqual([rendition.url, shortClip.url]);
+  });
+
+  it('takes a video of three minutes or more beside a stream under five times as long', () => {
+    // A five-minute video beside a twenty-minute stream.
     const short = source('short.m3u8', 300);
     expect(urls(StreamPick.played([short, source('long.m3u8', 1200)], {duration: 300}))).toEqual([short.url]);
   });
