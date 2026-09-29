@@ -289,3 +289,39 @@ jobs:
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
+
+  # update-prs.yml decides on an update pull request when CI has run on it, on the
+  # workflow_run event. A run whose actor is this repository's token sends none: GitHub
+  # starts no workflow for what its own token did. That is a run a workflow started
+  # (toolchain-updates.yml, patched-libraries.yml, update-prs.yml itself), and the
+  # pull_request run of a pull request a workflow opened (those two, sync-upstream.yml),
+  # even once the owner approved it; the pull request would sit without a word. For such
+  # a run this job starts update-prs.yml by workflow_dispatch instead, with the run's
+  # number; it waits for the run to end. Last, after every other job whatever they
+  # concluded, and it checks nothing out. Tried three times over two and a half minutes;
+  # if GitHub refuses all three, this job fails, and the owner can start update-prs.yml
+  # from the Actions tab with this run's number and branch.
+  hand-off:
+    name: Hand over to update-prs
+    needs: [workflows, verify, e2e-windows]
+    if: >-
+      !cancelled() && github.actor == 'github-actions[bot]' &&
+      (startsWith(github.head_ref || github.ref_name, 'dependabot/') ||
+       startsWith(github.head_ref || github.ref_name, 'toolchain/') ||
+       startsWith(github.head_ref || github.ref_name, 'patched/') ||
+       (github.head_ref || github.ref_name) == 'sync/upstream')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write  # start update-prs.yml
+    steps:
+      - name: Start update-prs.yml for this run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          # A pull_request run's ref is the pull request's merge ref; its branch is head_ref.
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          start() { gh workflow run update-prs.yml --ref main -f run_id="$RUN_ID" -f branch="$BRANCH"; }
+          start || { sleep 30; start; } || { sleep 120; start; }
