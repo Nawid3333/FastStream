@@ -43,11 +43,16 @@ describe('StreamPick.played', () => {
     expect(StreamPick.sameLength(1341, 1337)).toBe(false);
     expect(StreamPick.sameLength(7217, 7200)).toBe(true);
     expect(StreamPick.sameLength(7219, 7200)).toBe(false);
+    // A short video: 3 s, more than its quarter of a percent.
+    expect(StreamPick.sameLength(62.5, 60)).toBe(true);
+    expect(StreamPick.sameLength(63.5, 60)).toBe(false);
   });
 
   it('never matches a length it does not know, or a piece of a stream', () => {
     for (const duration of [null, undefined, 0, PIECE_LENGTH, NaN]) {
       expect(StreamPick.sameLength(duration, 30)).toBe(false);
+      // Not even a video of a second or two, within 3 s of them as numbers.
+      expect(StreamPick.sameLength(duration, 1)).toBe(false);
     }
     expect(StreamPick.played([source('seg.mp4', PIECE_LENGTH), source('x.mp4', null)], {duration: 10})).toBeNull();
   });
