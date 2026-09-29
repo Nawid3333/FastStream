@@ -16,8 +16,8 @@ const avUrl = (query = '') => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/lo
  * Hands the player a source the way main.mjs does, waits for its picture, and plays it
  * if asked.
  * @param {string} url - The source.
- * @param {boolean} play - Whether to play it, until its time has moved.
- * @return {Promise<void>}
+ * @param {boolean} play - Whether to play it, until its time has moved with sound.
+ * @return {Promise<boolean>} False when it was to play and no sound flowed.
  */
 async function loadVideo(url, play) {
   const error = await browser.executeAsync((url, done) => {
@@ -32,17 +32,36 @@ async function loadVideo(url, play) {
     const client = window.fastStream;
     return !!client.player && client.source?.url === url && client.duration > 0 && client.currentVideo?.readyState >= 2;
   }, url), {timeout: 30000, timeoutMsg: 'the video never loaded'});
-  if (play) {
-    await browser.execute(() => window.fastStream.play());
-    await browser.waitUntil(async () => browser.execute(() => window.fastStream.currentTime > 0.3),
-        {timeout: 15000, timeoutMsg: 'the video never played'});
-  }
+  if (!play) return true;
+  // Not awaited: play() also waits for its AudioContext to resume, which never settles on
+  // a machine without a sound device (the Linux CI runner), as in keybinds.e2e.mjs.
+  await browser.execute(() => {
+    window.fastStream.play().catch(() => {});
+  });
+  return browser.waitUntil(async () => browser.execute(() =>
+    window.fastStream.audioContext?.state === 'running' && window.fastStream.currentTime > 0.3),
+  {timeout: 15000, interval: 100}).then(() => true, () => false);
+}
+
+/**
+ * Skips the case when no sound flows on this machine: the cases that need the channel
+ * count can't run there, as in firefox.e2e.mjs.
+ * @param {Mocha.Context} test - The running case.
+ * @param {boolean} played - What openAudioTools() gave.
+ * @return {Promise<void>}
+ */
+async function skipWithoutSound(test, played) {
+  if (played) return;
+  const state = await browser.execute(() => ({context: window.fastStream.audioContext?.state,
+    time: window.fastStream.currentTime}));
+  console.log('      no sound on this machine, skipping:', JSON.stringify(state));
+  test.skip();
 }
 
 /**
  * Opens the player on the fixture with sound and the audio tools on it.
  * @param {{play: boolean}} [options] - Whether to play the video.
- * @return {Promise<void>}
+ * @return {Promise<boolean>} False when it was to play and no sound flowed.
  */
 async function openAudioTools({play = false} = {}) {
   await browser.url(`/player/index.html?t=${Date.now()}`);
@@ -58,12 +77,13 @@ async function openAudioTools({play = false} = {}) {
     window.__rejections = [];
     window.addEventListener('unhandledrejection', (e) => window.__rejections.push(String(e.reason)));
   });
-  await loadVideo(avUrl(), play);
+  const played = await loadVideo(avUrl(), play);
   await browser.execute(() => window.fastStream.audioConfigManager.openUI());
   // The mixer builds a strip per channel once it knows how many there are.
   await browser.waitUntil(async () => browser.execute(() =>
     window.fastStream.audioConfigManager.audioChannelMixer.ui.channels.querySelectorAll('.mixer_channel_container').length > 0),
   {timeout: 15000, timeoutMsg: 'the mixer never showed a channel'});
+  return played;
 }
 
 /**
@@ -209,7 +229,8 @@ describe('Audio tools', function() {
     // A new video recounts its channels, which dropped the count the compressor's build
     // was waiting for. The build gave up, and the compressor stayed off for that video
     // with its toggle on.
-    await openAudioTools({play: true});
+    // eslint-disable-next-line no-invalid-this
+    await skipWithoutSound(this, await openAudioTools({play: true}));
     const read = () => browser.execute(() => {
       const comp = window.fastStream.audioConfigManager.audioChannelMixer.masterNodes.compressor;
       return {enabled: !!comp.compressorConfig?.enabled, built: !!comp.compressorNode,
@@ -223,7 +244,7 @@ describe('Audio tools', function() {
     const ready = (state) => state.built && state.threshold === -40;
     expect(await settle(read, ready)).toEqual({enabled: true, built: true, threshold: -40});
     for (const query of ['?next=1', '?next=2']) {
-      await loadVideo(avUrl(query), true);
+      expect(await loadVideo(avUrl(query), true)).toBe(true);
       const state = await settle(read, ready);
       console.log(`      master compressor on ${query}:`, JSON.stringify(state));
       expect(state).toEqual({enabled: true, built: true, threshold: -40});
@@ -233,7 +254,8 @@ describe('Audio tools', function() {
   it('rebuilds the master compressor with its settings when the channel count changes', async function() {
     // Another channel count (another audio track) rebuilt the compressor's nodes with
     // their defaults.
-    await openAudioTools({play: true});
+    // eslint-disable-next-line no-invalid-this
+    await skipWithoutSound(this, await openAudioTools({play: true}));
     await browser.execute(() => {
       const comp = window.fastStream.audioConfigManager.audioChannelMixer.masterNodes.compressor;
       comp.compressorConfig.threshold = -40;
@@ -268,7 +290,8 @@ describe('Audio tools', function() {
     // Switched off while its build waited for the channel count, it was built anyway and
     // compressed with its toggle off. Two clicks in one task stand for a switch-off in the
     // few milliseconds a count takes after each recount.
-    await openAudioTools({play: true});
+    // eslint-disable-next-line no-invalid-this
+    await skipWithoutSound(this, await openAudioTools({play: true}));
     const state = await browser.executeAsync((done) => {
       (async () => {
         const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
