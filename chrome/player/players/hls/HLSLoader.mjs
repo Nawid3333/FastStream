@@ -168,20 +168,29 @@ export function HLSLoaderFactory(player) {
       // A playlist, not a key or a fragment. hls.js loads one again to see what is new.
       const isPlaylist = this.context.frag === undefined;
       const downloadManager = player.getClient().downloadManager;
-      this.loader = downloadManager.getFile({
+      const details = {
         ...this.context,
         config: this.config,
         headers: {
           ...this.context.headers,
           ...player.source.headers,
         },
-      }, {
+      };
+      if (isPlaylist) {
+        // A player's first load of a playlist may be answered from the store, and the copy
+        // has to stay there: "dump buffer" writes the store into the archive, and a player
+        // opened from an archive, or the seek preview beside the main player, finds it
+        // there. hls.js loads a playlist again only to see what is new (a live stream):
+        // then the stored copy is the old window, and answering with it would stop the
+        // stream where that window ends.
+        const key = downloadManager.getIdentifier(details);
+        if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(details);
+        player.loadedManifests.add(key);
+      }
+      this.loader = downloadManager.getFile(details, {
         onSuccess: async (entry, xhr) => {
           this.copyStats(entry.stats);
           const data = await entry.getDataFromBlob();
-          // Or the next load of a live playlist would be answered with this one from the
-          // store, and the stream would stop where this window ends.
-          if (isPlaylist) downloadManager.removeFile(entry);
 
           if (this.callbacks) {
             this.callbacks.onSuccess({

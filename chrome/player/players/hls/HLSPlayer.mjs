@@ -34,6 +34,9 @@ export default class HLSPlayer extends EventEmitter {
     this.defaultQuality = client.options.defaultQuality || 'Auto';
     this.source = null;
     this.activeRequests = [];
+    // Download-manager keys of the playlists this player has loaded; a second load of
+    // one is a live refresh (HLSLoader).
+    this.loadedManifests = new Set();
     this.fragmentRequester = new HLSFragmentRequester(this);
     this.video = document.createElement(this.isAudioOnly ? 'audio' : 'video');
     if (!Hls.isSupported()) {

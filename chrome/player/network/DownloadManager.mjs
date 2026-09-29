@@ -89,6 +89,18 @@ export class DownloadManager {
     return this.storage.get(key);
   }
 
+  /**
+   * Drops a finished stored copy, so the next getFile fetches the file again. A manifest a
+   * player loads a second time is a live one being refreshed, and its stored copy is the
+   * old window. A copy still downloading is left alone.
+   * @param {Object} details - The request (url, range and response type).
+   */
+  forgetCompletedFile(details) {
+    if (this.getEntry(details)?.status === DownloadStatus.DOWNLOAD_COMPLETE) {
+      this.removeFile(details);
+    }
+  }
+
   removeFile(details) {
     const key = this.getIdentifier(details);
     const storedEntry = this.storage.get(key);

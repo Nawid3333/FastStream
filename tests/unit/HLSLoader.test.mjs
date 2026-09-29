@@ -19,9 +19,10 @@ function makePlayer(stored = null) {
   const player = {
     source: {headers: {}},
     activeRequests: [],
+    loadedManifests: new Set(),
     getIdentifier: (trackID, level) => `${trackID}:${level}`,
     client: {getFragment: vi.fn(() => stored)},
-    getClient: () => ({downloadManager: {getFile, removeFile: vi.fn()}}),
+    getClient: () => ({downloadManager: {getFile, getIdentifier: (details) => details.url, forgetCompletedFile: vi.fn()}}),
     fragmentRequester: {requestFragment},
   };
   return {player, getFile, requestFragment};

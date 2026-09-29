@@ -22,6 +22,9 @@ export default class DashPlayer extends EventEmitter {
 
     this.fragmentRequester = new DashFragmentRequester(this);
     this.activeRequests = [];
+    // Download-manager keys of the manifests this player has loaded; a second load of one
+    // is a live refresh (DashLoader).
+    this.loadedManifests = new Set();
   }
 
   async setup() {
