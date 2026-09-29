@@ -1,11 +1,13 @@
 # Privacy Policy
 
 **FastStream Video Player (Firefox)**
-Last updated: 2026-09-06
+Last updated: 2026-09-29
 
 ## Summary
 
 This add-on collects nothing, sends nothing, and has no server of its own.
+The one exception is a subtitle search you start yourself (see "Subtitle
+search" below).
 
 Everything it stores stays in your browser profile on your own machine. There
 is no account, no analytics, no crash reporting, no usage counter, and no
@@ -16,8 +18,12 @@ The add-on's manifest declares this to Firefox as
 
 ## What is stored, and where
 
-The add-on writes to `browser.storage.local` only. That is per-profile
-storage on your own device.
+Everything the add-on stores is in your Firefox profile, on this machine:
+your settings in `browser.storage.local`, and, in the storage of the
+add-on's own pages, the audio tools' settings, remembered playback positions
+(in IndexedDB, under a PBKDF2 hash of the video's address, not the address
+itself), and temporary video data for buffering and saving (the Cache API
+and the origin-private file system).
 
 It is **not** `browser.storage.sync`, so nothing is ever uploaded to a
 Mozilla account or copied to your other devices.
@@ -40,8 +46,26 @@ It never sends that information anywhere else. There is no intermediary
 server, no proxy operated by this project, and no third-party service
 receiving any part of it.
 
-This Firefox build additionally has the add-on's own update checker removed
-at build time, so it does not contact anything on startup either.
+The signed release (the `.xpi`) has the add-on's own update checker removed
+at build time, so it does not contact anything on startup either. Firefox
+itself checks for updates through the release's `update_url`, as for any
+self-hosted add-on. (The unsigned development zip keeps the checker: when
+its options page opens, at most every 12 hours, it reads this repository's
+`package.json` from `raw.githubusercontent.com`.)
+
+## Subtitle search (OpenSubtitles)
+
+The player can search OpenSubtitles for subtitles. Only when you search, it
+sends what you typed into the search (title, language, year, season,
+episode) to `api.opensubtitles.com`, and when you pick a result, downloads
+that file from it. Nothing is sent to OpenSubtitles unless you search.
+
+## The mpv helper (optional)
+
+If you install the mpv helper and turn MPV mode on, the add-on hands a
+stream to that helper on your own computer: the stream URL, its `Referer`,
+`Origin` and `User-Agent` headers, and the address of the page you were on.
+The helper passes them to mpv. None of it leaves your computer on the way.
 
 ## Permissions, and why each is needed
 
@@ -51,6 +75,7 @@ at build time, so it does not contact anything on startup either.
 | `tabs` | Lets the player know which tab a video belongs to, so it can attach to the right one. |
 | `webRequest`, `declarativeNetRequest` | Reads and adjusts request headers for the video streams you play. Some hosts serve media only with particular `Referer`/`Origin` headers; without this the video will not load. |
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |
+| `nativeMessaging` | Only for the optional mpv mode: talks to the mpv helper on your own computer (see "The mpv helper" above). Unused unless you install the helper and turn MPV mode on. |
 | `cookies` | Only to read the container ID (`cookieStoreId`) of the tab you started from, so that a download opened from a Firefox Container tab stays in that same container. The add-on never reads, writes, or transmits cookie values. |
 | `<all_urls>` | FastStream is a general-purpose video player - it cannot know in advance which site you will play a video on. It activates on a page only when you invoke it or when a supported video is detected. |
 

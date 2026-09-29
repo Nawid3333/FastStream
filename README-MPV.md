@@ -20,9 +20,9 @@ Everything else in FastStream works without any of this.
 ## 1. What you need
 
 - **mpv** — https://mpv.io/installation/
-  Default lookups are `C:\Program Files\mpv\mpv.exe`, then `mpv` on `PATH`.
-  Anywhere else works too; you just tell it where in step 3.
-- **Node.js 20 or newer** — already required to build this repo.
+  The helper looks in `C:\Program Files\mpv\`, then `C:\Program Files (x86)\mpv\`,
+  then on `PATH`. Anywhere else works too; you just tell it where in step 3.
+- **Node.js 20 or newer** for the helper. (Building this repo needs 22.)
 
 ## 2. Install the helper
 
@@ -42,7 +42,7 @@ powershell -ExecutionPolicy Bypass -File install.ps1 -MpvPath "D:\Apps\mpv\mpv.e
 **Then restart Firefox.** It only looks for native hosts at startup.
 
 Not on Windows, or prefer to do it by hand? See
-[`native-host/README.md`](native-host/README.md) — same four steps, no script.
+[`native-host/README.md`](native-host/README.md) — the same steps, no script.
 
 ## 3. Turn it on
 
@@ -128,14 +128,22 @@ Untick the MPV options in settings, and FastStream goes back to normal.
 
 ## What gets sent to mpv
 
-Only the stream URL, and **`Referer`, `Origin` and `User-Agent`** — the three
-headers CDNs check. **Cookies and every other header stay in the browser.**
-That is why some streams that play fine in the browser will not play in mpv:
-they are tied to a login session that mpv does not have.
+Only the stream URL, the address of the page you were on (see below), and
+**`Referer`, `Origin` and `User-Agent`** — the three headers CDNs check.
+**Cookies and every other header stay in the browser.** That is why some
+streams that play fine in the browser will not play in mpv: they are tied to
+a login session that mpv does not have.
 
-When a content type is set, the URL mpv opens gets an extra
-`#fs-content=anime` or `#fs-content=movie` fragment. Fragments are never
-transmitted over HTTP, so this cannot change what the site or CDN receives.
+The URL mpv opens gets fragment tags at its end:
+
+- `fs-content=anime` or `fs-content=movie`, when a content type is set.
+- `fs-page=` with the page's address (percent-encoded), for the "Site page"
+  entry in mpv's menu, and `fs-id=` with a short hash of it, which the resume
+  script saves your position under. Both only for an `http(s)` page.
+
+Fragments are never transmitted over HTTP, so none of this reaches the site
+or the CDN. mpv does see them: they are part of the URL it opens, so anything
+in mpv that keeps URLs (its history, a script) keeps the page's address too.
 
 ---
 

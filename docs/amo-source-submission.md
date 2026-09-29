@@ -11,7 +11,7 @@ Everything below was run on the exact commit the submission was built from.
 | | |
 |---|---|
 | Operating system | Any of Linux, macOS or Windows. CI builds on `ubuntu-latest`. |
-| Node.js | 22 (CI). Anything `>=20` works - see `engines` in `package.json`. |
+| Node.js | 22 or newer. `localescript.mjs` uses `Set.prototype.difference`, which Node 20 lacks; `engines` in `package.json` says `>=22`. |
 | Package manager | pnpm 11.22.0, pinned by the `packageManager` field in `package.json`. |
 | Network access | Needed for `pnpm install` only. The build itself is offline. |
 
@@ -32,10 +32,12 @@ pnpm run build:keep
 That produces the submitted add-on at:
 
 ```
-build_firefox_amo/amo/faststream_video_player-<version>.zip
+built/firefox-amo-faststream_video_player-<version>.zip
 ```
 
-and leaves the same content unpacked in `build_firefox_amo/` for inspection.
+`build.mjs` moves it there from web-ext's artifacts folder
+(`build_firefox_amo/amo/`). `build:keep` also leaves the same content
+unpacked in `build_firefox_amo/` for inspection.
 
 To confirm it is clean:
 
@@ -46,6 +48,12 @@ pnpm run lint:amo               # web-ext lint against build_firefox_amo
 Expected result: **0 errors, 0 notices, 3 warnings.** Each of the three
 warnings is in third-party library code and is explained individually in
 `docs/amo-linter-warnings.md`.
+
+To compare a rebuild with the submitted package, unzip the submitted package
+and run `node tools/hash-build.mjs <dir>` on it and on `build_firefox_amo`,
+then diff the two lists. It hashes file contents (text with line endings
+collapsed), so it shows real differences; the zips themselves also store
+file times.
 
 ## What the build actually does
 
@@ -63,16 +71,28 @@ warnings is in third-party library code and is explained individually in
    jswebm@0.1.2       mp4box@2.4.1      sweetalert2@11.26.25
    ```
 
+   Besides the patches, `sync-vendor.mjs` itself makes a few small
+   mechanical changes on the way (a UMD wrapper turned into an ES module,
+   an added export, jswebm's source files joined into one module, an
+   inline source map stripped). The changes are in that script, not in an
+   edited copy.
+
    This is the key point for review: every bundled library is a **pinned
    npm release plus a readable diff**, not an opaque vendored blob. The
-   version in the lockfile is the version that ships.
+   one exception is Coloris, which is not on npm: it is pinned to its git
+   tag in `package.json` (`github:mdbassit/Coloris#v0.25.0`), and the
+   lockfile records the commit and the tarball's hash. The version in the
+   lockfile is the version that ships.
 
-2. **`node localescript.mjs`** - combines the per-locale message files in
-   `chrome/_locales/`.
+2. **`node localescript.mjs`** - with no arguments, it checks that every
+   locale in `chrome/_locales/` has the English locale's keys and lists
+   any missing or extra ones. It writes nothing (combining the message
+   files is `pnpm run combine-locales`, not part of the build).
 
-3. **`node build.mjs`** - copies `chrome/` into each target's build
+3. **`node build.mjs --keep`** - copies `chrome/` into each target's build
    directory, runs the source splicer, adjusts the manifest per target, and
-   packages the result with `web-ext`.
+   packages the result with `web-ext`. Without `--keep` the unpacked
+   directories are deleted and only the zips in `built/` remain.
 
 ### The splicer
 
@@ -92,8 +112,15 @@ this in the built output:
 find build_firefox_amo -iname 'yt*.mjs' -o -iname 'googlevideo.mjs'   # no matches
 ```
 
+On Windows, in PowerShell:
+
+```powershell
+Get-ChildItem build_firefox_amo -Recurse -Include yt*.mjs,googlevideo.mjs   # no matches
+```
+
 `NO_UPDATE_CHECKER` likewise removes `player/utils/UpdateChecker.mjs`, so
-this build makes no version-check request.
+the add-on itself makes no version-check request; Firefox checks for
+updates through the manifest's `update_url`, as for any self-hosted add-on.
 
 ## Prebuilt binaries
 
@@ -109,7 +136,9 @@ repository:
 Additional provenance checks for non-npm vendored files:
 
 ```sh
-pnpm run verify:vtt      pnpm run verify:vad      pnpm run verify:knob
+pnpm run verify:vtt
+pnpm run verify:vad
+pnpm run verify:knob
 ```
 
 Full narrative provenance for every third-party file - what it is, which
@@ -124,10 +153,10 @@ The complete suite the project gates commits on:
 pnpm run verify
 ```
 
-This runs eslint, TypeScript type-checking, unit tests, all four builds,
-addons-linter against both Firefox targets, browser end-to-end tests
-(WebDriver + Firefox), extension-loaded end-to-end tests, and the ONNX
-Runtime provenance check.
+This runs eslint, TypeScript type-checking, unit tests, all three builds
+(the GitHub zip, the AMO build and the web player), addons-linter against
+both Firefox targets, browser end-to-end tests (WebDriver + Firefox),
+extension-loaded end-to-end tests, and the ONNX Runtime provenance check.
 
 The end-to-end tests require a Firefox binary and will download WebDriver
 components on first run; they are not needed to reproduce the package.

@@ -377,8 +377,8 @@ export function withContentTypeFragment(streamUrl, contentType) {
 
 /**
  * The resume key for a page: the first 16 hex digits of its URL's sha256.
- * Hashed so the page address itself never shows up in mpv's path, title or
- * state file.
+ * Hashed, so the key is short and the same on every visit. (The address itself
+ * goes into the URL too, as fs-page=; see pageFragmentFor.)
  *
  * @param {string} [pageUrl] - The browser tab's page URL.
  * @return {string|undefined} The key, or undefined for a missing or

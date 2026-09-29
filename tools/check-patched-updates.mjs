@@ -4,7 +4,8 @@
 //
 // Dependabot ignores these libraries on purpose (.github/dependabot.yml): a bump leaves the
 // patch unapplied, so its PR could only fail. This is how their updates are still noticed -
-// .github/workflows/patched-libraries.yml runs it weekly and opens an issue per new version.
+// .github/workflows/patched-libraries.yml runs it daily, and for each new version opens a pull
+// request when tools/recut-patch.mjs moves the patch cleanly, or an issue when it cannot.
 //
 // A library from npm is checked against the registry's `latest` tag; one installed from
 // GitHub (`github:owner/repo#tag` in package.json) against that repository's latest release.

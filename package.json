@@ -4,7 +4,7 @@
   "description": "Stream videos without buffering. Fix bad video players on the internet.",
   "packageManager": "pnpm@11.22.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "vendor:sync": "node tools/sync-vendor.mjs",
