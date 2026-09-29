@@ -6,8 +6,8 @@ name: Update PRs
 # each sat until the owner looked; a red one told nobody, since GitHub emails a failed run
 # only to whoever started it, and that was a bot.
 #
-#   CI failed   The failed jobs run once more, in case a test was flaky, and the second
-#               attempt decides. Still red: the pull request stays open, is labelled
+#   CI failed   CI runs once more on the same commit, in case a test was flaky, and that
+#               run decides. Still red: the pull request stays open, is labelled
 #               ci-failed and assigned to the owner, and a comment @mentions them with the
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
@@ -30,6 +30,15 @@ name: Update PRs
 # A branch behind main is brought up to date (GitHub's "Update branch") and CI started on
 # it again; that run decides. After three such updates it waits for the owner instead.
 #
+# A CI run whose actor is this repository's token sends no workflow_run event, since
+# GitHub starts no workflow for what its own token did: a run a workflow started
+# (toolchain-updates.yml, patched-libraries.yml, or this one: the run on an updated
+# branch, the second try), and the pull_request run of a pull request a workflow opened
+# (those two, sync-upstream.yml), even once the owner approved it. Such a run's last
+# job (ci.yml's hand-off) starts this workflow by workflow_dispatch instead, with the
+# run's number; it waits for the run to end and decides as above. The owner can start
+# it the same way for any CI run of an update branch (Actions, Update PRs, Run workflow).
+#
 # The merge is made with this workflow's token, and a push by that token starts no
 # workflow: no CI run on main and no release follow it, which is right, since nothing
 # shipped changed and CI already passed on this exact tree.
@@ -42,46 +51,100 @@ on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
+  # From ci.yml's hand-off, for a run a workflow started (see above), or by hand. The
+  # inputs only point at a run: the step below checks them against the run itself.
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The CI run to decide on (the number in its URL)
+        required: true
+        type: string
+      branch:
+        description: Its branch
+        required: true
+        type: string
 
 permissions:
   contents: write       # merge, and bring a branch up to date
   pull-requests: write  # comment, assign, label, merge
   issues: write         # the ci-failed label, and the issue when this workflow fails
-  actions: write        # rerun CI's failed jobs, start CI on an updated branch
+  actions: write        # start CI once more, or on an updated branch
   checks: read          # Dependabot's dependency review
 
 concurrency:
-  group: update-prs-${{ github.event.workflow_run.head_branch }}
+  group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
   cancel-in-progress: false
 
 jobs:
   decide:
     name: Merge, report or hand over an update PR
+    # A run whose actor is this repository's own token comes by workflow_dispatch, should
+    # GitHub ever send workflow_run for it as well: one decision per run.
     if: >
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      (startsWith(github.event.workflow_run.head_branch, 'dependabot/') ||
-       startsWith(github.event.workflow_run.head_branch, 'toolchain/') ||
-       startsWith(github.event.workflow_run.head_branch, 'patched/') ||
-       github.event.workflow_run.head_branch == 'sync/upstream')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login != 'github-actions[bot]' &&
+       (startsWith(github.event.workflow_run.head_branch, 'dependabot/') ||
+        startsWith(github.event.workflow_run.head_branch, 'toolchain/') ||
+        startsWith(github.event.workflow_run.head_branch, 'patched/') ||
+        github.event.workflow_run.head_branch == 'sync/upstream'))
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       OWNER: ${{ github.repository_owner }}
       SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
+      # By workflow_dispatch: the run it names, once that has ended. Only a CI run of an
+      # update branch of this repository; what the step below needs comes from the run.
+      - name: Wait for the CI run
+        id: run
+        if: github.event_name == 'workflow_dispatch'
+        timeout-minutes: 7
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          BRANCH: ${{ inputs.branch }}
+        run: |
+          set -euo pipefail
+          if ! [[ $RUN_ID =~ ^[0-9]+$ ]]; then
+            echo "run_id is not a run's number: $RUN_ID" >&2
+            exit 1
+          fi
+          # The hand-off is the run's last job: it ends moments after starting this.
+          for _ in $(seq 30); do
+            gh api "repos/$GH_REPO/actions/runs/$RUN_ID" > "$RUNNER_TEMP/run.json"
+            if [ "$(jq -r .status "$RUNNER_TEMP/run.json")" = completed ]; then break; fi
+            sleep 10
+          done
+          jq -r '"\(.path) of \(.head_repository.full_name), \(.head_branch) at \(.head_sha): \(.status) \(.conclusion)"' \
+            "$RUNNER_TEMP/run.json"
+          if [ "$(jq -r .status "$RUNNER_TEMP/run.json")" != completed ]; then
+            echo "Run $RUN_ID did not end within five minutes." >&2
+            exit 1
+          fi
+          if ! jq -e --arg repo "$GH_REPO" --arg branch "$BRANCH" '
+              (.path | split("@")[0]) == ".github/workflows/ci.yml" and
+              .head_repository.full_name == $repo and .head_branch == $branch and
+              (.head_branch | test("^(dependabot|toolchain|patched)/|^sync/upstream$"))' \
+              "$RUNNER_TEMP/run.json" > /dev/null; then
+            echo "Run $RUN_ID is not a CI run of this repository's update branch $BRANCH." >&2
+            exit 1
+          fi
+          jq -r '"attempt=\(.run_attempt)", "url=\(.html_url)", "conclusion=\(.conclusion)", "sha=\(.head_sha)"' \
+            "$RUNNER_TEMP/run.json" >> "$GITHUB_OUTPUT"
+
       - name: Decide
         # Its own limit, under the job's: a step that runs out of time fails, and the report
         # step below then runs. Nothing else would tell the owner.
         timeout-minutes: 13
         env:
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          RUN_URL: ${{ github.event.workflow_run.html_url }}
-          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || steps.run.outputs.attempt }}
+          RUN_URL: ${{ github.event.workflow_run.html_url || steps.run.outputs.url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion || steps.run.outputs.conclusion }}
+          BRANCH: ${{ github.event.workflow_run.head_branch || inputs.branch }}
+          SHA: ${{ github.event.workflow_run.head_sha || steps.run.outputs.sha }}
         run: |
           set -euo pipefail
           LABEL=ci-failed
@@ -150,15 +213,26 @@ jobs:
               echo "CI $CONCLUSION: cancelled for a newer run or by hand, or skipped. Nothing to report."
               exit 0
             fi
-            rerun=0
-            if [ "$RUN_ATTEMPT" = 1 ]; then
-              if gh run rerun "$RUN_ID" --failed; then
-                echo 'Started the failed jobs once more; that attempt decides.'
-                exit 0
-              fi
-              echo 'The failed jobs could not be run again; this attempt decides.'
+            # A second try, in case a test was flaky: a new CI run on this commit, which decides.
+            # (A re-run of this one would be started by this workflow's token, and its end
+            # would reach no workflow.) Not when this is the second try already: an earlier
+            # CI run on this commit failed, or someone ran this one again. The earlier run can
+            # also be the other one of a pull request a workflow opened: its dispatched run and
+            # its pull_request run build the same commit.
+            again=0
+            if [ "$RUN_ATTEMPT" != 1 ]; then
+              again=1
             else
-              rerun=1
+              earlier=$(gh run list --workflow ci.yml --commit "$SHA" --limit 50 --json databaseId,conclusion |
+                jq --argjson id "$RUN_ID" '[.[] | select(.databaseId != $id and (.conclusion | IN("failure", "timed_out")))] | length')
+              if [ "$earlier" != 0 ]; then
+                again=1
+              elif gh workflow run ci.yml --ref "$BRANCH"; then
+                echo 'Started CI once more on this commit; that run decides.'
+                exit 0
+              else
+                echo 'CI could not be started once more; this run decides.'
+              fi
             fi
 
             gh run view "$RUN_ID" --attempt "$RUN_ATTEMPT" --json jobs > "$RUNNER_TEMP/jobs.json"
@@ -193,8 +267,8 @@ jobs:
             key="red $(sha1sum < "$RUNNER_TEMP/failed.tsv" | cut -c1-12)"
             # shellcheck disable=SC2016
             {
-              if [ "$rerun" = 1 ]; then
-                printf '@%s CI fails on this pull request. Its failed jobs ran once more, in case a test was flaky, and failed again.\n\n' "$OWNER"
+              if [ "$again" = 1 ]; then
+                printf '@%s CI fails on this pull request. It failed twice on this commit, so a flaky test is an unlikely cause.\n\n' "$OWNER"
               else
                 printf '@%s CI fails on this pull request (%s).\n\n' "$OWNER" "$CONCLUSION"
               fi

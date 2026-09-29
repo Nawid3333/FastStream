@@ -118,8 +118,11 @@ jobs:
     needs: detect
     if: needs.detect.outputs.latest-tested != 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/ci.yml
+    # The most ci.yml's jobs may ask for. Only its hand-off asks for actions: write, and it
+    # runs only on an update branch, never here; without it here the call would not start.
     permissions:
       contents: read
+      actions: write
     with:
       linux-runner: ${{ needs.detect.outputs.latest-linux }}
       windows-runner: ${{ needs.detect.outputs.latest-windows }}
@@ -131,8 +134,11 @@ jobs:
       needs.detect.outputs.next-images != needs.detect.outputs.latest-images &&
       (needs.detect.outputs.next-tested != 'true' || github.event_name == 'workflow_dispatch')
     uses: ./.github/workflows/ci.yml
+    # The most ci.yml's jobs may ask for. Only its hand-off asks for actions: write, and it
+    # runs only on an update branch, never here; without it here the call would not start.
     permissions:
       contents: read
+      actions: write
     with:
       linux-runner: ${{ needs.detect.outputs.next-linux }}
       windows-runner: ${{ needs.detect.outputs.next-windows }}
