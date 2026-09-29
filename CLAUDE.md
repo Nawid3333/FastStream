@@ -844,7 +844,7 @@ the change went in.
   full-upgrade, installs the newest release of the Node major `.nvmrc` names
   (so it moves with CI) and the current stable Firefox, apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
-  `ci.yml` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
+  `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
   `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe
   writes stdout and stderr to a redirected file at separate offsets, one over the other,
   so both scripts merge them. The Windows build of actionlint hangs driving shellcheck on
@@ -1042,8 +1042,11 @@ the change went in.
   through `tests/e2e/listen-or-stop.mjs`, which ends the run with "Port N is already in
   use" instead.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
-  actionlint image by digest); Dependabot bumps them, minor/patch grouped weekly, and
-  `update-prs.yml` never merges them (they change workflow files). Checked
+  actionlint image by digest, in `.github/actionlint/Dockerfile`, since Dependabot does
+  not update a `docker://` line); Dependabot bumps them, the workflows' and the composite
+  actions' (`/.github/actions/*`), minor/patch grouped weekly, and `update-prs.yml` never
+  merges them (they change workflow files or the workflow check).
+  `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
   libsamplerate, StreamSaver, the native ONNX Runtime wasm): measured 2026-09-25, OSV has

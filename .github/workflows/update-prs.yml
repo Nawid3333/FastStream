@@ -23,7 +23,8 @@ name: Update PRs
 #               nothing, and nothing reaches Firefox untried by the owner.
 #   CI passed,  a comment @mentions the owner and assigns them, saying CI is green and
 #   otherwise   why it waits for them: a major, a new Node, GitHub Actions (workflow
-#               files), a library the extension ships, an upstream sync.
+#               files), the actionlint image (Dependabot's docker entry), a library the
+#               extension ships, an upstream sync.
 # A run with the same verdict as the pull request's last comment from here edits that
 # comment instead of adding one: the owner hears when a verdict changes, not every run.
 #
@@ -188,6 +189,7 @@ jobs:
           case $BRANCH in
             dependabot/npm_and_yarn/*) kind=dependabot ;;
             dependabot/github_actions/*) kind=actions ;;
+            dependabot/docker/*) kind=docker ;;
             toolchain/pnpm-*) kind=pnpm ;;
             toolchain/node-*) kind=node ;;
             patched/*) kind=patched ;;
@@ -200,6 +202,7 @@ jobs:
             case $kind in
               dependabot) printf 'Several packages can move together in one Dependabot pull request; `@dependabot ignore <package> minor version` drops one of them. `@dependabot rebase` builds it anew on main.\n' ;;
               actions) printf 'Dependabot moves the pinned commit and its version comment together; the release notes are linked above.\n' ;;
+              docker) printf 'Dependabot moves the tag and the digest in `.github/actionlint/Dockerfile` together. `@dependabot ignore this minor version` (or `this major version`) skips it.\n' ;;
               pnpm|node) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
               patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
               upstream) printf 'Take it by resolving and merging, or close it to skip; see the header of `.github/workflows/sync-upstream.yml`.\n' ;;
@@ -307,6 +310,7 @@ jobs:
             dependabot) bot='dependabot[bot]' ;;
             pnpm) bot='github-actions[bot]' ;;
             actions) reasons+=('it changes workflow files, which a person reviews (and which this token may not merge)') ;;
+            docker) reasons+=('it changes the actionlint image, the check every workflow file has to pass, which a person reviews') ;;
             node) reasons+=('a new Node.js major is your decision') ;;
             patched) reasons+=('a patched library is part of the extension: merging releases it to Firefox') ;;
             upstream) reasons+=("taking upstream's commits is your decision") ;;

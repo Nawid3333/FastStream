@@ -22,6 +22,7 @@ workflows, which stay silent while they pass.
 | upstream sync | a PR from `sync-upstream.yml`, daily and on every push to `main` | waits for you | one comment, and the assignment |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
+| actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile`, which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 
 Dependabot proposes a release once it is 5 days old (`cooldown` in `.github/dependabot.yml`);
@@ -124,3 +125,21 @@ Node update is therefore a one-file change: the toolchain workflow's
 - Or run the Toolchain updates workflow (Actions, Run workflow), which opens the
   PR on `toolchain/node-<major>` for a newer LTS major, with CI on it; merge it
   when you are ready.
+
+## Pinning a new tool
+
+A version written down somewhere needs something that updates it, or it stays on that
+version and nobody hears. `tests/unit/checkToolchain.test.mjs` fails for an action or an
+image pinned in a form Dependabot does not update:
+
+- An action, in a workflow or in a composite action under `.github/actions/<name>/`:
+  pinned to its commit, with the version as a comment (`uses: owner/repo@<sha> # v1.2.3`).
+  Dependabot's github-actions entry watches `/` (which means `.github/workflows` only) and
+  `/.github/actions/*`.
+- A container image: not a `docker://` line in a workflow, which Dependabot leaves alone,
+  but a `FROM <image>:<tag>@sha256:<digest>` line in a Dockerfile of its own under
+  `.github/`, with a docker entry for that directory in `.github/dependabot.yml`; the
+  workflow reads the line from there, as `ci.yml` does with `.github/actionlint/Dockerfile`.
+- Node only in `.nvmrc`, pnpm only in `package.json`'s `packageManager`, npm packages in
+  `package.json` and `pnpm-lock.yaml`, mpv in `.github/mpv-build.json`: each has its
+  updater in the table above.
