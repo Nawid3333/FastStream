@@ -19,10 +19,16 @@ email (assigned to you, with an @mention) in one of two ways:
 
 A release younger than pnpm's `minimumReleaseAge` cannot be installed yet; the workflow
 says nothing that day and tries again the next. Either way the pull request or issue is
-closed by itself once the library is patched at that version or newer, however that
-happened, and a version you closed is never raised again.
+closed by itself once the library is patched at that version or newer, or no longer
+patched at all, however that happened, and a version you closed is never raised again.
+Besides the daily run, the workflow runs on a push to main that changes
+`pnpm-workspace.yaml` or `package.json`, only to close items early (re-cutting stays
+the daily run's job).
 
 ## By hand
+
+The tool compares `node_modules` with the current patch first, and stops with
+"run pnpm install" when they differ - so run `pnpm install` before starting.
 
 ```
 node tools/recut-patch.mjs dashjs 5.3.0
@@ -33,7 +39,10 @@ leaves everything in an output directory it names: `base/` (the old release), `o
 (the old release patched: what ships today), `theirs/` (the new release) and `merged/`.
 Conflicts are marked in `merged/` in diff3 style: `ours (FastStream)`, `base`,
 `theirs (new release)`. Keep FastStream's change on top of the new release's code; where
-FastStream deliberately removed code upstream then kept editing, keep the removal. Then:
+FastStream deliberately removed code upstream then kept editing, keep the removal.
+A problem ending in "pass --map <old>=<new path>" is a file the new release renamed
+and the tool cannot match on its own: `--map <old path>=<new path>` tells it where the
+file went. Then:
 
 ```
 node tools/recut-patch.mjs dashjs 5.3.0 --out <that directory> --resume --apply
@@ -41,19 +50,29 @@ pnpm run verify
 pnpm run verify:linux
 ```
 
+A run with the same `--out` but without `--resume` deletes `merged/`, the resolved
+files included. Always add `--resume` once files have been resolved.
+
 `--resume` runs the resolved files through the same checks, and `--apply` takes the
 update: `package.json`, the `patchedDependencies` entry, the lockfile, the new patch
 through `pnpm patch-commit`, renamed chunk names in `tools/sync-vendor.mjs`, and the
 regenerated files in `chrome/player/modules/`. Then commit on a branch and open a pull
-request.
+request (the regenerated files are git-ignored, so they are not part of the commit).
+
+When every one of FastStream's changes has landed upstream, `--apply` drops the
+patch instead of committing one, and says to remove the `patched: true` marks in
+`tools/sync-vendor.mjs` and the library from `.github/dependabot.yml`'s ignore list.
+If `tools/sync-vendor.mjs` then fails (an unpatched file renamed too), the tool
+exits 2 with the version, lockfile and patch already changed: fix `sync-vendor.mjs`,
+then run `pnpm run verify`.
 
 ## What the tool checks, and what it cannot
 
 It merges module by module where it can, finds a content-hashed file under its new name
 (mp4box's rolldown chunks), and keeps the stray CR characters a release ships (dash.js
-has 428), so the patch holds only real changes. Each merged file must parse, and ESLint's
-`no-undef`/`no-unused-vars` must find no name that neither the new release nor the
-current patch has. A clean merge is not a correct one: on the dash.js 5.2.1 upgrade two
+has 428), so the patch holds only real changes. Each merged JavaScript file
+(`.js`/`.mjs`/`.cjs`) must parse, and ESLint's `no-undef`/`no-unused-vars` must find no
+name that neither the new release nor the current patch has. A clean merge is not a correct one: on the dash.js 5.2.1 upgrade two
 merged cleanly and would have thrown on every stream of their kind - a helper upstream
 deleted, a webpack import upstream renumbered - and that check is what finds them.
 
@@ -79,6 +98,12 @@ from a commit three weeks before 5.1.0, mp4box from one between 0.5.2 and 0.5.3 
 of the "patch" was upstream code in reverse. Rebuild the library at that commit from its
 own lockfile, check that the same build reproduces a published release, and diff against
 it: `docs/vendored-libraries.md`, dash.js, "Status".
+
+Three tools were made for this: `tools/find-base.mjs` finds which upstream release or
+commit a vendored file was built from (its listing calls hit GitHub's limit of 60
+unauthenticated requests an hour; set `GITHUB_TOKEN`, for example
+`GITHUB_TOKEN=$(gh auth token)`), `tools/ast-compare.mjs` checks that a build reproduces
+a published release, and `tools/compare-decls.mjs` compares single declarations.
 
 ## Checking the tool
 

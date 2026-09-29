@@ -45,8 +45,8 @@ Copy-Item $HostScript (Join-Path $InstallDir 'faststream-mpv-host.mjs') -Force
     mpvPath = $MpvPath
 } | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'config.json') -Encoding ASCII
 
-# 2. .bat wrapper - the manifest 'path' executable is run directly with no
-#    arguments, so node + script must be wrapped.
+# 2. .bat wrapper - Windows won't start a .mjs as a program, so the manifest
+#    points at this, which runs it with node and hands on Firefox's arguments.
 $batPath = Join-Path $InstallDir "$HostName_.bat"
 @"
 @echo off

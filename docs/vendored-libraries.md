@@ -8,7 +8,9 @@ it.
 
 Method: fetch every candidate npm release, diff each against the in-tree
 copy, and take the smallest diff as the base version. Reproduce with
-`docs/hls.js-1.6.9-faststream.patch`.
+`docs/hls.js-1.6.9-faststream.patch` - that reproduces the original 1.6.9
+measurement. Today's patch is `patches/hls.js@1.7.3.patch`, applied by pnpm
+(`pnpm-workspace.yaml`, `patchedDependencies`).
 
 ## hls.js
 
@@ -139,7 +141,7 @@ CommonJS/AMD shim. So the generator prepends that shim, flips the trailing
 Trade-off: the worker grows from 325 KB to ~1.42 MB, because the UMD bundle is
 all of hls.js rather than a worker-only bundle. This is the same bundle hls.js
 would use for its own blob worker. In exchange the file has a verifiable npm
-base, keeps its real `version = "1.6.9"` string, and stays readable.
+base, keeps its real `version = "1.7.3"` string, and stays readable.
 
 ### Only three hunks were needed in the UMD
 
@@ -338,7 +340,7 @@ what can actually change behaviour.
 | mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated, 5.2.2 tried and reverted** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
-| coloris | 0.21.1, pinned commit | 9 KB patch; one deliberate bug fix on top | **migrated** |
+| coloris | 0.25.0, git tag (not on npm) | 9 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
@@ -357,7 +359,8 @@ copy, so the replacement needed no patch and no playback test - the parsed
 program is provably the same. Since upgraded to 3.0.x (3.0.2 since 2026-09-25), whose `dist/pako.mjs`
 is real ESM with named `deflate`/`inflate` exports - that appended line has
 nothing to attach to any more, so the wrapper is gone too and this is now a
-verbatim copy, same as fuse.js.
+copy with only line endings normalised and a missing final newline added
+(`tools/sync-vendor.mjs`, `normaliseText`), same as fuse.js.
 
 **mp4box 2.4.1 was shelved on 2026-09-06 on a misreading, and taken on
 2026-09-25.** The blocker was said to be that rolldown "renames every internal
@@ -640,7 +643,7 @@ reviewer cannot read:
 | `silero_vad_half.ort` | 1,856,120 B | **verified** - `pnpm run verify:vad` |
 | `ort-wasm-simd-threaded.wasm` | 1,037,262 B | **stamped** - `pnpm run verify:ort` |
 | `ort-wasm-simd-threaded.mjs` | 24 KB | emscripten glue from the same build |
-| `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0 |
+| `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0, inline source map stripped |
 
 **The model.** snakers4/silero-vad publishes only ONNX - `silero_vad.onnx`,
 `silero_vad_half.onnx` and four variants, plus a `.jit` and a
@@ -799,7 +802,9 @@ that was itself built two lines earlier from a same-origin `fetch` and
 `URL.createObjectURL`. Generated emscripten/onnxruntime-web glue is not
 something to hand-patch line by line - the correct lever, if this needed to
 change, is the build flags in `reproduce-ort-wasm.sh` and the npm release
-pin, both already the subject of the reproduction above. Left as generated.
+pin, both already the subject of the reproduction above. Left as generated,
+except that `tools/sync-vendor.mjs` strips onnxruntime-web's inline source map
+on the way (410 KB of its 539 KB, `stripInlineSourceMap`).
 
 **The pairing, now actually run.** `ort.wasm.mjs` is generated from the
 published onnxruntime-web 1.20.0, while the glue and wasm come from main two
@@ -1188,7 +1193,11 @@ into; and it triggers on the user's locale rather than on anything they did.
 
 `tools/sync-vendor.mjs` strips it by brace matching rather than a line range,
 so it survives upstream reformatting, and the build is checked for its
-absence.
+absence. `toSweetAlertModule` does more than strip the payload: it makes the
+copy an ES module and retargets it at the player. Every `document.body`
+becomes the player container, `getContainer()` finds the container again from
+the player if it was removed, and a `'body'` target means the player
+container.
 
 ### sweetalert2's DANGEROUS_EVAL: dead code, and provably so
 
@@ -1208,7 +1217,7 @@ that were wrong, `build_firefox_amo/manifest.json`'s CSP is `script-src
 would throw a CSP violation the instant it executed, in this extension,
 regardless of caller.
 
-Patched (`patches/sweetalert2@11.12.4.patch`) to throw a message explaining
+Patched (`patches/sweetalert2@11.26.25.patch`) to throw a message explaining
 why instead of calling `new Function`, rather than leaving the call in
 place. The throw is exactly as unreachable as the original call was - this
 removes the AST pattern, not a working feature - and makes the reason
