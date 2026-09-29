@@ -44,16 +44,34 @@ async function loadVideo(url, play) {
 }
 
 /**
- * Skips the case when no sound flows on this machine: the cases that need the channel
- * count can't run there, as in firefox.e2e.mjs.
+ * When the video did not play with sound: skips the case if this machine can't run any
+ * AudioContext (the cases that need the channel count can't run there, as in
+ * firefox.e2e.mjs), and fails it otherwise, since then the player is what failed.
  * @param {Mocha.Context} test - The running case.
  * @param {boolean} played - What openAudioTools() gave.
  * @return {Promise<void>}
  */
 async function skipWithoutSound(test, played) {
   if (played) return;
-  const state = await browser.execute(() => ({context: window.fastStream.audioContext?.state,
-    time: window.fastStream.currentTime}));
+  const state = await browser.executeAsync((done) => {
+    const player = {context: window.fastStream.audioContext?.state, time: window.fastStream.currentTime};
+    // A context of its own, apart from the player's code: on a machine without a sound
+    // device its resume() never settles, and it stays suspended.
+    const context = new AudioContext();
+    const report = () => {
+      done({...player, machine: context.state});
+      context.close();
+    };
+    const giveUp = setTimeout(report, 3000);
+    const settled = () => {
+      clearTimeout(giveUp);
+      report();
+    };
+    context.resume().then(settled, settled);
+  });
+  if (state.machine === 'running') {
+    throw new Error('the video did not play with sound, on a machine that has sound: ' + JSON.stringify(state));
+  }
   console.log('      no sound on this machine, skipping:', JSON.stringify(state));
   test.skip();
 }
