@@ -935,7 +935,9 @@
           fillScreenIframe(iframe, true);
         } else if (iframeObj.miniplayerState.active) {
           const placeholder = iframeObj.miniplayerState.placeholder;
-          updateReplacedPlayer(old, placeholder, softReplace);
+          // The placeholder holds the element's id only when it stands in for the player's
+          // iframe. One for a wrapper around it holds the wrapper's.
+          updateReplacedPlayer(old, placeholder, softReplace, iframeObj.miniplayerState.element === iframe);
           placeholder.style.setProperty('background-color', 'black', 'important');
         } else {
           const final_size = updateReplacedPlayer(old, iframe, softReplace);
@@ -951,7 +953,7 @@
     });
   }
 
-  function updateReplacedPlayer(old, iframe, softReplace) {
+  function updateReplacedPlayer(old, iframe, softReplace, holdsId = true) {
     const parent = iframe.parentNode;
     // A hard-replaced player the page took out has nowhere to measure the page's element:
     // insertBefore on the missing parent threw, on every resize, and the players after it
@@ -963,6 +965,13 @@
     let final_size;
     if (softReplace) {
       showSoft(old);
+      // Measured with its id, as a hard replace is: transferStyles handed it to the iframe,
+      // and without it the page's #id rules no longer sized or placed the element. From the
+      // second update on (the resize observer's first call), the player took the element's
+      // unstyled box: the page's whole width, below the page's content.
+      if (!Config.customIframeId && holdsId) {
+        transferId(iframe, old);
+      }
       final_size = transferStyles(old, iframe, true);
       hideSoft(old);
     } else {
