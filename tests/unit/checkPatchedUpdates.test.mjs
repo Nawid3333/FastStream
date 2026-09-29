@@ -47,12 +47,14 @@ describe('patchedDependencies', () => {
     // A package name after node_modules/, ended by a path separator or the string's end.
     const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((match) => match[1]));
     expect(copied.size).toBeGreaterThanOrEqual(12);
-    const group = dependabot.match(/shipped-minor-and-patch:\n\s+patterns: \[([^\]]*)\]/);
-    expect(group).not.toBeNull();
-    const patterns = [...group[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
+    const names = (list) => {
+      expect(list).not.toBeNull();
+      return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
+    };
+    const patterns = names(dependabot.match(/shipped-minor-and-patch:\n\s+patterns: \[([^\]]*)\]/));
     expect(patterns).toEqual([...copied].filter((name) => !ignored.has(name)).sort());
     // The tooling group leaves out the same names.
-    expect(dependabot).toMatch(new RegExp(`tooling-minor-and-patch:\\n\\s+exclude-patterns: \\[${group[1].replace(/[.[\]]/g, '\\$&')}\\]`));
+    expect(names(dependabot.match(/tooling-minor-and-patch:\n\s+exclude-patterns: \[([^\]]*)\]/))).toEqual(patterns);
   });
 });
 
