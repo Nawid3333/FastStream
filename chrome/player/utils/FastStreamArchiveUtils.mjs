@@ -1,11 +1,16 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../network/DownloadEntry.mjs';
+import {RequestUtils} from './RequestUtils.mjs';
 import {Utils} from './Utils.mjs';
 
 /**
  * Utility functions for working with FastStream archive files and streams.
  */
 export class FastStreamArchiveUtils {
+  // Bytes per read of a local archive file (parseFSAFile). A test lowers it, so that a
+  // small archive spans many chunks the way a large one does.
+  static fileChunkSize = 1e9 / 4;
+
   /**
    * Writes FastStream archive data to a stream.
    * @param {WritableStream} filestream - The writable stream.
@@ -93,6 +98,27 @@ export class FastStreamArchiveUtils {
     }
 
     writer.close();
+  }
+
+  /**
+   * Reads an archive from a local file, such as one dropped on the player.
+   *
+   * httpGetLarge fetches the file in chunks as parseFSA reads it, so the object URL has to
+   * live until parseFSA is done. Revoked any earlier, every chunk past the first two failed,
+   * and any archive over 500 MB could not be opened.
+   * @param {File|Blob} file - The .fsa file.
+   * @param {Function} [progressCallback] - Called with the share of entries read.
+   * @param {Object} [downloadManager] - Receives the entries' data.
+   * @return {Promise<Object>} What parseFSA returns.
+   */
+  static async parseFSAFile(file, progressCallback, downloadManager) {
+    const url = URL.createObjectURL(file);
+    try {
+      const buffer = await RequestUtils.httpGetLarge(url, this.fileChunkSize);
+      return await this.parseFSA(buffer, progressCallback, downloadManager);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
 
   static async parseFSA(largeBuffer, progressCallback, downloadManager) {

@@ -185,13 +185,14 @@ export class RequestUtils {
 
   /**
    * Downloads a large file in fragments using range requests and returns a LargeBuffer.
+   * The fragments are fetched as the buffer is read, not up front, so `source` has to stay
+   * reachable until the last byte has been read.
    * @param {string} source - The URL of the large file.
+   * @param {number} [fragSize] - Bytes per range request.
    * @return {Promise<LargeBuffer>} Resolves with a LargeBuffer containing the file data.
    * @throws {Error} If the request fails or headers are missing.
    */
-  static async httpGetLarge(source) {
-    const fragSize = 1e9 / 4;
-
+  static async httpGetLarge(source, fragSize = 1e9 / 4) {
     const headersXHR = await this.request({
       url: source,
       responseType: 'arraybuffer',
