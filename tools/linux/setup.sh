@@ -4,7 +4,7 @@
 #
 # Every run starts from what is newest, as a runner starts from a freshly built image: apt
 # updates and upgrades every package, and Node and Firefox are replaced as soon as a newer
-# one is out. What CI's verify job has, and so this gets: Node at ci.yml's major
+# one is out. What CI's verify job has, and so this gets: Node at .nvmrc's major
 # (actions/setup-node with check-latest: its newest release), pnpm at package.json's packageManager version (through corepack),
 # ffmpeg from apt (libx264, as on the runner), and the current stable Firefox
 # (browser-actions/setup-firefox, `latest`). For the workflows job: the actionlint and
@@ -34,9 +34,13 @@ fi
 "${apt[@]}" -y autoremove --purge > /dev/null
 echo "apt: $(. /etc/os-release && echo "$PRETTY_NAME"), $upgrades package(s) upgraded${need_apt[*]:+, installed ${need_apt[*]}}"
 
-# Node: the newest release of the major ci.yml's node-version names, so this moves with
-# CI when the workflows do; checked against nodejs.org's SHASUMS256.
-node_major=$(sed -n 's/^ *node-version: *\([0-9]*\).*/\1/p' "$repo/.github/workflows/ci.yml" | head -1)
+# Node: the newest release of the major .nvmrc names - the file every workflow's
+# setup-node reads - so this moves with CI; checked against nodejs.org's SHASUMS256.
+node_major=$(sed -n 's/^ *v\{0,1\}\([0-9][0-9]*\).*/\1/p' "$repo/.nvmrc" | head -1)
+if [ -z "$node_major" ]; then
+  echo "setup.sh: no Node major in $repo/.nvmrc"
+  exit 1
+fi
 node_want=$(curl -fsSL https://nodejs.org/dist/index.json |
   jq -r --arg prefix "v$node_major." '[.[] | select(.version | startswith($prefix))][0].version')
 if [ "$(/opt/node/bin/node --version 2>/dev/null || true)" != "$node_want" ]; then

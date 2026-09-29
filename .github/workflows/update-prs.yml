@@ -1,0 +1,410 @@
+name: Update PRs
+
+# Decides what happens to an update pull request once CI has run on it. The update pull
+# requests come from Dependabot (dependabot/*), toolchain-updates.yml (toolchain/*),
+# patched-libraries.yml (patched/*) and sync-upstream.yml (sync/upstream). Before this,
+# each sat until the owner looked; a red one told nobody, since GitHub emails a failed run
+# only to whoever started it, and that was a bot.
+#
+#   CI failed   The failed jobs run once more, in case a test was flaky, and the second
+#               attempt decides. Still red: the pull request stays open, is labelled
+#               ci-failed and assigned to the owner, and a comment @mentions them with the
+#               failed jobs and steps, what each step checks, the last lines of each
+#               failed log, and how main's own CI stands (red there too points away from
+#               the update). Nothing is guessed about the cause beyond that.
+#   CI passed,  merged here, with no one asked: Dependabot's minor and patch updates, and
+#   routine     toolchain-updates.yml's pnpm update within its major. Only when every one
+#               of these holds: opened by that bot and only its commits on it; it changes
+#               package.json and pnpm-lock.yaml and nothing else; not a major version;
+#               Dependabot's dependency review passed; the branch holds the newest main,
+#               so what merges is exactly what CI tested; and CI's build of the extension
+#               is file for file the one in the latest release, the version number aside.
+#               That last one is auto-release.yml's own test: such a merge would release
+#               nothing, and nothing reaches Firefox untried by the owner.
+#   CI passed,  a comment @mentions the owner and assigns them, saying CI is green and
+#   otherwise   why it waits for them: a major, a new Node, GitHub Actions (workflow
+#               files), a library the extension ships, an upstream sync.
+# A run with the same verdict as the pull request's last comment from here edits that
+# comment instead of adding one: the owner hears when a verdict changes, not every run.
+#
+# A branch behind main is brought up to date (GitHub's "Update branch") and CI started on
+# it again; that run decides. After three such updates it waits for the owner instead.
+#
+# The merge is made with this workflow's token, and a push by that token starts no
+# workflow: no CI run on main and no release follow it, which is right, since nothing
+# shipped changed and CI already passed on this exact tree.
+#
+# Runs on CI's completion, with a write token, so it never checks out or runs anything
+# from the pull request: it reads the API, and compares CI's build artifact as data. Only
+# branches of this repository; a fork's pull request is never touched.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write       # merge, and bring a branch up to date
+  pull-requests: write  # comment, assign, label, merge
+  issues: write         # the ci-failed label, and the issue when this workflow fails
+  actions: write        # rerun CI's failed jobs, start CI on an updated branch
+  checks: read          # Dependabot's dependency review
+
+concurrency:
+  group: update-prs-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    name: Merge, report or hand over an update PR
+    if: >
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      (startsWith(github.event.workflow_run.head_branch, 'dependabot/') ||
+       startsWith(github.event.workflow_run.head_branch, 'toolchain/') ||
+       startsWith(github.event.workflow_run.head_branch, 'patched/') ||
+       github.event.workflow_run.head_branch == 'sync/upstream')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Decide
+        # Its own limit, under the job's: a step that runs out of time fails, and the report
+        # step below then runs. Nothing else would tell the owner.
+        timeout-minutes: 13
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          LABEL=ci-failed
+
+          # --- The open pull request CI ran for: this branch, at exactly this commit. A newer
+          # commit has a run of its own, which decides.
+          gh pr list --state open --head "$BRANCH" --limit 20 \
+            --json number,headRefOid,baseRefName,author,title,isDraft,labels > "$RUNNER_TEMP/prs.json"
+          pr=$(jq -c --arg sha "$SHA" '[.[] | select(.headRefOid == $sha)][0] // empty' "$RUNNER_TEMP/prs.json")
+          if [ -z "$pr" ]; then
+            echo "No open pull request on $BRANCH at ${SHA:0:8}: merged, closed, or moved on. Nothing to do."
+            exit 0
+          fi
+          number=$(jq -r .number <<< "$pr")
+          author=$(jq -r .author.login <<< "$pr")
+          echo "#$number $(jq -r .title <<< "$pr") ($author): CI $CONCLUSION, attempt $RUN_ATTEMPT, $RUN_URL"
+
+          # A comment per verdict. The key goes into it; when the pull request's last comment
+          # from here has the same key, that comment is edited (no email) instead.
+          say() { # <key> <body file>
+            local last last_key
+            printf '\n<sub>%s</sub>\n<!-- update-prs: %s -->\n' "$SELF_URL" "$1" >> "$2"
+            gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("<!-- update-prs: "))) | {id, body}' \
+              > "$RUNNER_TEMP/ours.jsonl"
+            last=$(jq -cs 'last // empty' "$RUNNER_TEMP/ours.jsonl")
+            last_key=''
+            if [ -n "$last" ]; then
+              last_key=$(jq -r .body <<< "$last" | grep -oE '<!-- update-prs: [^>]* -->' | tail -n 1 |
+                sed -E 's/<!-- update-prs: (.*) -->/\1/' || true)
+            fi
+            if [ -n "$last" ] && [ "$last_key" = "$1" ]; then
+              gh api -X PATCH "repos/$GH_REPO/issues/comments/$(jq -r .id <<< "$last")" -F "body=@$2" > /dev/null
+              echo "Same verdict as the last comment ($1): edited it."
+            else
+              gh pr comment "$number" --body-file "$2"
+            fi
+          }
+
+          # What a pull request of this branch needs from the owner, whatever CI says.
+          case $BRANCH in
+            dependabot/npm_and_yarn/*) kind=dependabot ;;
+            dependabot/github_actions/*) kind=actions ;;
+            toolchain/pnpm-*) kind=pnpm ;;
+            toolchain/node-*) kind=node ;;
+            patched/*) kind=patched ;;
+            sync/upstream) kind=upstream ;;
+            *) kind=other ;;
+          esac
+          # The backticks here and below are Markdown for the comment, not command substitution.
+          # shellcheck disable=SC2016
+          hint() {
+            case $kind in
+              dependabot) printf 'Several packages can move together in one Dependabot pull request; `@dependabot ignore <package> minor version` drops one of them. `@dependabot rebase` builds it anew on main.\n' ;;
+              actions) printf 'Dependabot moves the pinned commit and its version comment together; the release notes are linked above.\n' ;;
+              pnpm|node) printf 'Closing this pull request skips this version for good; toolchain-updates.yml raises the next one.\n' ;;
+              patched) printf 'How to take it by hand: `docs/updating-patched-libraries.md`. Closing this pull request skips this version for good.\n' ;;
+              upstream) printf 'Take it by resolving and merging, or close it to skip; see the header of `.github/workflows/sync-upstream.yml`.\n' ;;
+              *) ;;
+            esac
+          }
+
+          # --- CI failed.
+          if [ "$CONCLUSION" != success ]; then
+            if [ "$CONCLUSION" != failure ] && [ "$CONCLUSION" != timed_out ]; then
+              echo "CI $CONCLUSION: cancelled for a newer run or by hand, or skipped. Nothing to report."
+              exit 0
+            fi
+            rerun=0
+            if [ "$RUN_ATTEMPT" = 1 ]; then
+              if gh run rerun "$RUN_ID" --failed; then
+                echo 'Started the failed jobs once more; that attempt decides.'
+                exit 0
+              fi
+              echo 'The failed jobs could not be run again; this attempt decides.'
+            else
+              rerun=1
+            fi
+
+            gh run view "$RUN_ID" --attempt "$RUN_ATTEMPT" --json jobs > "$RUNNER_TEMP/jobs.json"
+            jq -r 'def bad: .conclusion | IN("failure", "timed_out", "cancelled");
+              .jobs[] | select(bad) | [.name, ([.steps[] | select(bad) | .name] | join(" / "))] | @tsv' \
+              "$RUNNER_TEMP/jobs.json" > "$RUNNER_TEMP/failed.tsv"
+            gh run view "$RUN_ID" --attempt "$RUN_ATTEMPT" --log-failed > "$RUNNER_TEMP/failed.log" 2> /dev/null || true
+            main_ci=$(gh run list --workflow ci.yml --branch main --event push --limit 1 --json conclusion,url \
+              --jq '.[0] | "\(if .conclusion == "" then "still running" else .conclusion end): \(.url)"' || echo 'unknown')
+
+            # shellcheck disable=SC2016
+            meaning() { # <step name>: what that step checks
+              case $1 in
+                'Install dependencies') echo 'installs the locked dependencies (`pnpm install --frozen-lockfile`): the lockfile, a pnpm patch that no longer applies, or the registry' ;;
+                ESLint) echo 'ESLint: a new ESLint or plugin, or a changed rule, flags code' ;;
+                'Type check') echo 'TypeScript (`tsc --noEmit`): new type definitions or a new TypeScript' ;;
+                'Unit tests') echo 'the unit tests (Vitest)' ;;
+                'Build all targets') echo 'the build (`tools/sync-vendor.mjs`, `build.mjs`)' ;;
+                addons-linter*) echo "Mozilla's addons-linter, the check AMO runs on upload" ;;
+                'Vendored file provenance'*|'ONNX Runtime provenance') echo 'a vendored file against its documented upstream (`docs/vendored-libraries.md`)' ;;
+                'e2e setup') echo 'the e2e setup: downloading Firefox or ffmpeg' ;;
+                End-to-end*) echo 'real playback or the installed extension in Firefox; a network stream can also fail on its own' ;;
+                'Install mpv and the native host') echo 'installing mpv for the MPV specs (`.github/mpv-build.json`)' ;;
+                actionlint) echo 'a workflow file (actionlint)' ;;
+                'Set up job'|'Run actions/'*|'Run pnpm/'*|'Post '*|'Complete job') echo 'a GitHub Action or the runner (for a Node update: setup-node finding that Node)' ;;
+                '') echo 'no step failed: the job itself was cancelled or ran out of time' ;;
+                *) echo 'see its log' ;;
+              esac
+            }
+
+            # The failed jobs and steps make the key: the same failure again edits its comment.
+            key="red $(sha1sum < "$RUNNER_TEMP/failed.tsv" | cut -c1-12)"
+            # shellcheck disable=SC2016
+            {
+              if [ "$rerun" = 1 ]; then
+                printf '@%s CI fails on this pull request. Its failed jobs ran once more, in case a test was flaky, and failed again.\n\n' "$OWNER"
+              else
+                printf '@%s CI fails on this pull request (%s).\n\n' "$OWNER" "$CONCLUSION"
+              fi
+              printf '| Job | Failed step | What the step checks |\n| --- | --- | --- |\n'
+              while IFS=$'\t' read -r job steps; do
+                printf '| %s | %s | %s |\n' "$job" "${steps:-(none)}" "$(meaning "${steps%% / *}")"
+              done < "$RUNNER_TEMP/failed.tsv"
+              printf '\n- CI run: %s\n- main, the latest push: %s. If main fails as well, this pull request is probably not the cause.\n' "$RUN_URL" "$main_ci"
+              cut -f1 "$RUNNER_TEMP/failed.tsv" | while read -r job; do
+                # --log-failed prints "job<TAB>step<TAB>timestamp line"; the end of each job's is kept.
+                # Colour codes out, long lines cut; a fence of four backticks, which a log is
+                # unlikely to hold.
+                lines=$(awk -F '\t' -v job="$job" '$1 == job { sub(/^[^\t]*\t[^\t]*\t[^ ]* ?/, ""); print }' \
+                  "$RUNNER_TEMP/failed.log" | sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' | cut -c1-300 | tail -n 40)
+                if [ -n "$lines" ]; then
+                  printf '\n<details><summary>The last lines of <b>%s</b></summary>\n\n````\n%s\n````\n</details>\n' "$job" "$lines"
+                fi
+              done
+              printf '\nThe pull request stays open, and is not merged. A new commit on it runs CI again.\n'
+              hint
+            } > "$RUNNER_TEMP/body.md"
+            gh label create "$LABEL" --color B60205 --description 'CI fails on this update; see the comment' --force > /dev/null
+            gh pr edit "$number" --add-assignee "$OWNER" --add-label "$LABEL" > /dev/null
+            say "$key" "$RUNNER_TEMP/body.md"
+            exit 0
+          fi
+
+          # --- CI passed.
+          if jq -e --arg l "$LABEL" '.labels | any(.name == $l)' <<< "$pr" > /dev/null; then
+            gh pr edit "$number" --remove-label "$LABEL" > /dev/null
+          fi
+
+          # Why this one waits for the owner, if it does.
+          reasons=()
+          case $kind in
+            dependabot) bot='dependabot[bot]' ;;
+            pnpm) bot='github-actions[bot]' ;;
+            actions) reasons+=('it changes workflow files, which a person reviews (and which this token may not merge)') ;;
+            node) reasons+=('a new Node.js major is your decision') ;;
+            patched) reasons+=('a patched library is part of the extension: merging releases it to Firefox') ;;
+            upstream) reasons+=("taking upstream's commits is your decision") ;;
+            *) reasons+=("branch $BRANCH is not one this workflow merges") ;;
+          esac
+          if [ ${#reasons[@]} = 0 ]; then
+            if [ "$(jq -r .isDraft <<< "$pr")" = true ]; then reasons+=('it is a draft'); fi
+            if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
+            if [ "$author" != "app/${bot%\[bot\]}" ]; then reasons+=("$author opened it, not $bot"); fi
+            gh pr view "$number" --json files,commits > "$RUNNER_TEMP/pr.json"
+            # Its own commits, and the merges of main that "Update branch" makes here.
+            others=$(jq -r --arg bot "$bot" '.commits[] | select(
+                ([.authors[].login] | all(. == $bot)) or
+                (([.authors[].login] | all(. == "github-actions[bot]")) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+                | not) | .oid[0:8]' "$RUNNER_TEMP/pr.json")
+            if [ -n "$others" ]; then reasons+=("it has commits from someone else ($(tr '\n' ' ' <<< "$others" | sed 's/ $//')): a person's change is merged by a person"); fi
+            files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
+            if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only package.json and pnpm-lock.yaml"); fi
+            if [ "$kind" = dependabot ]; then
+              if jq -e '[.commits[].messageBody] | any(test("update-type: version-update:semver-major"))' "$RUNNER_TEMP/pr.json" > /dev/null; then
+                reasons+=('it holds a major version: read its release notes')
+              fi
+              # Dependency review runs on Dependabot's own push (a pull_request event), not on
+              # a run this workflow starts: the newest Dependabot commit's review counts.
+              reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")
+              review=''
+              for _ in $(seq 10); do
+                review=$(gh api "repos/$GH_REPO/commits/$reviewed/check-runs?check_name=Review%20dependency%20changes" \
+                  --jq '[.check_runs[] | .conclusion // "pending"] |
+                    if any(. == "success") then "success" elif length == 0 then "missing" else first end' \
+                  2> /dev/null || echo missing)
+                if [ "$review" != pending ]; then break; fi
+                sleep 30
+              done
+              if [ "$review" != success ]; then reasons+=("Dependabot's dependency review is $review"); fi
+            fi
+            if [ "$kind" = pnpm ]; then
+              pinned=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=main" |
+                jq -r '.packageManager // ""')
+              version=${BRANCH#toolchain/pnpm-}
+              pinned=${pinned#pnpm@}
+              if [ "${version%%.*}" != "${pinned%%.*}" ]; then reasons+=("pnpm $version is a new major (main has $pinned): your decision"); fi
+            fi
+          fi
+
+          if [ ${#reasons[@]} = 0 ]; then
+            # CI's build against the latest release's, as auto-release.yml compares them, with
+            # manifest.json's version left out: nothing else may differ.
+            tag=$(gh release view --json tagName --jq .tagName 2> /dev/null || true)
+            new=$RUNNER_TEMP/new
+            old=$RUNNER_TEMP/old
+            if [ -n "$tag" ] &&
+               gh run download "$RUN_ID" --name faststream-bundles --dir "$new/zip" &&
+               gh release download "$tag" --pattern 'firefox-github-*.zip' --dir "$old/zip" &&
+               unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files" &&
+               unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files" &&
+               jq 'del(.version)' "$new/files/manifest.json" > "$new/manifest" &&
+               jq 'del(.version)' "$old/files/manifest.json" > "$old/manifest"; then
+              mv "$new/manifest" "$new/files/manifest.json"
+              mv "$old/manifest" "$old/files/manifest.json"
+              if ! diff -rq "$old/files" "$new/files" > "$RUNNER_TEMP/changes.txt"; then
+                cat "$RUNNER_TEMP/changes.txt"
+                count=$(wc -l < "$RUNNER_TEMP/changes.txt")
+                reasons+=("it changes what the extension ships ($count difference(s) from $tag, e.g. $(head -n 1 "$RUNNER_TEMP/changes.txt" | sed "s|$RUNNER_TEMP/||g")): merging releases it to Firefox")
+              fi
+            else
+              reasons+=('its build could not be compared with the latest release')
+            fi
+          fi
+
+          # The branch moved on while this ran (Dependabot rebased it, say): that commit's own
+          # CI run decides, so a merge or update refused for it is no failure.
+          head_moved() {
+            local head
+            head=$(gh pr view "$number" --json headRefOid --jq .headRefOid)
+            if [ "$head" != "$SHA" ]; then
+              echo "The branch moved on to ${head:0:8} meanwhile: that commit's CI run decides."
+              exit 0
+            fi
+          }
+
+          if [ ${#reasons[@]} = 0 ]; then
+            # Mergeable, and holding main: what merges is then exactly what CI tested. Checked
+            # last, just before the merge, so main has the least time to move in between.
+            state=UNKNOWN
+            for _ in $(seq 10); do
+              state=$(gh pr view "$number" --json mergeable --jq .mergeable)
+              if [ "$state" != UNKNOWN ]; then break; fi
+              sleep 6
+            done
+            # With nothing behind, the merge base is main itself.
+            compared=$(gh api "repos/$GH_REPO/compare/$SHA...main" --jq '"\(.ahead_by) \(.merge_base_commit.sha)"')
+            behind=${compared%% *}
+            base=${compared#* }
+            if [ "$state" = CONFLICTING ]; then
+              reasons+=('it conflicts with main')
+            elif [ "$state" != MERGEABLE ]; then
+              reasons+=("GitHub cannot say whether it merges ($state)")
+            elif [ "$behind" != 0 ]; then
+              updates=$(jq '[.commits[] | select(.messageHeadline | startswith("Merge branch '"'"'main'"'"' into "))] | length' "$RUNNER_TEMP/pr.json")
+              if [ "$updates" -ge 3 ]; then
+                reasons+=("main moved on $updates times while CI ran on it")
+              else
+                echo "The branch is $behind commit(s) behind main: updating it, then CI runs again and decides."
+                if ! gh api -X PUT "repos/$GH_REPO/pulls/$number/update-branch" -f "expected_head_sha=$SHA" > /dev/null; then
+                  head_moved
+                  exit 1
+                fi
+                head=$SHA
+                for _ in $(seq 24); do
+                  sleep 5
+                  head=$(gh pr view "$number" --json headRefOid --jq .headRefOid)
+                  if [ "$head" != "$SHA" ]; then break; fi
+                done
+                if [ "$head" = "$SHA" ]; then
+                  echo "The branch did not move within two minutes of the update." >&2
+                  exit 1
+                fi
+                gh workflow run ci.yml --ref "$BRANCH"
+                exit 0
+              fi
+            fi
+          fi
+
+          # --- Merge, or hand over.
+          if [ ${#reasons[@]} = 0 ]; then
+            if ! gh pr merge "$number" --squash --match-head-commit "$SHA"; then
+              head_moved
+              exit 1
+            fi
+            printf 'CI passed (%s), and its build of the extension is file for file the one in %s, the version number aside: nothing reaches Firefox. Merged, with no release.\n' \
+              "$RUN_URL" "$tag" > "$RUNNER_TEMP/body.md"
+            # Another merge can land between the check above and this one (two update pull
+            # requests decided at once). The squash commit's parent is then not the main that was
+            # checked, and main holds a combination no CI run built: the owner hears of it.
+            merge_commit=$(gh pr view "$number" --json mergeCommit --jq '.mergeCommit.oid // ""' || true)
+            parent=''
+            if [ -n "$merge_commit" ]; then
+              parent=$(gh api "repos/$GH_REPO/commits/$merge_commit" --jq '.parents[0].sha' || true)
+            fi
+            key=merged
+            if [ "$parent" != "$base" ]; then
+              key='merged untested'
+              onto=${parent:0:8}
+              printf '\n@%s main moved on between the last check (%s) and the merge (onto %s): main now holds a combination no CI run built. Your next push runs CI on it; to run it now, start the CI workflow on main by hand.\n' \
+                "$OWNER" "${base:0:8}" "${onto:-a commit this run could not read}" >> "$RUNNER_TEMP/body.md"
+            fi
+            say "$key" "$RUNNER_TEMP/body.md"
+            exit 0
+          fi
+          # shellcheck disable=SC2016
+          {
+            printf '@%s CI passes on this pull request (%s). It waits for you:\n\n' "$OWNER" "$RUN_URL"
+            printf -- '- %s\n' "${reasons[@]}"
+            printf '\n'
+            hint
+          } > "$RUNNER_TEMP/body.md"
+          gh pr edit "$number" --add-assignee "$OWNER" > /dev/null
+          say green "$RUNNER_TEMP/body.md"
+
+      # Bot-started runs are emailed to no one, so a failure of this workflow itself would go
+      # unseen: one issue while it is open, assigned and @mentioning the owner.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          TITLE: 'Update PRs workflow failed'
+        run: |
+          set -euo pipefail
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s update-prs.yml failed while deciding on an update pull request: %s\n\nThat pull request is neither merged nor reported until this is fixed. The run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
