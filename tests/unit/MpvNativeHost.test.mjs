@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {loadIntoExisting, mpvTargetUrl, resumeIdFor, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
+import {loadIntoExisting, mpvTargetUrl, pageFragmentFor, resumeIdFor, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -169,9 +169,11 @@ describe('resumeIdFor', () => {
 describe('mpvTargetUrl', () => {
   const pageUrl = 'https://example.com/anime/show/episode-3';
 
-  it('appends fs-id after fs-content in one fragment', () => {
+  it('appends fs-content, fs-id and fs-page in one fragment', () => {
     expect(mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', contentType: 'anime', pageUrl}))
-        .toBe(`https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}`);
+        .toBe(
+            `https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}&fs-page=${
+              encodeURIComponent(pageUrl)}`);
   });
 
   it('gives the same key for a new stream token on the same page', () => {
@@ -180,9 +182,10 @@ describe('mpvTargetUrl', () => {
     expect(first.split('#')[1]).toBe(second.split('#')[1]);
   });
 
-  it('adds only fs-id when there is no contentType', () => {
+  it('adds fs-id and fs-page when there is no contentType', () => {
     expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
-        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}`);
+        .toBe(
+            `https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}&fs-page=${encodeURIComponent(pageUrl)}`);
   });
 
   it('is withContentTypeFragment alone without a page URL', () => {
@@ -190,7 +193,48 @@ describe('mpvTargetUrl', () => {
         .toBe('https://cdn/a.m3u8#fs-content=movie');
   });
 
-  it('never puts the page address itself into the URL', () => {
-    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl})).not.toContain('episode-3');
+  it('never puts the page address itself into the URL unencoded', () => {
+    // The whole point of fs-page= being one percent-encoded tag: the raw
+    // address, with its ?, & and # intact, must never leak into the URL.
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
+        .not.toContain(`fs-page=${pageUrl}`);
+  });
+});
+
+describe('fs-page fragment (source-info.lua reads it)', () => {
+  const pageUrl = 'https://example.com/anime/show/episode-3';
+  const encoded = encodeURIComponent(pageUrl);
+
+  it('appends fs-page right after fs-id', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8?token=1', contentType: 'anime', pageUrl}))
+        .toBe(
+            `https://cdn/a.m3u8?token=1#fs-content=anime&fs-id=${resumeIdFor(pageUrl)}&fs-page=${
+              encoded}`);
+  });
+
+  it('still appends fs-page without a contentType tag', () => {
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl}))
+        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(pageUrl)}&fs-page=${encoded}`);
+  });
+
+  it('skips fs-page for a missing or non-http(s) page URL', () => {
+    expect(pageFragmentFor(undefined)).toBeUndefined();
+    expect(pageFragmentFor('')).toBeUndefined();
+    expect(pageFragmentFor('about:blank')).toBeUndefined();
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl: 'about:blank'}))
+        .toBe('https://cdn/a.m3u8');
+  });
+
+  it('encodes characters that would break the fragment (&, ?, #)', () => {
+    const messy = 'https://example.com/watch?v=1&q=a&x#top';
+    expect(mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl: messy}))
+        .toBe(`https://cdn/a.m3u8#fs-id=${resumeIdFor(messy)}&fs-page=${encodeURIComponent(messy)}`);
+  });
+
+  it('round-trips through decode (what mpv\'s source-info.lua does)', () => {
+    const url = mpvTargetUrl({url: 'https://cdn/a.m3u8', pageUrl});
+    // value between fs-page= and the next & / end: the whole rest here
+    const value = url.slice(url.indexOf('fs-page=') + 'fs-page='.length);
+    expect(decodeURIComponent(value)).toBe(pageUrl);
   });
 });

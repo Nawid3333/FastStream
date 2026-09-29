@@ -17,7 +17,10 @@
 // pageUrl (optional) is the browser tab's page URL. It is not passed on as
 // such: a short hash of it goes into the same fragment as fs-id=, the stable
 // key mpv's stream-resume.lua saves the playback position under (the stream
-// URL itself usually carries an expiring token, so it changes on every visit).
+// URL itself usually carries an expiring token, so it changes on every
+// visit), and a percent-encoded copy goes in as fs-page= for source-info.lua's
+// "Site page" entry (copy it, reopen it in the browser). Neither tag is ever
+// sent to the CDN.
 //
 // Configuration (optional): config.json next to this script:
 //   {"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": false}
@@ -389,8 +392,24 @@ export function resumeIdFor(pageUrl) {
 }
 
 /**
+ * Percent-encodes a page URL so it survives as one fragment tag value. mpv's
+ * source-info.lua reads the tag back and decodes it. http(s) pages only, so
+ * nothing else ever reaches the fragment as fs-page=.
+ *
+ * @param {string} [pageUrl] - The browser tab's page URL.
+ * @return {string|undefined} The encoded page URL, or undefined for a
+ *   missing or non-http(s) URL.
+ */
+export function pageFragmentFor(pageUrl) {
+  if (typeof pageUrl !== 'string' || !/^https?:\/\//i.test(pageUrl)) {
+    return undefined;
+  }
+  return encodeURIComponent(pageUrl);
+}
+
+/**
  * The URL to hand mpv for an open message: the stream URL plus its
- * fs-content= and fs-id= fragment tags.
+ * fs-content=, fs-id= and fs-page= fragment tags.
  *
  * @param {Object} message - The open message from the extension.
  * @return {string} The URL for mpv.
@@ -398,7 +417,12 @@ export function resumeIdFor(pageUrl) {
 export function mpvTargetUrl(message) {
   const target = withContentTypeFragment(message.url, message.contentType);
   const resumeId = resumeIdFor(message.pageUrl);
-  return resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
+  const withId = resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
+  // The page URL itself, percent-encoded, for source-info.lua's
+  // "Site page" menu entry (copy it, open it in the browser). Same rule as
+  // fs-id: http(s) pages only, still never sent to the CDN.
+  const pageFragment = pageFragmentFor(message.pageUrl);
+  return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
 }
 
 /**
