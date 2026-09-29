@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "FastStream in-/uitschakelen"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Afspelen in MPV"
+    },
     "command_toggle_player": {
         "message": "FastStream-speler in-/uitschakelen voor dit tabblad"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Maximale grootte van vooraf gedownloade video"
     },
+    "options_general_bufferahead": {
+        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven (gebruikt zodra het vooraf downloaden stopt of de ruimte op is)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
+    },
+    "options_general_blockpopups": {
+        "message": "Popups/popunders blokkeren die direct na het klikken op de speler worden geopend"
+    },
     "options_general_previewenabled": {
         "message": "Toon voorbeeld bij aanwijzen van de tijdlijn"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Deze patronen worden gebruikt om aangepaste videobronnen op webpagina's te detecteren. Ze worden in volgorde toegepast en de eerste match wordt gebruikt. Alleen voor gevorderde gebruikers."
+    },
+    "options_mpv_header": {
+        "message": "MPV-modus"
+    },
+    "options_mpv_toggle": {
+        "message": "Gedetecteerde streams openen in mpv (externe speler)"
+    },
+    "options_mpv_body": {
+        "message": "Als MPV-modus aan staat, schakelt de knop in de werkbalk tussen Uit, Aan (ingebouwde speler) en MPV. Op sites van de toelatingslijst openen gedetecteerde streams direct in mpv op je computer in plaats van in de browserspeler. Vereist de FastStream-mpv-host – zie de map native-host in de repository voor installatie-instructies."
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV-toelatingslijst"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen komen ook overeen. Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor sites waar dat niet geldt. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
+    },
+    "options_mpv_path": {
+        "message": "mpv-pad (optioneel, gebruikt door de native host als mpv niet in PATH staat)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "mpv op volledig scherm openen"
+    },
+    "options_mpv_pausepage": {
+        "message": "De video in de browser pauzeren wanneer deze naar mpv wordt doorgegeven"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Hergebruik één mpv-venster in plaats van telkens een nieuwe te openen"
+    },
+    "options_mpv_test": {
+        "message": "mpv-verbinding testen"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv gevonden"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host bereikbaar, maar mpv is niet gevonden"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv-host niet beschikbaar"
+    },
+    "player_mpv_label": {
+        "message": "Deze stream openen in mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Verzenden naar mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Verzonden naar mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Kan niet openen in mpv. Is de FastStream-mpv-host geïnstalleerd?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Deze stream openen in mpv (inhoudstype: Anime – rechtsklikken om te wijzigen)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Deze stream openen in mpv (inhoudstype: Film – rechtsklikken om te wijzigen)"
     },
     "options_help_header": {
         "message": "Help"

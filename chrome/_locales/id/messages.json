@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Aktifkan/Nonaktifkan FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Memutar di MPV"
+    },
     "command_toggle_player": {
         "message": "Aktifkan/Nonaktifkan pemutar FastStream untuk tab ini"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Ukuran maksimum video yang dipraunduh"
     },
+    "options_general_bufferahead": {
+        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload berhenti atau kehabisan ruang)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
+    },
+    "options_general_blockpopups": {
+        "message": "Blokir popup/popunder yang dibuka tepat setelah mengklik pemutar"
+    },
     "options_general_previewenabled": {
         "message": "Tampilkan pratinjau saat mengarahkan kursor di atas garis waktu"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Pola-pola ini digunakan untuk mendeteksi sumber video kustom di halaman web. Mereka diterapkan berurutan, dan kecocokan pertama yang digunakan. Hanya untuk pengguna lanjutan."
+    },
+    "options_mpv_header": {
+        "message": "Mode MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Buka stream yang terdeteksi di mpv (pemutar eksternal)"
+    },
+    "options_mpv_body": {
+        "message": "Saat Mode MPV aktif, tombol bilah alat bergantian antara Nonaktif, Aktif (pemutar bawaan), dan MPV. Di situs yang ada dalam daftar izin, stream yang terdeteksi langsung dibuka di mpv pada komputer Anda, bukan di pemutar browser. Membutuhkan host mpv FastStream – lihat folder native-host di repositori untuk petunjuk penyiapan."
+    },
+    "options_mpv_allowlist": {
+        "message": "Daftar Izin MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok. Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs yang bukan Film. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
+    },
+    "options_mpv_path": {
+        "message": "Jalur mpv (opsional, dipakai oleh host natif ketika mpv tidak ada di PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Buka mpv dalam layar penuh"
+    },
+    "options_mpv_pausepage": {
+        "message": "Jeda video di browser saat diserahkan ke mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Pakai ulang satu jendela mpv, bukan membuka yang baru setiap kali"
+    },
+    "options_mpv_test": {
+        "message": "Uji koneksi mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv ditemukan"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host dapat dijangkau, tetapi mpv tidak ditemukan"
+    },
+    "options_mpv_test_fail": {
+        "message": "Host mpv tidak tersedia"
+    },
+    "player_mpv_label": {
+        "message": "Buka stream ini di mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Mengirim ke mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Terkirim ke mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Tidak dapat dibuka di mpv. Apakah host mpv FastStream sudah terpasang?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Buka stream ini di mpv (jenis konten: Anime – klik kanan untuk mengubah)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Buka stream ini di mpv (jenis konten: Film – klik kanan untuk mengubah)"
     },
     "options_help_header": {
         "message": "Bantuan"

@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "Włącz/wyłącz FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - Odtwarzanie w MPV"
+    },
     "command_toggle_player": {
         "message": "Włącz/wyłącz odtwarzacz FastStream dla tej karty"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "Maksymalny rozmiar wstępnie pobranego wideo"
     },
+    "options_general_bufferahead": {
+        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie się zatrzyma lub skończy się miejsce)"
+    },
+    "options_general_bufferbehind": {
+        "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"
+    },
+    "options_general_blockpopups": {
+        "message": "Blokuj pop-upy/pop-undery otwierane od razu po kliknięciu odtwarzacza"
+    },
     "options_general_previewenabled": {
         "message": "Pokaż podgląd po najechaniu kursorem na oś czasu"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "Te wzorce służą do wykrywania niestandardowych źródeł wideo na stronach internetowych. Stosowane są w kolejności i używane jest pierwsze dopasowanie. Tylko dla zaawansowanych użytkowników."
+    },
+    "options_mpv_header": {
+        "message": "Tryb MPV"
+    },
+    "options_mpv_toggle": {
+        "message": "Otwieraj wykryte strumienie w mpv (zewnętrznym odtwarzaczu)"
+    },
+    "options_mpv_body": {
+        "message": "Gdy tryb MPV jest włączony, przycisk na pasku narzędzi przełącza się między Wyłączony, Włączony (wbudowany odtwarzacz) i MPV. Na witrynach z listy dozwolonych wykryte strumienie otwierają się bezpośrednio w mpv na twoim komputerze zamiast w odtwarzaczu przeglądarki. Wymaga hosta mpv FastStream – instrukcje konfiguracji znajdziesz w folderze native-host w repozytorium."
+    },
+    "options_mpv_allowlist": {
+        "message": "Lista dozwolonych witryn dla MPV"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "Witryny z tej listy otwierają wykryte strumienie w mpv. Jeden adres URL na wiersz; strony zaczynające się od tego adresu też pasują. Użyj ~ dla wyrażeń regularnych i ! do wykluczania. Witryny bez znacznika domyślnie używają Filmu do wyboru shaderów mpv – dodaj @anime na końcu wiersza dla witryn, do których to nie ma zastosowania. @movie też jest akceptowany, jeśli chcesz to zapisać wprost. Przycisk mpv w odtwarzaczu może to nadpisać dla każdego wideo."
+    },
+    "options_mpv_path": {
+        "message": "Ścieżka do mpv (opcjonalna, używana przez hosta natywnego, gdy mpv nie ma w PATH)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "Otwieraj mpv na pełnym ekranie"
+    },
+    "options_mpv_pausepage": {
+        "message": "Wstrzymaj wideo w przeglądarce, gdy jest przekazywane do mpv"
+    },
+    "options_mpv_singleinstance": {
+        "message": "Ponownie używaj jednego okna mpv zamiast otwierać nowe za każdym razem"
+    },
+    "options_mpv_test": {
+        "message": "Testuj połączenie z mpv"
+    },
+    "options_mpv_test_ok": {
+        "message": "Znaleziono mpv"
+    },
+    "options_mpv_test_nompv": {
+        "message": "Host osiągalny, ale nie znaleziono mpv"
+    },
+    "options_mpv_test_fail": {
+        "message": "Host mpv niedostępny"
+    },
+    "player_mpv_label": {
+        "message": "Otwórz ten strumień w mpv"
+    },
+    "player_mpv_sending": {
+        "message": "Wysyłanie do mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "Wysłano do mpv"
+    },
+    "player_mpv_fail": {
+        "message": "Nie udało się otworzyć w mpv. Czy host mpv FastStream jest zainstalowany?"
+    },
+    "player_mpv_content_unset": {
+        "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"
+    },
+    "player_mpv_content_anime": {
+        "message": "Otwórz ten strumień w mpv (typ treści: Anime – kliknij prawym przyciskiem myszy, aby zmienić)"
+    },
+    "player_mpv_content_movie": {
+        "message": "Otwórz ten strumień w mpv (typ treści: Film – kliknij prawym przyciskiem myszy, aby zmienić)"
     },
     "options_help_header": {
         "message": "Pomoc"

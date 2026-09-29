@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "FastStream 켜기/끄기"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - MPV에서 재생 중"
+    },
     "command_toggle_player": {
         "message": "이 탭에서 FastStream 플레이어 켜기/끄기"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "사전 다운로드할 비디오의 최대 크기"
     },
+    "options_general_bufferahead": {
+        "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(사전 다운로드가 중지되었거나 공간이 부족해질 때 사용)"
+    },
+    "options_general_bufferbehind": {
+        "message": "트리밍 전까지 재생 지점 이전 구간을 버퍼에 유지할 초 수"
+    },
+    "options_general_blockpopups": {
+        "message": "플레이어를 클릭한 직후 열리는 팝업/팝언더 차단"
+    },
     "options_general_previewenabled": {
         "message": "타임라인에 마우스 오버 시 미리보기 표시"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "이 패턴들은 웹페이지에서 사용자 지정 비디오 소스를 감지하는 데 사용됩니다. 위에서 아래 순으로 적용되며, 첫 번째 일치 항목이 사용됩니다. 고급 사용자 전용."
+    },
+    "options_mpv_header": {
+        "message": "MPV 모드"
+    },
+    "options_mpv_toggle": {
+        "message": "감지된 스트림을 mpv(외부 플레이어)에서 열기"
+    },
+    "options_mpv_body": {
+        "message": "MPV 모드가 켜져 있으면 도구 모음 버튼이 끄기, 켜기(내장 플레이어), MPV 사이를 전환합니다. 허용 목록에 있는 사이트에서는 감지된 스트림이 브라우저 플레이어 대신 컴퓨터의 mpv에서 바로 열립니다. FastStream mpv 호스트가 필요합니다. 설정 방법은 저장소의 native-host 폴더를 참고하세요."
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV 허용 목록"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "이 목록에 있는 사이트는 감지된 스트림을 mpv에서 엽니다. 한 줄에 URL을 하나씩 적습니다. 해당 URL로 시작하는 페이지도 일치합니다. 정규식에는 ~를, 제외에는 !를 사용하세요. 태그가 없는 사이트는 mpv의 셰이더 선택에 기본적으로 영화가 사용됩니다. 그렇지 않은 사이트는 줄 끝에 @anime를 추가하세요. @movie도 허용되니 명시적으로 쓰고 싶다면 사용하세요. 플레이어의 mpv 버튼에서 동영상별로 이를 바꿀 수 있습니다."
+    },
+    "options_mpv_path": {
+        "message": "mpv 경로(선택 사항, PATH에 mpv가 없을 때 네이티브 호스트가 사용)"
+    },
+    "options_mpv_fullscreen": {
+        "message": "mpv를 전체 화면으로 열기"
+    },
+    "options_mpv_pausepage": {
+        "message": "mpv로 넘어갈 때 브라우저에서 동영상 일시정지"
+    },
+    "options_mpv_singleinstance": {
+        "message": "매번 새 창을 여는 대신 하나의 mpv 창을 재사용"
+    },
+    "options_mpv_test": {
+        "message": "mpv 연결 테스트"
+    },
+    "options_mpv_test_ok": {
+        "message": "mpv를 찾았습니다"
+    },
+    "options_mpv_test_nompv": {
+        "message": "호스트에는 연결되지만 mpv를 찾을 수 없음"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv 호스트를 사용할 수 없음"
+    },
+    "player_mpv_label": {
+        "message": "이 스트림을 mpv에서 열기"
+    },
+    "player_mpv_sending": {
+        "message": "mpv로 보내는 중..."
+    },
+    "player_mpv_sent": {
+        "message": "mpv로 보냄"
+    },
+    "player_mpv_fail": {
+        "message": "mpv에서 열 수 없습니다. FastStream mpv 호스트가 설치되어 있나요?"
+    },
+    "player_mpv_content_unset": {
+        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 자동 — 사이트에 @anime 태그가 없으면 영화, 우클릭하여 이 동영상만 변경)"
+    },
+    "player_mpv_content_anime": {
+        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 애니메이션 — 우클릭하여 변경)"
+    },
+    "player_mpv_content_movie": {
+        "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 영화 — 우클릭하여 변경)"
     },
     "options_help_header": {
         "message": "도움말"

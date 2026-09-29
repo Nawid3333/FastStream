@@ -8,6 +8,9 @@
     "extension_toggle_label": {
         "message": "切換 FastStream"
     },
+    "extension_toggle_label_mpv": {
+        "message": "FastStream - 正在 MPV 中播放"
+    },
     "command_toggle_player": {
         "message": "切換此分頁的 FastStream 播放器"
     },
@@ -920,6 +923,15 @@
     "options_general_maxsize": {
         "message": "預先下載影片最大大小"
     },
+    "options_general_bufferahead": {
+        "message": "在播放位置前方保留緩衝的秒數（預先下載停止或空間用完時使用）"
+    },
+    "options_general_bufferbehind": {
+        "message": "在播放位置後方、修剪前保留緩衝的秒數"
+    },
+    "options_general_blockpopups": {
+        "message": "封鎖點擊播放器後立即開啟的彈出視窗/底層彈出視窗"
+    },
     "options_general_previewenabled": {
         "message": "在時間軸上懸停時顯示預覽"
     },
@@ -1084,6 +1096,66 @@
     },
     "options_pattern_body": {
         "message": "這些模式用於偵測網頁上的自訂視訊來源。會依順序套用，採第一個符合的結果。僅供進階使用者。"
+    },
+    "options_mpv_header": {
+        "message": "MPV 模式"
+    },
+    "options_mpv_toggle": {
+        "message": "在 mpv（外部播放器）中開啟偵測到的串流"
+    },
+    "options_mpv_body": {
+        "message": "開啟 MPV 模式時，工具列按鈕會在關閉、開啟（內建播放器）與 MPV 之間切換。在允許清單中的網站會將偵測到的串流直接交給電腦上的 mpv，而不是使用瀏覽器播放器。需要 FastStream mpv 主機，設定說明請見儲存庫中的 native-host 資料夾。"
+    },
+    "options_mpv_allowlist": {
+        "message": "MPV 允許清單"
+    },
+    "options_mpv_allowlist_hint": {
+        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
+    },
+    "options_mpv_path": {
+        "message": "mpv 路徑（選用，當 mpv 不在 PATH 中時由原生主機使用）"
+    },
+    "options_mpv_fullscreen": {
+        "message": "以全螢幕模式開啟 mpv"
+    },
+    "options_mpv_pausepage": {
+        "message": "將影片交給 mpv 時，在瀏覽器中暫停播放"
+    },
+    "options_mpv_singleinstance": {
+        "message": "重複使用同一個 mpv 視窗，而不是每次都新開視窗"
+    },
+    "options_mpv_test": {
+        "message": "測試 mpv 連線"
+    },
+    "options_mpv_test_ok": {
+        "message": "已找到 mpv"
+    },
+    "options_mpv_test_nompv": {
+        "message": "主機可連線，但找不到 mpv"
+    },
+    "options_mpv_test_fail": {
+        "message": "mpv 主機無法使用"
+    },
+    "player_mpv_label": {
+        "message": "在 mpv 中開啟此串流"
+    },
+    "player_mpv_sending": {
+        "message": "正在傳送到 mpv..."
+    },
+    "player_mpv_sent": {
+        "message": "已傳送到 mpv"
+    },
+    "player_mpv_fail": {
+        "message": "無法在 mpv 開啟。是否已安裝 FastStream mpv 主機？"
+    },
+    "player_mpv_content_unset": {
+        "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"
+    },
+    "player_mpv_content_anime": {
+        "message": "在 mpv 中開啟此串流（內容類型：動畫——右鍵點擊可更改）"
+    },
+    "player_mpv_content_movie": {
+        "message": "在 mpv 中開啟此串流（內容類型：電影——右鍵點擊可更改）"
     },
     "options_help_header": {
         "message": "說明"
