@@ -59,6 +59,16 @@ async function waitForPicture() {
 }
 
 describe('FastStreamClient setup', function() {
+  afterEach(async function() {
+    // Remembered times outlive the page in this browser session's IndexedDB, and a later
+    // case on the same video would start at one.
+    await browser.executeAsync((done) => {
+      const manager = window.fastStream?.progressMemory?.indexedDbManager;
+      if (!manager) return done();
+      manager.clearStorage().then(() => done(), () => done());
+    });
+  });
+
   it('finishes setting up a video whose seek preview fails to build', async function() {
     // The rest of the setup came after the preview's, so a preview that failed took the
     // time in the URL, the video analyzer and autoplay with it, and showed an error.
