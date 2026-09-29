@@ -93,6 +93,25 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
+// The page's element (.box) in a wrapper with an id of its own. Each adds a strip below
+// the video, so .box has the video's bounds and is what content.js hides, and the
+// wrapper has the player's: the miniplayer lifts the wrapper, and the placeholder it
+// leaves in the page holds the wrapper's id. The spacer lets the page scroll the
+// placeholder out of view, as a miniplayer is used.
+const wrapperPage = (t) => `<!doctype html><title>wrapper</title>
+<style>
+  body { margin: 0; }
+  #col { width: 660px; }
+  .box { width: 640px; }
+  .box video { width: 640px; height: 360px; display: block; }
+  .bar, .title { height: 30px; }
+</style>
+<div id="col"><div class="box"><video id="main" muted preload="auto" src="/clip.mp4?wrapper=${t}"></video><div class="bar"></div></div><div class="title"></div></div>
+<div style="height: 3000px"></div>
+<script>
+  window.col = document.getElementById('col');
+</script>`;
+
 // A video that fills the page: the player overlays the whole page instead.
 const fullPage = (t) => `<!doctype html><title>full</title>
 <style>
@@ -337,6 +356,8 @@ describe('content.js around an in-page player', function() {
       res.writeHead(200, {'Content-Type': 'text/html'});
       if (pathname.startsWith('/cleanup')) {
         res.end(cleanupPage(t));
+      } else if (pathname.startsWith('/wrapper')) {
+        res.end(wrapperPage(t));
       } else if (pathname.startsWith('/full')) {
         res.end(fullPage(t));
       } else if (pathname.startsWith('/episodes/ep2')) {
@@ -447,6 +468,28 @@ describe('content.js around an in-page player', function() {
       const r = window.playerIframe().getBoundingClientRect();
       return [r.left, r.top, r.width, r.height].map(Math.round);
     })).toEqual([0, 0, 640, 360]);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('measures the element with its own rules while the miniplayer lifts a wrapper', async function() {
+    await openPage('/wrapper');
+    await openPlayer();
+    // Out of view, or the miniplayer closes at once.
+    await inPage(() => window.scrollTo(0, 1500));
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+    await browser.execute(() => window.fastStream.interfaceController.requestMiniplayer(true));
+    await browser.switchFrame(null);
+    await browser.waitUntil(async () => inPage(() => getComputedStyle(window.col).position === 'fixed'),
+        {timeout: 10000, timeoutMsg: 'the miniplayer never opened'});
+    await nudgeWindowSize();
+    // Each update measures the element for the placeholder, lending it its id back first
+    // (the case above). But this placeholder holds the wrapper's id: lent that, the element
+    // took the page's #col rule, and the placeholder became 660 wide.
+    expect(await inPage(() => {
+      const placeholder = document.getElementById('col');
+      const r = placeholder.getBoundingClientRect();
+      return {placeholder: placeholder !== window.col, size: [r.width, r.height].map(Math.round)};
+    })).toEqual({placeholder: true, size: [640, 390]});
     expect(await takeContentErrors()).toEqual([]);
   });
 
