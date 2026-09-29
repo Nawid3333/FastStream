@@ -6,7 +6,7 @@
 // PR #20 passed `pnpm run verify` here and failed on CI for exactly that. This runs CI's
 // verify job (`pnpm run verify` with the current stable Firefox) and its workflows job
 // (actionlint with shellcheck) on Linux, in WSL: tools/linux/setup.sh first brings the
-// distro up to date (apt upgrade, the newest Node 22 and Firefox) and provisions it like
+// distro up to date (apt upgrade, the newest Node of .nvmrc's major, and Firefox) and provisions it like
 // the runner, then tools/linux/verify.sh runs on a copy of the working tree.
 //
 // It runs on each Ubuntu release CI does, read from the list runner-images.yml reads: the

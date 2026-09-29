@@ -128,6 +128,18 @@ describe('plan', () => {
     expect(close[0].comment).toContain('now uses Node.js 26');
   });
 
+  it('raises nothing when closing only, and a newer one that is not open replaces nothing', () => {
+    const updates = [node('22', '26'), pnpm('11.22.0', '11.29.0')];
+    const open = [{number: 11, title: t('Node.js 24')}, {number: 70, title: t('pnpm 11.28.0')}];
+    const {raise, close} = plan(updates, open, new Set(open.map((item) => item.title)), {raising: false});
+    expect(raise).toEqual([]);
+    expect(close).toEqual([]);
+    // An open newer one still replaces, and catching up still closes.
+    const both = [...open, {number: 71, title: t('pnpm 11.29.0')}];
+    expect(plan(updates, both, new Set(), {raising: false}).close.map((item) => item.number)).toEqual([70]);
+    expect(plan([pnpm('11.28.0', '11.28.0')], open, new Set(), {raising: false}).close.map((item) => item.number)).toEqual([70]);
+  });
+
   it('closes an open one a newer one on its track replaces, once that is raised or open', () => {
     const updates = [node('22', '26'), pnpm('11.22.0', '11.29.0')];
     const open = [{number: 11, title: t('Node.js 24')}, {number: 70, title: t('pnpm 11.28.0')}];

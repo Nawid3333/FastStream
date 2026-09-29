@@ -275,6 +275,21 @@ jobs:
               version=${BRANCH#toolchain/pnpm-}
               pinned=${pinned#pnpm@}
               if [ "${version%%.*}" != "${pinned%%.*}" ]; then reasons+=("pnpm $version is a new major (main has $pinned): your decision"); fi
+              # The one change toolchain-updates.yml makes: packageManager, to the branch's
+              # version. The lockfile stays as it is (CI installed it frozen with this pnpm);
+              # any other change is not routine. Against the merge base, so a main that moved on
+              # since does not count.
+              merge_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
+              raw() { gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=$1"; }
+              raw "$merge_base" | jq -S 'del(.packageManager)' > "$RUNNER_TEMP/package.base.json"
+              raw "$SHA" > "$RUNNER_TEMP/package.head.json"
+              if [ "$(jq -r '.packageManager // ""' "$RUNNER_TEMP/package.head.json")" != "pnpm@$version" ] ||
+                 ! jq -S 'del(.packageManager)' "$RUNNER_TEMP/package.head.json" | cmp -s - "$RUNNER_TEMP/package.base.json"; then
+                reasons+=("its package.json changes more than packageManager to pnpm@$version")
+              fi
+              if jq -e 'any(.files[].path; . == "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json" > /dev/null; then
+                reasons+=('it changes pnpm-lock.yaml, which a pnpm update does not')
+              fi
             fi
           fi
 

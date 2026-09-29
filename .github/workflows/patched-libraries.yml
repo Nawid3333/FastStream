@@ -19,7 +19,9 @@ name: Patched libraries
 # is never raised twice, as an issue or a pull request, open or closed: closing one is how
 # a version is skipped (a major rewrite not worth porting, say), and it stays closed.
 # Both are closed on their own once the patched version has caught up with them, however
-# that happened, or the library is no longer patched.
+# that happened, or the library is no longer patched. A newer version supersedes them: its
+# pull request closes the library's older issue and pull request, its issue only the older
+# issue (an older pull request is still a step forward while the newer version needs work).
 
 on:
   schedule:
@@ -109,6 +111,27 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           start=$(git rev-parse HEAD)
 
+          # Closes this library's open items of the given kinds at an older version than
+          # $latest, pointing to what replaced them.
+          supersede() { # <kinds> <replacement URL>
+            local kind number version
+            for kind in $1; do
+              gh "$kind" list --state open --limit 200 --json number,title \
+                --jq ".[] | select(.title | startswith(\"$PREFIX$name \")) | \"\(.number) \(.title[${#PREFIX}:])\"" |
+              while read -r number _ version; do
+                if [ "$version" = "$latest" ] ||
+                   [ "$(printf '%s\n%s\n' "$version" "$latest" | sort -V | tail -1)" != "$latest" ]; then
+                  continue
+                fi
+                if [ "$kind" = pr ]; then
+                  gh pr close "$number" --delete-branch --comment "Superseded by $name $latest: $2"
+                else
+                  gh issue close "$number" --comment "Superseded by $name $latest: $2"
+                fi
+              done
+            done
+          }
+
           # Not a pipe into the loop, and not on stdin either: a failed command in a piped loop
           # only ends the subshell, and pnpm or gh inside it could read the list off stdin.
           jq -c 'select(.behind)' "$RUNNER_TEMP/libraries.jsonl" > "$RUNNER_TEMP/behind.jsonl"
@@ -153,9 +176,10 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
-                --body-file "$RUNNER_TEMP/body.md"
+              created=$(gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
+                --body-file "$RUNNER_TEMP/body.md")
               gh workflow run ci.yml --ref "$branch"
+              supersede 'issue pr' "$created"
             else
               # shellcheck disable=SC2016
               {
@@ -168,7 +192,8 @@ jobs:
                 fi
                 printf '\n<sub>Opened by %s</sub>\n' "$RUN_URL"
               } > "$RUNNER_TEMP/body.md"
-              gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+              created=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+              supersede issue "$created"
             fi
             git checkout -q -f "$start"
             git clean -q -fd

@@ -95,11 +95,13 @@ export function newestOfMajor(doc, major, now, minAgeDays = MIN_AGE_DAYS) {
  * @param {Array<{name: string, current: string, latest: string, behind: boolean}>} updates
  * @param {Array<{number: number, title: string}>} open
  * @param {Set<string>} used - Every title ever used.
+ * @param {{raising?: boolean}} [options] - raising: false for a run that raises nothing (a push
+ *     only closes); a newer update then replaces an open one only when it is open itself.
  * @return {{raise: Array<Object>, close: Array<{number: number, comment: string}>}}
  */
-export function plan(updates, open, used) {
+export function plan(updates, open, used, {raising = true} = {}) {
   const title = (update) => `${TITLE_PREFIX}${update.name} ${update.latest}`;
-  const raise = updates.filter((update) => update.behind && !used.has(title(update)))
+  const raise = !raising ? [] : updates.filter((update) => update.behind && !used.has(title(update)))
       .map((update) => ({...update, title: title(update)}));
   // A newer update replaces an open one only when it is itself open, or raised now: one
   // skipped by hand (its pull request closed) replaces nothing.
@@ -156,8 +158,9 @@ async function updates() {
   const sameMajor = newestOfMajor(doc, major, now) || pnpmCurrent;
   const nextMajor = newestOfMajor(doc, major + 1, now);
   const [blockerRepo, blockerNumber] = PNPM12_BLOCKER.split('#');
-  // Only the move from 11 or older onto 12 or newer is blocked.
-  const blocker = nextMajor && major < 12 ?
+  // Only the move onto 12 is blocked: 12 writes the two-document lockfile, and a project
+  // already on it has nothing more to lose.
+  const blocker = nextMajor && major + 1 === 12 ?
     await getJson(`https://api.github.com/repos/${blockerRepo}/issues/${blockerNumber}`) : {state: 'closed'};
   const blocked = blocker.state !== 'closed';
 
@@ -181,7 +184,7 @@ async function main() {
   if (plan_ >= 0) {
     const open = JSON.parse(fs.readFileSync(process.argv[plan_ + 1], 'utf8'));
     const used = new Set(fs.readFileSync(process.argv[plan_ + 2], 'utf8').split(/\r?\n/).filter(Boolean));
-    console.log(JSON.stringify(plan(list, open, used)));
+    console.log(JSON.stringify(plan(list, open, used, {raising: !process.argv.includes('--close-only')})));
     return;
   }
   if (process.argv.includes('--json')) {
