@@ -200,6 +200,18 @@ describe('MP4 files of other shapes', function() {
     const middle = await seekAndPlay(250);
     expect(middle.currentTime).toBeGreaterThan(251);
     expect(await durationPast(450)).toBeGreaterThan(450);
+    // The ranges' times, which say which ones have been played through and can go. The one
+    // at the parse edge was given the metadata's duration as its end, 0 without a mehd box.
+    const times = await browser.execute(() => {
+      const client = window.fastStream;
+      const frags = client.getFragments(client.player.getCurrentVideoLevelID()) || [];
+      const timed = frags.filter((frag) => frag && frag.start !== undefined);
+      return {count: frags.length, timed: timed.length,
+        backwards: timed.filter((frag) => !(frag.end >= frag.start)).map((frag) => [frag.sn, frag.start, frag.end])};
+    });
+    console.log('      ranges:', JSON.stringify(times));
+    expect(times.timed).toBeGreaterThan(30);
+    expect(times.backwards).toEqual([]);
     const later = await seekAndPlay(450);
     expect(later.currentTime).toBeGreaterThan(451);
     // Back to where the ranges played through have been let go.

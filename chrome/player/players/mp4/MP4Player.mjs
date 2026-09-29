@@ -423,7 +423,9 @@ export default class MP4Player extends EventEmitter {
         }
       }
 
-      currentFragment.end = Math.ceil(this.metaData.duration / this.metaData.timescale);
+      // The duration as the player counts it: a fragmented file without a mehd box has none
+      // in its metadata (0), and this last fragment then ended at 0.
+      currentFragment.end = Math.ceil(this.calculateDuration());
       currentFragment.duration = currentFragment.end - currentFragment.start;
     });
   }
