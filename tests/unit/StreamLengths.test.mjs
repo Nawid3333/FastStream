@@ -258,6 +258,49 @@ describe('StreamLengths', () => {
     expect(await new StreamLengths({fetch: other.fetch}).probe({url: 'https://cdn.example/v/init.mp4', mode: MP4})).toBe(PIECE_LENGTH);
   });
 
+  it('counts a file still unread, or unreadable, as a piece when its like was read as one', async () => {
+    const segment = concat(box('styp', new TextEncoder().encode('msdh')), box('moof', box('mfhd', new Uint8Array(8))));
+    const {fetch} = server({
+      'https://cdn.example/v/p.m3u8': {body: '#EXTM3U\n#EXTINF:60,\na.ts\n#EXT-X-ENDLIST\n'},
+      'https://cdn.example/v/seg-14.mp4?t=1727': {body: segment},
+      'https://cdn.example/v/seg-16.mp4?t=1728': {status: 403},
+      'https://cdn.example/v/seg-19.mp4?t=1731': {body: concat(ftyp, moov(1400))},
+      'https://cdn.example/v/film.mp4': {status: 403},
+      'https://proxy.example/get?id=11': {body: segment},
+    });
+    const lengths = new StreamLengths({fetch});
+    for (const url of ['https://cdn.example/v/p.m3u8', 'https://cdn.example/v/seg-14.mp4?t=1727',
+      'https://cdn.example/v/seg-16.mp4?t=1728', 'https://cdn.example/v/seg-19.mp4?t=1731',
+      'https://cdn.example/v/film.mp4', 'https://proxy.example/get?id=11']) {
+      await lengths.probe({url, mode: url.endsWith('.m3u8') ? HLS : MP4});
+    }
+
+    expect(lengths.lengthsOf([
+      {url: 'https://cdn.example/v/p.m3u8', mode: HLS},
+      {url: 'https://cdn.example/v/seg-14.mp4?t=1727', mode: MP4},
+      // Not read yet, its fragment aside, and one whose read failed: pieces, as seg-14.
+      {url: 'https://cdn.example/v/seg-15.mp4?t=1729#t=0', mode: MP4},
+      {url: 'https://cdn.example/v/seg-16.mp4?t=1728', mode: MP4},
+      {url: 'https://cdn.example/v/seg-18.mp4?t=1730', mode: PlayerModes.DIRECT},
+      // A length that was read stays, whatever the URL.
+      {url: 'https://cdn.example/v/seg-19.mp4?t=1731', mode: MP4},
+      // Another name, or other letters in the query: not like a piece.
+      {url: 'https://cdn.example/v/film.mp4', mode: MP4},
+      {url: 'https://cdn.example/v/seg-20.mp4?t=1732&sig=kq', mode: MP4},
+      // One address for everything: its files are pieces, a manifest never.
+      {url: 'https://proxy.example/get?id=11', mode: MP4},
+      {url: 'https://proxy.example/get?id=12', mode: MP4},
+      {url: 'https://proxy.example/get?id=13', mode: HLS},
+    ])).toEqual([60, PIECE_LENGTH, PIECE_LENGTH, PIECE_LENGTH, PIECE_LENGTH, 1400, null, undefined,
+      PIECE_LENGTH, PIECE_LENGTH, undefined]);
+
+    // With no piece read, none is guessed.
+    expect(new StreamLengths({fetch}).lengthsOf([
+      {url: 'https://cdn.example/v/seg-14.mp4?t=1727', mode: MP4},
+      {url: 'https://cdn.example/v/seg-15.mp4?t=1729', mode: MP4},
+    ])).toEqual([undefined, undefined]);
+  });
+
   it('gives up on a file too short to hold a box, after one read', async () => {
     const {fetch, calls} = server({'https://cdn.example/tiny.mp4': {body: new Uint8Array([0, 0, 0, 1])}});
     const lengths = new StreamLengths({fetch});

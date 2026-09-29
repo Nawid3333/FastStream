@@ -12,6 +12,9 @@
 // The pieces of a stream - an init segment, media segments - named .mp4, as Shaka Packager
 // names them, are detected as MP4 sources of their own. Read as unknown, they ranked as ten
 // minutes, and the player opened one fragment of any shorter title (Shaka's demo HLS).
+// The newest piece, its read still out when the player picks, ranked so too, now and then
+// (the live test's HLS in a cross-origin iframe): it counts as a piece when an earlier one
+// of the same name, but for its numbers, was read as one.
 //
 // Driven on the installed extension, the site on the auto-enable list: pages that load an
 // ad and a longer stream, and the stream the player ends up playing.
@@ -182,8 +185,15 @@ describe('Of a page\'s streams, the player', function() {
         serveFile(req, res, segments.get(pathname), 'video/mp2t');
       } else if (pieces.has(pathname)) {
         serveFile(req, res, pieces.get(pathname), 'video/mp4');
-      } else if (pathname === '/fmp4/index.m3u8') {
+      } else if (pathname === '/fmp4/index.m3u8' || pathname === '/fmp4-slow/index.m3u8') {
         text(HLS_TYPE, fmp4Playlist);
+      } else if (pathname.startsWith('/fmp4-slow/') && pieces.has(pathname.replace('/fmp4-slow/', '/fmp4/'))) {
+        // The same pieces, but the length of the third is read slowly: a read asks for a
+        // range, and that answer comes after the player picked. The page's own fetch has
+        // none, and its answer comes at once.
+        const file = pieces.get(pathname.replace('/fmp4-slow/', '/fmp4/'));
+        const delay = pathname === '/fmp4-slow/seg-002.mp4' && req.headers.range ? 5000 : 0;
+        setTimeout(() => serveFile(req, res, file, 'video/mp4'), delay);
       } else if (pathname === '/hls/intro.m3u8') {
         text(HLS_TYPE, playlist(9));
       } else if (pathname === '/hls/extra.m3u8') {
@@ -231,6 +241,14 @@ describe('Of a page\'s streams, the player', function() {
                   .then(() => fetch('/fmp4/init.mp4' + location.search))
                   .then(() => fetch('/fmp4/seg-000.mp4' + location.search))
                   .then(() => fetch('/fmp4/seg-001.mp4' + location.search));`));
+      } else if (pathname === '/page/slow-piece') {
+        // The same, the last piece's length still being read when the player picks.
+        text('text/html; charset=utf-8', page('slow-piece', '', `
+              fetch('/fmp4-slow/index.m3u8' + location.search)
+                  .then(() => fetch('/fmp4-slow/init.mp4' + location.search))
+                  .then(() => fetch('/fmp4-slow/seg-000.mp4' + location.search))
+                  .then(() => fetch('/fmp4-slow/seg-001.mp4' + location.search))
+                  .then(() => fetch('/fmp4-slow/seg-002.mp4' + location.search));`));
       } else if (pathname === '/page/private') {
         // A 12-minute stream first, then the half-hour one only the site's pages may read.
         text('text/html; charset=utf-8', page('private', '', `
@@ -292,6 +310,18 @@ describe('Of a page\'s streams, the player', function() {
       `${SITE}/fmp4/index.m3u8?c=${c}`, `${SITE}/fmp4/init.mp4?c=${c}`, `${SITE}/fmp4/seg-001.mp4?c=${c}`,
     ]));
     expect(state.source).toBe(`${SITE}/fmp4/index.m3u8?c=${c}`);
+  });
+
+  it('plays a short stream, not a piece of it whose length is still being read', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/slow-piece?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([
+      `${SITE}/fmp4-slow/index.m3u8?c=${c}`, `${SITE}/fmp4-slow/seg-000.mp4?c=${c}`, `${SITE}/fmp4-slow/seg-002.mp4?c=${c}`,
+    ]));
+    expect(state.source).toBe(`${SITE}/fmp4-slow/index.m3u8?c=${c}`);
+    // Its length was asked for: the piece was among the sources while the player waited.
+    expect(requests.some((r) => r.path === '/fmp4-slow/seg-002.mp4' && r.search === `?c=${c}` && r.range)).toBe(true);
   });
 
   it('reads a length with the page\'s own headers, and waits for a slow one', async function() {
