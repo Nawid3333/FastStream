@@ -219,7 +219,9 @@ describe('A site\'s overlays around an in-page player', function() {
         }
         const page = Object.entries(pages).find(([prefix]) => pathname.startsWith(prefix));
         res.writeHead(200, {'Content-Type': 'text/html'});
-        res.end(page ? page[1](Date.now()) : `<!doctype html><title>${pathname}</title>`);
+        // Anything else (the favicon) gets an empty page; echoing the request's path would
+        // be reflected XSS to CodeQL.
+        res.end(page ? page[1](Date.now()) : '<!doctype html><title>no page</title>');
       });
       server.on('error', reject);
       server.listen(port, '127.0.0.1', () => resolve(server));

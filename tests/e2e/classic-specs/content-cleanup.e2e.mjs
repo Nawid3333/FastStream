@@ -344,7 +344,10 @@ describe('content.js around an in-page player', function() {
       } else if (pathname.startsWith('/shadow')) {
         res.end(shadowPage(t));
       } else {
-        res.end(`<!doctype html><title>${pathname}</title><p>${pathname}</p>`);
+        // Any other page of the site (the links' /other). The same page whatever was asked:
+        // the cases read location, and a server that echoes its request is reflected XSS
+        // to CodeQL.
+        res.end('<!doctype html><title>another page</title><p>another page</p>');
       }
     });
     await new Promise((resolve, reject) => {
