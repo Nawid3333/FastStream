@@ -18,8 +18,9 @@ cat > "$T/bin/gh" <<'EOF'
 printf '%s\n' "$*" >> "$T/gh.log"
 jqarg() { local p a; for a; do [ "${p-}" = --jq ] && printf '%s' "$a"; p=$a; done; }
 case "$1 $2" in
-  'issue list') jq -r "$(jqarg "$@")" "$T/issues.json" ;;
-  'pr list') jq -r "$(jqarg "$@")" "$T/prs.json" ;;
+  'issue list'|'pr list')
+    [[ " $* " == *' --state open --limit 200 '* ]] || { echo "not a list of all open ones: $*" >&2; exit 99; }
+    jq -r "$(jqarg "$@")" "$T/${1}s.json" ;;
   'issue close'|'pr close') if [ -f "$T/close_fails" ]; then exit 1; fi ;;
   *) echo "unhandled: $*" >&2; exit 99 ;;
 esac
@@ -29,6 +30,9 @@ export T PATH="$T/bin:$PATH" RUNNER_TEMP=$T
 PREFIX='Patched library update: '
 fails=0
 check() { if "${@:2}"; then echo "PASS $1"; else echo "FAIL $1"; fails=$((fails + 1)); fi; }
+# The author as `gh pr/issue list --json author` gives it: app/github-actions for the
+# workflow's token (the REST API, which the workflow reads the titles from, says
+# github-actions[bot]).
 item() { # <number> <title> [author] -> json
   printf '{"number": %s, "title": "%s", "url": "https://github.com/me/fs/x/%s", "author": {"login": "%s"}}' "$1" "$2" "$1" "${3:-app/github-actions}"
 }
@@ -52,6 +56,7 @@ check 'other libraries kept' bash -c '! grep -qE "close (2|3|4) " "$0"' "$T/gh.l
 echo "[$(item 1 'Patched library update: hls.js 1.6.9'), $(item 13 'Patched library update: hls.js 1.6.11')]" > "$T/issues.json"
 echo "[$(item 10 'Patched library update: hls.js 1.6.10')]" > "$T/prs.json"
 run
+check 'issue: exit 0' test "$rc" -eq 0
 check 'issue: older issue closed' grep -qxF 'issue close 1 --comment Superseded by hls.js 1.6.11: https://github.com/me/fs/x/13' "$T/gh.log"
 check 'issue: older pr kept' bash -c '! grep -q "^pr close" "$0"' "$T/gh.log"
 check 'issue: newer issue kept' bash -c '! grep -q "close 13 " "$0"' "$T/gh.log"
@@ -60,17 +65,20 @@ check 'issue: newer issue kept' bash -c '! grep -q "close 13 " "$0"' "$T/gh.log"
 echo "[$(item 1 'Patched library update: hls.js 1.6.11')]" > "$T/issues.json"
 echo "[$(item 10 'Patched library update: hls.js 1.6.10')]" > "$T/prs.json"
 run
+check 'nothing: exit 0' test "$rc" -eq 0
 check 'nothing closed' bash -c '! grep -q close "$0"' "$T/gh.log"
 
 # A failed close warns and goes on with the rest; the next run retries.
 echo "[$(item 1 'Patched library update: hls.js 1.6.9'), $(item 5 'Patched library update: dashjs 5.0.0')]" > "$T/issues.json"
-echo "[$(item 10 'Patched library update: hls.js 1.6.10'), $(item 14 'Patched library update: dashjs 5.2.0')]" > "$T/prs.json"
+echo "[$(item 10 'Patched library update: hls.js 1.6.10'), $(item 14 'Patched library update: dashjs 5.2.0'), $(item 15 'Patched library update: hls.js 1.6.13')]" > "$T/prs.json"
 : > "$T/close_fails"
 run
 rm "$T/close_fails"
 check 'close failure: exit 0' test "$rc" -eq 0
-check 'close failure: both tried' test "$(grep -c '^issue close' "$T/gh.log")" = 2
-check 'close failure: warns' grep -qF '::warning::Could not close #1' "$T/out"
+check 'close failure: both issues tried' test "$(grep -c '^issue close' "$T/gh.log")" = 2
+check 'close failure: and the pull request' test "$(grep -c '^pr close 10 ' "$T/gh.log")" = 1
+check 'close failure: warns' grep -qF '::warning::Could not close #1 as superseded by hls.js 1.6.13; the next run tries again.' "$T/out"
+check 'close failure: warns for the pull request' grep -qF '::warning::Could not close #10 as superseded by hls.js 1.6.13; the next run tries again.' "$T/out"
 
 # A list failure fails the step.
 mv "$T/prs.json" "$T/prs.gone"

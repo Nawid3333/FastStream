@@ -21,7 +21,7 @@ set -euo pipefail
 jqf=''
 args=("$@")
 for ((i = 0; i < ${#args[@]}; i++)); do
-  if [ "${args[i]}" = --jq ]; then jqf=${args[i + 1]}; fi
+  if [ "${args[i]}" = --jq ]; then jqf=${args[i + 1]-}; fi
 done
 case "$1 $2" in
   'api repos/microsoft/WSL/releases/latest')
@@ -43,6 +43,7 @@ case "$1 $2" in
   'issue close')
     { printf 'CLOSE'; printf ' [%s]' "${@:3}"; printf '\n'; } >> "$LOG" ;;
   'issue list')
+    [[ " $* " == *' --state open --limit 200 '* ]] || { echo "stub gh: not a list of all open issues: $*" >&2; exit 2; }
     jq -r "$jqf" "$FIX/open.json" ;;
   *)
     echo "stub gh: unexpected call: $*" >&2; exit 2 ;;
@@ -50,11 +51,16 @@ esac
 EOF
 chmod +x "$here/bin/gh"
 
-# The workflow's env: blocks, as GitHub would set them.
+# The workflow's env: blocks, as GitHub would set them: the job's for both steps, the
+# report step's own (RUN_URL, TITLE) only for it, by scenario.
 export GH_TOKEN=stub
 export GH_REPO='Nawid3333/FastStream' OWNER='Nawid3333' PREFIX='WSL update: '
-export RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
-export TITLE='WSL releases workflow failed'
+RUN_URL='https://github.com/Nawid3333/FastStream/actions/runs/1'
+TITLE='WSL releases workflow failed'
+export -n RUN_URL TITLE
+check "the report step's env: gives the title" contains "$WORKFLOWS_DIR/wsl-releases.yml" "TITLE: '$TITLE'"
+check "and the run's URL" contains "$WORKFLOWS_DIR/wsl-releases.yml" \
+  'RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
 
 # rel <tag json> <published json>: a microsoft/WSL release, as releases/latest returns it.
 rel() { printf '{"tag_name":%s,"published_at":%s,"html_url":"https://example.invalid/x"}' "$1" "$2"; }
@@ -73,7 +79,10 @@ scenario() {
   printf '%s' "$3" > "$FIX/release.json"
   printf '%s' "$4" > "$FIX/issues.json"
   printf '%s' "$5" > "$FIX/open.json"
-  PATH="$here/bin:$PATH" run_step "$2" > "$FIX/out" 2>&1
+  (
+    if [ "$2" = "$report_step" ]; then export RUN_URL TITLE; fi
+    PATH="$here/bin:$PATH" run_step "$2"
+  ) > "$FIX/out" 2>&1
   status=$?
 }
 

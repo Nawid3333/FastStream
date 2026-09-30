@@ -7,11 +7,13 @@ here=$(mktemp -d)
 trap 'rm -rf "$here"' EXIT
 step_script mpv-host-changed.yml 'Comment on the reminder issue' > "$here/step.sh" || exit 1
 
-# gh: records its arguments and the comment body; fails when the test says so.
+# gh: records its arguments and the comment body; fails when the test says so, and on any
+# call but a comment on an issue.
 mkdir -p "$here/bin"
 cat > "$here/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FIX/calls"
+[ "$1 $2" = 'issue comment' ] || { echo "unexpected gh $*" >&2; exit 99; }
 while [ $# -gt 0 ]; do
   if [ "$1" = --body-file ]; then cp "$2" "$FIX/body"; fi
   shift
@@ -41,7 +43,8 @@ commit() { # <sha> <added json> <modified json> <removed json>
 
 scenario 'the helper changed in one commit' "[$(commit aaaa1111 '[]' "[\"$HOST\"]" '[]')]"
 check 'succeeds' test "$status" -eq 0
-check 'comments on #73' contains "$FIX/calls" 'issue comment 73 --body-file'
+check 'comments on #73, once' test "$(grep -c '^issue comment 73 --body-file ' "$FIX/calls")" -eq 1
+check 'and calls gh for nothing else' test "$(wc -l < "$FIX/calls")" -eq 1
 check 'mentions the owner' contains "$FIX/body" '@Nawid3333 The mpv helper changed on `main`'
 check 'names the helper' contains "$FIX/body" "- \`$HOST\`"
 check 'not the installer' lacks "$FIX/body" "- \`$INSTALL\`"
@@ -56,9 +59,11 @@ check 'succeeds' test "$status" -eq 0
 check 'names the installer' contains "$FIX/body" "- \`$INSTALL\`"
 check 'not the helper' lacks "$FIX/body" "- \`$HOST\`"
 check 'names only the commit that changed it' contains "$FIX/body" 'in bbbb2222.'
+check 'not the other one' lacks "$FIX/body" 'cccc3333'
 
 scenario 'both, in two commits, one of them removing the installer' \
   "[$(commit dddd4444 '[]' "[\"$HOST\"]" '[]'), $(commit eeee5555 '[]' '[]' "[\"$INSTALL\"]")]"
+check 'succeeds' test "$status" -eq 0
 check 'names the helper' contains "$FIX/body" "- \`$HOST\`"
 check 'and the installer' contains "$FIX/body" "- \`$INSTALL\`"
 check 'names both commits' contains "$FIX/body" 'in dddd4444 eeee5555.'
