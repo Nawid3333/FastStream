@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {testTimeout} from './testTimeout.mjs';
@@ -153,7 +153,7 @@ export const config = {
   outputDir: path.join(root, 'logs'),
   // Each spec's and each retry's driver log kept under its own name: see driverLogs.mjs.
   // The configs built on this one name their own suite.
-  onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), `ext-${BUILD}`),
+  onWorkerEnd: recordRetriedSpecs(path.join(root, 'logs'), `ext-${BUILD}`),
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {ui: 'bdd', timeout: testTimeout(120000), rootHooks: bidiRootHooks},

@@ -26,7 +26,7 @@
 
 import path from 'node:path';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {BUILD, config as base, EXTENSION_ID} from './wdio.extension.conf.mjs';
 
 // ExtensionPermissions and AddonManager are chrome-privileged, and
@@ -46,7 +46,7 @@ export const config = {
   ...base,
   capabilities: caps,
   specs: [path.join(import.meta.dirname, 'pbm-specs/**/*.e2e.mjs')],
-  onWorkerEnd: keepDriverLogs(base.outputDir, `pbm-${BUILD}`),
+  onWorkerEnd: recordRetriedSpecs(base.outputDir, `pbm-${BUILD}`),
 
   before: async function(...args) {
     // Installs the add-on and sets the shared globals.

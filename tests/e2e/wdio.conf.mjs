@@ -33,7 +33,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {mozLogHooks} from './mozLog.mjs';
 import {testTimeout} from './testTimeout.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
@@ -461,7 +461,7 @@ export const config = {
   // step at all: it looks like diagnostics exist when they do not.
   outputDir: path.join(root, 'logs'),
   // Each spec's and each retry's driver log kept under its own name: see driverLogs.mjs.
-  onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), 'web'),
+  onWorkerEnd: recordRetriedSpecs(path.join(root, 'logs'), 'web'),
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {

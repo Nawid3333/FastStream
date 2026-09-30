@@ -11,14 +11,14 @@
 
 import path from 'node:path';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {testTimeout} from './testTimeout.mjs';
 import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 export const config = {
   ...base,
   specs: [path.join(import.meta.dirname, 'live-specs/**/*.e2e.mjs')],
-  onWorkerEnd: keepDriverLogs(base.outputDir, `live-${BUILD}`),
+  onWorkerEnd: recordRetriedSpecs(base.outputDir, `live-${BUILD}`),
   // A slow CDN answer is not a FastStream failure; a stream that does not play is. Each
   // test carries its own budget (see the spec), and a spec file that fails still runs
   // once more in a fresh browser, as in the other suites.
