@@ -1,5 +1,7 @@
 const {FlatCompat} = require('@eslint/eslintrc');
 const globals = require('globals');
+const noUnsanitized = require('eslint-plugin-no-unsanitized');
+const promise = require('eslint-plugin-promise');
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
@@ -52,6 +54,18 @@ module.exports = [
       // behaviour this repo was linted clean under rather than churning
       // shipped code for a stylistic rule.
       'no-unused-vars': ['error', {args: 'none', caughtErrors: 'none'}],
+    },
+  },
+  {
+    // A promise chain with no error path: a rejection left a message's sender waiting for
+    // an answer that never came, or a flag half set. And HTML reaches a page only through
+    // the DOM, never as a string (none does today; this keeps it so).
+    files: ['chrome/**/*.{js,mjs}', 'build.mjs', 'tools/**/*.mjs'],
+    plugins: {'promise': promise, 'no-unsanitized': noUnsanitized},
+    rules: {
+      'promise/catch-or-return': ['error', {allowThen: true, allowFinally: true}],
+      'no-unsanitized/method': 'error',
+      'no-unsanitized/property': 'error',
     },
   },
 ];

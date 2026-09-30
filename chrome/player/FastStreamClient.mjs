@@ -191,7 +191,7 @@ export class FastStreamClient extends EventEmitter {
       Utils.loadAndParseOptions('toolSettings', DefaultToolSettings).then((settings) => {
         this.options.toolSettings = settings;
         this.interfaceController.updateToolVisibility();
-      });
+      }).catch((e) => console.error('Loading the tool settings failed', e));
     } catch (e) {
       console.error(e);
     }
@@ -757,7 +757,7 @@ export class FastStreamClient extends EventEmitter {
         if (this.previewPlayerSetup === setup) {
           this.previewPlayerSetup = null;
         }
-      });
+      }).catch((e) => console.error(e));
     }
 
     return this.previewPlayerSetup;
@@ -836,7 +836,7 @@ export class FastStreamClient extends EventEmitter {
       if (this.sourceChange === change) {
         this.sourceChange = null;
       }
-    });
+    }).catch((e) => console.error(e));
 
     return change;
   }
@@ -911,7 +911,7 @@ export class FastStreamClient extends EventEmitter {
           if (this.initPromise === hook) {
             this.initPromise = null;
           }
-        });
+        }).catch((e) => console.error(e));
       }
 
 
@@ -957,7 +957,7 @@ export class FastStreamClient extends EventEmitter {
       if (autoPlay) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;
-        });
+        }).catch((e) => console.warn('Autoplay failed', e));
       }
 
       this.loadProgressData().then(async () => {
@@ -991,7 +991,13 @@ export class FastStreamClient extends EventEmitter {
         if (autoPlay && !this.state.autoPlayTriggered) {
           this.play().then(() => {
             this.state.autoPlayTriggered = true;
-          });
+          }).catch((e) => console.warn('Autoplay failed', e));
+        }
+      }).catch((e) => {
+        console.error('Applying the remembered time failed', e);
+        // Saving was switched off while the time was applied.
+        if (this.source === source) {
+          this.disableProgressSave = false;
         }
       });
     } catch (e) {
@@ -1395,7 +1401,7 @@ export class FastStreamClient extends EventEmitter {
     fallbacks.next = next;
     this.setSource(next, fallbacks.sources).then(() => {
       this.sourcesBrowser.updateSources();
-    });
+    }).catch((e) => console.error('Switching to the next stream failed', e));
     return true;
   }
 

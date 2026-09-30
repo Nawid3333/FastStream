@@ -128,7 +128,7 @@ ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
       console.error(e);
     }
   });
-});
+}).catch((e) => console.error('Updating the tab icons failed', e));
 
 const EmptyTabUrls = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
 
@@ -591,12 +591,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           });
         }
       });
-    });
+    }).catch((e) => console.error('Sending the new options to the tabs failed', e));
     return;
   } else if (msg.type === MessageTypes.MPV_TEST) {
     Mpv.testConnection().then((result) => {
       sendResponse(result);
-    });
+    }).catch((e) => sendResponse({ok: false, error: String(e)}));
     return true;
   } else if (msg.type === MessageTypes.MPV_OPEN) {
     // Manual "send to mpv" (player button). The per-tab dedupe is bypassed so
@@ -632,6 +632,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         LastManualMpvTime = 0;
       }
       sendResponse(result);
+    }).catch((e) => {
+      // As a launch that failed: the player waits for an answer, and may try again at once.
+      console.error('Sending the stream to mpv failed', e);
+      LastManualMpvTime = 0;
+      sendResponse({ok: false, error: String(e)});
     });
     return true;
   } else if (msg.type === MessageTypes.POPUP_GUARD_ARM) {
@@ -710,6 +715,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       };
 
       sendResponse(response);
+    }).catch((e) => {
+      // The player waits for this answer before it starts; the top frame stands in.
+      console.error('Finding the page frame of a player failed', e);
+      frame.pageFrame = tab.getFrameOrCreate(0);
+      sendResponse({
+        mediaInfo: getMediaInfoFromTab(sender?.tab),
+        analyzerData: tab.analyzerData,
+        isMainPlayer,
+      });
     });
     return true;
   } else if (msg.type === MessageTypes.FRAME_ADDED) {
@@ -1968,7 +1982,7 @@ function autoOpenInMpv(tab, url, headers) {
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
-  });
+  }).catch((e) => console.error('Handing the stream to mpv failed', e));
 }
 
 /**
@@ -2189,7 +2203,7 @@ function sendPlayedToMpv(tab, source) {
       // The host never launched mpv, so let the next play try again.
       tab.mpvLastPlaySend = null;
     }
-  });
+  }).catch((e) => console.error('Handing the played video to mpv failed', e));
 }
 
 /**
@@ -2244,7 +2258,7 @@ function openMpvWithSources(tab) {
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
-  });
+  }).catch((e) => console.error('Handing the stream to mpv failed', e));
   return true;
 }
 

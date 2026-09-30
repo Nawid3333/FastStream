@@ -14,6 +14,7 @@
 import {browser, expect} from '@wdio/globals';
 
 import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 
@@ -28,7 +29,7 @@ describe('platform capabilities on this Firefox', function() {
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);
-        if ((await browser.getUrl()).startsWith(ORIGIN)) return true;
+        if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) return true;
       }
       return false;
     }, {timeout: 15000, timeoutMsg: 'the extension page never opened'});

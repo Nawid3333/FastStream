@@ -117,6 +117,10 @@
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
+      }).catch((e) => {
+        // The background waits for an answer: none found is 0.
+        console.error('Finding the largest video failed', e);
+        sendResponse(0);
       });
       return true;
     } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
