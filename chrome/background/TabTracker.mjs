@@ -18,6 +18,11 @@ export class FrameHolder {
     this.trackedSources = [];
     this.requestHeaders = new Map();
     this.url = '';
+    /**
+     * The name content.js gave the page it shows (FRAME_ADDED); null when unknown.
+     * @type {?string}
+     */
+    this.documentKey = null;
   }
 
   removeChildFrame(childFrame) {
@@ -127,6 +132,30 @@ export class TabHolder {
   }
   removeFrame(frameId) {
     this.frames.delete(frameId);
+  }
+
+  /**
+   * Whether a player that says it loaded (PLAYER_LOADED) was opened by a page that is gone.
+   * content.js names its page in the player's URL (opener): the page is in the player's
+   * own frame when it went to the player, or in the frame above when it put the player in
+   * an iframe. A reload or a navigation replaces it, and the new page's content script
+   * gives its own name (FRAME_ADDED). A player still starting when its page reloaded can
+   * say it loaded after that, and its beforeunload, added once it has loaded, never ran.
+   * Taken for a player of the new page, it made the background drop that page's streams
+   * (FrameHolder.hasPlayer) and open no player there until the page navigated again.
+   * @param {FrameHolder} playerFrame - The player's frame.
+   * @param {number|undefined} parentFrameId - The frame above it, as the player tells it.
+   * @param {?string} opener - The page the player's URL names; null for a player no
+   *   content script opened (a page embedding it itself, the player page in a tab).
+   * @return {boolean} True when that page is known to be gone. A frame whose page this
+   *   background never heard name itself (it started again since) proves nothing.
+   */
+  isPlayerOfGoneDocument(playerFrame, parentFrameId, opener) {
+    if (!opener) {
+      return false;
+    }
+    const pages = [playerFrame, this.getFrame(parentFrameId)].filter((frame) => frame && frame.documentKey);
+    return pages.length > 0 && !pages.some((frame) => frame.documentKey === opener);
   }
 
   /**

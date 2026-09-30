@@ -560,6 +560,22 @@ repeat request for the identical URL can be satisfied out of Firefox's HTTP
 cache with no network traffic, which would leave nothing for `onHeadersReceived`
 to redetect.
 
+**A player whose page reloaded while it started (2026-09-30).** The other end of
+that window: the reload (`tab.reset()` + `chrome.tabs.reload`) can come while the
+player iframe is still starting. Its `beforeunload` (which sends `FRAME_REMOVED`)
+is only added after it sent `PLAYER_LOADED`, and on the slow Windows runner the
+dying out-of-process iframe sent `PLAYER_LOADED` after the new page's
+`FRAME_ADDED`. The background then took it for a player of the new page: frame 0
+`hasPlayer()`, so `onHeadersReceived` dropped every stream the page requested and
+`openPlayer` refused, until the next navigation (mpv-shortcut failed so in 4 of 5
+CI attempts from #67 on, none in ~40 before). Now content.js names its page
+(`DocumentKey`, sent in `FRAME_ADDED` and set as the player URL's `opener`), and
+`PLAYER_LOADED` from a player whose opener is no longer the page in its frame or
+the frame above (`TabHolder.isPlayerOfGoneDocument`) is answered null and
+forgotten. A frame whose page never named itself to this background (it restarted
+since) proves nothing and the player counts. mpv-shortcut's `/late` page pins the
+state the race left.
+
 **MPV shortcut: Ctrl+Shift+U, the `toggle_mpv` command (2026-09-26).** MPV
 on or off for the tab on any site, allowlisted or not, while MPV mode is on
 (off = FastStream off, as the toolbar's MPV -> Off). On a blank or new tab it

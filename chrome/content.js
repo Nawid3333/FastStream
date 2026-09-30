@@ -41,6 +41,10 @@
   // not going away: the player takes it over, and asks the background for the sources
   // detected in it.
   let RedirectingToPlayer = false;
+  // This page's name, for the background to tell a player it opens from one a page this
+  // frame showed before opened (FRAME_ADDED, and the player URL's opener). Not
+  // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
+  const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
 
   let resizeDebounce = Date.now();
   const Config = {
@@ -276,6 +280,9 @@
 
       const playerFillsScreen = video?.highest?.tagName === 'BODY';
       const newURL = new URL(request.url);
+      // Which page opened it: a reload can take this page away while the player still
+      // starts (background.mjs, PLAYER_LOADED).
+      newURL.searchParams.set('opener', DocumentKey);
       if (!video || playerFillsScreen) {
         if (!document.fullscreenEnabled && !request.noRedirect) {
           if (request.parentFrameId > -1) {
@@ -1724,5 +1731,6 @@
   chrome.runtime.sendMessage({
     type: MessageTypes.FRAME_ADDED,
     url: window.location.href,
+    document: DocumentKey,
   });
 })();

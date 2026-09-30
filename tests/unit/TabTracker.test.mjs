@@ -80,3 +80,66 @@ describe('forgetFrame', () => {
     expect(answers).toEqual([null]);
   });
 });
+
+// PLAYER_LOADED from a player whose page reloaded while it started: Ctrl+Shift+U with the
+// player just opened. It said it loaded after the new page's FRAME_ADDED, and the new page
+// then counted as holding a player: its streams were dropped, and no player opened on it.
+// The player's URL names the page that opened it, and each page names itself in FRAME_ADDED.
+describe('isPlayerOfGoneDocument', () => {
+  /**
+   * A page frame (1) that named itself 'page-a', and a player frame (2) in it.
+   * @return {{tab: Object, page: Object, player: Object}}
+   */
+  function pageWithPlayer() {
+    const tab = new TabTracker().getTabOrCreate(7);
+    const page = tab.getFrameOrCreate(1);
+    page.documentKey = 'page-a';
+    const player = tab.getFrameOrCreate(2);
+    return {tab, page, player};
+  }
+
+  it('keeps a player the page in the frame above opened', () => {
+    const {tab, player} = pageWithPlayer();
+    expect(tab.isPlayerOfGoneDocument(player, 1, 'page-a')).toBe(false);
+  });
+
+  it('refuses a player that page opened once another page took the frame', () => {
+    const {tab, page, player} = pageWithPlayer();
+    page.resetSelfAndChildren();
+    page.documentKey = 'page-b';
+    expect(tab.isPlayerOfGoneDocument(player, 1, 'page-a')).toBe(true);
+  });
+
+  it('keeps a player the page sent its own frame to', () => {
+    // handlePlayerOpen's redirect: the player loads in the page's frame, below the frame
+    // above it, which shows a page of its own.
+    const {tab, page} = pageWithPlayer();
+    const outer = tab.getFrameOrCreate(0);
+    outer.documentKey = 'outer';
+    page.setParentFrame(outer);
+    expect(tab.isPlayerOfGoneDocument(page, 0, 'page-a')).toBe(false);
+  });
+
+  it('keeps a player whose frames never named a page', () => {
+    // The tab was reset for the reload and the new page has not said FRAME_ADDED yet, or
+    // the background started again after the page loaded: nothing to tell by.
+    const tab = new TabTracker().getTabOrCreate(7);
+    const player = tab.getFrameOrCreate(2);
+    expect(tab.isPlayerOfGoneDocument(player, 1, 'page-a')).toBe(false);
+    tab.getFrameOrCreate(1);
+    expect(tab.isPlayerOfGoneDocument(player, 1, 'page-a')).toBe(false);
+  });
+
+  it('keeps a player no content script opened', () => {
+    // A page that embeds the player itself, or the player page in a tab: no opener.
+    const {tab, player} = pageWithPlayer();
+    expect(tab.isPlayerOfGoneDocument(player, 1, null)).toBe(false);
+    expect(tab.isPlayerOfGoneDocument(player, undefined, null)).toBe(false);
+  });
+
+  it('forgets the page name when the frame resets', () => {
+    const {page} = pageWithPlayer();
+    page.resetSelfAndChildren();
+    expect(page.documentKey).toBeNull();
+  });
+});

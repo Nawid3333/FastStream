@@ -643,6 +643,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const frame = tab.getFrameOrCreate(sender.frameId);
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
+    if (tab.isPlayerOfGoneDocument(frame, msg.parentFrameId, playerOpener(msg.url || sender.url))) {
+      // Its page reloaded while it started (TabHolder.isPlayerOfGoneDocument): it goes
+      // with that page, and is no player of the one there now.
+      if (Logging) console.log('Ignoring a player whose page is gone', frame);
+      tab.forgetFrame(frame);
+      sendResponse(null);
+      return;
+    }
     if (Logging) console.log('Found FastStream window', frame);
     frame.isPlayer = true;
 
@@ -702,6 +710,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     const playerCount = frame.resetSelfAndChildren();
     frame.url = msg.url;
+    frame.documentKey = typeof msg.document === 'string' ? msg.document : null;
 
     // Restore preserved sources
     preservedSources.forEach((s) => {
@@ -1489,6 +1498,19 @@ async function getVideoSize(frame) {
       resolve(size);
     });
   });
+}
+
+/**
+ * The page that opened a player, as content.js names it in the player's URL.
+ * @param {string|undefined} url - The player's URL.
+ * @return {?string} The name, or null when the URL has none.
+ */
+function playerOpener(url) {
+  try {
+    return new URL(url).searchParams.get('opener');
+  } catch (e) {
+    return null;
+  }
 }
 
 async function openPlayer(frame) {
