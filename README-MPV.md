@@ -22,7 +22,8 @@ Everything else in FastStream works without any of this.
 - **mpv** — https://mpv.io/installation/
   The helper looks in `C:\Program Files\mpv\`, then `C:\Program Files (x86)\mpv\`,
   then on `PATH`. Anywhere else works too; you just tell it where in step 3.
-- **Node.js 20 or newer** for the helper. (Building this repo needs 22.)
+- **Node.js 22 or newer** for the helper, as for building this repo. CI tests the helper
+  with the version in `.nvmrc`.
 
 ## 2. Install the helper
 
