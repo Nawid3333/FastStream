@@ -593,7 +593,8 @@ not guaranteed. `FRAME_REMOVED` names its page, and a late one from the page bef
 known name that is not the frame's) is ignored. A page that takes the player's iframe out
 itself runs no `beforeunload` in it, so the player also reports on `pagehide` (Firefox
 fires it on removal; content-cleanup's case fails without it), and `removePlayers`
-reports each player iframe it took out, overlays too.
+reports every player iframe that is out of the page when it is done, whoever took it out,
+overlays too, once each.
 
 **MPV shortcut: Ctrl+Shift+U, the `toggle_mpv` command (2026-09-26).** MPV
 on or off for the tab on any site, allowlisted or not, while MPV mode is on
