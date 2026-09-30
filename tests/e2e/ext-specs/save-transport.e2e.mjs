@@ -147,6 +147,25 @@ describe('save transport on the installed extension', function() {
   it('writes a chunk through streamSaver without hanging', async function() {
     const result = await runInPage(async () => {
       const {streamSaver} = await import('/player/modules/StreamSaver.mjs');
+      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+      const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
+
+      // What the save's own blob store did, and when each step settled: the write timed
+      // out twice on the Windows runner (main, 2026-09-30) with the player's store idle,
+      // which says nothing about the save's. Printed with the result.
+      const trace = [];
+      const start = performance.now();
+      const note = (what) => trace.push(`${Math.round(performance.now() - start)} ms ${what}`);
+      for (const [proto, name] of [[FSBlob.prototype, 'ready'], [OPFSManager.prototype, 'setup'], [OPFSManager.prototype, 'call']]) {
+        const original = proto[name];
+        proto[name] = function(...args) {
+          const label = name + (typeof args[0] === 'string' ? ' ' + args[0] : '');
+          note(label + ' started');
+          const result = original.apply(this, args);
+          Promise.resolve(result).then(() => note(label + ' settled'), (e) => note(label + ' failed: ' + e));
+          return result;
+        };
+      }
 
       // Raced against a 6s timer so a hung transport becomes data instead of
       // a suite-wide timeout.
@@ -170,13 +189,16 @@ describe('save transport on the installed extension', function() {
         writeTimedOut: !!write.timedOut,
         closeSettled: close.settled,
         closeTimedOut: !!close.timedOut,
+        trace,
       };
     });
 
-    console.log('      streamSaver write/close:', JSON.stringify(result));
+    const {trace, ...outcome} = result;
+    console.log('      streamSaver write/close:', JSON.stringify(outcome));
     if (result.writeTimedOut || result.closeTimedOut) {
       // Saves have hung on the Windows runner on an OPFS worker call that never answered.
       console.log('      storage state:', JSON.stringify(await pageState()));
+      console.log('      the save\'s blob store:\n        ' + trace.join('\n        '));
     }
     // A hung transport (stream handed to a service worker that can never
     // read it) shows up as write or close never settling.
