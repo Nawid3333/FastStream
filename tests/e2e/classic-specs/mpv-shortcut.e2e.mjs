@@ -434,6 +434,92 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
           </script>`);
         return;
       }
+      if (req.url.startsWith('/preroll')) {
+        // A preroll ad in a video of its own, which the play button starts: the film's
+        // player fetched its manifest already. The ad's video plays a file, found by URL.
+        res.end(`<!doctype html><title>mpv shortcut test, preroll</title>
+          <video id="ad" preload="auto" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
+          <video id="main" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <script>
+            const t = Date.now();
+            fetch('${CDN}/film.m3u8?preroll=' + t);
+            const ad = document.getElementById('ad');
+            ad.src = '${CDN}/clip.mp4?preroll=' + t;
+            ad.load();
+            document.getElementById('main').src = URL.createObjectURL(new MediaSource());
+            document.getElementById('play').addEventListener('click', () => ad.play().catch(() => {}));
+          </script>`);
+        return;
+      }
+      if (req.url.startsWith('/adfirst')) {
+        // An MSE player that fetched an ad's manifest at load, and asks for the film's
+        // only once played, after another ad's. Its video knows the film's length (the
+        // MediaSource's).
+        res.end(`<!doctype html><title>mpv shortcut test, ad first</title>
+          <video id="main" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <script>
+            const t = Date.now();
+            const source = new MediaSource();
+            source.addEventListener('sourceopen', () => {
+              source.duration = 1800;
+            });
+            const main = document.getElementById('main');
+            main.src = URL.createObjectURL(source);
+            fetch('${CDN}/ad.m3u8?adfirst=' + t);
+            document.getElementById('play').addEventListener('click', () => {
+              main.play().catch(() => {});
+              setTimeout(() => fetch('${CDN}/ad.m3u8?again=' + t), 300);
+              setTimeout(() => fetch('${CDN}/film.m3u8?adfirst=' + t), 1500);
+            });
+          </script>`);
+        return;
+      }
+      if (req.url.startsWith('/shadow')) {
+        // A player built as a web component: its video and its play button in a shadow root.
+        res.end(`<!doctype html><title>mpv shortcut test, shadow root</title>
+          <fs-player></fs-player>
+          <script>
+            customElements.define('fs-player', class extends HTMLElement {
+              constructor() {
+                super();
+                const root = this.attachShadow({mode: 'open'});
+                root.innerHTML = '<video id="main" preload="auto" crossorigin="anonymous" ' +
+                  'style="width: 640px; height: 360px"></video><button id="play">Play</button>';
+                const video = root.getElementById('main');
+                video.src = '${CDN}/clip.mp4?shadow=' + Date.now();
+                video.load();
+                root.getElementById('play').addEventListener('click', () => video.play().catch(() => {}));
+              }
+            });
+          </script>`);
+        return;
+      }
+      if (req.url.startsWith('/later')) {
+        // The page gone to from the slow one: its player asks for its stream 4 s in.
+        res.end(`<!doctype html><title>mpv shortcut test, a stream later</title>
+          <script>
+            setTimeout(() => fetch('${CDN}/film.m3u8?later=' + Date.now()), 4000);
+          </script>`);
+        return;
+      }
+      if (req.url.startsWith('/slow')) {
+        // An MSE player beside two streams whose lengths take long to read.
+        res.end(`<!doctype html><title>mpv shortcut test, slow lengths</title>
+          <video id="main" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <script>
+            const t = Date.now();
+            document.getElementById('main').src = URL.createObjectURL(new MediaSource());
+            fetch('${CDN}/slow1.m3u8?t=' + t);
+            fetch('${CDN}/slow2.m3u8?t=' + t);
+            document.getElementById('play').addEventListener('click', () => {
+              document.getElementById('main').play().catch(() => {});
+            });
+          </script>`);
+        return;
+      }
       if (req.url.startsWith('/late')) {
         // A player of a page that is gone: its URL names another page as its opener, as a
         // player still starting when its page reloaded does. The page's own video loads
@@ -481,11 +567,26 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     const segmentDir = path.join(root, 'tests/e2e/fixtures/hls-ts');
     const segments = new Map(fs.readdirSync(segmentDir).filter((name) => name.endsWith('.ts'))
         .map((name) => [`/seg/${name}`, fs.readFileSync(path.join(segmentDir, name))]));
-    const playlists = {'/film.m3u8': loopedPlaylist(1800, '/seg/'), '/ad.m3u8': loopedPlaylist(9, '/seg/')};
+    const playlists = {
+      '/film.m3u8': loopedPlaylist(1800, '/seg/'),
+      '/ad.m3u8': loopedPlaylist(9, '/seg/'),
+      '/slow1.m3u8': loopedPlaylist(600, '/seg/'),
+      '/slow2.m3u8': loopedPlaylist(600, '/seg/'),
+    };
+    const slowSeen = new Map();
 
-    cdnServer = http.createServer((req, res) => {
+    cdnServer = http.createServer(async (req, res) => {
       requests.push({url: req.url, headers: req.headers, at: Date.now()});
       const pathname = req.url.split('?')[0];
+      // The slow page's manifests: the page's own request at once, a second one (the
+      // background reading the length) 5 s late, longer than it waits for lengths.
+      if (pathname.startsWith('/slow') && !isMpvRequest(req)) {
+        const seen = slowSeen.get(req.url) || 0;
+        slowSeen.set(req.url, seen + 1);
+        if (seen > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+      }
       if (playlists[pathname] || segments.has(pathname)) {
         res.writeHead(200, {
           'Content-Type': playlists[pathname] ? 'application/vnd.apple.mpegurl' : 'video/mp2t',
@@ -915,6 +1016,123 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
       });
       expect(requests.filter((r) => isMpvRequest(r) && r.url.startsWith('/ad.m3u8'))).toEqual([]);
     }
+
+    await pressShortcut();
+    await expectMode('off', 'pressing Ctrl+Shift+U again');
+  });
+
+  /**
+   * Waits for mpv to request a stream, beyond the first `before` requests mpv had made,
+   * and checks it requested none of another.
+   * @param {number} before - mpvCount() before the play.
+   * @param {string} wanted - The start of the path mpv is to request.
+   * @param {string} unwanted - The start of a path it must not.
+   */
+  async function expectInMpv(before, wanted, unwanted) {
+    await browser.waitUntil(async () => requests.filter(isMpvRequest).slice(before)
+        .some((r) => r.url.startsWith(wanted)), {
+      timeout: 45000,
+      interval: 500,
+      timeoutMsg: `mpv never requested ${wanted}. Seen: ${seenRequests()}`,
+    });
+    expect(requests.filter(isMpvRequest).slice(before).filter((r) => r.url.startsWith(unwanted))).toEqual([]);
+  }
+
+  // The same click started a preroll ad in a video of its own, which plays a file found by
+  // its URL, and that file went to mpv: a 10-second ad beside the half-hour film the page's
+  // player had fetched. A video that short beside a stream that long is an ad, as
+  // StreamPick tells for a video it matches by length.
+  it('hands the film to mpv, not the preroll ad the same click started', async function() {
+    await browser.switchToWindow(siteHandle);
+    const since = requests.length;
+    await browser.url(`${SITE}/preroll`);
+    await browser.waitUntil(async () => {
+      const own = requests.slice(since).filter((r) => !isMpvRequest(r));
+      return own.some((r) => r.url.startsWith('/film.m3u8')) && own.some((r) => r.url.startsWith('/clip.mp4'));
+    }, {timeout: 15000, interval: 250, timeoutMsg: 'the page never fetched its streams: ' + seenRequests()});
+    await expectMode('off', 'the start of this test');
+
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with FastStream off');
+    const before = mpvCount();
+    await clickPlay();
+    if (HAVE_HOST) {
+      await expectInMpv(before, '/film.m3u8', '/clip.mp4');
+    }
+
+    await pressShortcut();
+    await expectMode('off', 'pressing Ctrl+Shift+U again');
+  });
+
+  // An ad's manifest was the only stream the page had when the user pressed play, and the
+  // film's came a little later, after another ad's: the ad went to mpv, a 9-second stream
+  // for a half-hour video, or else the first stream after the play, the other ad. A stream
+  // plainly another length now waits for the next one.
+  it('waits for the film\'s stream when the only one known is plainly another length', async function() {
+    await browser.switchToWindow(siteHandle);
+    const since = requests.length;
+    await browser.url(`${SITE}/adfirst`);
+    await browser.waitUntil(async () => requests.slice(since).some((r) => !isMpvRequest(r) && r.url.startsWith('/ad.m3u8')),
+        {timeout: 15000, interval: 250, timeoutMsg: 'the page never fetched the ad: ' + seenRequests()});
+    await expectMode('off', 'the start of this test');
+
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with FastStream off');
+    const before = mpvCount();
+    await clickPlay();
+    if (HAVE_HOST) {
+      await expectInMpv(before, '/film.m3u8', '/ad.m3u8');
+    }
+
+    await pressShortcut();
+    await expectMode('off', 'pressing Ctrl+Shift+U again');
+  });
+
+  // A play inside a shadow root never reached content.js's listener on the document
+  // (media events are not composed), and nothing went to mpv.
+  it('hands over a video the user starts inside a shadow root', async function() {
+    await browser.switchToWindow(siteHandle);
+    const since = requests.length;
+    await browser.url(`${SITE}/shadow`);
+    await browser.waitUntil(async () => requests.slice(since).some((r) => !isMpvRequest(r) && r.url.startsWith('/clip.mp4')),
+        {timeout: 15000, interval: 250, timeoutMsg: 'the page never loaded its video: ' + seenRequests()});
+    await expectMode('off', 'the start of this test');
+
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with FastStream off');
+    const before = mpvCount();
+    await browser.switchToWindow(siteHandle);
+    await (await browser.$('fs-player')).shadow$('#play').click();
+    if (HAVE_HOST) {
+      await expectMainInMpv(before, 'a play inside a shadow root');
+    }
+
+    await pressShortcut();
+    await expectMode('off', 'pressing Ctrl+Shift+U again');
+  });
+
+  // The play waits up to 2.5 s for its frame's stream lengths. A page left meanwhile has
+  // other streams, yet the play went on: it found none of the page left (their frame
+  // forgot them) and waited for the next stream, which the next page's player asked for.
+  it('sends nothing for a play whose page was left while the lengths were read', async function() {
+    await browser.switchToWindow(siteHandle);
+    const since = requests.length;
+    await browser.url(`${SITE}/slow`);
+    await browser.waitUntil(async () => {
+      const own = requests.slice(since).filter((r) => !isMpvRequest(r));
+      return own.some((r) => r.url.startsWith('/slow1.m3u8')) && own.some((r) => r.url.startsWith('/slow2.m3u8'));
+    }, {timeout: 15000, interval: 250, timeoutMsg: 'the page never fetched its streams: ' + seenRequests()});
+    await expectMode('off', 'the start of this test');
+
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U with FastStream off');
+    const before = mpvCount();
+    await clickPlay();
+    await browser.url(`${SITE}/later`);
+    await browser.waitUntil(async () => requests.slice(since).some((r) => !isMpvRequest(r) && r.url.startsWith('/film.m3u8?later')),
+        {timeout: 15000, interval: 250, timeoutMsg: 'the next page never asked for its stream: ' + seenRequests()});
+    await browser.pause(5000);
+    expect(requests.filter(isMpvRequest).slice(before).map((r) => r.url)).toEqual([]);
 
     await pressShortcut();
     await expectMode('off', 'pressing Ctrl+Shift+U again');

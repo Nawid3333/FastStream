@@ -156,6 +156,9 @@ export class TabHolder {
     // opening a second window.
     this.mpvPlayPendingUntil = 0;
     this.mpvLastPlaySend = null;
+    // What that play plays (content.js's playedVideo): a stream plainly another length is
+    // not its stream.
+    this.mpvPlayedVideo = null;
   }
 
   /**

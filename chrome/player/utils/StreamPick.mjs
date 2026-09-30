@@ -58,18 +58,43 @@ export class StreamPick {
       return played.length > 0 ? played : null;
     }
 
-    // Nothing runs longer than a live stream.
-    if (length === Infinity) {
-      return played;
+    return StreamPick.outrun(sources, length) ? null : played;
+  }
+
+  /**
+   * Whether a video of this length is as likely as not an ad, a trailer or a preview beside
+   * the sources: one of them runs DWARF_RATIO times as long, or the video is short and one
+   * runs plainly longer. Then the longest decides.
+   * @param {Array<{duration?: number|null}>} sources - Detected sources, with their lengths.
+   * @param {number|null} length - The video's length in seconds; null when not known.
+   * @return {boolean}
+   */
+  static outrun(sources, length) {
+    // Nothing runs longer than a live stream; an unknown length tells nothing.
+    if (length === null || length === Infinity) {
+      return false;
     }
     const best = Math.max(...sources.map((source) => StreamLength.rankLength(source.duration)));
     if (best >= length * DWARF_RATIO) {
-      return null;
+      return true;
     }
-    if (length < SHORT_S && best > length && !StreamPick.sameLength(best, length)) {
-      return null;
+    return length < SHORT_S && best > length && !StreamPick.sameLength(best, length);
+  }
+
+  /**
+   * Whether a stream is plainly another video than the one played: both lengths known and
+   * finite, and apart by more than sameLength allows. A live or unread length tells nothing.
+   * @param {?{duration?: number|null}} video - What the video plays (content.js).
+   * @param {number|null|undefined} length - The stream's length in seconds, when read.
+   * @return {boolean}
+   */
+  static conflicts(video, length) {
+    const duration = StreamPick.lengthOf(video ? video.duration : null);
+    const known = StreamPick.lengthOf(length);
+    if (duration === null || known === null || duration === Infinity || known === Infinity) {
+      return false;
     }
-    return played;
+    return !StreamPick.sameLength(known, duration);
   }
 
   /**

@@ -1819,7 +1819,7 @@
     }
   }
 
-  document.addEventListener('play', (e) => {
+  function onPlay(e) {
     // Only a play Firefox reports: a 'play' event the page makes up during a click starts
     // nothing, and made its video the one the shortcut sends.
     if (!e.isTrusted) return;
@@ -1828,12 +1828,57 @@
     if (!navigator.userActivation || !navigator.userActivation.isActive) return;
     userStartedVideos.add(video);
     reportUserPlay(video);
-  }, true);
+  }
+
+  document.addEventListener('play', onPlay, true);
+
+  // A play inside a shadow root (a player built as a web component) never reaches the
+  // document: media events are not composed. So the shortcut ignored such players. Each
+  // open shadow root gets the listener too, found as the user acts, since a play the user
+  // starts follows a click or a key: the roots on the way to what was clicked at once, and
+  // every root on the page at most every 2 s, for a button outside the player's root.
+  const listenedRoots = new WeakSet();
+  let lastRootScan = 0;
+
+  function listenInRoot(root) {
+    if (!listenedRoots.has(root)) {
+      listenedRoots.add(root);
+      root.addEventListener('play', onPlay, true);
+    }
+  }
+
+  function listenInShadowRoots(root) {
+    for (const element of root.querySelectorAll('*')) {
+      // Firefox lets a content script into closed roots too.
+      const shadow = element.openOrClosedShadowRoot || element.shadowRoot;
+      if (shadow) {
+        listenInRoot(shadow);
+        listenInShadowRoots(shadow);
+      }
+    }
+  }
+
+  function onUserGesture(e) {
+    if (!e.isTrusted) return;
+    for (const node of e.composedPath()) {
+      if (node instanceof ShadowRoot) {
+        listenInRoot(node);
+      }
+    }
+    const now = Date.now();
+    if (now - lastRootScan > 2000) {
+      lastRootScan = now;
+      listenInShadowRoots(document);
+    }
+  }
+
+  window.addEventListener('pointerdown', onUserGesture, true);
+  window.addEventListener('keydown', onUserGesture, true);
 
   // Pressing the shortcut while already watching a video the user started
   // counts as starting it now.
   function reportPlayingUserVideo() {
-    for (const video of document.querySelectorAll('video')) {
+    for (const video of querySelectorAllIncludingShadows('video')) {
       if (userStartedVideos.has(video) && !video.paused && !video.ended) {
         reportUserPlay(video);
         return true;
