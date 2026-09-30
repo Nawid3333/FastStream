@@ -865,6 +865,30 @@ the change went in.
   job would have checked out that commit with a write token, pushed it and released it.
   When `main` has moved past the commit while CI ran, it stops with a notice (2026-09-28):
   the later push's run releases both, and pushing the bump would only be refused.
+- **Two ways `main`'s changes went unreleased with no one told** (fixed 2026-09-30).
+  (1) A late CI run can cancel the run of `main`'s newest commit: on 2026-09-29 GitHub
+  delivered the push of 3b74403c a second time, after `main` had moved to 477bcd59;
+  through `ci.yml`'s `cancel-in-progress` that run cancelled 477bcd59's, went green, and was
+  rightly not released, being behind `main`. 477bcd59 had no run and no release until it
+  was re-run by hand. `auto-release.yml`'s `restart-cancelled-ci` job now runs after every
+  CI push run on `main`: it finds the newest commit on `main` with a CI run, back to the
+  last release bump, and re-runs that run when it was cancelled and a CI run on `main`
+  started after it did. A run cancelled by hand is left alone; after a third cancelled
+  attempt, or when GitHub refuses the re-run, the issue "CI on main needs a re-run" goes to
+  the owner. (2) A push by `GITHUB_TOKEN` starts no CI (`mpv-updates.yml`'s pin,
+  `update-prs.yml`'s merges), so one landing while CI ran on a commit left that commit's
+  run seeing `main` moved on, to a commit whose run never comes. "Is this commit still
+  main's newest?" now waits a minute for a later commit's CI run on `main` and, with none,
+  starts CI on `main` by dispatch (a release bump after the commit means it is released).
+  Both kinds of run are `GITHUB_TOKEN`'s and send no `workflow_run`: `ci.yml`'s
+  `release-hand-off` job starts `auto-release.yml` by `workflow_dispatch` with the run's
+  number, whatever the run concluded, and "Which CI run?" waits for it to end and checks it
+  as the job condition checks the event. A red one, or a failed release, opens "Auto
+  release failed", since no one is emailed for a run the token started. The concurrency
+  group is per commit, at job level: a workflow-wide group keeps one pending run and
+  cancels it when another arrives, which could have dropped the newest commit's release
+  behind a stale one's. The three scripts ran against a fake `gh` in WSL, 44 cases, each of
+  six mutations caught, before they went in. Not covered: a push GitHub never delivers.
 - **`release.yml`** checks the tag against `package.json` and `chrome/manifest.json` before
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
   lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at

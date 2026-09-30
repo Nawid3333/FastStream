@@ -83,6 +83,14 @@ cut against that version or newer. If `update-prs.yml`, `toolchain-updates.yml` 
 "Toolchain updates workflow failed" or "WSL releases workflow failed", while that one
 is open.
 
+A push to `main` is released even when a late run cancelled its CI run (GitHub once
+delivered an older push a second time), or when an mpv pin or an update merge landed while
+it ran and nothing started CI after it: `auto-release.yml` restarts the run, or starts CI
+on `main` itself, and you hear nothing. "CI on main needs a re-run" arrives only when a
+third attempt was cancelled too or GitHub refused the re-run: re-run it from the Actions
+tab, and the issue closes at the next green CI run on `main`. "Auto release failed" means
+such a run was red or its release failed; the issue links the run.
+
 ## Why nothing that ships merges itself
 
 `update-prs.yml` merges only two kinds of PR - a Dependabot npm minor/patch PR,

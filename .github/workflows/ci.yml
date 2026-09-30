@@ -337,3 +337,34 @@ jobs:
         run: |
           start() { gh workflow run update-prs.yml --ref main -f run_id="$RUN_ID" -f branch="$BRANCH"; }
           start || { sleep 30; start; } || { sleep 120; start; }
+
+  # auto-release.yml releases main on the workflow_run event of a green push run, which a
+  # run this repository's token started sends none of, for the reason above: a re-run of a
+  # run a late run cancelled, or CI on main that auto-release.yml starts when main moved on
+  # by pushes that start none (both in auto-release.yml). For such a run this job starts
+  # auto-release.yml by workflow_dispatch instead, with the run's number; it waits for the
+  # run to end and checks it as it checks the event. Whatever the other jobs concluded:
+  # auto-release.yml reports a red one, which no one would otherwise hear of. Tried three
+  # times like the job above; if all three fail, this job fails and the run is red, and the
+  # owner can start auto-release.yml from the Actions tab with this run's number. A run
+  # called by runner-images.yml carries the caller's name and is left alone.
+  release-hand-off:
+    name: Hand over to auto-release
+    needs: [workflows, verify, e2e-windows]
+    if: >-
+      !cancelled() && github.workflow == 'CI' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.triggering_actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write  # start auto-release.yml
+    steps:
+      - name: Start auto-release.yml for this run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          start() { gh workflow run auto-release.yml --ref main -f run_id="$RUN_ID"; }
+          start || { sleep 30; start; } || { sleep 120; start; }
