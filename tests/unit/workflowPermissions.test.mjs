@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import yaml from 'js-yaml';
+// js-yaml 5 has no default export, only named ones; this form reads 4 and 5 alike.
+import * as yaml from 'js-yaml';
 import {describe, expect, it} from 'vitest';
 
 // A job that calls a workflow of this repository (uses: ./.github/workflows/x.yml) caps
