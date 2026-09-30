@@ -1,0 +1,172 @@
+name: Keepalive
+
+# GitHub disables a public repository's scheduled workflows after 60 days without
+# repository activity (in practice: without a commit), and it disables the whole file,
+# push trigger included. FastStream is in maintenance mode - most months, only bot
+# updates merge to main and keep it active - so a quiet 60-day stretch would silently
+# stop every one of the scheduled workflows; sync-upstream.yml's cron comment says to
+# re-enable them from the Actions tab. This does that instead, from the API, and
+# commits nothing to main.
+#
+# Once a week it reads how old main's last commit is. Under 45 days there is nothing to
+# do. At 45 or more (or on a dispatch with the force input) it enables every scheduled
+# workflow of the repository: one whose file under .github/workflows/ has a schedule:
+# trigger - read from the checkout, so a newly added scheduled workflow is covered
+# without editing this file, and this file itself counts - and whose state the API
+# reports as active or disabled_inactivity. For each of those it calls the enable
+# endpoint, PUT /repos/{owner}/{repo}/actions/workflows/{workflow_id}/enable. That the
+# call resets GitHub's 60-day inactivity timer is believed - it is what the former
+# keepalive-workflow action's API mode relied on - but GitHub documents no such thing,
+# so the step stays conservative: a workflow whose state is disabled_manually, which
+# the owner turned off on purpose, is never touched and only named in the log, and no
+# other state is enabled either.
+#
+# Weekly at the 45-day threshold leaves room: if the calls do not reset the timer after
+# all, or run after run fails, the weekly runs after the first one are still before the
+# 60th day. If GitHub disables scheduled workflows anyway, the owner re-enables each
+# from its page in the Actions tab, the Enable workflow button.
+#
+# A failed run opens one issue "Keepalive failed", assigned to and @mentioning the
+# owner; while it is open, a later failure comments on it. Close the issue once this
+# workflow runs green again.
+
+on:
+  schedule:
+    # Weekly, Wednesdays 09:20 UTC, an hour no other workflow of this repository uses.
+    - cron: '20 9 * * 3'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Run the enable calls even when the last commit on main is under 45 days old.'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  actions: write  # the enable call
+  contents: read  # the checkout, for the workflow files' schedule: triggers
+  issues: write   # the "Keepalive failed" issue when a run fails
+
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    name: Keep the scheduled workflows enabled
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      # The schedule: triggers are read from the checkout, so the step needs the files.
+      - name: Check out the workflows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # nothing here pushes
+
+      - name: Re-enable the scheduled workflows
+        env:
+          # The dispatch input; false on the schedule and on a dispatch without it.
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          set -euo pipefail
+          last=$(gh api "repos/$GH_REPO/commits/main" --jq .commit.committer.date)
+          # The committer date is meant to be ISO 8601; refuse anything else before it
+          # reaches date's parser.
+          if ! [[ "$last" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})?$ ]]; then
+            echo "The committer date of main's last commit came back as '$last', not an ISO date."
+            exit 1
+          fi
+          # GNU date (the runners' coreutils, and WSL's) parses it; UTC on both sides,
+          # days rounded down.
+          days=$(( ($(date -u +%s) - $(date -u -d "$last" +%s)) / 86400 ))
+          echo "Last commit on main: $days day(s) ago ($last)."
+          if [ "$days" -lt 45 ]; then
+            if [ "$FORCE" != true ]; then
+              echo "Under the 45-day threshold and not forced: nothing to do."
+              exit 0
+            fi
+            echo "Under the 45-day threshold, but dispatched with force: enabling anyway."
+          fi
+
+          # The scheduled files, read from the checkout: what counts is a line opening
+          # with schedule:, the trigger key itself, or an on: line that names it (the
+          # flow style, on: {schedule: ...}) - a mention in prose, or a commented-out
+          # trigger, does not. A new scheduled workflow is covered without editing
+          # this file, and this file itself counts.
+          for f in .github/workflows/*; do
+            case "$f" in *.yml | *.yaml) ;; *) continue ;; esac
+            grep -qE '^[[:space:]]*(schedule:|on:.*schedule)' "$f" || continue
+            printf '%s\n' "$f"
+          done > "$RUNNER_TEMP/scheduled.txt"
+          echo "Scheduled workflow files: $(wc -l < "$RUNNER_TEMP/scheduled.txt")"
+
+          # Every workflow of the repository, pages through all of them: id, path and
+          # state, tab-separated.
+          gh api --paginate "repos/$GH_REPO/actions/workflows" \
+            --jq '.workflows[] | [.id, .path, .state] | @tsv' \
+            > "$RUNNER_TEMP/workflows.tsv"
+
+          enabled=0 reenabled=0 skipped=0
+          while IFS=$'\t' read -r id path state; do
+            case "$state" in
+              # The owner turned it off on purpose: never touch it, so it never comes
+              # back from here.
+              disabled_manually)
+                echo "Skipped $path (#$id): disabled_manually - the owner turned it off on purpose."
+                skipped=$((skipped + 1))
+                continue
+                ;;
+              active | disabled_inactivity) ;;
+              # Anything else (deleted, disabled_fork, ...) is not this workflow's to fix.
+              *)
+                echo "Skipped $path (#$id): state '$state' is neither active nor disabled_inactivity."
+                skipped=$((skipped + 1))
+                continue
+                ;;
+            esac
+            if ! grep -qFx "$path" "$RUNNER_TEMP/scheduled.txt"; then
+              echo "Skipped $path (#$id): its file has no schedule: trigger, so the 60-day rule does not apply to it."
+              skipped=$((skipped + 1))
+              continue
+            fi
+            # The enable endpoint, an empty 204 on success: the call believed to reset
+            # GitHub's 60-day inactivity timer (undocumented; see the file header).
+            gh api -X PUT "repos/$GH_REPO/actions/workflows/$id/enable"
+            if [ "$state" = active ]; then
+              echo "Enabled $path (#$id): was active; the call is the keepalive."
+              enabled=$((enabled + 1))
+            else
+              echo "Re-enabled $path (#$id): was disabled_inactivity."
+              reenabled=$((reenabled + 1))
+            fi
+          done < "$RUNNER_TEMP/workflows.tsv"
+          echo "Done: $enabled from active, $reenabled from disabled_inactivity, $skipped skipped."
+
+      # A failed run of this workflow is emailed only to whoever started it (for the
+      # schedule, whoever last changed the cron line): one issue while it is open,
+      # assigned and @mentioning the owner, as wsl-releases.yml does. A failure while
+      # it is open adds a comment to it.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Keepalive failed'
+        run: |
+          set -euo pipefail
+          # A failure while the issue is open is a comment on it with this run's link, so the
+          # issue shows each failure, not only the first. When the issues cannot be read, a
+          # second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s keepalive.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
