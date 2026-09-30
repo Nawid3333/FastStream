@@ -882,13 +882,14 @@ the change went in.
   starts CI on `main` by dispatch (a release bump after the commit means it is released).
   Both kinds of run are `GITHUB_TOKEN`'s and send no `workflow_run`: `ci.yml`'s
   `release-hand-off` job starts `auto-release.yml` by `workflow_dispatch` with the run's
-  number, whatever the run concluded, and "Which CI run?" waits for it to end and checks it
-  as the job condition checks the event. A red one, or a failed release, opens "Auto
-  release failed", since no one is emailed for a run the token started. The concurrency
-  group is per commit, at job level: a workflow-wide group keeps one pending run and
-  cancels it when another arrives, which could have dropped the newest commit's release
-  behind a stale one's. The three scripts ran against a fake `gh` in WSL, 44 cases, each of
-  six mutations caught, before they went in. Not covered: a push GitHub never delivers.
+  id and commit, whatever the run concluded, and "Which CI run?" waits for it to end and
+  checks it as the job condition checks the event. A red one, a failed release, or a
+  hand-off GitHub refuses opens "Auto release failed", since no one is emailed for a run
+  the token started. The concurrency group is per commit, at job level: a workflow-wide
+  group keeps one pending run and cancels it when another arrives, which could have
+  dropped the newest commit's release behind a stale one's. The three scripts ran against
+  a fake `gh` in WSL, 47 cases, each of eight mutations caught, and a GLM review before they
+  went in. Not covered: a push GitHub never delivers.
 - **`release.yml`** checks the tag against `package.json` and `chrome/manifest.json` before
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
   lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at
