@@ -1196,7 +1196,13 @@ the change went in.
   `specFileRetries: 1` - a failed spec file runs once more in a fresh browser: after the two
   bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
   overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug
-  fails twice and still blocks the release.
+  fails twice and still blocks the release. Since 2026-10-01 a retry leaves a trace
+  (W5): each config's `onWorkerEnd` is `recordRetriedSpecs` (`tests/e2e/retriedSpecs.mjs`),
+  which appends a spec file that was run again to `logs/retried.jsonl`; ci.yml lists them
+  in the run's summary with a warning for each that passed only on its retry
+  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried`/`e2e-retried-windows`
+  (14 days), and uploads `e2e-logs` for such a green job too, so the failed attempt's driver
+  log is there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
 - **e2e test cap, 2026-09-30:** mocha stops a test at 120 s (the live suite at 300 s), and a
   test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
   timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`
@@ -1252,6 +1258,13 @@ the change went in.
   <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
+- **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
+  (`e2e-retried` and `e2e-retried-windows` artifacts, all branches, the last 7 days) in one
+  issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was
+  run again, how often its retry passed, suites, branches and runs. It finds the artifacts
+  through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
+  next week's issue closes it, and so does a week with no retry. Permissions: `actions:
+  read`, `issues: write`; no checkout. Tested by `tests/workflows/flaky-specs.test.sh`.
 - **`security-alerts.yml`** (daily, 06:30 UTC; and on a push to `main` that changes a
   lockfile, closing only), 2026-09-30: Dependabot could not make the security fix for
   brace-expansion (three majors in the lockfile), its failed run emailed no one, and 12

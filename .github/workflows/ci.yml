@@ -165,8 +165,28 @@ jobs:
       - name: End-to-end extension tests, private browsing (Firefox)
         run: pnpm run test:pbm
 
+      # A spec file that fails once and passes on its retry (specFileRetries) leaves the
+      # job green: each config's onWorkerEnd records it in logs/retried.jsonl
+      # (tests/e2e/retriedSpecs.mjs). This lists them in the run's summary with a warning
+      # each, and the upload keeps the file for flaky-specs.yml's weekly issue. always():
+      # a job that failed or timed out may have retried other specs too.
+      - name: Report specs that needed their retry
+        if: always()
+        run: node tests/e2e/reportRetried.mjs logs/retried.jsonl
+
+      - name: Upload the list of retried specs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-retried
+          path: logs/retried.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Also for a green job that retried a spec: the failed attempt's driver log
+      # (driverLogs.mjs keeps each attempt's) is what shows why it failed.
       - name: Upload e2e failure logs
-        if: failure()
+        if: failure() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-logs
@@ -294,8 +314,22 @@ jobs:
       - name: End-to-end extension tests, private browsing (Windows Firefox)
         run: pnpm run test:pbm
 
+      # As in the Linux job.
+      - name: Report specs that needed their retry (Windows)
+        if: always()
+        run: node tests/e2e/reportRetried.mjs logs/retried.jsonl
+
+      - name: Upload the list of retried specs (Windows)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-retried-windows
+          path: logs/retried.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Add the native host's log
-        if: failure()
+        if: failure() || hashFiles('logs/retried.jsonl') != ''
         shell: pwsh
         run: |
           $log = Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost\faststream-mpv-host.log'
@@ -304,8 +338,9 @@ jobs:
             Copy-Item -LiteralPath $log -Destination logs
           }
 
+      # As in the Linux job: also for a green job that retried a spec.
       - name: Upload e2e failure logs
-        if: failure()
+        if: failure() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-logs-windows

@@ -1,0 +1,150 @@
+name: Flaky e2e specs
+
+# A spec file that fails once and passes on its retry (specFileRetries: 1) leaves a green
+# run. ci.yml lists each one in its run's summary and uploads the list as the e2e-retried
+# and e2e-retried-windows artifacts (tests/e2e/retriedSpecs.mjs writes it). Once a week
+# this folds the last 7 days of those lists, all branches, into one issue, "Flaky e2e
+# specs: week to <date>", assigned to the owner and @mentioning them: each spec file, how
+# often it was run again, how often its retry passed, and the runs. A spec that keeps
+# passing only on its retry is a flaky test, or a race like #67's.
+#
+# The new week's issue closes the last one. A week with no retry opens none and closes
+# the last one. The artifacts are found through the repository's artifact list, not by
+# opening every run. Nothing here reads or changes the repository's files.
+
+on:
+  schedule:
+    - cron: '20 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read  # list and download the e2e-retried artifacts
+  issues: write  # open the week's issue, close the last one
+
+concurrency:
+  group: flaky-specs
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Report the week's retried specs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      PREFIX: 'Flaky e2e specs: week to '
+    steps:
+      - name: Fold the week's retried specs into one issue
+        run: |
+          set -euo pipefail
+          SINCE=$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)
+          today=$(date -u +%F)
+          export SINCE
+          title="$PREFIX$today"
+          runs_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs"
+
+          # Both jobs' artifacts from the last 7 days: id, run and branch. The list is newest
+          # first; ci.yml keeps them 14 days, so a week's are all still there.
+          : > "$RUNNER_TEMP/artifacts.tsv"
+          for name in e2e-retried e2e-retried-windows; do
+            gh api --paginate "repos/$GH_REPO/actions/artifacts?name=$name&per_page=100" \
+              --jq '.artifacts[] | select((.expired | not) and .created_at >= env.SINCE and .workflow_run.id != null) | [.id, .workflow_run.id, .workflow_run.head_branch] | @tsv' \
+              >> "$RUNNER_TEMP/artifacts.tsv"
+          done
+          echo "$(wc -l < "$RUNNER_TEMP/artifacts.tsv") list(s) of retried specs since $SINCE"
+
+          # Each list's records with their run and branch. A line that is not a record (a
+          # killed worker's half line) is skipped.
+          : > "$RUNNER_TEMP/retried.jsonl"
+          while IFS=$'\t' read -r id run branch; do
+            gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/list.zip"
+            unzip -p "$RUNNER_TEMP/list.zip" retried.jsonl \
+              | jq -cR --argjson run "$run" --arg branch "$branch" \
+                'fromjson? | select(type == "object" and (.spec | type) == "string") | . + {run: $run, branch: $branch}' \
+              >> "$RUNNER_TEMP/retried.jsonl"
+          done < "$RUNNER_TEMP/artifacts.tsv"
+
+          # Every issue this workflow opened, open or closed.
+          gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | [.number, .state, .title] | @tsv' \
+            > "$RUNNER_TEMP/mine.tsv"
+
+          if [ ! -s "$RUNNER_TEMP/retried.jsonl" ]; then
+            echo "No spec file was run again since $SINCE."
+            while IFS=$'\t' read -r number state old; do
+              if [ "$state" != open ]; then continue; fi
+              gh issue close "$number" --reason completed --comment "No spec file was run again in the 7 days to $today."
+              echo "Closed #$number ($old)"
+            done < "$RUNNER_TEMP/mine.tsv"
+            exit 0
+          fi
+
+          # One row per spec file: most often run again first, then most often failed twice.
+          jq -rs --arg runs "$runs_url" '
+            group_by(.spec)
+            | map({
+                spec: .[0].spec,
+                times: length,
+                passed: (map(select(.passed == true)) | length),
+                where: (map("\(.suite) (\(.os))") | unique | join(", ")),
+                runs: (map(.run) | unique | map("[\(.)](\($runs)/\(.))") | join(" ")),
+                branches: (map(.branch) | unique | join(", "))
+              })
+            | sort_by(-.times, .passed)
+            | .[]
+            | "| `\(.spec)` | \(.times) | \(.passed) | \(.times - .passed) | \(.where) | \(.branches) | \(.runs) |"
+          ' "$RUNNER_TEMP/retried.jsonl" > "$RUNNER_TEMP/rows.md"
+
+          {
+            printf '@%s E2e spec files that failed once and were run again in the CI runs of the 7 days to %s, all branches.\n\n' "$OWNER" "$today"
+            printf '| Spec file | Run again | Passed on retry | Failed twice | Suite (OS) | Branches | Runs |\n'
+            printf '| --- | --- | --- | --- | --- | --- | --- |\n'
+            cat "$RUNNER_TEMP/rows.md"
+            cat <<'EOF'
+
+          A spec that passed on its retry left its run green: a flaky test, or a race in the extension. Each run's summary lists its retried specs, and its e2e-logs artifact has both attempts' driver logs.
+
+          Next week's issue replaces this one; a week with no retry closes it.
+          EOF
+          } > "$RUNNER_TEMP/body.md"
+
+          current=$(awk -F '\t' -v title="$title" '$2 == "open" && $3 == title {print $1; exit}' "$RUNNER_TEMP/mine.tsv")
+          if [ -n "$current" ]; then
+            gh issue edit "$current" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated #$current"
+          else
+            url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+            current=${url##*/}
+            echo "Opened $url"
+          fi
+
+          # The last weeks' open issues: this one replaces them.
+          while IFS=$'\t' read -r number state old; do
+            if [ "$state" != open ] || [ "$number" = "$current" ]; then continue; fi
+            gh issue close "$number" --reason completed --comment "#$current lists the 7 days to $today."
+            echo "Closed #$number ($old)"
+          done < "$RUNNER_TEMP/mine.tsv"
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as wsl-releases.yml does. A failure while it is open adds a
+      # comment to it.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Flaky specs workflow failed'
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s flaky-specs.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
