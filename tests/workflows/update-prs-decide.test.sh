@@ -154,8 +154,12 @@ case "$1 $2" in
         ;;
       "GET repos/me/fs/commits/"*/check-runs*)
         n=$(cat "$STATE/review_calls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STATE/review_calls"
-        if [ "$n" -le "$(cat "$STATE/review_pending" 2> /dev/null || echo 0)" ]; then
-          echo '{"check_runs":[{"conclusion":null}]}' > "$STATE/cr.json"
+        if [ "$n" -le "$(cat "$STATE/review_errors" 2> /dev/null || echo 0)" ]; then
+          echo 'stub gh: HTTP 502' >&2; exit 1
+        elif [ "$n" -le "$(cat "$STATE/review_pending" 2> /dev/null || echo 0)" ]; then
+          # checkruns.early.json: the runs until then, when not one run still going.
+          cat "$STATE/checkruns.early.json" 2> /dev/null > "$STATE/cr.json" ||
+            echo '{"check_runs":[{"conclusion":null}]}' > "$STATE/cr.json"
         else
           cp "$STATE/checkruns.json" "$STATE/cr.json"
         fi
@@ -625,6 +629,23 @@ green_review_rerun_success() {
   check 'merged: one review passed' merged
 }
 
+green_review_unreadable_then_success() {
+  setup
+  echo 2 > "$STATE/review_errors"
+  run_step
+  check 'merged once the review could be read' merged
+  check 'asked three times' test "$(cat "$STATE/review_calls")" -eq 3
+}
+
+green_review_no_dependabot_commit() {
+  setup
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'Nawid3333' 'bump by hand' "$dep_meta")]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says missing' grep -qF "Dependabot's dependency review is missing" <(last_comment)
+  check 'asks about no commit' bash -c '! grep -qF check-runs "$0"' "$STATE/gh.log"
+}
+
 green_conflict() {
   setup
   echo CONFLICTING > "$STATE/mergeable"
@@ -851,6 +872,39 @@ upstream_review_pending_then_failed() {
   check 'says the review' grep -qF 'dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
 }
 
+# Several runs of the review on one commit (run again): the newest decides, in whatever
+# order the API lists them, and while it is still going it is waited for.
+patched_review_newest_decides() {
+  setup
+  export BRANCH='patched/hls.js-1.7.4'
+  pr app/github-actions
+  echo '{"check_runs":[{"id":9,"conclusion":"failure"},{"id":12,"conclusion":"cancelled"},{"id":10,"conclusion":"failure"}]}' > "$STATE/checkruns.json"
+  run_step
+  check 'names the newest run' grep -qF 'started on this branch) is cancelled' <(last_comment)
+}
+
+upstream_review_rerun_pending_then_success() {
+  setup
+  export BRANCH='sync/upstream'
+  pr app/github-actions
+  echo 2 > "$STATE/review_pending"
+  echo '{"check_runs":[{"id":9,"conclusion":"failure"},{"id":12,"conclusion":null}]}' > "$STATE/checkruns.early.json"
+  echo '{"check_runs":[{"id":9,"conclusion":"failure"},{"id":12,"conclusion":"success"}]}' > "$STATE/checkruns.json"
+  run_step
+  check 'waited for the newer run' test "$(cat "$STATE/review_calls")" -eq 3
+  check 'names no review' bash -c '! grep -qF "dependency review" <<< "$0"' "$(last_comment)"
+}
+
+upstream_review_unreadable() {
+  setup
+  export BRANCH='sync/upstream'
+  pr app/github-actions
+  echo 99 > "$STATE/review_errors"
+  run_step
+  check 'asked ten times' test "$(cat "$STATE/review_calls")" -eq 10
+  check 'says unreadable' grep -qF 'started on this branch) is unreadable' <(last_comment)
+}
+
 toolchain_not_reviewed() {
   setup
   export BRANCH='toolchain/node-26'
@@ -1060,6 +1114,8 @@ green_review_failed
 green_review_missing
 green_review_pending_then_success
 green_review_rerun_success
+green_review_unreadable_then_success
+green_review_no_dependabot_commit
 green_conflict
 green_mergeable_unknown_then_ok
 green_behind
@@ -1082,6 +1138,9 @@ patched_review_passed
 patched_review_failed
 upstream_review_missing
 upstream_review_pending_then_failed
+patched_review_newest_decides
+upstream_review_rerun_pending_then_success
+upstream_review_unreadable
 toolchain_not_reviewed
 merge_refused
 merge_refused_head_moved

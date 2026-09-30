@@ -307,16 +307,18 @@ jobs:
           fi
 
           # The "Review dependency changes" check on a commit: "success" when a run of it passed,
-          # "missing" when there is none, else the first one's conclusion ("pending" while it
-          # runs, waited on for up to 5 minutes).
+          # "missing" when there is none, else the newest run's conclusion (the API lists them
+          # in no stated order). A run still going ("pending") and a failed request are asked
+          # again for up to 5 minutes; a request that keeps failing gives "unreadable".
           review_of() {
-            local review=''
+            local review=missing
+            if [ -z "$1" ]; then echo missing; return; fi
             for _ in $(seq 10); do
               review=$(gh api "repos/$GH_REPO/commits/$1/check-runs?check_name=Review%20dependency%20changes" \
-                --jq '[.check_runs[] | .conclusion // "pending"] |
-                  if any(. == "success") then "success" elif length == 0 then "missing" else first end' \
-                2> /dev/null || echo missing)
-              if [ "$review" != pending ]; then break; fi
+                --jq '[.check_runs[] | {id, c: (.conclusion // "pending")}] |
+                  if any(.c == "success") then "success" elif length == 0 then "missing" else max_by(.id).c end') ||
+                review=unreadable
+              if [ "$review" != pending ] && [ "$review" != unreadable ]; then break; fi
               sleep 30
             done
             echo "$review"
