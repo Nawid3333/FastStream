@@ -1201,6 +1201,15 @@ the change went in.
   test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
   timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`
   (`tests/e2e/testTimeout.mjs`); CI keeps the caps, so a hang there still ends the test.
+- **The extension's console in the driver logs, 2026-10-01 (W6):** background.mjs's debug
+  lines (`if (Logging)`) are on for a temporary install (`management.getSelf()` says
+  `development`: the e2e suites' `installAddOn(xpi, true)`, `web-ext run`, about:debugging)
+  and off for an installed release. The extension suites set
+  `devtools.console.stdout.content`, so the background's and the player's console go to
+  Firefox's stdout and into each spec's `geckodriver-<suite>-<spec>-<worker>-attempt<N>.log`
+  (`e2e-logs` artifact on CI): grep `console.log:` for what the background detected
+  (`Found source`), opened, and sent to mpv. About 13 KB per spec.
+  `ext-specs/background-log.e2e.mjs` fails without either half.
 - **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
   step), the specs listed in `tests/e2e/mozLog.mjs` run with `MOZ_LOG` (cache2 and nsHttp),
   and an attempt with a failed test keeps its log under `logs-moz/`, uploaded as
