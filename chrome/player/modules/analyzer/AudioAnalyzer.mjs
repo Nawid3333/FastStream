@@ -30,7 +30,10 @@ export class AudioAnalyzer extends EventEmitter {
 
   onVadFrameProcessed(time, isSpeechProb) {
     const frame = Math.floor(time * this.outputRate);
-    this.vadBuffer[frame] = isSpeechProb;
+    // The first ~20 ms of playback come stamped just before 0: there is no frame -1.
+    if (frame >= 0) {
+      this.vadBuffer[frame] = isSpeechProb;
+    }
     this.emit('vad', time, isSpeechProb);
   }
 
@@ -181,14 +184,25 @@ export class AudioAnalyzer extends EventEmitter {
 
     console.log('[AudioAnalyzer] Starting background analyzer');
 
-    const backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
-      if (this.backgroundAnalyzerPlayer === backgroundAnalyzerPlayer) {
-        console.log('[AudioAnalyzer] Background analyzer finished', completed ? 'successfully' : 'with errors');
-        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-        this.client.interfaceController.updateMarkers();
+    let backgroundAnalyzerPlayer;
+    try {
+      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
+        if (this.backgroundAnalyzerPlayer === backgroundAnalyzerPlayer) {
+          console.log('[AudioAnalyzer] Background analyzer finished', completed ? 'successfully' : 'with errors');
+          this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+          this.client.interfaceController.updateMarkers();
+        }
+        this.backgroundAnalyzerPlayer = null;
+      });
+    } catch (e) {
+      console.warn('[AudioAnalyzer] The background analyzer did not start', e);
+      // Forget the source, or the check above refuses every later start for it: the
+      // next play tries again.
+      if (this.backgroundAnalyzerSource === newSource) {
+        this.backgroundAnalyzerSource = null;
       }
-      this.backgroundAnalyzerPlayer = null;
-    });
+      return;
+    }
 
     if (newSource !== this.backgroundAnalyzerSource) {
       backgroundAnalyzerPlayer.destroy();
@@ -218,6 +232,16 @@ export class AudioAnalyzer extends EventEmitter {
       isAudioOnly: true,
     });
 
+    try {
+      return await this.setupPlayer(player, source, doneRanges, onDone);
+    } catch (e) {
+      // A player that failed halfway would keep its downloads and audio context.
+      player.destroy();
+      throw e;
+    }
+  }
+
+  async setupPlayer(player, source, doneRanges, onDone) {
     await player.setup();
 
     const audioAnalyzerNode = new AudioAnalyzerNode();
@@ -250,7 +274,14 @@ export class AudioAnalyzer extends EventEmitter {
 
     player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
 
-    await player.setSource(source);
+    try {
+      await player.setSource(source);
+    } catch (e) {
+      audioAnalyzerNode.destroy();
+      audioSource.disconnect();
+      audioContext.close();
+      throw e;
+    }
     return player;
   }
 
