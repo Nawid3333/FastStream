@@ -35,9 +35,12 @@ describe('Download names', function() {
       }, {asked});
       console.log('      download id:', downloadId);
       expect(typeof downloadId).toBe('number');
-      await browser.waitUntil(() => fs.existsSync(path.join(downloadDir, saved)),
+      // Firefox makes the file when the download starts and writes its bytes at the end:
+      // read as soon as it existed, it was empty on the Windows runner.
+      const file = path.join(downloadDir, saved);
+      await browser.waitUntil(() => fs.existsSync(file) && fs.statSync(file).size > 0,
           {timeout: 10000, interval: 200, timeoutMsg: `${saved} was not saved`});
-      expect(fs.readFileSync(path.join(downloadDir, saved), 'utf8')).toBe('saved');
+      expect(fs.readFileSync(file, 'utf8')).toBe('saved');
     });
   }
 });

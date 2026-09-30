@@ -35,6 +35,7 @@ import * as url from 'node:url';
 
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
+import {bidiRootHooks, ensureBidi} from './bidi.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -458,13 +459,15 @@ export const config = {
     // Loading real streams over the network is slow, deliberately: the point
     // is that a real player really decodes real bytes.
     timeout: 120000,
+    rootHooks: bidiRootHooks,
   },
 
   // The specs need to reference the local server's origin for same-origin
   // fixture URLs (see the MP4 stream in playback.e2e.mjs). The two configs
   // listen on different ports, so it is exposed here rather than hardcoded
   // in the spec.
-  before: function() {
+  before: async function() {
+    await ensureBidi();
     globalThis.__E2E_FIXTURES_ORIGIN__ = BASE_URL;
   },
 

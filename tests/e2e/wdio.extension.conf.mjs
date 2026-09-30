@@ -31,6 +31,7 @@ import * as url from 'node:url';
 
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
+import {bidiRootHooks, ensureBidi} from './bidi.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -150,7 +151,7 @@ export const config = {
   outputDir: path.join(root, 'logs'),
   framework: 'mocha',
   reporters: ['spec'],
-  mochaOpts: {ui: 'bdd', timeout: 120000},
+  mochaOpts: {ui: 'bdd', timeout: 120000, rootHooks: bidiRootHooks},
 
   onPrepare: function() {
     resetDownloadDir();
@@ -232,6 +233,9 @@ export const config = {
   },
 
   before: async function() {
+    // Before the add-on: a browser started again has none. (The classic and pbm suites
+    // share this hook and ask for classic, which it leaves alone.)
+    await ensureBidi();
     // Temporary rather than permanent: the package is unsigned, and a
     // temporary install is exactly how a reviewer or a developer loads it.
     await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);
