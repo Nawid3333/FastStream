@@ -34,6 +34,8 @@ import path from 'node:path';
 import * as url from 'node:url';
 
 import {keepDriverLogs} from './driverLogs.mjs';
+import {mozLogHooks} from './mozLog.mjs';
+import {testTimeout} from './testTimeout.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {bidiRootHooks, ensureBidi} from './bidi.mjs';
@@ -46,6 +48,11 @@ const fixturesDir = path.join(__dirname, 'fixtures');
 export const PORT = 41879;
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 let server;
+
+// Firefox's network log for the specs listed in mozLog.mjs, when E2E_MOZ_LOG=1; an
+// attempt that passes deletes its own. Not under logs/, whose upload is for failed jobs:
+// a spec that fails once and passes on its retry leaves the job green.
+const mozLog = mozLogHooks(path.join(root, 'logs-moz'));
 
 // save-video.e2e.mjs triggers real browser downloads. Without an explicit
 // download directory, Firefox uses its normal one - the developer's actual
@@ -461,9 +468,13 @@ export const config = {
     ui: 'bdd',
     // Loading real streams over the network is slow, deliberately: the point
     // is that a real player really decodes real bytes.
-    timeout: 120000,
+    timeout: testTimeout(120000),
     rootHooks: bidiRootHooks,
   },
+
+  // Firefox's network log for the specs listed in mozLog.mjs (the const above).
+  beforeSession: mozLog.beforeSession,
+  afterSession: mozLog.afterSession,
 
   // The specs need to reference the local server's origin for same-origin
   // fixture URLs (see the MP4 stream in playback.e2e.mjs). The two configs
@@ -551,7 +562,9 @@ export const config = {
     await speedBeforeTest(test);
   },
 
-  afterTest: async function(test, context, {passed}) {
+  afterTest: async function(test, context, result) {
+    const {passed} = result;
+    mozLog.afterTest(test, context, result);
     await speedAfterTest(test, passed);
     if (passed) return;
     const dir = path.join(root, 'logs');

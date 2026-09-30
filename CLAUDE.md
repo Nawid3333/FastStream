@@ -1083,6 +1083,16 @@ the change went in.
   bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
   overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug
   fails twice and still blocks the release.
+- **e2e test cap, 2026-09-30:** mocha stops a test at 120 s (the live suite at 300 s), and a
+  test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
+  timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`
+  (`tests/e2e/testTimeout.mjs`); CI keeps the caps, so a hang there still ends the test.
+- **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
+  step), the specs listed in `tests/e2e/mozLog.mjs` run with `MOZ_LOG` (cache2 and nsHttp),
+  and an attempt with a failed test keeps its log under `logs-moz/`, uploaded as
+  `e2e-moz-logs-windows` for 7 days; a passing attempt deletes its own. For loader-retry's
+  "stalls before its body", which failed twice on the Windows runner with every retry stalled
+  before reaching the server, and never locally.
 - **e2e ports, 2026-09-27:** every fixed port a test server listens on is in
   41800-41999 (`tests/unit/e2ePorts.test.mjs` fails otherwise). Linux hands 32768-60999
   out to outgoing connections, and one that gets a test's port makes that server's

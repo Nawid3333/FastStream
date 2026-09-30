@@ -12,6 +12,7 @@
 import path from 'node:path';
 
 import {keepDriverLogs} from './driverLogs.mjs';
+import {testTimeout} from './testTimeout.mjs';
 import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 export const config = {
@@ -21,5 +22,5 @@ export const config = {
   // A slow CDN answer is not a FastStream failure; a stream that does not play is. Each
   // test carries its own budget (see the spec), and a spec file that fails still runs
   // once more in a fresh browser, as in the other suites.
-  mochaOpts: {...base.mochaOpts, timeout: 300000},
+  mochaOpts: {...base.mochaOpts, timeout: testTimeout(300000)},
 };

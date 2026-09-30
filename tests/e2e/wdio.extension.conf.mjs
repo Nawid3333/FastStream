@@ -32,6 +32,7 @@ import * as url from 'node:url';
 import {keepDriverLogs} from './driverLogs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
+import {testTimeout} from './testTimeout.mjs';
 import {bidiRootHooks, ensureBidi} from './bidi.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -155,7 +156,7 @@ export const config = {
   onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), `ext-${BUILD}`),
   framework: 'mocha',
   reporters: ['spec'],
-  mochaOpts: {ui: 'bdd', timeout: 120000, rootHooks: bidiRootHooks},
+  mochaOpts: {ui: 'bdd', timeout: testTimeout(120000), rootHooks: bidiRootHooks},
 
   onPrepare: function() {
     resetDownloadDir();

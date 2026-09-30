@@ -27,6 +27,8 @@ tests/e2e/fixtures/
 
 # WebdriverIO driver logs and failure screenshots from the e2e suite.
 logs/
+# Firefox's network log of a failed e2e attempt (tests/e2e/mozLog.mjs).
+logs-moz/
 
 # Real downloads the e2e suite triggers through the browser - wiped before
 # and after every run by the wdio configs, but never meant to be committed.
