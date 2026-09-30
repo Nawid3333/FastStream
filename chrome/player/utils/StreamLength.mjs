@@ -318,6 +318,7 @@ export class StreamLength {
 
     // The Segment's children, as far as the bytes go: the Info tells the length, the
     // Tracks what the stream holds, a Cluster its media.
+    /** @type {number|null} */
     let seconds = null;
     let tracks = false;
     let media = false;
@@ -363,7 +364,7 @@ export class StreamLength {
     if (ended && tracks && !media) {
       return PIECE_LENGTH;
     }
-    return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+    return seconds !== null && Number.isFinite(seconds) && seconds > 0 ? seconds : null;
   }
 
   /**
