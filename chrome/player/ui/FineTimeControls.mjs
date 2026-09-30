@@ -163,24 +163,35 @@ export class FineTimeControls extends EventEmitter {
     // this.ui.timelineAudioCanvasContainer.addEventListener('mousedown', mouseDown);
     // this.ui.timelineImages.addEventListener('mousedown', mouseDown);
 
-    DOMElements.playerContainer.addEventListener('mouseup', (e) => {
+    // A grab ended only on a mouseup inside the player: released outside it, the next
+    // mouse move went on seeking with no button held. It ends now on a mouseup anywhere in
+    // this document (a drag keeps the mouse events in the frame it started in, wherever
+    // the button is released), and on a move with no button held, for a mouseup that never
+    // came at all.
+    const endGrab = (e, seek) => {
+      if (!isGrabbing) return;
+      isGrabbing = false;
+      this.isSeeking = false;
       if (!this.client.player) return;
-      const video = this.client.player.getVideo();
-      if (isGrabbing) {
+      if (seek) {
+        const video = this.client.player.getVideo();
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
         this.client.currentTime = time;
         this.client.updateTime(time);
-        this.isSeeking = false;
-
-        if (shouldPlay) {
-          this.client.player.play();
-        }
       }
-      isGrabbing = false;
-    }, true);
+      if (shouldPlay) {
+        this.client.player.play();
+      }
+    };
+    DOMElements.playerContainer.addEventListener('mouseup', (e) => endGrab(e, true), true);
+    document.addEventListener('mouseup', (e) => endGrab(e, true));
 
     DOMElements.playerContainer.addEventListener('mousemove', (e) => {
+      if (isGrabbing && e.buttons === 0) {
+        endGrab(e, false);
+        return;
+      }
       if (!this.client.player) return;
       const video = this.client.player.getVideo();
       if (isGrabbing) {
