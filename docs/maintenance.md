@@ -28,7 +28,11 @@ workflows, which stay silent while they pass.
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 
 Dependabot proposes a release once it is 5 days old (`cooldown` in `.github/dependabot.yml`);
-security updates skip the wait. The patched libraries, `onnxruntime-web` and `mp4-muxer`
+security updates skip the wait. The cooldown covers only the packages it bumps, not what
+the new lockfile brings in with them, so `update-prs.yml` looks up every package version a
+Dependabot PR adds to `pnpm-lock.yaml` on the npm registry: one under 7 days old, or whose
+age the registry does not give, makes the PR wait for you, even a tooling one. A poisoned
+release is usually found and pulled within days. The patched libraries, `onnxruntime-web` and `mp4-muxer`
 are ignored by Dependabot on purpose: the patched ones arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`), `onnxruntime-web` only moves with its wasm
 rebuilt (`docs/vendored-libraries.md`), and `mp4-muxer` is deprecated, its last release
