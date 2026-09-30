@@ -1,13 +1,16 @@
+# shellcheck shell=bash
 # Shared by the tests in this folder: sourced, not run.
 #
 # A test takes one step's `run:` script out of a workflow file and runs it as GitHub
-# does (bash --noprofile --norc -eo pipefail), with `gh` (and `curl`, where a step calls
-# it) replaced by a stub from the test's own folder. The stub answers from files the
-# test writes and records every call, so a test checks what the step decided: which
-# comment, issue or merge it asked for, and its exit status. Nothing reaches GitHub.
+# runs a step with no `shell:` (bash -e; the steps set -uo pipefail themselves), with
+# `gh` (and `curl`, where a step calls it) replaced by a stub from the test's own
+# folder. The stub answers from files the test writes and records every call, so a test
+# checks what the step decided: which comment, issue or merge it asked for, and its exit
+# status. Nothing reaches GitHub.
 #
-# Needs bash, awk and jq, as GitHub's Ubuntu runners have them: CI runs these in its
-# workflows job, and on Windows they run in WSL (`bash tests/workflows/run.sh`).
+# Needs bash, awk, jq and git (and node and python3, for two of them), as GitHub's Ubuntu
+# runners have them: CI runs these in its workflows job, and on Windows they run in WSL
+# (`bash tests/workflows/run.sh`).
 
 set -uo pipefail
 
@@ -17,9 +20,17 @@ failures=0
 # step_script <workflow file> <step name>: that step's `run: |` block, unindented.
 # The step is found by its `- name:` line; the block ends at the first line indented
 # less than its own first line. Fails when there is no such step, so a renamed step
-# fails its test rather than testing nothing.
+# fails its test rather than testing nothing, and when the name is on more than one
+# line (two steps, or a script that prints it), rather than guessing.
 step_script() {
-  local out
+  local out n
+  n=$(awk -v name="$2" '
+    $0 ~ /^ +- name: / && substr($0, index($0, "- name: ") + 8) == name { n++ }
+    END { print n + 0 }' "$WORKFLOWS_DIR/$1")
+  if [ "$n" -gt 1 ]; then
+    echo "\"$2\" is on $n lines of $1" >&2
+    return 1
+  fi
   out=$(awk -v name="$2" '
     !found && $0 ~ /^ +- name: / && substr($0, index($0, "- name: ") + 8) == name { found = 1; next }
     found && !block && /^ +- name: / { exit }
@@ -38,10 +49,10 @@ step_script() {
   printf '%s\n' "$out"
 }
 
-# run_step <script file>: runs it as GitHub runs a step; its output and status are the
-# caller's.
+# run_step <script file>: runs it as GitHub runs a step with no `shell:`; its output and
+# status are the caller's.
 run_step() {
-  bash --noprofile --norc -eo pipefail "$1"
+  bash -e "$1"
 }
 
 # check <what> <command...>: runs the command, and counts a failure when it fails.

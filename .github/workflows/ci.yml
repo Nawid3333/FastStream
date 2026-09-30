@@ -59,6 +59,12 @@ jobs:
           fi
           docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo "$image" -color
 
+      - name: Workflow script tests
+        # tests/workflows: the run: scripts that decide something (merge, comment, open an
+        # issue), each run as GitHub runs it against a stubbed gh. Needs bash, jq, git,
+        # node and python3, which the runner has; about 20 seconds.
+        run: bash tests/workflows/run.sh
+
   verify:
     name: Lint, test and build
     runs-on: ${{ inputs.linux-runner || 'ubuntu-latest' }}

@@ -2,7 +2,7 @@
 # Runs every workflow script test in this folder (*.test.sh; see lib.sh), and fails if
 # any fails. `pnpm run test:workflows`; CI runs it in its workflows job.
 set -uo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit 1
 failed=()
 for test in *.test.sh; do
   echo "== $test"
