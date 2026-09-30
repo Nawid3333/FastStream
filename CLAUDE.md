@@ -1090,6 +1090,11 @@ the change went in.
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
+- **`mpv-host-changed.yml`** (a push to `main` changing `native-host/faststream-mpv-host.mjs`
+  or `native-host/install.ps1`): the helper runs from the copy install.ps1 puts in
+  `%LOCALAPPDATA%\FastStreamMpvHost`, which a `git pull` leaves alone, so it comments with
+  an @mention on the reminder issue #73: run install.ps1 again, then restart Firefox. Reads
+  only the push event's file list, no checkout; `issues: write` only.
 - **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
   and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
   microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:
