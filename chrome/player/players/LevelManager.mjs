@@ -54,7 +54,8 @@ export class LevelManager {
       this.prioritizedAudioContainer = prefs.prioritizedAudioContainer || 'mp4';
       this.prioritizedVideoCodec = prefs.prioritizedVideoCodec || null;
       this.prioritizedAudioCodec = prefs.prioritizedAudioCodec || null;
-      this.shouldPreferDRCAudio = prefs.shouldPreferDRCAudio || false;
+      // Its default is on: settings saved before it existed loaded it as off.
+      this.shouldPreferDRCAudio = prefs.shouldPreferDRCAudio ?? true;
     } catch (e) {
       console.warn('Failed to load level manager preferences:', e);
     }
@@ -307,9 +308,10 @@ export class LevelManager {
       return availableLevels;
     }
 
-    // Sort by match level descending
-    matched.sort((a, b) => b.matchLevel - a.matchLevel);
-    return matched.map((item) => item.level);
+    // Only the best-matching ones: the quality or bitrate sort after this threw the order
+    // away, and with an en-GB preference an en-US 1080p beat an en-GB 720p.
+    const best = Math.max(...matched.map((item) => item.matchLevel));
+    return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
   }
 
   filterAudioLevelsByLanguage(availableLevels) {
@@ -326,8 +328,9 @@ export class LevelManager {
       return availableLevels;
     }
 
-    // Sort by match level descending
-    matched.sort((a, b) => b.matchLevel - a.matchLevel);
-    return matched.map((item) => item.level);
+    // Only the best-matching ones: the quality or bitrate sort after this threw the order
+    // away, and with an en-GB preference an en-US 1080p beat an en-GB 720p.
+    const best = Math.max(...matched.map((item) => item.matchLevel));
+    return matched.filter((item) => item.matchLevel === best).map((item) => item.level);
   }
 }

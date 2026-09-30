@@ -149,6 +149,8 @@ export class FastStreamClient extends EventEmitter {
     this.sourceRequests = 0;
     this.fallbacks = {request: 0, sources: []};
     this.previewPlayerSetup = null;
+    // Counts play() and pause() calls: the later one wins (play()).
+    this.playPauseTurn = 0;
     this.customChapters = null;
     this.saveSeek = true;
     this.pastSeeks = [];
@@ -748,9 +750,13 @@ export class FastStreamClient extends EventEmitter {
     // a source is being set, say — would build another and leave its video in the seek
     // preview alongside the first, so callers join the build that is already running.
     if (!this.previewPlayerSetup) {
-      this.previewPlayerSetup = this.buildPreviewPlayer();
-      this.previewPlayerSetup.catch(() => {}).then(() => {
-        this.previewPlayerSetup = null;
+      const setup = this.buildPreviewPlayer();
+      this.previewPlayerSetup = setup;
+      setup.catch(() => {}).then(() => {
+        // resetPlayer() may have handed the field to the next video's build already.
+        if (this.previewPlayerSetup === setup) {
+          this.previewPlayerSetup = null;
+        }
       });
     }
 
@@ -898,9 +904,12 @@ export class FastStreamClient extends EventEmitter {
       this.bindPlayer(this.player);
 
       if (!this.initPromise) {
-        this.initPromise = this.setupInitHook();
-        this.initPromise.then(() => {
-          this.initPromise = null;
+        const hook = this.setupInitHook();
+        this.initPromise = hook;
+        hook.then(() => {
+          if (this.initPromise === hook) {
+            this.initPromise = null;
+          }
         });
       }
 
@@ -1008,19 +1017,25 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   setupInitHook() {
+    // Its player's: a source that never got ready left its hook, and the next source
+    // reused it. That one listened on the old player, so the new one's readiness was only
+    // seen by the interval, up to a second late. Once its player is replaced, the hook
+    // settles, and the flow waiting on it ends (it checks the source).
+    const context = this.context;
     return new Promise((resolve) => {
       let interval = 0;
 
       const hook = () => {
-        if (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0) return;
+        const replaced = this.context !== context;
+        if (!replaced && (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0)) return;
         clearInterval(interval);
-        this.context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
+        context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
         resolve();
       };
 
       interval = setInterval(hook, 1000);
 
-      this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
+      context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
       hook();
     });
   }
@@ -1433,6 +1448,8 @@ export class FastStreamClient extends EventEmitter {
     this.progressData = null;
     this.disableProgressSave = false;
     this.lastProgressSave = 0;
+    // Its hook belongs to the player going; the next source makes its own (setupInitHook).
+    this.initPromise = null;
     this.state.bufferBehind = this.options.bufferBehind;
     this.state.bufferAhead = this.options.bufferAhead;
     if (this.context) {
@@ -1469,6 +1486,9 @@ export class FastStreamClient extends EventEmitter {
       }
       this.previewPlayer = null;
     }
+    // A preview build still running is the old video's: the next video joined it, the build
+    // discarded itself over the changed source, and the next video had no seek preview.
+    this.previewPlayerSetup = null;
 
     if (this.syncedAudioPlayer) {
       try {
@@ -1715,13 +1735,21 @@ export class FastStreamClient extends EventEmitter {
       throw new Error('No source is loaded!');
     }
 
+    // A pause() (or another play()) made while this waits wins: this one went on after
+    // it, showing "playing" over a paused video, and with a delay set, starting the
+    // separate audio over it.
+    const turn = ++this.playPauseTurn;
+
     // Will throw if browser blocks autoplay
     await this.player.play();
 
     // Everything below will only run if browser allows playing the video
     // (e.g. not blocked by autoplay policy)
-    if (this.syncedAudioPlayer) {
+    if (this.syncedAudioPlayer && turn === this.playPauseTurn) {
       await this.syncedAudioPlayer.play();
+    }
+    if (turn !== this.playPauseTurn) {
+      return;
     }
 
     this.interfaceController.play();
@@ -1737,20 +1765,27 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   async pause() {
+    // No player while a source is being swapped: a key pressed then threw.
+    if (!this.player) {
+      return;
+    }
+    const turn = ++this.playPauseTurn;
     await this.player.pause();
 
     if (this.syncedAudioPlayer) {
       await this.syncedAudioPlayer.pause();
     }
 
-    this.interfaceController.pause();
+    if (turn === this.playPauseTurn) {
+      this.interfaceController.pause();
+    }
   }
 
   /**
    * Undoes the last seek operation.
    */
   undoSeek() {
-    if (this.pastSeeks.length) {
+    if (this.player && this.pastSeeks.length) {
       this.pastUnseeks.push(this.player.currentTime);
       // Through the setter, so a separate audio track follows at once; not saved, or
       // the undo would be a seek to undo.
@@ -1765,7 +1800,7 @@ export class FastStreamClient extends EventEmitter {
    * Redoes the last undone seek operation.
    */
   redoSeek() {
-    if (this.pastUnseeks.length) {
+    if (this.player && this.pastUnseeks.length) {
       this.pastSeeks.push(this.player.currentTime);
       this.setSeekSave(false);
       this.currentTime = this.pastUnseeks.pop();
@@ -1907,6 +1942,7 @@ export class FastStreamClient extends EventEmitter {
    * @param {string|number} levelID
    */
   setCurrentVideoLevelID(levelID) {
+    if (!this.player) return;
     this.player.setCurrentVideoLevelID(levelID);
     this.checkLevelChange();
   }
@@ -1916,6 +1952,7 @@ export class FastStreamClient extends EventEmitter {
    * @param {string|number} levelID
    */
   setCurrentAudioLevelID(levelID) {
+    if (!this.player) return;
     this.player.setCurrentAudioLevelID(levelID);
     this.checkLevelChange();
   }
@@ -2222,7 +2259,8 @@ export class FastStreamClient extends EventEmitter {
       return {
         name: chapter.name ? String(chapter.name) : 'Chapter',
         startTime: Math.max(0, chapter.startTime),
-        endTime: isFinite(chapter.endTime) ? chapter.endTime : null,
+        // An end before the start is none: the chapter runs to the next one.
+        endTime: isFinite(chapter.endTime) && chapter.endTime > Math.max(0, chapter.startTime) ? chapter.endTime : null,
       };
     }).sort((a, b) => a.startTime - b.startTime);
 
