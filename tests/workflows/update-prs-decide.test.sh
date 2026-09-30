@@ -477,6 +477,8 @@ green_merge() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  # Only the review's own check run: without the name, CI's green run would pass for it.
+  check 'asks for the review check by name' has_call 'check-runs?check_name=Review%20dependency%20changes'
   check 'squash' has_call "pr merge 42 --squash --match-head-commit $sha"
   check 'a merged comment' grep -qF '<!-- update-prs: merged -->' <(last_comment)
   check 'no @mention when merged' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
@@ -805,6 +807,58 @@ upstream_red() {
   check 'upstream hint' grep -qF 'sync-upstream.yml' <(last_comment)
 }
 
+# The sync and patched-library pull requests: sync-upstream.yml and patched-libraries.yml
+# start the dependency review on the branch's head, which is the run's SHA.
+patched_review_passed() {
+  setup
+  export BRANCH='patched/hls.js-1.7.4'
+  pr app/github-actions
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check "asks about the run's commit" has_call "repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
+  check 'names no review' bash -c '! grep -qF "dependency review" <<< "$0"' "$(last_comment)"
+}
+
+patched_review_failed() {
+  setup
+  export BRANCH='patched/hls.js-1.7.4'
+  pr app/github-actions
+  echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says the review' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
+  check 'says it releases too' grep -qF 'merging releases it to Firefox' <(last_comment)
+}
+
+upstream_review_missing() {
+  setup
+  export BRANCH='sync/upstream'
+  pr app/github-actions
+  echo '{"check_runs":[]}' > "$STATE/checkruns.json"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says missing' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is missing' <(last_comment)
+}
+
+upstream_review_pending_then_failed() {
+  setup
+  export BRANCH='sync/upstream'
+  pr app/github-actions
+  echo 2 > "$STATE/review_pending"
+  echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
+  run_step
+  check 'waited for it' test "$(cat "$STATE/review_calls")" -eq 3
+  check 'says the review' grep -qF 'dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
+}
+
+toolchain_not_reviewed() {
+  setup
+  export BRANCH='toolchain/node-26'
+  pr app/github-actions
+  run_step
+  check 'no review asked for' bash -c '! grep -qF check-runs "$0"' "$STATE/gh.log"
+}
+
 merge_refused() {
   setup
   : > "$STATE/merge_fails"
@@ -1024,6 +1078,11 @@ node_waits
 actions_waits
 patched_waits
 upstream_red
+patched_review_passed
+patched_review_failed
+upstream_review_missing
+upstream_review_pending_then_failed
+toolchain_not_reviewed
 merge_refused
 merge_refused_head_moved
 merge_refused_pr_closed

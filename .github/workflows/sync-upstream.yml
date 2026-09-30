@@ -64,7 +64,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: write  # start CI on the sync branch
+  actions: write  # start CI and the dependency review on the sync branch
 
 env:
   UPSTREAM: https://github.com/Andrews54757/FastStream.git
@@ -233,7 +233,7 @@ jobs:
           - **Take it.** Resolve any conflicts on this branch, keep only what this project wants, and merge. The merge commit records every commit below as handled, kept or not, so the next sync shows only newer ones.
           - **Skip it.** Close this PR without merging. It is not reopened for the same upstream commit, and comes back once upstream moves again.
           - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
-          - CI runs the full suite on this branch, playback in Firefox on Linux and Windows included: this workflow starts it, and a comment here gives the result. (The pull request's own CI run waits for an approval it does not need.) For a change to the player, the loaders or a media library, also run `pnpm run test:live` (real streams and sites) before merging.
+          - CI runs the full suite on this branch, playback in Firefox on Linux and Windows included: this workflow starts it, and a comment here gives the result. It starts "Review dependency changes" too, which fails when upstream's lockfile brings a package version with a high-severity advisory; the comment names it when it did not pass. (The pull request's own runs wait for an approval they do not need.) For a change to the player, the loaders or a media library, also run `pnpm run test:live` (real streams and sites) before merging.
 
           ### Upstream commits not yet in this project (merge commits are not listed)
 
@@ -256,10 +256,12 @@ jobs:
             gh pr create --base "$WORK_BRANCH" --head "$SYNC_BRANCH" \
               --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md" --assignee "$OWNER"
           fi
-          # This repository's token opened the pull request, so its pull_request run waits for
+          # This repository's token opened the pull request, so its pull_request runs wait for
           # the owner's approval. CI is started on the branch instead, as toolchain-updates.yml
-          # does; ci.yml hands the run to update-prs.yml, which comments with the result.
+          # does; ci.yml hands the run to update-prs.yml, which comments with the result. So is
+          # the dependency review of the lockfile changes upstream's commits bring.
           gh workflow run ci.yml --ref "$SYNC_BRANCH" || { sleep 30; gh workflow run ci.yml --ref "$SYNC_BRANCH"; }
+          gh workflow run dependency-review.yml --ref "$SYNC_BRANCH" || { sleep 30; gh workflow run dependency-review.yml --ref "$SYNC_BRANCH"; }
 
       # A run that got this far succeeded, so an earlier failure has cleared.
       - name: Close the failure issue

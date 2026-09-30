@@ -89,12 +89,12 @@ its own pull requests when their head has no run that decides.)
 
 A pull request a workflow opened - toolchain, patched library, upstream sync - shows
 its CI and Dependency review runs as "approval required": GitHub holds the
-`pull_request` runs of a pull request its own token opened. CI doesn't need them: the
+`pull_request` runs of a pull request its own token opened. You can leave them: the
 workflow that opened the pull request starts CI on its branch itself, and that run
-decides. Dependency review runs only there, though. So before you merge a
-patched-library or upstream-sync PR (both change `pnpm-lock.yaml`), approve them
-("Approve and run workflows" on the PR) and wait for "Review dependency changes" to
-pass; that runs CI once more too. A toolchain PR leaves the lockfile alone.
+decides. For a patched-library or upstream-sync PR (both change `pnpm-lock.yaml`) it
+starts `dependency-review.yml` there too, and "Review dependency changes" appears among
+the PR's checks; when it did not pass, `update-prs.yml`'s comment names that. A
+toolchain PR leaves the lockfile alone.
 
 ### An issue from a watcher
 

@@ -1119,6 +1119,14 @@ the change went in.
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
   swapped in too.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
+  Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
+  `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so
+  the `pull_request` run waits for an approval, and the two PR kinds that change the
+  lockfile from outside Dependabot went unreviewed. A dispatched run compares `main` with
+  the commit's hash (`base-ref`/`head-ref`; the compare API answers 404 for an unencoded
+  branch name with a `/`). Checked on two probe branches off `main`: brace-expansion
+  2.1.4 -> 2.1.3 failed on its three high advisories, the fixed lockfile passed.
+  `update-prs.yml` names a review that did not pass in its comment on those PRs.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
 - **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
   assigned to the owner and @mentions them (a bot PR alone is not emailed); a comment

@@ -72,7 +72,7 @@ permissions:
   pull-requests: write  # comment, assign, label, merge
   issues: write         # the ci-failed label, and the issue when this workflow fails
   actions: write        # start CI once more, or on an updated branch
-  checks: read          # Dependabot's dependency review
+  checks: read          # the dependency review's check runs
 
 concurrency:
   group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
@@ -306,6 +306,22 @@ jobs:
             gh pr edit "$number" --remove-label "$LABEL" > /dev/null
           fi
 
+          # The "Review dependency changes" check on a commit: "success" when a run of it passed,
+          # "missing" when there is none, else the first one's conclusion ("pending" while it
+          # runs, waited on for up to 5 minutes).
+          review_of() {
+            local review=''
+            for _ in $(seq 10); do
+              review=$(gh api "repos/$GH_REPO/commits/$1/check-runs?check_name=Review%20dependency%20changes" \
+                --jq '[.check_runs[] | .conclusion // "pending"] |
+                  if any(. == "success") then "success" elif length == 0 then "missing" else first end' \
+                2> /dev/null || echo missing)
+              if [ "$review" != pending ]; then break; fi
+              sleep 30
+            done
+            echo "$review"
+          }
+
           # Why this one waits for the owner, if it does.
           reasons=()
           case $kind in
@@ -318,6 +334,14 @@ jobs:
             upstream) reasons+=("taking upstream's commits is your decision") ;;
             *) reasons+=("branch $BRANCH is not one this workflow merges") ;;
           esac
+          # An upstream sync or patched-library pull request changes the lockfile, and its own
+          # pull_request runs wait for an approval, so sync-upstream.yml and
+          # patched-libraries.yml start the dependency review on the branch, next to CI. The
+          # pull request waits for the owner anyway; a review that did not pass is named.
+          if [ "$kind" = upstream ] || [ "$kind" = patched ]; then
+            review=$(review_of "$SHA")
+            if [ "$review" != success ]; then reasons+=("its dependency review (\"Review dependency changes\", started on this branch) is $review"); fi
+          fi
           if [ ${#reasons[@]} = 0 ]; then
             if [ "$(jq -r .isDraft <<< "$pr")" = true ]; then reasons+=('it is a draft'); fi
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
@@ -338,15 +362,7 @@ jobs:
               # Dependency review runs on Dependabot's own push (a pull_request event), not on
               # a run this workflow starts: the newest Dependabot commit's review counts.
               reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")
-              review=''
-              for _ in $(seq 10); do
-                review=$(gh api "repos/$GH_REPO/commits/$reviewed/check-runs?check_name=Review%20dependency%20changes" \
-                  --jq '[.check_runs[] | .conclusion // "pending"] |
-                    if any(. == "success") then "success" elif length == 0 then "missing" else first end' \
-                  2> /dev/null || echo missing)
-                if [ "$review" != pending ]; then break; fi
-                sleep 30
-              done
+              review=$(review_of "$reviewed")
               if [ "$review" != success ]; then reasons+=("Dependabot's dependency review is $review"); fi
               # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
               # new lockfile brings in with them: a sub-dependency published an hour ago comes
