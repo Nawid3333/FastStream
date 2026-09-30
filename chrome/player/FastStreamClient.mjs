@@ -144,6 +144,10 @@ export class FastStreamClient extends EventEmitter {
     this.syncedAudioPlayer = null;
     this.previewPlayer = null;
     this.sourceChange = null;
+    // Counts the sources asked for, and holds the streams to try should the latest one
+    // fail before it shows anything (setSource()).
+    this.sourceRequests = 0;
+    this.fallbacks = {request: 0, sources: []};
     this.previewPlayerSetup = null;
     this.customChapters = null;
     this.saveSeek = true;
@@ -705,15 +709,17 @@ export class FastStreamClient extends EventEmitter {
    * Adds a new source and optionally sets it as current.
    * @param {Object} source - Source object.
    * @param {boolean} [setSource=false]
+   * @param {Object[]} [fallbacks=[]] - When it is set: the streams to try in turn should it
+   *   fail before it shows anything.
    * @return {Promise<Object>} The added source.
    */
-  async addSource(source, setSource = false) {
+  async addSource(source, setSource = false, fallbacks = []) {
     source = source.copy();
 
     console.log('addSource', source);
     source = this.sourcesBrowser.addSource(source);
     if (setSource) {
-      await this.setSource(source);
+      await this.setSource(source, fallbacks);
     }
     this.sourcesBrowser.updateSources();
     return source;
@@ -809,10 +815,14 @@ export class FastStreamClient extends EventEmitter {
    * its turn.
    *
    * @param {Object} source - Source object.
+   * @param {Object[]} [fallbacks=[]] - The streams to try in turn should it fail before it
+   *   shows anything: the others the player picked it from. None for a source chosen by
+   *   hand, and a later request drops those of every earlier one.
    * @return {Promise<void>}
    */
-  setSource(source) {
-    const run = () => this.setSourceInternal(source);
+  setSource(source, fallbacks = []) {
+    const request = ++this.sourceRequests;
+    const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()});
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
     this.sourceChange = change;
@@ -828,9 +838,13 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Sets the current source and initializes the player, one at a time.
    * @param {Object} source - Source object.
+   * @param {{request: number, sources: Object[]}} fallbacks - Which request this is, and the
+   *   streams to try should it fail before it shows anything.
    * @return {Promise<void>}
    */
-  async setSourceInternal(source) {
+  async setSourceInternal(source, fallbacks) {
+    // Whether the player took the source: a throw before that is a stream that failed.
+    let taken = false;
     try {
       source = source.copy();
 
@@ -863,6 +877,8 @@ export class FastStreamClient extends EventEmitter {
       console.log('setSource', source);
       await this.resetPlayer();
       this.source = source;
+      // Only once the last player is torn down: its failure is not this source's.
+      this.fallbacks = fallbacks;
 
       if (source.defaultLevelInfo?.level !== undefined) {
         this.getLevelManager().setCurrentVideoLevelID(source.defaultLevelInfo.level);
@@ -890,6 +906,7 @@ export class FastStreamClient extends EventEmitter {
 
 
       await this.player.setSource(source);
+      taken = true;
       this.interfaceController.addVideo(this.player.getVideo());
       this.frameStepper.watch(this.player.getVideo());
 
@@ -970,6 +987,14 @@ export class FastStreamClient extends EventEmitter {
     } catch (e) {
       AlertPolyfill.errorSendToDeveloper(e);
       console.error(e);
+      // Its player could not be built or given the source: that stream failed as surely
+      // as one whose player reports an error, and the next of those picked from plays
+      // (tryNextSource), else the load error shows. Not for a later source's failure, nor
+      // one that came after the source was taken (the audio tools, say): the video may
+      // well play.
+      if (!taken && this.fallbacks === fallbacks && fallbacks.request === this.sourceRequests && !this.tryNextSource()) {
+        this.failedToLoad(Localize.getMessage('player_error_load'));
+      }
     }
 
     DOMElements.playerContainer.style.backgroundColor = 'black';
@@ -1325,6 +1350,36 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Plays the next of the streams the player picked the current one from, when it failed
+   * before it showed anything: the page's thumbnails, an expired or a blocked link. Not
+   * after a source was asked for since, nor for one chosen by hand (no streams to try).
+   * @return {boolean} Whether one is being tried.
+   */
+  tryNextSource() {
+    const fallbacks = this.fallbacks;
+    // It failed once more on its way out: the next one is already on its way in.
+    if (fallbacks.next) {
+      return true;
+    }
+
+    if (fallbacks.request !== this.sourceRequests) {
+      return false;
+    }
+
+    const next = fallbacks.sources.shift();
+    if (!next) {
+      return false;
+    }
+
+    console.warn('The stream failed to load, trying the next one', next);
+    fallbacks.next = next;
+    this.setSource(next, fallbacks.sources).then(() => {
+      this.sourcesBrowser.updateSources();
+    });
+    return true;
+  }
+
+  /**
    * Handles failure to load the player or fragments.
    * @param {string} reason
    */
@@ -1500,6 +1555,9 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ERROR, (event, msg) => {
       console.error('ERROR', event);
+      if (this.tryNextSource()) {
+        return;
+      }
       this.failedToLoad(msg || Localize.getMessage('player_error_load'));
     });
 
@@ -1508,6 +1566,8 @@ export class FastStreamClient extends EventEmitter {
     });
 
     this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
+      // It shows something: a failure from now on is the stream's, not a wrong pick.
+      this.fallbacks.sources = [];
       this.audioConfigManager.updateChannelCount();
     });
 

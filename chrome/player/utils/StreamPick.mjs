@@ -1,4 +1,7 @@
-import {StreamLength} from './StreamLength.mjs';
+import {PlayerModes} from '../enums/PlayerModes.mjs';
+import {STILLS_LENGTH, StreamLength} from './StreamLength.mjs';
+
+const STREAMING_MODES = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH];
 
 // A video's length and a stream's match within this many seconds, or this share of the
 // length when that is more. Both come from the same manifest or movie header: an MSE player
@@ -67,6 +70,24 @@ export class StreamPick {
       return null;
     }
     return played;
+  }
+
+  /**
+   * The streams to try in turn should the one picked fail to load: the others it was
+   * picked from, never a playlist of stills; at the lowest depth first, then a streaming
+   * one (HLS, DASH) before a file, else in the order the page loaded them. Only those: a
+   * shorter stream is likelier an ad than the video, and failing shows the list to pick
+   * from by hand.
+   * @template {{mode: string, depth?: number, duration?: number|null}} T
+   * @param {T[]} candidates - The streams the pick chose among (played, else longest).
+   * @param {T} picked - The one it chose.
+   * @return {T[]} The others, in the order to try them.
+   */
+  static fallbacks(candidates, picked) {
+    const streaming = (source) => STREAMING_MODES.includes(source.mode) ? 0 : 1;
+    return candidates
+        .filter((source) => source !== picked && source.duration !== STILLS_LENGTH)
+        .sort((a, b) => (a.depth ?? 0) - (b.depth ?? 0) || streaming(a) - streaming(b));
   }
 
   /**

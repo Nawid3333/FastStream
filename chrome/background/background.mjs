@@ -1,5 +1,5 @@
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
-import {StreamLength} from '../player/utils/StreamLength.mjs';
+import {STILLS_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
 import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {StringUtils} from '../player/utils/StringUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
@@ -759,6 +759,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
+  } else if (msg.type === MessageTypes.LOADED_MEDIA) {
+    recoverFrameSources(frame, msg);
   } else if (msg.type === MessageTypes.CLEAR_SOURCES) {
     // The SourcesBrowser's "Clear Sources" button empties its own list, but
     // that list is only a mirror: this background's per-frame stores are the
@@ -1350,11 +1352,181 @@ function getSourceFromURL(frame, url) {
   });
 }
 
-function addSource(frame, url, mode, headers) {
+function addSource(frame, url, mode, headers, time = Date.now()) {
   frame.getSources().push({
-    url, mode, headers,
-    time: Date.now(),
+    url, mode, headers, time,
   });
+}
+
+/**
+ * The type a URL names by itself: its file extension, or what a site's pattern says it
+ * is (Vimeo's player config, the user's custom source patterns).
+ * @param {string} url - A request's URL.
+ * @return {string} The extension or type, for URLUtils.getModeFromExtension and
+ *   BackgroundUtils.isSubtitles.
+ */
+function urlType(url) {
+  let ext = URLUtils.get_url_extension(url);
+  if (URLUtils.hostnameMatches(url, 'player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
+    ext = 'vmpatch';
+  }
+
+  const output = CustomSourcePatternsMatcher.match(url);
+  if (output) {
+    ext = output;
+  }
+  return ext;
+}
+
+/**
+ * The mode of a stream fetched through a proxy, which names it in the query string:
+ * proxy?url=https://cdn/.../index.m3u8.
+ * @param {string} url - The proxy request's URL.
+ * @return {?string} The stream's player mode, or null when the query names none.
+ */
+function modeFromQuery(url) {
+  for (const value of URLUtils.get_url_params(url).values()) {
+    if (!URLUtils.is_url(value)) continue;
+    let ext = URLUtils.get_url_extension(value);
+
+    const output = CustomSourcePatternsMatcher.match(value);
+    if (output) {
+      ext = output;
+    }
+
+    const mode = URLUtils.getModeFromExtension(ext);
+    if (mode) {
+      return mode;
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether a frame's streams include one that may show a video, and not only playlists of
+ * stills: the seek bar's thumbnails, which a page may ask for just before its video
+ * (StreamLength STILLS_LENGTH). The playlists' lengths are read first, when they are not
+ * yet; a read takes one request, the one the player would make next.
+ * @param {FrameHolder} frame - The frame a player would open in.
+ * @return {Promise<boolean>} True unless every one of its streams is a playlist of stills.
+ */
+async function hasVideoSource(frame) {
+  const playlists = () => collectSources(frame).sources.filter((source) => source.mode === PlayerModes.ACCELERATED_HLS);
+  await Lengths.settle(playlists, SourceLengthWaitMs);
+  const sources = collectSources(frame).sources;
+  const lengths = Lengths.lengthsOf(sources);
+  return lengths.some((length) => length !== STILLS_LENGTH);
+}
+
+// How long the page's frames get to say what they loaded (recoverSources). They answer
+// within milliseconds, unless the page's own scripts keep them busy.
+const RecoverWaitMs = 500;
+
+/**
+ * Whether this background knows a stream of the tab, outside its players.
+ * @param {TabHolder} tab - The tab.
+ * @return {boolean} True when a frame of it has one.
+ */
+function tabHasSources(tab) {
+  for (const frame of tab.getFrames()) {
+    if (!frame.isPlayer && frame.getSources().length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Asks the page's frames what they loaded, when this background knows no stream of the
+ * tab. Firefox unloads the background after ~30 idle seconds, and the detected streams go
+ * with it (TabTracker keeps the toggle state only), while a page asks for its manifest
+ * once, when its video starts: FastStream turned on after that found nothing until the
+ * page reloaded. A page back from the back-forward cache, or loaded before FastStream
+ * was, is the same. Each frame answers with LOADED_MEDIA (recoverFrameSources).
+ * @param {TabHolder} tab - The tab.
+ * @return {Promise<void>} Resolves once the frames had RecoverWaitMs to answer.
+ */
+async function recoverSources(tab) {
+  try {
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.REPORT_LOADED_MEDIA}, () => {
+      // Each frame answers with a message of its own, not here.
+      void chrome.runtime.lastError;
+    });
+  } catch (e) {
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, RecoverWaitMs));
+}
+
+/**
+ * Takes in what a frame says it loaded (recoverSources): each URL goes through the rules a
+ * request's does (onHeadersReceived), by the URL alone, in the order the page asked for
+ * them. The requests' own headers are gone; the Referer and Origin the page sent by
+ * default stand in for them (pageHeaders).
+ * @param {FrameHolder} frame - The frame that answered.
+ * @param {{url?: string, document?: string, resources?: Array<Object>}} msg - Its LOADED_MEDIA.
+ */
+function recoverFrameSources(frame, msg) {
+  // The answer of a page since navigated away from: the frame's streams are the next one's.
+  if (frame.documentKey && msg.document !== frame.documentKey) {
+    return;
+  }
+  if (typeof msg.url === 'string' && !frame.url) {
+    frame.url = msg.url;
+  }
+  // Since the background started again, the page has not told it its name (FRAME_ADDED).
+  if (typeof msg.document === 'string' && !frame.documentKey) {
+    frame.documentKey = msg.document;
+  }
+  if (frame.hasPlayer() || !Array.isArray(msg.resources)) {
+    return;
+  }
+
+  for (const resource of msg.resources) {
+    const url = resource && typeof resource.url === 'string' ? resource.url : '';
+    if (!/^https?:\/\//i.test(url)) continue;
+    const media = !!resource.media;
+    const headers = pageHeaders(typeof msg.url === 'string' ? msg.url : frame.url, url, media);
+    const ext = urlType(url);
+    if (BackgroundUtils.isSubtitles(ext)) {
+      handleSubtitles(url, frame, headers);
+      continue;
+    }
+
+    const mode = URLUtils.getModeFromExtension(ext) || (media ? PlayerModes.ACCELERATED_MP4 : modeFromQuery(url));
+    if (!mode || getSourceFromURL(frame, url)) continue;
+    addSource(frame, url, mode, headers, typeof resource.time === 'number' ? resource.time : Date.now());
+  }
+}
+
+/**
+ * The Referer and Origin a page's request carries by default (strict-origin-when-cross-
+ * origin): for a stream recovered from the page, whose own request headers are gone.
+ * @param {string} pageUrl - The page.
+ * @param {string} url - The stream.
+ * @param {boolean} media - Whether a media element loaded it, which sends no Origin.
+ * @return {Array<{name: string, value: string}>} The headers.
+ */
+function pageHeaders(pageUrl, url, media) {
+  let page;
+  let target;
+  try {
+    page = new URL(pageUrl);
+    target = new URL(url);
+  } catch (e) {
+    return [];
+  }
+  if (!/^https?:$/.test(page.protocol)) {
+    return [];
+  }
+  if (page.origin === target.origin) {
+    return [{name: 'Referer', value: page.href.split('#')[0]}];
+  }
+  const headers = [{name: 'Referer', value: page.origin + '/'}];
+  if (!media) {
+    headers.push({name: 'Origin', value: page.origin});
+  }
+  return headers;
 }
 
 function collectSources(frame, remove = false) {
@@ -1413,11 +1585,15 @@ async function sendSources(frame) {
   // The player plays the one the page's video played, or the longest of them: a little
   // time for the lengths still being read. The video is asked about after that, when the
   // page's player has most likely set its length; then a wait for the sources detected
-  // meanwhile, if any (one still unread from before is not waited for twice).
+  // meanwhile, if any (one still unread from before is not waited for twice). A playlist
+  // is read even when it is the only source: it may be one of stills, which the player
+  // lists but does not play by itself (STILLS_LENGTH).
   let video = null;
-  if (collectSources(frame).sources.length > 1) {
+  const detected = collectSources(frame).sources;
+  const several = detected.length > 1;
+  if (several || detected.some((source) => source.mode === PlayerModes.ACCELERATED_HLS)) {
     await Lengths.settle(() => collectSources(frame).sources, SourceLengthWaitMs);
-    if (frame.parent) {
+    if (several && frame.parent) {
       const known = new Set(collectSources(frame).sources.map((source) => source.url));
       video = await getPlayedVideo(frame);
       await Lengths.settle(() => collectSources(frame).sources.filter((source) => !known.has(source.url)), SourceLengthWaitMs);
@@ -1638,9 +1814,18 @@ async function onSourceRecieved(details, frame, mode) {
 
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
-    frame.openTimeout = setTimeout(() => {
+    frame.openTimeout = setTimeout(async () => {
       // MPV counts as on too: a switch to it within the delay found no player to
       // reload away, and this would open one under it.
+      if (!frame.tab.isOn || frame.tab.isMpv) {
+        return;
+      }
+      // Not on the seek bar's thumbnails alone, which a page may ask for before its video:
+      // the player would take them, and the video's stream, asked for later, would be
+      // dropped as one of the player's own.
+      if (!await hasVideoSource(frame)) {
+        return;
+      }
       if (frame.tab.isOn && !frame.tab.isMpv) {
         openPlayer(frame);
       }
@@ -1655,6 +1840,14 @@ async function onSourceRecieved(details, frame, mode) {
 }
 
 async function openPlayersWithSources(tab) {
+  if (!tabHasSources(tab)) {
+    // Streams the page asked for before this background knew of it (recoverSources).
+    await recoverSources(tab);
+    if (!tab.isOn || tab.isMpv) {
+      return;
+    }
+  }
+
   let framesWithSources = [];
   for (const frame of tab.getFrames()) {
     if (!frame.isPlayer && frame.getSources().length > 0) {
@@ -1663,9 +1856,10 @@ async function openPlayersWithSources(tab) {
   }
 
   if (framesWithSources.length > 0) {
-    framesWithSources = await Promise.all(framesWithSources.map(async (frame) => {
-      return {frame, videoSize: await getVideoSize(frame)};
-    }));
+    // Not on the seek bar's thumbnails alone (hasVideoSource).
+    framesWithSources = (await Promise.all(framesWithSources.map(async (frame) => {
+      return await hasVideoSource(frame) ? {frame, videoSize: await getVideoSize(frame)} : null;
+    }))).filter((entry) => entry !== null);
 
     // The page's videos were measured with a round trip to it; a click that turned the
     // tab off, or over to MPV, in the meantime decides.
@@ -1787,7 +1981,8 @@ async function findPlayedSource(tab, frameId, src, video) {
 /**
  * The newest of the streams a video plays (StreamPick.played), or else of the longest
  * sources: an ad runs for seconds, the video for minutes (StreamLength.longest). Of
- * streams that tie, the one the page asked for last is the one it plays now.
+ * streams that tie, the one the page asked for last is the one it plays now. Never a
+ * playlist of stills (STILLS_LENGTH): mpv would show the seek bar's thumbnails.
  *
  * @param {Array<Object>} sources - Detected sources.
  * @param {?Object} [video] - What the page's video plays (content.js playedVideo).
@@ -1795,7 +1990,7 @@ async function findPlayedSource(tab, frameId, src, video) {
  */
 function newestOfLongest(sources, video = null) {
   const lengths = Lengths.lengthsOf(sources);
-  const measured = sources.map((source, i) => ({source, url: source.url, duration: lengths[i]}));
+  const measured = StreamLength.withoutStills(sources.map((source, i) => ({source, url: source.url, duration: lengths[i]})));
   const longest = StreamPick.played(measured, video) || StreamLength.longest(measured);
   let newest = null;
   for (const {source} of longest) {
@@ -1934,7 +2129,6 @@ chrome.webRequest.onHeadersReceived.addListener(
         return;
       }
       const url = details.url;
-      let ext = URLUtils.get_url_extension(url);
       const tab = Tabs.getTabOrCreate(details.tabId);
       const frame = tab.getFrameOrCreate(details.frameId);
       if (frame.hasPlayer()) return;
@@ -1942,14 +2136,7 @@ chrome.webRequest.onHeadersReceived.addListener(
       if ((details.statusCode >= 400 && details.statusCode < 600) || details.statusCode === 204) {
         return; // Client or server error. Ignore it
       }
-      if (URLUtils.hostnameMatches(url, 'player.vimeo.com') && (url.includes('config?') || url.includes('video'))) {
-        ext = 'vmpatch';
-      }
-
-      const output = CustomSourcePatternsMatcher.match(url);
-      if (output) {
-        ext = output;
-      }
+      const ext = urlType(url);
 
       if (BackgroundUtils.isSubtitles(ext)) {
         return handleSubtitles(url, frame, frame.requestHeaders.get(details.requestId));
@@ -1973,23 +2160,7 @@ chrome.webRequest.onHeadersReceived.addListener(
           // Firefox plays it in that load, with no request of its own to detect.
           return;
         } else {
-          // A stream fetched through a proxy names it in the query string:
-          // proxy?url=https://cdn/.../index.m3u8.
-          const urlParams = URLUtils.get_url_params(url).values();
-          for (const value of urlParams) {
-            if (!URLUtils.is_url(value)) continue;
-            let ext2 = URLUtils.get_url_extension(value);
-
-            const output = CustomSourcePatternsMatcher.match(value);
-            if (output) {
-              ext2 = output;
-            }
-
-            mode = URLUtils.getModeFromExtension(ext2);
-            if (mode) {
-              break;
-            }
-          }
+          mode = modeFromQuery(url);
           if (!mode) {
             return;
           }

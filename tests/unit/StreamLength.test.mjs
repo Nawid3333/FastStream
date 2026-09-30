@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {PIECE_LENGTH, StreamLength, UNKNOWN_LENGTH_S} from '../../chrome/player/utils/StreamLength.mjs';
+import {PIECE_LENGTH, STILLS_LENGTH, StreamLength, UNKNOWN_LENGTH_S} from '../../chrome/player/utils/StreamLength.mjs';
 
 // MP4 boxes: a 32-bit size, a four-character type, the payload.
 function box(type, ...payloads) {
@@ -296,6 +296,22 @@ describe('StreamLength.fromHls', () => {
     expect(StreamLength.fromHls('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n')).toBeNull();
   });
 
+  it('takes a playlist of images or of keyframes for stills, not a video of its length', () => {
+    // vixeo.io's seek bar thumbnails (2026-09-30), which its page asked for just before the
+    // video's playlist, and which ran as long as the video.
+    const tile = (n, length) => `#EXTINF:${length},\n#EXT-X-TILES:RESOLUTION=160x90,LAYOUT=10x10,DURATION=10.000\nthumbnail${n}.jpg\n\n`;
+    const thumbnails = '#EXTM3U\n#EXT-X-VERSION:7\n#EXT-X-TARGETDURATION:1000\n#EXT-X-MEDIA-SEQUENCE:0\n' +
+      '#EXT-X-PLAYLIST-TYPE:VOD\n#EXT-X-IMAGES-ONLY\n\n' + tile(0, '1000.000') + tile(1, '447.040') + '#EXT-X-ENDLIST\n';
+    expect(StreamLength.fromHls(thumbnails)).toEqual({duration: STILLS_LENGTH});
+    const keyframes = '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXT-X-I-FRAMES-ONLY\n' +
+      '#EXTINF:6,\n#EXT-X-BYTERANGE:4512@376\nmain.ts\n#EXTINF:6,\n#EXT-X-BYTERANGE:4888@1880\nmain.ts\n#EXT-X-ENDLIST\n';
+    expect(StreamLength.fromHls(keyframes)).toEqual({duration: STILLS_LENGTH});
+    // The tag may come after the first segments; a live playlist of stills is still stills.
+    expect(StreamLength.fromHls('#EXTM3U\n#EXTINF:10,\na.jpg\n#EXT-X-IMAGES-ONLY\n#EXTINF:10,\nb.jpg\n')).toEqual({duration: STILLS_LENGTH});
+    // A tag that only begins the same way is none of them.
+    expect(StreamLength.fromHls('#EXTM3U\n#EXT-X-IMAGES-ONLY-NOT\n#EXTINF:10,\na.ts\n#EXT-X-ENDLIST\n')).toEqual({duration: 10});
+  });
+
   it('reads a playlist with a byte order mark, CRLF lines and blank lines first', () => {
     const bom = String.fromCharCode(0xFEFF);
     expect(StreamLength.fromHls(`${bom}\r\n\r\n#EXTM3U\r\n#EXTINF:3,\r\na.ts\r\n#EXT-X-ENDLIST\r\n`)).toEqual({duration: 3});
@@ -392,5 +408,32 @@ describe('StreamLength.longest', () => {
   it('keeps a single source, and gives none for none', () => {
     expect(names([src('only', 5)])).toEqual(['only']);
     expect(StreamLength.longest([])).toEqual([]);
+  });
+
+  it('never ties a playlist of stills with a video, and keeps the stills when there is nothing else', () => {
+    const stills = (name) => src(name, STILLS_LENGTH);
+    // vixeo.io: the thumbnails first, then the video's playlist.
+    expect(names([stills('thumbnails'), src('video', 1447.04)])).toEqual(['video']);
+    expect(names([stills('thumbnails'), src('unknown', null)])).toEqual(['unknown']);
+    expect(names([stills('thumbnails'), src('piece', PIECE_LENGTH)])).toEqual(['piece']);
+    expect(names([stills('thumbnails'), stills('keyframes')])).toEqual(['thumbnails', 'keyframes']);
+  });
+});
+
+describe('StreamLength.withoutStills', () => {
+  it('drops the playlists of stills and keeps the rest in order', () => {
+    const sources = [{name: 'a', duration: 60}, {name: 'thumbnails', duration: STILLS_LENGTH},
+      {name: 'b'}, {name: 'c', duration: PIECE_LENGTH}, {name: 'd', duration: null}];
+    expect(StreamLength.withoutStills(sources).map((source) => source.name)).toEqual(['a', 'b', 'c', 'd']);
+    expect(StreamLength.withoutStills([])).toEqual([]);
+  });
+});
+
+describe('StreamLength.rankLength', () => {
+  it('ranks a playlist of stills as nothing, as a piece, not as a stream of unknown length', () => {
+    expect(StreamLength.rankLength(STILLS_LENGTH)).toBe(0);
+    expect(StreamLength.rankLength(PIECE_LENGTH)).toBe(0);
+    expect(StreamLength.rankLength(null)).toBe(UNKNOWN_LENGTH_S);
+    expect(StreamLength.rankLength(1337)).toBe(1337);
   });
 });

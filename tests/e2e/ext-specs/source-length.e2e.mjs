@@ -22,6 +22,12 @@
 // one while the video runs under three minutes: then the video is an ad, a trailer or a
 // preview as likely as not, and the longest plays, as before.
 //
+// A playlist of the seek bar's thumbnails (EXT-X-IMAGES-ONLY: JPEG tiles) runs as long as
+// the video, and a page often asks for it first: vixeo.io's did, and the player opened on
+// it alone, or picked it over the video as the older of two as long. It is never picked,
+// nor opened on. One that does not say what it is fails to load in the player, and the
+// next stream of those it was picked from plays in its place.
+//
 // Driven on the installed extension, the site on the auto-enable list: pages that load an
 // ad and a longer stream, and the stream the player ends up playing.
 
@@ -63,6 +69,28 @@ const CORS = {
 
 const HLS_TYPE = 'application/vnd.apple.mpegurl';
 const playlist = (seconds) => loopedPlaylist(seconds, '/hls-ts/');
+
+/**
+ * A playlist of the seek bar's thumbnails, as vixeo.io's player loads one: a JPEG of 10x10
+ * tiles for each 1000 s, as long as the video.
+ * @param {number} seconds - Its length.
+ * @param {boolean} imagesOnly - Whether it says so (EXT-X-IMAGES-ONLY).
+ * @param {string} c - The case, in the tiles' URLs.
+ * @return {string} The playlist.
+ */
+function thumbnails(seconds, imagesOnly, c) {
+  const lines = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:1000', '#EXT-X-MEDIA-SEQUENCE:0',
+    '#EXT-X-PLAYLIST-TYPE:VOD'];
+  if (imagesOnly) {
+    lines.push('#EXT-X-IMAGES-ONLY');
+  }
+  for (let i = 0, left = seconds; left > 0; i++, left -= 1000) {
+    lines.push(`#EXTINF:${Math.min(left, 1000).toFixed(3)},`,
+        '#EXT-X-TILES:RESOLUTION=160x90,LAYOUT=10x10,DURATION=10.000', `/tiles/thumbnail${i}.jpg?c=${c}`);
+  }
+  lines.push('#EXT-X-ENDLIST');
+  return lines.join('\n') + '\n';
+}
 
 /**
  * Serves a file, byte ranges included, as a video server does.
@@ -114,23 +142,27 @@ async function playerSources() {
     return Array.from(document.querySelectorAll('iframe')).some((f) => f.src.includes('player/index.html'));
   }), {timeout: 30000, timeoutMsg: 'the in-page player never replaced the page\'s video'});
   await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
-  await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.source),
-      {timeout: 30000, timeoutMsg: 'the player never got a source'});
-  // A player on its source decodes it; give it the time to, for the log.
   let state;
-  await browser.waitUntil(async () => {
-    state = await browser.execute(() => {
-      const client = window.fastStream;
-      const video = client.player?.getVideo?.();
-      return {
-        source: client.source.url,
-        sources: client.sourcesBrowser.sources.map((source) => source.url).filter(Boolean),
-        readyState: video ? video.readyState : null,
-      };
-    });
-    return state.readyState >= 2;
-  }, {timeout: 15000, interval: 250}).catch(() => {});
-  await browser.switchFrame(null);
+  try {
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.source),
+        {timeout: 30000, timeoutMsg: 'the player never got a source'});
+    // A player on its source decodes it; give it the time to, for the log.
+    await browser.waitUntil(async () => {
+      state = await browser.execute(() => {
+        const client = window.fastStream;
+        const video = client.player?.getVideo?.();
+        return {
+          source: client.source.url,
+          sources: client.sourcesBrowser.sources.map((source) => source.url).filter(Boolean),
+          readyState: video ? video.readyState : null,
+        };
+      });
+      return state.readyState >= 2;
+    }, {timeout: 15000, interval: 250}).catch(() => {});
+  } finally {
+    // Out of the player, for the next case, whatever became of this one.
+    await browser.switchFrame(null);
+  }
   console.log('      player:', JSON.stringify(state));
   return state;
 }
@@ -220,6 +252,13 @@ describe('Of a page\'s streams, the player', function() {
         text(HLS_TYPE, playlist(9));
       } else if (pathname === '/hls/extra.m3u8') {
         text(HLS_TYPE, playlist(720));
+      } else if (pathname === '/hls/thumbnails.m3u8' || pathname === '/hls/tiles.m3u8') {
+        // As long as the clip; the tiles do not say they are images.
+        const c = new URLSearchParams(search).get('c');
+        text(HLS_TYPE, thumbnails(270, pathname === '/hls/thumbnails.m3u8', c));
+      } else if (pathname.startsWith('/tiles/')) {
+        // No video: a player that fetches one finds nothing it can play.
+        text('image/jpeg', 'thumbnails, not video');
       } else if (pathname.startsWith('/hls/private')) {
         // A CDN that serves the site's pages only.
         if (!(req.headers.referer || '').startsWith(SITE + '/')) {
@@ -296,6 +335,21 @@ describe('Of a page\'s streams, the player', function() {
                 media.duration = 270;
                 fetch('/hls/clip.m3u8' + location.search).then(() => fetch('/hls/extra.m3u8' + location.search));
               });`));
+      } else if (pathname === '/page/thumbnails') {
+        // The seek bar's thumbnails first, then the clip: as long, and newer.
+        text('text/html; charset=utf-8', page('thumbnails', '', `
+              fetch('/hls/thumbnails.m3u8' + location.search)
+                  .then(() => fetch('/hls/clip.m3u8' + location.search));`));
+      } else if (pathname === '/page/thumbnails-alone') {
+        // The thumbnails, and the clip only once the player would long have opened.
+        text('text/html; charset=utf-8', page('thumbnails alone', '', `
+              fetch('/hls/thumbnails.m3u8' + location.search)
+                  .then(() => setTimeout(() => fetch('/hls/clip.m3u8' + location.search), 4000));`));
+      } else if (pathname === '/page/tiles') {
+        // Thumbnails that do not say so, then the clip.
+        text('text/html; charset=utf-8', page('tiles', '', `
+              fetch('/hls/tiles.m3u8' + location.search)
+                  .then(() => fetch('/hls/clip.m3u8' + location.search));`));
       } else if (pathname === '/page/private') {
         // A 12-minute stream first, then the half-hour one only the site's pages may read.
         text('text/html; charset=utf-8', page('private', '', `
@@ -394,6 +448,35 @@ describe('Of a page\'s streams, the player', function() {
     const state = await playerSources();
     expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/media/ad.mp4?c=${c}`, `${SITE}/hls/extra.m3u8?c=${c}`]));
     expect(state.source).toBe(`${SITE}/hls/extra.m3u8?c=${c}`);
+  });
+
+  it('plays the video, not the seek bar\'s thumbnails the page asked for first', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/thumbnails?c=${c}`);
+    const state = await playerSources();
+    // Listed, to choose by hand.
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/thumbnails.m3u8?c=${c}`, `${SITE}/hls/clip.m3u8?c=${c}`]));
+    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
+    expect(state.readyState).toBeGreaterThanOrEqual(2);
+  });
+
+  it('does not open on the thumbnails alone, and opens on the video when it comes', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/thumbnails-alone?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/thumbnails.m3u8?c=${c}`, `${SITE}/hls/clip.m3u8?c=${c}`]));
+    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
+  });
+
+  it('plays the next stream when the one it picked fails to load: thumbnails that do not say so', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/page/tiles?c=${c}`);
+    const state = await playerSources();
+    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/tiles.m3u8?c=${c}`, `${SITE}/hls/clip.m3u8?c=${c}`]));
+    // It tried the tiles first: the older of two as long.
+    expect(requests.some((r) => r.path.startsWith('/tiles/') && r.search === `?c=${c}`)).toBe(true);
+    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
+    expect(state.readyState).toBeGreaterThanOrEqual(2);
   });
 
   it('reads a length with the page\'s own headers, and waits for a slow one', async function() {

@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
-import {PIECE_LENGTH} from '../../chrome/player/utils/StreamLength.mjs';
+import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
+import {PIECE_LENGTH, STILLS_LENGTH} from '../../chrome/player/utils/StreamLength.mjs';
 import {StreamPick} from '../../chrome/player/utils/StreamPick.mjs';
 
 const source = (name, duration) => ({url: `https://cdn.example/${name}`, duration});
@@ -130,5 +131,43 @@ describe('StreamPick.played', () => {
     expect(urls(StreamPick.played([unknown, other], {src: unknown.url, duration: null}))).toEqual([unknown.url]);
     // Not among them: the longest play.
     expect(StreamPick.played([unknown, episode], {src: unknown.url, duration: null})).toBeNull();
+  });
+});
+
+describe('StreamPick.fallbacks', () => {
+  const stream = (name, mode, depth, duration = 1337) => ({url: `https://cdn.example/${name}`, mode, depth, duration});
+  const hls = (name, depth = 0) => stream(name, PlayerModes.ACCELERATED_HLS, depth);
+  const mp4 = (name, depth = 0) => stream(name, PlayerModes.ACCELERATED_MP4, depth);
+
+  it('tries the others the stream was picked from, never it again', () => {
+    const picked = hls('a.m3u8');
+    const other = hls('b.m3u8');
+    expect(urls(StreamPick.fallbacks([picked, other], picked))).toEqual([other.url]);
+    expect(StreamPick.fallbacks([picked], picked)).toEqual([]);
+  });
+
+  it('never tries a playlist of stills', () => {
+    const picked = hls('video.m3u8');
+    const thumbnails = stream('thumbnails.m3u8', PlayerModes.ACCELERATED_HLS, 0, STILLS_LENGTH);
+    expect(StreamPick.fallbacks([thumbnails, picked], picked)).toEqual([]);
+  });
+
+  it('tries the lowest depth first, then a stream before a file, else in the order they loaded', () => {
+    const picked = hls('picked.m3u8');
+    const deepHls = hls('deep.m3u8', 1);
+    const file = mp4('file.mp4');
+    const first = hls('first.m3u8');
+    const second = hls('second.m3u8');
+    const dash = stream('dash.mpd', PlayerModes.ACCELERATED_DASH, 0);
+    expect(urls(StreamPick.fallbacks([deepHls, file, first, picked, second, dash], picked)))
+        .toEqual([first.url, second.url, dash.url, file.url, deepHls.url]);
+  });
+
+  it('leaves the list it was given as it was', () => {
+    const picked = hls('picked.m3u8');
+    const candidates = [mp4('file.mp4'), picked, hls('other.m3u8')];
+    const before = candidates.slice();
+    StreamPick.fallbacks(candidates, picked);
+    expect(candidates).toEqual(before);
   });
 });

@@ -27,6 +27,8 @@
     SCRAPE_CAPTIONS: 'SCRAPE_CAPTIONS',
     SHORTCUT_CANCELLED: 'SHORTCUT_CANCELLED',
     HAS_PLAYER: 'HAS_PLAYER',
+    REPORT_LOADED_MEDIA: 'REPORT_LOADED_MEDIA',
+    LOADED_MEDIA: 'LOADED_MEDIA',
   };
 
   const iframeMap = new Map();
@@ -121,6 +123,22 @@
       // replaced (one player opens per frame at a time, background.mjs openPlayer).
       const linked = iframeMap.get(request.frameId);
       sendResponse(replacedVideo(linked ? linked.replacedData : replacedPlayerQueue[replacedPlayerQueue.length - 1]));
+    } else if (request.type === MessageTypes.REPORT_LOADED_MEDIA) {
+      // Sent to every frame when the background knows no stream of the tab: each answers
+      // with what it loaded, in a message of its own, which tells the background its frame.
+      try {
+        chrome.runtime.sendMessage({
+          type: MessageTypes.LOADED_MEDIA,
+          url: window.location.href,
+          document: DocumentKey,
+          resources: loadedMedia(),
+        }, () => {
+          void chrome.runtime.lastError;
+        });
+      } catch (e) {
+        // The extension was reloaded under this page: nothing to report to.
+      }
+      return;
     } else if (request.type === MessageTypes.SCRAPE_CAPTIONS) {
       return handleCaptionsScrape(request, sender, sendResponse);
     } else if (request.type === MessageTypes.TOGGLE_MINIPLAYER) {
@@ -1630,6 +1648,45 @@
     const now = playedVideo(player.video);
     const {src, duration} = now && now.playing === player.played.playing ? now : player.played;
     return {src, duration};
+  }
+
+  // The requests a page's player makes for its stream, as Resource Timing names them.
+  const LoadedMediaInitiators = ['xmlhttprequest', 'fetch', 'video', 'audio', 'other'];
+
+  /**
+   * What this page loaded that may be a stream, for a background that did not see it load:
+   * Firefox unloads the background after ~30 idle seconds, and the streams it detected with
+   * it, while a page asks for its manifest once, when its video starts. The page's own
+   * Resource Timing entries keep those requests for as long as it lives (the first 250 of
+   * them), and its videos tell the files they play.
+   * @return {Array<{url: string, media: boolean, time: number}>} Each URL, whether a media
+   *   element loaded it, and when the request started (ms since the epoch).
+   */
+  function loadedMedia() {
+    const found = [];
+    let entries = [];
+    try {
+      entries = performance.getEntriesByType('resource');
+    } catch (e) {
+      // No timeline: the videos still tell theirs.
+    }
+    for (const entry of entries) {
+      if (!LoadedMediaInitiators.includes(entry.initiatorType)) continue;
+      // An error answer is no stream. The status is 0 when the server did not share it.
+      if (entry.responseStatus >= 400) continue;
+      found.push({
+        url: entry.name,
+        media: entry.initiatorType === 'video' || entry.initiatorType === 'audio',
+        time: performance.timeOrigin + entry.startTime,
+      });
+    }
+    querySelectorAllIncludingShadows('video, audio').forEach((media) => {
+      const src = media.currentSrc || '';
+      if (/^https?:\/\//i.test(src) && !found.some((entry) => entry.url === src)) {
+        found.push({url: src, media: true, time: Date.now()});
+      }
+    });
+    return found;
   }
 
   // MPV started by its shortcut hands over only a video the user starts, not
