@@ -14,6 +14,10 @@ export class AudioAnalyzerNode extends EventEmitter {
     this.loopHandle = this.volumeLoop.bind(this);
     this.volumeLoopRunning = false;
     this.volumeLoopShouldRun = false;
+    this.vadShouldRun = false;
+    this.vadNode = null;
+    // Counts startRecordingVad's loads (see there).
+    this.vadLoads = 0;
   }
 
   onVadFrameProcessed(probs) {
@@ -60,15 +64,30 @@ export class AudioAnalyzerNode extends EventEmitter {
     this.vadShouldRun = true;
 
     if (this.vadNode) return;
-    const {VadJS} = await import('../vad/vad.mjs');
-    this.vadNode = await VadJS.AudioNodeVAD.new(this.audioContext, this.vadOptions);
-    if (this.vadShouldRun) {
-      this.audioSource.connect(this.vadNode.getNode());
-      this.vadNode.start();
-    } else {
-      this.vadNode.destroy();
-      this.vadNode = null;
+    // A stop and a new start while this load runs (the syncer closed and reopened) start
+    // a second load. The first to finish is used and the other destroyed: both used to
+    // connect and run, and a stop removed only the second.
+    const load = ++this.vadLoads;
+    let vadNode;
+    try {
+      const {VadJS} = await import('../vad/vad.mjs');
+      vadNode = await VadJS.AudioNodeVAD.new(this.audioContext, this.vadOptions);
+    } catch (e) {
+      console.error('The voice detector did not start', e);
+      // The latest start failed: the next one may try again. (An older load's failure
+      // leaves a newer one's decision alone.)
+      if (load === this.vadLoads && !this.vadNode) {
+        this.vadShouldRun = false;
+      }
+      return;
     }
+    if (this.vadNode || !this.vadShouldRun) {
+      vadNode.destroy();
+      return;
+    }
+    this.vadNode = vadNode;
+    this.audioSource.connect(vadNode.getNode());
+    vadNode.start();
   }
 
   stopRecordingVad() {

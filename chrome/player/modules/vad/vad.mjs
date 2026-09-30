@@ -1,5 +1,3 @@
-import OrtJS from './ort.wasm.mjs';
-
 const currentScript = import.meta;
 let basePath = '';
 if (currentScript) {
@@ -13,9 +11,21 @@ const assetPath = (file) => {
   return basePath + file;
 };
 
+// ONNX Runtime, loaded with the first model. The unit tests hand createModel a stand-in:
+// the real file is copied in by the build, which runs after them.
+let ortModule = null;
+const loadOrt = () => {
+  ortModule ??= import('./ort.wasm.mjs').then((module) => module.default);
+  return ortModule;
+};
+
 const modelFetcher = async () => {
   const modelURL = assetPath('silero_vad_half.onnx');
-  return await fetch(modelURL).then((r) => r.arrayBuffer());
+  const response = await fetch(modelURL);
+  if (!response.ok) {
+    throw new Error(`The voice detector's model did not load (${response.status})`);
+  }
+  return await response.arrayBuffer();
 };
 
 const defaultFrameProcessorOptions = {
@@ -64,6 +74,16 @@ class Silero {
       this.reset_state();
       console.debug('vad is initialized');
     };
+    // ONNX Runtime keeps the model in wasm memory until its session is released, and
+    // every video and every VAD start loads a new one. Waits for a run in progress.
+    this.release = async () => {
+      const session = this._session;
+      this._session = null;
+      if (session) {
+        await this.running?.catch(() => {});
+        await session.release();
+      }
+    };
     this.reset_state = () => {
       const zeroes = Array(2 * 1 * 128).fill(0);
       this.state = new this.ort.Tensor('float32', zeroes, [2, 1, 128]);
@@ -75,7 +95,11 @@ class Silero {
         state: this.state,
         //   sr: this._sr,
       };
-      const out = await this._session.run(inputs);
+      if (!this._session) {
+        return {notSpeech: 1, isSpeech: 0};
+      }
+      this.running = this._session.run(inputs);
+      const out = await this.running;
       this.state = out.stateN;
       const [isSpeech] = out.output.data;
       const notSpeech = 1 - isSpeech;
@@ -205,7 +229,8 @@ class AudioNodeVAD {
       },
     });
     this.entryNode = vadNode;
-    const model = await createModel();
+    const model = await createModel(this.options.ort);
+    this.model = model;
     this.frameProcessor = new FrameProcessor(model.process, model.reset_state, {
       frameSamples: this.options.frameSamples,
       positiveSpeechThreshold: this.options.positiveSpeechThreshold,
@@ -244,6 +269,10 @@ class AudioNodeVAD {
     this.entryNode.port.postMessage('close');
     this.frameProcessor.pause();
     this.entryNode = null;
+    if (this.model) {
+      this.model.release().catch((e) => console.warn('The voice detector model was not released', e));
+      this.model = null;
+    }
   }
 
 
@@ -274,10 +303,11 @@ class AudioNodeVAD {
  * Loads the model on ONNX Runtime, as AudioNodeVAD does. Also the entry point
  * tests/e2e/ext-specs/vad.e2e.mjs drives, so the test runs the shipped path.
  *
+ * @param {Object} [ort] - ONNX Runtime; the bundled one when not given (tests pass a stand-in).
  * @return {Promise<Silero>} a model whose process() scores 512-sample frames
  */
-function createModel() {
-  return Silero.new(OrtJS, modelFetcher);
+async function createModel(ort) {
+  return Silero.new(ort || await loadOrt(), modelFetcher);
 }
 
 export const VadJS = {

@@ -6,6 +6,9 @@ import {SubtitleSyncUtils} from '../../utils/SubtitleSyncUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 
+// The shortest a cue can be dragged to, in seconds.
+const MinCueDuration = 0.1;
+
 export class SubtitleSyncer extends EventEmitter {
   constructor(client) {
     super();
@@ -148,14 +151,16 @@ export class SubtitleSyncer extends EventEmitter {
     });
 
     const clearGrabbing = () => {
-      // if cue was grabbed then resort
-      if (grabbedCue) {
-        this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
-      }
-
+      const cue = grabbedCue;
+      // The flags first: the track can be switched off during a drag (a hotkey), and the
+      // sort below then threw before they were reset, so every later mouse move threw too.
       isGrabbingTrack = false;
       grabbedCue = null;
       grabbedEdge = null;
+      // if cue was grabbed then resort
+      if (cue && this.trackToSync) {
+        this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
+      }
     };
 
     DOMElements.playerContainer.addEventListener('mouseup', clearGrabbing);
@@ -165,13 +170,14 @@ export class SubtitleSyncer extends EventEmitter {
     DOMElements.playerContainer.addEventListener('mousemove', (e) => {
       if (!this.client.player) return;
       const video = this.client.player.getVideo();
-      if (isGrabbingTrack) {
+      if (isGrabbingTrack && this.trackToSync) {
         const delta = e.clientX - grabStartTrack;
         grabStartTrack = e.clientX;
         const amount = delta / this.ui.timelineTrack.clientWidth * video.duration;
         if (grabbedCue) {
           if (grabbedEdge === 'right') {
-            grabbedCue.endTime += amount;
+            // Dragged left past its start, a cue ended before it began.
+            grabbedCue.endTime = Math.max(grabbedCue.endTime + amount, grabbedCue.startTime + MinCueDuration);
             // update element
             const el = this.trackElements.find((el) => el.cue === grabbedCue);
             if (el) {
