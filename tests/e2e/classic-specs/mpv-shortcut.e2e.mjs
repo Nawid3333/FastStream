@@ -405,6 +405,24 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
           </script>`);
         return;
       }
+      if (req.url.startsWith('/late')) {
+        // A player of a page that is gone: its URL names another page as its opener, as a
+        // player still starting when its page reloaded does. The page's own video loads
+        // only when the test says so, once the player has said it loaded.
+        res.end(`<!doctype html><title>mpv shortcut test, a late player</title>
+          <iframe id="late" src="${ORIGIN}/player/index.html?parent_frame_id=0&opener=gone"
+            onload="this.dataset.loaded = 'yes'"></iframe>
+          <video id="main" preload="auto" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
+          <button id="load">Load</button>
+          <script>
+            document.getElementById('load').addEventListener('click', () => {
+              const main = document.getElementById('main');
+              main.src = '${CDN}/clip.mp4?t=' + Date.now();
+              main.load();
+            });
+          </script>`);
+        return;
+      }
       // A muted preview that autoplays, and the main video: preloaded, played
       // only by its button. Both cache-busted: switching an in-page player to
       // mpv reloads this page, and a cached response gives no webRequest
@@ -871,5 +889,50 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
 
     await pressShortcut();
     await expectMode('off', 'pressing Ctrl+Shift+U again');
+  });
+
+  // Ctrl+Shift+U with the player just opened reloads the page (startMpv). On Windows CI a
+  // player still starting then said it loaded after the new page had, and counted as the
+  // new page's: the page's streams were dropped as the player's own, and no player opened
+  // on it - mpv got nothing on a play, and Ctrl+Shift+F showed nothing. Here the late
+  // player is one that names a page never in this tab, the state that race left.
+  it('takes a player whose page is gone for no player of the page there now', async function() {
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/late`);
+    await expectMode('off', 'the start of this test');
+
+    // The late player has said it loaded: it marks its options applied just before.
+    await browser.waitUntil(async () => {
+      await browser.switchToWindow(siteHandle);
+      return await browser.execute(() => document.getElementById('late').dataset.loaded === 'yes');
+    }, {timeout: 15000, timeoutMsg: 'the late player never loaded'});
+    await browser.waitUntil(async () => {
+      await browser.switchToWindow(siteHandle);
+      await browser.switchFrame(await browser.$('#late'));
+      try {
+        return await browser.execute(() => !!window.fastStream && window.fastStream.optionsApplied === true);
+      } finally {
+        await browser.switchFrame(null);
+      }
+    }, {timeout: 30000, interval: 250, timeoutMsg: 'the late player never started'});
+    await browser.pause(500);
+
+    // The page's own video, detected now, opens a player of this page.
+    const since = requests.length;
+    await browser.$('#load').click();
+    await browser.waitUntil(async () => requests.slice(since).some((r) => !isMpvRequest(r) && r.url.startsWith('/clip.mp4')), {
+      timeout: 15000,
+      timeoutMsg: 'the page never requested its video: ' + seenRequests(),
+    });
+    await clickToolbar();
+    await expectMode('on', 'clicking the toolbar button');
+    await browser.waitUntil(async () => {
+      await browser.switchToWindow(siteHandle);
+      return await browser.execute(() => Array.from(document.querySelectorAll('iframe'))
+          .some((f) => f.src.includes('player/index.html') && !f.src.includes('opener=gone')));
+    }, {timeout: 15000, timeoutMsg: 'no player opened for the page\'s video'});
+
+    await clickToolbar();
+    await expectMode('off', 'clicking the toolbar button again');
   });
 });
