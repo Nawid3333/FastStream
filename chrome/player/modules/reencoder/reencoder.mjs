@@ -1,7 +1,7 @@
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
 import {BlobManager} from '../../utils/BlobManager.mjs';
-import {Muxer, StreamTarget} from './mp4-muxer.mjs';
+import {MP4Writer} from './mp4-writer.mjs';
 import {MP4Demuxer, WebMDemuxer} from './demuxers.mjs';
 import {Localize} from '../Localize.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
@@ -34,6 +34,25 @@ export class Reencoder extends EventEmitter {
     this.cancelled = true;
   }
 
+  /**
+   * Ends the save with this error. A codec that fails closes itself and puts out nothing
+   * more, so pushFragment() would wait for it forever: it is let go instead, and throws
+   * the first error.
+   *
+   * @param {Error} e
+   */
+  fail(e) {
+    console.error(e);
+    if (this.error) {
+      return;
+    }
+    this.error = e;
+    if (this.resolveRecodePromise) {
+      this.resolveRecodePromise();
+      this.resolveRecodePromise = null;
+    }
+  }
+
   arrayEquals(a, b) {
     let i;
 
@@ -61,6 +80,10 @@ export class Reencoder extends EventEmitter {
     const audioChunks = demuxer.getAudioChunks();
     demuxer.clearChunks();
 
+    if (this.error) {
+      throw this.error;
+    }
+
     videoChunks.forEach((chunk) => {
       this.videoDecoder.decode(chunk);
     });
@@ -74,6 +97,10 @@ export class Reencoder extends EventEmitter {
     });
 
     await waitEncodePromise;
+
+    if (this.error) {
+      throw this.error;
+    }
 
     if (this.videoEncoder) {
       if (
@@ -104,8 +131,6 @@ export class Reencoder extends EventEmitter {
       throw new Error('no video or audio');
     }
 
-    let videoOutput;
-    let audioOutput;
     if (videoDuration) {
       this.videoDuration = videoDuration;
       this.videoDemuxer = videoMimeType.includes('webm') ? new WebMDemuxer() : new MP4Demuxer();
@@ -154,13 +179,6 @@ export class Reencoder extends EventEmitter {
       console.log('Video decoder config: ', decoderConfig);
       console.log('Video encoder config: ', encoderConfig);
 
-
-      videoOutput = {
-        codec: 'avc',
-        width: decoderConfig.codedWidth,
-        height: decoderConfig.codedHeight,
-      };
-
       const support = await VideoDecoder.isConfigSupported(decoderConfig);
       if (!support) {
         throw new Error('unsupported input video codec');
@@ -173,35 +191,39 @@ export class Reencoder extends EventEmitter {
 
       this.lastVideoKeyframe = 0;
 
+      // A codec that fails has closed itself by the time its error callback runs, so the
+      // callbacks only report it (fail()); close() there would throw.
       this.videoEncoder = new VideoEncoder({
         output: (chunk, meta) => {
-          this.muxer.addVideoChunk(chunk, meta);
+          this.writer.addVideoChunk(chunk, meta);
           requeue();
         },
-        error: (e) => {
-          console.error(e);
-          this.videoEncoder.close();
-        },
+        error: (e) => this.fail(e),
       });
       this.videoEncoder.configure(encoderConfig);
 
 
       this.videoDecoder = new VideoDecoder({
         output: (frame) => {
-          const timestamp = frame.timestamp; // frame.timestamp is in microseconds
-          if (timestamp - this.lastVideoKeyframe > KEYFRAME_INTERVAL) {
-            this.lastVideoKeyframe = timestamp;
-            this.videoEncoder.encode(frame, {keyFrame: true});
-          } else {
-            this.videoEncoder.encode(frame);
+          try {
+            if (this.error) {
+              return;
+            }
+            const timestamp = frame.timestamp; // frame.timestamp is in microseconds
+            if (timestamp - this.lastVideoKeyframe > KEYFRAME_INTERVAL) {
+              this.lastVideoKeyframe = timestamp;
+              this.videoEncoder.encode(frame, {keyFrame: true});
+            } else {
+              this.videoEncoder.encode(frame);
+            }
+          } catch (e) {
+            this.fail(e);
+          } finally {
+            frame.close();
           }
-          frame.close();
           requeue();
         },
-        error: (e) => {
-          console.error(e);
-          this.videoDecoder.close();
-        },
+        error: (e) => this.fail(e),
       });
       this.videoDecoder.configure(decoderConfig);
     }
@@ -229,12 +251,6 @@ export class Reencoder extends EventEmitter {
       console.log('Audio decoder config: ', decoderConfig);
       console.log('Audio encoder config: ', encoderConfig);
 
-      audioOutput = {
-        codec: 'aac',
-        sampleRate: decoderConfig.sampleRate,
-        numberOfChannels: decoderConfig.numberOfChannels,
-      };
-
       const support = await AudioDecoder.isConfigSupported(decoderConfig);
       if (!support) {
         throw new Error('unsupported input audio codec');
@@ -248,13 +264,10 @@ export class Reencoder extends EventEmitter {
       this.lastAudioKeyframe = 0;
       this.audioEncoder = new AudioEncoder({
         output: (chunk, meta) => {
-          this.muxer.addAudioChunk(chunk, meta);
+          this.writer.addAudioChunk(chunk, meta);
           requeue();
         },
-        error: (e) => {
-          console.error(e);
-          this.audioEncoder.close();
-        },
+        error: (e) => this.fail(e),
       });
       this.audioEncoder.configure(encoderConfig);
 
@@ -284,12 +297,21 @@ export class Reencoder extends EventEmitter {
           this.resamplerWorkerTasks--;
 
           const frame = data.data;
-          const timestamp = frame.timestamp; // frame.timestamp is in microseconds
-          if (timestamp - this.lastAudioKeyframe > KEYFRAME_INTERVAL) {
-            this.lastAudioKeyframe = timestamp;
-            this.audioEncoder.encode(frame, {keyFrame: true});
-          } else {
-            this.audioEncoder.encode(frame);
+          if (this.error) {
+            frame.close();
+            return;
+          }
+          try {
+            const timestamp = frame.timestamp; // frame.timestamp is in microseconds
+            if (timestamp - this.lastAudioKeyframe > KEYFRAME_INTERVAL) {
+              this.lastAudioKeyframe = timestamp;
+              this.audioEncoder.encode(frame, {keyFrame: true});
+            } else {
+              this.audioEncoder.encode(frame);
+            }
+          } catch (e) {
+            this.fail(e);
+            return;
           }
 
           requeue();
@@ -302,13 +324,17 @@ export class Reencoder extends EventEmitter {
       });
 
       this.resamplerWorker.addEventListener('error', (e) => {
-        console.error(e);
         this.resamplerWorker.terminate();
         this.resamplerWorker = null;
+        this.fail(new Error('The audio resampler failed: ' + (e.message || 'no message')));
       });
 
       this.audioDecoder = new AudioDecoder({
         output: (data) => {
+          if (this.error) {
+            data.close();
+            return;
+          }
           this.resamplerWorkerTasks++;
           this.resamplerWorker.postMessage({
             type: 'pushSample',
@@ -317,130 +343,50 @@ export class Reencoder extends EventEmitter {
 
           requeue();
         },
-        error: (e) => {
-          console.error(e);
-          this.audioDecoder.close();
-        },
+        error: (e) => this.fail(e),
       });
       this.audioDecoder.configure(decoderConfig);
     }
-    this.chunks = [];
-    // 16mb
-    const chunkSize = 16 * 1024 * 1024;
-
-    this.muxer = new Muxer({
-      fastStart: 'fragmented',
-      firstTimestampBehavior: 'cross-track-offset',
-      video: videoOutput,
-      audio: audioOutput,
-
-      // target: new ArrayBufferTarget(),
-      //   fastStart: 'in-memory',
-      target: new StreamTarget({
-        onData: (data, position) => { // Store in memory until full, then write to disk
-          const startPos = position;
-          const endPos = position + data.byteLength;
-          const startChunk = Math.floor(startPos / chunkSize);
-          const endChunk = Math.floor((endPos - 1) / chunkSize);
-
-          for (let i = startChunk; i <= endChunk; i++) {
-            let chunk = this.chunks[i];
-            if (!chunk) {
-              chunk = {
-                filledRanges: [],
-                data: new Uint8Array(chunkSize),
-                flushed: false,
-              };
-              this.chunks[i] = chunk;
-            }
-
-            if (chunk.flushed) {
-              throw new Error('chunk already flushed');
-            }
-
-            const start = Math.max(startPos, i * chunkSize);
-            const end = Math.min(endPos, (i + 1) * chunkSize);
-            const offset = start - i * chunkSize;
-            const length = end - start;
-
-            chunk.data.set(data.subarray(start - startPos, end - startPos), offset);
-            chunk.filledRanges.push([offset, offset + length]);
-
-            // Merge filled ranges
-            const newFilledRanges = [];
-            const ranges = chunk.filledRanges;
-            let last;
-            ranges.sort(function(a, b) {
-              return a[0]-b[0] || a[1]-b[1];
-            });
-            ranges.forEach(function(r) {
-              if (!last || r[0] > last[1]) {
-                newFilledRanges.push(last = r);
-              } else if (r[1] > last[1]) {
-                last[1] = r[1];
-              }
-            });
-            chunk.filledRanges = newFilledRanges;
-
-            // Check if chunk is full
-            if (chunk.filledRanges.length === 1 && chunk.filledRanges[0][0] === 0 && chunk.filledRanges[0][1] === chunkSize) {
-              chunk.data = this.blobManager.createBlob(chunk.data);
-              chunk.flushed = true;
-            }
-          }
-        },
-      }),
-    });
+    this.writer = new MP4Writer(this.blobManager, {
+      video: !!this.videoEncoder,
+      audio: !!this.audioEncoder,
+    }, (e) => this.fail(e));
+    await this.writer.start();
   }
 
   async finalize() {
-    if (this.audioDecoder) {
-      // Process last packet
-      const left = this.audioDemuxer.getAudioChunks(this.audioDuration);
-      left.forEach((chunk) => {
-        this.audioDecoder.decode(chunk);
-      });
+    try {
+      if (this.audioDecoder) {
+        // Process last packet
+        const left = this.audioDemuxer.getAudioChunks(this.audioDuration);
+        left.forEach((chunk) => {
+          this.audioDecoder.decode(chunk);
+        });
 
-      await this.audioDecoder.flush();
-      await this.audioEncoder.flush();
-    }
-
-    if (this.videoDecoder) {
-      // Process last packet
-      const left = this.videoDemuxer.getVideoChunks(this.videoDuration);
-      left.forEach((chunk) => {
-        this.videoDecoder.decode(chunk);
-      });
-
-      await this.videoDecoder.flush();
-      await this.videoEncoder.flush();
-    }
-
-    this.muxer.finalize();
-
-    // Check empty chunks
-    for (let i = 0; i < this.chunks.length; i++) {
-      if (!this.chunks[i]) {
-        throw new Error('empty chunk');
+        await this.audioDecoder.flush();
+        await this.audioEncoder.flush();
       }
+
+      if (this.videoDecoder) {
+        // Process last packet
+        const left = this.videoDemuxer.getVideoChunks(this.videoDuration);
+        left.forEach((chunk) => {
+          this.videoDecoder.decode(chunk);
+        });
+
+        await this.videoDecoder.flush();
+        await this.videoEncoder.flush();
+      }
+    } catch (e) {
+      // A codec that failed rejects its flush, or throws on decode, with less to say
+      // than the error that closed it.
+      throw this.error || e;
     }
 
-    const dataChunks = await Promise.all(this.chunks.map((chunk, i) => {
-      if (chunk.flushed) {
-        return this.blobManager.getBlob(chunk.data);
-      } else if (i === this.chunks.length - 1) {
-        // Last chunk
-        // Find size
-        const end = chunk.filledRanges[chunk.filledRanges.length - 1][1];
-        return chunk.data.slice(0, end);
-      } else {
-        throw new Error('chunk not flushed');
-      }
-    }));
-
-    return new Blob(dataChunks, {
-      type: 'video/mp4',
-    });
+    if (this.error) {
+      throw this.error;
+    }
+    return this.writer.finalize();
   }
 
   async convert(videoMimeType, videoDuration, videoInitSegment, audioMimeType, audioDuration, audioInitSegment, zippedFragments) {
@@ -454,52 +400,53 @@ export class Reencoder extends EventEmitter {
       throw new Error('Cancelled');
     }
 
-    await this.setup(videoMimeType, videoDuration, videoInitSegment, audioMimeType, audioDuration, audioInitSegment);
+    try {
+      await this.setup(videoMimeType, videoDuration, videoInitSegment, audioMimeType, audioDuration, audioInitSegment);
 
-    let lastProgress = 0;
-    for (let i = 0; i < zippedFragments.length; i++) {
-      if (this.cancelled) {
-        this.destroy();
-        this.blobManager.close();
-        throw new Error('Cancelled');
+      let lastProgress = 0;
+      for (let i = 0; i < zippedFragments.length; i++) {
+        if (this.cancelled) {
+          this.destroy();
+          this.blobManager.close();
+          throw new Error('Cancelled');
+        }
+        if (zippedFragments[i].track === 0) {
+          await this.pushFragment(zippedFragments[i], this.videoDemuxer);
+        } else {
+          await this.pushFragment(zippedFragments[i], this.audioDemuxer);
+        }
+        const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
+        if (newProgress !== lastProgress) {
+          lastProgress = newProgress;
+          this.emit('progress', newProgress / 100);
+        }
       }
-      if (zippedFragments[i].track === 0) {
-        await this.pushFragment(zippedFragments[i], this.videoDemuxer);
-      } else {
-        await this.pushFragment(zippedFragments[i], this.audioDemuxer);
-      }
-      const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
-      if (newProgress !== lastProgress) {
-        lastProgress = newProgress;
-        this.emit('progress', newProgress / 100);
-      }
+
+      const blob = await this.finalize();
+      this.destroy();
+
+      return blob;
+    } catch (e) {
+      // Frees the codecs and the resampler worker, which stay open until closed.
+      this.destroy();
+      throw e;
     }
-
-    const blob = await this.finalize();
-    this.destroy();
-
-    return blob;
   }
 
   destroy() {
-    if (this.videoDecoder) {
-      this.videoDecoder.close();
-      this.videoDecoder = null;
+    if (this.destroyed) {
+      return;
     }
+    this.destroyed = true;
 
-    if (this.audioDecoder) {
-      this.audioDecoder.close();
-      this.audioDecoder = null;
-    }
-
-    if (this.videoEncoder) {
-      this.videoEncoder.close();
-      this.videoEncoder = null;
-    }
-
-    if (this.audioEncoder) {
-      this.audioEncoder.close();
-      this.audioEncoder = null;
+    // A codec that failed is closed already, and close() on it throws.
+    for (const codec of ['videoDecoder', 'audioDecoder', 'videoEncoder', 'audioEncoder']) {
+      if (this[codec]) {
+        if (this[codec].state !== 'closed') {
+          this[codec].close();
+        }
+        this[codec] = null;
+      }
     }
 
     if (this.resamplerWorker) {
@@ -510,8 +457,11 @@ export class Reencoder extends EventEmitter {
     this.videoDemuxer = null;
     this.audioDemuxer = null;
 
-    this.muxer = null;
-    this.chunks = null;
+    if (this.writer) {
+      // Stops a file that is still being written; one that was finished stays as it is.
+      this.writer.cancel().catch((e) => console.warn(e));
+      this.writer = null;
+    }
 
     setTimeout(() => {
       this.blobManager.close();

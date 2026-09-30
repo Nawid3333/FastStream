@@ -139,9 +139,14 @@ const VENDOR = [
     patched: chunk.startsWith('styp-'),
   })),
   {
-    name: 'mp4-muxer',
-    from: 'node_modules/mp4-muxer/build/mp4-muxer.mjs',
-    to: 'chrome/player/modules/reencoder/mp4-muxer.mjs',
+    // mp4-muxer's successor, by the same author; mp4-muxer is deprecated and
+    // its last release (5.2.2) crashed where 4.3.3 did not (#25). The ES module
+    // bundle as published, with its MPL-2.0 header. Its four blob: Workers
+    // serve camera capture and alpha-channel video, which the re-encoder never
+    // reaches.
+    name: 'mediabunny',
+    from: 'node_modules/mediabunny/dist/bundles/mediabunny.mjs',
+    to: 'chrome/player/modules/reencoder/mediabunny.mjs',
     transform: normaliseText,
   },
   {

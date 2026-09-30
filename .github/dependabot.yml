@@ -37,12 +37,13 @@ updates:
       - 'dependencies'
     groups:
       # Keep in step with tools/sync-vendor.mjs: the unpatched libraries it copies.
-      # The patched ones are ignored below.
+      # The patched ones are ignored below. A new mediabunny must write files that
+      # read back sample for sample (tests/e2e/specs/modules.e2e.mjs).
       shipped-minor-and-patch:
-        patterns: ['fuse.js', 'pako', 'sortablejs']
+        patterns: ['fuse.js', 'mediabunny', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
       tooling-minor-and-patch:
-        exclude-patterns: ['fuse.js', 'pako', 'sortablejs']
+        exclude-patterns: ['fuse.js', 'mediabunny', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump
@@ -66,12 +67,6 @@ updates:
       # the VAD e2e test failed in the runtime. Moving it means rebuilding that wasm
       # (tools/reproduce-ort-wasm.sh; docs/vendored-libraries.md, "The VAD blobs").
       - dependency-name: 'onnxruntime-web'
-      # Deprecated upstream (superseded by Mediabunny); 5.2.2 is its last release and
-      # crashes finalizing a video track that received no frames, which 4.3.3 survives
-      # and tests/e2e/specs/modules.e2e.mjs checks. Tried and reverted 2026-09-06, and
-      # again as #25 on 2026-09-25 (docs/vendored-libraries.md). No newer version can
-      # come, so there is nothing for Dependabot to offer; the way on is Mediabunny.
-      - dependency-name: 'mp4-muxer'
 
   # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
   # express (fsaunpack/, its own package.json and package-lock.json). It is not

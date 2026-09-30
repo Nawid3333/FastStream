@@ -15,7 +15,12 @@
 // through the player UI, because the UI paths need a loaded video, a set loop
 // region and several seconds of playback to reach the same code.
 
+import {spawnSync} from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {browser, expect} from '@wdio/globals';
+import {createFile} from 'mp4box';
 
 /**
  * Runs an async snippet in the page and waits for it to settle.
@@ -53,6 +58,69 @@ async function runInPage(fn, timeout = 60000) {
       () => ({out: window.__out, err: window.__err}));
   if (err) throw new Error('page-side failure: ' + err);
   return out;
+}
+
+// How far a sample's time in a written MP4 may be from its chunk's: well under a frame
+// (33 ms here) and under the gaps these tests look for, while allowing for the file's
+// timescale.
+const PTS_TOLERANCE = 0.0005;
+
+/**
+ * Reads an MP4 back: its tracks and samples with mp4box, and every frame decoded with
+ * ffmpeg, the way a player would.
+ *
+ * The times come from the file's own boxes: a sample's decode time plus its composition
+ * offset, less the track's edit list if it has one. ffprobe's pts would not do: for the
+ * negative composition offsets a B-frame stream gets (trun version 1), ffmpeg moves every
+ * pts of the track later by the largest of them, and without an edit list to say so.
+ *
+ * @param {string} base64 the file
+ * @return {Object} {decodeErrors, boxes, boxBytes, size, streams, width, height, sampleRate,
+ *     channels, video, audio}: boxes the top-level box types and boxBytes their sizes
+ *     added up, to set against the file's size; streams the track types in file order, and
+ *     video and audio each track's samples in decode order, as {pts, key, size}
+ */
+function probeMp4(base64) {
+  const bytes = Buffer.from(base64, 'base64');
+  const file = path.join(os.tmpdir(), `faststream-e2e-${process.pid}-${Date.now()}.mp4`);
+  fs.writeFileSync(file, bytes);
+  try {
+    const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
+    if (decode.error) {
+      throw new Error(`ffmpeg must be on PATH to decode a written file: ${decode.error.message}`);
+    }
+
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    buffer.fileStart = 0;
+    const mp4 = createFile(false);
+    mp4.appendBuffer(buffer);
+    mp4.flush();
+    const tracks = mp4.getInfo().tracks;
+    const samplesOf = (type) => {
+      const track = tracks.find((t) => t.type === type);
+      if (!track) return [];
+      const trak = mp4.getTrackById(track.id);
+      const edit = trak.edts?.elst?.entries?.[0]?.media_time ?? 0;
+      return trak.samples.map((s) => ({pts: (s.cts - edit) / s.timescale, key: s.is_sync, size: s.size}));
+    };
+    const video = tracks.find((t) => t.type === 'video');
+    const audio = tracks.find((t) => t.type === 'audio');
+    return {
+      decodeErrors: (decode.stderr || '').trim(),
+      boxes: mp4.boxes.map((box) => box.type),
+      boxBytes: mp4.boxes.reduce((sum, box) => sum + box.size, 0),
+      size: bytes.length,
+      streams: tracks.map((t) => t.type),
+      width: video?.video.width,
+      height: video?.video.height,
+      sampleRate: audio?.audio.sample_rate,
+      channels: audio?.audio.channel_count,
+      video: samplesOf('video'),
+      audio: samplesOf('audio'),
+    };
+  } finally {
+    fs.rmSync(file, {force: true});
+  }
 }
 
 describe('vendored encoding libraries', function() {
@@ -105,30 +173,405 @@ describe('vendored encoding libraries', function() {
     expect(result.size).toBeGreaterThan(100);
   });
 
-  it('mp4-muxer writes a valid MP4 container', async function() {
+  it('Mediabunny finishes a file with an empty video track, and one whose video never came', async function() {
+    // mp4-muxer 5.2.2 crashed finishing a file whose video track had no chunks, which is
+    // why it was reverted (#25); its successor Mediabunny replaced it. The re-encoder's
+    // writer (mp4-writer.mjs) meets both shapes here. A video encoder that puts out
+    // nothing leaves the audio held in TimestampRebaser until finalize() flushes it, so
+    // the second file checks the audio arrives, from 0: dash-list's segment 2, 2 s in.
     const result = await runInPage(async () => {
-      const {Muxer, ArrayBufferTarget} =
-        await import('/player/modules/reencoder/mp4-muxer.mjs');
-      const target = new ArrayBufferTarget();
-      const muxer = new Muxer({
-        target,
-        video: {codec: 'avc', width: 64, height: 64},
-        fastStart: 'in-memory',
-      });
-      muxer.finalize();
-      const bytes = new Uint8Array(target.buffer);
+      const {MP4Writer} = await import('/player/modules/reencoder/mp4-writer.mjs');
+      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
+      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
+      const base64 = async (blob) => {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let text = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        }
+        return btoa(text);
+      };
+      const blobManager = new FSBlob();
+      const errors = [];
+
+      const empty = new MP4Writer(blobManager, {video: true}, (e) => errors.push(String(e)));
+      await empty.start();
+      const emptyFile = await empty.finalize();
+
+      const audio = new MP4Demuxer();
+      audio.initialize(await get('dash-list/init-stream1.m4s'));
+      audio.appendBuffer(await get('dash-list/chunk-stream1-00002.m4s'));
+      const chunks = audio.getAudioChunks(true);
+      // MP4Demuxer leaves the AudioSpecificConfig out (the decoder does not need it for
+      // AAC); a muxer does, so it comes from the init segment's esds box.
+      const entry = audio.file.getTrackById(audio.audioTrack.id).mdia.minf.stbl.stsd.entries[0];
+      const decoderConfig = {
+        ...audio.getAudioDecoderConfig(),
+        description: entry.esds.esd.findDescriptor(4).findDescriptor(5).data,
+      };
+      const noVideo = new MP4Writer(blobManager, {video: true, audio: true}, (e) => errors.push(String(e)));
+      await noVideo.start();
+      chunks.forEach((chunk, i) => noVideo.addAudioChunk(chunk, i ? undefined : {decoderConfig}));
+      const noVideoFile = await noVideo.finalize();
+      await blobManager.close();
+
       return {
-        length: bytes.length,
-        // Every ISO-BMFF file opens with a size field then the 'ftyp' box
-        // type at offset 4. Getting this right means the muxer actually ran
-        // its box writers, not merely that the module imported.
-        boxType: String.fromCharCode(...bytes.slice(4, 8)),
+        empty: {
+          size: emptyFile.size,
+          boxType: new TextDecoder().decode(await emptyFile.slice(4, 8).arrayBuffer()),
+        },
+        noVideo: await base64(noVideoFile),
+        input: chunks.map((chunk) => ({timestamp: chunk.timestamp, size: chunk.byteLength})),
+        errors,
       };
     });
 
-    console.log('      mp4-muxer:', JSON.stringify(result));
-    expect(result.boxType).toBe('ftyp');
-    expect(result.length).toBeGreaterThan(0);
+    console.log('      empty track:', JSON.stringify(result.empty), result.errors);
+    expect(result.errors).toEqual([]);
+    expect(result.empty.boxType).toBe('ftyp');
+    expect(result.empty.size).toBeGreaterThan(0);
+
+    const file = probeMp4(result.noVideo);
+    const first = result.input[0].timestamp;
+    console.log('      no video:', JSON.stringify({streams: file.streams, packets: file.audio.length,
+      firstPts: file.audio[0]?.pts, inputFirst: first / 1e6}));
+    expect(file.decodeErrors).toBe('');
+    expect(file.streams).toEqual(['audio']);
+    expect(file.audio.length).toBe(result.input.length);
+    // Guards the fixture: a segment that starts at 0 proves nothing about moving it there.
+    expect(first).toBeGreaterThan(1e6);
+    result.input.forEach((chunk, i) => {
+      expect(Math.abs(file.audio[i].pts - (chunk.timestamp - first) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.audio[i].size).toBe(chunk.size);
+    });
+  });
+
+  it('Mediabunny writes H.264 with B-frames and AAC from mid-stream into a file that starts at 0', async function() {
+    // The re-encoder's writer (mp4-writer.mjs), fed stream-copied chunks so the file can
+    // be checked packet by packet against its input on every platform: WebCodecs H.264
+    // encoding is not there on every runner. The video is fmp4-bframes' second segment,
+    // from its keyframe 8.4 s in, B-frames and all; the audio is dash-list's segments 4
+    // and 5, from 6.037 s (both as MP4Demuxer times them, before the fixtures' edit
+    // lists). A save from the middle of a stream looks like this, and the file must
+    // start at 0 with the video 2.363 s after the audio, as they played.
+    //
+    // All the video goes in before any audio, as a video encoder that runs ahead would
+    // send it. Nothing may reach the file before the audio's first chunk says where 0 is
+    // (TimestampRebaser); moved by the video's own start, the audio would begin at -2.3 s.
+    //
+    // The writer keeps the file in 16 KB pieces here instead of 16 MB, so it runs its
+    // piece store the way a long save does: most pieces go to FSBlob and back.
+    const result = await runInPage(async () => {
+      const {MP4Writer} = await import('/player/modules/reencoder/mp4-writer.mjs');
+      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
+      const {DataStream, Endianness} = await import('/player/modules/mp4box/mp4box.all.mjs');
+      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
+      const base64 = async (blob) => {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let text = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        }
+        return btoa(text);
+      };
+      const entryOf = (demuxer, track) =>
+        demuxer.file.getTrackById(track.id).mdia.minf.stbl.stsd.entries[0];
+
+      // MP4Demuxer's configs have no description, which a muxer needs: the avcC and the
+      // AudioSpecificConfig come from the init segments.
+      const video = new MP4Demuxer();
+      video.initialize(await get('fmp4-bframes/init-stream0.m4s'));
+      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00002.m4s'));
+      const videoChunks = video.getVideoChunks(true);
+      const avcC = new DataStream();
+      avcC.endianness = Endianness.BIG_ENDIAN;
+      entryOf(video, video.videoTrack).avcC.write(avcC);
+      const videoConfig = {
+        ...video.getVideoDecoderConfig(),
+        description: new Uint8Array(avcC.buffer, 8),
+      };
+
+      const audio = new MP4Demuxer();
+      audio.initialize(await get('dash-list/init-stream1.m4s'));
+      audio.appendBuffer(await get('dash-list/chunk-stream1-00004.m4s'));
+      audio.appendBuffer(await get('dash-list/chunk-stream1-00005.m4s'));
+      const audioChunks = audio.getAudioChunks(true);
+      const audioConfig = {
+        ...audio.getAudioDecoderConfig(),
+        description: entryOf(audio, audio.audioTrack).esds.esd.findDescriptor(4).findDescriptor(5).data,
+      };
+
+      const blobManager = new FSBlob();
+      const errors = [];
+      const writer = new MP4Writer(blobManager, {video: true, audio: true}, (e) => errors.push(String(e)), 16 * 1024);
+      await writer.start();
+      videoChunks.forEach((chunk, i) => writer.addVideoChunk(chunk, i ? undefined : {decoderConfig: videoConfig}));
+      audioChunks.forEach((chunk, i) => writer.addAudioChunk(chunk, i ? undefined : {decoderConfig: audioConfig}));
+      const file = await writer.finalize();
+
+      // And Firefox plays it: loads it, and has a frame after a seek to where both tracks
+      // play (video from 2.363 s, audio to 2.986 s). Firefox reports a fragmented file's
+      // duration as its shortest track's end, for mp4-muxer 4.3.3's files as for these, so
+      // the duration is not what this checks.
+      const element = document.createElement('video');
+      element.muted = true;
+      const url = URL.createObjectURL(file);
+      const failed = new Promise((resolve, reject) => {
+        element.onerror = () => reject(new Error('Firefox could not play the file: ' +
+          (element.error && element.error.message)));
+      });
+      element.src = url;
+      await Promise.race([failed, new Promise((resolve) => element.addEventListener('loadeddata', resolve, {once: true}))]);
+      element.currentTime = 2.8;
+      await Promise.race([failed, new Promise((resolve) => element.addEventListener('seeked', resolve, {once: true}))]);
+      for (let i = 0; i < 50 && element.readyState < 2; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      const played = {
+        currentTime: element.currentTime,
+        readyState: element.readyState,
+        width: element.videoWidth,
+      };
+      URL.revokeObjectURL(url);
+      element.removeAttribute('src');
+      element.load();
+
+      const pieces = writer.pieces.length;
+      const onDisk = writer.pieces.filter((piece) => piece.flushed).length;
+      const bytes = await base64(file);
+      await blobManager.close();
+      return {
+        bytes,
+        size: file.size,
+        pieces,
+        onDisk,
+        played,
+        errors,
+        video: videoChunks.map((c) => ({timestamp: c.timestamp, key: c.type === 'key', size: c.byteLength})),
+        audio: audioChunks.map((c) => ({timestamp: c.timestamp, size: c.byteLength})),
+      };
+    });
+
+    const file = probeMp4(result.bytes);
+    const start = Math.min(result.video[0].timestamp, result.audio[0].timestamp);
+    console.log('      mediabunny:', JSON.stringify({
+      size: result.size, pieces: result.pieces, onDisk: result.onDisk, played: result.played,
+      streams: file.streams, video: file.video.length, audio: file.audio.length,
+      videoStart: file.video[0]?.pts, audioStart: file.audio[0]?.pts,
+    }), result.errors);
+
+    expect(result.errors).toEqual([]);
+    expect(file.decodeErrors).toBe('');
+    // Whole: the boxes fill the file exactly, up to the index at its end (ffmpeg and mp4box
+    // read a file that lost its last bytes without a word).
+    expect(file.boxes[0]).toBe('ftyp');
+    expect(file.boxes.at(-1)).toBe('mfra');
+    expect(file.boxBytes).toBe(file.size);
+    expect(file.streams).toEqual(['video', 'audio']);
+    expect(file.width).toBe(640);
+    expect(file.height).toBe(360);
+    expect(file.sampleRate).toBe(44100);
+    expect(file.channels).toBe(1);
+
+    // Guards the fixtures: the audio starts first, and the video has reordered frames.
+    expect(result.audio[0].timestamp).toBeLessThan(result.video[0].timestamp - 2e6);
+    const inputPts = result.video.map((c) => c.timestamp);
+    expect(inputPts.some((t, i) => i > 0 && t < inputPts[i - 1])).toBe(true);
+
+    // Every sample, in order, where its chunk was less the start, same size, same keyframes.
+    expect(file.video.length).toBe(result.video.length);
+    result.video.forEach((chunk, i) => {
+      expect(Math.abs(file.video[i].pts - (chunk.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.video[i].key).toBe(chunk.key);
+      expect(file.video[i].size).toBe(chunk.size);
+    });
+    expect(file.audio.length).toBe(result.audio.length);
+    result.audio.forEach((chunk, i) => {
+      expect(Math.abs(file.audio[i].pts - (chunk.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.audio[i].size).toBe(chunk.size);
+    });
+    expect(file.audio[0].pts).toBe(0);
+
+    // More than one piece went through FSBlob, and came back in order (the probe above
+    // read every byte).
+    expect(result.onDisk).toBeGreaterThan(1);
+    expect(result.pieces).toBe(Math.ceil(result.size / (16 * 1024)));
+
+    expect(result.played.width).toBe(640);
+    expect(result.played.readyState).toBeGreaterThanOrEqual(2);
+    expect(Math.abs(result.played.currentTime - 2.8)).toBeLessThan(0.01);
+  });
+});
+
+describe('the re-encoder', function() {
+  beforeEach(async function() {
+    await browser.url('/player/index.html?t=' + Date.now());
+  });
+
+  /**
+   * Re-encodes fmp4-bframes' two segments with fake codecs and reports how it ended.
+   *
+   * The decoder turns each chunk into a small real VideoFrame, a task later, as a
+   * decoder does. The encoder fails as window.__encoderFails says: 'error' fails the
+   * first frame the way WebCodecs fails an encoder (closed, then the error callback, in
+   * one task of their own); 'delta' puts out a delta chunk first, which the MP4 writer
+   * refuses. Fakes, so every platform takes the same path.
+   *
+   * @return {Promise<Object>} {outcome, ms, destroyed, openCodecs, codecs, framesEncoded}:
+   *     outcome is {name, message} for a rejection, {resolved: true}, or {hung: true}
+   *     after 20 s; framesEncoded how many frames the encoder took (the video has 300)
+   */
+  function reencodeWithFailingEncoder() {
+    return runInPage(async () => {
+      const {Reencoder} = await import('/player/modules/reencoder/reencoder.mjs');
+      const {AlertPolyfill} = await import('/player/utils/AlertPolyfill.mjs');
+      AlertPolyfill.confirm = async () => true;
+
+      const canvas = new OffscreenCanvas(16, 16);
+      canvas.getContext('2d').fillRect(0, 0, 16, 16);
+      const codecs = [];
+      let framesEncoded = 0;
+      const invalid = (what, codec) => new DOMException(`${what} on a ${codec.state} codec`, 'InvalidStateError');
+      class FakeDecoder {
+        static isConfigSupported(config) {
+          return Promise.resolve({supported: true, config});
+        }
+        constructor({output}) {
+          this.output = output;
+          this.state = 'unconfigured';
+          this.decodeQueueSize = 0;
+          this.pending = Promise.resolve();
+          codecs.push(this);
+        }
+        configure() {
+          this.state = 'configured';
+        }
+        decode(chunk) {
+          if (this.state !== 'configured') throw invalid('decode', this);
+          this.decodeQueueSize++;
+          const timestamp = chunk.timestamp;
+          this.pending = this.pending.then(() => new Promise((resolve) => setTimeout(resolve))).then(() => {
+            this.decodeQueueSize--;
+            if (this.state === 'configured') {
+              this.output(new VideoFrame(canvas, {timestamp}));
+            }
+          });
+        }
+        flush() {
+          return this.state === 'configured' ? this.pending : Promise.reject(invalid('flush', this));
+        }
+        close() {
+          if (this.state === 'closed') throw invalid('close', this);
+          this.state = 'closed';
+        }
+      }
+      class FailingEncoder {
+        static isConfigSupported(config) {
+          return Promise.resolve({supported: true, config});
+        }
+        constructor({output, error}) {
+          this.output = output;
+          this.error = error;
+          this.state = 'unconfigured';
+          this.encodeQueueSize = 0;
+          codecs.push(this);
+        }
+        configure() {
+          this.state = 'configured';
+        }
+        encode(frame) {
+          if (this.state !== 'configured') throw invalid('encode', this);
+          framesEncoded++;
+          const timestamp = frame.timestamp;
+          this.encodeQueueSize++;
+          setTimeout(() => {
+            this.encodeQueueSize--;
+            if (this.state !== 'configured') return;
+            if (window.__encoderFails === 'error') {
+              this.state = 'closed';
+              this.error(new DOMException('the fake encoder failed', 'EncodingError'));
+            } else {
+              this.output(new EncodedVideoChunk({type: 'delta', timestamp, data: new Uint8Array(8)}), {
+                decoderConfig: {
+                  codec: 'avc1.42001e', codedWidth: 16, codedHeight: 16,
+                  description: new Uint8Array([1, 0x42, 0, 0x1e, 0xff, 0xe0, 0]),
+                },
+              });
+            }
+          });
+        }
+        flush() {
+          return this.state === 'configured' ? Promise.resolve() : Promise.reject(invalid('flush', this));
+        }
+        close() {
+          if (this.state === 'closed') throw invalid('close', this);
+          this.state = 'closed';
+        }
+      }
+      window.VideoDecoder = FakeDecoder;
+      window.VideoEncoder = FailingEncoder;
+
+      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
+      const fragment = (file) => ({track: 0, getEntry: async () => ({getData: async () => new Blob([file])})});
+      const init = await get('fmp4-bframes/init-stream0.m4s');
+      const fragments = [
+        fragment(await get('fmp4-bframes/chunk-stream0-00001.m4s')),
+        fragment(await get('fmp4-bframes/chunk-stream0-00002.m4s')),
+      ];
+
+      const reencoder = new Reencoder(() => {});
+      const t0 = performance.now();
+      const outcome = await Promise.race([
+        reencoder.convert('video/mp4', 10, init, '', 0, null, fragments).then(
+            () => ({resolved: true}),
+            (e) => ({name: e && e.name, message: String(e && e.message)})),
+        new Promise((resolve) => setTimeout(() => resolve({hung: true}), 20000)),
+      ]);
+      return {
+        outcome,
+        ms: Math.round(performance.now() - t0),
+        destroyed: reencoder.destroyed === true,
+        openCodecs: codecs.filter((codec) => codec.state !== 'closed').length,
+        codecs: codecs.length,
+        framesEncoded,
+      };
+    }, 40000);
+  }
+
+  it('ends the save with the encoder\'s error instead of waiting forever', async function() {
+    // Firefox on Windows fails H.264 encoding of the re-encoder's frames with an
+    // EncodingError. A codec that fails closes itself and puts out nothing more, and
+    // pushFragment() waited for its output: the save hung where it was, and the error
+    // handler's own close() threw on the closed codec. Now the save fails with the
+    // encoder's error, and the codecs are closed.
+    await browser.execute(() => {
+      window.__encoderFails = 'error';
+    });
+    const result = await reencodeWithFailingEncoder();
+    console.log('      encoder error:', JSON.stringify(result));
+    expect(result.outcome).toEqual({name: 'EncodingError', message: 'the fake encoder failed'});
+    expect(result.framesEncoded).toBeLessThan(50);
+    expect(result.destroyed).toBe(true);
+    expect(result.codecs).toBe(2);
+    expect(result.openCodecs).toBe(0);
+  });
+
+  it('ends the save with the MP4 writer\'s error when Mediabunny refuses a chunk', async function() {
+    // Mediabunny rejects add() for a chunk it cannot take (here a first chunk that is
+    // not a keyframe); the writer hands that to the re-encoder, which ends the save
+    // with it at once instead of encoding the rest for a file that cannot be written.
+    await browser.execute(() => {
+      window.__encoderFails = 'delta';
+    });
+    const result = await reencodeWithFailingEncoder();
+    console.log('      writer error:', JSON.stringify(result));
+    expect(result.outcome.message).toContain('key packet');
+    // At once, not after the other 299 frames were encoded for nothing.
+    expect(result.framesEncoded).toBeLessThan(50);
+    expect(result.destroyed).toBe(true);
+    expect(result.openCodecs).toBe(0);
   });
 });
 
