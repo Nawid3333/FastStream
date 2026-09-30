@@ -17,13 +17,20 @@ const STALL_MAX_NUDGES = 3;
  * MP4Player's main loop runs check() about every millisecond.
  */
 export class StallWatchdog {
-  constructor() {
+  /**
+   * @param {function(number): void} [onStuck] - Called once, with the time, when the video is
+   *   still stuck after the last nudge; again only after it has played on. The video stayed
+   *   frozen after the nudges ran out, with no error to show.
+   */
+  constructor(onStuck = null) {
     // The time last seen and since when, how many nudges there have been, and where the
     // last one went (NaN: none).
     this.time = null;
     this.since = 0;
     this.nudges = 0;
     this.nudgedTo = NaN;
+    this.onStuck = onStuck;
+    this.reported = false;
   }
 
   /**
@@ -38,6 +45,7 @@ export class StallWatchdog {
       // Firefox keeps whole microseconds, so where a nudge lands can differ in the last digits.
       if (!(Math.abs(time - this.nudgedTo) < 0.001)) {
         this.nudges = 0;
+        this.reported = false;
       }
       this.time = time;
       this.since = now;
@@ -51,7 +59,15 @@ export class StallWatchdog {
       return;
     }
 
-    if (now - this.since < STALL_TIMEOUT_MS || this.nudges >= STALL_MAX_NUDGES) {
+    if (now - this.since < STALL_TIMEOUT_MS) {
+      return;
+    }
+    if (this.nudges >= STALL_MAX_NUDGES) {
+      if (!this.reported) {
+        this.reported = true;
+        console.error(`Playback still stuck at ${time} after ${STALL_MAX_NUDGES} nudges`);
+        if (this.onStuck) this.onStuck(time);
+      }
       return;
     }
     this.nudges++;

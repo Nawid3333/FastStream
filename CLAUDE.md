@@ -273,9 +273,14 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
   `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
-  and `XHRLoader`'s `stats.error` (`{code, text}`). Fragments and keys still get `onAbort`
-  after 1 s, and hls.js picks them again: upstream's design, on top of `XHRLoader`'s own
-  six retries.
+  and `XHRLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
+  `onAbort` after 1 s, and hls.js picks it again: upstream's design, on top of
+  `XHRLoader`'s own six retries. From the third failure in a row of the same one it gets
+  `onError` (`SEGMENT_FAILURES_BEFORE_ERROR`), so hls.js retries it by its own policy and
+  fails the player once it gives up; for good, a dead segment (an expired token's 403) spun
+  forever. `DashLoader` counts the same way and then gives dash.js `onFail` and the player an
+  error (2026-09-30). `MP4Player` asks a failed range again after 2, 4 and 8 s, then shows
+  the error once playback reaches it (`retryFailedRange`).
 - **`<video>` fires no `error` for a manifest that never loaded.** `HLSPlayer` passes a
   fatal `Hls.Events.ERROR` on as `DefaultPlayerEvents.ERROR` (after a fatal error hls.js
   loads nothing more). `DashPlayer` does the same for dash.js's manifest codes

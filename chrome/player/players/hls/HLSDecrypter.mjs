@@ -4,9 +4,10 @@ export class HLSDecrypter {
     this.lastId = 0;
   }
   async decryptAES(data, iv, key) {
+    // No data is a failure, never a result: the download stored what it got as the
+    // decrypted segment, complete, and nothing was ever there to play or save.
     if (this.destroyed) {
-      console.error('Decrypter already destroyed');
-      return;
+      throw new Error('Decrypter already destroyed');
     }
     if (!this.encryptionWorker) {
       this.setupEncryptionWorker();
@@ -14,7 +15,11 @@ export class HLSDecrypter {
     const id = this.lastId++;
     return new Promise((resolve, reject) => {
       this.encryptionWorkerCallbacks.set(id, (data, idn) => {
-        resolve(data);
+        if (data) {
+          resolve(data);
+        } else {
+          reject(new Error('Segment not decrypted: the decrypter was destroyed'));
+        }
       });
       this.encryptionWorker.postMessage({
         encrypted: data,

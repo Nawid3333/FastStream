@@ -1,3 +1,10 @@
+// How many times in a row one segment may fail before hls.js hears an error. Until then a
+// failure is reported as an abort, and hls.js asks for the segment again: FastStream's way
+// of riding out a failure that passes, on top of XHRLoader's own retries. For good, it hid
+// a dead segment (a 403 from an expired token) behind a spinner: hls.js asked for it
+// forever, and the player never showed an error.
+const SEGMENT_FAILURES_BEFORE_ERROR = 3;
+
 /**
  * Whether two hls.js fragments name the same bytes.
  * @param {Object} a - An hls.js fragment.
@@ -65,6 +72,9 @@ function isSameSegment(a, b) {
 
    */
 export function HLSLoaderFactory(player) {
+  // Failures in a row, per segment, for this player; a success forgets them.
+  const segmentFailures = new Map();
+
   return class HLSLoader {
     constructor() {
       // The shape of hls.js's LoadStats, since hls.js reads it before any download has
@@ -81,6 +91,25 @@ export function HLSLoaderFactory(player) {
         parsing: {start: 0, end: 0},
         buffering: {start: 0, first: 0, end: 0},
       };
+    }
+
+    /**
+     * Tells hls.js a segment or key failed to download: an abort the first times the same
+     * one fails (hls.js asks for it again), an error from then on (hls.js retries it by its
+     * own policy, and fails the player once it gives up).
+     * @param {string} key - Which segment or key.
+     */
+    reportFailure(key) {
+      const failures = (segmentFailures.get(key) || 0) + 1;
+      segmentFailures.set(key, failures);
+      if (!this.callbacks) return;
+      if (failures < SEGMENT_FAILURES_BEFORE_ERROR) {
+        this.stats.aborted = true;
+        this.callbacks.onAbort?.(this.stats, this.context, null, null);
+        return;
+      }
+      const error = this.stats.error || {code: 0, text: 'Download failed'};
+      this.callbacks.onError?.(error, this.context, null, this.stats);
     }
 
     copyStats(stats) {
@@ -125,9 +154,11 @@ export function HLSLoaderFactory(player) {
         }
 
         const activeRequests = player.activeRequests;
+        const segmentKey = identifier + ':' + sn;
 
         const loader = player.fragmentRequester.requestFragment(frag, {
           onSuccess: (response, stats, context, xhr) => {
+            segmentFailures.delete(segmentKey);
             this.copyStats(stats);
             if (this.callbacks) {
               this.callbacks.onSuccess(response, this.stats, this.context, xhr);
@@ -144,9 +175,7 @@ export function HLSLoaderFactory(player) {
           onFail: (entry) => {
             setTimeout(() => {
               this.copyStats(entry.stats);
-
-              this.stats.aborted = true;
-              if (this.callbacks?.onAbort) this.callbacks.onAbort(this.stats, this.context, null, null);
+              this.reportFailure(segmentKey);
             }, 1000);
 
             const index = activeRequests.indexOf(loader);
@@ -200,8 +229,10 @@ export function HLSLoaderFactory(player) {
         if (player.loadedManifests.has(key)) downloadManager.forgetCompletedFile(details);
         player.loadedManifests.add(key);
       }
+      const failureKey = details.url + ':' + (details.rangeStart ?? '') + '-' + (details.rangeEnd ?? '');
       this.loader = downloadManager.getFile(details, {
         onSuccess: async (entry, xhr) => {
+          segmentFailures.delete(failureKey);
           this.copyStats(entry.stats);
           const data = await entry.getDataFromBlob();
 
@@ -227,7 +258,7 @@ export function HLSLoaderFactory(player) {
               const error = this.stats.error || {code: 0, text: 'Download failed'};
               this.callbacks.onError?.(error, this.context, null, this.stats);
             } else {
-              this.callbacks.onAbort?.(this.stats, this.context, null, null);
+              this.reportFailure(failureKey);
             }
           }, 1000);
         },
@@ -241,6 +272,8 @@ export function HLSLoaderFactory(player) {
 
     /** Abort any loading in progress. */
     abort() {
+      // As hls.js's own loaders do: it reads this to tell an aborted load from a failed one.
+      this.stats.aborted = true;
       if (this.loader) {
         this.loader.abort();
       }
