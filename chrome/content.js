@@ -595,11 +595,6 @@
       if (iframeObj.replacedData) {
         restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
-
-        chrome.runtime.sendMessage({
-          type: MessageTypes.FRAME_REMOVED,
-          frameId: iframeObj.frameId,
-        });
       }
     });
 
@@ -613,6 +608,20 @@
       removePauseListeners(watcher);
     });
     overlayPlayers.length = 0;
+
+    // Every player iframe now out of the page, overlays too: taking an iframe out runs
+    // no beforeunload in it, so the background kept its frame as a player's, dropped the
+    // streams of that frame and opened no player on the page, until a navigation. Each
+    // is reported once.
+    iframeMap.forEach((iframeObj, frameId) => {
+      if (!iframeObj.iframe.isConnected) {
+        iframeMap.delete(frameId);
+        chrome.runtime.sendMessage({
+          type: MessageTypes.FRAME_REMOVED,
+          frameId,
+        });
+      }
+    });
 
     if (Activated) {
       Activated = false;
@@ -1717,8 +1726,28 @@
     if (RedirectingToPlayer) {
       return;
     }
+    // The page's name: this message can reach the background after the next page's
+    // FRAME_ADDED, and must not make it forget that page's frame.
     chrome.runtime.sendMessage({
       type: MessageTypes.FRAME_REMOVED,
+      document: DocumentKey,
+    });
+  });
+
+  // Firefox's back-forward cache gives this page back, content script and all, after
+  // its leaving told the background to forget it (above); the page fetches nothing
+  // again. Naming it again gets back what the background had detected on it
+  // (TabHolder.restoreGoneDocument). A page that went to the player and came back
+  // reports its next leave again.
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) {
+      return;
+    }
+    RedirectingToPlayer = false;
+    chrome.runtime.sendMessage({
+      type: MessageTypes.FRAME_ADDED,
+      url: window.location.href,
+      document: DocumentKey,
     });
   });
 

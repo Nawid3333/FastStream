@@ -77,11 +77,20 @@ export class FrameHolder {
   }
 }
 
+// How many gone pages a tab remembers (TabHolder.goneDocuments). Navigating a tab would
+// otherwise grow it without end; the oldest go first.
+const GoneDocumentLimit = 16;
+
 export class TabHolder {
   constructor(tracker, tabId) {
     this.tracker = tracker;
     this.tabId = tabId;
     this.frames = new Map();
+    // Pages that left the tab, by the name each gave itself (FRAME_ADDED's document),
+    // with what each had detected: for a page Firefox's back-forward cache gives back
+    // (restoreGoneDocument), and to refuse a player still starting that names one
+    // (isPlayerOfGoneDocument). Not cleared by reset(), see there.
+    this.goneDocuments = new Map();
 
     this.isOn = false;
     this.isMpv = false;
@@ -101,6 +110,10 @@ export class TabHolder {
     this.reset();
   }
   reset() {
+    // goneDocuments stays: the reset on a new hostname (tabs.onUpdated) can come after the
+    // new page named itself, and a player the tab was sent to (a moz-extension:// URL, so
+    // a new hostname) still names the page it replaced. The names this reset drops can be
+    // live ones. The reset before a reload knows better (resetForReload).
     this.frames.clear();
     this.playerCount = 0;
     this.continuationOptions = null;
@@ -116,6 +129,22 @@ export class TabHolder {
     this.mpvPlayPendingUntil = 0;
     this.mpvLastPlaySend = null;
   }
+
+  /**
+   * The reset before the tab is reloaded (startMpv, stopMpv, the toolbar's Off): every
+   * page in it is about to go, so their names are marked gone first. A player still
+   * starting in an iframe names its page, and once the reload made its frame and the
+   * frame above new ones, with no names on them, only the mark tells that page is gone.
+   */
+  resetForReload() {
+    for (const frame of this.frames.values()) {
+      if (!frame.parent) {
+        this.markDocumentGone(frame);
+      }
+    }
+    this.reset();
+  }
+
   getFrames() {
     return this.frames.values();
   }
@@ -143,6 +172,8 @@ export class TabHolder {
    * say it loaded after that, and its beforeunload, added once it has loaded, never ran.
    * Taken for a player of the new page, it made the background drop that page's streams
    * (FrameHolder.hasPlayer) and open no player there until the page navigated again.
+   * A player in an iframe of an iframe can come too late for either frame to tell: the
+   * reload made both new, with no names. The page's name, marked gone, still does.
    * @param {FrameHolder} playerFrame - The player's frame.
    * @param {number|undefined} parentFrameId - The frame above it, as the player tells it.
    * @param {?string} opener - The page the player's URL names; null for a player no
@@ -154,8 +185,102 @@ export class TabHolder {
     if (!opener) {
       return false;
     }
+    if (this.goneDocuments.has(opener)) {
+      return true;
+    }
     const pages = [playerFrame, this.getFrame(parentFrameId)].filter((frame) => frame && frame.documentKey);
     return pages.length > 0 && !pages.some((frame) => frame.documentKey === opener);
+  }
+
+  /**
+   * Marks the page a frame shows gone, with the pages in the frames inside it, and keeps
+   * what each had detected under its name. A frame whose page never named itself has
+   * nothing to keep.
+   * @param {FrameHolder} frame - The frame whose page goes.
+   */
+  markDocumentGone(frame) {
+    const mark = (f) => {
+      if (f.documentKey) {
+        // Deleted first: a Map keeps a key it already has at its old place, and the
+        // limit below drops the oldest, not the one just marked.
+        this.goneDocuments.delete(f.documentKey);
+        this.goneDocuments.set(f.documentKey, {
+          sources: f.getSources().slice(),
+          subtitles: f.getSubtitles().slice(),
+        });
+      }
+      f.children.forEach(mark);
+    };
+    mark(frame);
+    while (this.goneDocuments.size > GoneDocumentLimit) {
+      this.goneDocuments.delete(this.goneDocuments.keys().next().value);
+    }
+  }
+
+  /**
+   * A page names itself in a frame (FRAME_ADDED): the page the frame showed before, and
+   * the pages inside it, are gone. Their FRAME_REMOVED can come after this message, or
+   * not at all. The same name again is the same page (Firefox's back-forward cache gives
+   * a page back with its content script, which names it again), and ends nothing.
+   * @param {FrameHolder} frame - The frame the page named itself in.
+   * @param {?string} documentKey - The page's name; null when it gave none.
+   */
+  noteDocumentReplaced(frame, documentKey) {
+    if (frame.documentKey && frame.documentKey !== documentKey) {
+      this.markDocumentGone(frame);
+    }
+  }
+
+  /**
+   * Gives a page that named itself again (FRAME_ADDED) what it had detected before it
+   * left. Firefox's back-forward cache gives a page back with its content script alive:
+   * its leaving made the background forget its frame (FRAME_REMOVED), and the page
+   * fetches nothing again, so the toolbar's next On found no stream on it. The name is
+   * the page's own, random per page, so it is the same page, wherever its URL went
+   * since. A page that came back is no longer gone.
+   * @param {FrameHolder} frame - The frame, its documentKey already set.
+   */
+  restoreGoneDocument(frame) {
+    const kept = frame.documentKey && this.goneDocuments.get(frame.documentKey);
+    if (!kept) {
+      return;
+    }
+    this.goneDocuments.delete(frame.documentKey);
+    // FrameHolder.reset() sets both lists, which the checker cannot see from here.
+    const sources = /** @type {Array<Object>} */ (frame.getSources());
+    for (const source of kept.sources) {
+      // FRAME_ADDED keeps a source the frame already had at the page's URL.
+      if (!sources.some((s) => s.url === source.url)) {
+        sources.push(source);
+      }
+    }
+    const subtitles = /** @type {Array<Object>} */ (frame.getSubtitles());
+    for (const subtitle of kept.subtitles) {
+      if (!subtitles.includes(subtitle)) {
+        subtitles.push(subtitle);
+      }
+    }
+  }
+
+  /**
+   * A page says it left its frame (FRAME_REMOVED): forgets the frame, and marks the page
+   * gone. The message can come after the next page in that frame named itself (the two
+   * race across a navigation); a known name that is not the frame's is that late one,
+   * and must not forget the new page's frame and streams. A message without a name (the
+   * player page's own, content.js's for a player iframe it removed), or a frame whose
+   * page never named itself, is taken as before.
+   * @param {FrameHolder|undefined} frame - The frame the message names.
+   * @param {*} documentKey - The name of the page that sent it, if any.
+   */
+  forgetRemovedFrame(frame, documentKey) {
+    if (!frame) {
+      return;
+    }
+    if (frame.documentKey && typeof documentKey === 'string' && frame.documentKey !== documentKey) {
+      return;
+    }
+    this.markDocumentGone(frame);
+    this.forgetFrame(frame);
   }
 
   /**

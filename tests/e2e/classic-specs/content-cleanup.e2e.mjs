@@ -91,7 +91,28 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
   };
   // A same-site navigation without a page load, as a single-page site makes one.
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
+</script>
+${addVideoScript(t)}`;
+
+/**
+ * window.addVideo(): another video the page adds, as a re-render or the next item of a
+ * single-page site does.
+ * @param {number} t - The page's time, for a URL of its own.
+ * @return {string} The script.
+ */
+function addVideoScript(t) {
+  return `<script>
+  window.addVideo = () => {
+    const video = document.createElement('video');
+    video.id = 'later';
+    video.muted = true;
+    video.preload = 'auto';
+    video.style.cssText = 'width: 640px; height: 360px; display: block';
+    video.src = '/clip.mp4?later=${t}';
+    document.body.appendChild(video);
+  };
 </script>`;
+}
 
 // The page's element (.box) in a wrapper with an id of its own. Each adds a strip below
 // the video, so .box has the video's bounds and is what content.js hides, and the
@@ -121,7 +142,8 @@ const fullPage = (t) => `<!doctype html><title>full</title>
 <video id="main" muted preload="auto" src="/clip.mp4?full=${t}"></video>
 <script>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
-</script>`;
+</script>
+${addVideoScript(t)}`;
 
 // An episode page with two lists that link to it: a side list whose next entry has no
 // link, then the real episode list.
@@ -516,6 +538,84 @@ describe('content.js around an in-page player', function() {
     await nudgeWindowSize();
     await inPage(() => window.leave());
     await browser.pause(1500);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // The background keeps a player's frame apart: its streams are the player's own, and
+  // no player opens over it. Only the player's beforeunload told it the player went, and
+  // an iframe taken out of the page runs none: the page's next video was dropped as the
+  // player's, and no player opened for it until the page navigated.
+  it('opens a player for the next video after the page removed the player itself', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => window.playerIframe().remove());
+    await inPage(() => window.addVideo());
+    await browser.waitUntil(hasPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'no player opened for the video the page added after it removed the player',
+    });
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('opens a player for the next video after a same-site navigation took the overlay', async function() {
+    await openPage('/full');
+    await openPlayer();
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => !(await hasPlayer()),
+        {timeout: 15000, timeoutMsg: 'leaving the page left the overlay player up'});
+    await inPage(() => window.addVideo());
+    await browser.waitUntil(hasPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'no player opened for the video the page added after the navigation',
+    });
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // Back to a page Firefox kept in its back-forward cache: the page comes back as it was,
+  // content script and all, and fetches nothing again. Its leaving had made the background
+  // forget its frame and the video detected on it, so the toolbar's On opened no player.
+  it('opens the player on a page Back brought out of the back-forward cache', async function() {
+    await openPage('/cleanup');
+    await inPage(() => {
+      window.__kept = true;
+    });
+    await openPage('/wrapper');
+    await browser.back();
+    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+    // From the cache, not loaded again: a load fetches the video anew, and proves nothing.
+    expect(await inPage(() => window.__kept === true)).toBe(true);
+    await openPlayer();
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+    let source;
+    try {
+      await browser.waitUntil(async () => {
+        source = await browser.execute(() => window.fastStream?.source?.url || null);
+        return !!source;
+      }, {timeout: 15000, interval: 250, timeoutMsg: 'the player never got a source'});
+    } finally {
+      await browser.switchFrame(null);
+    }
+    expect(source).toContain('/clip.mp4?main=');
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // The same from another site: the background resets the tab on a new hostname
+  // (tabs.onUpdated), and that can come after the page named itself again.
+  it('opens the player on a page Back brought back from another site', async function() {
+    await openPage('/cleanup');
+    await inPage(() => {
+      window.__kept = true;
+    });
+    // localhost is another hostname for the same server.
+    await browser.url(`http://localhost:${SITE_PORT}/wrapper?t=${Date.now()}`);
+    await browser.waitUntil(async () => inPage(() => location.hostname === 'localhost' &&
+        document.querySelector('video')?.readyState >= 2), {timeout: 20000, timeoutMsg: 'the other site never loaded'});
+    await browser.back();
+    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+    expect(await inPage(() => window.__kept === true)).toBe(true);
+    await openPlayer();
     expect(await takeContentErrors()).toEqual([]);
   });
 

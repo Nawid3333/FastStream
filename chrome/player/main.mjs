@@ -311,17 +311,34 @@ async function setup() {
   const version = window.fastStream.version;
   Utils.printWelcome(version);
 
+  // Tells the background this player's frame is gone, once. Only the extension has a
+  // background page that tracks its frames; the web build has no chrome object to reach
+  // for, and reaching for one here threw on every unload.
+  let frameRemovedSent = false;
+  const sendFrameRemoved = () => {
+    if (frameRemovedSent || !EnvUtils.isExtension()) {
+      return;
+    }
+    frameRemovedSent = true;
+    chrome.runtime.sendMessage({
+      type: MessageTypes.FRAME_REMOVED,
+    });
+  };
+
   window.addEventListener('beforeunload', () => {
     if (window.fastStream) {
       window.fastStream.destroy();
       delete window.fastStream;
     }
-    // Only the extension has a background page that tracks its frames; the web build has
-    // no chrome object to reach for, and reaching for one here threw on every unload.
-    if (EnvUtils.isExtension()) {
-      chrome.runtime.sendMessage({
-        type: MessageTypes.FRAME_REMOVED,
-      });
+    sendFrameRemoved();
+  });
+  // A page that takes the player's iframe out itself (a re-render) runs no beforeunload
+  // in it, and the background kept the frame as a player's: it dropped that frame's
+  // streams and opened no player on the page, until a navigation. The document's
+  // pagehide still runs. Not a persisted one: that page is only hidden, and may come back.
+  window.addEventListener('pagehide', (e) => {
+    if (!e.persisted) {
+      sendFrameRemoved();
     }
   });
 

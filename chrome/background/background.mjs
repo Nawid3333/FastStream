@@ -204,7 +204,7 @@ async function startMpv(tab, onPlay = false) {
   BackgroundUtils.updateTabIcon(tab);
 
   if (await tabHasPlayer(tab)) {
-    tab.reset();
+    tab.resetForReload();
     chrome.tabs.reload(tab.tabId);
   } else if (onPlay) {
     // A fresh start: the same video may go to mpv again.
@@ -238,7 +238,7 @@ async function stopMpv(tab) {
   BackgroundUtils.updateTabIcon(tab);
 
   if (await tabHasPlayer(tab)) {
-    tab.reset();
+    tab.resetForReload();
     chrome.tabs.reload(tab.tabId);
   }
 }
@@ -319,7 +319,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         } else if (await tabHasPlayer(tab)) {
           // A player still loading counts: the MPV cycle already checks it, and without
           // it an Off clicked right after On left the player on the page.
-          tab.reset();
+          tab.resetForReload();
           chrome.tabs.reload(tab.tabId);
         }
       }
@@ -707,15 +707,23 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // This is needed because resetSelfAndChildren clears all sources, but we might have
     // already detected a source for this frame via onHeadersReceived (e.g. Vimeo)
     const preservedSources = frame.getSources().filter((s) => s.url === msg.url);
+    const documentKey = typeof msg.document === 'string' ? msg.document : null;
+
+    // The page the frame showed is gone, whether or not its FRAME_REMOVED came first.
+    tab.noteDocumentReplaced(frame, documentKey);
 
     const playerCount = frame.resetSelfAndChildren();
     frame.url = msg.url;
-    frame.documentKey = typeof msg.document === 'string' ? msg.document : null;
+    frame.documentKey = documentKey;
 
     // Restore preserved sources
     preservedSources.forEach((s) => {
       frame.getSources().push(s);
     });
+    // A page back from Firefox's back-forward cache names itself again (content.js's
+    // pageshow) and fetches nothing: what it had detected is kept for it. Only kept, for
+    // the toolbar or a shortcut: nothing here opens a player or sends to mpv.
+    tab.restoreGoneDocument(frame);
 
     tab.playerCount -= playerCount;
     tab.playerCount = Math.max(0, tab.playerCount);
@@ -730,7 +738,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     frame.loadedCallbacks.clear();
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
-    tab.forgetFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame);
+    tab.forgetRemovedFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame, msg.document);
   } else if (msg.type === MessageTypes.WAIT_UNTIL_MAIN_LOADED) {
     frame.loadedCallbacks.add(sendResponse);
 

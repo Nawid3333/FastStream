@@ -576,6 +576,26 @@ forgotten. A frame whose page never named itself to this background (it restarte
 since) proves nothing and the player counts. mpv-shortcut's `/late` page pins the
 state the race left.
 
+**Gone pages, and a page Back brings back (2026-09-30).** `TabHolder.goneDocuments`
+keeps the 16 latest pages that left a tab, by name, with what each had detected. A page
+leaves when its `FRAME_REMOVED` is taken, when another page names itself in its frame
+(`FRAME_ADDED`), and in the reset before a reload (`resetForReload`: startMpv, stopMpv,
+the toolbar's Off); not in the reset on a new hostname (`tabs.onUpdated`), which can come
+after the new page named itself, or while a player the tab was sent to (a moz-extension
+URL) still names the page it replaced. A player naming a gone page is refused even when
+the reload left no named frame to tell by (a player in an iframe of an iframe). Firefox's
+back-forward cache gives a page back with its content script alive and fetches nothing:
+content.js names the page again on a persisted `pageshow`, and its streams come back by
+its name (random per page, so its URL may have moved on), for the toolbar or a shortcut
+only; nothing opens by itself. On a Back from another site the reset on the new hostname
+can still come after that and drop them: content-cleanup's case passes, but the order is
+not guaranteed. `FRAME_REMOVED` names its page, and a late one from the page before (a
+known name that is not the frame's) is ignored. A page that takes the player's iframe out
+itself runs no `beforeunload` in it, so the player also reports on `pagehide` (Firefox
+fires it on removal; content-cleanup's case fails without it), and `removePlayers`
+reports every player iframe that is out of the page when it is done, whoever took it out,
+overlays too, once each.
+
 **MPV shortcut: Ctrl+Shift+U, the `toggle_mpv` command (2026-09-26).** MPV
 on or off for the tab on any site, allowlisted or not, while MPV mode is on
 (off = FastStream off, as the toolbar's MPV -> Off). On a blank or new tab it
