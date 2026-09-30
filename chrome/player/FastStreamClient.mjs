@@ -1053,7 +1053,11 @@ export class FastStreamClient extends EventEmitter {
       // waits on this: the seek to the time in its URL, and autoplay. Without hashes there
       // is no record to save to.
       console.warn('Could not read the remembered time', e);
-      progressData = hashes ? {lastTime: 0} : null;
+      // A record that does not decrypt is lost anyway: start at 0 and save over it. A read
+      // that failed (IndexedDB having a moment) says nothing about the record, and saving
+      // this video's time from 0 about a second later overwrote an intact one: keep no
+      // progress for this video instead.
+      progressData = hashes && e?.unusableRecord ? {lastTime: 0} : null;
     }
     if (this.player !== player) return;
     this.progressHashesCache = hashes;
@@ -1070,7 +1074,13 @@ export class FastStreamClient extends EventEmitter {
       return;
     }
 
-    return this.progressMemory.setFile(this.progressHashesCache, this.progressData);
+    // Called every second from updateTime, which nothing awaits: a failing write was an
+    // unhandled rejection each time.
+    try {
+      await this.progressMemory.setFile(this.progressHashesCache, this.progressData);
+    } catch (e) {
+      console.warn('Could not save the remembered time', e);
+    }
   }
 
   /**

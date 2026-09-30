@@ -102,11 +102,19 @@ export class SecureMemory {
     const salt = await IndexedDBManager.getValue(db, 'metadata', name);
     if (salt) {
       return salt;
-    } else {
-      const newSalt = await SecureMemory.randomBuffer(128);
-      await IndexedDBManager.setValue(db, 'metadata', name, newSalt);
+    }
+    // Added, not put: on a fresh profile two players starting together both found no
+    // salt, and the second overwrote the first, so the first tab's saved positions could
+    // never be found again. add() stores only the first; the other reads that one back.
+    const newSalt = await SecureMemory.randomBuffer(128);
+    if (await IndexedDBManager.addValue(db, 'metadata', name, newSalt)) {
       return newSalt;
     }
+    const stored = await IndexedDBManager.getValue(db, 'metadata', name);
+    if (!stored) {
+      throw new Error(`The ${name} was neither added nor found`);
+    }
+    return stored;
   }
 
   async setup() {
@@ -139,37 +147,59 @@ export class SecureMemory {
 
     const {encryptedData} = data;
     if (encryptedData) {
-      const data = await SecureMemory.decrypt(keyHash, encryptedData);
-      return JSON.parse(data);
+      try {
+        const data = await SecureMemory.decrypt(keyHash, encryptedData);
+        return JSON.parse(data);
+      } catch (e) {
+        // A record that was read but is no use. The caller may save over it; after a
+        // failed read it must not (see FastStreamClient.loadProgressData).
+        const error = new Error('The saved record does not decrypt', {cause: e});
+        error.unusableRecord = true;
+        throw error;
+      }
     }
   }
 
+  /**
+   * Deletes records not saved since the cutoff. Best effort, and it never fails or
+   * hangs: the player's setup waits on it before the player shows. It rejected on a
+   * cursor error, and an aborted transaction left it pending for good.
+   * @param {number} cutoff - Records older than this (ms since the epoch) go.
+   * @return {Promise<void>}
+   */
   async pruneOld(cutoff) {
-    const db = this.indexedDbManager.getDatabase();
-
-    const transaction = db.transaction(['files'], 'readwrite');
-    const store = transaction.objectStore('files');
-    const request = store.openCursor();
-    return new Promise((resolve, reject)=>{
-      request.onsuccess = async (event)=>{
-        const cursor = event.target.result;
-        if (cursor) {
-          const {time} = cursor.value;
-          if (time < cutoff) {
-            cursor.delete();
+    try {
+      const db = this.indexedDbManager.getDatabase();
+      const transaction = db.transaction(['files'], 'readwrite');
+      const store = transaction.objectStore('files');
+      const request = store.openCursor();
+      await new Promise((resolve, reject)=>{
+        request.onsuccess = (event)=>{
+          const cursor = event.target.result;
+          if (cursor) {
+            const {time} = cursor.value;
+            if (time < cutoff) {
+              cursor.delete();
+            }
+            cursor.continue();
+          } else {
+            transaction.commit();
           }
-          cursor.continue();
-        } else {
-          transaction.commit();
-          resolve();
-        }
-      };
-
-      request.onerror = (event)=>{
-        transaction.abort();
-        reject(event);
-      };
-    });
+        };
+        transaction.oncomplete = () => resolve();
+        transaction.onabort = () => reject(transaction.error || new Error('the transaction was aborted'));
+        request.onerror = () => {
+          reject(request.error || new Error('the cursor failed'));
+          try {
+            transaction.abort();
+          } catch (e) {
+            // Already finished.
+          }
+        };
+      });
+    } catch (e) {
+      console.warn('Could not delete old saved positions', e);
+    }
   }
 
   destroy() {

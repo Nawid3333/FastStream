@@ -32,31 +32,58 @@ async function getFsBlobRoot() {
   return root.getDirectoryHandle('fsblob', {create: true});
 }
 
-/** Reads another session's heartbeat timestamp, or null if it has none / is unreadable. */
+/**
+ * Reads another session's heartbeat.
+ * @return {Promise<{time: ?number, unreadable?: boolean}>} time: the last beat, or null
+ *     when the session has no heartbeat (or is no directory); unreadable: it has one that
+ *     could not be read, e.g. while its owner is writing it (a sync access handle locks
+ *     the file) - a live session.
+ */
 async function readHeartbeat(name) {
+  let fileHandle;
   try {
     const dir = await fsBlobRoot.getDirectoryHandle(name);
-    const fileHandle = await dir.getFileHandle(META_FILE);
+    fileHandle = await dir.getFileHandle(META_FILE);
+  } catch (e) {
+    return {time: null};
+  }
+  try {
     const file = await fileHandle.getFile();
     const meta = JSON.parse(await file.text());
-    return meta.updated_time ?? null;
+    return {time: meta.updated_time ?? null};
   } catch (e) {
-    return null;
+    return {time: null, unreadable: true};
   }
 }
 
 /**
- * Deletes sibling session directories whose heartbeat is missing or older
- * than STALE_MS - orphans from a crashed/closed tab. Judged off the
- * heartbeat, not directory creation time, so a long-running session isn't
- * mistaken for stale by a prune pass that starts while it's still active.
+ * When a session directory was made, from its name (see init), or null for another name.
+ * @param {string} name
+ * @return {?number}
+ */
+function sessionCreatedTime(name) {
+  const match = /^fsblob-(\d+)-/.exec(name);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Deletes sibling session directories left by a crashed or closed tab: a heartbeat
+ * older than STALE_MS, or none at all. Judged off the heartbeat, not the directory's age,
+ * so a long-running session isn't mistaken for stale. But a directory younger than
+ * STALE_MS is never judged: it is made before its first heartbeat is written, and two
+ * players starting together deleted each other's brand-new session that way (its blobs
+ * then stayed in RAM, and its saves failed). And a heartbeat that is there but cannot be
+ * read is its owner writing it.
  */
 async function prune(ownName) {
   const stale = [];
   for await (const name of fsBlobRoot.keys()) {
     if (name === ownName) continue;
-    const updatedTime = await readHeartbeat(name);
-    if (!updatedTime || Date.now() - updatedTime > STALE_MS) {
+    const created = sessionCreatedTime(name);
+    if (created !== null && Date.now() - created <= STALE_MS) continue;
+    const heartbeat = await readHeartbeat(name);
+    if (heartbeat.unreadable) continue;
+    if (!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) {
       stale.push(name);
     }
   }
