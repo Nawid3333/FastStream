@@ -10,6 +10,6 @@
 # Binary assets: never convert.
 *.png    binary
 *.wasm   binary
-*.ort    binary
+*.onnx   binary
 *.zip    binary
 *.xpi    binary

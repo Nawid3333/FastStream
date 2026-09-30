@@ -337,7 +337,7 @@ what can actually change behaviour.
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
-| mp4-muxer | 4.3.3 | none - AST identical to the vendored copy | **migrated, 5.2.2 tried and reverted** |
+| mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.25.0, git tag (not on npm) | 9 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
@@ -388,19 +388,29 @@ page-side failure: can't access property "colorSpace", track.info.decoderConfig 
 `decoderConfig` is only ever populated from a real chunk's metadata, so a
 video track that received no chunks has a null one, and finalization
 crashes instead of producing a container with an empty track (or at least
-not crashing). 5.2.2 is the current latest release (checked against the npm
-registry directly, not assumed), so there is no newer patch to wait for, and
-the package is itself deprecated upstream in favor of a successor library
-("Mediabunny"). Given a real behavioural regression, on the newest
-available version, in a package upstream has stopped investing in - reverted
-to 4.3.3 rather than shipped it or patched around it.
+not crashing). 5.2.2 was the current latest release at the time (checked
+against the npm registry directly, not assumed), so there was no newer patch
+to wait for, and the package is itself deprecated upstream in favor of a
+successor library ("Mediabunny"). Given a real behavioural regression, on
+the newest available version, in a package upstream has stopped investing
+in - reverted to 4.3.3 rather than shipped it or patched around it.
 
 Dependabot offered 5.2.2 again as #25 on 2026-09-25, and CI failed on this
 same test with the same error. Since no release after 5.2.2 can come,
-`.github/dependabot.yml` now ignores mp4-muxer, so it stops being offered. The
+`.github/dependabot.yml` ignored mp4-muxer, so it stopped being offered. The
 re-encoder's own path does not reach this through a cancel (`cancel()` throws
 before `finalize()`), but it does whenever a video track ends up with no
 encoded frame. Moving on from 4.3.3 means migrating to Mediabunny.
+
+It did: on 2026-09-30 mp4-muxer was replaced by **mediabunny 1.60.0** (row
+in the table above; `reencoder/mp4-writer.mjs`, with
+`reencoder/TimestampRebaser.mjs` doing what `firstTimestampBehavior:
+'cross-track-offset'` used to). mp4-muxer left `package.json`,
+`tools/sync-vendor.mjs`, `.gitignore` and the eslint ignore. The empty-track
+case that sank 5.2.2 is asserted in the other direction in
+`tests/e2e/specs/modules.e2e.mjs`: Mediabunny finishes a file whose only
+(video) track got no packets, and a file whose video never came still
+flushes its audio from `TimestampRebaser.mjs` starting at 0.
 
 **fuse.js** needed nothing at all: 34 AST differences, every one of them lint
 autofix, and identical exports.
@@ -410,11 +420,11 @@ noise would be a thousand lines of diff that tells a reviewer nothing; using
 the npm file as published, with any real change expressed as a few lines in a
 documented transform, is exactly what AMO is asking for.
 
-### mp4-muxer and gif.js: proven, not argued
+### gif.js: proven, not argued
 
-These two are worth separating from the "measured" cases because the evidence
-is stronger. Their vendored copies are **AST-identical** to the published
-builds once the transformations the project's own `eslint --fix` performs are
+This one is worth separating from the "measured" cases because the evidence
+is stronger. Its vendored copy is **AST-identical** to the published build
+once the transformations the project's own `eslint --fix` performs are
 normalised away:
 
 | Normalised | What it changes |
@@ -429,10 +439,13 @@ Nothing else differed. That is a stronger claim than "the diff looks
 additive", which is exactly the reasoning that shipped the mp4box regression:
 the parsed program is the same program.
 
-Finding the base for mp4-muxer needed the AST size as a search key rather than
-the line count, since the vendored copy is reformatted. 4.3.3 sits between
-4.3.2 and 5.0.0 by that measure and matches exactly; a line-count search would
-have pointed at 5.0.0.
+mp4-muxer 4.3.3 had the same kind of proof while its copy was in the tree -
+AST-identical once lint autofix was normalised, the base found by AST size
+rather than line count because the copy is reformatted (4.3.3 sits between
+4.3.2 and 5.0.0 by that measure; a line-count search would have pointed at
+5.0.0). That copy left with mp4-muxer on 2026-09-30. Mediabunny, which took
+its place, has nothing to prove by AST: the file is the npm bundle with only
+`normaliseText` applied (line endings, final newline).
 
 gif.js needed one real change. The npm build spawns its worker from
 `options.workerScript`, a bare `'gif.worker.js'` that the browser resolves
@@ -442,11 +455,16 @@ from `import.meta.url` instead. Both anchors it edits are asserted, so a
 future gif.js that changes either fails the build rather than silently
 shipping a module that exports nothing or spawns a worker from a 404.
 
-Neither is covered by the playback suite - GIF export and remuxing are not on
-the path a video takes - so `tests/e2e/specs/modules.e2e.mjs` drives both
-directly: gif.js encodes two frames and the test checks for a `GIF89a` header,
-mp4-muxer writes a container and the test checks for an `ftyp` box at offset
-4. Breaking the worker URL on purpose fails the gif test and only that test.
+Neither GIF export nor remuxing is on the path a player video takes, so
+`tests/e2e/specs/modules.e2e.mjs` drives both directly. gif.js encodes two
+frames and the test checks for a `GIF89a` header; breaking the worker URL on
+purpose fails that test and only that test. The MP4 side now drives Mediabunny
+in mp4-muxer's place: Mediabunny finishes a file whose only (video) track got
+no packets (`ftyp` checked - the 5.2.2 case), a file whose video never came
+flushes its audio from `TimestampRebaser.mjs` starting at 0, stream-copied
+B-frame H.264 plus AAC reads back through mp4box at its input times and
+decodes cleanly in ffmpeg, and fake-codec failures end the save with their
+errors instead of hanging it.
 
 gif.js later picked up a second, cosmetic patch (`patches/gif.js@0.2.0.patch`):
 a bundled UA-sniffing helper module declares `var UA, browser, mode, platform,
@@ -630,231 +648,129 @@ three. FastStream never asks for either, so this is not a product bug, but it
 is a genuine defect in the shipped binary that a full rebuild does not carry.
 
 The script needs a real toolchain - emsdk plus autotools - so it is
-documentation to run by hand, the same way the ONNX Runtime rebuild command
-above is, not a `pnpm run` target.
+documentation to run by hand, not a `pnpm run` target.
 
-### The VAD blobs: the model is proven, the runtime is not
+### The VAD blobs: the model is published, the runtime is stock
 
-`vad/` holds the two largest files left in the tree, and both are binaries a
-reviewer cannot read:
+`vad/` holds the Silero VAD model and the ONNX Runtime files that run it,
+behind subtitle syncing. The model is committed to git; the three
+onnxruntime-web files are generated at sync time and gitignored:
 
 | File | Size | Status |
 |---|---|---|
-| `silero_vad_half.ort` | 1,856,120 B | **verified** - `pnpm run verify:vad` |
-| `ort-wasm-simd-threaded.wasm` | 1,037,262 B | **stamped** - `pnpm run verify:ort` |
-| `ort-wasm-simd-threaded.mjs` | 24 KB | emscripten glue from the same build |
-| `ort.wasm.mjs` | 126 KB | **generated** from onnxruntime-web@1.20.0, inline source map stripped |
+| `silero_vad_half.onnx` | 1,280,395 B | **committed** - `pnpm run verify:vad` hashes it against silero-vad v6.2.1 |
+| `ort.wasm.mjs` | 139,505 B | **generated** - the onnxruntime-web 1.30.0 loader, inline source map stripped |
+| `ort-wasm-simd-threaded.mjs` | 24,381 B | **generated** - the same release's emscripten glue, untouched |
+| `ort-wasm-simd-threaded.wasm` | 14,239,897 B | **generated** - the same release's wasm, untouched |
 
-**The model.** snakers4/silero-vad publishes only ONNX - `silero_vad.onnx`,
-`silero_vad_half.onnx` and four variants, plus a `.jit` and a
-`.safetensors`. There is no `.ort` anywhere in that repository, and there is
-no reason to expect one: `.ort` is ONNX Runtime's own serialised format,
-produced by converting a `.onnx` with `convert_onnx_models_to_ort`. So the
-provenance path is a two-step one, and the honest form of it is:
-`silero_vad_half.onnx` (published, hash-verifiable) plus the exact conversion
-command.
+**The model.** `silero_vad_half.onnx` is byte-for-byte the file
+snakers4/silero-vad publishes at tag v6.2.1
+(`src/silero_vad/data/silero_vad_half.onnx`), sha256
+`1e0b195ad4806595ef4466f419d16fca7e4afcfc6669b8c0b5f76ea87547c769`.
+`pnpm run verify:vad` (`tools/verify-vad.mjs`) hashes the file in the tree
+and the file fetched from that tag and fails unless both equal the recorded
+sha256. It was watched failing: one flipped byte in the tree file, exit 1.
+The old byte-overlap measurement - how much of the published `.onnx`
+survived conversion into the vendored `.ort` (96.60%) - is gone with the
+`.ort`.
 
-That is now checked rather than argued. `tools/verify-vad.mjs` fetches the
-published models from a pinned tag and asks how much of each appears
-**byte-for-byte** inside the vendored `.ort`. Weight tensors are long
-contiguous runs in both protobuf and flatbuffers, so a converted model carries
-them across verbatim even though the two formats frame everything else
-differently:
+**The runtime.** `tools/sync-vendor.mjs` copies all three files from
+`node_modules/onnxruntime-web/dist/` exactly as onnxruntime-web 1.30.0
+publishes them; the only edit anywhere is stripping the loader's inline
+source map, so a reviewer can install `onnxruntime-web@1.30.0` and diff all
+three. The extension page is not cross-origin isolated, so ONNX Runtime runs
+single-threaded (`numThreads 1`): no proxy worker, no `blob:` URL, no
+`Worker`. The loader imports the glue beside itself (`importWasmModule`, a
+dynamic `import(url)` of the glue's moz-extension URL), and the glue fetches
+the wasm beside itself (`new URL('ort-wasm-simd-threaded.wasm',
+import.meta.url)`), which is why the three files sit together in `vad/`.
 
-| Published model | Content shared with the `.ort` |
-|---|---|
-| `silero_vad_half.onnx` | **96.60%** |
-| `silero_vad_16k_op15.onnx` | 20.48% |
-| `silero_vad.onnx` (full precision) | 11.39% |
+The linter still reports 0 errors, 0 notices and the same 3 warnings.
+`ort.wasm.mjs`'s one `UNSAFE_VAR_ASSIGNMENT` (`await import(url)`,
+`webpackIgnore`d) is generated onnxruntime-web code as before -
+`dynamicImportDefault`, now at line 1440 (1599 in the 1.20.0 file): `async
+(url) => (await import(/* webpackIgnore */ url)).default`, which in 1.30
+loads the glue module. The `blob:` preload path beside it is taken only when
+the runtime is multi-threaded and the glue sits on another origin; in the
+extension it runs single-threaded, from its own origin.
+`docs/amo-linter-warnings.md` has the full note.
 
-The controls are the point. A single high number could mean the method is
-measuring the file format; three numbers this far apart mean it is measuring
-the model. An exhaustive pass over every 64-byte window agrees with the
-sampled one to two decimal places, and the longest single run shared with the
-base is 264,128 bytes.
+**Why stock.** A reduced build has no published counterpart: nothing to diff
+against, and a custom runtime pins the loader to whatever release was
+current when it was built. That is what #23 showed: Dependabot's group PR
+took onnxruntime-web 1.30.0 on 2026-09-25 and the 1.30 loader driving the
+1.20-era custom runtime failed in `checkLastError` on both Linux and
+Windows, so `.github/dependabot.yml` ignored onnxruntime-web from then on.
+Stock files move together - loader, glue and wasm from the same release -
+and onnxruntime-web is in the `shipped-minor-and-patch` Dependabot group
+(weekly, 5-day cooldown; majors get their own PR). `update-prs.yml` hands a
+PR that changes the built extension to the owner instead of merging it, and
+CI runs the reference check below on it first. The cost is size: the
+stock wasm is 14.2 MB (3.66 MB deflated) and the built xpi grows from
+4.41 MB to 7.45 MB.
 
-It is not 100% because ORT's graph optimiser fuses nodes on conversion - the
-file registers `com.microsoft:FusedConv:1` - and fusion rewrites the weights it
-folds together. The script asserts 90%, refuses to pass if a control ever
-scores as high as the base, and was watched failing: scribbling over the
-weight region drops the base to 64.14% and exits 1.
+**The reference test.** `tests/e2e/ext-specs/vad.e2e.mjs` runs the runtime in
+the installed extension, on the extension origin under its real CSP - the
+only place it executes; the VAD is reached only from `AudioAnalyzerNode`,
+behind subtitle syncing. It scores a fixed 600-frame signal (six kinds x 100
+frames: silence, noise, sweep, tremolo+noise, harmonic buzz, loud noise;
+seeded) through `VadJS.createModel()`, the same entry `AudioNodeVAD` uses,
+and compares with `tests/e2e/vad-reference.json`: 600 scores recorded in
+Firefox from the old custom runtime, 105 of the 600 frames speech. The test
+asserts a max difference <= 1e-4 and that no frame crosses the 0.5 speech
+threshold differently from the reference.
 
-So the model is no longer the problem. **The runtime still is.**
+Old runtime vs 1.30.0, measured in Firefox 156 on Windows (old: 3 runs;
+1.30.0: 10 runs, each with the same scores):
 
-**The runtime.** The wasm is a tenth the size of the one onnxruntime-web
-publishes, so it is a custom reduced build with no published counterpart. It
-is not anonymous, though: ONNX Runtime stamps its own build metadata into the
-binary, and reading it out gives the whole configuration.
-
-```
-ORT Build Info: git-branch=main, git-commit-id=5c74539ab7,
-build type=MinSizeRel, cmake cxx flags:  -ffunction-sections -fdata-sections
--flto -msimd128 -pthread -Wno-pthreads-mem-growth -fno-exceptions
--fno-unwind-tables -fno-asynchronous-unwind-tables
-```
-
-Plus, elsewhere in the binary, the version `1.20.0` and the message *"This
-build doesn't support ORT format models older than version 5"* - which is what
-a reduced build says, and the reason the model beside it is `.ort` rather than
-`.onnx`. A reduced runtime will not load ONNX at all, so the two cannot be
-separated.
-
-`5c74539ab7` is real: `5c74539ab70e953e952fd2e4a8cc29daaf3455d5`, committed
-2024-09-03. It is a **main-branch commit, not the v1.20.0 tag** (`1a313abba7`,
-about two months later), which is worth stating plainly because it means the
-runtime and the loader do not come from the same place - see below.
-
-`pnpm run verify:ort` reads that stamp out of the shipped file and checks every
-field against the values above, so this documentation cannot quietly drift away
-from the binary. It was watched failing: scribbling over the commit id makes it
-exit 1. What it proves is that the binary self-reports a specific upstream
-commit and configuration; what it does not prove is that rebuilding there
-reproduces these bytes.
-
-The flags say what that rebuild would be. `-msimd128` is SIMD, `-pthread` is
-threads, `-fno-exceptions` is `--disable_exceptions`, `MinSizeRel` is the
-config, and the ORT-format-only restriction is `--minimal_build` - so:
-
-```sh
-git clone --recursive https://github.com/microsoft/onnxruntime
-cd onnxruntime && git checkout 5c74539ab7
-./build.sh --build_wasm --config MinSizeRel \
-  --enable_wasm_simd --enable_wasm_threads \
-  --minimal_build --disable_exceptions --skip_tests
-```
-
-#### That command was run, and the answer key was checked against
-
-`tools/reproduce-ort-wasm.sh` runs it: clones onnxruntime at `5c74539ab7`,
-fetches only the one submodule this build path needs (`cmake/external/onnx` -
-the other two, `emsdk` and `libprotobuf-mutator`, are its own pinned emsdk
-copy and a fuzzing harness respectively), and builds with the flags above via
-`build.py`.
-
-Two problems came up along the way, both external and both documented in the
-script rather than worked around silently. CMake 4.x refuses
-`cmake_minimum_required` versions below 3.5, which `google_nsync` - a
-transitive dependency fetched automatically - still declares; the fix is
-CMake's own suggested `-DCMAKE_POLICY_VERSION_MINIMUM=3.5`. And GitLab had
-regenerated the byte content of the pinned Eigen archive since onnxruntime's
-`cmake/deps.txt` recorded its hash - a live instance of the exact issue
-onnxruntime's own deps.txt cites at
-`gitlab.com/libeigen/eigen/-/issues/2744` - confirmed by downloading the
-archive and checking its root directory name still matches the pinned commit
-before accepting the new hash. The script re-derives that hash at run time
-rather than trusting a pin that GitLab can silently invalidate.
-
-With both cleared, the build produces a real
-`ort-wasm-simd-threaded.wasm`, and its own "ORT Build Info" stamp - the same
-one `verify:ort` reads from the shipped file - was checked against the
-recorded values field by field:
-
-```
-ok   commit      git-commit-id=5c74539ab7
-ok   build type  build type=MinSizeRel
-ok   flag        -ffunction-sections / -fdata-sections / -flto / -msimd128 /
-                 -pthread / -Wno-pthreads-mem-growth / -fno-exceptions /
-                 -fno-unwind-tables / -fno-asynchronous-unwind-tables
-ok   version     1.20.0
-ok   minimal     ORT-format-only (reduced build)
-BAD  branch      git-branch=main
-```
-
-Every field matches except `git-branch`, and that one is explained rather
-than concerning: this build checked out a detached commit, so git reports
-`HEAD`; a branch checkout at the same commit reports `main`. Same tree, same
-commit, same compiler flags - a checkout-state label, not a build
-difference.
-
-Then the rebuilt runtime was asked to do the actual job: load
-`silero_vad_half.ort` and run the same 512-sample, `[2,1,128]`-state
-inference `vad.mjs` makes.
-
-|  | shipped | rebuilt |
+| | old custom runtime | onnxruntime-web 1.30.0 |
 |---|---|---|
-| silence | 0.04426264762878418 | 0.04426264762878418 |
-| noise | 0.02436661720275879 | 0.02436661720275879 |
-| state shape | [2, 1, 128] | [2, 1, 128] |
+| largest score difference from the old runtime | - | 3.4e-6 |
+| decisions changed | - | 0 |
+| model load | 16-25 ms | 85-112 ms |
+| per 512-sample frame | 0.257-0.275 ms | 0.248-0.348 ms |
 
-Bit for bit identical. Between the exact commit, the exact flags, and
-identical inference output on the real model, this is as complete a
-reproduction as the shipped binary's own self-attestation permits.
+Firefox and Node, on the same 1.30 binary, differ by at most 2.4e-7. Three
+mutations, each caught: the full-precision model instead of the half one
+("input 'sr' is missing"); the old glue+wasm under the new loader
+("wasm2.getValue is not a function", the failure #23 hit); every score
+multiplied by 1.001 (difference 0.00096, over the 1e-4 bound).
 
-**The one thing this does not reproduce is size.** The rebuild is 4,016,081
-bytes against the shipped 1,037,262 - about 4x larger - because this build
-used only `--minimal_build` and `--disable_ml_ops`; the shipped binary was
-further restricted to a specific set of ONNX operators via
-`--include_ops_by_config`, and which ops were in that list is not recoverable
-from the binary's stamp. That is the one open question left on this file, and
-it is about a build parameter, not about what the binary is or whether it
-works - both of which are now settled.
-
-**The glue.** `ort-wasm-simd-threaded.mjs` is 23,512 bytes against the 24,618
-onnxruntime-web 1.20.0 publishes, and the two differ only in minified
-identifiers (`h` where upstream has `g`) around identical structure. So it is
-not hand-written or hand-minified: it is the emscripten output of the same
-build that produced the wasm, which is what it should be. Glue and wasm pair
-correctly with each other.
-
-`ort.wasm.mjs`'s one `UNSAFE_VAR_ASSIGNMENT` (`await import(url)`, `webpackIgnore`d) is generated too: `dynamicImportDefault`, part of
-onnxruntime-web's own proxy-worker mechanism, importing a module from a URL
-that was itself built two lines earlier from a same-origin `fetch` and
-`URL.createObjectURL`. Generated emscripten/onnxruntime-web glue is not
-something to hand-patch line by line - the correct lever, if this needed to
-change, is the build flags in `reproduce-ort-wasm.sh` and the npm release
-pin, both already the subject of the reproduction above. Left as generated,
-except that `tools/sync-vendor.mjs` strips onnxruntime-web's inline source map
-on the way (410 KB of its 539 KB, `stripInlineSourceMap`).
-
-**The pairing, now actually run.** `ort.wasm.mjs` is generated from the
-published onnxruntime-web 1.20.0, while the glue and wasm come from main two
-months earlier. A release loader driving a pre-release runtime is exactly the
-combination that fails quietly, and nothing had ever executed it - the VAD is
-reached only from `AudioAnalyzerNode`, behind subtitle syncing.
-
-`tests/e2e/ext-specs/vad.e2e.mjs` now runs it on the extension origin, under
-the real CSP: create an `InferenceSession` from the `.ort`, feed it 512 samples
-and a zeroed `[2,1,128]` state, exactly as `vad.mjs` does.
-
-| | |
-|---|---|
-| input names | `input`, `state` |
-| output names | `output`, `stateN` |
-| silence | `0.0443` - correctly not speech |
-| noise | `0.0244` - different, so the model reads its input |
-| returned state | `[2,1,128]` |
-
-It works. That retires the concern rather than arguing it away.
-
-The same test is why the loader stays at 1.20.0. On 2026-09-25 Dependabot's
-group PR #23 took onnxruntime-web 1.30.0: the 1.30 loader driving this 1.20-era
-runtime failed in `checkLastError` on both Linux and Windows. `.github/dependabot.yml`
-ignores onnxruntime-web since then. A newer loader needs a runtime rebuilt to
-match (`tools/reproduce-ort-wasm.sh`).
+**History.** Until 2026-09-30 the wasm and glue were a custom reduced build
+of onnxruntime main at `5c74539ab7` (2024-09-03; MinSizeRel,
+`--minimal_build`, ORT format only), which is why the model beside it had to
+be `silero_vad_half.ort` (1,856,120 B): a reduced runtime loads ORT format
+only, and snakers4/silero-vad publishes no `.ort`, so FastStream converted
+the published `.onnx` itself. The loader was generated from
+onnxruntime-web 1.20.0. `pnpm run verify:ort` read the binary's build
+stamp, `tools/reproduce-ort-wasm.sh` rebuilt it from that commit (the same
+scores on the real model, at four times the size: the operator list it had
+been cut down to could not be recovered), and CI ran an "ONNX Runtime
+provenance" step. All of it left the tree on 2026-09-30: the custom wasm and
+glue, the `.ort`, `tools/verify-ort.mjs`, `tools/reproduce-ort-wasm.sh`, the
+`verify:ort` script and its CI step.
 
 **The glue's own upstream.** `vad/vad.mjs` derives from ricky0123/vad-web:
 the `Silero` and `FrameProcessor` classes, `modelFetcher`,
 `frameSamples: 512`, `positiveSpeechThreshold: 0.5` and `redemptionFrames: 8`
-are all that project's. It ships `.onnx` too, never `.ort`, which confirms the
-conversion is FastStream's own step.
+are all that project's. It ships `.onnx` too, never `.ort` - and so does
+FastStream now: the model in the tree is the `.onnx` exactly as
+snakers4/silero-vad publishes it, hash-checked by `pnpm run verify:vad`.
 
 It cannot be pinned to a release, and after trying, it should not be. vad-web
 publishes a webpack bundle plus per-module CommonJS files; the vendored file
-is neither. It is a 275-line ES module that keeps the three classes it needs
+is neither. It is a 286-line ES module that keeps the three classes it needs
 and drops the microphone capture, the worklet plumbing and the packaging that
 make up most of the original. Declaration matching finds no shared top-level
 declarations with any of 0.0.19, 0.0.20, 0.0.22 or 0.0.24 - not because the
 lineage is in doubt but because the file was restructured rather than copied.
 
 That puts it in a different category from the binaries above, and a better
-one. It is unminified, readable JavaScript a reviewer can simply read - 275
+one. It is unminified, readable JavaScript a reviewer can simply read - 286
 lines with no build step between the source and what ships. The risk that
 motivated this whole document is code nobody can check; this is code anybody
 can. Recording where it came from is the right treatment, and generating it
 is not available.
-
-**Still open.** One thing: reproducing the wasm from the command above. That
-is provenance, not correctness - the feature is proven to work.
 
 ### vtt.js: provenance proven, and re-checkable on demand
 

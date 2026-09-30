@@ -1,14 +1,15 @@
 // Records which platform APIs the extension's optional features need, and
 // whether this Firefox has them.
 //
-// Two features in the tree ship large, hard-to-verify binaries: the voice
-// activity detector behind subtitle syncing (an ONNX Runtime wasm and a
-// converted model, about 2.9 MB) and the re-encoder behind DASH-to-MP4
-// download (libsamplerate's wasm). Whether either can run here decides
-// whether those binaries have to be justified to a reviewer or can simply
-// leave the build - so it is measured rather than assumed, and pinned, so
-// that a future Firefox gaining WebCodecs shows up as a failing test rather
-// than as nothing at all.
+// Two features in the tree ship large third-party files: the voice activity
+// detector behind subtitle syncing (the stock onnxruntime-web 1.30.0 wasm,
+// about 14 MB, plus the published Silero VAD .onnx) and the re-encoder
+// behind DASH-to-MP4 download (libsamplerate's wasm; the Mediabunny bundle
+// beside it is unmodified npm output that addons-linter reports nothing for).
+// Whether either feature can run here decides whether those files have to be
+// justified to a reviewer or can simply leave the build - so it is measured
+// rather than assumed, and pinned, so that a future Firefox gaining
+// WebCodecs shows up as a failing test rather than as nothing at all.
 
 import {browser, expect} from '@wdio/globals';
 

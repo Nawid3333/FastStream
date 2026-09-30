@@ -20,7 +20,7 @@ module.exports = [
       'chrome/player/modules/coloris.mjs',
       'chrome/player/modules/vad/ort.wasm.mjs',
       'chrome/player/modules/vad/ort-wasm-simd-threaded.mjs',
-      'chrome/player/modules/reencoder/mp4-muxer.mjs',
+      'chrome/player/modules/reencoder/mediabunny.mjs',
       'chrome/player/modules/reencoder/webm.mjs',
       'chrome/player/modules/reencoder/libsamplerate.mjs',
       'chrome/player/modules/gif/',

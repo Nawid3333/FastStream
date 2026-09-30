@@ -161,14 +161,9 @@ jobs:
 
       # The installed extension in a private window, where storage APIs
       # behave differently (see tests/e2e/wdio.pbm.conf.mjs). Part of the
-      # local verify; CI ran everything but this and the check below.
+      # local verify; CI ran everything but this.
       - name: End-to-end extension tests, private browsing (Firefox)
         run: pnpm run test:pbm
-
-      # The vendored ONNX Runtime binary still self-reports the build
-      # docs/vendored-libraries.md describes - the provenance AMO review asks for.
-      - name: ONNX Runtime provenance
-        run: pnpm run verify:ort
 
       - name: Upload e2e failure logs
         if: failure()

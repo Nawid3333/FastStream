@@ -96,13 +96,26 @@ const VENDOR = [
     // reviewer cannot read it and it corresponds to no published artifact.
     // onnxruntime-web publishes an unminified ESM build of exactly this
     // bundle, with an identical export list, so use that instead.
-    //
-    // Only the JavaScript API layer comes from npm. The wasm binary beside it
-    // and its emscripten glue cannot: see docs/vendored-libraries.md.
     name: 'onnxruntime-web',
     from: 'node_modules/onnxruntime-web/dist/ort.wasm.mjs',
     to: 'chrome/player/modules/vad/ort.wasm.mjs',
     transform: stripInlineSourceMap,
+  },
+  {
+    // The runtime that loader drives, from the same release, as published: it
+    // imports the emscripten glue beside itself, and the glue fetches the wasm
+    // beside itself. The loader and the runtime must be one release. The
+    // custom 1 MB runtime shipped until 1.3.82.44 was built from a commit two
+    // months before 1.20.0, and a 1.30.0 loader on it failed (#23); see
+    // docs/vendored-libraries.md, "The VAD blobs".
+    name: 'onnxruntime-web',
+    from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
+    to: 'chrome/player/modules/vad/ort-wasm-simd-threaded.mjs',
+  },
+  {
+    name: 'onnxruntime-web',
+    from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
+    to: 'chrome/player/modules/vad/ort-wasm-simd-threaded.wasm',
   },
   {
     // mp4box 2.x is TypeScript that rolldown bundles into an ES module entry
@@ -126,9 +139,14 @@ const VENDOR = [
     patched: chunk.startsWith('styp-'),
   })),
   {
-    name: 'mp4-muxer',
-    from: 'node_modules/mp4-muxer/build/mp4-muxer.mjs',
-    to: 'chrome/player/modules/reencoder/mp4-muxer.mjs',
+    // mp4-muxer's successor, by the same author; mp4-muxer is deprecated and
+    // its last release (5.2.2) crashed where 4.3.3 did not (#25). The ES module
+    // bundle as published, with its MPL-2.0 header. Its four blob: Workers
+    // serve camera capture and alpha-channel video, which the re-encoder never
+    // reaches.
+    name: 'mediabunny',
+    from: 'node_modules/mediabunny/dist/bundles/mediabunny.mjs',
+    to: 'chrome/player/modules/reencoder/mediabunny.mjs',
     transform: normaliseText,
   },
   {

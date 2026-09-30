@@ -184,7 +184,7 @@ Everything here adds files and changes no shipped byte.
 - **What:** loads real HLS, DASH and MP4 streams in a real browser and
   asserts `currentTime` actually advances. Plus `modules.e2e.mjs`, which
   exercises the libraries that never appear on the playback path — gif.js,
-  mp4-muxer, jswebm and coloris.
+  mp4-muxer (Mediabunny since 2026-09-30), jswebm and coloris.
 - **Why he wants it:** this suite is what caught the mp4box regression. It
   replaces a manual three-URL checklist that nobody ran.
 - **Depends on:** B2 for the CI wiring; runnable locally without it. Needs
@@ -247,8 +247,8 @@ where needed commit a patch. Ordered by risk, lowest first.
 | C1 | sortablejs | npm 1.15.2 | none | — | `queued` |
 | C2 | sweetalert2 | npm 11.12.4 | none, but a locale payload must stay stripped | — | `queued` |
 | C3 | gif.js | npm 0.2.0 | none — AST-identical | `modules.e2e.mjs` | `queued` |
-| C4 | mp4-muxer | npm 4.3.3 | none — AST-identical | `modules.e2e.mjs` | `queued` |
-| C5 | onnxruntime-web | npm 1.20.0 | none — replaces a hand-minified bundle | none yet | `queued` |
+| C4 | mp4-muxer | npm 4.3.3 | none — AST-identical | `modules.e2e.mjs` | `done 2026-09-30 (removed; Mediabunny 1.60.0 took the MP4 writer)` |
+| C5 | onnxruntime-web | npm 1.30.0 | none — loader, glue and wasm synced from npm verbatim; the loader's inline source map stripped | `vad.e2e.mjs` | `done 2026-09-30 (stock 1.30.0; the custom reduced wasm and the .ort model left with it)` |
 | C6 | jswebm | npm 0.1.2 | 23 KB, five changes, two of them upstream bug fixes | `modules.e2e.mjs` | `queued` |
 | C7 | Coloris | git, pinned commit | 10 KB | `modules.e2e.mjs` | `queued` |
 | C8 | hls.js | npm 1.6.9 | 31 KB, 22 hunks | `playback.e2e.mjs` | `queued` |
@@ -295,20 +295,21 @@ this file. Worth filing that issue before offering C8.
 
 ## C10b. VAD model provenance, verified rather than generated
 
-- **What:** `tools/verify-vad.mjs` and `pnpm run verify:vad`. snakers4/silero-vad
-  publishes no `.ort` at all, so `silero_vad_half.ort` cannot be generated. The
-  script instead fetches the published `.onnx` models from a pinned tag and
-  measures how much of each appears byte-for-byte inside the vendored file:
-  96.60% for `silero_vad_half.onnx` against 20.48% and 11.39% for the two
-  controls.
-- **Why he wants it:** it converts a 1.8 MB opaque binary into a claim anyone
-  can re-run in one command, and the controls are what make the number mean
-  something.
-- **Depends on:** nothing. Same shape as C10.
-- **Note:** covers the model only. The ONNX Runtime build beside it,
-  `ort-wasm-simd-threaded.wasm`, is still unverified and needs a different
-  answer.
-- **Status:** `queued`
+- **What:** `tools/verify-vad.mjs` and `pnpm run verify:vad`. Since 2026-09-30
+  the model at `vad/silero_vad_half.onnx` is byte-for-byte the file
+  snakers4/silero-vad publishes at tag v6.2.1, and the script hashes the file
+  in the tree and the file fetched from that tag, failing unless both equal
+  the recorded sha256
+  (`1e0b195ad4806595ef4466f419d16fca7e4afcfc6669b8c0b5f76ea87547c769`).
+- **Why he wants it:** it turns the model into a claim anyone can re-run in
+  one command - two hashes of one file, with no conversion step in between
+  to argue about.
+- **Depends on:** nothing.
+- **Note:** covers the model only. The ONNX Runtime files beside it need no
+  separate answer since 2026-09-30: they are the stock
+  `onnxruntime-web@1.30.0` files, and `tests/e2e/ext-specs/vad.e2e.mjs` runs
+  them in the extension.
+- **Status:** `done` (2026-09-30)
 
 ## C10c. knob provenance, verified rather than generated
 
@@ -435,8 +436,9 @@ on — that he can integrate one change at a time and still have a working
 program.
 
 **3. It buys the least where this fork is weakest.** The open problems are
-libsamplerate's laptop-built wasm, the ONNX Runtime blobs, and knob's
-provenance. A framework does nothing for any of them. What it offers is a
+libsamplerate's laptop-built wasm and knob's provenance; the ONNX Runtime
+blobs were settled on 2026-09-30 (stock `onnxruntime-web@1.30.0` files).
+A framework does nothing for either. What it offers is a
 faster dev loop, and `pnpm run start:ff` already covers that.
 
 None of this is an argument that WXT is bad. It is a good framework, and for

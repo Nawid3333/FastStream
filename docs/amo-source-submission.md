@@ -124,13 +124,14 @@ updates through the manifest's `update_url`, as for any self-hosted add-on.
 
 ## Prebuilt binaries
 
-Two WebAssembly artifacts ship prebuilt rather than being compiled here.
-Both can be checked against their upstream origin without trusting this
-repository:
+Two WebAssembly artifacts ship prebuilt rather than being compiled here,
+and the VAD's model is likewise a file published by its upstream. All three
+can be checked against their origins without trusting this repository:
 
 | Artifact | Verify with |
 |---|---|
-| ONNX Runtime (`ort-wasm-simd-threaded.wasm`) | `pnpm run verify:ort` - reads the build metadata out of the binary itself and checks it matches the documented upstream build (onnxruntime 1.20.0 @ `5c74539ab7`, MinSizeRel, reduced/ORT-format). |
+| ONNX Runtime (`vad/ort-wasm-simd-threaded.wasm`, its glue and the loader) | the stock npm files - `tools/sync-vendor.mjs` copies all three exactly as `onnxruntime-web@1.30.0` publishes them (gitignored; the loader's inline source map is stripped, nothing else); a reviewer can install that version and diff. |
+| Silero VAD model (`vad/silero_vad_half.onnx`) | `pnpm run verify:vad` - hashes the file in the tree against the file snakers4/silero-vad publishes at tag v6.2.1. |
 | libsamplerate | `tools/reproduce-libsamplerate-wasm.sh` - rebuilds it from upstream source and compares. |
 
 Additional provenance checks for non-npm vendored files:
@@ -156,7 +157,9 @@ pnpm run verify
 This runs eslint, TypeScript type-checking, unit tests, all three builds
 (the GitHub zip, the AMO build and the web player), addons-linter against
 both Firefox targets, browser end-to-end tests (WebDriver + Firefox),
-extension-loaded end-to-end tests, and the ONNX Runtime provenance check.
+extension-loaded end-to-end tests (including the VAD reference check,
+`tests/e2e/ext-specs/vad.e2e.mjs`), and the VAD model hash check
+(`pnpm run verify:vad`).
 
 The end-to-end tests require a Firefox binary and will download WebDriver
 components on first run; they are not needed to reproduce the package.

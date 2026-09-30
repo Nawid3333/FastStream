@@ -845,10 +845,12 @@ the change went in.
 
 ## Workflows (reworked 2026-09-25)
 
-- **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm`, `verify:ort` and,
+- **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm` and,
   since 2026-09-25, `verify:vtt`/`verify:knob`/`verify:vad` - `verify:vtt` had been red
   for three days when nothing ran it - and since 2026-09-30 `verify:fsaunpack`, which
-  installs fsaunpack's own npm lockfile and starts its express test server), plus a
+  installs fsaunpack's own npm lockfile and starts its express test server;
+  `verify:ort` left the chain on 2026-09-30 with the custom ONNX Runtime wasm it
+  stamped), plus a
   `workflows` job: actionlint with its
   bundled shellcheck over every workflow.
 - **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
@@ -1100,10 +1102,12 @@ the change went in.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
-  libsamplerate, StreamSaver, the native ONNX Runtime wasm): measured 2026-09-25, OSV has
+  libsamplerate, StreamSaver): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are
   covered by the provenance checks instead. The lockfile-backed libraries are covered by
-  Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
+  Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3);
+  since 2026-09-30 that includes the ONNX Runtime wasm, which ships as `onnxruntime-web`
+  publishes it.
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
 - **`mpv-host-changed.yml`** (a push to `main` changing `native-host/faststream-mpv-host.mjs`
@@ -1255,14 +1259,16 @@ they belong in the Phase 7 npm migration rather than being removed:
 
 | File | What it is | npm |
 |---|---|---|
-| `vad/ort-wasm-simd-threaded.wasm` + `ort.wasm.mjs` | **ONNX Runtime Web v1.20.0**, Microsoft, MIT | `onnxruntime-web@1.20.0` |
-| `vad/silero_vad_half.ort` | Silero VAD model, ORT format, MIT | published model |
+| `vad/ort.wasm.mjs` + `ort-wasm-simd-threaded.mjs` + `ort-wasm-simd-threaded.wasm` | **ONNX Runtime Web 1.30.0**, Microsoft, MIT | `onnxruntime-web@1.30.0` |
+| `vad/silero_vad_half.onnx` | Silero VAD model, `.onnx`, MIT | published model, silero-vad tag v6.2.1 |
+| `reencoder/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
 | `reencoder/libsamplerate.wasm` + `.mjs` | `aolsenjazz/libsamplerate-js`, MIT | `@alexanderolsen/libsamplerate-js` |
 
-`vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carries the comment
+`vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carried the comment
 "Minified to reduce loading time (https://minify-js.com/)"** — Andrew
 minified it by hand, which is precisely the modified-third-party-library
-problem AMO objects to. Shipping the unminified npm dist fixes it.
+problem AMO objects to. It has shipped as the npm dist since (all three ONNX
+Runtime files, since 2026-09-30).
 
 VAD is lazily loaded via dynamic `import()` from
 `analyzer/AudioAnalyzerNode.mjs:63`, so it only costs anything when the
