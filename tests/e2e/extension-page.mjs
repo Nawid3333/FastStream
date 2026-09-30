@@ -14,6 +14,77 @@ import {EXTENSION_UUID, OPENER_URL} from './wdio.extension.conf.mjs';
 const PLAYER_PAGE = `moz-extension://${EXTENSION_UUID}/player/index.html`;
 
 /**
+ * Opens a page of the extension in a tab of its own and focuses it, closing every tab
+ * but the first. geckodriver refuses to navigate to moz-extension:// directly, so an
+ * http page opens the player page (web-accessible), and that extension page goes on to
+ * the target. The target itself need not be web-accessible: the options page is not.
+ *
+ * Finds the tab by URL rather than taking the newest handle: a freshly installed
+ * temporary add-on opens its own welcome.html tab at no fixed moment.
+ *
+ * @param {string} pagePath - Path under the extension origin, e.g. '/player/options/index.html'.
+ * @return {Promise<void>} Resolves once the page has loaded.
+ */
+export async function openExtensionPage(pagePath) {
+  const target = `moz-extension://${EXTENSION_UUID}${pagePath}`;
+
+  const handlesBefore = await browser.getWindowHandles();
+  for (const h of handlesBefore.slice(1)) {
+    await browser.switchToWindow(h);
+    await browser.closeWindow();
+  }
+  await browser.switchToWindow(handlesBefore[0]);
+  await browser.url(OPENER_URL);
+  await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
+
+  await browser.waitUntil(async () => {
+    for (const h of await browser.getWindowHandles()) {
+      await browser.switchToWindow(h);
+      const url = await browser.getUrl();
+      if (url === target) {
+        return true;
+      }
+      if (url.startsWith(PLAYER_PAGE)) {
+        // A page still loading may refuse the script; the next round tries again.
+        await browser.execute((u) => location.replace(u), target).catch(() => {});
+      }
+    }
+    return false;
+  }, {timeout: 20000, interval: 200, timeoutMsg: `the extension page (${target}) never opened`});
+
+  await browser.waitUntil(
+      async () => browser.execute(() => document.readyState === 'complete'),
+      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
+}
+
+/**
+ * Gives the player the driver is in a source, with the same call main.mjs makes for a
+ * player tab's #url. A player inside a page ignores its hash (the page could hand it
+ * made-up headers), and the extension's own player iframes get theirs from the background.
+ * Does not wait for the source to load: the specs wait for the video themselves.
+ * @param {string} url - The media URL.
+ * @return {Promise<void>} Resolves once addSource has been called.
+ */
+export async function addSourceInPlayer(url) {
+  const error = await browser.executeAsync((u, done) => {
+    Promise.all([
+      import('/player/VideoSource.mjs'),
+      import('/player/enums/PlayerModes.mjs'),
+      import('/player/utils/URLUtils.mjs'),
+    ]).then(([{VideoSource}, {PlayerModes}, {URLUtils}]) => {
+      const mode = URLUtils.getModeFromExtension(URLUtils.get_url_extension(u)) || PlayerModes.DIRECT;
+      window.fastStream.addSource(new VideoSource(u, {}, mode), true).catch((e) => {
+        window.__addSourceError = String(e);
+      });
+      done(null);
+    }, (e) => done(String(e)));
+  }, url);
+  if (error) {
+    throw new Error('could not give the player its source: ' + error);
+  }
+}
+
+/**
  * Runs a function in a page of the extension, where chrome.* is available.
  * @param {Function} fn - Called as fn(arg, done).
  * @param {*} arg - A serialisable argument.

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {findMpvOnPath, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
 
 // The native host used to hand a bare `mpv` on without looking: "Test mpv connection"
@@ -92,5 +92,38 @@ describe('resolveMpvPath with a bare name', () => {
     const dir = dirWith('user-bin', [process.platform === 'win32' ? 'mpv.exe' : 'mpv']);
     process.env[key] = dir;
     expect(resolveMpvPath('mpv')).toBe(path.join(dir, process.platform === 'win32' ? 'mpv.exe' : 'mpv'));
+  });
+});
+
+// The mpv path comes from the options page, and the host starts whatever it names. A page
+// could frame the options page (it was web-accessible) and get a click on a changed
+// path; an imported settings file can carry one too. So the host starts only a file
+// named like mpv, or mpv.exe in a named folder, and never looks at a UNC or device path:
+// Windows signs in to a UNC host with the user's credentials on a mere stat.
+describe('resolveMpvPath with a path from the options page', () => {
+  it('starts a file named like mpv', () => {
+    const name = process.platform === 'win32' ? 'mpv-x86_64.exe' : 'mpv-git';
+    const file = path.join(dirWith('builds', [name]), name);
+    expect(resolveMpvPath(file)).toBe(file);
+  });
+
+  it('never starts a program with another name', () => {
+    const name = process.platform === 'win32' ? 'cmd.exe' : 'sh';
+    const file = path.join(dirWith('other', [name]), name);
+    expect(resolveMpvPath(file)).not.toBe(file);
+  });
+
+  it.each([
+    ['a UNC path', String.raw`\\attacker.test\share\mpv.exe`],
+    ['a forward-slash UNC path', '//attacker.test/share/mpv.exe'],
+    ['a device path', String.raw`\\?\C:\mpv\mpv.exe`],
+  ])('does not even look at %s', (what, candidate) => {
+    const stat = vi.spyOn(fs, 'statSync');
+    try {
+      expect(resolveMpvPath(candidate)).not.toBe(candidate);
+      expect(stat.mock.calls.map((call) => call[0])).not.toContain(candidate);
+    } finally {
+      stat.mockRestore();
+    }
   });
 });

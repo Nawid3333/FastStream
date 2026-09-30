@@ -1,5 +1,8 @@
-import {describe, expect, it} from 'vitest';
-import {loadIntoExisting, mpvTargetUrl, pageFragmentFor, resumeIdFor, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {loadIntoExisting, mpvTargetUrl, pageFragmentFor, resumeIdFor, withContentTypeFragment, withIpcLock} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -236,5 +239,96 @@ describe('fs-page fragment (source-info.lua reads it)', () => {
     // value between fs-page= and the next & / end: the whole rest here
     const value = url.slice(url.indexOf('fs-page=') + 'fs-page='.length);
     expect(decodeURIComponent(value)).toBe(pageUrl);
+  });
+});
+
+// Each "Send to mpv" is its own host process, and loading into the running mpv sets the
+// headers globally before loading the file: two sends milliseconds apart could interleave
+// as set A, set B, load B, load A, so A played with B's headers.
+describe('withIpcLock', () => {
+  let lockDir;
+  let lockFile;
+
+  beforeEach(() => {
+    lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-lock-'));
+    lockFile = path.join(lockDir, 'ipc.lock');
+  });
+
+  afterEach(() => {
+    fs.rmSync(lockDir, {recursive: true, force: true});
+  });
+
+  const exchange = (events, name, ms) => async () => {
+    events.push(name + ' start');
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    events.push(name + ' end');
+    return name;
+  };
+
+  it('runs two overlapping exchanges one after the other', async () => {
+    const events = [];
+    const results = await Promise.all([
+      withIpcLock(exchange(events, 'A', 80), lockFile),
+      withIpcLock(exchange(events, 'B', 10), lockFile),
+    ]);
+    expect(results).toEqual(['A', 'B']);
+    expect(events).toEqual(['A start', 'A end', 'B start', 'B end']);
+    expect(fs.existsSync(lockFile)).toBe(false);
+  });
+
+  it('releases the lock when the exchange throws', async () => {
+    await expect(withIpcLock(async () => {
+      throw new Error('pipe broke');
+    }, lockFile)).rejects.toThrow('pipe broke');
+    expect(fs.existsSync(lockFile)).toBe(false);
+  });
+
+  it('takes over a lock left by a host that was killed', async () => {
+    fs.writeFileSync(lockFile, '');
+    const old = (Date.now() - 60000) / 1000;
+    fs.utimesSync(lockFile, old, old);
+    const started = Date.now();
+    expect(await withIpcLock(async () => 'ran', lockFile, 5000)).toBe('ran');
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('goes ahead after its wait when another host holds the lock too long', async () => {
+    fs.writeFileSync(lockFile, '');
+    const started = Date.now();
+    expect(await withIpcLock(async () => 'ran', lockFile, 150)).toBe('ran');
+    expect(Date.now() - started).toBeGreaterThanOrEqual(140);
+    // The other host's lock is not ours to remove.
+    expect(fs.existsSync(lockFile)).toBe(true);
+  });
+});
+
+describe('loadIntoExisting from two hosts at once', () => {
+  it('sends one host\'s headers and file before the other\'s', async () => {
+    const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-lock-'));
+    const lockFile = path.join(lockDir, 'ipc.lock');
+    const sent = [];
+    // A pipe that takes a while: each batch's commands arrive over some milliseconds.
+    const slowPipe = async (commands) => {
+      for (const command of commands) {
+        sent.push(command.command);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return {ok: true, replies: commands.map((c, i) => ({request_id: i + 1, error: 'success'}))};
+    };
+    try {
+      await Promise.all([
+        loadIntoExisting({url: 'https://a.test/v.m3u8'}, ['Referer: https://a.test/'], 'a', slowPipe, lockFile),
+        loadIntoExisting({url: 'https://b.test/v.m3u8'}, ['Referer: https://b.test/'], 'b', slowPipe, lockFile),
+      ]);
+    } finally {
+      fs.rmSync(lockDir, {recursive: true, force: true});
+    }
+    // Each loadfile follows its own header setting, with nothing of the other between.
+    const order = sent.filter((c) => c[1] === 'http-header-fields' || c[0] === 'loadfile')
+        .map((c) => c[0] === 'loadfile' ? 'load ' + new URL(c[1]).hostname : 'set ' + c[2][0]);
+    expect(order).toEqual([
+      'set Referer: https://a.test/', 'load a.test',
+      'set Referer: https://b.test/', 'load b.test',
+    ]);
   });
 });

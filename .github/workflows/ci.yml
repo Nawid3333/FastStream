@@ -212,6 +212,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The unit suite again (about 2 s): some of its tests run only on Windows - the native
+      # host's PowerShell launch and its installer, with the real PowerShell - and `verify`
+      # runs on Linux.
+      - name: Unit tests (Windows)
+        run: pnpm test
+
       # ffmpeg (the e2e setup builds its video fixtures with it) and the current stable
       # Firefox as FIREFOX_BINARY.
       - name: e2e setup

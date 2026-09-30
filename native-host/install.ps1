@@ -8,19 +8,31 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 `
 #       [-MpvPath <path>] [-NodePath <path>]
 #
+# -InstallDir and -NoRegister are for tests: install into a scratch folder and leave the
+# registry alone, so a test never touches the real installation.
+#
 # The extension is allowed by the fixed ID thanatus@Nawid from the build manifest.
 
 param(
     [string]$MpvPath = 'C:\Program Files\mpv\mpv.exe',
-    [string]$NodePath = 'node'
+    [string]$NodePath = 'node',
+    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost'),
+    [switch]$NoRegister
 )
 
 $ErrorActionPreference = 'Stop'
 
 $HostName_ = 'com.faststream.mpv'
 $FirefoxId = 'thanatus@Nawid'
-$InstallDir = Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost'
 $HostScript = Join-Path $PSScriptRoot 'faststream-mpv-host.mjs'
+
+# Windows PowerShell 5.1 writes -Encoding ASCII as '?' for every other character, and
+# its -Encoding UTF8 puts a byte order mark in front, which JSON.parse refuses. A user
+# name like "Jose" with an accent broke every path in these files. UTF-8, no BOM.
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+function Write-Utf8File([string]$Path, [string]$Text) {
+    [System.IO.File]::WriteAllText($Path, $Text, $Utf8NoBom)
+}
 
 if (-not (Test-Path $HostScript)) {
     Write-Error "Host script not found: $HostScript"
@@ -41,17 +53,20 @@ if (-not (Test-Path $MpvPath)) {
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item $HostScript (Join-Path $InstallDir 'faststream-mpv-host.mjs') -Force
 
-@{
+Write-Utf8File (Join-Path $InstallDir 'config.json') (@{
     mpvPath = $MpvPath
-} | ConvertTo-Json | Set-Content (Join-Path $InstallDir 'config.json') -Encoding ASCII
+} | ConvertTo-Json)
 
 # 2. .bat wrapper - Windows won't start a .mjs as a program, so the manifest
 #    points at this, which runs it with node and hands on Firefox's arguments.
+#    cmd reads a batch file in the console's code page, line by line: chcp 65001
+#    makes it read the paths below as the UTF-8 they are written in.
 $batPath = Join-Path $InstallDir "$HostName_.bat"
-@"
+Write-Utf8File $batPath (@"
 @echo off
+chcp 65001 > nul
 "$nodeCmd" "$(Join-Path $InstallDir 'faststream-mpv-host.mjs')" %*
-"@ | Set-Content $batPath -Encoding ASCII
+"@ -replace "`r?`n", "`r`n")
 
 # 3. Native messaging manifest
 $manifest = [ordered]@{
@@ -63,13 +78,15 @@ $manifest = [ordered]@{
 }
 
 $manifestPath = Join-Path $InstallDir "$HostName_.json"
-$manifest | ConvertTo-Json -Depth 4 | Set-Content $manifestPath -Encoding ASCII
+Write-Utf8File $manifestPath ($manifest | ConvertTo-Json -Depth 4)
 
 # 4. Registration
-$key = 'HKCU:\Software\Mozilla\NativeMessagingHosts\' + $HostName_
-New-Item -Path $key -Force | Out-Null
-Set-ItemProperty -Path $key -Name '(default)' -Value $manifestPath
-Write-Host "Registered for Firefox (extension $FirefoxId)."
+if (-not $NoRegister) {
+    $key = 'HKCU:\Software\Mozilla\NativeMessagingHosts\' + $HostName_
+    New-Item -Path $key -Force | Out-Null
+    Set-ItemProperty -Path $key -Name '(default)' -Value $manifestPath
+    Write-Host "Registered for Firefox (extension $FirefoxId)."
+}
 
 Write-Host ""
 Write-Host "FastStream mpv host installed."

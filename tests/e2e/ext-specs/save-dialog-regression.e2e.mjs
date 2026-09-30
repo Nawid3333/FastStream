@@ -16,9 +16,7 @@
 import {browser, expect} from '@wdio/globals';
 import {pageState} from '../specs/diagnostics.mjs';
 
-import {EXTENSION_UUID} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
+import {addSourceInPlayer} from '../extension-page.mjs';
 
 /**
  * Embeds the player iframe pointing at the MP4 fixture and switches the
@@ -33,10 +31,6 @@ async function openEmbeddedPlayerWithMp4() {
         return !!f && f.src.startsWith('moz-extension://');
       }),
       {timeout: 15000, timeoutMsg: 'embed page never got its player iframe'});
-  await browser.execute((origin, url) => {
-    const f = document.querySelector('iframe#fs');
-    f.src = origin + '/player/index.html?t=' + Date.now() + '#' + url;
-  }, ORIGIN, globalThis.__EXT_FIXTURE_MP4__);
   await browser.switchFrame(await browser.$('iframe#fs'));
   await browser.waitUntil(
       async () => browser.execute(() => document.readyState === 'complete'),
@@ -44,6 +38,8 @@ async function openEmbeddedPlayerWithMp4() {
   await browser.waitUntil(
       async () => browser.execute(() => !!window.fastStream),
       {timeout: 30000, timeoutMsg: 'window.fastStream never appeared'});
+  // Not through the iframe's #hash: a player inside a page ignores it.
+  await addSourceInPlayer(globalThis.__EXT_FIXTURE_MP4__);
   await browser.execute(() => window.fastStream.userInteracted());
   await browser.waitUntil(
       async () => browser.execute(() => {
