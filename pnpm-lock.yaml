@@ -91,6 +91,9 @@ importers:
       hls.js:
         specifier: ^1.7.3
         version: 1.7.3(patch_hash=7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a)
+      js-yaml:
+        specifier: ^4.3.2
+        version: 4.3.2
       jswebm:
         specifier: 0.1.2
         version: 0.1.2(patch_hash=b8fc569b709823b223e47af4157408c4dd2e020c7e8acfcb4257e2d5ba55d33a)(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)

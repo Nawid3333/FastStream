@@ -118,11 +118,15 @@ jobs:
     needs: detect
     if: needs.detect.outputs.latest-tested != 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/ci.yml
-    # The most ci.yml's jobs may ask for. Only its hand-off asks for actions: write, and it
-    # runs only on an update branch, never here; without it here the call would not start.
+    # The most ci.yml's jobs may ask for. GitHub refuses this whole run at startup if one
+    # asks for more, even a job its if: skips. Only its two hand-offs ask for more than
+    # contents: read (actions: write, and issues: write for the release one), and neither
+    # runs here: a called run is no "CI" run and on no update branch.
+    # tests/unit/workflowPermissions.test.mjs checks this list against ci.yml.
     permissions:
       contents: read
       actions: write
+      issues: write
     with:
       linux-runner: ${{ needs.detect.outputs.latest-linux }}
       windows-runner: ${{ needs.detect.outputs.latest-windows }}
@@ -134,11 +138,15 @@ jobs:
       needs.detect.outputs.next-images != needs.detect.outputs.latest-images &&
       (needs.detect.outputs.next-tested != 'true' || github.event_name == 'workflow_dispatch')
     uses: ./.github/workflows/ci.yml
-    # The most ci.yml's jobs may ask for. Only its hand-off asks for actions: write, and it
-    # runs only on an update branch, never here; without it here the call would not start.
+    # The most ci.yml's jobs may ask for. GitHub refuses this whole run at startup if one
+    # asks for more, even a job its if: skips. Only its two hand-offs ask for more than
+    # contents: read (actions: write, and issues: write for the release one), and neither
+    # runs here: a called run is no "CI" run and on no update branch.
+    # tests/unit/workflowPermissions.test.mjs checks this list against ci.yml.
     permissions:
       contents: read
       actions: write
+      issues: write
     with:
       linux-runner: ${{ needs.detect.outputs.next-linux }}
       windows-runner: ${{ needs.detect.outputs.next-windows }}

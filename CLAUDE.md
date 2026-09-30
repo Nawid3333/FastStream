@@ -1030,7 +1030,12 @@ the change went in.
   newer than `-latest` - a warning before GitHub switches, as `ubuntu-latest` does to 26.04
   rolled out October 19 - November 19, 2026 - and once more when `-latest` moves. Green runs are recorded as cache
   keys `runner-image-{next,latest}-<images>`; a failure opens one issue per image, closed by
-  the next green run. A called CI run is not a "CI" run, so it never releases. Never put a
+  the next green run. A called CI run is not a "CI" run, so it never releases. Both calls
+  grant the most any ci.yml job asks for (`contents: read`, `actions: write`,
+  `issues: write`): GitHub refuses the whole run at startup when a called job asks for
+  more, even one whose `if:` skips it, and as no job runs, no issue says so (#77's release
+  hand-off stopped it so, 2026-09-30). A permission added to a ci.yml job goes in both
+  calls; `tests/unit/workflowPermissions.test.mjs` fails until it does. Never put a
   `schedule:` in `ci.yml`: GitHub disables a public repo's scheduled workflows after 60 days
   without a commit, and it disables the whole file, push trigger included.
 - **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
