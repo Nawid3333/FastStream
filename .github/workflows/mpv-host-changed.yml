@@ -1,0 +1,74 @@
+name: mpv helper changed
+
+# The mpv helper runs on the owner's PC from a copy that install.ps1 puts in
+# %LOCALAPPDATA%\FastStreamMpvHost, and a `git pull` does not touch that copy. So when a
+# push to main changes the helper or its installer, this comments on the reminder issue
+# (#73, "after git pull") and @mentions the owner, so it arrives by email: run
+# install.ps1 again, then restart Firefox. Commenting on a closed issue still emails.
+#
+# It checks nothing out and runs nothing from the repository: it reads the push event's
+# list of changed files and writes one comment. A push by a workflow's own token starts
+# no workflow, but none of those (the release, the mpv pin, update-prs' merges) change
+# these files. If this workflow fails, GitHub tells the pusher about the failed run (by
+# email, with the default notification settings).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - native-host/faststream-mpv-host.mjs
+      - native-host/install.ps1
+
+permissions:
+  issues: write  # the comment on the reminder issue
+
+jobs:
+  remind:
+    name: Remind to run install.ps1 again
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      ISSUE: 73
+    steps:
+      - name: Comment on the reminder issue
+        run: |
+          set -euo pipefail
+          # The two files, and the pushed commits that changed them. The event lists every
+          # pushed commit's files (up to 2048 commits); should it list none of the two, the
+          # path filter still matched, and the comment names both.
+          files=$(jq -r '[.commits[] | (.added + .modified + .removed)[]] | unique | .[]
+            | select(. == "native-host/faststream-mpv-host.mjs" or . == "native-host/install.ps1")' \
+            "$GITHUB_EVENT_PATH")
+          commits=$(jq -r '[.commits[]
+            | select([(.added + .modified + .removed)[]]
+              | any(. == "native-host/faststream-mpv-host.mjs" or . == "native-host/install.ps1"))
+            | .id] | join(" ")' "$GITHUB_EVENT_PATH")
+          if [ -z "$files" ]; then
+            files=$'native-host/faststream-mpv-host.mjs\nnative-host/install.ps1'
+          fi
+          if [ -z "$commits" ]; then
+            commits=$GITHUB_SHA
+          fi
+          echo "Changed: $(tr '\n' ' ' <<< "$files")in $commits"
+
+          # shellcheck disable=SC2016 # backticks are Markdown
+          {
+            printf '@%s The mpv helper changed on `main`:\n\n' "$OWNER"
+            while IFS= read -r file; do
+              printf -- '- `%s`\n' "$file"
+            done <<< "$files"
+            printf '\nin %s.\n\n' "$commits"
+            cat <<'EOF'
+          Your PC runs its own copy of the helper, which `git pull` doesn't update. After you pull, in PowerShell from the repository folder:
+
+          ```powershell
+          powershell -ExecutionPolicy Bypass -File native-host\install.ps1
+          ```
+
+          Then restart Firefox.
+          EOF
+          } > "$RUNNER_TEMP/body.md"
+          gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/body.md"
