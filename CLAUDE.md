@@ -94,11 +94,13 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   and a row whose key another action shares is marked with a warning naming the other action
   (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
 - Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
-  **Gotcha:** `en/messages.json` carries 7 keys that are not in `combined-locales.json`
-  (`extension_toggle_label_mpv`, `options_general_buffer*`, `options_general_blockpopups`,
-  `player_mpv_content_*`), so `localescript.mjs --split` without a whitelist deletes them from
-  en. Both files are formatted with a 4-space indent; keep it, or a one-key change shows up as
-  thousands of changed lines.
+  **Gotcha:** `combined-locales.json` is behind the 16 `messages.json` files (406 keys each,
+  counted 2026-09-30): 15 keys are not in it at all, 17 have only their English text there, and
+  17 single translations (of 2 keys) differ. `localescript.mjs --split` writes it over the
+  locales, so it would delete 495 strings and revert 17; do not run it, edit each locale's
+  `messages.json` instead. (Plain `node localescript.mjs`, which the build runs, only compares
+  keys.) Both files are formatted with a 4-space indent; keep it, or a one-key change shows up
+  as thousands of changed lines.
 - Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
   (the default layout has no clashes and every default has a handler, the storage path, the
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
@@ -122,21 +124,22 @@ lines that matter, and check what it reports against the source.
 
 ```bash
 pnpm install              # pnpm 11, pinned via packageManager
-pnpm run build            # 4 targets -> built/*.zip, unpacked dirs deleted
+pnpm run build            # 3 targets -> built/firefox-*.zip + built/web, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
 pnpm run lint             # eslint (must stay at 0), plus eslint.modules.config.js:
                           # undefined/unused names in chrome/player/modules, which the main
                           # config skips entirely (first-party code lives there next to vendored libs)
 pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
-pnpm run start:ff         # web-ext run — launches Firefox with the extension
+pnpm run start:ff         # rebuilds, then web-ext run on the dev profile (tools/launch-ff.mjs)
 pnpm test                 # vitest
 pnpm run test:ext         # installed extension, ordinary windows
 pnpm run test:ext:github  # the same, against the GitHub self-host build
 pnpm run test:pbm         # installed extension, private windows
 ```
 
-`build:keep` must run before any `lint:amo` or `start:ff` — those need an
-unpacked directory, and a plain build leaves only zips.
+`build:keep` must run before any `lint:amo` or `start:ff:clean` — those need an
+unpacked directory, and a plain build leaves only zips. (`start:ff` and `start:ff:fresh`
+rebuild by themselves.)
 
 ## Manual playback testing
 
@@ -381,7 +384,7 @@ What that fix put in place, and the invariants to keep:
   this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
   accumulation if its OPFS writes throw.
 - `OPFSManager.isSupported()` additionally refuses up front when
-  `EnvUtils.isFirefox() && EnvUtils.isIncognito()`, purely to avoid spawning
+  `EnvUtils.isIncognito()`, purely to avoid spawning
   a worker and logging a `SecurityError` per player open. It is not the
   safety net — the runtime fall-through is, and it has to be, because the
   web build has no `chrome.extension` to read `inIncognitoContext` from and
@@ -434,8 +437,8 @@ with the fix.
 always opens the file picker anyway". Firefox private-window downloads open
 no picker — they land in the download directory under whatever name they are
 given — so both the video and screenshot saves silently used the page title
-instead of asking. Both now skip the prompt only when
-`isChrome() && isIncognito()`.
+instead of asking. Both now always ask (they skipped it only for
+`isChrome() && isIncognito()` until Chrome was dropped).
 
 Deliberately left alone: `FastStreamClient.updateHasDownloadSpace()` still
 refuses to predownload a whole video in a private session
@@ -712,9 +715,11 @@ survival inside a real kill-on-close job object.
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
 
-Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_PROMO`, `NO_UPDATE_CHECKER`.
+Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_UPDATE_CHECKER`; no code carries a
+`FIREFOX` block any more, but both Firefox builds still pass it.
 (`CENSORYT` and `NO_YOUTUBE` existed before YouTube support was removed
-entirely — see "YouTube removal" below — and no longer apply to anything.)
+entirely — see "YouTube removal" below — and no longer apply to anything;
+`NO_PROMO` went with the review prompt on 2026-09-20.)
 
 ## Build targets
 
@@ -735,7 +740,7 @@ e2e suite runs against it, in Firefox.
 
 | Target | Splices | Notes |
 |---|---|---|
-| `firefox-github` | EXTENSION, FIREFOX, NO_PROMO | manual install |
+| `firefox-github` | EXTENSION, FIREFOX | manual install |
 | `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
@@ -744,9 +749,8 @@ dist build for now"). Re-enabled in `7ed4723`.
 
 The 12 `EnvUtils.isChrome()`/`isFirefox()` branches elsewhere in the
 codebase (playback-rate caps, the 7.1-audio workaround, OPFS backend
-selection, SponsorBlock's extension ID) were deliberately left in place —
-narrow, self-contained, and not worth the risk of touching working
-audio/playback logic for a small cleanup win.
+selection, SponsorBlock's extension ID), left in place on 2026-09-11, went
+with the rest of Chrome's code on 2026-09-20; none is left.
 
 ## Releasing (auto-release.yml, added 2026-09-12)
 
@@ -946,12 +950,16 @@ the change went in.
   into the extension) and `tooling-minor-and-patch` (everything else), so a tooling
   update is not held back by a shipped one; `update-prs.yml` merges the green
   tooling PR, a shipped one waits for the owner.
-- **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`)
-  for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and `sync/upstream`
-  branches, and never checks out PR code. CI red: failed jobs are rerun once; still
-  red, one comment @mentions the owner with a table of failed job, step and what the
-  step checks, the last 40 lines of each failed log and `main`'s latest CI status, and
-  the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
+- **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
+  for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
+  `workflow_dispatch`) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
+  `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
+  on the same commit, and that run decides (a new run, not a re-run: a re-run by this
+  workflow's token would reach no workflow when it ends); not when CI already failed on
+  that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
+  to start it, this run decides. Still red, one comment @mentions the owner with a
+  table of failed job, step and what the step checks, the last 40 lines of each failed
+  log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
   Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
   only when that bot opened it (not a draft, against `main`) and its commits are the
   bot's or this workflow's merges of `main`, only `package.json` and
@@ -1118,8 +1126,10 @@ the change went in.
 ## Rules
 
 - **Never hand-edit `chrome/player/modules/*`** — vendored third-party code
-  (dash.mjs 3.5 MB, hls.mjs 1.3 MB, yt.mjs 1.3 MB). Excluded from eslint and
-  tsconfig; they stall the language server otherwise.
+  (dash.mjs 3.3 MB, hls.mjs 1.5 MB). Excluded from eslint and
+  tsconfig; they stall the language server otherwise. Those two and a dozen more are
+  copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
+  a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
 - **`build.mjs` rewrites `chrome/manifest.json` in place** on every run to
   sync the version from `package.json`. The tree is dirty after each build.
   Don't sweep it into an unrelated commit.
@@ -1178,11 +1188,12 @@ output that never showed the error section at all.
 
 ## Vendored libraries
 
-The in-tree hls.js is **1.6.9 with 466 lines of divergence across 22 hunks**
-(1.3%), not a fork. Much of it has already landed upstream. See
-[docs/vendored-libraries.md](docs/vendored-libraries.md) for the full hunk
-classification and the recommended `pnpm patch` approach; the raw diff is
-`docs/hls.js-1.6.9-faststream.patch`.
+hls.js is the npm release, **1.7.3**, plus `patches/hls.js@1.7.3.patch` (the extra
+demuxer exports, `outputSamples` on the remux result and the VTT part-loading guard),
+which pnpm applies at install; dash.js is `dashjs@5.2.1` with its patch the same way. The
+in-tree hls.js they replaced was 1.6.9 with 466 lines of divergence across 22 hunks (1.3%),
+not a fork; that diff is kept as `docs/hls.js-1.6.9-faststream.patch`. See
+[docs/vendored-libraries.md](docs/vendored-libraries.md) for the hunk classification.
 
 Do not try to replace these with wrapper classes — the extra demuxer exports
 that `hls2mp4/transmuxer.mjs` needs have no public-API equivalent in any

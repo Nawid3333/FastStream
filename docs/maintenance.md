@@ -24,7 +24,7 @@ workflows, which stay silent while they pass.
 | upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | waits for you | one comment, and the assignment |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
-| actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile`, which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
+| actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 
 Dependabot proposes a release once it is 5 days old (`cooldown` in `.github/dependabot.yml`);
@@ -50,8 +50,10 @@ verdict as the last one is edited in place, so a repeat sends no second email.
 
 ### CI red on an update PR
 
-`update-prs.yml` has already rerun the failed jobs once by the time you read this
-(unless GitHub refused the rerun; the comment says so). The comment holds a table of
+CI has already failed twice on the same commit by the time you read this: after a
+first failure `update-prs.yml` starts CI once more, in case a test was flaky, and the
+comment says it failed twice. (If GitHub refused to start that second run, the comment
+reports the one failure.) It holds a table of
 each failed job, the step that failed and what that step checks, the last 40 lines
 of each failed log, and `main`'s latest CI status; the PR carries the `ci-failed`
 label and is assigned to you. Then:
