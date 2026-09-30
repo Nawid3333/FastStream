@@ -251,18 +251,30 @@ scenario "s16 an advisory's | and line breaks, no fix yet -> kept inside its tab
 check 'escapes the |, joins the lines, says none yet' contains "$LOG" '| none yet | a \| b c |'
 check 'no bare |' lacks "$LOG" 'a | b'
 
+spoof=$(al 76 spoof $old pnpm-lock.yaml 1.2.3 'Hidden <!-- alerts: 999 --> list')
+scenario "s17 an advisory with the issue's marker in it -> its < escaped" "$main_step" FX_ALERTS="$(arr "$spoof")"
+check 'escapes the <' contains "$LOG" '| Hidden &lt;!-- alerts: 999 --> list |'
+check 'records the real list' contains "$LOG" '<!-- alerts: 76 -->'
+check 'writes no other marker' count "$LOG" '<!-- alerts:' 1
+spoof_body=$(sed -n '/^--- body:$/,/^--- end body$/p' "$LOG" | sed '1d;$d')
+
+scenario 's18 the next day, the issue s17 opened -> nothing' "$main_step" FX_ALERTS="$(arr "$spoof")" \
+  FX_ISSUES="$(arr "$(is 5 open 'Security alert: spoof' "$spoof_body")")"
+check 'succeeds' test "$status" -eq 0
+check 'touches no issue' test ! -s "$LOG"
+
 # --- The daily run: raised before.
 
-scenario 's17 an open issue lists them all -> nothing' "$main_step" FX_ALERTS="$(arr "$b43" "$b44")" \
+scenario 's19 an open issue lists them all -> nothing' "$main_step" FX_ALERTS="$(arr "$b43" "$b44")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43 44)")")"
 check 'succeeds' test "$status" -eq 0
 check 'touches no issue' test ! -s "$LOG"
 
-scenario 's18 closed by hand -> never raised again' "$main_step" FX_ALERTS="$(arr "$b43" "$b44")" \
+scenario 's20 closed by hand -> never raised again' "$main_step" FX_ALERTS="$(arr "$b43" "$b44")" \
   FX_ISSUES="$(arr "$(is 5 closed 'Security alert: brace-expansion' "$(marker 43 44)")")"
 check 'touches no issue' test ! -s "$LOG"
 
-scenario 's19 a new alert for an open issue -> the issue edited, one comment' "$main_step" \
+scenario 's21 a new alert for an open issue -> the issue edited, one comment' "$main_step" \
   FX_ALERTS="$(arr "$b43" "$b44" "$b45")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43 44)")")"
 check 'succeeds' test "$status" -eq 0
@@ -273,13 +285,13 @@ check 'comments, mentioning the owner and linking the alert' contains "$LOG" \
 check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'closes nothing' lacks "$LOG" 'CLOSE'
 
-scenario 's20 two new alerts -> one comment naming both' "$main_step" FX_ALERTS="$(arr "$b43" "$b44" "$b45")" \
+scenario 's22 two new alerts -> one comment naming both' "$main_step" FX_ALERTS="$(arr "$b43" "$b44" "$b45")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'names both' contains "$LOG" \
   "More security alerts for \`brace-expansion\`, with no pull request that fixes it: [alert 44]($base/44) [alert 45]($base/45). The list"
 check 'one comment' count "$LOG" 'COMMENT [' 1
 
-scenario 's21 a listed alert fixed meanwhile -> kept in the list, out of the table' "$main_step" \
+scenario 's23 a listed alert fixed meanwhile -> kept in the list, out of the table' "$main_step" \
   FX_ALERTS="$(arr "$b44" "$b45")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43 44)")")"
 check 'the list keeps 43' contains "$LOG" '<!-- alerts: 43 44 45 -->'
@@ -288,32 +300,32 @@ check 'a row for 45' contains "$LOG" "| [45]($base/45) |"
 check 'no row for 43' lacks "$LOG" '[43]('
 check 'closes nothing' lacks "$LOG" 'CLOSE'
 
-scenario 's22 a new alert after an issue closed by hand -> a new issue, listing the old one too' "$main_step" \
+scenario 's24 a new alert after an issue closed by hand -> a new issue, listing the old one too' "$main_step" \
   FX_ALERTS="$(arr "$b43" "$b45")" \
   FX_ISSUES="$(arr "$(is 5 closed 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'opens an issue' contains "$LOG" 'CREATE [--title] [Security alert: brace-expansion]'
 check 'listing 43 and 45' contains "$LOG" '<!-- alerts: 43 45 -->'
 check 'edits nothing' lacks "$LOG" 'EDIT'
 
-scenario "s23 another author's issue with that title is not this workflow's -> raised" "$main_step" \
+scenario "s25 another author's issue with that title is not this workflow's -> raised" "$main_step" \
   FX_ALERTS="$(arr "$b43")" \
   FX_ISSUES="$(arr "$(is 5 closed 'Security alert: brace-expansion' "$(marker 43)" Nawid3333)")"
 check 'opens an issue' contains "$LOG" 'CREATE [--title] [Security alert: brace-expansion]'
 
-scenario 's24 an issue without the marker lists nothing -> edited to list the alert' "$main_step" \
+scenario 's26 an issue without the marker lists nothing -> edited to list the alert' "$main_step" \
   FX_ALERTS="$(arr "$b43")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' 'no marker')")"
 check 'edits #5' contains "$LOG" 'EDIT [5]'
 check 'to list 43' contains "$LOG" '<!-- alerts: 43 -->'
 check 'opens nothing' lacks "$LOG" 'CREATE'
 
-scenario 's25 a pull request in the issues list is not an issue -> raised' "$main_step" FX_ALERTS="$(arr "$b43")" \
+scenario 's27 a pull request in the issues list is not an issue -> raised' "$main_step" FX_ALERTS="$(arr "$b43")" \
   FX_ISSUES='[{"number":5,"state":"closed","title":"Security alert: brace-expansion","body":"<!-- alerts: 43 -->","user":{"login":"github-actions[bot]"},"pull_request":{}}]'
 check 'opens an issue' contains "$LOG" 'CREATE [--title] [Security alert: brace-expansion]'
 
 # --- Closing.
 
-scenario 's26 no alert left for an open issue -> closed, naming what became of each' "$main_step" \
+scenario 's28 no alert left for an open issue -> closed, naming what became of each' "$main_step" \
   FX_ALERTS="$(arr "$ip52")" STATE_44=dismissed \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43 44)")" \
     "$(is 6 open 'Security alert: ip-address' "$(marker 52)")")"
@@ -324,28 +336,28 @@ check 'alert 44 was dismissed' contains "$LOG" "- [alert 44]($base/44): dismisse
 check 'leaves #6 open: 52 is still open' lacks "$LOG" 'CLOSE [6]'
 check 'never writes an alert as #43' lacks "$LOG" '#43'
 
-scenario 's27 a closed issue -> not closed again' "$main_step" \
+scenario 's29 a closed issue -> not closed again' "$main_step" \
   FX_ISSUES="$(arr "$(is 5 closed 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'touches no issue' test ! -s "$LOG"
 
-scenario "s28 the package's alert from the other lockfile -> keeps the issue open" "$main_step" \
+scenario "s30 the package's alert from the other lockfile -> keeps the issue open" "$main_step" \
   FX_ALERTS="$(arr "$(al 80 brace-expansion $young fsaunpack/package-lock.json)")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'touches no issue' test ! -s "$LOG"
 
 # --- A push to main: closes only, waiting for GitHub to mark the alerts fixed.
 
-scenario 's29 push, no open issue -> done at once' "$main_step" EVENT=push FX_ALERTS="$(arr "$b43")"
+scenario 's31 push, no open issue -> done at once' "$main_step" EVENT=push FX_ALERTS="$(arr "$b43")"
 check 'succeeds' test "$status" -eq 0
 check 'touches no issue and waits for nothing' test ! -s "$LOG"
 
-scenario 's30 push, alerts due and never raised -> raises nothing' "$main_step" EVENT=push \
+scenario 's32 push, alerts due and never raised -> raises nothing' "$main_step" EVENT=push \
   FX_ALERTS="$(arr "$b43" "$ip52")" \
   FX_ISSUES="$(arr "$(is 6 closed 'Security alert: ip-address' "$(marker 52)")")"
 check 'succeeds' test "$status" -eq 0
 check 'touches no issue and waits for nothing' test ! -s "$LOG"
 
-scenario 's31 push, the alerts marked fixed on the third look -> closed after two waits' "$main_step" EVENT=push \
+scenario 's33 push, the alerts marked fixed on the third look -> closed after two waits' "$main_step" EVENT=push \
   FX_ALERTS="$(arr "$b43")" FX_FROM_CALL=3 \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'succeeds' test "$status" -eq 0
@@ -354,7 +366,7 @@ check 'waits 30 seconds twice' count "$LOG" 'SLEEP [30]' 2
 check 'closes #5' contains "$LOG" 'CLOSE [5] [--reason] [completed]'
 check 'opens nothing' lacks "$LOG" 'CREATE'
 
-scenario 's32 push, never marked fixed -> gives up after 10 minutes' "$main_step" EVENT=push \
+scenario 's34 push, never marked fixed -> gives up after 10 minutes' "$main_step" EVENT=push \
   FX_ALERTS="$(arr "$b43")" \
   FX_ISSUES="$(arr "$(is 5 open 'Security alert: brace-expansion' "$(marker 43)")")"
 check 'succeeds' test "$status" -eq 0
@@ -364,18 +376,18 @@ check 'opens nothing' lacks "$LOG" 'CREATE'
 
 # --- Failures.
 
-scenario 's33 the alerts cannot be read -> fails, touches no issue' "$main_step" FX_ALERTS='not json'
+scenario 's35 the alerts cannot be read -> fails, touches no issue' "$main_step" FX_ALERTS='not json'
 check 'fails' test "$status" -ne 0
 check 'touches no issue' test ! -s "$LOG"
 
-scenario 's34 failure report, none open -> opens the failure issue' "$report_step" FX_OPEN='[{"title":"Other"}]'
+scenario 's36 failure report, none open -> opens the failure issue' "$report_step" FX_OPEN='[{"title":"Other"}]'
 check 'succeeds' test "$status" -eq 0
 check 'opens "Security alerts workflow failed", assigned to the owner' contains "$LOG" \
   'CREATE [--title] [Security alerts workflow failed] [--assignee] [Nawid3333]'
 check 'mentions the owner and the run URL' contains "$LOG" \
   '@Nawid3333 security-alerts.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
-scenario 's35 failure report, already open -> opens nothing' "$report_step" \
+scenario 's37 failure report, already open -> opens nothing' "$report_step" \
   FX_OPEN='[{"title":"Security alerts workflow failed"}]'
 check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'

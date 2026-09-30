@@ -1109,11 +1109,12 @@ the change went in.
   grouped update's "Updates" lines), it opens "Security alert: <package>", assigned +
   @mention; a later alert edits it and comments. The body's `<!-- alerts: ... -->` line
   records what it listed: a listed alert is never raised again, so closing by hand skips.
-  Closes itself when no alert for the package is open. `vulnerability-alerts: read` is
+  The advisory summary's `<` is escaped in the table, as a marker in it would hide that
+  line from the next run (which would comment every day). Closes itself when no alert for the package is open. `vulnerability-alerts: read` is
   what lets `GITHUB_TOKEN` list the alerts (403 without it, checked on a probe branch);
   actionlint 1.7.12, the latest, does not know that permission, so
   `.github/actionlint.yaml` ignores that one message for that one file
-  (rhysd/actionlint#666). `tests/workflows/security-alerts.test.sh`: 35 scenarios, and 24
+  (rhysd/actionlint#666). `tests/workflows/security-alerts.test.sh`: 37 scenarios, and 25
   mutations of the workflow each fail it. Its stub `gh` applies `--jq` with jq, as CI has
   it; the real gh uses gojq, built in, and the filters avoid the one difference found
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19

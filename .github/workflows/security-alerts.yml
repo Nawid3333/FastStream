@@ -139,12 +139,13 @@ jobs:
             "$T/alerts.json" > "$T/due.tsv"
 
           while IFS=$'\t' read -r package open new list; do
-            # The alerts it lists that are still open, as a table; the advisory's summary
-            # is another project's text, so a | in it is escaped.
+            # The alerts it lists that are still open, as a table. The advisory's summary is
+            # another project's text: a | in it is escaped, and a < too, as a
+            # "<!-- alerts: ... -->" in it would hide the real list from the next run.
             jq -r --arg p "$package" --arg list "$list" --arg base "$ALERTS" '
               ($list | split(" ") | map(tonumber)) as $l
               | .[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
-              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \(.summary | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|")) |"' \
+              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \(.summary | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
               "$T/alerts.json" > "$T/rows.md"
             {
               # shellcheck disable=SC2016 # backticks are Markdown
