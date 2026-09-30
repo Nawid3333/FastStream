@@ -203,6 +203,48 @@ describe('StallWatchdog', () => {
     expect(console.warn).toHaveBeenCalledTimes(2);
   });
 
+  it('tells the player once when three nudges did not get it going', () => {
+    // It went quiet after the third nudge: the video stayed frozen, and no error showed.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const video = makeVideo();
+    video.setTime(60.159911);
+    const onStuck = vi.fn();
+    const stallWatchdog = new StallWatchdog(onStuck);
+    const watchdog = {check: () => stallWatchdog.check(video)};
+    watchdog.check();
+
+    run(watchdog, 7000);
+    expect(video.seeks).toHaveLength(3);
+    expect(onStuck).not.toHaveBeenCalled();
+    run(watchdog, 2000);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+    expect(onStuck.mock.calls[0][0]).toBeCloseTo(60.759911, 6);
+    run(watchdog, 20000);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+    expect(video.seeks).toHaveLength(3);
+  });
+
+  it('tells the player again for a later stall, once the video has played on', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const video = makeVideo();
+    video.setTime(60.159911);
+    const onStuck = vi.fn();
+    const stallWatchdog = new StallWatchdog(onStuck);
+    const watchdog = {check: () => stallWatchdog.check(video)};
+    watchdog.check();
+    run(watchdog, 9000);
+    expect(onStuck).toHaveBeenCalledTimes(1);
+
+    let time = video.currentTime;
+    for (let step = 0; step < 20; step++) {
+      run(watchdog, 48);
+      time += 0.05;
+      video.setTime(time);
+    }
+    run(watchdog, 9000);
+    expect(onStuck).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps counting when a nudge lands a hair off its target', () => {
     // 60.159913 + 0.1 is 60.259913000000005 in floating point, and the element lands on
     // 60.259913.

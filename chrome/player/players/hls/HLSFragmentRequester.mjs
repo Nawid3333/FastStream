@@ -75,7 +75,9 @@ export class HLSFragmentRequester {
         if (!decryptdata.iv || !key) {
           console.error('missing decryptdata', decryptdata, key);
           this.player.emit(DefaultPlayerEvents.NEED_KEY);
-          return response;
+          // Failed, not complete: the still-encrypted data was stored as the segment, and
+          // played or saved as it was.
+          throw new Error('Segment key or IV missing');
         }
 
         response.data = await this.decrypter.decryptAES(response.data, decryptdata.iv.buffer, key);

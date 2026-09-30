@@ -9,10 +9,14 @@ import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
-import {StallWatchdog} from './StallWatchdog.mjs';
+import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
 const BACK_BUFFER_SLACK = 1;
+// A range that failed (after XHRLoader's own retries, or at once for a 4xx) is asked for
+// again after each of these waits, in ms. Still failing, it is the player's error once
+// playback has reached it.
+const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
@@ -51,10 +55,16 @@ export default class MP4Player extends EventEmitter {
     this.currentAudioTrack = this.isPreview ? null : 0;
 
     this.currentFragments = [];
+    // Failed ranges' retries: fragment -> {count, at}.
+    this.rangeRetries = new Map();
 
     this._duration = 0;
 
-    this.stallWatchdog = new StallWatchdog();
+    // Still stuck once its nudges are spent: an error the player shows, rather than a
+    // video frozen for good with nothing said.
+    this.stallWatchdog = new StallWatchdog((time) => {
+      this.emit(DefaultPlayerEvents.ERROR, 'Playback stuck at ' + time);
+    });
   }
 
 
@@ -309,18 +319,16 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
-    if (this.needsInit && this.readyState === 1) {
-      const buffered = this.buffered;
-      this.client.setSeekSave(false);
-      if (buffered.length > 0) {
-        const start = buffered.start(0);
-        if (this.currentTime < start) {
-          this.currentTime = start;
-        }
-      } else {
-        this.currentTime = this.currentTime;
+    // Nothing to do while nothing is buffered: a seek to the time it is already at went
+    // through the setter, found nothing buffered there, and reset the player - on every
+    // tick until the first media arrived, 482 times opening a long fragmented file at 30 s.
+    if (this.needsInit && this.readyState === 1 && this.buffered.length > 0) {
+      const start = this.buffered.start(0);
+      if (this.currentTime < start) {
+        this.client.setSeekSave(false);
+        this.currentTime = start;
+        this.client.setSeekSave(true);
       }
-      this.client.setSeekSave(true);
     }
 
     if (this.readyState > 1) {
@@ -410,14 +418,20 @@ export default class MP4Player extends EventEmitter {
   }
 
   setFragmentTimes() {
-    this.getVideoLevels().forEach((level, l) => {
+    // The ranges are kept under the video level's id, an audio-only file's too, and its
+    // times come from its audio track. They were never set: nothing behind playback was
+    // freed, and the whole file went into the SourceBuffer.
+    const tracks = this.videoTracks.length ? this.videoTracks : this.audioTracks;
+    const levels = this.videoTracks.length ? this.getVideoLevels() :
+      new Map(this.audioTracks.length ? [[this.getCurrentVideoLevelID(), null]] : []);
+    levels.forEach((level, l) => {
       const frags = this.client.getFragments(l.toString());
       let currentFragment = frags[0];
       currentFragment.start = 0;
       const indexes = this.getIndexes(l);
       for (let i = 1; i < frags.length; i++) {
         const frag = frags[i];
-        const dt = this.getMinTimeFromOffset(this.videoTracks[indexes.levelID].samples, frag.rangeStart, frag.rangeEnd);
+        const dt = this.getMinTimeFromOffset(tracks[indexes.levelID].samples, frag.rangeStart, frag.rangeEnd);
         if (dt !== null) {
           const time = Math.floor(dt);
           currentFragment.end = time;
@@ -519,7 +533,9 @@ export default class MP4Player extends EventEmitter {
           this.running = false;
           throw new Error('First fragment failed to load!');
         }
-        break;
+        if (!this.retryFailedRange(frag)) {
+          break;
+        }
       }
 
       // A fragmented file says where a time is only once the ranges before it are parsed,
@@ -551,10 +567,20 @@ export default class MP4Player extends EventEmitter {
               }
             }
 
+            const hadMetaData = !!this.metaData;
             this.mp4box.appendBuffer(data);
             this.refreshSampleIndex();
             this.currentFragments.push(frag);
+            this.rangeRetries.delete(frag);
             frag.addReference(ReferenceTypes.MP4PLAYER, true);
+
+            // The moov came after the media (ffmpeg's default without +faststart, OBS's
+            // recordings): the ranges read to reach it were parsed without it, and gave no
+            // samples, yet counted as loaded. A long such file sat at its start with nothing
+            // buffered, for good. They are read again, as for a seek, now the moov is known.
+            if (!hadMetaData && this.metaData && frag.sn > 0) {
+              this.resetHLS(true);
+            }
 
             if (!this.fileLength) {
               const rangeHeader = entry.responseHeaders['content-range'];
@@ -602,6 +628,39 @@ export default class MP4Player extends EventEmitter {
         return;
       }
     }
+  }
+
+  /**
+   * A range that failed to load is asked for again after a growing wait, since the network
+   * may come back. Once the waits are spent it is the player's error, as soon as playback
+   * has reached it. Loading used to stop at it for good: the video played up to it, then
+   * spun with no error, unless several downloaders happened to run.
+   * @param {MP4Fragment} frag - The failed range.
+   * @return {boolean} Whether to ask for it again now.
+   */
+  retryFailedRange(frag) {
+    const now = Date.now();
+    let retry = this.rangeRetries.get(frag);
+    if (!retry) {
+      retry = {count: 0, at: now + RANGE_RETRY_DELAYS_MS[0]};
+      this.rangeRetries.set(frag, retry);
+    }
+    if (retry.count < RANGE_RETRY_DELAYS_MS.length) {
+      if (now < retry.at) {
+        return false;
+      }
+      retry.count++;
+      retry.at = now + (RANGE_RETRY_DELAYS_MS[retry.count] || 0);
+      frag.status = DownloadStatus.WAITING;
+      return true;
+    }
+    // Spent. The video still plays what it has; at the gap it would only spin.
+    if (bufferedAhead(this.video.buffered, this.video.currentTime) < 1) {
+      this.running = false;
+      this.emit(DefaultPlayerEvents.ERROR, 'Range ' + frag.sn + ' failed to load');
+      throw new Error('Range ' + frag.sn + ' failed to load');
+    }
+    return false;
   }
 
   downloadFragment(fragment, priority) {

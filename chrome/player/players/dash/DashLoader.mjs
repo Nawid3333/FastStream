@@ -1,5 +1,12 @@
+import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
+
+// How many times in a row one segment may fail before the player gives up on it. Until
+// then a failure is an abort, and dash.js asks for the segment again. For good, a dead
+// segment (a 403 from an expired token) was asked for forever behind a spinner: dash.js's
+// errors once the stream is up leave it playing (DashPlayer), so no error ever showed.
+const SEGMENT_FAILURES_BEFORE_ERROR = 3;
 
 /**
  * decodeURI, but a URL it cannot decode (a `%` not followed by two hex digits, which a
@@ -17,6 +24,9 @@ function decodeUrl(url) {
 
 
 export function DASHLoaderFactory(player) {
+  // Failures in a row, per segment, for this player; a success forgets them.
+  const segmentFailures = new Map();
+
   return (cfg) => {
     cfg = cfg || {};
 
@@ -57,9 +67,11 @@ export function DASHLoaderFactory(player) {
         }
 
         const activeRequests = player.activeRequests;
+        const segmentKey = level + ':' + segmentIndex;
 
         const loader = player.fragmentRequester.requestFragment(frag, {
           onSuccess: (entry, data) => {
+            segmentFailures.delete(segmentKey);
             httpRequest.customData.onSuccess(data, entry.responseURL);
             const index = activeRequests.indexOf(loader);
             if (index > -1) {
@@ -70,7 +82,14 @@ export function DASHLoaderFactory(player) {
 
           },
           onFail: (entry) => {
-            httpRequest.customData.onAbort(entry);
+            const failures = (segmentFailures.get(segmentKey) || 0) + 1;
+            segmentFailures.set(segmentKey, failures);
+            if (failures < SEGMENT_FAILURES_BEFORE_ERROR) {
+              httpRequest.customData.onAbort(entry);
+            } else {
+              httpRequest.customData.onFail(entry);
+              player.emit(DefaultPlayerEvents.ERROR, 'Segment ' + segmentKey + ' failed to load');
+            }
             const index = activeRequests.indexOf(loader);
             if (index > -1) {
               activeRequests.splice(index, 1);
@@ -96,6 +115,8 @@ export function DASHLoaderFactory(player) {
         }
       } catch (e) {
         console.error(e);
+        // The request has to end one way or another: dash.js waited for this one forever.
+        httpRequest.customData.onFail?.(e);
       }
     }
 

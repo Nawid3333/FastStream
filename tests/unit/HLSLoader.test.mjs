@@ -91,17 +91,58 @@ describe('HLSLoader, a download that failed', () => {
     expect(callbacks.onError.mock.calls[0][0].code).toBe(0);
   });
 
-  it('keeps reporting a failed fragment as an abort, for hls.js to request it again', () => {
-    // Not in FastStream's store, so it takes the direct download path.
+  /**
+   * Loads one segment again and again with a new loader each time, as hls.js does, and
+   * fails or completes each load as told.
+   * @param {Object} player - From makePlayer.
+   * @param {Function} downloadCallbacks - The download's callbacks of the n-th load.
+   * @param {string[]} outcomes - 'fail' or 'success' per load.
+   * @return {string[]} What hls.js heard for each load: 'abort', 'error' or 'success'.
+   */
+  function loadRepeatedly(player, downloadCallbacks, outcomes) {
+    const Loader = hlsLoaderFactory(player);
+    return outcomes.map((outcome, n) => {
+      const callbacks = fragmentCallbacks();
+      new Loader().load({url: 'http://127.0.0.1/seg5.ts', frag: {sn: 5, trackID: 0, level: 0}}, {}, callbacks);
+      if (outcome === 'fail') {
+        downloadCallbacks(n).onFail({stats: {error: {code: 403, text: 'Forbidden'}}});
+      } else {
+        downloadCallbacks(n).onSuccess({stats: {}, getDataFromBlob: async () => new ArrayBuffer(1)}, {}, {}, null);
+      }
+      vi.advanceTimersByTime(1000);
+      if (callbacks.onAbort.mock.calls.length) return 'abort';
+      if (callbacks.onError.mock.calls.length) return 'error ' + callbacks.onError.mock.calls[0][0].code;
+      return 'success';
+    });
+  }
+
+  it('reports a failing segment as an abort twice, for hls.js to ask again, then as an error', () => {
+    // Asked for again forever, a dead segment (an expired token's 403) kept the player
+    // spinning with no error. Not in FastStream's store: the direct download path.
     const {player, getFile} = makePlayer(null);
-    const callbacks = fragmentCallbacks();
-    new (hlsLoaderFactory(player))().load({url: 'http://127.0.0.1/seg5.ts', frag: {sn: 5, trackID: 0, level: 0}}, {}, callbacks);
+    expect(loadRepeatedly(player, (n) => getFile.mock.calls[n][1], ['fail', 'fail', 'fail', 'fail']))
+        .toEqual(['abort', 'abort', 'error 403', 'error 403']);
+  });
 
-    getFile.mock.calls[0][1].onFail({stats: {error: {code: 500, text: 'Server Error'}}});
-    vi.advanceTimersByTime(1000);
+  it('counts a stored segment\'s failures the same way', () => {
+    const {player, requestFragment} = makePlayer({getFrag: () => ({})});
+    expect(loadRepeatedly(player, (n) => requestFragment.mock.calls[n][1], ['fail', 'fail', 'fail']))
+        .toEqual(['abort', 'abort', 'error 403']);
+  });
 
-    expect(callbacks.onAbort).toHaveBeenCalledTimes(1);
-    expect(callbacks.onError).not.toHaveBeenCalled();
+  it('starts counting again once the segment has loaded', () => {
+    const {player, requestFragment} = makePlayer({getFrag: () => ({})});
+    expect(loadRepeatedly(player, (n) => requestFragment.mock.calls[n][1], ['fail', 'fail', 'success', 'fail', 'fail']))
+        .toEqual(['abort', 'abort', 'success', 'abort', 'abort']);
+  });
+
+  it('marks its stats aborted when hls.js aborts it, as hls.js\'s own loaders do', () => {
+    const {player} = makePlayer(null);
+    const loader = new (hlsLoaderFactory(player))();
+    loader.load({url: 'http://127.0.0.1/seg5.ts', frag: {sn: 5, trackID: 0, level: 0}}, {}, fragmentCallbacks());
+    expect(loader.stats.aborted).toBe(false);
+    loader.abort();
+    expect(loader.stats.aborted).toBe(true);
   });
 
   it('says nothing once hls.js has destroyed the loader', () => {
