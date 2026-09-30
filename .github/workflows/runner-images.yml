@@ -68,6 +68,23 @@ jobs:
           next_linux=$(newest 'ubuntu-[0-9]{2}\.[0-9]{2}')
           latest_windows=$(latest 'windows-[0-9]{4}' windows-latest)
           next_windows=$(newest 'windows-[0-9]{4}')
+          # A new Ubuntu or Windows Server image whose labels all have another shape than
+          # these two would be read as no image at all: its early warning would never come,
+          # only the -latest move would be caught (latest() then finds nothing). So each
+          # such row must carry a label this step reads. "Ubuntu Slim" and macOS name
+          # neither; a row's aliases (windows-latest, windows-2025-vs2026) do not count.
+          while IFS= read -r row; do
+            name=$(sed -E 's/^\| *([^|<]*).*/\1/; s/ +$//' <<< "$row")
+            case $name in
+              'Ubuntu '[0-9]*) shape='ubuntu-[0-9]{2}\.[0-9]{2}' ;;
+              'Windows Server '[0-9]*) shape='windows-[0-9]{4}' ;;
+              *) continue ;;
+            esac
+            if [ -z "$(labels "$shape" <<< "$row")" ]; then
+              echo "::error::The runner-images README lists $name with no label of the shape $shape, so this workflow cannot see it. Teach the step \"Read the image list\" its labels."
+              exit 1
+            fi
+          done <<< "$rows"
           for value in "$latest_linux" "$next_linux" "$latest_windows" "$next_windows"; do
             if [ -z "$value" ]; then
               echo "::error::Could not read the images from the runner-images README; its table may have changed."
@@ -120,7 +137,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     # The most ci.yml's jobs may ask for. GitHub refuses this whole run at startup if one
     # asks for more, even a job its if: skips. Only its two hand-offs ask for more than
-    # contents: read (actions: write, and issues: write for the release one), and neither
+    # contents: read (actions: write, and issues: write for their issues), and neither
     # runs here: a called run is no "CI" run and on no update branch.
     # tests/unit/workflowPermissions.test.mjs checks this list against ci.yml.
     permissions:
@@ -140,7 +157,7 @@ jobs:
     uses: ./.github/workflows/ci.yml
     # The most ci.yml's jobs may ask for. GitHub refuses this whole run at startup if one
     # asks for more, even a job its if: skips. Only its two hand-offs ask for more than
-    # contents: read (actions: write, and issues: write for the release one), and neither
+    # contents: read (actions: write, and issues: write for their issues), and neither
     # runs here: a called run is no "CI" run and on no update branch.
     # tests/unit/workflowPermissions.test.mjs checks this list against ci.yml.
     permissions:

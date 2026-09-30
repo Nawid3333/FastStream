@@ -4,7 +4,8 @@
 #
 #   verify.sh <repo path> [all|verify|workflows]
 #     verify     `pnpm run verify` - CI's verify job
-#     workflows  actionlint with shellcheck - CI's workflows job
+#     workflows  actionlint with shellcheck, and the run: scripts' tests (tests/workflows) -
+#                CI's workflows job
 #     all        both (the default)
 set -euo pipefail
 # wsl.exe writes stdout and stderr to a redirected file each at its own offset, so one
@@ -27,10 +28,12 @@ find tests/e2e/fixtures -mindepth 1 -maxdepth 1 ! -name sample.mp4 -exec rm -rf 
 
 status=0
 if [ "$what" = all ] || [ "$what" = workflows ]; then
-  echo '== workflows: actionlint + shellcheck'
+  echo "== workflows: actionlint + shellcheck, and the run: scripts' tests"
   # actionlint finds the project by its .git, which the copy leaves out.
   [ -d .git ] || git init -q
   actionlint -color || status=1
+  # As CI's workflows job does after actionlint; the tests stub gh, so nothing reaches GitHub.
+  bash tests/workflows/run.sh || status=1
 fi
 if [ "$what" = all ] || [ "$what" = verify ]; then
   echo '== verify: pnpm run verify'

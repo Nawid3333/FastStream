@@ -42,6 +42,14 @@ case "$1 $2" in
     echo "https://github.com/$GH_REPO/issues/99" ;;
   'issue close')
     { printf 'CLOSE'; printf ' [%s]' "${@:3}"; printf '\n'; } >> "$LOG" ;;
+  'issue comment')
+    {
+      printf 'COMMENT'; printf ' [%s]' "${@:3}"; printf '\n'
+      while [ $# -gt 0 ]; do
+        if [ "$1" = --body-file ]; then echo '--- body:'; cat "$2"; echo '--- end body'; fi
+        shift
+      done
+    } >> "$LOG" ;;
   'issue list')
     [[ " $* " == *' --state open --limit 200 '* ]] || { echo "stub gh: not a list of all open issues: $*" >&2; exit 2; }
     jq -r "$jqf" "$FIX/open.json" ;;
@@ -176,12 +184,13 @@ check 'opens "WSL releases workflow failed", assigned to the owner' contains "$L
 check 'mentions the owner and the run URL' contains "$LOG" \
   '@Nawid3333 wsl-releases.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
-scenario 's11 failure report, already open -> opens nothing' \
-  "$report_step" '{}' '[]' '[{"title":"WSL releases workflow failed"}]'
+scenario 's11 failure report, already open -> a comment on it' \
+  "$report_step" '{}' '[]' '[{"number":3,"title":"Other"},{"number":12,"title":"WSL releases workflow failed"}]'
 check 'succeeds' test "$status" -eq 0
 check 'creates nothing' lacks "$LOG" 'CREATE'
-check 'says already reported' contains "$FIX/out" \
-  'Already reported in the open issue "WSL releases workflow failed".'
+check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
+check 'the comment mentions the owner and links this run' contains "$LOG" \
+  '@Nawid3333 Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
 scenario 's12 already told, an older one still open (its close failed) -> creates nothing, closes #80' \
   "$open_step" "$r301" \

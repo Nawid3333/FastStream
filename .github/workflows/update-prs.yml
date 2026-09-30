@@ -556,15 +556,22 @@ jobs:
           say green "$RUNNER_TEMP/body.md"
 
       # Bot-started runs are emailed to no one, so a failure of this workflow itself would go
-      # unseen: one issue while it is open, assigned and @mentioning the owner.
+      # unseen: one issue while it is open, assigned and @mentioning the owner. A failure
+      # while it is open adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()
         env:
           TITLE: 'Update PRs workflow failed'
         run: |
           set -euo pipefail
-          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
-            echo "Already reported in the open issue \"$TITLE\"."
+          # A failure while the issue is open is a comment on it with this run's link, so the
+          # issue shows each failure, not only the first. When the issues cannot be read, a
+          # second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
           printf '@%s update-prs.yml failed while deciding on an update pull request: %s\n\nThat pull request is neither merged nor reported until this is fixed. The run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
