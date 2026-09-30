@@ -19,6 +19,13 @@ export const UNKNOWN_LENGTH_S = 10 * 60;
 // pieces; read as unknown, they outranked the manifest of any title under 9 minutes.
 export const PIECE_LENGTH = -1;
 
+// The length of an HLS playlist that shows no video: the seek bar's thumbnails
+// (EXT-X-IMAGES-ONLY, JPEG tiles) or a fast-forward track of keyframes
+// (EXT-X-I-FRAMES-ONLY). It runs as long as the video, so by length it ties with it, and
+// the page often asks for it first: vixeo.io's player did, and the thumbnails played. It
+// ranks below every stream, as a piece does, and never opens or plays in the player.
+export const STILLS_LENGTH = -2;
+
 // Streams at least this share of the longest one's length tie with it, and the caller's
 // own rule chooses among them: the same video in two formats differs by a second or two,
 // two episodes by a few minutes, an ad and the video by far more.
@@ -45,9 +52,10 @@ export class StreamLength {
    * Reads an HLS playlist.
    * @param {string} text - The playlist.
    * @return {{duration: number}|{variant: string}|null} A media playlist's length in
-   *   seconds (Infinity while it is live: no end tag, and not marked VOD); a master
-   *   playlist's first variant, as written in it (relative to the playlist's URL); or null
-   *   for text that is no playlist, or one that lists nothing.
+   *   seconds (Infinity while it is live: no end tag, and not marked VOD; STILLS_LENGTH for
+   *   one of images or keyframes only); a master playlist's first variant, as written in it
+   *   (relative to the playlist's URL); or null for text that is no playlist, or one that
+   *   lists nothing.
    */
   static fromHls(text) {
     const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).map((line) => line.trim());
@@ -62,6 +70,9 @@ export class StreamLength {
     let vod = false;
     for (let i = first + 1; i < lines.length; i++) {
       const line = lines[i];
+      if (line === '#EXT-X-IMAGES-ONLY' || line === '#EXT-X-I-FRAMES-ONLY') {
+        return {duration: STILLS_LENGTH};
+      }
       if (line.startsWith('#EXT-X-STREAM-INF')) {
         // Every variant runs as long as the others: the first one tells.
         const uri = lines.slice(i + 1).find((next) => next !== '' && !next.startsWith('#'));
@@ -384,15 +395,28 @@ export class StreamLength {
 
   /**
    * The streams to choose from: the longest, and those that tie with it. A stream of
-   * unknown length ranks as UNKNOWN_LENGTH_S long, a piece of one (PIECE_LENGTH) as 0.
+   * unknown length ranks as UNKNOWN_LENGTH_S long, a piece of one (PIECE_LENGTH) as 0. A
+   * playlist of stills (STILLS_LENGTH) is none of them, unless it is all there is.
    * @template {{duration?: number|null}} T
    * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
    * @return {T[]} Those of them, in the order they came.
    */
   static longest(sources) {
-    const lengths = sources.map((source) => StreamLength.rankLength(source.duration));
+    const videos = StreamLength.withoutStills(sources);
+    const from = videos.length > 0 ? videos : sources;
+    const lengths = from.map((source) => StreamLength.rankLength(source.duration));
     const best = Math.max(...lengths);
-    return sources.filter((source, i) => lengths[i] >= best * TIE_SHARE);
+    return from.filter((source, i) => lengths[i] >= best * TIE_SHARE);
+  }
+
+  /**
+   * The sources that may show a video: all but the playlists of stills.
+   * @template {{duration?: number|null}} T
+   * @param {T[]} sources - Detected sources, each with its length in seconds, when known.
+   * @return {T[]} Those of them, in the order they came.
+   */
+  static withoutStills(sources) {
+    return sources.filter((source) => source.duration !== STILLS_LENGTH);
   }
 
   /**
@@ -401,7 +425,7 @@ export class StreamLength {
    * @return {number} Seconds.
    */
   static rankLength(duration) {
-    if (duration === PIECE_LENGTH) {
+    if (duration === PIECE_LENGTH || duration === STILLS_LENGTH) {
       return 0;
     }
     return typeof duration === 'number' && duration > 0 ? duration : UNKNOWN_LENGTH_S;

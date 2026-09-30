@@ -7,7 +7,7 @@ import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {RequestUtils} from './utils/RequestUtils.mjs';
-import {StreamLength} from './utils/StreamLength.mjs';
+import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
 import {StreamPick} from './utils/StreamPick.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
@@ -136,7 +136,9 @@ async function recieveSources(request, sendResponse) {
     }
   }
 
-  if (window.fastStream.source || !request.autoSetSource) {
+  // Playlists of stills are all there is (the seek bar's thumbnails): listed, to choose by
+  // hand, but nothing to play by itself.
+  if (window.fastStream.source || !request.autoSetSource || autoSetSource.duration === STILLS_LENGTH) {
     autoSetSource = null;
   }
 
@@ -148,8 +150,15 @@ async function recieveSources(request, sendResponse) {
     window.fastStream.setAutoPlay(true);
   }
 
+  // Should the stream picked fail before it shows anything, the next of those it was
+  // picked from plays in its place.
+  const fallbacks = autoSetSource ? StreamPick.fallbacks(candidates, autoSetSource).map((s) => {
+    return new VideoSource(s.url, s.headers, s.mode);
+  }) : [];
+
   sources.forEach((s) => {
-    window.fastStream.addSource(new VideoSource(s.url, s.headers, s.mode), s === autoSetSource);
+    const isAutoSet = s === autoSetSource;
+    window.fastStream.addSource(new VideoSource(s.url, s.headers, s.mode), isAutoSet, isAutoSet ? fallbacks : []);
   });
 
   if (subs) {
