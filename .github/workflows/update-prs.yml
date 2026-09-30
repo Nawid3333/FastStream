@@ -257,7 +257,7 @@ jobs:
                 'Unit tests') echo 'the unit tests (Vitest)' ;;
                 'Build all targets') echo 'the build (`tools/sync-vendor.mjs`, `build.mjs`)' ;;
                 addons-linter*) echo "Mozilla's addons-linter, the check AMO runs on upload" ;;
-                'Vendored file provenance'*|'ONNX Runtime provenance') echo 'a vendored file against its documented upstream (`docs/vendored-libraries.md`)' ;;
+                'Vendored file provenance'*) echo 'a vendored file against its documented upstream (`docs/vendored-libraries.md`)' ;;
                 'e2e setup') echo 'the e2e setup: downloading Firefox or ffmpeg' ;;
                 End-to-end*) echo 'real playback or the installed extension in Firefox; a network stream can also fail on its own' ;;
                 'Install mpv and the native host') echo 'installing mpv for the MPV specs (`.github/mpv-build.json`)' ;;

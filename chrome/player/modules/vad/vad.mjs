@@ -14,7 +14,7 @@ const assetPath = (file) => {
 };
 
 const modelFetcher = async () => {
-  const modelURL = assetPath('silero_vad_half.ort');
+  const modelURL = assetPath('silero_vad_half.onnx');
   return await fetch(modelURL).then((r) => r.arrayBuffer());
 };
 

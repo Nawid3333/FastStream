@@ -1,25 +1,23 @@
-// Runs the voice activity detector end to end, for the first time.
+// Runs the voice activity detector end to end.
 //
-// Four pieces have to agree here and none of them came from the same place:
+// Four pieces have to agree here:
 //
-//   ort.wasm.mjs                  generated from onnxruntime-web@1.20.0, the
-//                                 published npm release
-//   ort-wasm-simd-threaded.mjs    emscripten glue from an ONNX Runtime build
-//                                 off main at 5c74539ab7 (2024-09-03), two
-//                                 months before the 1.20.0 tag
-//   ort-wasm-simd-threaded.wasm   the matching custom MinSizeRel minimal
-//                                 build, 1 MB against the 11 MB npm ships
-//   silero_vad_half.ort           silero_vad_half.onnx converted to ORT
-//                                 format; see pnpm run verify:vad
+//   ort.wasm.mjs                  onnxruntime-web's loader, from the npm release
+//                                 (tools/sync-vendor.mjs strips its source map)
+//   ort-wasm-simd-threaded.mjs    the emscripten glue, from the same release
+//   ort-wasm-simd-threaded.wasm   the runtime, from the same release
+//   silero_vad_half.onnx          snakers4/silero-vad's published model, byte
+//                                 for byte; see pnpm run verify:vad
 //
-// A release loader driving a pre-release runtime is exactly the pairing that
-// breaks quietly, and nothing in the tree had ever executed it. The VAD is
-// reached only from AudioAnalyzerNode, behind subtitle syncing, so a failure
-// would surface as a feature that silently does nothing.
+// Until 1.3.82.44 the glue and the wasm were a custom build from a commit two
+// months before the loader's release, and a newer loader on them failed (#23).
+// The VAD is reached only from AudioAnalyzerNode, behind subtitle syncing, so a
+// failure would surface as a feature that silently does nothing - and every
+// onnxruntime-web update Dependabot proposes has to pass this.
 //
-// This runs on the extension origin deliberately: ORT resolves its wasm
-// relative to its own module, and the extension CSP is what actually applies
-// when a user hits this code.
+// This runs on the extension origin deliberately: ORT resolves its glue and
+// wasm relative to its own modules, and the extension CSP is what actually
+// applies when a user hits this code.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -61,7 +59,7 @@ describe('the voice activity detector', function() {
         const base = location.origin + '/player/modules/vad/';
         const ort = (await import(base + 'ort.wasm.mjs')).default;
         const model =
-          await fetch(base + 'silero_vad_half.ort').then((r) => {
+          await fetch(base + 'silero_vad_half.onnx').then((r) => {
             if (!r.ok) throw new Error('model fetch: ' + r.status);
             return r.arrayBuffer();
           });
