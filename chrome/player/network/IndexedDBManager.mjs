@@ -167,6 +167,36 @@ export class IndexedDBManager {
     });
   }
 
+  /**
+   * Stores a value only when the key has none yet, in one transaction, so of two tabs
+   * racing to create the same value exactly one wins.
+   * @return {Promise<boolean>} true when this call stored it, false when the key had a value
+   */
+  static addValue(db, storeName, key, value) {
+    return new Promise((resolve, reject)=>{
+      let transaction;
+      try {
+        transaction = db.transaction(storeName, 'readwrite');
+      } catch (e) {
+        reject(e);
+        return;
+      }
+      let added = false;
+      const request = transaction.objectStore(storeName).add(value, key);
+      request.onsuccess = () => {
+        added = true;
+      };
+      request.onerror = (event) => {
+        // The key exists: an answer, not a failure, so the transaction is not aborted.
+        if (request.error?.name === 'ConstraintError') {
+          event.preventDefault();
+        }
+      };
+      transaction.oncomplete = () => resolve(added);
+      transaction.onabort = () => reject(transaction.error || new Error('the transaction was aborted'));
+    });
+  }
+
   async clearStorage() {
     if (!this.db) return;
     return IndexedDBManager.transact(this.db, 'files', 'readwrite', (transaction)=>{

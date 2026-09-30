@@ -341,6 +341,28 @@ selected and actually round-trips bytes correctly under concurrent load, by
 reading files directly out of `navigator.storage.getDirectory()` rather
 than trusting `FSBlob`'s own self-report.
 
+**Fixed 2026-09-30 (`tests/unit/opfsStorage.test.mjs`, `SecureMemory.test.mjs`, and
+`storage.e2e.mjs` on real Firefox):**
+- `OPFSManager.getFile` returns the file on disk (`getSavedFile`, a main-thread
+  `getFile()`). It read each fragment back through the worker into an `ArrayBuffer`
+  wrapped in a Blob, so every "offloaded" fragment was in RAM as well. A stored fragment
+  is now deleted from disk on eviction, as the Cache backend's always were.
+- A worker call unanswered for 30 s counts as a crash (`CallTimeoutMs`), and a dead
+  worker moves FSBlob on to its next backend instead of keeping every later fragment in
+  RAM.
+- `prune()` in the worker leaves a session directory younger than `STALE_MS` alone
+  (it exists before its first heartbeat: two players starting together deleted each
+  other's), and a heartbeat that exists but cannot be read (its owner is writing it) means
+  alive. Only a stale or missing heartbeat on an older directory is pruned.
+- `clear()` bumps a generation, so an offload that finishes after it does not put its
+  blob back.
+- The progress store: `pruneOld` never rejects or hangs (the player's setup awaits it),
+  salts are created with `IndexedDBManager.addValue` (IndexedDB `add()`, first writer
+  wins, `ConstraintError` answered with `preventDefault` so the transaction completes),
+  and a record that does not decrypt is marked `unusableRecord`: only then does the
+  client start at 0 and save over it. A read that merely failed keeps no progress for that
+  video, instead of overwriting the intact record from 0 a second later.
+
 ## Storage in a private window (2026-09-17)
 
 **OPFS exists and does not work in a Firefox private window.**

@@ -20,6 +20,8 @@ export class FSBlob {
   constructor() {
     this.blobStore = new Map();
     this.blobStorePromises = new Map();
+    // Counts clear()s, so an offload that finishes after one can tell (offloadBlob).
+    this.generation = 0;
     this.opfsManager = null;
     this.cache = null;
     this.indexedDBManager = null;
@@ -145,6 +147,14 @@ export class FSBlob {
       this.blobStore.set(identifier, file);
       return true;
     } catch (e) {
+      if (this.opfsManager && !this.opfsManager.worker) {
+        // The worker is gone (it crashed, or stopped answering): OPFS is over for this
+        // session. Every later fragment stayed in RAM; the next backend takes them now.
+        console.warn('The OPFS worker is gone, moving to the next storage backend', e);
+        this.opfsManager.close();
+        this.activateNextBackend();
+        return this.offloadBlob(identifier, blob);
+      }
       // A single write failing (e.g. quota exceeded mid-session) doesn't
       // mean OPFS is broken for everything else - leave opfsManager in
       // place and just keep this one blob in memory instead.
@@ -234,11 +244,24 @@ export class FSBlob {
    * @return {Promise<boolean>} true when the blob reached a backend
    */
   async offloadBlob(identifier, blob) {
+    const generation = this.generation;
     if (!await this.ready()) return false;
-    if (this.opfsManager) return this.saveBlobInOPFSAsync(identifier, blob);
-    if (this.cache) return this.saveBlobUsingCache(identifier, blob);
-    if (this.indexedDBManager) return this.saveBlobInIndexedDBAsync(identifier, blob);
-    return false;
+    let handled = false;
+    if (this.opfsManager) {
+      handled = await this.saveBlobInOPFSAsync(identifier, blob);
+    } else if (this.cache) {
+      handled = await this.saveBlobUsingCache(identifier, blob);
+    } else if (this.indexedDBManager) {
+      handled = await this.saveBlobInIndexedDBAsync(identifier, blob);
+    }
+    if (generation !== this.generation) {
+      // clear() ran meanwhile: this blob was put back after it, and stayed until the
+      // next clear.
+      this.blobStore.delete(identifier);
+      this.blobStorePromises.delete(identifier);
+      return false;
+    }
+    return handled;
   }
 
   saveBlob(blob) {
@@ -290,6 +313,8 @@ export class FSBlob {
   async clear() {
     this.blobStore.clear();
     this.blobStorePromises.clear();
+    // Offloads still running belong to what was cleared (offloadBlob).
+    this.generation++;
 
     if (!await this.ready()) return;
 

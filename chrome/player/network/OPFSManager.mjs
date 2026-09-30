@@ -12,6 +12,9 @@ export class OPFSManager {
    */
   static live = new Set();
 
+  /** How long a worker call may take before the worker counts as crashed. */
+  static CallTimeoutMs = 30000;
+
   constructor() {
     this.worker = null;
     this.pending = new Map();
@@ -148,6 +151,14 @@ export class OPFSManager {
     return new Promise((resolve, reject) => {
       this.pending.set(id, {resolve, reject, op, started: Date.now()});
       this.worker.postMessage({id, op, ...payload}, transfer || []);
+      // A worker that never answers (wedged, or killed without an error event) held up
+      // setup and every save for good. Past the limit it counts as crashed: every call
+      // fails, and FSBlob moves on to its next backend.
+      setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.handleWorkerCrash({message: `OPFS worker did not answer ${op} in ${OPFSManager.CallTimeoutMs / 1000} s`});
+        }
+      }, OPFSManager.CallTimeoutMs);
     });
   }
 
@@ -156,9 +167,14 @@ export class OPFSManager {
     await this.call('set', {identifier, data: buffer}, [buffer]);
   }
 
+  /**
+   * The stored fragment as a disk-backed File. Reading it through the worker into an
+   * ArrayBuffer and wrapping that in a Blob kept every "offloaded" fragment in RAM too.
+   * @param {string} identifier
+   * @return {Promise<File>}
+   */
   async getFile(identifier) {
-    const buffer = await this.call('get', {identifier});
-    return new Blob([buffer]);
+    return this.getSavedFile(identifier);
   }
 
   async deleteFile(identifier) {

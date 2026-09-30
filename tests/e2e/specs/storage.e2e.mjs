@@ -67,30 +67,33 @@ describe('FSBlob storage backends', function() {
       // Verify independently of FSBlob's own bookkeeping: look directly at
       // OPFS for a fsblob/<session>/<identifier> file with the right bytes.
       let sawOnDisk = false;
+      // In this store's own session directory: another session's file of the same name
+      // (an earlier test's, or another tab's) proves nothing about this one.
       if (usedOPFS) {
-        const root = await navigator.storage.getDirectory();
-        const fsblobRoot = await root.getDirectoryHandle('fsblob');
-        for await (const sessionName of fsblobRoot.keys()) {
-          try {
-            const sessionDir = await fsblobRoot.getDirectoryHandle(sessionName);
-            const fileHandle = await sessionDir.getFileHandle(identifier);
-            const file = await fileHandle.getFile();
-            const bytes = new Uint8Array(await file.arrayBuffer());
-            if (bytes.length === payload.length && bytes.every((b, i) => b === payload[i])) {
-              sawOnDisk = true;
-            }
-          } catch (e) {
-            // not this session's directory - keep looking
-          }
+        try {
+          const root = await navigator.storage.getDirectory();
+          const fsblobRoot = await root.getDirectoryHandle('fsblob');
+          const sessionDir = await fsblobRoot.getDirectoryHandle(blobStore.opfsManager.sessionName);
+          const fileHandle = await sessionDir.getFileHandle(identifier);
+          const file = await fileHandle.getFile();
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          sawOnDisk = bytes.length === payload.length && bytes.every((b, i) => b === payload[i]);
+        } catch (e) {
+          // Not there.
         }
       }
 
-      const readBack = new Uint8Array(await blobStore.getBlob(identifier).arrayBuffer());
+      // What the store hands back is the file on disk (a File named after its
+      // identifier), not a copy in RAM: reading each fragment back through the worker
+      // into a new Blob kept every "offloaded" fragment in memory too.
+      const stored = blobStore.getBlob(identifier);
+      const readBack = new Uint8Array(await stored.arrayBuffer());
       blobStore.close();
 
       return {
         usedOPFS,
         sawOnDisk,
+        diskBacked: stored instanceof File && stored.name === identifier,
         readBackMatches: readBack.length === payload.length && readBack.every((b, i) => b === payload[i]),
       };
     });
@@ -101,7 +104,98 @@ describe('FSBlob storage backends', function() {
     // stays false rather than being checked against a directory that was
     // never supposed to exist.
     expect(result.sawOnDisk).toBe(result.usedOPFS);
+    expect(result.diskBacked).toBe(result.usedOPFS);
     expect(result.readBackMatches).toBe(true);
+  });
+
+  it('gives two players starting together on a fresh profile the same salts', async function() {
+    // Each made its own salt when none was stored, and the second overwrote the first:
+    // the first tab's saved positions could never be found again. Real IndexedDB, a
+    // database of its own.
+    const result = await runInPage(async () => {
+      const {SecureMemory} = await import('/player/modules/SecureMemory.mjs');
+      const {IndexedDBManager} = await import('/player/network/IndexedDBManager.mjs');
+      const name = 'faststream-salt-race-' + Date.now();
+      const tabs = [new SecureMemory(name), new SecureMemory(name)];
+      await Promise.all(tabs.map((tab) => tab.setup()));
+      const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+      // What the salts rest on, in real IndexedDB: of two adds of one key at once exactly
+      // one stores, and the other is told so, rather than failing (an aborted transaction).
+      const db = tabs[0].indexedDbManager.getDatabase();
+      const adds = await Promise.all([
+        IndexedDBManager.addValue(db, 'metadata', 'race', 'first'),
+        IndexedDBManager.addValue(db, 'metadata', 'race', 'second'),
+      ]).catch((e) => String(e));
+      const out = {
+        identifier: same(tabs[0].identifierSalt, tabs[1].identifierSalt),
+        key: same(tabs[0].keySalt, tabs[1].keySalt),
+        adds,
+        stored: await IndexedDBManager.getValue(db, 'metadata', 'race'),
+      };
+      tabs.forEach((tab) => tab.destroy());
+      await new Promise((resolve) => {
+        const request = indexedDB.deleteDatabase(name);
+        request.onsuccess = request.onerror = request.onblocked = resolve;
+      });
+      return out;
+    });
+    expect(result).toEqual({identifier: true, key: true, adds: [true, false], stored: 'first'});
+  });
+
+  it('keeps an intact remembered time when reading it failed, and starts over a broken one', async function() {
+    // The player's own loadProgressData, on stand-in storage. A read that failed used to
+    // start the video at 0 and save over the intact record a second later.
+    const result = await runInPage(async () => {
+      const {FastStreamClient} = await import('/player/FastStreamClient.mjs');
+      const load = async (failure) => {
+        const client = {
+          options: {storeProgress: true},
+          player: {getSource: () => ({identifier: 'video'})},
+          disableProgressSave: false,
+          progressData: null,
+          progressMemory: {
+            getHashes: async () => ({identifierHash: 'id', keyHash: 'key'}),
+            getFile: async () => {
+              throw failure;
+            },
+          },
+        };
+        await FastStreamClient.prototype.loadProgressData.call(client);
+        return {progressData: client.progressData, disableProgressSave: client.disableProgressSave};
+      };
+      const unusable = Object.assign(new Error('The saved record does not decrypt'), {unusableRecord: true});
+      return {
+        readFailed: await load(new Error('IndexedDB is having a moment')),
+        unusable: await load(unusable),
+      };
+    });
+    console.log('      progress:', JSON.stringify(result));
+    // No progress kept, so nothing saves over the record.
+    expect(result.readFailed.progressData).toBeNull();
+    expect(result.unusable.progressData).toEqual({lastTime: 0});
+  });
+
+  it('logs a remembered time it could not save, instead of an unhandled rejection every second', async function() {
+    const result = await runInPage(async () => {
+      const {FastStreamClient} = await import('/player/FastStreamClient.mjs');
+      let unhandled = 0;
+      const onUnhandled = () => unhandled++;
+      window.addEventListener('unhandledrejection', onUnhandled);
+      const client = {
+        disableProgressSave: false,
+        progressData: {lastTime: 5},
+        progressHashesCache: {},
+        progressMemory: {setFile: async () => {
+          throw new Error('QuotaExceededError');
+        }},
+      };
+      const outcome = await FastStreamClient.prototype.saveProgressData.call(client)
+          .then(() => 'resolved', () => 'rejected');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      window.removeEventListener('unhandledrejection', onUnhandled);
+      return {outcome, unhandled};
+    });
+    expect(result).toEqual({outcome: 'resolved', unhandled: 0});
   });
 
   it('round-trips many concurrent saves without swapping or corrupting bytes', async function() {
