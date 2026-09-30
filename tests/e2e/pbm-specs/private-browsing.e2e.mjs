@@ -236,4 +236,36 @@ describe('the extension in a private window', function() {
     console.log('      suggested filename:', JSON.stringify(suggested));
     expect(typeof suggested).toBe('string');
   });
+
+  it('asks for a filename before saving a subtitle track', async function() {
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(120000);
+    await openEmbeddedPlayer(globalThis.__EXT_FIXTURE_MP4__);
+    // The same private-window prompt as the video's: SubtitlesManager skipped it in any
+    // incognito context and saved the track straight under its name. Only the prompt is
+    // checked: a patch to Utils.downloadURL made through an import() in this script never
+    // saw that save, so it could not tell "saved without asking" from "nothing happened".
+    await browser.executeAsync((done) => {
+      import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
+        const client = window.fastStream;
+        const manager = client.interfaceController.subtitlesManager;
+        const track = new SubtitleTrack('Private', 'en');
+        track.loadText('1\n00:00:01,000 --> 00:00:03,000\nA line\n\n');
+        const loaded = client.loadSubtitleTrack(track);
+        if (!manager.activeTracks.includes(loaded)) manager.activateTrack(loaded);
+        done();
+      });
+    });
+    await browser.execute(() => document.querySelector('.subtitles_list .subtitle-download-tool')
+        .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
+    await browser.waitUntil(
+        async () => browser.execute(
+            () => !!document.querySelector('.swal2-container .swal2-input')),
+        {timeout: 20000,
+          timeoutMsg: 'the filename prompt never appeared for a subtitle track in a private window'});
+    const suggested = await browser.execute(
+        () => document.querySelector('.swal2-input').value);
+    console.log('      suggested subtitle filename:', JSON.stringify(suggested));
+    expect(suggested).toBe('(en)_Private');
+  });
 });
