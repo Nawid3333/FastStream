@@ -151,7 +151,7 @@ setup_failed_run() {
   check 'GITHUB_OUTPUT has attempt=2' grep -Fx 'attempt=2' "$GITHUB_OUTPUT"
 }
 
-BAD_RUN_IDS=('abc' '' '12a' '12; touch pwned' '-1' ' 12' '$(touch pwned)')
+BAD_RUN_IDS=('abc' '' '12a' '12; touch pwned' '-1' ' 12' '$(touch pwned)' $'12\n456')
 
 setup_bad_run_ids() {
   local rid
@@ -244,6 +244,8 @@ setup_api_fails() {
   : > "$STATE/api_fails"
   run_step
   check 'exit code non-zero' [ "$rc" -ne 0 ]
+  check 'at once: one gh call' [ "$(gh_calls)" -eq 1 ]
+  check 'no sleep' [ ! -s "$STATE/sleeps" ]
   check 'GITHUB_OUTPUT empty' [ ! -s "$GITHUB_OUTPUT" ]
 }
 
