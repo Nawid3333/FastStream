@@ -205,7 +205,7 @@ class AudioNodeVAD {
       },
     });
     this.entryNode = vadNode;
-    const model = await Silero.new(OrtJS, modelFetcher);
+    const model = await createModel();
     this.frameProcessor = new FrameProcessor(model.process, model.reset_state, {
       frameSamples: this.options.frameSamples,
       positiveSpeechThreshold: this.options.positiveSpeechThreshold,
@@ -270,6 +270,17 @@ class AudioNodeVAD {
 }
 
 
+/**
+ * Loads the model on ONNX Runtime, as AudioNodeVAD does. Also the entry point
+ * tests/e2e/ext-specs/vad.e2e.mjs drives, so the test runs the shipped path.
+ *
+ * @return {Promise<Silero>} a model whose process() scores 512-sample frames
+ */
+function createModel() {
+  return Silero.new(OrtJS, modelFetcher);
+}
+
 export const VadJS = {
   AudioNodeVAD,
+  createModel,
 };
