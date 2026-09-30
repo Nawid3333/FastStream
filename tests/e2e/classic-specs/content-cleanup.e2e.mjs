@@ -62,8 +62,6 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
 <a id="sametab" href="/other">another page</a>
 <script>
   window.wrap = document.getElementById('wrap');
-  window.playerIframe = () => Array.from(document.querySelectorAll('iframe'))
-      .find((f) => f.src.includes('player/index.html'));
   // A re-render inside the hidden player: the new video sits one level down.
   window.addNested = () => {
     const div = document.createElement('div');
@@ -91,8 +89,19 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
   };
   // A same-site navigation without a page load, as a single-page site makes one.
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
-  // A re-render that takes the player's iframe out the moment it is put in, before its
-  // player can load; keepPlayers() ends it.
+</script>
+${removePlayersScript()}
+${addVideoScript(t)}`;
+
+/**
+ * window.removePlayersAtOnce(): a re-render that takes the player's iframe out the moment
+ * it is put in, before its player can load; keepPlayers() ends it.
+ * @return {string} The script.
+ */
+function removePlayersScript() {
+  return `<script>
+  window.playerIframe = () => Array.from(document.querySelectorAll('iframe'))
+      .find((f) => f.src.includes('player/index.html'));
   window.removedPlayers = 0;
   window.removePlayersAtOnce = () => {
     window.playerRemover = new MutationObserver(() => {
@@ -105,8 +114,8 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
     window.playerRemover.observe(document.body, {childList: true, subtree: true});
   };
   window.keepPlayers = () => window.playerRemover.disconnect();
-</script>
-${addVideoScript(t)}`;
+</script>`;
+}
 
 /**
  * window.addVideo(): another video the page adds, as a re-render or the next item of a
@@ -157,6 +166,7 @@ const fullPage = (t) => `<!doctype html><title>full</title>
 <script>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>
+${removePlayersScript()}
 ${addVideoScript(t)}`;
 
 // An episode page with two lists that link to it: a side list whose next entry has no
@@ -176,6 +186,69 @@ const EPISODE_PAGE = `<!doctype html><title>episode 2</title>
   <li><a href="/episodes/ep2">Episode 2</a></li>
   <li><a href="/episodes/ep3">Episode 3</a></li>
 </ul>`;
+
+// Episode lists whose next entry leads to another site, as an ad in the list does:
+// entries that hold a link, and entries that are links. localhost is another origin than
+// the 127.0.0.1 the page is on.
+const AD_EPISODE_PAGES = {
+  '/episodes/ad2': `<!doctype html><title>episode 2</title>
+<style>
+  li { display: block; width: 300px; height: 30px; }
+  li a { display: inline-block; width: 100px; height: 20px; }
+</style>
+<ul>
+  <li><a href="/episodes/ad1">Episode 1</a></li>
+  <li><a href="/episodes/ad2">Episode 2</a></li>
+  <li><a href="http://localhost:${SITE_PORT}/episodes/ad3">Episode 3</a></li>
+</ul>`,
+  '/episodes/bd2': `<!doctype html><title>episode 2</title>
+<style>
+  nav a { display: block; width: 300px; height: 30px; }
+</style>
+<nav>
+  <a href="/episodes/bd1">Episode 1</a>
+  <a href="/episodes/bd2">Episode 2</a>
+  <a href="http://localhost:${SITE_PORT}/episodes/bd3">Episode 3</a>
+</nav>`,
+};
+
+// A page that swaps its video for a copy on every frame, as one that keeps re-rendering
+// its player does. The copy goes in from a message posted as the frame starts: it runs
+// after the browser has measured what is visible, and before it hands that over.
+const swapPage = (t) => `<!doctype html><title>swap</title>
+<style>
+  body { margin: 0; }
+  main { padding: 20px; }
+  main video { width: 640px; height: 360px; display: block; }
+</style>
+<main><video muted preload="none" src="/clip.mp4?swap=${t}"></video></main>
+<script>
+  window.swaps = 0;
+  window.addEventListener('message', (e) => {
+    if (e.data !== 'swap') return;
+    const video = document.querySelector('main video');
+    if (video) {
+      video.replaceWith(video.cloneNode());
+      window.swaps++;
+    }
+  });
+  const frame = () => {
+    window.postMessage('swap', '*');
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+</script>`;
+
+// A button that makes up a 'play' event for the video, and one that plays it.
+const fakePlayPage = (t) => `<!doctype html><title>fake play</title>
+<video id="main" muted loop preload="auto" style="width: 320px; height: 180px" src="/clip.mp4?fakeplay=${t}"></video>
+<button id="fake">fake play</button>
+<button id="real">play</button>
+<script>
+  const main = document.getElementById('main');
+  document.getElementById('fake').addEventListener('click', () => main.dispatchEvent(new Event('play')));
+  document.getElementById('real').addEventListener('click', () => main.play());
+</script>`;
 
 // A video in a shadow root, which a plain querySelectorAll does not reach.
 const shadowPage = (t) => `<!doctype html><title>shadow</title>
@@ -206,9 +279,17 @@ async function watchContentErrors() {
     const win = Services.wm.getMostRecentWindow('navigator:browser');
     if (!win.__fsContentErrors) {
       win.__fsContentErrors = [];
+      win.__fsUnsourcedErrors = [];
       win.__fsContentErrorListener = {
         observe(message) {
           try {
+            // A promise rejected with an error the browser made (a refused fullscreen
+            // request) comes without a source when nothing handles it. Kept apart: which
+            // script it came from is for the case to judge.
+            if (message instanceof Ci.nsIScriptError && !message.sourceName &&
+                !(message.flags & Ci.nsIScriptError.warningFlag)) {
+              win.__fsUnsourcedErrors.push(message.errorMessage);
+            }
             if (message instanceof Ci.nsIScriptError &&
                 /^moz-extension:\/\/[^/]+\/content\.js/.test(message.sourceName || '') &&
                 !(message.flags & Ci.nsIScriptError.warningFlag) &&
@@ -233,7 +314,16 @@ async function watchContentErrors() {
 async function takeContentErrors() {
   return await inChrome((done) => {
     const win = Services.wm.getMostRecentWindow('navigator:browser');
+    win.__fsUnsourcedErrors.length = 0;
     done(win.__fsContentErrors.splice(0));
+  });
+}
+
+/** @return {Promise<Array<string>>} The errors without a source since the last call. */
+async function takeUnsourcedErrors() {
+  return await inChrome((done) => {
+    const win = Services.wm.getMostRecentWindow('navigator:browser');
+    done(win.__fsUnsourcedErrors.splice(0));
   });
 }
 
@@ -282,16 +372,47 @@ async function tabMode() {
 /**
  * Sends a message to the site tab's top frame, as the background does.
  * @param {Object} message - The message.
- * @return {Promise<*>} Its answer.
+ * @param {number} [within] - How long to wait for the answer, in ms; 0 for as long as it
+ *   takes.
+ * @return {Promise<*>} Its answer, or {error: 'no answer'} after `within`.
  */
-async function sendToPage(message) {
+async function sendToPage(message, within = 0) {
   const tabId = await siteTabId();
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((tabId, message, done) => {
+  return await browser.executeAsync((tabId, message, within, done) => {
+    if (within) {
+      setTimeout(() => done({error: 'no answer'}), within);
+    }
     chrome.tabs.sendMessage(tabId, message, {frameId: 0}, (response) => {
       done(chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : response);
     });
+  }, tabId, message, within);
+}
+
+/**
+ * sendToPage for a message the site tab must be in front for: a tab in the background
+ * runs none of the page's animation frames, and measures what is visible only once a
+ * second. The extension's tab sends it a second after the site tab is shown again.
+ * @param {Object} message - The message.
+ * @param {number} within - How long to wait for the answer once sent, in ms.
+ * @return {Promise<*>} Its answer, or {error: 'no answer'}.
+ */
+async function sendToPageInFront(message, within) {
+  const tabId = await siteTabId();
+  await browser.switchToWindow(extHandle);
+  await browser.execute((tabId, message) => {
+    window.__answer = undefined;
+    setTimeout(() => {
+      chrome.tabs.sendMessage(tabId, message, {frameId: 0}, (response) => {
+        window.__answer = chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : response;
+      });
+    }, 1000);
   }, tabId, message);
+  await browser.switchToWindow(siteHandle);
+  // A timer in a background tab may come up to a second late.
+  await browser.pause(2000 + within);
+  await browser.switchToWindow(extHandle);
+  return await browser.execute(() => window.__answer === undefined ? {error: 'no answer'} : window.__answer);
 }
 
 /**
@@ -398,6 +519,12 @@ describe('content.js around an in-page player', function() {
         res.end(fullPage(t));
       } else if (pathname.startsWith('/episodes/ep2')) {
         res.end(EPISODE_PAGE);
+      } else if (Object.hasOwn(AD_EPISODE_PAGES, pathname)) {
+        res.end(AD_EPISODE_PAGES[pathname]);
+      } else if (pathname.startsWith('/swap')) {
+        res.end(swapPage(t));
+      } else if (pathname.startsWith('/fakeplay')) {
+        res.end(fakePlayPage(t));
       } else if (pathname.startsWith('/shadow')) {
         res.end(shadowPage(t));
       } else {
@@ -591,6 +718,107 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  // The player it put in was taken out before it linked up, and nothing let go of what it
+  // took: the page's element stayed hidden (0 by 0), and its video paused itself on every
+  // play, until FastStream was turned off.
+  it('gives the page its video back when it removed a player still loading', async function() {
+    await openPage('/cleanup');
+    await inPage(() => window.removePlayersAtOnce());
+    await clickToolbar();
+    await browser.waitUntil(async () => inPage(() => window.removedPlayers > 0), {
+      timeout: 15000,
+      timeoutMsg: 'FastStream never put a player in the page',
+    });
+    await inPage(() => window.keepPlayers());
+    await browser.pause(500);
+    expect(await inPage(() => ({
+      id: window.wrap.id,
+      width: window.wrap.getBoundingClientRect().width,
+    }))).toEqual({id: 'wrap', width: 640});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // The same for a player laid over the whole page, which hides everything else on it.
+  it('shows the page again when it removed an overlay player still loading', async function() {
+    await openPage('/full');
+    await inPage(() => window.removePlayersAtOnce());
+    await clickToolbar();
+    await browser.waitUntil(async () => inPage(() => window.removedPlayers > 0), {
+      timeout: 15000,
+      timeoutMsg: 'FastStream never put a player in the page',
+    });
+    await inPage(() => window.keepPlayers());
+    await browser.pause(500);
+    expect(await inPage(() => getComputedStyle(document.getElementById('main')).display)).toBe('block');
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // The page's sounds already there when the player opens: only its videos were paused.
+  it('pauses the page\'s sounds already playing when the player opens', async function() {
+    await openPage('/cleanup');
+    await inPage(() => window.addAudio());
+    await browser.waitUntil(async () => inPage(() => !document.getElementById('sfx').paused),
+        {timeout: 10000, timeoutMsg: 'the page\'s sound never played'});
+    await openPlayer();
+    expect(await inPage(() => document.getElementById('sfx').paused)).toBe(true);
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => !(await hasPlayer()),
+        {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
+    expect(await playingAfterPlay(['main', 'sfx'])).toEqual({main: true, sfx: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // getVideo() waits for what is visible, measured while the browser draws and handed over
+  // in a task of its own: a page task queued as the frame started runs in between (Firefox
+  // 156, 40 tries of 40). A video swapped out meanwhile is still reported visible. Only its
+  // size, read again after the wait (0 once out of the page), keeps the player from being
+  // put next to an element with no parent - a TypeError, answered 'error'.
+  it('opens no player next to a video the page swapped out meanwhile', async function() {
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/swap?t=${Date.now()}`);
+    await browser.waitUntil(async () => inPage(() => window.swaps > 10),
+        {timeout: 10000, timeoutMsg: 'the page never swapped its video'});
+    for (let i = 0; i < 2; i++) {
+      const answer = await sendToPageInFront({type: 'OPEN_PLAYER', url: `${ORIGIN}/player/index.html`, frameId: 0}, 3000);
+      expect(['no_video', 'replace']).toContain(answer);
+      expect(await sendToPage({type: 'REMOVE_PLAYERS'})).toBe('ok');
+    }
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // Anything that threw while the player went in left OPEN_PLAYER without an answer, and
+  // the background kept the frame's player opening: no player opened there again until a
+  // navigation. A URL that is none stands in for whatever may throw.
+  it('answers OPEN_PLAYER when putting the player in fails', async function() {
+    await openPage('/cleanup');
+    expect(await sendToPage({type: 'OPEN_PLAYER', url: 'not a url', frameId: 0}, 5000)).toBe('error');
+    expect(await hasPlayer()).toBe(false);
+  });
+
+  it('answers a fullscreen request it cannot carry out, and throws nothing', async function() {
+    await openPage('/cleanup');
+    // For a frame it holds no player of: answered, and thrown on top.
+    expect(await sendToPage({type: 'TOGGLE_FULLSCREEN', frameId: 424242})).toBe('no_element');
+    expect(await sendToPage({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 424242})).toBe('no_element');
+    // Refused by Firefox, asked with no click to go on: answered, and rethrown. The player's
+    // iframe under a frame id of the test's own, linked the way the background links it.
+    await openPlayer();
+    expect(await sendToPage({type: 'FRAME_LINK_RECEIVER', key: 'fs-test-link', frameId: 424243})).toBe('ok');
+    await browser.switchToWindow(siteHandle);
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+    await browser.execute(() => window.parent.postMessage('fs-test-link', '*'));
+    await browser.switchFrame(null);
+    await browser.pause(300);
+    await takeUnsourcedErrors();
+    expect(await sendToPage({type: 'TOGGLE_FULLSCREEN', frameId: 424243, force: true})).toBe('error');
+    await browser.pause(500);
+    // The rethrown refusal: "TypeError: Fullscreen request denied", without a source.
+    expect((await takeUnsourcedErrors()).filter((m) => /fullscreen/i.test(m))).toEqual([]);
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   it('opens a player for the next video after a same-site navigation took the overlay', async function() {
     await openPage('/full');
     await openPlayer();
@@ -710,6 +938,40 @@ describe('content.js around an in-page player', function() {
     expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('clicked');
     await browser.waitUntil(async () => (await inPage(() => location.pathname)) === '/episodes/ep3',
         {timeout: 10000, timeoutMsg: 'the next-episode link was not ep3'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('follows no next-episode link to another site', async function() {
+    for (const pathname of Object.keys(AD_EPISODE_PAGES)) {
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}${pathname}`);
+      await browser.pause(500);
+      // The list's next entry, on another site, was taken all the same.
+      expect({pathname, poll: await sendToPage({type: 'PLAYLIST_POLL'})})
+          .toEqual({pathname, poll: {next: false, previous: true}});
+      expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('no_button');
+    }
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // The shortcut sends the video the user started. A 'play' the page made up, during a
+  // click, made its video count as one.
+  it('counts no made-up play as the user starting a video', async function() {
+    await openPage('/fakeplay');
+    await inPage(() => document.getElementById('main').play());
+    await browser.waitUntil(async () => inPage(() => !document.getElementById('main').paused),
+        {timeout: 10000, timeoutMsg: 'the video never played'});
+    await browser.switchToWindow(siteHandle);
+    await browser.$('#fake').click();
+    expect(await sendToPage({type: 'MPV_REPORT_PLAYING'})).toBe(false);
+
+    // A real one: the click plays it.
+    await inPage(() => document.getElementById('main').pause());
+    await browser.switchToWindow(siteHandle);
+    await browser.$('#real').click();
+    await browser.waitUntil(async () => inPage(() => !document.getElementById('main').paused),
+        {timeout: 10000, timeoutMsg: 'the click never played the video'});
+    expect(await sendToPage({type: 'MPV_REPORT_PLAYING'})).toBe(true);
     expect(await takeContentErrors()).toEqual([]);
   });
 

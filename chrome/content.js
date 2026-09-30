@@ -222,12 +222,10 @@
   /**
    * Watches a player iframe until its player links up, or the page takes it out.
    * @param {HTMLIFrameElement} iframe - The player's iframe, in the page.
-   * @param {*} attempt - OPEN_PLAYER's attempt; nothing to report without one.
+   * @param {*} attempt - OPEN_PLAYER's attempt; nothing to report without one, but the
+   *   page still gets back what the player took (releaseRemovedPlayer).
    */
   function watchPendingPlayer(iframe, attempt) {
-    if (typeof attempt !== 'number') {
-      return;
-    }
     pendingPlayers.set(iframe, attempt);
     if (!pendingPlayersWatch) {
       pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
@@ -244,6 +242,10 @@
         pendingPlayers.delete(iframe);
       } else if (!iframe.isConnected) {
         pendingPlayers.delete(iframe);
+        releaseRemovedPlayer(iframe);
+        if (typeof attempt !== 'number') {
+          return;
+        }
         try {
           chrome.runtime.sendMessage({
             type: MessageTypes.PLAYER_OPEN_GONE,
@@ -259,6 +261,26 @@
     if (pendingPlayers.size === 0 && pendingPlayersWatch) {
       pendingPlayersWatch.disconnect();
       pendingPlayersWatch = null;
+    }
+  }
+
+  /**
+   * Gives the page back what a player took, when the page took that player's iframe out
+   * before it linked up: its element shown again (a soft replace only hid it), the rest of
+   * the page an overlay hid, and its media free to play. All of it stayed until FastStream
+   * was turned off, with the page's video pausing itself on every play meanwhile.
+   * @param {HTMLIFrameElement} iframe - The player's iframe, out of the page.
+   */
+  function releaseRemovedPlayer(iframe) {
+    const replaced = replacedPlayerQueue.findIndex((player) => player.iframe === iframe);
+    if (replaced !== -1) {
+      restoreReplaced(replacedPlayerQueue.splice(replaced, 1)[0]);
+    }
+    const overlay = overlayPlayers.findIndex((player) => player.iframe === iframe);
+    if (overlay !== -1) {
+      const {watcher, hidden} = overlayPlayers.splice(overlay, 1)[0];
+      undoFillScreenIframe(hidden);
+      removePauseListeners(watcher);
     }
   }
 
@@ -371,8 +393,8 @@
           const watcher = pauseAllWithin(document.body);
           // Remove everything from the document
           document.body.appendChild(iframe);
-          fillScreenIframe(iframe);
-          overlayPlayers.push({iframe, watcher});
+          const hidden = fillScreenIframe(iframe);
+          overlayPlayers.push({iframe, watcher, hidden});
           watchPendingPlayer(iframe, request.attempt);
           console.log('Overlaying iframe');
           sendResponse('replaceall');
@@ -445,6 +467,12 @@
           value: true,
         });
       }
+    }).catch((e) => {
+      // Whatever went wrong, the background hears back: without an answer it kept the
+      // frame's player opening, and opened no player there again until a navigation. A
+      // second answer, after one already given, is ignored.
+      console.error(e);
+      sendResponse('error');
     });
     return true;
   }
@@ -463,8 +491,10 @@
   function handleWindowedFullscreen(request, sender, sendResponse) {
     const iframeObj = iframeMap.get(request.frameId);
     if (!iframeObj) {
+      // Answered; throwing on top only put an uncaught error in the page's console.
       sendResponse('no_element');
-      throw new Error('No element found for frame id ' + request.frameId);
+      console.error('No element found for frame id ' + request.frameId);
+      return;
     }
 
     const windowedFullscreenState = iframeObj.windowedFullscreenState;
@@ -576,7 +606,8 @@
     const iframeObj = iframeMap.get(request.frameId);
     if (!iframeObj) {
       sendResponse('no_element');
-      throw new Error('No element found for frame id ' + request.frameId);
+      console.error('No element found for frame id ' + request.frameId);
+      return;
     }
 
     const fullscreenState = iframeObj.fullscreenState;
@@ -596,8 +627,10 @@
       element.requestFullscreen().then(() => {
         sendResponse('enter');
       }).catch((e) => {
+        // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
+        // Rethrown, it was an unhandled rejection besides.
+        console.error(e);
         sendResponse('error');
-        throw e;
       });
     }
     return true;
@@ -1104,7 +1137,9 @@
       hooked.add(media);
     };
 
-    querySelectorAllIncludingShadows('video', element).forEach(hook);
+    // Its sounds too, as for the ones added later: an <audio> already there played on
+    // under the player.
+    querySelectorAllIncludingShadows('video, audio', element).forEach(hook);
 
     // Add mutation observer to pause videos added later: added themselves, or inside an
     // added subtree, as a re-render of the page's player puts them.
@@ -1510,18 +1545,7 @@
       } else {
         return textContent === 'previous' || textContent === 'previous episode' || textContent === 'prev' || textContent === 'prev episode';
       }
-    }).filter((a) => {
-      // make sure identical origin
-      if (!a.href) {
-        return false;
-      }
-      try {
-        const url = url_to_absolute(a.href);
-        return (new URL(url)).origin === window.location.origin;
-      } catch (e) {
-        return false;
-      }
-    });
+    }).filter(isLinkOnThisSite);
 
     if (matches.length === 1) {
       return matches[0];
@@ -1582,20 +1606,41 @@
           continue;
         }
 
-        // Check if a element
+        // Check if a element. Only one to this site, as for a "Next" link above: a list's
+        // neighbour may be an ad, and the player followed it.
         if (similar[nextIndex].tagName === 'A') {
-          return similar[nextIndex];
+          if (isLinkOnThisSite(similar[nextIndex])) {
+            return similar[nextIndex];
+          }
+          continue;
         }
 
         // A neighbour without a link ends this match only: another one may lead to the
         // episode (a side list that links here too, before the real episode list).
         const link = similar[nextIndex].querySelector('a');
-        if (link) {
+        if (link && isLinkOnThisSite(link)) {
           return link;
         }
       }
     }
     return null;
+  }
+
+  /**
+   * Whether a link leads to a page of this site.
+   * @param {HTMLAnchorElement} a - The link.
+   * @return {boolean}
+   */
+  function isLinkOnThisSite(a) {
+    if (!a.href) {
+      return false;
+    }
+    try {
+      const url = url_to_absolute(a.href);
+      return (new URL(url)).origin === window.location.origin;
+    } catch (e) {
+      return false;
+    }
   }
 
   document.addEventListener('click', (e) => {
@@ -1775,6 +1820,9 @@
   }
 
   document.addEventListener('play', (e) => {
+    // Only a play Firefox reports: a 'play' event the page makes up during a click starts
+    // nothing, and made its video the one the shortcut sends.
+    if (!e.isTrusted) return;
     const video = e.target;
     if (!video || video.tagName !== 'VIDEO') return;
     if (!navigator.userActivation || !navigator.userActivation.isActive) return;
