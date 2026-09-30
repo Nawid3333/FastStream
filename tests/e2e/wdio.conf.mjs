@@ -38,7 +38,10 @@ import {mozLogHooks} from './mozLog.mjs';
 import {testTimeout} from './testTimeout.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
-import {bidiRootHooks, ensureBidi} from './bidi.mjs';
+import {ensureBidi} from './bidi.mjs';
+import {guardSetup, rootHooks} from './setupGuard.mjs';
+import {ensureMp4Fixture, MP4_FIXTURE, writeFixture} from './mp4Fixture.mjs';
+import {byteRange, decodePath, sendFile} from './serveFile.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -61,8 +64,12 @@ const mozLog = mozLogHooks(path.join(root, 'logs-moz'));
 // files either.
 const downloadDir = path.join(root, '.e2e-downloads');
 function resetDownloadDir() {
-  fs.rmSync(downloadDir, {recursive: true, force: true});
   fs.mkdirSync(downloadDir, {recursive: true});
+  // Emptied in place: a spec file's setup runs this too (before), with Firefox already
+  // pointed at the folder.
+  for (const name of fs.readdirSync(downloadDir)) {
+    fs.rmSync(path.join(downloadDir, name), {recursive: true, force: true});
+  }
 }
 
 const MIME = {
@@ -83,34 +90,9 @@ const MIME = {
   '.m4s': 'video/iso.segment',
 };
 
-// The MP4 fixture is served locally rather than fetched from a public host.
-// The obvious public test files send no CORS headers, and FastStream's
-// accelerated MP4 mode fetches the file itself to do its own range-based
-// buffering - which an extension may do via host permissions but a web page
-// may not. Serving it same-origin removes both the CORS problem and a network
-// dependency in CI. It is downloaded once and gitignored rather than
-// committed, to keep a binary out of the repository.
-const MP4_FIXTURE_URL =
-  'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
-const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
-
-/**
- * Downloads the MP4 fixture if it is not already present.
- *
- * @return {Promise<void>}
- */
-async function ensureMp4Fixture() {
-  if (fs.existsSync(MP4_FIXTURE) && fs.statSync(MP4_FIXTURE).size > 0) return;
-  fs.mkdirSync(fixturesDir, {recursive: true});
-  const res = await fetch(MP4_FIXTURE_URL);
-  if (!res.ok) {
-    throw new Error(
-        `could not fetch the MP4 fixture (${res.status}). It is needed once; ` +
-        `after that the suite runs offline.`,
-    );
-  }
-  fs.writeFileSync(MP4_FIXTURE, Buffer.from(await res.arrayBuffer()));
-}
+// The MP4 fixture (sample.mp4), which the ones below are made from: mp4Fixture.mjs. The
+// fixtures that are one file are written through writeFixture, so a run killed half way
+// leaves none half written; the ones that are a directory write their marker file last.
 
 // The WebM fixture is transcoded from the MP4 one rather than downloaded or
 // committed. webm.mjs is generated from jswebm's published sources plus
@@ -128,19 +110,11 @@ const WEBM_FIXTURE = path.join(fixturesDir, 'sample.webm');
  */
 async function ensureWebmFixture() {
   if (fs.existsSync(WEBM_FIXTURE) && fs.statSync(WEBM_FIXTURE).size > 0) return;
-  const args = [
-    '-y', '-v', 'error', '-i', MP4_FIXTURE, '-t', '2',
+  await writeFixture(WEBM_FIXTURE, (partial) => runFfmpeg([
+    '-i', MP4_FIXTURE, '-t', '2',
     '-vf', 'scale=160:120', '-c:v', 'libvpx-vp9', '-b:v', '120k',
-    '-cpu-used', '8', WEBM_FIXTURE,
-  ];
-  const {status, error, stderr} = spawnSync('ffmpeg', args, {encoding: 'utf8'});
-  if (status !== 0) {
-    throw new Error(
-        `could not build the WebM fixture with ffmpeg` +
-        `${error ? ` (${error.message})` : ''}. CI installs ffmpeg; ` +
-        `locally it must be on PATH.\n${stderr || ''}`,
-    );
-  }
+    '-cpu-used', '8', partial,
+  ], 'WebM'));
 }
 
 /**
@@ -167,14 +141,14 @@ ${stderr || ''}`,
 // something to play (firefox.e2e.mjs) and for 60 s seeks either way (keybinds.e2e.mjs).
 const LONG_AV_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
 
-function ensureLongAvFixture() {
+async function ensureLongAvFixture() {
   if (fs.existsSync(LONG_AV_FIXTURE) && fs.statSync(LONG_AV_FIXTURE).size > 0) return;
-  runFfmpeg([
+  await writeFixture(LONG_AV_FIXTURE, (partial) => runFfmpeg([
     '-stream_loop', '15', '-i', MP4_FIXTURE,
     '-f', 'lavfi', '-i', 'sine=frequency=440:duration=160',
     '-map', '0:v', '-map', '1:a', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '64k', '-shortest',
-    '-movflags', '+faststart', LONG_AV_FIXTURE,
-  ], 'long audio');
+    '-movflags', '+faststart', partial,
+  ], 'long audio'));
 }
 
 /**
@@ -197,12 +171,12 @@ function h264Encoder(what) {
 // could not reach.
 const FRAMES_24_FIXTURE = path.join(fixturesDir, 'frames-24fps.mp4');
 
-function ensureFrames24Fixture() {
+async function ensureFrames24Fixture() {
   if (fs.existsSync(FRAMES_24_FIXTURE) && fs.statSync(FRAMES_24_FIXTURE).size > 0) return;
-  runFfmpeg([
+  await writeFixture(FRAMES_24_FIXTURE, (partial) => runFfmpeg([
     '-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24:duration=4',
-    '-c:v', h264Encoder('24 fps'), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', FRAMES_24_FIXTURE,
-  ], '24 fps');
+    '-c:v', h264Encoder('24 fps'), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', partial,
+  ], '24 fps'));
 }
 
 // One local DASH stream per way a manifest can list its segments. dash.js reads each with
@@ -469,7 +443,8 @@ export const config = {
     // Loading real streams over the network is slow, deliberately: the point
     // is that a real player really decodes real bytes.
     timeout: testTimeout(120000),
-    rootHooks: bidiRootHooks,
+    // A failed setup, or a session without BiDi, fails every test: setupGuard.mjs.
+    rootHooks,
   },
 
   // Firefox's network log for the specs listed in mozLog.mjs (the const above).
@@ -481,22 +456,30 @@ export const config = {
   // listen on different ports, so it is exposed here rather than hardcoded
   // in the spec.
   before: async function() {
-    await ensureBidi();
-    globalThis.__E2E_FIXTURES_ORIGIN__ = BASE_URL;
+    await guardSetup(async () => {
+      // Each spec file's attempt starts with no downloads, as in wdio.extension.conf.mjs.
+      resetDownloadDir();
+      await ensureBidi();
+      globalThis.__E2E_FIXTURES_ORIGIN__ = BASE_URL;
+    });
   },
 
   onPrepare: async function() {
     resetDownloadDir();
     await ensureMp4Fixture();
     await ensureWebmFixture();
-    ensureLongAvFixture();
-    ensureFrames24Fixture();
+    await ensureLongAvFixture();
+    await ensureFrames24Fixture();
     ensureDashFixtures();
     ensureHlsFixtures();
     ensureBframesFixture();
     return new Promise((resolve) => {
       server = http.createServer((req, res) => {
-        const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);
+        const rel = decodePath(req.url.split('?')[0].split('#')[0]);
+        if (rel === null) {
+          res.writeHead(400);
+          return res.end('bad request');
+        }
         // Fixtures are served from the same origin as the player page on
         // purpose - see ensureMp4Fixture.
         const base = rel.startsWith('/fixtures/') ? fixturesDir : webBuildDir;
@@ -524,30 +507,23 @@ export const config = {
         // MP4 mode does its own range-based buffering, and a server that
         // ignores Range and returns 200 with the whole body makes that mode
         // fail in ways that look like a decoder bug.
-        const range = req.headers.range;
-        const match = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-        if (match) {
-          const start = match[1] ? parseInt(match[1], 10) : 0;
-          // RFC 7233: an end past the last byte is clamped, not rejected.
-          // FastStream asks for ranges that overshoot the file end, so
-          // answering those with 416 breaks the MP4 path with "First fragment
-          // failed to load" - which reads like a decoder fault and is not.
-          const end = Math.min(
-              match[2] ? parseInt(match[2], 10) : size - 1, size - 1);
-          if (start >= size || start > end) {
-            res.writeHead(416, {'Content-Range': `bytes */${size}`});
-            return res.end();
-          }
+        const range = byteRange(req.headers.range, size);
+        if (range === 'unsatisfiable') {
+          res.writeHead(416, {'Content-Range': `bytes */${size}`});
+          return res.end();
+        }
+        if (range) {
+          const {start, end} = range;
           res.writeHead(206, {
             ...headers,
             'Content-Range': `bytes ${start}-${end}/${size}`,
             'Content-Length': end - start + 1,
           });
-          return fs.createReadStream(abs, {start, end}).pipe(res);
+          return sendFile(res, abs, {start, end});
         }
 
         res.writeHead(200, {...headers, 'Content-Length': size});
-        fs.createReadStream(abs).pipe(res);
+        sendFile(res, abs);
       });
       listenOrStop(server, PORT, resolve);
     });
@@ -570,8 +546,14 @@ export const config = {
     const dir = path.join(root, 'logs');
     fs.mkdirSync(dir, {recursive: true});
     const safe = test.title.replace(/[^a-z0-9]+/gi, '-').slice(0, 60);
+    // A failed test's retry fails it again or passes; either way the first attempt's
+    // screenshot is kept, and the retry's is numbered.
+    let file = path.join(dir, `fail-${safe}.png`);
+    for (let n = 2; fs.existsSync(file); n++) {
+      file = path.join(dir, `fail-${safe}-${n}.png`);
+    }
     try {
-      await browser.saveScreenshot(path.join(dir, `fail-${safe}.png`));
+      await browser.saveScreenshot(file);
     } catch {
       // A screenshot is a diagnostic aid; failing to take one must not
       // replace the real test failure with a confusing error from here.

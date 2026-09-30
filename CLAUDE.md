@@ -1203,6 +1203,19 @@ the change went in.
   (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried`/`e2e-retried-windows`
   (14 days), and uploads `e2e-logs` for such a green job too, so the failed attempt's driver
   log is there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
+- **e2e harness, 2026-10-01 (F1, F4-F6):** a config's `before` hook runs its setup
+  through `guardSetup` (`tests/e2e/setupGuard.mjs`): WebdriverIO only logs a hook's
+  error, so a failed add-on install let every spec run without the extension (a probe
+  test passed that way); now the mocha root hook fails each test with the setup's reason.
+  Each spec file's attempt starts with an empty `.e2e-downloads` (a retry's save went to
+  `name(1).png` and the spec read the first attempt's file). download-names keeps its
+  extension page open until Firefox reports the download `complete`: closed at once, the
+  page took its blob with it before Firefox read it, the CI flake. Single-file fixtures are
+  written under `.partial` and renamed (`writeFixture`); the extension config fetches
+  `sample.mp4` itself (`mp4Fixture.mjs`), so `pnpm run test:ext` works on a fresh clone.
+  Both test servers answer a bad `%` escape with 400, end a response whose read fails, and
+  read `bytes=-N` as the last N bytes (`serveFile.mjs`). A retried test's screenshot is
+  numbered, not written over the first attempt's.
 - **e2e test cap, 2026-09-30:** mocha stops a test at 120 s (the live suite at 300 s), and a
   test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
   timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`

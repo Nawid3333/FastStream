@@ -1,0 +1,129 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {PassThrough} from 'node:stream';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {writeFixture} from '../e2e/mp4Fixture.mjs';
+import {byteRange, decodePath, sendFile} from '../e2e/serveFile.mjs';
+import {guardSetup, rootHooks} from '../e2e/setupGuard.mjs';
+
+// The e2e harness's own gaps (F4-F6): a setup failure that let the specs run without the
+// extension, fixtures a killed run left half written, and test servers that misread a
+// suffix range or went down on one bad request.
+
+describe('guardSetup and rootHooks', () => {
+  beforeEach(() => {
+    globalThis.browser = {isBidi: true};
+  });
+  afterEach(() => {
+    delete globalThis.browser;
+  });
+
+  it('fail every test after the setup failed, with its reason', async () => {
+    await expect(guardSetup(async () => {
+      throw new Error('installAddOn: no such file');
+    })).rejects.toThrow('installAddOn: no such file');
+    expect(() => rootHooks.beforeEach()).toThrow(/setup failed.*installAddOn: no such file/);
+  });
+
+  it('let the tests run after a setup that worked, even one that failed before it', async () => {
+    await guardSetup(async () => {
+      throw new Error('first');
+    }).catch(() => {});
+    await guardSetup(async () => {});
+    expect(() => rootHooks.beforeEach()).not.toThrow();
+  });
+
+  it('still fail a test in a session without BiDi', async () => {
+    await guardSetup(async () => {});
+    globalThis.browser = {isBidi: false, requestedCapabilities: {}};
+    expect(() => rootHooks.beforeEach()).toThrow(/BiDi is not connected/);
+  });
+});
+
+describe('writeFixture', () => {
+  let dir;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fixture-'));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, {recursive: true, force: true});
+  });
+
+  it('writes under another name with the same extension, then moves it into place', async () => {
+    const file = path.join(dir, 'long-av.mp4');
+    let written;
+    await writeFixture(file, (partial) => {
+      written = partial;
+      expect(fs.existsSync(file)).toBe(false);
+      fs.writeFileSync(partial, 'data');
+    });
+    expect(path.basename(written)).toBe('long-av.partial.mp4');
+    expect(fs.readFileSync(file, 'utf8')).toBe('data');
+    expect(fs.readdirSync(dir)).toEqual(['long-av.mp4']);
+  });
+
+  it('leaves nothing a later run would trust when the write fails half way', async () => {
+    const file = path.join(dir, 'sample.webm');
+    await expect(writeFixture(file, (partial) => {
+      fs.writeFileSync(partial, 'half');
+      throw new Error('ffmpeg was killed');
+    })).rejects.toThrow('ffmpeg was killed');
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe('byteRange', () => {
+  it.each([
+    [undefined, null],
+    ['bytes=0-99', {start: 0, end: 99}],
+    ['bytes=500-', {start: 500, end: 999}],
+    // An end past the file's end is clamped: FastStream asks for such ranges.
+    ['bytes=900-2000', {start: 900, end: 999}],
+    // A suffix range is the LAST bytes.
+    ['bytes=-100', {start: 900, end: 999}],
+    ['bytes=-5000', {start: 0, end: 999}],
+    ['bytes=-0', 'unsatisfiable'],
+    ['bytes=1000-', 'unsatisfiable'],
+    ['bytes=5-3', 'unsatisfiable'],
+    // Not one range of bytes: the whole file, as a server that ignores Range sends.
+    ['bytes=-', null],
+    ['bytes=0-1,5-6', null],
+    ['items=0-5', null],
+  ])('reads %s of a 1000-byte file as %o', (header, expected) => {
+    expect(byteRange(header, 1000)).toEqual(expected);
+  });
+});
+
+describe('decodePath', () => {
+  it('decodes escapes, and turns a malformed one into null instead of a throw', () => {
+    expect(decodePath('/fixtures/a%20b.mp4')).toBe('/fixtures/a b.mp4');
+    expect(decodePath('/fixtures/%zz')).toBe(null);
+  });
+});
+
+describe('sendFile', () => {
+  it('ends the response, not the process, when the file cannot be read', async () => {
+    const res = new PassThrough();
+    const destroyed = new Promise((resolve) => res.on('close', resolve));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    sendFile(res, path.join(os.tmpdir(), `missing-${Date.now()}.mp4`));
+    await destroyed;
+    expect(res.destroyed).toBe(true);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('could not read'));
+    error.mockRestore();
+  });
+
+  it('sends the range asked for', async () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'send-')), 'f.bin');
+    fs.writeFileSync(file, '0123456789');
+    const res = new PassThrough();
+    const chunks = [];
+    res.on('data', (chunk) => chunks.push(chunk));
+    const ended = new Promise((resolve) => res.on('end', resolve));
+    sendFile(res, file, {start: 7, end: 9});
+    await ended;
+    expect(Buffer.concat(chunks).toString()).toBe('789');
+    fs.rmSync(path.dirname(file), {recursive: true, force: true});
+  });
+});
