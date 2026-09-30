@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "Gizli Mod videoları tamponlamak için RAM kullanır. Bilgisayarınızda tüm videoyu kaydetmek için yeterli bellek olmayabilir!\nDevam etmek istediğinize emin misiniz?"
     },
-    "player_savevideo_reencode": {
-        "message": "Kaydetme yeniden kodlama gerektirecek. Bu uzun sürebilir. Devam etmek istiyor musunuz?"
-    },
     "player_savevideo_cancelling": {
         "message": "Kaydetme iptal ediliyor..."
     },

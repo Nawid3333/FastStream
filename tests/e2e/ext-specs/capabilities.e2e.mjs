@@ -1,15 +1,8 @@
-// Records which platform APIs the extension's optional features need, and
-// whether this Firefox has them.
-//
-// Two features in the tree ship large third-party files: the voice activity
-// detector behind subtitle syncing (the stock onnxruntime-web 1.30.0 wasm,
-// about 14 MB, plus the published Silero VAD .onnx) and the re-encoder
-// behind DASH-to-MP4 download (libsamplerate's wasm; the Mediabunny bundle
-// beside it is unmodified npm output that addons-linter reports nothing for).
-// Whether either feature can run here decides whether those files have to be
-// justified to a reviewer or can simply leave the build - so it is measured
-// rather than assumed, and pinned, so that a future Firefox gaining
-// WebCodecs shows up as a failing test rather than as nothing at all.
+// Records which platform APIs the voice activity detector needs, and whether this
+// Firefox has them. It ships the largest third-party files in the tree (the stock
+// onnxruntime-web 1.30.0 wasm, about 14 MB, plus the published Silero VAD .onnx), so
+// that it can run here is measured rather than assumed. (Saving needs none of these:
+// the remuxer copies packets with Mediabunny, in plain JavaScript.)
 
 import {browser, expect} from '@wdio/globals';
 
@@ -18,7 +11,7 @@ import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 
 describe('platform capabilities on this Firefox', function() {
-  it('records WebCodecs and audio API support', async function() {
+  it('records the audio APIs the voice detector needs', async function() {
     await browser.url(OPENER_URL);
     await browser.execute((u) => window.open(u, '_blank'), ORIGIN +
       '/player/index.html');
@@ -39,15 +32,6 @@ describe('platform capabilities on this Firefox', function() {
     const support = await browser.execute(() => {
       const has = (name) => typeof globalThis[name] !== 'undefined';
       return {
-        // The re-encoder needs all four. reencoder.mjs says so in its own
-        // header comment: "REQUIRES WebCodecs. Not supported in Firefox."
-        VideoEncoder: has('VideoEncoder'),
-        AudioEncoder: has('AudioEncoder'),
-        VideoDecoder: has('VideoDecoder'),
-        AudioDecoder: has('AudioDecoder'),
-        AudioData: has('AudioData'),
-        EncodedVideoChunk: has('EncodedVideoChunk'),
-        // The VAD needs these.
         WebAssembly: has('WebAssembly'),
         AudioWorklet: has('AudioWorklet'),
         OfflineAudioContext: has('OfflineAudioContext'),

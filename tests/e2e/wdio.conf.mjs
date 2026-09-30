@@ -113,12 +113,7 @@ async function ensureMp4Fixture() {
 }
 
 // The WebM fixture is transcoded from the MP4 one rather than downloaded or
-// committed. webm.mjs is generated from jswebm's published sources plus
-// patches/jswebm@0.1.2.patch, and every one of those patched changes is on
-// this path - the VP9 codec string, the colour metadata, the keyFrame
-// spelling, and demux()'s progress return, without which WebMDemuxer.process
-// stops before demuxing anything. None of it is reachable from the MP4
-// specs.
+// committed: a VP9 file for the save of a DIRECT WebM source (save-video.e2e.mjs).
 const WEBM_FIXTURE = path.join(fixturesDir, 'sample.webm');
 
 /**
@@ -354,6 +349,30 @@ function ensureBframesFixture() {
   fs.writeFileSync(done, '');
 }
 
+// VP9 and Opus in WebM segments, as YouTube-style DASH serves them: MP4Merger cannot join
+// WebM, so a save of it goes through the remuxer (remuxer.mjs), which copies both into an
+// MP4. The tone is 440 Hz, a keyframe every 2 s starts each segment. For save-fmp4.e2e.mjs
+// and modules.e2e.mjs.
+const DASH_WEBM_DIR = path.join(fixturesDir, 'dash-webm');
+
+function ensureDashWebmFixture() {
+  const done = path.join(DASH_WEBM_DIR, '.complete');
+  if (fs.existsSync(done)) return;
+  fs.rmSync(DASH_WEBM_DIR, {recursive: true, force: true});
+  fs.mkdirSync(DASH_WEBM_DIR, {recursive: true});
+  runFfmpeg([
+    '-i', MP4_FIXTURE, '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10',
+    '-map', '0:v', '-map', '1:a', '-t', '9',
+    '-vf', 'scale=320:180', '-c:v', 'libvpx-vp9', '-b:v', '200k', '-cpu-used', '8', '-row-mt', '1',
+    '-force_key_frames', 'expr:gte(t,n_forced*2)',
+    '-c:a', 'libopus', '-b:a', '64k',
+    '-f', 'dash', '-dash_segment_type', 'webm', '-seg_duration', '2',
+    '-use_template', '1', '-use_timeline', '1',
+    '-adaptation_sets', 'id=0,streams=v id=1,streams=a', 'manifest.mpd',
+  ], 'VP9 + Opus DASH', DASH_WEBM_DIR);
+  fs.writeFileSync(done, '');
+}
+
 function ensureDashFixtures() {
   for (const [name, packaging] of Object.entries(DASH_FIXTURES)) {
     const dir = path.join(fixturesDir, name);
@@ -494,6 +513,7 @@ export const config = {
     ensureDashFixtures();
     ensureHlsFixtures();
     ensureBframesFixture();
+    ensureDashWebmFixture();
     return new Promise((resolve) => {
       server = http.createServer((req, res) => {
         const rel = decodeURIComponent(req.url.split('?')[0].split('#')[0]);

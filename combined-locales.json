@@ -3149,24 +3149,6 @@
         "zh_CN": "隐身模式会使用内存（RAM）来缓冲视频。您的电脑可能没有足够的内存来保存整个视频！\n确定要继续吗？",
         "zh_TW": "無痕模式會使用記憶體緩衝影片。你的電腦可能沒有足夠的記憶體來儲存整段影片！\n確定要繼續嗎？"
     },
-    "player_savevideo_reencode": {
-        "en": "Saving will require re-encoding. This may take a long time. Do you want to proceed?",
-        "de": "Speichern erfordert neukodierung. Dies kann eine lange Zeit brauchen. Willst du fortfahren?",
-        "es": "Guardar requerirá re-codificación. Esto puede llevar mucho tiempo. ¿Quieres proceder?",
-        "fr": "La sauvegarde nécessitera un réencodage. Cela peut prendre beaucoup de temps. Voulez-vous continuer ?",
-        "id": "Penyimpanan akan memerlukan pengkodean ulang. Ini mungkin memakan waktu lama. Ingin melanjutkan?",
-        "it": "Il salvataggio richiederà una nuova codifica. Potrebbe richiedere molto tempo. Vuoi procedere?",
-        "ja": "保存には再エンコードが必要です。これには時間がかかる場合があります。続行しますか?",
-        "ko": "저장하려면 재인코딩이 필요합니다. 시간이 오래 걸릴 수 있습니다. 계속 진행하시겠습니까?",
-        "ms": "Menyimpan akan memerlukan penyulitan semula. Ini mungkin mengambil masa yang lama. Adakah anda mahu meneruskan?",
-        "nl": "Opslaan vereist hercodering. Dit kan lang duren. Wil je doorgaan?",
-        "pl": "Zapisywanie będzie wymagać ponownego przekodowania. Może to potrwać długo. Czy chcesz kontynuować?",
-        "pt_BR": "Para salvar, será necessário recodificar o vídeo. Isso pode levar muito tempo. Você deseja continuar?",
-        "ru": "Для сохранения требуется перекодировка. Это может занять много времени. Продолжить?",
-        "tr": "Kaydetme yeniden kodlama gerektirecek. Bu uzun sürebilir. Devam etmek istiyor musunuz?",
-        "zh_CN": "保存将需要重新编码，可能会耗时较长。是否继续？",
-        "zh_TW": "儲存將需要重新編碼，可能會耗費較長時間。要繼續嗎？"
-    },
     "player_savevideo_cancelling": {
         "en": "Cancelling save...",
         "de": "Breche speichern ab...",

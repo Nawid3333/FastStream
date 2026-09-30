@@ -68,13 +68,12 @@ file times.
 
    ```
    Coloris@0.25.0     dashjs@5.2.1      gif.js@0.2.0     hls.js@1.7.3
-   jswebm@0.1.2       mp4box@2.4.1      sweetalert2@11.26.25
+   mp4box@2.4.1       sweetalert2@11.26.25
    ```
 
    Besides the patches, `sync-vendor.mjs` itself makes a few small
    mechanical changes on the way (a UMD wrapper turned into an ES module,
-   an added export, jswebm's source files joined into one module, an
-   inline source map stripped). The changes are in that script, not in an
+   an added export, an inline source map stripped). The changes are in that script, not in an
    edited copy.
 
    This is the key point for review: every bundled library is a **pinned
@@ -124,15 +123,14 @@ updates through the manifest's `update_url`, as for any self-hosted add-on.
 
 ## Prebuilt binaries
 
-Two WebAssembly artifacts ship prebuilt rather than being compiled here,
-and the VAD's model is likewise a file published by its upstream. All three
+One WebAssembly artifact ships prebuilt rather than being compiled here,
+and the VAD's model is likewise a file published by its upstream. Both
 can be checked against their origins without trusting this repository:
 
 | Artifact | Verify with |
 |---|---|
 | ONNX Runtime (`vad/ort-wasm-simd-threaded.wasm`, its glue and the loader) | the stock npm files - `tools/sync-vendor.mjs` copies all three exactly as `onnxruntime-web@1.30.0` publishes them (gitignored; the loader's inline source map is stripped, nothing else); a reviewer can install that version and diff. |
 | Silero VAD model (`vad/silero_vad_half.onnx`) | `pnpm run verify:vad` - hashes the file in the tree against the file snakers4/silero-vad publishes at tag v6.2.1. |
-| libsamplerate | `tools/reproduce-libsamplerate-wasm.sh` - rebuilds it from upstream source and compares. |
 
 Additional provenance checks for non-npm vendored files:
 

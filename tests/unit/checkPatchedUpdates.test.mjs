@@ -11,7 +11,7 @@ const yaml = fs.readFileSync(new URL('../../pnpm-workspace.yaml', import.meta.ur
 describe('patchedDependencies', () => {
   it('reads every patched library with the version its patch is cut against', () => {
     const libraries = patchedDependencies(yaml);
-    expect(libraries.length).toBeGreaterThanOrEqual(7);
+    expect(libraries.length).toBeGreaterThanOrEqual(6);
     expect(libraries).toContainEqual({name: 'hls.js', version: '1.7.3'});
     expect(libraries).toContainEqual({name: 'Coloris', version: '0.25.0'});
     for (const {name, version} of libraries) {
@@ -42,7 +42,7 @@ describe('patchedDependencies', () => {
     const vendor = fs.readFileSync(new URL('../../tools/sync-vendor.mjs', import.meta.url), 'utf8');
     // A package name after node_modules/, ended by a path separator or the string's end.
     const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((match) => match[1]));
-    expect(copied.size).toBeGreaterThanOrEqual(12);
+    expect(copied.size).toBeGreaterThanOrEqual(11);
     const names = (list) => {
       expect(list).not.toBeNull();
       return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();

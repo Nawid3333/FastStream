@@ -8,7 +8,7 @@
 //
 //   - the manifest's content_security_policy applies to extension pages only,
 //     so `script-src 'self' 'wasm-unsafe-eval'` is never enforced over http.
-//     Every wasm module in this extension - libsamplerate, ONNX Runtime -
+//     Every wasm module in this extension - ONNX Runtime's -
 //     compiles unchecked in the other suite.
 //   - the background script is not loaded at all over http, so nothing has
 //     ever confirmed it starts without throwing.

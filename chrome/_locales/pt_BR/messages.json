@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "O modo de navegação anônima usará a RAM para armazenar vídeos. Seu computador pode não ter memória suficiente para salvar o vídeo inteiro!\nTem certeza de que deseja prosseguir?"
     },
-    "player_savevideo_reencode": {
-        "message": "Para salvar, será necessário recodificar o vídeo. Isso pode levar muito tempo. Você deseja continuar?"
-    },
     "player_savevideo_cancelling": {
         "message": "Cancelando salvamento..."
     },

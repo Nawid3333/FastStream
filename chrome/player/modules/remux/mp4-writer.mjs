@@ -1,4 +1,4 @@
-import {EncodedAudioPacketSource, EncodedPacket, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget} from './mediabunny.mjs';
+import {EncodedAudioPacketSource, EncodedVideoPacketSource, Mp4OutputFormat, Output, StreamTarget} from './mediabunny.mjs';
 import {TimestampRebaser} from './TimestampRebaser.mjs';
 
 // The file is kept in RAM in pieces of this size, and each piece that is full moves to
@@ -6,34 +6,33 @@ import {TimestampRebaser} from './TimestampRebaser.mjs';
 const PIECE_SIZE = 16 * 1024 * 1024;
 
 /**
- * Writes the re-encoder's H.264 and AAC chunks into a fragmented MP4, with Mediabunny.
+ * Writes packets copied from a stream into a fragmented MP4, with Mediabunny.
  *
- * Takes the WebCodecs chunks as the encoders put them out, in decode order per track,
- * and gives the file back as a Blob. The file starts at 0: see TimestampRebaser.mjs.
+ * Takes Mediabunny's packets as its readers give them, in decode order per track, and
+ * gives the file back as a Blob. The file starts at 0: see TimestampRebaser.mjs.
  */
 export class MP4Writer {
   /**
    * @param {Object} blobManager the FSBlob full pieces move to
-   * @param {{video: boolean, audio: boolean}} tracks the tracks the file has
-   * @param {function(Error): void} onError called once, with the first error a chunk hit
+   * @param {{video: ?string, audio: ?string}} tracks each track's codec as Mediabunny
+   *     names it ('vp9', 'opus', ...), or null for a track the file does not have
    * @param {number} [pieceSize] how much to keep in RAM at a time, for the tests
    */
-  constructor(blobManager, tracks, onError, pieceSize = PIECE_SIZE) {
+  constructor(blobManager, tracks, pieceSize = PIECE_SIZE) {
     this.blobManager = blobManager;
-    this.onError = onError;
     this.pieceSize = pieceSize;
     this.pieces = [];
     this.error = null;
-    // One add at a time, in the order the chunks came. add() resolves once the file can
-    // take more, and it throws once finalize() has begun, so finalize() waits for this.
+    // One packet at a time, in the order they came: the muxer takes a track's packets in
+    // decode order.
     this.muxing = Promise.resolve();
 
     this.sources = {};
     if (tracks.video) {
-      this.sources.video = new EncodedVideoPacketSource('avc');
+      this.sources.video = new EncodedVideoPacketSource(tracks.video);
     }
     if (tracks.audio) {
-      this.sources.audio = new EncodedAudioPacketSource('aac');
+      this.sources.audio = new EncodedAudioPacketSource(tracks.audio);
     }
     this.rebaser = new TimestampRebaser(Object.keys(this.sources), (track, timestamp, item) => {
       this.mux(track, timestamp, item);
@@ -59,51 +58,44 @@ export class MP4Writer {
   }
 
   /**
-   * Opens the file. Chunks can be added after this resolves.
+   * Opens the file. Packets can be added after this resolves.
    */
   async start() {
     await this.output.start();
   }
 
   /**
-   * @param {EncodedVideoChunk} chunk
-   * @param {EncodedVideoChunkMetadata} [meta] the encoder's; the first one carries the
-   *     decoder config
-   */
-  addVideoChunk(chunk, meta) {
-    this.add('video', chunk, meta);
-  }
-
-  /**
-   * @param {EncodedAudioChunk} chunk
-   * @param {EncodedAudioChunkMetadata} [meta] as for addVideoChunk
-   */
-  addAudioChunk(chunk, meta) {
-    this.add('audio', chunk, meta);
-  }
-
-  /**
-   * @param {string} track 'video' or 'audio'
-   * @param {EncodedVideoChunk|EncodedAudioChunk} chunk
-   * @param {Object} [meta]
-   */
-  add(track, chunk, meta) {
-    if (this.error) {
-      return;
-    }
-    try {
-      const packet = EncodedPacket.fromEncodedChunk(chunk);
-      this.rebaser.push(track, chunk.timestamp, {packet, meta});
-    } catch (e) {
-      this.fail(e);
-    }
-  }
-
-  /**
-   * Queues a chunk the rebaser passed on.
+   * Adds a packet.
    *
    * @param {string} track 'video' or 'audio'
-   * @param {number} timestamp the chunk's, moved, in microseconds
+   * @param {EncodedPacket} packet the next of its track, in decode order
+   * @param {Object} [meta] the first packet of a track carries its decoder config:
+   *     `{decoderConfig}`
+   * @return {Promise<void>} resolves once the file has taken it (the first packets wait in
+   *     TimestampRebaser until every track has sent one), and rejects with the first error
+   *     the file hit
+   */
+  add(track, packet, meta) {
+    if (!this.error) {
+      try {
+        // Whole microseconds: seconds would gather float error in the subtraction.
+        this.rebaser.push(track, packet.microsecondTimestamp, {packet, meta});
+      } catch (e) {
+        this.fail(e);
+      }
+    }
+    return this.muxing.then(() => {
+      if (this.error) {
+        throw this.error;
+      }
+    });
+  }
+
+  /**
+   * Queues a packet the rebaser passed on.
+   *
+   * @param {string} track 'video' or 'audio'
+   * @param {number} timestamp the packet's, moved, in microseconds
    * @param {{packet: EncodedPacket, meta: Object}} item
    */
   mux(track, timestamp, {packet, meta}) {
@@ -118,11 +110,9 @@ export class MP4Writer {
    * @param {Error} e
    */
   fail(e) {
-    if (this.error) {
-      return;
+    if (!this.error) {
+      this.error = e;
     }
-    this.error = e;
-    this.onError(e);
   }
 
   /**
