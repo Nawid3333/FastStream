@@ -58,6 +58,33 @@ export async function openExtensionPage(pagePath) {
 }
 
 /**
+ * Gives the player the driver is in a source, with the same call main.mjs makes for a
+ * player tab's #url. A player inside a page ignores its hash (the page could hand it
+ * made-up headers), and the extension's own player iframes get theirs from the background.
+ * Does not wait for the source to load: the specs wait for the video themselves.
+ * @param {string} url - The media URL.
+ * @return {Promise<void>} Resolves once addSource has been called.
+ */
+export async function addSourceInPlayer(url) {
+  const error = await browser.executeAsync((u, done) => {
+    Promise.all([
+      import('/player/VideoSource.mjs'),
+      import('/player/enums/PlayerModes.mjs'),
+      import('/player/utils/URLUtils.mjs'),
+    ]).then(([{VideoSource}, {PlayerModes}, {URLUtils}]) => {
+      const mode = URLUtils.getModeFromExtension(URLUtils.get_url_extension(u)) || PlayerModes.DIRECT;
+      window.fastStream.addSource(new VideoSource(u, {}, mode), true).catch((e) => {
+        window.__addSourceError = String(e);
+      });
+      done(null);
+    }, (e) => done(String(e)));
+  }, url);
+  if (error) {
+    throw new Error('could not give the player its source: ' + error);
+  }
+}
+
+/**
  * Runs a function in a page of the extension, where chrome.* is available.
  * @param {Function} fn - Called as fn(arg, done).
  * @param {*} arg - A serialisable argument.

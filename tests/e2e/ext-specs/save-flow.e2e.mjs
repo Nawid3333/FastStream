@@ -16,9 +16,7 @@
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
+import {addSourceInPlayer} from '../extension-page.mjs';
 
 /**
  * Opens the harness /embed page (ordinary http page with the player in a
@@ -38,14 +36,6 @@ async function openEmbeddedPlayer(mediaUrl) {
       }),
       {timeout: 15000, timeoutMsg: 'embed page never got its player iframe'});
 
-  // Point the player at the source by rewriting the iframe src's hash.
-  // main.mjs reads location.hash substring(1) RAW - no decodeURIComponent -
-  // so the URL must go in unencoded (same as the web suite's openPlayer).
-  await browser.execute((origin, url) => {
-    const f = document.querySelector('iframe#fs');
-    f.src = origin + '/player/index.html?t=' + Date.now() + '#' + url;
-  }, ORIGIN, mediaUrl);
-
   await browser.switchFrame(await browser.$('iframe#fs'));
   await browser.waitUntil(
       async () => browser.execute(() => document.readyState === 'complete'),
@@ -58,6 +48,8 @@ async function openEmbeddedPlayer(mediaUrl) {
   await browser.waitUntil(
       async () => browser.execute(() => !!window.fastStream),
       {timeout: 30000, timeoutMsg: 'window.fastStream never appeared'});
+  // Not through the iframe's #hash: a player inside a page ignores it.
+  await addSourceInPlayer(mediaUrl);
   await browser.execute(() => {
     window.fastStream.userInteracted();
     document.body.click();
@@ -70,7 +62,7 @@ async function openEmbeddedPlayer(mediaUrl) {
     await browser.waitUntil(
         async () => {
           const state = await browser.execute(() => ({
-            hash: location.hash,
+            addSourceError: window.__addSourceError ?? null,
             sourceUrl: window.fastStream?.source?.url ??
                        window.fastStream?.player?.source?.url ?? null,
             playerType: window.fastStream?.player?.constructor?.name ?? null,
