@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "字幕轨道加载失败!"
     },
+    "player_subtitles_nocues": {
+        "message": "其中未找到字幕。"
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "搜索 OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "自动替换播放器前的延迟（毫秒）"
     },
+    "options_general_maxdownloaders": {
+        "message": "最大下载器数（1 至 6）"
+    },
     "options_general_autoplaynext": {
         "message": "当前视频结束后自动播放下一个视频"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "从文件导入设置"
+    },
+    "options_import_invalid": {
+        "message": "导入设置失败：所选文件不是设置文件。"
     },
     "options_export": {
         "message": "导出设置到文件"

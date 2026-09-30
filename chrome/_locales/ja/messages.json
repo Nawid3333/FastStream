@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "字幕トラックの読み込みに失敗しました!"
     },
+    "player_subtitles_nocues": {
+        "message": "字幕が見つかりませんでした。"
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles を検索"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
     },
+    "options_general_maxdownloaders": {
+        "message": "最大ダウンローダー数 (1〜6)"
+    },
     "options_general_autoplaynext": {
         "message": "次の動画の自動再生"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "ファイルから設定をインポート"
+    },
+    "options_import_invalid": {
+        "message": "設定をインポートできませんでした: 選択したファイルは設定ファイルではありません。"
     },
     "options_export": {
         "message": "設定をファイルにエクスポート"

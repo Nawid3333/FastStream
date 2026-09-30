@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Gagal memuatkan trek sarikata!"
     },
+    "player_subtitles_nocues": {
+        "message": "Tiada sari kata ditemui di dalamnya."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Carian OpenSubtitles"
     },
@@ -432,10 +435,10 @@
         "message": "Skrin Penuh Bertingkap"
     },
     "player_skip_forward_label": {
-        "message": "Skip forward 10s"
+        "message": "Lompat ke hadapan 10s"
     },
     "player_skip_backward_label": {
-        "message": "Skip backward 10s"
+        "message": "Lompat ke belakang 10s"
     },
     "player_more_label": {
         "message": "Lebih banyak alat"
@@ -555,7 +558,7 @@
         "message": "Gagal menyimpan arkib!"
     },
     "player_quality_current": {
-        "message": "(current)"
+        "message": "(semasa)"
     },
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
@@ -723,52 +726,52 @@
         "message": "Edit dinamik saluran"
     },
     "audiocrosstalk_title": {
-        "message": "Audio Crosstalk Correction"
+        "message": "Pembetulan Crosstalk Audio"
     },
     "audiocrosstalk_enabled": {
-        "message": "Crosstalk Correction Enabled"
+        "message": "Pembetulan Crosstalk Diaktifkan"
     },
     "audiocrosstalk_disabled": {
-        "message": "Crosstalk Correction Disabled"
+        "message": "Pembetulan Crosstalk Dilumpuhkan"
     },
     "audiocrosstalk_decay": {
-        "message": "Decay"
+        "message": "Peluruhan"
     },
     "audiocrosstalk_colorgain": {
-        "message": "Max Coloration"
+        "message": "Pewarnaan Maksimum"
     },
     "audiocrosstalk_microdelay": {
         "message": "Delta T"
     },
     "audiocrosstalk_lowbypass": {
-        "message": "Low Bypass"
+        "message": "Bypass Rendah"
     },
     "audiocrosstalk_highbypass": {
-        "message": "High Bypass"
+        "message": "Bypass Tinggi"
     },
     "audiocrosstalk_speakerdistance": {
-        "message": "Speaker Distance"
+        "message": "Jarak Pembesar Suara"
     },
     "audiocrosstalk_headdistance": {
-        "message": "Head Distance"
+        "message": "Jarak Kepala"
     },
     "audiocompressor_title": {
-        "message": "Audio Compressor"
+        "message": "Pemampat Audio"
     },
     "audiocompressor_enabled": {
-        "message": "Compressor Enabled"
+        "message": "Pemampat Diaktifkan"
     },
     "audiocompressor_disabled": {
-        "message": "Compressor Disabled"
+        "message": "Pemampat Dilumpuhkan"
     },
     "audiocompressor_threshold": {
-        "message": "Threshold"
+        "message": "Ambang"
     },
     "audiocompressor_knee": {
         "message": "Knee"
     },
     "audiocompressor_ratio": {
-        "message": "Ratio"
+        "message": "Nisbah"
     },
     "audiocompressor_attack": {
         "message": "Attack"
@@ -780,55 +783,55 @@
         "message": "Gain"
     },
     "audioeq_title": {
-        "message": "Audio Equalizer"
+        "message": "Penyama Audio"
     },
     "audioeq_instructions": {
-        "message": "Double click to change type"
+        "message": "Klik dua kali untuk menukar jenis"
     },
     "audioeq_gain": {
         "message": "Gain: $1dB"
     },
     "audioeq_qscroll_instructions": {
-        "message": "Scroll to change Q"
+        "message": "Tatal untuk menukar Q"
     },
     "audioconvolver_title": {
-        "message": "Audio Convolution Filter"
+        "message": "Penapis Konvolusi Audio"
     },
     "audioconvolver_channel": {
-        "message": "Channel"
+        "message": "Saluran"
     },
     "audioconvolver_enable": {
-        "message": "Enable"
+        "message": "Aktifkan"
     },
     "audioconvolver_normalize": {
-        "message": "Normalize"
+        "message": "Normalkan"
     },
     "audioconvolver_impulselength": {
-        "message": "Impulse Length"
+        "message": "Panjang Impuls"
     },
     "audioconvolver_impulseresponse": {
-        "message": "Impulse Response"
+        "message": "Respons Impuls"
     },
     "audioconvolver_selectfile": {
-        "message": "Select File"
+        "message": "Pilih Fail"
     },
     "audioconvolver_enabled": {
-        "message": "Convolution Enabled"
+        "message": "Konvolusi Diaktifkan"
     },
     "audioconvolver_convolver": {
         "message": "Convolver"
     },
     "audioconvolver_disable": {
-        "message": "Disable"
+        "message": "Lumpuhkan"
     },
     "audioconvolver_disabled": {
-        "message": "Convolution Disabled"
+        "message": "Konvolusi Dilumpuhkan"
     },
     "audioconvolver_downmix_on": {
-        "message": "Downmix Before"
+        "message": "Downmix Sebelum"
     },
     "audioconvolver_downmix_off": {
-        "message": "No Downmix"
+        "message": "Tiada Downmix"
     },
     "audioconvolver_decodeerror": {
         "message": "Fail ini tidak dapat dinyahkod sebagai audio. Impulse Response tidak diubah."
@@ -837,91 +840,91 @@
         "message": "Gagal menyimpan fail Impulse Response!"
     },
     "options_title": {
-        "message": "FastStream Options"
+        "message": "Pilihan FastStream"
     },
     "options_search_placeholder": {
-        "message": "Search"
+        "message": "Cari"
     },
     "options_help_feedback": {
-        "message": "Feedback Form"
+        "message": "Borang Maklum Balas"
     },
     "options_update_header": {
-        "message": "An Update is Available!"
+        "message": "Kemas Kini Tersedia!"
     },
     "options_update_body": {
-        "message": "FastStream v$1 is now available (current version v$2). Would you like to update?"
+        "message": "FastStream v$1 kini tersedia (versi semasa v$2). Adakah anda mahu kemas kini?"
     },
     "options_update_go": {
-        "message": "Take me to Github"
+        "message": "Bawa saya ke Github"
     },
     "options_update_no": {
-        "message": "Ignore this update"
+        "message": "Abaikan kemas kini ini"
     },
     "options_reset_search": {
         "message": "Tetapkan semula"
     },
     "options_video_header": {
-        "message": "Video Options"
+        "message": "Pilihan Video"
     },
     "options_video_body": {
-        "message": "Applies CSS filters to the video. Doesn't work with picture-in-picture."
+        "message": "Menggunakan penapis CSS pada video. Tidak berfungsi dengan gambar dalam gambar."
     },
     "options_video_zoom": {
-        "message": "Video Zoom"
+        "message": "Zum Video"
     },
     "options_video_delay": {
-        "message": "Video Delay"
+        "message": "Tangguhan Video"
     },
     "options_video_brightness": {
-        "message": "Brightness"
+        "message": "Kecerahan"
     },
     "options_video_contrast": {
-        "message": "Contrast"
+        "message": "Kontras"
     },
     "options_video_saturation": {
-        "message": "Saturation"
+        "message": "Ketepuan"
     },
     "options_video_grayscale": {
-        "message": "Grayscale"
+        "message": "Skala Kelabu"
     },
     "options_video_sepia": {
         "message": "Sepia"
     },
     "options_video_invert": {
-        "message": "Invert"
+        "message": "Songsang"
     },
     "options_video_hue": {
-        "message": "Hue Rotate"
+        "message": "Putaran Rona"
     },
     "options_video_daltonizer_type": {
-        "message": "Color blindness correction"
+        "message": "Pembetulan buta warna"
     },
     "options_video_daltonizer_strength": {
-        "message": "Strength"
+        "message": "Kekuatan"
     },
     "options_video_daltonizer_none": {
-        "message": "None"
+        "message": "Tiada"
     },
     "options_video_daltonizer_protanomaly": {
-        "message": "Protanomaly"
+        "message": "Protanomali"
     },
     "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomaly"
+        "message": "Deuteranomali"
     },
     "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomaly"
+        "message": "Tritanomali"
     },
     "options_general_header": {
-        "message": "General Options"
+        "message": "Pilihan Umum"
     },
     "options_general_predownload": {
-        "message": "Predownload entire video in the background if possible"
+        "message": "Muat turun awal seluruh video di latar belakang jika boleh"
     },
     "options_general_targetspeed": {
-        "message": "Target download speed of predownloader"
+        "message": "Sasaran kelajuan muat turun bagi pemuat turun awal"
     },
     "options_general_maxsize": {
-        "message": "Maximum size of predownloaded video"
+        "message": "Saiz maksimum video yang dimuat turun awal"
     },
     "options_general_bufferahead": {
         "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan sebaik pramuat turun berhenti atau kehabisan ruang)"
@@ -933,100 +936,103 @@
         "message": "Sekat popup/popunder yang dibuka sejurus selepas mengklik pemain"
     },
     "options_general_previewenabled": {
-        "message": "Show preview when hovering over the timeline"
+        "message": "Tunjukkan pratonton apabila meleret di atas garis masa"
     },
     "options_general_analyze": {
-        "message": "Automatically analyze sequential videos for intros/outros\n(turn off if you have CPU performance issues)"
+        "message": "Analisis video berturutan secara automatik untuk intro/outro\n(matikan jika anda menghadapi masalah prestasi CPU)"
     },
     "options_general_storeprogress": {
-        "message": "Play videos from last watched position"
+        "message": "Main video dari kedudukan tontonan terakhir"
     },
     "options_general_autosub": {
-        "message": "Automatically enable best found subtitle track\n(Change default language in subtitle settings)"
+        "message": "Aktifkan trek sari kata terbaik yang ditemui secara automatik\n(Tukar bahasa lalai dalam tetapan sari kata)"
     },
     "options_general_stream": {
-        "message": "Use player to play HLS/DASH streams when opening playlist URLs (.m3u8/.mpd)"
+        "message": "Gunakan pemain untuk memainkan strim HLS/DASH apabila membuka URL senarai main (.m3u8/.mpd)"
     },
     "options_general_mp4": {
-        "message": "Use player to play MP4 videos when opening video URLs (.mp4)"
+        "message": "Gunakan pemain untuk memainkan video MP4 apabila membuka URL video (.mp4)"
     },
     "options_general_seekstep": {
         "message": "Seek keybind base step size (seconds)"
     },
     "options_general_replace_delay": {
-        "message": "Delay before auto-replacing player (ms)"
+        "message": "Tangguhan sebelum pemain diganti secara automatik (ms)"
+    },
+    "options_general_maxdownloaders": {
+        "message": "Pemuat turun maksimum (1 hingga 6)"
     },
     "options_general_autoplaynext": {
         "message": "Autoplay next video"
     },
     "options_general_quality": {
-        "message": "Default video quality"
+        "message": "Kualiti video lalai"
     },
     "options_general_clickaction": {
-        "message": "Single click action"
+        "message": "Tindakan klik tunggal"
     },
     "options_general_dblclickaction": {
-        "message": "Double click action"
+        "message": "Tindakan klik dua kali"
     },
     "options_general_tplclickaction": {
-        "message": "Triple click action"
+        "message": "Tindakan klik tiga kali"
     },
     "options_general_clickaction_nothing": {
-        "message": "Do nothing"
+        "message": "Jangan buat apa-apa"
     },
     "options_general_clickaction_playpause": {
-        "message": "Toggle play/pause"
+        "message": "Togol main/jeda"
     },
     "options_general_clickaction_fullscreen": {
-        "message": "Toggle fullscreen"
+        "message": "Togol skrin penuh"
     },
     "options_general_clickaction_windowedfullscreen": {
-        "message": "Toggle windowed fullscreen"
+        "message": "Togol skrin penuh bertetingkap"
     },
     "options_general_clickaction_pip": {
-        "message": "Toggle picture-in-picture"
+        "message": "Togol gambar dalam gambar"
     },
     "options_general_clickaction_hidecontrols": {
-        "message": "Hide controls"
+        "message": "Sembunyikan kawalan"
     },
     "options_general_clickaction_hideplayer": {
-        "message": "Hide player"
+        "message": "Sembunyikan pemain"
     },
     "options_general_vischangeaction": {
-        "message": "When player visibility changes"
+        "message": "Apabila keterlihatan pemain berubah"
     },
     "options_general_vischangeaction_nothing": {
-        "message": "Do nothing"
+        "message": "Jangan buat apa-apa"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "Toggle play/pause"
+        "message": "Togol main/jeda"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "Toggle miniplayer"
+        "message": "Togol minipemain"
     },
     "options_general_minipos": {
-        "message": "Miniplayer position"
+        "message": "Kedudukan minipemain"
     },
     "options_general_minipos_topleft": {
-        "message": "Top Left"
+        "message": "Kiri Atas"
     },
     "options_general_minipos_topright": {
-        "message": "Top Right"
+        "message": "Kanan Atas"
     },
     "options_general_minipos_bottomleft": {
-        "message": "Bottom Left"
+        "message": "Kiri Bawah"
     },
     "options_general_minipos_bottomright": {
-        "message": "Bottom Right"
+        "message": "Kanan Bawah"
     },
     "options_general_minisize": {
-        "message": "Miniplayer size"
+        "message": "Saiz minipemain"
     },
     "options_general_color_theme": {
-        "message": "Player color theme"
+        "message": "Tema warna pemain"
     },
     "options_general_color_theme_default": {
-        "message": "Default Dark"
+        "message": "Gelap Lalai"
     },
     "options_general_color_theme_arctic": {
         "message": "Cahaya Artik"
@@ -1038,7 +1044,7 @@
         "message": "Malam Neon"
     },
     "options_general_color_theme_contrast": {
-        "message": "High Contrast"
+        "message": "Kontras Tinggi"
     },
     "options_general_color_theme_sunset": {
         "message": "Cahaya Senja"
@@ -1059,43 +1065,46 @@
         "message": "Pudina Segar"
     },
     "options_general_vischangeaction_pip": {
-        "message": "Toggle picture-in-picture"
+        "message": "Togol gambar dalam gambar"
     },
     "options_export_header": {
-        "message": "Import/Export Settings"
+        "message": "Import/Eksport Tetapan"
     },
     "options_import": {
-        "message": "Import Settings From File"
+        "message": "Import Tetapan Daripada Fail"
+    },
+    "options_import_invalid": {
+        "message": "Gagal mengimport tetapan: fail yang dipilih bukan fail tetapan."
     },
     "options_export": {
-        "message": "Export Settings To File"
+        "message": "Eksport Tetapan ke Fail"
     },
     "options_keybinds_header": {
-        "message": "Keyboard Shortcuts"
+        "message": "Pintasan Papan Kekunci"
     },
     "options_keybinds_body": {
-        "message": "Keybinds are only active when the player is focused."
+        "message": "Pengikatan kekunci hanya aktif apabila pemain berada dalam fokus."
     },
     "options_keybinds_reset": {
-        "message": "Reset to Defaults"
+        "message": "Set Semula ke Lalai"
     },
     "options_keybinds_press": {
         "message": "Tekan kekunci"
     },
     "options_autourl_header": {
-        "message": "Auto-enable URLs"
+        "message": "Auto-aktifkan URL"
     },
     "options_autourl_body": {
         "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. Untuk membiarkan seluruh laman begitu sahaja - tiada pengaktifan automatik, dan pautan strimnya tidak dibuka dalam pemain - letakkan tanda tolak (-) di hadapan domainnya."
     },
     "options_autourl_hint": {
-        "message": "Hint: Test regex on"
+        "message": "Petunjuk: Uji regex pada"
     },
     "options_pattern_header": {
-        "message": "Custom Source Patterns"
+        "message": "Corak Sumber Tersuai"
     },
     "options_pattern_body": {
-        "message": "These patterns are used to detect custom video sources on webpages. They are applied in order, and the first match is used. For advanced users only."
+        "message": "Corak ini digunakan untuk mengesan sumber video tersuai pada laman web. Ia digunakan mengikut susunan, dan padanan pertama digunakan. Untuk pengguna mahir sahaja."
     },
     "options_mpv_header": {
         "message": "Mod MPV"
@@ -1158,40 +1167,40 @@
         "message": "Buka strim ini dalam mpv (jenis kandungan: Filem – klik kanan untuk mengubah)"
     },
     "options_help_header": {
-        "message": "Help"
+        "message": "Bantuan"
     },
     "options_help_welcome": {
-        "message": "Welcome Page"
+        "message": "Halaman Selamat Datang"
     },
     "options_help_issues": {
-        "message": "Issue Tracker"
+        "message": "Penjejak Isu"
     },
     "subtitles_settings_fontFamily": {
-        "message": "Font Family"
+        "message": "Keluarga Fon"
     },
     "subtitles_settings_fontWeight": {
-        "message": "Font Weight"
+        "message": "Berat Fon"
     },
     "subtitles_settings_fontSize": {
-        "message": "Font Size"
+        "message": "Saiz Fon"
     },
     "subtitles_settings_color": {
-        "message": "Font Color"
+        "message": "Warna Fon"
     },
     "subtitles_settings_background": {
-        "message": "Background Color"
+        "message": "Warna Latar Belakang"
     },
     "subtitles_settings_outlineColor": {
-        "message": "Outline Color"
+        "message": "Warna Garis Luar"
     },
     "subtitles_settings_outlineWidth": {
-        "message": "Outline Width"
+        "message": "Lebar Garis Luar"
     },
     "subtitles_settings_defaultLanguage": {
-        "message": "Language"
+        "message": "Bahasa"
     },
     "subtitles_settings_bottomMargin": {
-        "message": "Bottom Margin"
+        "message": "Jidar Bawah"
     },
     "yes": {
         "message": "Ya"

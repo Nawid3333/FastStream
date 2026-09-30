@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Nie udało się załadować ścieżki napisów!"
     },
+    "player_subtitles_nocues": {
+        "message": "Nie znaleziono w nim napisów."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Szukaj w OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Opóźnienie przed automatyczną zamianą odtwarzacza (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Maksymalna liczba pobierających (1–6)"
+    },
     "options_general_autoplaynext": {
         "message": "Automatycznie odtwarzaj następne wideo po zakończeniu bieżącego"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Importuj ustawienia z pliku"
+    },
+    "options_import_invalid": {
+        "message": "Nie udało się zaimportować ustawień: wybrany plik nie jest plikiem ustawień."
     },
     "options_export": {
         "message": "Eksportuj ustawienia do pliku"

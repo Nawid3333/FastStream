@@ -39,10 +39,11 @@ describe('options page: search and export/import cover MPV settings', function()
     // this suite: WebdriverIO's own $() locator does not reliably resolve
     // elements in this window/geckodriver combination (confirmed -- it
     // fails to find #searchbar itself, which browser.execute finds fine).
+    // The box searches on input: its text changing, typed or pasted.
     const runSearch = (query) => browser.execute((q) => {
       const bar = document.getElementById('searchbar');
       bar.value = q;
-      bar.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+      bar.dispatchEvent(new InputEvent('input', {bubbles: true}));
     }, query);
 
     const isVisible = (id) => browser.execute((elId) => {

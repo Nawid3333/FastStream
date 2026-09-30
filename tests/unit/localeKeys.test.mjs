@@ -110,3 +110,20 @@ describe('Message keys', () => {
     expect(found.filter((entry) => !allowed.includes(entry))).toEqual([]);
   });
 });
+
+describe('combined-locales.json', () => {
+  it('holds the same texts as the locales\' messages.json', () => {
+    // It fell behind the locales (15 keys missing, 17 only in English), and `pnpm run
+    // split-locales` writes it over them. Changed a locale? Run `pnpm run combine-locales`.
+    const combined = JSON.parse(fs.readFileSync(path.join(chromeDir, '../combined-locales.json'), 'utf8'));
+    const expected = {};
+    for (const locale of fs.readdirSync(path.join(chromeDir, '_locales'))) {
+      const messages = JSON.parse(fs.readFileSync(path.join(chromeDir, '_locales', locale, 'messages.json'), 'utf8'));
+      for (const [key, {message}] of Object.entries(messages)) {
+        (expected[key] ||= {})[locale] = message;
+      }
+    }
+    expect(Object.keys(expected).length).toBeGreaterThanOrEqual(400);
+    expect(combined).toEqual(expected);
+  });
+});

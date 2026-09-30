@@ -94,13 +94,13 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   and a row whose key another action shares is marked with a warning naming the other action
   (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
 - Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
-  **Gotcha:** `combined-locales.json` is behind the 16 `messages.json` files (406 keys each,
-  counted 2026-09-30): 15 keys are not in it at all, 17 have only their English text there, and
-  17 single translations (of 2 keys) differ. `localescript.mjs --split` writes it over the
-  locales, so it would delete 495 strings and revert 17; do not run it, edit each locale's
-  `messages.json` instead. (Plain `node localescript.mjs`, which the build runs, only compares
-  keys.) Both files are formatted with a 4-space indent; keep it, or a one-key change shows up
-  as thousands of changed lines.
+  **Gotcha:** the 16 `messages.json` files are the source; edit those, then run
+  `pnpm run combine-locales` to bring `combined-locales.json` along. `tests/unit/localeKeys.test.mjs`
+  fails when the two differ (the combined file had fallen behind by 15 keys and 17 English-only
+  entries, regenerated 2026-09-30). Don't run `split-locales` unless the combined file is the
+  one you edited: it writes over the locales. (Plain `node localescript.mjs`, which the build
+  runs, only compares keys.) Both files are formatted with a 4-space indent; keep it, or a
+  one-key change shows up as thousands of changed lines.
 - Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
   (the default layout has no clashes and every default has a handler, the storage path, the
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,

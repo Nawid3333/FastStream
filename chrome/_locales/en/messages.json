@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Failed to load subtitle track!"
     },
+    "player_subtitles_nocues": {
+        "message": "No subtitles found in it."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Search OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Delay before auto-replacing player (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Maximum downloaders (1 to 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Autoplay next video when current video ends"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Import Settings From File"
+    },
+    "options_import_invalid": {
+        "message": "Failed to import settings: the selected file is not a settings file."
     },
     "options_export": {
         "message": "Export Settings To File"

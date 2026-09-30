@@ -137,6 +137,97 @@ describe('Subtitle search', function() {
     expect(state).toEqual({type: 'all', requests: 1});
   });
 
+  it('says why when a search answers with no results list', async function() {
+    // OpenSubtitles' "Throttle limit reached" and bad-key answers have a message and no
+    // data: reading data threw with the results already cleared, and the pane stayed blank.
+    await openSearch();
+    await search('throttled');
+    await browser.execute(() => window.__requests[0].resolve({response: {message: 'Throttle limit reached'}}));
+    const state = await shown();
+    expect(state.message).toBe(en.player_opensubtitles_error.message.replace('$1', 'Throttle limit reached'));
+    expect(state.pages).toBe(0);
+    await search('nothing');
+    await browser.execute(() => window.__requests[1].resolve({response: {}}));
+    expect((await shown()).message).toBe(en.player_opensubtitles_error_down.message);
+  });
+
+  it('lists the other results when one has no file, uploader or title', async function() {
+    await openSearch();
+    await search('film');
+    await browser.execute((good) => window.__requests[0].resolve({response: {page: 1, total_pages: 1, data: [
+      {attributes: {language: 'en'}},
+      {attributes: {language: 'en', files: [{file_id: 2}]}},
+      good.response.data[0],
+    ]}}), answer('Good'));
+    const state = await shown();
+    // The one without a file is left out; the one without uploader or title is listed.
+    expect(state.titles).toEqual(['', 'Good (2000)']);
+  });
+
+  it('loads the page clicked while another page is loading', async function() {
+    // The bar shown while a page loads loaded that page again, whichever page was clicked.
+    await openSearch();
+    await search('film');
+    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film', 5));
+    await shown();
+    const clickPage = (page) => browser.execute((page) => {
+      const pages = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.pages;
+      const marker = Array.from(pages.querySelectorAll('.page-marker')).find((el) => el.textContent === String(page));
+      marker.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    }, page);
+    await clickPage(2);
+    await clickPage(4);
+    const pagesAsked = await browser.execute(() => window.__requests.map((r) => r.options.query.page || '1'));
+    expect(pagesAsked).toEqual(['1', '2', '4']);
+  });
+
+  /**
+   * Clicks the first result, answers its download link request, and leaves the
+   * subtitle file's request waiting.
+   * @return {Promise<void>}
+   */
+  async function startDownload() {
+    await search('film');
+    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film'));
+    await shown();
+    await browser.execute(() => {
+      window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
+          .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    });
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2));
+    await browser.execute(() => window.__requests[1].resolve({response: {link: 'https://dl.example/sub.vtt'}}));
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 3));
+  }
+
+  const trackLabels = () => browser.execute(() =>
+    window.fastStream.interfaceController.subtitlesManager.tracks.map((track) => track.label));
+
+  it('drops a download that finishes after the subtitles were cleared for another video', async function() {
+    // It was added to the new video, and turned on.
+    await openSearch();
+    await startDownload();
+    await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.clearTracks());
+    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await shown();
+    expect(await trackLabels()).toEqual([]);
+
+    // The same download, the subtitles left as they were: added.
+    await openSearch();
+    await startDownload();
+    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await shown();
+    expect(await trackLabels()).toEqual(['someone - Film']);
+  });
+
+  it('adds no empty track when the download is no subtitle file', async function() {
+    // A web page in place of the file (a login, an error) became a track with no cues.
+    await openSearch();
+    await startDownload();
+    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: '<!doctype html><title>Sign in</title><p>Please sign in</p>'}));
+    await shown();
+    expect(await trackLabels()).toEqual([]);
+  });
+
   it('downloads a result again after its download failed while the search was closed', async function() {
     // A failed download with the search closed returned before it cleared the result's
     // "downloading" mark, and the result ignored every click after.

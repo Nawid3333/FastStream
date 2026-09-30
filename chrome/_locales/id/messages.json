@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Gagal memuat trek subtitle!"
     },
+    "player_subtitles_nocues": {
+        "message": "Tidak ada subtitle yang ditemukan di dalamnya."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari di OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Tunda sebelum mengganti pemutar secara otomatis (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Pengunduh maksimum (1 sampai 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Putar otomatis video berikutnya saat video saat ini selesai"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Impor Pengaturan dari Berkas"
+    },
+    "options_import_invalid": {
+        "message": "Gagal mengimpor pengaturan: file yang dipilih bukan file pengaturan."
     },
     "options_export": {
         "message": "Ekspor Pengaturan ke Berkas"

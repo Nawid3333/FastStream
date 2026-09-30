@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Ondertitelbestand laden mislukt!"
     },
+    "player_subtitles_nocues": {
+        "message": "Geen ondertitels gevonden."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Zoeken op OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Vertraging voordat speler automatisch wordt vervangen (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Maximaal aantal downloaders (1 tot 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Volgende video automatisch afspelen wanneer huidige video eindigt"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Instellingen importeren uit bestand"
+    },
+    "options_import_invalid": {
+        "message": "Instellingen importeren mislukt: het geselecteerde bestand is geen instellingenbestand."
     },
     "options_export": {
         "message": "Instellingen exporteren naar bestand"

@@ -22,7 +22,15 @@ export class OpenSubtitlesSearch extends EventEmitter {
     this.subui = {};
     this.version = version;
     this.searchCount = 0;
+    // Bumped when the player's subtitles are cleared (a new video): a download started
+    // before that belongs to the video before.
+    this.downloadGeneration = 0;
     this.setupUI();
+  }
+
+  /** Drops the downloads still running: their subtitles were for the video before. */
+  dropPendingDownloads() {
+    this.downloadGeneration++;
   }
 
   openUI() {
@@ -326,6 +334,17 @@ export class OpenSubtitlesSearch extends EventEmitter {
         this.subui.pages.replaceChildren();
         return;
       }
+
+      // A throttled or refused search answers with a message and no results ("Throttle
+      // limit reached", a bad key). Reading its results threw with the pane already
+      // cleared, and it stayed blank.
+      if (!Array.isArray(response.data)) {
+        container.textContent = typeof response.message === 'string' && response.message ?
+          Localize.getMessage('player_opensubtitles_error', [response.message]) :
+          Localize.getMessage('player_opensubtitles_error_down');
+        this.subui.pages.replaceChildren();
+        return;
+      }
     } catch (e) {
       console.log(e);
       if (searchNumber !== this.searchCount) {
@@ -354,18 +373,24 @@ export class OpenSubtitlesSearch extends EventEmitter {
     }
 
     if (response.total_pages > 1) {
-      const responseBar = createPagesBar(response.page, response.total_pages, (page) => {
+      // The bar shown while a page loads goes to the page clicked, as this one does. It
+      // loaded the page already on its way again, whichever page was clicked.
+      const goToPage = (page) => {
         query.page = page;
         this.subui.pages.replaceChildren();
-        this.subui.pages.appendChild(createPagesBar(page, response.total_pages, ()=>{
-          this.queryOpenSubtitles(query);
-        }));
+        this.subui.pages.appendChild(createPagesBar(page, response.total_pages, goToPage));
         this.queryOpenSubtitles(query);
-      });
-      this.subui.pages.appendChild(responseBar);
+      };
+      this.subui.pages.appendChild(createPagesBar(response.page, response.total_pages, goToPage));
     }
 
     response.data.forEach((item) => {
+      // One result without a file to download, uploader or title ended the list there.
+      if (!item?.attributes?.files?.length) {
+        return;
+      }
+      const details = item.attributes.feature_details || {};
+
       const container = document.createElement('div');
       container.classList.add('subtitle-result-container');
       this.subui.results.appendChild(container);
@@ -377,12 +402,12 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
       const title = document.createElement('div');
       title.classList.add('subtitle-result-title');
-      title.textContent = item.attributes.feature_details.movie_name + ' (' + item.attributes.feature_details.year + ')';
+      title.textContent = (details.movie_name || item.attributes.release || '') + (details.year ? ' (' + details.year + ')' : '');
       container.appendChild(title);
 
       const user = document.createElement('div');
       user.classList.add('subtitle-result-user');
-      user.textContent = item.attributes.uploader.name;
+      user.textContent = item.attributes.uploader?.name || '';
       container.appendChild(user);
 
 
@@ -400,6 +425,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
         }
 
         item.downloading = true;
+        const generation = this.downloadGeneration;
 
         AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
 
@@ -481,9 +507,16 @@ export class OpenSubtitlesSearch extends EventEmitter {
         }
 
         item.downloading = false;
+        // The subtitles were cleared for another video meanwhile: these were for the one
+        // before, and were added to the new one, and turned on.
+        if (generation !== this.downloadGeneration) {
+          return;
+        }
         try {
-          const track = new SubtitleTrack(item.attributes.uploader.name + ' - ' + item.attributes.feature_details.movie_name, item.attributes.language);
+          const name = [item.attributes.uploader?.name, details.movie_name].filter(Boolean).join(' - ') || 'OpenSubtitles';
+          const track = new SubtitleTrack(name, item.attributes.language);
           track.loadText(body);
+          track.checkHasCues();
           this.emit(OpenSubtitlesSearchEvents.TRACK_DOWNLOADED, track);
           AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
         } catch (e) {

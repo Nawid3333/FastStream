@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Falha ao carregar a faixa de legenda!"
     },
+    "player_subtitles_nocues": {
+        "message": "Nenhuma legenda encontrada nele."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Pesquisar no OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Atraso antes da substituição automática do player (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Máximo de downloaders (1 a 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Reproduzir automaticamente o próximo vídeo quando o vídeo atual terminar"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Importar configurações do arquivo"
+    },
+    "options_import_invalid": {
+        "message": "Falha ao importar as configurações: o arquivo selecionado não é um arquivo de configurações."
     },
     "options_export": {
         "message": "Exportar configurações para arquivo"

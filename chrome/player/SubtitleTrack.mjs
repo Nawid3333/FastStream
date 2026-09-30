@@ -1,3 +1,4 @@
+import {Localize} from './modules/Localize.mjs';
 import {WebVTT} from './modules/vtt.mjs';
 import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
 
@@ -17,6 +18,16 @@ export class SubtitleTrack {
     }).then((text) => {
       this.loadText(text);
     });
+  }
+
+  /**
+   * Throws when loadText found no cue: what was loaded was no subtitles (a web page, an
+   * error message, another kind of file), which the parser skips without complaint.
+   */
+  checkHasCues() {
+    if (this.cues.length === 0) {
+      throw new Error(Localize.getMessage('player_subtitles_nocues'));
+    }
   }
 
   shift(time) {

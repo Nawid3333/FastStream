@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "¡Error al cargar la pista de subtítulos!"
     },
+    "player_subtitles_nocues": {
+        "message": "No se encontraron subtítulos en él."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Buscar en OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Retraso antes de reemplazar auto (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Máximo de descargadores (1 a 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Reproducir automáticamente el siguiente video"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Importar Configuraciones Desde Archivo"
+    },
+    "options_import_invalid": {
+        "message": "No se pudo importar la configuración: el archivo seleccionado no es un archivo de configuración."
     },
     "options_export": {
         "message": "Exportar Configuraciones a Archivo"

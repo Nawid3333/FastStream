@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Не удалось загрузить субтитры!"
     },
+    "player_subtitles_nocues": {
+        "message": "Субтитры не найдены."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Искать на OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Задержка перед автозаменой плеера (мс)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Максимум загрузчиков (от 1 до 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Автовоспроизведение следующего видео"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Импорт настроек из файла"
+    },
+    "options_import_invalid": {
+        "message": "Не удалось импортировать настройки: выбранный файл не является файлом настроек."
     },
     "options_export": {
         "message": "Экспорт настроек в файл"

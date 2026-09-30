@@ -195,6 +195,17 @@ export class DownloadManager {
     return totalSpeed;
   }
 
+  /**
+   * How many downloaders may run: the option, from 1 to 6 (a browser's limit per server).
+   * 0 or no value is the default 6. The speed test read 0 as "add none", while the
+   * add-downloader key read it as "no limit".
+   * @return {number}
+   */
+  downloaderLimit() {
+    const limit = this.client?.options?.maximumDownloaders;
+    return Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 6) : 6;
+  }
+
   addDownloader() {
     this.testing = false;
     this.downloaders.push(new StandardDownloader(this));
@@ -278,8 +289,7 @@ export class DownloadManager {
               this.speedTestBuffer = [];
 
               if (speed > this.lastSpeed) {
-                const maxDownloaders = this.client?.options?.maximumDownloaders || 0;
-                if (this.downloaders.length < maxDownloaders) {
+                if (this.downloaders.length < this.downloaderLimit()) {
                   console.log('Adding downloader, speed: ' + speed);
                   this.downloaders.push(new StandardDownloader(this));
                   this.lastSpeed = speed;
