@@ -33,6 +33,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {keepDriverLogs} from './driverLogs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {bidiRootHooks, ensureBidi} from './bidi.mjs';
@@ -452,6 +453,8 @@ export const config = {
   // "upload e2e failure logs" step collects nothing, which is worse than no
   // step at all: it looks like diagnostics exist when they do not.
   outputDir: path.join(root, 'logs'),
+  // Each spec's and each retry's driver log kept under its own name: see driverLogs.mjs.
+  onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), 'web'),
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {

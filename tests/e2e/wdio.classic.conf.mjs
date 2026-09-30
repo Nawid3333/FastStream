@@ -13,7 +13,8 @@
 
 import path from 'node:path';
 
-import {config as base} from './wdio.extension.conf.mjs';
+import {keepDriverLogs} from './driverLogs.mjs';
+import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 const caps = structuredClone(base.capabilities);
 caps[0]['wdio:enforceWebDriverClassic'] = true;
@@ -22,4 +23,5 @@ export const config = {
   ...base,
   capabilities: caps,
   specs: [path.join(import.meta.dirname, 'classic-specs/**/*.e2e.mjs')],
+  onWorkerEnd: keepDriverLogs(base.outputDir, `classic-${BUILD}`),
 };

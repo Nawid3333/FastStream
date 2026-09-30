@@ -29,6 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {keepDriverLogs} from './driverLogs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {bidiRootHooks, ensureBidi} from './bidi.mjs';
@@ -53,7 +54,7 @@ export const EXTENSION_UUID = 'f45ea7c1-3b2d-4a19-9c6e-8d5b0f2a7e34';
 // they differ in more than the manifest - the GitHub build keeps the update
 // checker (NO_UPDATE_CHECKER only splices the AMO one) and asks for
 // contextualIdentities - so passing on one says nothing about the other.
-const BUILD = process.env.FS_EXT_BUILD || 'amo';
+export const BUILD = process.env.FS_EXT_BUILD || 'amo';
 if (BUILD !== 'amo' && BUILD !== 'github') {
   throw new Error(`FS_EXT_BUILD must be 'amo' or 'github', not '${BUILD}'`);
 }
@@ -149,6 +150,9 @@ export const config = {
 
   logLevel: 'error',
   outputDir: path.join(root, 'logs'),
+  // Each spec's and each retry's driver log kept under its own name: see driverLogs.mjs.
+  // The configs built on this one name their own suite.
+  onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), `ext-${BUILD}`),
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {ui: 'bdd', timeout: 120000, rootHooks: bidiRootHooks},
