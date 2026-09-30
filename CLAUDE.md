@@ -1072,6 +1072,14 @@ the change went in.
   that shape fails the run by name, as it would otherwise go unseen. Never put a
   `schedule:` in `ci.yml`: GitHub disables a public repo's scheduled workflows after 60 days
   without a commit, and it disables the whole file, push trigger included.
+- **Keepalive** (2026-09-30): `keepalive.yml` (Wednesdays 09:20 UTC) keeps the scheduled
+  workflows on without committing anything. Once main's last commit is 45 days old (or a
+  dispatch sets `force`), it calls the API's enable endpoint for every workflow whose file
+  has a `schedule:` trigger (read from the checkout, itself included) and whose state is
+  `active` or `disabled_inactivity`; never one the owner disabled (`disabled_manually`).
+  That the call restarts GitHub's 60-day count is not documented by GitHub; it is what the
+  former keepalive-workflow action's API mode relied on. If they are disabled anyway:
+  Actions tab, each workflow, "Enable workflow". A failed run opens "Keepalive failed".
 - **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
   windows-latest) beside `verify`, and auto-release waits for the whole workflow, so a
   release ships only when Windows passes too. `firefox-beta.yml` and `firefox-stable.yml`
