@@ -6,11 +6,11 @@ name: mpv helper changed
 # (#73, "after git pull") and @mentions the owner, so it arrives by email: run
 # install.ps1 again, then restart Firefox. Commenting on a closed issue still emails.
 #
-# It checks nothing out and runs nothing from the repository: it reads the push event's
-# list of changed files and writes one comment. A push by a workflow's own token starts
-# no workflow, but none of those (the release, the mpv pin, update-prs' merges) change
-# these files. If this workflow fails, GitHub tells the pusher about the failed run (by
-# email, with the default notification settings).
+# It checks nothing out and runs nothing from the repository: it reads the pushed
+# commits' changed files from the commits API and writes one comment. A push by a
+# workflow's own token starts no workflow, but none of those (the release, the mpv pin,
+# update-prs' merges) change these files. If this workflow fails, GitHub tells the
+# pusher about the failed run (by email, with the default notification settings).
 
 on:
   push:
@@ -36,16 +36,22 @@ jobs:
       - name: Comment on the reminder issue
         run: |
           set -euo pipefail
-          # The two files, and the pushed commits that changed them. The event lists every
-          # pushed commit's files (up to 2048 commits); should it list none of the two, the
-          # path filter still matched, and the comment names both.
-          files=$(jq -r '[.commits[] | (.added + .modified + .removed)[]] | unique | .[]
-            | select(. == "native-host/faststream-mpv-host.mjs" or . == "native-host/install.ps1")' \
-            "$GITHUB_EVENT_PATH")
-          commits=$(jq -r '[.commits[]
-            | select([(.added + .modified + .removed)[]]
-              | any(. == "native-host/faststream-mpv-host.mjs" or . == "native-host/install.ps1"))
-            | .id] | join(" ")' "$GITHUB_EVENT_PATH")
+          # The two files, and the pushed commits that changed them. The event lists the
+          # pushed commits (up to 2048) but, as Actions gets it, not their files (no added,
+          # modified or removed: reading those failed the 2026-09-30 run), so each commit's
+          # files come from the commits API. Should none of them name the two, the path
+          # filter still matched, and the comment names both.
+          files='' commits=''
+          pushed=$(jq -r '(.commits // [])[].id' "$GITHUB_EVENT_PATH")
+          for sha in $pushed; do
+            changed=$(gh api "repos/$GH_REPO/commits/$sha" --paginate --jq '.files[].filename
+              | select(. == "native-host/faststream-mpv-host.mjs" or . == "native-host/install.ps1")')
+            if [ -n "$changed" ]; then
+              files+=$changed$'\n'
+              commits+=${commits:+ }$sha
+            fi
+          done
+          files=$(sort -u <<< "$files" | sed '/^$/d')
           if [ -z "$files" ]; then
             files=$'native-host/faststream-mpv-host.mjs\nnative-host/install.ps1'
           fi

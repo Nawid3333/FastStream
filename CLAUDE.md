@@ -1094,7 +1094,9 @@ the change went in.
   or `native-host/install.ps1`): the helper runs from the copy install.ps1 puts in
   `%LOCALAPPDATA%\FastStreamMpvHost`, which a `git pull` leaves alone, so it comments with
   an @mention on the reminder issue #73: run install.ps1 again, then restart Firefox. Reads
-  only the push event's file list, no checkout; `issues: write` only.
+  each pushed commit's files from the commits API, no checkout; `issues: write` only. The
+  push payload Actions gets lists the commits without their files (no `added`, `modified`
+  or `removed`), which failed its first run on 2026-09-30.
 - **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
   and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
   microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:

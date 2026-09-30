@@ -94,9 +94,10 @@ jobs:
           close_done
 
           if [ "$EVENT" = push ]; then
-            # GitHub marks the alerts fixed a few minutes after the push: until then, the
-            # open issues whose package still has an open alert are looked at again every
-            # 30 seconds. A push that fixed none of them waits the whole 10 minutes.
+            # GitHub marks the alerts fixed soon after the push (the 12 of 2026-09-30 within
+            # 9 seconds): until then, the open issues whose package still has an open alert
+            # are looked at again every 30 seconds, for up to 10 minutes. A push that fixed
+            # none of them waits the whole 10 minutes.
             for _ in $(seq 1 20); do
               waiting=$(jq --slurpfile a "$T/alerts.json" \
                 '[.[] | select(.state == "open") | select(.package as $p | any($a[0][]; .package == $p))] | length' \
