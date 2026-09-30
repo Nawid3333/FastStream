@@ -79,6 +79,15 @@ A CI run that was cancelled or skipped decides nothing. The next completed run
 does: rerun it from the Actions tab, or push. (The weekly toolchain run starts CI on
 its own pull requests when their head has no run that decides.)
 
+A pull request a workflow opened - toolchain, patched library, upstream sync - shows
+its CI and Dependency review runs as "approval required": GitHub holds the
+`pull_request` runs of a pull request its own token opened. CI doesn't need them: the
+workflow that opened the pull request starts CI on its branch itself, and that run
+decides. Dependency review runs only there, though. So before you merge a
+patched-library or upstream-sync PR (both change `pnpm-lock.yaml`), approve them
+("Approve and run workflows" on the PR) and wait for "Review dependency changes" to
+pass; that runs CI once more too. A toolchain PR leaves the lockfile alone.
+
 ### An issue from a watcher
 
 Some failures arrive as an issue rather than a red PR: the mpv build, a runner
