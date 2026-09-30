@@ -93,12 +93,13 @@ jobs:
           fi
 
           # The scheduled files, read from the checkout: what counts is a line opening
-          # with schedule:, the trigger key itself - a mention in prose, or a
-          # commented-out trigger, does not. A new scheduled workflow is covered
-          # without editing this file, and this file itself counts.
+          # with schedule:, the trigger key itself, or an on: line that names it (the
+          # flow style, on: {schedule: ...}) - a mention in prose, or a commented-out
+          # trigger, does not. A new scheduled workflow is covered without editing
+          # this file, and this file itself counts.
           for f in .github/workflows/*; do
             case "$f" in *.yml | *.yaml) ;; *) continue ;; esac
-            grep -qE '^[[:space:]]*schedule:' "$f" || continue
+            grep -qE '^[[:space:]]*(schedule:|on:.*schedule)' "$f" || continue
             printf '%s\n' "$f"
           done > "$RUNNER_TEMP/scheduled.txt"
           echo "Scheduled workflow files: $(wc -l < "$RUNNER_TEMP/scheduled.txt")"

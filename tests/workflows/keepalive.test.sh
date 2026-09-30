@@ -84,9 +84,10 @@ check "the report step's env: gives the title" contains "$WORKFLOWS_DIR/keepaliv
 check 'and the run URL' contains "$WORKFLOWS_DIR/keepalive.yml" \
   'RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
 
-# A fake checkout for the enable step's working directory: six workflow files, four of
-# them with a schedule: trigger. The schedule: in commented.yml is commented out, so it
-# must not count, and keepalive.yml is the real file of this workflow.
+# A fake checkout for the enable step's working directory: nine workflow files, seven of
+# them with a schedule: trigger - one in the flow style (on: {schedule: ...}), one named
+# .yaml, one with a space in its name. The schedule: in commented.yml is commented out, so
+# it must not count, and keepalive.yml is the real file of this workflow.
 repo=$here/repo
 mkdir -p "$repo/.github/workflows"
 cp "$WORKFLOWS_DIR/keepalive.yml" "$repo/.github/workflows/keepalive.yml"
@@ -131,11 +132,37 @@ jobs:
   once:
     runs-on: ubuntu-latest
 EOF
+cat > "$repo/.github/workflows/flow.yml" <<'EOF'
+on: {schedule: [{cron: '0 9 * * 2'}], workflow_dispatch: {}}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+EOF
+cat > "$repo/.github/workflows/nightly.yaml" <<'EOF'
+on:
+  schedule:
+    - cron: '0 2 * * *'
+jobs:
+  build:
+    runs-on: ubuntu-latest
+EOF
+cat > "$repo/.github/workflows/my flows.yml" <<'EOF'
+on:
+  schedule:
+    - cron: '0 3 * * *'
+jobs:
+  flows:
+    runs-on: ubuntu-latest
+EOF
 
-# The repository's workflows, as actions/workflows lists them: three scheduled ones that
-# are active or disabled_inactivity, this workflow's own file, one the owner disabled,
-# one without a schedule, one with only a commented-out schedule, one whose file is gone.
-workflows='{"total_count":7,"workflows":[
+# The repository's workflows, as actions/workflows lists them: six scheduled ones that
+# are active or disabled_inactivity (one in the flow style, one .yaml, one with a space in
+# its path), this workflow's own file, one the owner disabled, one without a schedule, one
+# with only a commented-out schedule, one whose file is gone.
+workflows='{"total_count":10,"workflows":[
+  {"id":108,"name":"Flow style","path":".github/workflows/flow.yml","state":"active"},
+  {"id":109,"name":"Nightly","path":".github/workflows/nightly.yaml","state":"active"},
+  {"id":110,"name":"My flows","path":".github/workflows/my flows.yml","state":"active"},
   {"id":101,"name":"Sync upstream","path":".github/workflows/sync-upstream.yml","state":"active"},
   {"id":102,"name":"Reminders","path":".github/workflows/reminders.yml","state":"disabled_inactivity"},
   {"id":103,"name":"On demand","path":".github/workflows/no-schedule.yml","state":"active"},
@@ -193,13 +220,16 @@ check 'and says so' contains "$FIX/out" 'Skipped .github/workflows/no-schedule.y
 check 'leaves the deleted workflow alone' lacks "$LOG" 'ENABLE [107]'
 check 'with its state named' contains "$FIX/out" "(#107): state 'deleted' is neither active nor disabled_inactivity."
 check 'the commented-out schedule does not count' lacks "$LOG" 'ENABLE [104]'
-check 'four scheduled files found in the checkout' contains "$FIX/out" 'Scheduled workflow files: 4'
+check 'enables the one scheduled in the flow style' contains "$LOG" 'ENABLE [108]'
+check 'enables the .yaml one' contains "$LOG" 'ENABLE [109]'
+check 'enables the one with a space in its path' contains "$LOG" 'ENABLE [110]'
+check 'seven scheduled files found in the checkout' contains "$FIX/out" 'Scheduled workflow files: 7'
 check 'the active one is logged as the keepalive' contains "$FIX/out" \
   'Enabled .github/workflows/keepalive.yml (#106): was active'
 check 'the disabled_inactivity one as re-enabled' contains "$FIX/out" \
   'Re-enabled .github/workflows/reminders.yml (#102): was disabled_inactivity.'
-check 'the summary counts 2 + 1 enabled, 4 skipped' contains "$FIX/out" \
-  'Done: 2 from active, 1 from disabled_inactivity, 4 skipped.'
+check 'the summary counts 5 + 1 enabled, 4 skipped' contains "$FIX/out" \
+  'Done: 5 from active, 1 from disabled_inactivity, 4 skipped.'
 
 scenario 's3 3 days old but force: enables anyway' \
   "$enable_step" "$(commit 3)" true "$workflows" '[]' ''
