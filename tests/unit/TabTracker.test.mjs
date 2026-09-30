@@ -311,3 +311,119 @@ describe('resetForReload', () => {
     expect(tab.isPlayerOfGoneDocument(tab.getFrameOrCreate(0), undefined, 'main')).toBe(false);
   });
 });
+
+// The reset on a new hostname (tabs.onUpdated) races the new page's own FRAME_ADDED. A page
+// Back brings out of the back-forward cache names itself again and gets its streams back;
+// when the reset came after that, it wiped them, and nothing gave them back.
+describe('resetForNewSite', () => {
+  /**
+   * A tab whose frame 0 shows a page of example.com that named itself, with an embed.
+   * @return {{tab: Object, main: Object, embed: Object}}
+   */
+  function namedPage() {
+    const {tab, main, embed} = tabWithEmbed();
+    main.url = 'https://example.com/watch';
+    main.getSources().push({url: 'https://cdn.example.com/main.mp4', mode: 'normal'});
+    tab.continuationOptions = {autoPlay: true};
+    tab.mpvAutoOpened = true;
+    tab.mpvSentUrls.add('https://cdn.example.com/main.mp4');
+    return {tab, main, embed};
+  }
+
+  it('keeps a page of the new site that named itself first, with the frames under it', () => {
+    const {tab, main, embed} = namedPage();
+    embed.isPlayer = true;
+    tab.playerCount = 3;
+    tab.resetForNewSite('https://example.com/watch');
+    expect(tab.getFrame(0)).toBe(main);
+    expect(tab.getFrame(1)).toBe(embed);
+    expect(main.getSources().map((s) => s.url)).toEqual(['https://cdn.example.com/main.mp4']);
+    expect(tab.playerCount).toBe(1);
+    // What reset() clears is cleared all the same.
+    expect(tab.continuationOptions).toBe(null);
+    expect(tab.mpvAutoOpened).toBe(false);
+    expect(tab.mpvSentUrls.size).toBe(0);
+  });
+
+  it('drops the page of the site the tab left, as reset() does', () => {
+    const {tab} = namedPage();
+    tab.resetForNewSite('https://other.example.org/');
+    expect(tab.frames.size).toBe(0);
+    expect(tab.playerCount).toBe(0);
+  });
+
+  it('drops a frame 0 whose page never named itself', () => {
+    const {tab, main} = namedPage();
+    main.documentKey = null;
+    tab.resetForNewSite('https://example.com/watch');
+    expect(tab.frames.size).toBe(0);
+  });
+
+  it('drops the page a player the tab was sent to replaced', () => {
+    // The player page runs no content script: frame 0 still shows the page before it.
+    const {tab} = namedPage();
+    tab.resetForNewSite('moz-extension://test/player/index.html');
+    expect(tab.frames.size).toBe(0);
+  });
+
+  it('keeps what Back gave a page, whichever of the two came first', () => {
+    const {tab, main} = namedPage();
+    tab.forgetRemovedFrame(main, 'main');
+    // The page Back gives back names itself (FRAME_ADDED), then the reset comes.
+    const back = tab.getFrameOrCreate(0);
+    back.documentKey = 'main';
+    back.url = 'https://example.com/watch';
+    tab.restoreGoneDocument(back);
+    tab.resetForNewSite('https://example.com/watch');
+    expect(tab.getFrame(0)).toBe(back);
+    expect(back.getSources().map((s) => s.url)).toEqual(['https://cdn.example.com/main.mp4']);
+  });
+});
+
+// An open timer (background.mjs onSourceRecieved) sends OPEN_PLAYER by frame id when it
+// fires. A frame the tab no longer tracks must not: whatever page has that id now gets it.
+describe('isTracked', () => {
+  it('stays tracked through a new page in the frame, which keeps it', () => {
+    const {tab, main} = tabWithEmbed();
+    main.resetSelfAndChildren();
+    expect(tab.getFrameOrCreate(0)).toBe(main);
+    expect(main.isTracked()).toBe(true);
+  });
+
+  it('is not tracked once forgotten', () => {
+    const {tab, embed} = tabWithEmbed();
+    tab.forgetRemovedFrame(embed, 'embed');
+    expect(embed.isTracked()).toBe(false);
+  });
+
+  it('is not tracked once the reset on a new site dropped it, streams and all', () => {
+    const {tab, main} = tabWithEmbed();
+    tab.resetForNewSite('https://other.example.org/');
+    const next = tab.getFrameOrCreate(0);
+    expect(next).not.toBe(main);
+    expect(main.isTracked()).toBe(false);
+    expect(next.isTracked()).toBe(true);
+  });
+});
+
+// The allowlist's MPV sends a play's stream only on a page the back-forward cache gave back
+// (background.mjs onUserPlay): elsewhere the play's own stream is detected and goes by itself.
+describe('restoredFromCache', () => {
+  it('marks a page given back its streams, until the frame shows another page', () => {
+    const {tab, main} = tabWithEmbed();
+    tab.forgetRemovedFrame(main, 'main');
+    const back = tab.getFrameOrCreate(0);
+    expect(back.restoredFromCache).toBe(false);
+    back.documentKey = 'main';
+    tab.restoreGoneDocument(back);
+    expect(back.restoredFromCache).toBe(true);
+    back.resetSelfAndChildren();
+    expect(back.restoredFromCache).toBe(false);
+  });
+
+  it('does not mark a page that never left', () => {
+    const {tab, main} = tabWithEmbed();
+    tab.restoreGoneDocument(main);
+    expect(main.restoredFromCache).toBe(false);
+  });
+});

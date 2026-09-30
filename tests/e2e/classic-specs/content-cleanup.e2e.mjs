@@ -91,6 +91,20 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
   };
   // A same-site navigation without a page load, as a single-page site makes one.
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
+  // A re-render that takes the player's iframe out the moment it is put in, before its
+  // player can load; keepPlayers() ends it.
+  window.removedPlayers = 0;
+  window.removePlayersAtOnce = () => {
+    window.playerRemover = new MutationObserver(() => {
+      const iframe = window.playerIframe();
+      if (iframe) {
+        iframe.remove();
+        window.removedPlayers++;
+      }
+    });
+    window.playerRemover.observe(document.body, {childList: true, subtree: true});
+  };
+  window.keepPlayers = () => window.playerRemover.disconnect();
 </script>
 ${addVideoScript(t)}`;
 
@@ -553,6 +567,26 @@ describe('content.js around an in-page player', function() {
     await browser.waitUntil(hasPlayer, {
       timeout: 15000,
       timeoutMsg: 'no player opened for the video the page added after it removed the player',
+    });
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  // Taken out before its player loaded, the iframe ran nothing to tell the background, and
+  // the background kept the frame's player opening: no player opened there again until the
+  // page navigated.
+  it('opens a player for the next video after the page removed a player still loading', async function() {
+    await openPage('/cleanup');
+    await inPage(() => window.removePlayersAtOnce());
+    await clickToolbar();
+    await browser.waitUntil(async () => inPage(() => window.removedPlayers > 0), {
+      timeout: 15000,
+      timeoutMsg: 'FastStream never put a player in the page',
+    });
+    await inPage(() => window.keepPlayers());
+    await inPage(() => window.addVideo());
+    await browser.waitUntil(hasPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'no player opened for the video the page added after it removed a player still loading',
     });
     expect(await takeContentErrors()).toEqual([]);
   });

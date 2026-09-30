@@ -37,6 +37,10 @@ let LastManualMpvTime = 0;
 // itself, not a second request.
 const MpvPlayPendingMs = 15000;
 const MpvPlayRepeatMs = 10000;
+// The allowlist's MPV, on a page Back gave back: how long a play whose stream is not
+// known waits for it to be detected before the page's known stream goes
+// (autoOpenKnownLater).
+const MpvPlayKnownAfterMs = 3000;
 
 // How long a tab stays "armed" after content.js reports focus moving into
 // one of its player iframes (see the tabs.onCreated listener below). Short
@@ -127,6 +131,9 @@ ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {
 });
 
 const EmptyTabUrls = ['about:blank', 'about:home', 'about:newtab', 'about:privatebrowsing'];
+
+// How many players openPlayer has asked for, to number each attempt (frame.playerOpeningAttempt).
+let playerOpeningAttempts = 0;
 
 /**
  * Whether the tab has FastStream's in-page player up, or on its way.
@@ -486,7 +493,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     const url = new URL(changeInfo.url);
     const oldURL = tab.url ? new URL(tab.url) : null;
     if (oldURL && oldURL.hostname !== url.hostname) {
-      tab.reset();
+      // Keeps the new site's page when it named itself first (TabHolder.resetForNewSite).
+      tab.resetForNewSite(changeInfo.url);
       // A different site is a fresh decision. mpvMatched is what stops the
       // allowlist from re-arming MPV mode after the user switched it off, so
       // it has to be dropped here or MPV stays off for the rest of the tab's
@@ -497,7 +505,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
 
     tab.url = changeInfo.url;
 
-    // The auto-open latch is per page, not per tab. tab.reset() only runs on
+    // The auto-open latch is per page, not per tab. The reset above only runs on
     // a hostname change, so without this a second episode on the same site is
     // detected and then dropped, because the tab still looks like it has
     // already handed a stream to mpv.
@@ -739,6 +747,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     frame.loadedCallbacks.clear();
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     tab.forgetRemovedFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame, msg.document);
+  } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
+    // The page took the player iframe out before its player loaded: no PLAYER_LOADED comes
+    // to end the opening, and openPlayer refused this frame until the page navigated.
+    if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
+      frame.playerOpening = false;
+    }
   } else if (msg.type === MessageTypes.WAIT_UNTIL_MAIN_LOADED) {
     frame.loadedCallbacks.add(sendResponse);
 
@@ -1704,6 +1718,9 @@ async function openPlayer(frame) {
   }
 
   frame.playerOpening = true;
+  // Named in content.js's report of a player iframe the page took out before it loaded
+  // (PLAYER_OPEN_GONE), so a report of an earlier attempt never ends this one.
+  frame.playerOpeningAttempt = ++playerOpeningAttempts;
 
   if (Logging) console.log('Opening player', frame);
 
@@ -1714,6 +1731,7 @@ async function openPlayer(frame) {
       noRedirect: frame.frameId === 0,
       frameId: frame.frameId,
       parentFrameId: frame.parent ? frame.parent.frameId : -1,
+      attempt: frame.playerOpeningAttempt,
     }, {
       frameId: frame.frameId,
     }, (response) => {
@@ -1790,19 +1808,7 @@ async function onSourceRecieved(details, frame, mode) {
     // tracked for the toolbar and the player's "send to mpv" button, but
     // they must not each spawn their own mpv window.
     if (!frame.tab.mpvAutoOpened) {
-      frame.tab.mpvAutoOpened = true;
-      Tabs.saveTabState(frame.tab);
-      if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
-      Mpv.openStream(url, frame.tab, customHeaders, resolveMpvContentType(null, frame.tab.url), frame.tab.url).then((result) => {
-        if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
-        if (result.ok) {
-          pauseTabMedia(frame.tab.tabId);
-        } else {
-          // The host never launched mpv, so let the next stream try.
-          frame.tab.mpvAutoOpened = false;
-          Tabs.saveTabState(frame.tab);
-        }
-      });
+      autoOpenInMpv(frame.tab, url, customHeaders);
     }
     return;
   }
@@ -1825,6 +1831,13 @@ async function onSourceRecieved(details, frame, mode) {
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
     frame.openTimeout = setTimeout(async () => {
+      // A frame the tab no longer tracks - forgotten, or dropped by the reset on a new
+      // site with this page's streams still on it - opens nothing: OPEN_PLAYER goes by
+      // frame id, to whatever page now has it. A new page in the frame keeps it tracked,
+      // and a stream found before that page's FRAME_ADDED still opens (preservedSources).
+      if (!frame.isTracked()) {
+        return;
+      }
       // MPV counts as on too: a switch to it within the delay found no player to
       // reload away, and this would open one under it.
       if (!frame.tab.isOn || frame.tab.isMpv) {
@@ -1916,12 +1929,70 @@ function pauseTabMedia(tabId) {
 }
 
 /**
+ * The allowlist's MPV: hands a page's stream to mpv, once per page
+ * (tab.mpvAutoOpened), then pauses the page.
+ *
+ * @param {Object} tab - TabHolder the stream is in.
+ * @param {string} url - The stream.
+ * @param {*} headers - Its request headers, as detected.
+ */
+function autoOpenInMpv(tab, url, headers) {
+  tab.mpvAutoOpened = true;
+  Tabs.saveTabState(tab);
+  if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
+  Mpv.openStream(url, tab, headers, resolveMpvContentType(null, tab.url), tab.url).then((result) => {
+    if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
+    if (result.ok) {
+      pauseTabMedia(tab.tabId);
+    } else {
+      // The host never launched mpv, so let the next stream try.
+      tab.mpvAutoOpened = false;
+      Tabs.saveTabState(tab);
+    }
+  });
+}
+
+/**
+ * The allowlist's MPV, after a play on a page Back gave back whose own stream is not
+ * among the page's streams (an MSE player's blob:). The page may still ask for one
+ * now (it moved on to another video without a load), and its detection sends it;
+ * when none has gone within MpvPlayKnownAfterMs, the page's known stream goes.
+ *
+ * @param {Object} tab - TabHolder the video is in.
+ * @param {number} frameId - Frame the video is in.
+ * @param {string} src - The video element's currentSrc.
+ * @param {?Object} video - What it plays (content.js playedVideo).
+ */
+function autoOpenKnownLater(tab, frameId, src, video) {
+  const waiting = () => tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened;
+  setTimeout(async () => {
+    if (!waiting()) {
+      return;
+    }
+    const source = await findPlayedSource(tab, frameId, src, video);
+    if (source && waiting()) {
+      autoOpenInMpv(tab, source.url, source.headers);
+    }
+  }, MpvPlayKnownAfterMs);
+}
+
+/**
  * A video the user started, in a tab whose MPV came from the shortcut: hands
  * that video's stream to mpv and pauses the page.
  *
  * With no stream for it yet - a player that fetches only once play() was
  * called - the next stream detected in the tab within MpvPlayPendingMs is
  * taken as this one (see onSourceRecieved).
+ *
+ * In the allowlist's MPV, the first stream detected on a page goes to mpv by
+ * itself. A play counts only on a page Back brought out of Firefox's
+ * back-forward cache (frame.restoredFromCache), while none has gone on it: it
+ * fetches nothing again, so its video plays what it had loaded and nothing is
+ * detected. Its streams are the ones the background kept for it
+ * (TabHolder.restoreGoneDocument). Anywhere else the play's own stream is
+ * detected, and goes by itself: a site that plays its next episode in the same
+ * page (a URL change without a load, which lets the page's MPV send again) still
+ * has the last one's streams, and the play came before the new one's.
  *
  * @param {Object} sender - The message sender: its tab and frameId.
  * @param {string} src - The video element's currentSrc.
@@ -1935,17 +2006,31 @@ async function onUserPlay(sender, src, video) {
   }
 
   const tab = Tabs.getTab(sender.tab.id);
-  if (!tab || !tab.isOn || !tab.isMpv || !tab.mpvOnPlay) {
+  const waiting = (onPlay) => !!tab && tab.isOn && tab.isMpv && tab.mpvOnPlay === onPlay &&
+    (onPlay || !tab.mpvAutoOpened);
+  if (!tab || !waiting(tab.mpvOnPlay)) {
+    return;
+  }
+  const onPlay = tab.mpvOnPlay;
+  const frame = tab.getFrame(sender.frameId);
+  if (!onPlay && !(frame && frame.restoredFromCache)) {
     return;
   }
 
   const source = await findPlayedSource(tab, sender.frameId, src, video);
-  // The tab may have left MPV while the lengths were read.
-  if (!tab.isOn || !tab.isMpv || !tab.mpvOnPlay) {
+  // The tab may have left MPV while the lengths were read, or a stream went meanwhile.
+  if (!waiting(onPlay)) {
     return;
   }
   if (Logging) console.log('[MPV] user started a video:', src, source && source.url);
-  if (source) {
+  if (!onPlay) {
+    if (source && source.url === src) {
+      // The file the video plays, among the page's streams.
+      autoOpenInMpv(tab, source.url, source.headers);
+    } else {
+      autoOpenKnownLater(tab, sender.frameId, src, video);
+    }
+  } else if (source) {
     sendPlayedToMpv(tab, source);
   } else {
     tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;

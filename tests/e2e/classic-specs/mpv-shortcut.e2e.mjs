@@ -388,6 +388,35 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
 
     siteServer = http.createServer((req, res) => {
       res.writeHead(200, {'Content-Type': 'text/html'});
+      if (req.url.startsWith('/away')) {
+        // A page with no video, to leave a page for and come Back from.
+        res.end('<!doctype html><title>mpv shortcut test, away</title><p>Away</p>');
+        return;
+      }
+      if (req.url.startsWith('/lazy')) {
+        // As most sites: the video loads only when the user starts it. Next plays the next
+        // episode in the same page, its URL changed without a load.
+        res.end(`<!doctype html><title>mpv shortcut test, lazy</title>
+          <video id="main" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <button id="next">Next</button>
+          <script>
+            document.getElementById('play').addEventListener('click', () => {
+              const main = document.getElementById('main');
+              if (!main.getAttribute('src')) {
+                main.src = '${CDN}/clip.mp4?t=' + Date.now();
+              }
+              main.play().catch(() => {});
+            });
+            document.getElementById('next').addEventListener('click', () => {
+              history.pushState({}, '', '/lazy/next');
+              const main = document.getElementById('main');
+              main.src = '${CDN}/clip.mp4?next=' + Date.now();
+              main.play().catch(() => {});
+            });
+          </script>`);
+        return;
+      }
       if (req.url.startsWith('/mse')) {
         // An MSE player: its video plays a blob:, and it fetched the film's manifest,
         // then an ad's - the newest of the page's streams, and the short one. Well after:
@@ -934,5 +963,132 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
 
     await clickToolbar();
     await expectMode('off', 'clicking the toolbar button again');
+  });
+
+  // Back brings a page out of Firefox's back-forward cache without loading its video
+  // again, so the background detects nothing new on it. A play there still goes to mpv.
+  describe('on a page Back brought back', function() {
+    /**
+     * Leaves the site page for another page of the site, and comes Back to it from
+     * Firefox's back-forward cache (a page reloaded instead would prove nothing).
+     */
+    async function awayAndBack() {
+      await browser.switchToWindow(siteHandle);
+      await browser.execute(() => {
+        window.__kept = true;
+      });
+      await browser.url(`${SITE}/away`);
+      await browser.back();
+      await browser.waitUntil(async () => {
+        await browser.switchToWindow(siteHandle);
+        return !(await browser.getUrl()).includes('/away') &&
+          await browser.execute(() => window.__kept === true);
+      }, {timeout: 15000, timeoutMsg: 'Back did not bring the page out of the back-forward cache'});
+    }
+
+    it('sends the video the user starts, in a tab armed with Ctrl+Shift+U', async function() {
+      if (!HAVE_HOST) {
+        // eslint-disable-next-line no-invalid-this
+        this.skip();
+      }
+      await browser.switchToWindow(siteHandle);
+      const since = requests.length;
+      await browser.url(`${SITE}/watch`);
+      await pageVideosLoaded(since);
+      await expectMode('off', 'the start of this test');
+      await pressShortcut();
+      await expectMode('mpv', 'pressing Ctrl+Shift+U');
+
+      await awayAndBack();
+      await expectMode('mpv', 'going Back to the page');
+
+      const before = mpvCount();
+      await clickPlay();
+      await expectMainInMpv(before, 'clicking play on the page Back brought back');
+      await browser.waitUntil(async () => !(await mainPlaying()), {
+        timeout: 15000,
+        timeoutMsg: 'the page kept playing the video mpv opened',
+      });
+
+      await pressShortcut();
+      await expectMode('off', 'pressing Ctrl+Shift+U on that page');
+    });
+
+    it('sends the video the user starts again, on a site on the MPV allowlist', async function() {
+      if (!HAVE_HOST) {
+        // eslint-disable-next-line no-invalid-this
+        this.skip();
+      }
+      await setOptions({mpvMode: true, mpvAllowlist: [SITE]});
+      try {
+        await browser.switchToWindow(siteHandle);
+        await browser.url(`${SITE}/lazy`);
+        await expectMode('mpv', 'opening a site on the MPV allowlist');
+        await expectNothingInMpv('the page opened, before any play');
+
+        // Started from a script, not a WebDriver click: that click leaves an unload listener
+        // on the page (Firefox's SHIPBFCache log: UNLOAD_LISTENER from the click on, until
+        // the page is left), which keeps it out of the back-forward cache. The allowlist
+        // sends the first stream it detects, played by a user or not.
+        let before = mpvCount();
+        await browser.switchToWindow(siteHandle);
+        await browser.execute(() => document.getElementById('play').click());
+        await expectMainInMpv(before, 'starting the video on the allowlisted site');
+        await browser.waitUntil(async () => !(await mainPlaying()), {
+          timeout: 15000,
+          timeoutMsg: 'the page kept playing the video mpv opened',
+        });
+
+        await awayAndBack();
+        await expectMode('mpv', 'going Back to the page');
+
+        before = mpvCount();
+        await clickPlay();
+        await expectMainInMpv(before, 'clicking play again on the page Back brought back');
+        await browser.waitUntil(async () => !(await mainPlaying()), {
+          timeout: 15000,
+          timeoutMsg: 'the page kept playing the video mpv opened, after Back',
+        });
+      } finally {
+        await setOptions({mpvMode: true, mpvAllowlist: []});
+        await replaceSiteTab();
+      }
+    });
+  });
+
+  // A site that plays its next episode in the same page: the URL change lets the page's MPV
+  // send again, and the user's play of the next episode is reported before its stream is
+  // detected, while the page still has the last one's. The next one goes, not the last again.
+  it('sends the next episode a site plays in the same page, not the last one again', async function() {
+    if (!HAVE_HOST) {
+      // eslint-disable-next-line no-invalid-this
+      this.skip();
+    }
+    await setOptions({mpvMode: true, mpvAllowlist: [SITE]});
+    try {
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}/lazy`);
+      await expectMode('mpv', 'opening a site on the MPV allowlist');
+
+      let before = mpvCount();
+      await clickPlay();
+      await expectMainInMpv(before, 'clicking play on the allowlisted site');
+
+      before = mpvCount();
+      await browser.switchToWindow(siteHandle);
+      await browser.$('#next').click();
+      await browser.waitUntil(async () => requests.filter(isMpvRequest).slice(before)
+          .some((r) => r.url.startsWith('/clip.mp4?next=')), {
+        timeout: 45000,
+        interval: 500,
+        timeoutMsg: `the next episode never reached mpv. Seen: ${seenRequests(testStart)}`,
+      });
+      const again = requests.filter(isMpvRequest).slice(before)
+          .filter((r) => !r.url.startsWith('/clip.mp4?next='));
+      expect(again.map((r) => r.url)).toEqual([]);
+    } finally {
+      await setOptions({mpvMode: true, mpvAllowlist: []});
+      await replaceSiteTab();
+    }
   });
 });
