@@ -272,8 +272,12 @@ jobs:
       - name: Build all targets
         run: pnpm run build:keep
 
+      # E2E_MOZ_LOG: the specs listed in tests/e2e/mozLog.mjs run with Firefox's network
+      # log, kept only for an attempt that failed (see "Upload Firefox logs" below).
       - name: End-to-end playback (Windows Firefox)
         run: pnpm run test:e2e
+        env:
+          E2E_MOZ_LOG: '1'
 
       - name: End-to-end extension tests (Windows Firefox)
         run: pnpm run test:ext
@@ -302,6 +306,19 @@ jobs:
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
+
+      # Firefox's network log of a failed attempt of a spec in tests/e2e/mozLog.mjs. Not
+      # only on failure(): a spec that fails once and passes on its retry leaves the job
+      # green, and that failed attempt is the one whose log is wanted. A passing attempt
+      # deletes its log, so on most runs there is nothing here and nothing is uploaded.
+      - name: Upload Firefox logs of failed attempts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-moz-logs-windows
+          path: logs-moz/
+          if-no-files-found: ignore
+          retention-days: 7
 
   # update-prs.yml decides on an update pull request when CI has run on it, on the
   # workflow_run event. A run whose actor is this repository's token sends none: GitHub
