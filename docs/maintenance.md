@@ -26,6 +26,7 @@ workflows, which stay silent while they pass.
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
+| security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping the cooldown; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
 Dependabot proposes a release once it is 5 days old (`cooldown` in `.github/dependabot.yml`);
 security updates skip the wait. The cooldown covers only the packages it bumps, not what
@@ -39,9 +40,16 @@ rebuilt (`docs/vendored-libraries.md`), and `mp4-muxer` is deprecated, its last 
 crashing where the pinned 4.3.3 does not.
 A security update Dependabot cannot make itself leaves its alert open with no PR: a
 package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
-2026-09-30), fails in its "Dependabot Updates" run, and GitHub's alert email is the only
-notice. `pnpm update <package>` on a branch moves every major to its patched release
-within the ranges that ask for it; check `git diff pnpm-lock.yaml` touches nothing else.
+2026-09-30), fails in its "Dependabot Updates" run, which emails no one. So
+`security-alerts.yml` opens the "Security alert: <package>" issue for it, with its alerts
+and these steps. `pnpm update <package>` on a branch moves every major to its patched
+release within the ranges that ask for it (in `fsaunpack/`, `npm update <package>` does the
+same for its `package-lock.json`); check `git diff` touches nothing else, and open a PR.
+The issue closes itself once none of its alerts is open: GitHub marks an alert fixed once
+the fix is on `main`, and a push that changes a lockfile waits up to 10 minutes for that
+(the daily run closes it otherwise). Dismissing an alert on the Security tab closes it too.
+Closing the issue yourself skips the alerts it lists; a new alert for that package still
+opens a new one.
 In the table, "waits for you" means one comment that @mentions you - CI is green,
 and why the PR is not merged - with the PR assigned to you; a comment with the same
 verdict as the last one is edited in place, so a repeat sends no second email.
@@ -94,10 +102,11 @@ Some failures arrive as an issue rather than a red PR: the mpv build, a runner
 image, a Firefox version, the upstream sync, a patched library whose patch could
 not be cut. Each names what failed. The Firefox, runner-image and sync issues
 close themselves on the next green run, a patched-library one when the patch is
-cut against that version or newer. If `update-prs.yml`, `toolchain-updates.yml` or
-`wsl-releases.yml` itself fails, it opens one issue, "Update PRs workflow failed",
-"Toolchain updates workflow failed" or "WSL releases workflow failed", while that one
-is open.
+cut against that version or newer, a "Security alert" one when its alerts are fixed or
+dismissed. If `update-prs.yml`, `toolchain-updates.yml`, `wsl-releases.yml` or
+`security-alerts.yml` itself fails, it opens one issue, "Update PRs workflow failed",
+"Toolchain updates workflow failed", "WSL releases workflow failed" or "Security alerts
+workflow failed", while that one is open.
 
 A push to `main` is released even when a late run cancelled its CI run (GitHub once
 delivered an older push a second time), or when an mpv pin or an update merge landed while

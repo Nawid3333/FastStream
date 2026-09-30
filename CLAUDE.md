@@ -1101,6 +1101,23 @@ the change went in.
   <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
+- **`security-alerts.yml`** (daily, 06:30 UTC; and on a push to `main` that changes a
+  lockfile, closing only), 2026-09-30: Dependabot could not make the security fix for
+  brace-expansion (three majors in the lockfile), its failed run emailed no one, and 12
+  alerts sat on the Security tab unseen. For an open alert over 6 hours old with no open
+  Dependabot PR naming the package (title, the links before the first `<details>`, a
+  grouped update's "Updates" lines), it opens "Security alert: <package>", assigned +
+  @mention; a later alert edits it and comments. The body's `<!-- alerts: ... -->` line
+  records what it listed: a listed alert is never raised again, so closing by hand skips.
+  Closes itself when no alert for the package is open. `vulnerability-alerts: read` is
+  what lets `GITHUB_TOKEN` list the alerts (403 without it, checked on a probe branch);
+  actionlint 1.7.12, the latest, does not know that permission, so
+  `.github/actionlint.yaml` ignores that one message for that one file
+  (rhysd/actionlint#666). `tests/workflows/security-alerts.test.sh`: 35 scenarios, and 24
+  mutations of the workflow each fail it. Its stub `gh` applies `--jq` with jq, as CI has
+  it; the real gh uses gojq, built in, and the filters avoid the one difference found
+  (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
+  swapped in too.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
 - **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is

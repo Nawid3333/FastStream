@@ -1,0 +1,11 @@
+# Read by actionlint from here, in ci.yml's workflows job and in the WSL verify.
+#
+# GitHub's `vulnerability-alerts` permission (read the Dependabot alerts, which
+# security-alerts.yml needs) is newer than actionlint 1.7.12, the latest release; the
+# request for it is rhysd/actionlint#666. Checked 2026-09-30: without it the token's
+# request for the alerts is refused (HTTP 403), with it they are listed. Drop this once
+# .github/actionlint/Dockerfile pins an actionlint that knows the permission.
+paths:
+  .github/workflows/security-alerts.yml:
+    ignore:
+      - 'unknown permission scope "vulnerability-alerts"'
