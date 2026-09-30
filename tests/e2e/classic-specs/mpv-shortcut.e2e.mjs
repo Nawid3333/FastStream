@@ -23,7 +23,7 @@ import * as url from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {loopedPlaylist} from '../loopedPlaylist.mjs';
-import {closeSpecMpv, hostInstalled} from '../mpvTestProcesses.mjs';
+import {closeSpecMpv, hostInstalled, hostLogSince} from '../mpvTestProcesses.mjs';
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -45,6 +45,13 @@ let extHandle;
 let siteHandle;
 
 const HAVE_HOST = hostInstalled();
+
+// When the running test started (Date.now()), for what a failed one prints.
+let testStart = 0;
+
+// How many of mpv's requests the preview check has looked at. Each is checked once, so a
+// request for the preview fails the test that first sees it, not every test after it.
+let mpvChecked = 0;
 
 /**
  * Runs an async function in Firefox's chrome context.
@@ -242,13 +249,20 @@ async function hasOverlayPlayer() {
 }
 
 /**
- * Waits for mpv to request a stream beyond the first `before` it had made.
- * @param {number} before - mpv requests counted before the switch.
- * @param {string} when - What just happened, for the failure message.
+ * @param {number} ms - A Date.now().
+ * @return {string} Its time of day in UTC, as CI's log and the mpv host's log print it.
  */
-/** @return {string} Every request so far, marked mpv or browser. */
-function seenRequests() {
-  return JSON.stringify(requests.map((r) => (isMpvRequest(r) ? 'mpv ' : 'browser ') + r.url));
+function clock(ms) {
+  return new Date(ms).toISOString().slice(11, 23);
+}
+
+/**
+ * @param {number} [since] - A Date.now() to list from; every request without it.
+ * @return {string} The CDN's requests, marked mpv or browser, with the time each came.
+ */
+function seenRequests(since = 0) {
+  return JSON.stringify(requests.filter((r) => r.at >= since)
+      .map((r) => `${isMpvRequest(r) ? 'mpv' : 'browser'} ${r.url} at ${clock(r.at)}`));
 }
 
 /** @return {number} How many requests mpv has made so far. */
@@ -270,8 +284,15 @@ async function expectMainInMpv(before, when) {
         interval: 500,
         timeoutMsg: `${when}: mpv never requested the main video. Seen: ${seenRequests()}`,
       });
-  expect(requests.filter((r) => isMpvRequest(r) && r.url.startsWith('/preview.mp4')))
-      .toEqual([]);
+  const unchecked = requests.filter(isMpvRequest).slice(mpvChecked);
+  mpvChecked += unchecked.length;
+  if (unchecked.some((r) => r.url.startsWith('/preview.mp4'))) {
+    // From this test's start, or earlier: a request that came after the last test's
+    // check is this test's to report.
+    const from = Math.min(testStart, ...unchecked.map((r) => r.at));
+    throw new Error(`${when}: mpv also requested the preview, which the page autoplays. ` +
+      `Seen from ${clock(from)}: ${seenRequests(from)}`);
+  }
 }
 
 /**
@@ -337,6 +358,30 @@ async function setOptions(options) {
   await browser.pause(500);
 }
 
+/**
+ * Puts a new tab in the site tab's place. A tab's mode, its MPV arm and its player belong
+ * to the tab, so the new one starts Off with nothing pending, whatever a failed test left
+ * in the old one.
+ */
+async function replaceSiteTab() {
+  const old = siteHandle;
+  const handles = await browser.getWindowHandles();
+  await browser.switchToWindow(extHandle);
+  await browser.execute((u) => window.open(u, '_blank'), OPENER_URL);
+  await browser.waitUntil(async () => (await browser.getWindowHandles()).length > handles.length, {
+    timeout: 10000,
+    timeoutMsg: 'no new tab opened',
+  });
+  const fresh = (await browser.getWindowHandles()).find((h) => !handles.includes(h));
+  if (!fresh) {
+    throw new Error('the new tab closed at once');
+  }
+  await browser.switchToWindow(old);
+  await browser.closeWindow();
+  siteHandle = fresh;
+  await browser.switchToWindow(siteHandle);
+}
+
 describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
   before(async function() {
     const clip = fs.readFileSync(path.join(root, 'tests/e2e/fixtures/sample.mp4'));
@@ -392,7 +437,7 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     const playlists = {'/film.m3u8': loopedPlaylist(1800, '/seg/'), '/ad.m3u8': loopedPlaylist(9, '/seg/')};
 
     cdnServer = http.createServer((req, res) => {
-      requests.push({url: req.url, headers: req.headers});
+      requests.push({url: req.url, headers: req.headers, at: Date.now()});
       const pathname = req.url.split('?')[0];
       if (playlists[pathname] || segments.has(pathname)) {
         res.writeHead(200, {
@@ -455,6 +500,33 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
     closeSpecMpv([SITE, CDN]);
+  });
+
+  beforeEach(function() {
+    testStart = Date.now();
+  });
+
+  // A failed test left the tab in the mode it stopped in, and every test after it then
+  // failed at its first mode check, hiding which failure was real. Now the failed test's
+  // evidence is printed, what the CDN and the mpv host saw during it, and the next test
+  // gets a new tab.
+  afterEach(async function() {
+    // eslint-disable-next-line no-invalid-this
+    const test = this.currentTest;
+    if (test.state !== 'failed') {
+      return;
+    }
+    console.log(`"${test.title}" failed. The CDN saw, from ${clock(testStart)}: ` +
+      seenRequests(testStart));
+    const hostLog = hostLogSince(testStart);
+    console.log(hostLog.length ? `The mpv host logged:\n${hostLog.join('\n')}` :
+      'The mpv host logged nothing (no host installed, or its debug log is off).');
+    try {
+      await replaceSiteTab();
+    } catch (e) {
+      // The tests after this one then start in whatever mode it left.
+      console.log(`Could not replace the site tab: ${e.message}`);
+    }
   });
 
   it('is a key Firefox leaves free, and is bound to the extension', async function() {

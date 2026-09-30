@@ -10,19 +10,51 @@
 // developer's own FastStream mpv window is therefore left open, as it was before.)
 
 import fs from 'node:fs';
+import path from 'node:path';
 import {execFileSync} from 'node:child_process';
 
-/** @return {boolean} Whether the native host is registered for Firefox. */
-export function hostInstalled() {
+/** @return {?string} The native host's manifest Firefox finds, if it exists. */
+function hostManifest() {
   try {
     const key = ['HKCU', 'Software', 'Mozilla', 'NativeMessagingHosts',
       'com.faststream.mpv'].join('\\');
     const out = execFileSync('reg', ['query', key],
         {encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
     const match = out.match(/REG_SZ\s+(.+)/);
-    return !!(match && fs.existsSync(match[1].trim()));
+    return match && fs.existsSync(match[1].trim()) ? match[1].trim() : null;
   } catch (e) {
-    return false;
+    return null;
+  }
+}
+
+/** @return {boolean} Whether the native host is registered for Firefox. */
+export function hostInstalled() {
+  return hostManifest() !== null;
+}
+
+/**
+ * What the native host logged since a moment, when its debug log is on (CI turns it on
+ * with FASTSTREAM_MPV_DEBUG): each open request the extension sent, and what the host
+ * started for it. install.ps1 puts the log next to the manifest.
+ * @param {number} since - Date.now() of that moment.
+ * @return {string[]} The log's lines since then; none without a log.
+ */
+export function hostLogSince(since) {
+  const manifest = hostManifest();
+  if (!manifest) {
+    return [];
+  }
+  try {
+    const log = fs.readFileSync(path.join(path.dirname(manifest), 'faststream-mpv-host.log'), 'utf8');
+    return log.split(/\r?\n/).filter((line) => {
+      try {
+        return Date.parse(JSON.parse(line).time) >= since;
+      } catch (e) {
+        return false;
+      }
+    });
+  } catch (e) {
+    return [];
   }
 }
 
