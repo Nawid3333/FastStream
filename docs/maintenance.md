@@ -37,6 +37,11 @@ are ignored by Dependabot on purpose: the patched ones arrive from `patched-libr
 (`docs/updating-patched-libraries.md`), `onnxruntime-web` only moves with its wasm
 rebuilt (`docs/vendored-libraries.md`), and `mp4-muxer` is deprecated, its last release
 crashing where the pinned 4.3.3 does not.
+A security update Dependabot cannot make itself leaves its alert open with no PR: a
+package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
+2026-09-30), fails in its "Dependabot Updates" run, and GitHub's alert email is the only
+notice. `pnpm update <package>` on a branch moves every major to its patched release
+within the ranges that ask for it; check `git diff pnpm-lock.yaml` touches nothing else.
 In the table, "waits for you" means one comment that @mentions you - CI is green,
 and why the PR is not merged - with the PR assigned to you; a comment with the same
 verdict as the last one is edited in place, so a repeat sends no second email.
