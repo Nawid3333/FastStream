@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "字幕載入失敗！"
     },
+    "player_subtitles_nocues": {
+        "message": "其中找不到字幕。"
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "搜尋 OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "自動替換播放器前的延遲（毫秒）"
     },
+    "options_general_maxdownloaders": {
+        "message": "最大下載器數（1 至 6）"
+    },
     "options_general_autoplaynext": {
         "message": "當目前影片結束時自動播放下一支影片"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "從檔案匯入設定"
+    },
+    "options_import_invalid": {
+        "message": "匯入設定失敗：所選檔案不是設定檔。"
     },
     "options_export": {
         "message": "匯出設定為檔案"

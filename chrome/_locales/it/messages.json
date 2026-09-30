@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Caricamento della traccia dei sottotitoli non riuscito!"
     },
+    "player_subtitles_nocues": {
+        "message": "Nessun sottotitolo trovato."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cerca OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Ritardo prima della sostituzione automatica del player (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Numero massimo di downloader (da 1 a 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Riproduci automaticamente il video successivo quando termina il video attuale"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Importa le Impostazioni da un File"
+    },
+    "options_import_invalid": {
+        "message": "Impossibile importare le impostazioni: il file selezionato non è un file di impostazioni."
     },
     "options_export": {
         "message": "Esporta le Impostazioni su File"

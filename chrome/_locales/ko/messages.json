@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "자막 트랙을 로드하지 못했습니다!"
     },
+    "player_subtitles_nocues": {
+        "message": "자막을 찾을 수 없습니다."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles 검색"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "플레이어 자동 교체 전 지연(밀리초)"
     },
+    "options_general_maxdownloaders": {
+        "message": "최대 다운로더 수 (1~6)"
+    },
     "options_general_autoplaynext": {
         "message": "현재 영상 종료 시 다음 영상 자동 재생"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "파일에서 설정 가져오기"
+    },
+    "options_import_invalid": {
+        "message": "설정을 가져오지 못했습니다: 선택한 파일은 설정 파일이 아닙니다."
     },
     "options_export": {
         "message": "설정을 파일로 내보내기"

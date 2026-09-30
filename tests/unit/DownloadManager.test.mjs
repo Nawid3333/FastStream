@@ -32,4 +32,11 @@ describe('DownloadManager', () => {
     // The wait used to end in queueNext on a manager with no downloaders: a TypeError.
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
+
+  it('reads the downloader limit the same way for the speed test and the key', () => {
+    // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
+    const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
+    expect([0, undefined, null, NaN, -2, 1, 3, 6, 9, 2.7].map(limit)).toEqual([6, 6, 6, 6, 6, 1, 3, 6, 6, 2]);
+    expect(new DownloadManager(null).downloaderLimit()).toBe(6);
+  });
 });

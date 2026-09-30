@@ -356,6 +356,9 @@
     "player_subtitles_addtrack_error": {
         "message": "Impossible de charger la piste de sous-titres!"
     },
+    "player_subtitles_nocues": {
+        "message": "Aucun sous-titre trouvé dedans."
+    },
     "player_subtitlesmenu_searchbtn": {
         "message": "Rechercher sur OpenSubtitles"
     },
@@ -956,6 +959,9 @@
     "options_general_replace_delay": {
         "message": "Délai avant remplacement automatique du lecteur (ms)"
     },
+    "options_general_maxdownloaders": {
+        "message": "Nombre maximal de téléchargeurs (1 à 6)"
+    },
     "options_general_autoplaynext": {
         "message": "Lire automatiquement la vidéo suivante à la fin de la vidéo en cours"
     },
@@ -1066,6 +1072,9 @@
     },
     "options_import": {
         "message": "Importer les paramètres depuis un fichier"
+    },
+    "options_import_invalid": {
+        "message": "Échec de l'importation des paramètres : le fichier sélectionné n'est pas un fichier de paramètres."
     },
     "options_export": {
         "message": "Exporter les paramètres vers un fichier"

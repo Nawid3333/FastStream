@@ -121,6 +121,7 @@ export class SubtitlesManager extends EventEmitter {
   }
 
   clearTracks() {
+    this.openSubtitlesSearch.dropPendingDownloads();
     this.tracks.length = 0;
     this.activeTracks.length = 0;
     this.updateTrackList();
@@ -223,11 +224,17 @@ export class SubtitlesManager extends EventEmitter {
 
       const reader = new FileReader();
       reader.onload = () => {
-        const dt = reader.result;
-        const track = new SubtitleTrack(name, null);
-        track.loadText(dt);
+        // A file that is no subtitles, or one that failed to parse, vanished without a word:
+        // the URL and OpenSubtitles paths say so.
+        try {
+          const track = new SubtitleTrack(name, null);
+          track.loadText(reader.result);
+          track.checkHasCues();
 
-        this.addTrack(track);
+          this.addTrack(track);
+        } catch (e) {
+          AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
+        }
       };
       reader.readAsText(file);
       // Picking the file the input still holds fires no change, so the same file could not
@@ -260,6 +267,8 @@ export class SubtitlesManager extends EventEmitter {
             try {
               const track = new SubtitleTrack('URL Track', null);
               track.loadText(body);
+              // A web page (a login, an error page) added an empty track, and said "added".
+              track.checkHasCues();
 
               this.addTrack(track);
 

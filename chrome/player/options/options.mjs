@@ -544,50 +544,65 @@ maxSize.addEventListener('change', () => {
   optionChanged();
 });
 
+/**
+ * A number field's value within its limits, or the default when it holds no number, shown
+ * back in the field. An emptied "Seek step size" or "Replace delay" was saved as NaN, and a
+ * negative one as it was.
+ * @param {HTMLInputElement} input - The field.
+ * @param {number} fallback - The value for an empty or unreadable field.
+ * @param {number} min - The smallest value allowed.
+ * @param {number} [max] - The largest value allowed.
+ * @param {boolean} [whole] - Whole numbers only.
+ * @return {number}
+ */
+function readNumberField(input, fallback, min, max = Infinity, whole = false) {
+  const value = whole ? parseInt(input.value) : parseFloat(input.value);
+  const result = Number.isFinite(value) ? Math.min(Math.max(value, min), max) : fallback;
+  input.value = result;
+  return result;
+}
+
 bufferAhead.addEventListener('change', () => {
-  Options.bufferAhead = Math.max(parseInt(bufferAhead.value) || 0, 0);
-  bufferAhead.value = Options.bufferAhead;
+  Options.bufferAhead = readNumberField(bufferAhead, 0, 0, Infinity, true);
   optionChanged();
 });
 
 bufferBehind.addEventListener('change', () => {
-  Options.bufferBehind = Math.max(parseInt(bufferBehind.value) || 0, 0);
-  bufferBehind.value = Options.bufferBehind;
+  Options.bufferBehind = readNumberField(bufferBehind, 0, 0, Infinity, true);
   optionChanged();
 });
 
 seekStepSize.addEventListener('change', () => {
-  Options.seekStepSize = parseFloat(seekStepSize.value);
+  Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, 0.1, 3600);
   optionChanged();
 });
 
 replaceDelay.addEventListener('change', () => {
-  Options.replaceDelay = parseInt(replaceDelay.value);
+  Options.replaceDelay = readNumberField(replaceDelay, DefaultOptions.replaceDelay, 0, 60000, true);
   optionChanged();
 });
 
 miniSize.addEventListener('change', () => {
-  Options.miniSize = Math.min(Math.max(parseFloat(miniSize.value) || 0.25, 0.01), 1);
+  Options.miniSize = readNumberField(miniSize, 0.25, 0.01, 1);
   optionChanged();
 });
 
+// 1 to 6, the browser's limit per server; 0 or less is the default, as the downloader reads
+// it. 0 meant "never add one" to the downloader and "no limit" to the add-downloader key.
 maxdownloaders.addEventListener('change', () => {
-  Options.maximumDownloaders = parseInt(maxdownloaders.value) || 0;
+  if (!(parseInt(maxdownloaders.value) > 0)) {
+    maxdownloaders.value = '';
+  }
+  Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, 1, 6, true);
   optionChanged();
 });
 
 optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder');
 
 
-optionsSearchBar.addEventListener('keyup', () => {
-  if (optionsSearchBar.value == '') {
-    resetSearch();
-  } else {
-    searchWithQuery(optionsSearchBar.value);
-  }
-});
-
-optionsSearchBar.addEventListener('keydown', () => {
+// Once per change of the text, pasted or dropped too. keydown and keyup searched twice per
+// key, keydown for the text before the key.
+optionsSearchBar.addEventListener('input', () => {
   if (optionsSearchBar.value == '') {
     resetSearch();
   } else {
@@ -630,7 +645,12 @@ importButton.addEventListener('click', () => {
       try {
         newOptionsObj = JSON.parse(e.target.result);
       } catch (err) {
-        alert('Failed to import settings: the selected file is not valid JSON.');
+        newOptionsObj = null;
+      }
+      // Valid JSON that is no settings object (null, a list, a number) threw further down,
+      // and the import failed without a word.
+      if (!newOptionsObj || typeof newOptionsObj !== 'object' || Array.isArray(newOptionsObj)) {
+        alert(Localize.getMessage('options_import_invalid'));
         return;
       }
       const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
