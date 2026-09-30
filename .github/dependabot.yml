@@ -106,13 +106,16 @@ updates:
       actions-minor-and-patch:
         update-types: ['minor', 'patch']
 
-  # The actionlint image that ci.yml's workflows job runs and the WSL verify takes
-  # actionlint and shellcheck from. Its tag and digest are in .github/actionlint/Dockerfile,
-  # because Dependabot does not update a docker:// line in a workflow. A new version, or
-  # a new digest for the same tag, waits for the owner in update-prs.yml: it changes the
-  # check every workflow file has to pass, and CI's checks are reviewed by a person.
+  # The actionlint and zizmor images that ci.yml's workflows job runs (the WSL verify takes
+  # actionlint and shellcheck from the first). Their tags and digests are in
+  # .github/actionlint/Dockerfile and .github/zizmor/Dockerfile, because Dependabot does not
+  # update a docker:// line in a workflow. A new version, or a new digest for the same tag,
+  # waits for the owner in update-prs.yml: it changes a check every workflow file has to
+  # pass, and CI's checks are reviewed by a person.
   - package-ecosystem: 'docker'
-    directory: '/.github/actionlint'
+    directories:
+      - '/.github/actionlint'
+      - '/.github/zizmor'
     schedule:
       interval: 'weekly'
     cooldown:

@@ -89,10 +89,13 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ env.WORK_BRANCH }}
+          persist-credentials: false
 
       - name: Configure git identity
         run: |
@@ -111,6 +114,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # git reaches the repository with the token only here, one command at a time: the
+          # checkout keeps none in .git/config. The header is the one actions/checkout uses.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           finish() { echo "action=$1" >> "$GITHUB_OUTPUT"; }
 
           BEHIND=$(git rev-list --count "HEAD..upstream/main")
@@ -190,7 +197,7 @@ jobs:
             git commit -m 'merge upstream/main (CONFLICTS - resolve before merging)'
           fi
 
-          git push -f origin "$SYNC_BRANCH"
+          authgit push -f origin "$SYNC_BRANCH"
           finish update
 
       - name: Open or update the pull request

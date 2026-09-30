@@ -27,8 +27,8 @@ name: Auto release
 # workflow - the `chore: release` head-commit check below is what stops
 # that from repeating forever.
 #
-# The tag push below is authenticated with the default GITHUB_TOKEN (via
-# actions/checkout's persisted credentials), and GitHub deliberately does
+# The tag push below is authenticated with the default GITHUB_TOKEN (passed to
+# that one git command; the checkout keeps no token), and GitHub deliberately does
 # not let a GITHUB_TOKEN-authenticated push fire other workflows' `push`
 # triggers - the anti-recursion rule that stops a workflow from chaining
 # into itself forever. release.yml's `on: push: tags:` would silently
@@ -79,13 +79,14 @@ on:
         description: "The commit that run is on (optional; ci.yml passes it)"
         required: false
 
-permissions:
-  contents: write
-  actions: write
-  issues: write  # report a failed release this workflow was started for by ci.yml
+permissions: {}  # each job asks for what it needs
 
 jobs:
   auto-release:
+    permissions:
+      contents: write
+      actions: write
+      issues: write  # report a failed release this workflow was started for by ci.yml
     if: >
       github.event_name == 'workflow_dispatch' || (
       github.event.workflow_run.conclusion == 'success' &&
@@ -176,11 +177,14 @@ jobs:
           fi
           printf 'ok=yes\nid=%s\nsha=%s\n' "$INPUT_RUN_ID" "$(jq -r .head_sha "$RUNNER_TEMP/run.json")" >> "$GITHUB_OUTPUT"
 
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.run.outputs.ok == 'yes'
         with:
           ref: ${{ steps.run.outputs.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       # CI uploads its build of this commit (faststream-bundles); compare it file by
       # file with the latest release's firefox-github zip. Identical means nothing the
@@ -272,9 +276,16 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
       - name: Bump version, commit, tag, push
+        id: bump
         if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # git reaches the repository with the token only here, one command at a time: the
+          # checkout keeps none in .git/config. The header is the one actions/checkout uses.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           CURRENT=$(node -p "require('./package.json').version")
           IFS='.' read -r major minor patch build <<< "$CURRENT"
           build=$((10#$build + 1))
@@ -284,7 +295,7 @@ jobs:
           # (fetch-depth 0); the remote is asked too, for one pushed since. A failed
           # ls-remote fails the step rather than read as "no tag".
           tags=$( { git tag -l "v$major.$minor.$patch.*"
-                    git ls-remote --tags origin "refs/tags/v$major.$minor.$patch.*" | cut -f2 | sed 's|^refs/tags/||'
+                    authgit ls-remote --tags origin "refs/tags/v$major.$minor.$patch.*" | cut -f2 | sed 's|^refs/tags/||'
                   } | sort -u)
           while grep -qxF "v$major.$minor.$patch.$build" <<< "$tags"; do
             echo "v$major.$minor.$patch.$build is taken; skipping it."
@@ -308,9 +319,9 @@ jobs:
           # One atomic push: when main has moved on, the refused branch update takes the
           # tag with it. Two pushes could leave main's "chore: release" commit without
           # its tag when only the second failed, and release.yml never started for it.
-          git push --atomic origin HEAD:main "refs/tags/v$NEW"
+          authgit push --atomic origin HEAD:main "refs/tags/v$NEW"
 
-          echo "NEW_TAG=v$NEW" >> "$GITHUB_ENV"
+          echo "tag=v$NEW" >> "$GITHUB_OUTPUT"
 
       # release.yml's own `on: push: tags:` trigger will not fire for the
       # tag just pushed - see the header comment - so dispatch it directly
@@ -321,6 +332,7 @@ jobs:
         if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.bump.outputs.tag }}
         run: |
           for attempt in 1 2 3; do
             gh workflow run release.yml --ref "$NEW_TAG" && exit 0

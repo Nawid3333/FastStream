@@ -59,7 +59,11 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Reads the pnpm version from package.json "packageManager", so this
       # workflow cannot drift from CI or from local installs.
@@ -69,7 +73,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           check-latest: true
-          cache: pnpm
+          # No cache: other workflows' runs write it, and this job holds the AMO keys. setup-node
+          # caches on its own when package.json names a package manager, so it is turned off.
+          package-manager-cache: false
 
       # Before anything is built or signed: a release whose tag disagrees with
       # the version inside it would sign and publish an xpi under the wrong
@@ -121,7 +127,9 @@ jobs:
 
       - name: Generate self-update manifest
         if: steps.sign.outcome == 'success'
-        run: node tools/gen-update-manifest.mjs "${{ github.repository }}" "${{ github.ref_name }}"
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node tools/gen-update-manifest.mjs "$GITHUB_REPOSITORY" "$TAG"
 
       - name: Publish release
         env:

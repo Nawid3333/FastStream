@@ -830,7 +830,7 @@ docker_waits() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says the actionlint image' grep -qF 'it changes the actionlint image, the check every workflow file has to pass, which a person reviews' <(last_comment)
+  check 'says the check image' grep -qF 'it changes the image of a check every workflow file has to pass (actionlint or zizmor), which a person reviews' <(last_comment)
 }
 
 upstream_green() {
