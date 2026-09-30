@@ -907,6 +907,7 @@ export class FastStreamClient extends EventEmitter {
         const hook = this.setupInitHook();
         this.initPromise = hook;
         hook.then(() => {
+          // The next source's may be in the field by then.
           if (this.initPromise === hook) {
             this.initPromise = null;
           }
@@ -1017,25 +1018,19 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   setupInitHook() {
-    // Its player's: a source that never got ready left its hook, and the next source
-    // reused it. That one listened on the old player, so the new one's readiness was only
-    // seen by the interval, up to a second late. Once its player is replaced, the hook
-    // settles, and the flow waiting on it ends (it checks the source).
-    const context = this.context;
     return new Promise((resolve) => {
       let interval = 0;
 
       const hook = () => {
-        const replaced = this.context !== context;
-        if (!replaced && (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0)) return;
+        if (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0) return;
         clearInterval(interval);
-        context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
+        this.context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
         resolve();
       };
 
       interval = setInterval(hook, 1000);
 
-      context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
+      this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
       hook();
     });
   }
@@ -1448,7 +1443,9 @@ export class FastStreamClient extends EventEmitter {
     this.progressData = null;
     this.disableProgressSave = false;
     this.lastProgressSave = 0;
-    // Its hook belongs to the player going; the next source makes its own (setupInitHook).
+    // Its wait for a picture listens on the player going: a source that never got one left
+    // it, and the next source joined it, its own picture then seen only by the wait's
+    // once-a-second check. The next source makes its own.
     this.initPromise = null;
     this.state.bufferBehind = this.options.bufferBehind;
     this.state.bufferAhead = this.options.bufferAhead;
