@@ -1418,10 +1418,6 @@ async function hasVideoSource(frame) {
   return lengths.some((length) => length !== STILLS_LENGTH);
 }
 
-// How long the page's frames get to say what they loaded (recoverSources). They answer
-// within milliseconds, unless the page's own scripts keep them busy.
-const RecoverWaitMs = 500;
-
 /**
  * Whether this background knows a stream of the tab, outside its players.
  * @param {TabHolder} tab - The tab.
@@ -1444,25 +1440,25 @@ function tabHasSources(tab) {
  * page reloaded. A page back from the back-forward cache, or loaded before FastStream
  * was, is the same. Each frame answers with LOADED_MEDIA (recoverFrameSources).
  * @param {TabHolder} tab - The tab.
- * @return {Promise<void>} Resolves once the frames had RecoverWaitMs to answer.
  */
-async function recoverSources(tab) {
+function recoverSources(tab) {
   try {
     chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.REPORT_LOADED_MEDIA}, () => {
       // Each frame answers with a message of its own, not here.
       void chrome.runtime.lastError;
     });
   } catch (e) {
-    return;
+    // The tab is gone.
   }
-  await new Promise((resolve) => setTimeout(resolve, RecoverWaitMs));
 }
 
 /**
  * Takes in what a frame says it loaded (recoverSources): each URL goes through the rules a
  * request's does (onHeadersReceived), by the URL alone, in the order the page asked for
  * them. The requests' own headers are gone; the Referer and Origin the page sent by
- * default stand in for them (pageHeaders).
+ * default stand in for them (pageHeaders). A stream found is then taken in as a detected
+ * one is (onSourceRecieved), which opens the player: after the page's <track> captions
+ * are read, and after Options.replaceDelay, as for a stream the page asks for now.
  * @param {FrameHolder} frame - The frame that answered.
  * @param {{url?: string, document?: string, resources?: Array<Object>}} msg - Its LOADED_MEDIA.
  */
@@ -1495,7 +1491,12 @@ function recoverFrameSources(frame, msg) {
 
     const mode = URLUtils.getModeFromExtension(ext) || (media ? PlayerModes.ACCELERATED_MP4 : modeFromQuery(url));
     if (!mode || getSourceFromURL(frame, url)) continue;
-    addSource(frame, url, mode, headers, typeof resource.time === 'number' ? resource.time : Date.now());
+    onSourceRecieved({
+      url,
+      requestId: -1,
+      customHeaders: headers,
+      time: typeof resource.time === 'number' ? resource.time : undefined,
+    }, frame, mode);
   }
 }
 
@@ -1756,7 +1757,8 @@ async function onSourceRecieved(details, frame, mode) {
 
   if (getSourceFromURL(frame, url)) return;
 
-  addSource(frame, url, mode, customHeaders);
+  // A stream recovered from the page (recoverFrameSources) keeps when the page asked for it.
+  addSource(frame, url, mode, customHeaders, details.time);
   // Its length, read now: by the time a player asks for the page's streams, it is known.
   if (frame.tab.isOn) {
     Lengths.probe({url, mode, headers: customHeaders});
@@ -1841,11 +1843,12 @@ async function onSourceRecieved(details, frame, mode) {
 
 async function openPlayersWithSources(tab) {
   if (!tabHasSources(tab)) {
-    // Streams the page asked for before this background knew of it (recoverSources).
-    await recoverSources(tab);
-    if (!tab.isOn || tab.isMpv) {
-      return;
-    }
+    // Streams the page asked for before this background knew of it (recoverSources). Each
+    // one found opens the player as a stream detected now does (onSourceRecieved): opened
+    // here, it would beat the page's <track> captions and Options.replaceDelay of a stream
+    // the page asks for meanwhile - as it does right after an auto-enable URL loads.
+    recoverSources(tab);
+    return;
   }
 
   let framesWithSources = [];
