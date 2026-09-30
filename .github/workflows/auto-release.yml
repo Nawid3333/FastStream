@@ -22,10 +22,11 @@ name: Auto release
 # by hand before the push you want that version to land on, and this
 # workflow's own next auto-bump continues from there.
 #
-# Loop guard: this workflow's own version-bump commit is itself a push to
-# main, which reruns CI, which would re-trigger this
-# workflow - the `chore: release` head-commit check below is what stops
-# that from repeating forever.
+# Loop guard: this workflow's own version-bump commit is pushed with
+# GITHUB_TOKEN, which starts no workflow, so CI does not run on it (the
+# release commit itself is never CI-tested: it changes only the version).
+# Should CI run on it anyway - a dispatch, a re-run - the `chore: release`
+# head-commit check below skips that run, so a release never releases itself.
 #
 # The tag push below is authenticated with the default GITHUB_TOKEN (via
 # actions/checkout's persisted credentials), and GitHub deliberately does
