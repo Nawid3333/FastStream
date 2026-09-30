@@ -8,6 +8,7 @@ import {SubtitleTrack} from './SubtitleTrack.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {RequestUtils} from './utils/RequestUtils.mjs';
 import {StreamLength} from './utils/StreamLength.mjs';
+import {StreamPick} from './utils/StreamPick.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
@@ -92,9 +93,10 @@ async function recieveSources(request, sendResponse) {
     return;
   }
 
-  // Of the longest: an ad or an intro runs for seconds, the video for minutes or hours.
-  // The rest stay in the list, to choose by hand.
-  const candidates = StreamLength.longest(sources);
+  // The streams the page's video played, when it tells them; else the longest: an ad or an
+  // intro runs for seconds, the video for minutes or hours. The rest stay in the list, to
+  // choose by hand.
+  const candidates = StreamPick.played(sources, request.video) || StreamLength.longest(sources);
 
   // Sources are ordered by time, so we can just choose the first one and it will be the oldest.
   // But we also want to minimize depth
