@@ -387,11 +387,16 @@ check 'opens "Security alerts workflow failed", assigned to the owner' contains 
 check 'mentions the owner and the run URL' contains "$LOG" \
   '@Nawid3333 security-alerts.yml failed: https://github.com/Nawid3333/FastStream/actions/runs/1'
 
-scenario 's37 failure report, already open -> opens nothing' "$report_step" \
-  FX_OPEN='[{"title":"Security alerts workflow failed"}]'
+scenario 's37 failure report, already open -> a comment on it' "$report_step" \
+  FX_OPEN='[{"number":3,"title":"Other"},{"number":12,"title":"Security alerts workflow failed"}]'
 check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'
-check 'says already reported' contains "$FIX/out" \
-  'Already reported in the open issue "Security alerts workflow failed".'
+check 'comments on the open one' contains "$LOG" 'COMMENT [12] [--body-file]'
+check 'the comment mentions the owner and links this run' contains "$LOG" \
+  '@Nawid3333 Failed again: https://github.com/Nawid3333/FastStream/actions/runs/1'
+
+scenario 's38 failure report, the open issues unreadable -> opens one anyway' "$report_step" FX_OPEN='not json'
+check 'succeeds' test "$status" -eq 0
+check 'opens "Security alerts workflow failed"' contains "$LOG" 'CREATE [--title] [Security alerts workflow failed]'
 
 finish

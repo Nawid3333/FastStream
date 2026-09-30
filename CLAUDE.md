@@ -774,8 +774,10 @@ Every push to `main` that passes CI now gets released
 automatically — no separate "ship it" step. `auto-release.yml` waits for
 CI to go green on that branch (`workflow_run`, not `push` directly — a
 red push is never released), then bumps just the trailing build number
-(`1.3.82.0` -> `1.3.82.1` -> ...), commits `chore: release <version>`,
-tags it, and pushes both, then explicitly runs `gh workflow run
+(`1.3.82.0` -> `1.3.82.1` -> ...; past any build number whose tag exists, locally or on
+the remote, since a reverted release takes the version back and leaves its tag), commits
+`chore: release <version>`, tags it, and pushes both in one `git push --atomic` (a
+refused push leaves neither, never a release commit without its tag), then explicitly runs `gh workflow run
 release.yml --ref v<version>` to do the actual build/sign/publish.
 That last step has to be explicit: the tag push is authenticated with the
 default `GITHUB_TOKEN`, and GitHub deliberately does not let a
@@ -859,7 +861,8 @@ the change went in.
   fixtures no longer depend on that (the DASH and HLS ones are encoded with `-bf 0
   -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
-  which runs CI's Linux verify job and its workflows job in WSL, once on each Ubuntu
+  which runs CI's Linux verify job and its workflows job (actionlint, and the `run:`
+  scripts' tests in `tests/workflows`) in WSL, once on each Ubuntu
   release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
   26.04 until `ubuntu-latest` has moved, rolled out Oct 19 - Nov 19 2026), read from the runner image table
   `runner-images.yml` reads, so the pair follows GitHub; a release WSL lacks is
@@ -907,7 +910,14 @@ the change went in.
   id and commit, whatever the run concluded, and "Which CI run?" waits for it to end and
   checks it as the job condition checks the event. A red one, a failed release, or a
   hand-off GitHub refuses opens "Auto release failed", since no one is emailed for a run
-  the token started. The concurrency group is per commit, at job level: a workflow-wide
+  the token started; a failed release on the `workflow_run` path too, since no failed run
+  there has shown that it emails the pusher (2026-09-30). The hand-off takes a run either
+  of whose actors is the token: the owner's re-run of such a run keeps the token as its
+  actor and sends no `workflow_run` either (CI run 36618653582, attempt 2), and released
+  nothing while only the triggering actor was checked. Each failure issue here and in the
+  other workflows' "Report this workflow's own failure" is one issue while it is open, and
+  a failure while it is open adds a comment with its run's link (before, it was dropped).
+  The concurrency group is per commit, at job level: a workflow-wide
   group keeps one pending run and cancels it when another arrives, which could have
   dropped the newest commit's release behind a stale one's. The three scripts ran against
   a fake `gh` in WSL, 47 cases, each of eight mutations caught, and a GLM review before they
@@ -970,7 +980,8 @@ the change went in.
   tooling PR, a shipped one waits for the owner.
 - **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
-  `workflow_dispatch`) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
+  `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
+  tries) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
   `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
   on the same commit, and that run decides (a new run, not a re-run: a re-run by this
   workflow's token would reach no workflow when it ends); not when CI already failed on
@@ -1035,7 +1046,10 @@ the change went in.
   `issues: write`): GitHub refuses the whole run at startup when a called job asks for
   more, even one whose `if:` skips it, and as no job runs, no issue says so (#77's release
   hand-off stopped it so, 2026-09-30). A permission added to a ci.yml job goes in both
-  calls; `tests/unit/workflowPermissions.test.mjs` fails until it does. Never put a
+  calls; `tests/unit/workflowPermissions.test.mjs` fails until it does, and follows a
+  called workflow's own calls down the chain. The image list is read by label shape
+  (`ubuntu-NN.NN`, `windows-NNNN`); a new Ubuntu or Windows Server image with no label of
+  that shape fails the run by name, as it would otherwise go unseen. Never put a
   `schedule:` in `ci.yml`: GitHub disables a public repo's scheduled workflows after 60 days
   without a commit, and it disables the whole file, push trigger included.
 - **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on

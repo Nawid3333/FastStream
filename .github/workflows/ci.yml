@@ -312,8 +312,9 @@ jobs:
   # a run this job starts update-prs.yml by workflow_dispatch instead, with the run's
   # number; it waits for the run to end. Last, after every other job whatever they
   # concluded, and it checks nothing out. Tried three times over two and a half minutes;
-  # if GitHub refuses all three, this job fails, and the owner can start update-prs.yml
-  # from the Actions tab with this run's number and branch.
+  # if GitHub refuses all three, this job fails and, since a run of the token's emails no
+  # one, opens an issue that tells the owner to start update-prs.yml from the Actions tab
+  # with this run's id and branch.
   hand-off:
     name: Hand over to update-prs
     needs: [workflows, verify, e2e-windows]
@@ -327,17 +328,37 @@ jobs:
     timeout-minutes: 5
     permissions:
       actions: write  # start update-prs.yml
+      issues: write   # say so when it cannot
     steps:
       - name: Start update-prs.yml for this run
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
           RUN_ID: ${{ github.run_id }}
           # A pull_request run's ref is the pull request's merge ref; its branch is head_ref.
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Update PRs hand-off failed'
         run: |
           start() { gh workflow run update-prs.yml --ref main -f run_id="$RUN_ID" -f branch="$BRANCH"; }
-          start || { sleep 30; start; } || { sleep 120; start; }
+          if start || { sleep 30; start; } || { sleep 120; start; }; then
+            exit 0
+          fi
+          # This run emails no one, so the owner hears of it here: one issue while it is open,
+          # and a comment on it for each refusal after.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s GitHub refused three times again, for CI run %s on %s (%s): start update-prs.yml by hand with run_id %s and branch %s.\n' \
+              "$OWNER" "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
+          else
+            printf '@%s GitHub refused three times to start update-prs.yml for CI run %s on %s (%s), a run this repository started, so that pull request waits without a word. Start it from the Actions tab: Update PRs, Run workflow, run_id %s and branch %s. Close this issue once it has run.\n' \
+              "$OWNER" "$RUN_ID" "$BRANCH" "$SELF_URL" "$RUN_ID" "$BRANCH" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+          fi
+          exit 1
 
   # auto-release.yml releases main on the workflow_run event of a green push run, which a
   # run this repository's token started sends none of, for the reason above: a re-run of a
@@ -350,13 +371,18 @@ jobs:
   # times like the job above; if all three fail, this job fails and opens an issue that
   # tells the owner to start auto-release.yml from the Actions tab with this run's id. A
   # run called by runner-images.yml carries the caller's name and is left alone.
+  # Either actor: the owner's re-run of a run the token started keeps the token as its
+  # actor, and it sends no workflow_run either (CI run 36618653582, attempt 2, sent none);
+  # it released nothing when only the triggering actor, the owner, was checked. A run that
+  # sends a workflow_run as well is released once: auto-release.yml runs one release of a
+  # commit at a time, and the second finds the first one's bump.
   release-hand-off:
     name: Hand over to auto-release
     needs: [workflows, verify, e2e-windows]
     if: >-
       !cancelled() && github.workflow == 'CI' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.triggering_actor == 'github-actions[bot]'
+      (github.actor == 'github-actions[bot]' || github.triggering_actor == 'github-actions[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -370,15 +396,22 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           RUN_ID: ${{ github.run_id }}
           SHA: ${{ github.sha }}
+          SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Auto release failed'
         run: |
           start() { gh workflow run auto-release.yml --ref main -f run_id="$RUN_ID" -f sha="$SHA"; }
           if start || { sleep 30; start; } || { sleep 120; start; }; then
             exit 0
           fi
-          # This run emails no one, so the owner hears of it here: one issue while it is open.
-          titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title') || titles=''
-          if ! grep -qxF "$TITLE" <<< "$titles"; then
+          # This run emails no one, so the owner hears of it here: one issue while it is open,
+          # and a comment on it for each failure after.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s GitHub refused three times to start auto-release.yml, for CI run %s on main (%s): %s. Start it from the Actions tab: Auto release, Run workflow, run_id %s.\n' \
+              "$OWNER" "$RUN_ID" "${SHA:0:8}" "$SELF_URL" "$RUN_ID" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md" || true
+          else
             printf '@%s GitHub refused three times to start auto-release.yml for CI run %s on main (%s), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id %s. Close this issue once it has run.\n' \
               "$OWNER" "$RUN_ID" "${SHA:0:8}" "$RUN_ID" > "$RUNNER_TEMP/body.md"
             gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true

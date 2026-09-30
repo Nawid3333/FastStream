@@ -96,7 +96,8 @@ jobs:
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
       # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does.
+      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open
+      # adds a comment to it.
       - name: Report this workflow's own failure
         if: failure()
         env:
@@ -104,8 +105,14 @@ jobs:
           TITLE: 'WSL releases workflow failed'
         run: |
           set -euo pipefail
-          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
-            echo "Already reported in the open issue \"$TITLE\"."
+          # A failure while the issue is open is a comment on it with this run's link, so the
+          # issue shows each failure, not only the first. When the issues cannot be read, a
+          # second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
           printf '@%s wsl-releases.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \

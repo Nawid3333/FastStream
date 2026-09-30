@@ -95,15 +95,15 @@ jobs:
       !startsWith(github.event.workflow_run.head_commit.message, 'chore: release '))
     runs-on: ubuntu-latest
     # Up to 400 s waiting for a CI run to end and a minute for a later one to appear, then
-    # a version bump and two pushes; a hung git or gh call should not hold the runner for
+    # a version bump and its push; a hung git or gh call should not hold the runner for
     # GitHub's 6-hour default.
     timeout-minutes: 15
     # One release of a commit at a time, so that a second run of the same commit finds
     # the first one's bump and stops, rather than racing it to the push and going red.
     # (What keeps a version from being released twice is that the bump's push to main is
-    # refused once main has moved, before any tag is pushed.) One group per commit, not
-    # one for all: GitHub keeps one pending job per group and cancels it when another
-    # arrives, whatever cancel-in-progress says, so a release of main's head waiting
+    # refused once main has moved; its tag goes in the same atomic push.) One group per
+    # commit, not one for all: GitHub keeps one pending job per group and cancels it when
+    # another arrives, whatever cancel-in-progress says, so a release of main's head waiting
     # behind another could be replaced by a stale commit's (see restart-cancelled-ci).
     # At job level, so that a run whose job is skipped (CI red, or not a push to main)
     # never takes a place in the group. The owner's dispatch without a sha falls back to
@@ -274,9 +274,23 @@ jobs:
       - name: Bump version, commit, tag, push
         if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
         run: |
+          set -euo pipefail
           CURRENT=$(node -p "require('./package.json').version")
           IFS='.' read -r major minor patch build <<< "$CURRENT"
-          NEW="$major.$minor.$patch.$((10#$build + 1))"
+          build=$((10#$build + 1))
+          # Past every build number whose tag exists: a release commit that was reverted
+          # takes package.json's version back but leaves its tag, and each bump after it
+          # would aim at that tag again and fail, every run. The checkout has every tag
+          # (fetch-depth 0); the remote is asked too, for one pushed since. A failed
+          # ls-remote fails the step rather than read as "no tag".
+          tags=$( { git tag -l "v$major.$minor.$patch.*"
+                    git ls-remote --tags origin "refs/tags/v$major.$minor.$patch.*" | cut -f2 | sed 's|^refs/tags/||'
+                  } | sort -u)
+          while grep -qxF "v$major.$minor.$patch.$build" <<< "$tags"; do
+            echo "v$major.$minor.$patch.$build is taken; skipping it."
+            build=$((build + 1))
+          done
+          NEW="$major.$minor.$patch.$build"
           echo "Bumping $CURRENT -> $NEW"
 
           node -e "
@@ -291,8 +305,10 @@ jobs:
           git add package.json chrome/manifest.json
           git commit -m "chore: release $NEW"
           git tag -a "v$NEW" -m "FastStream $NEW"
-          git push origin HEAD:main
-          git push origin "v$NEW"
+          # One atomic push: when main has moved on, the refused branch update takes the
+          # tag with it. Two pushes could leave main's "chore: release" commit without
+          # its tag when only the second failed, and release.yml never started for it.
+          git push --atomic origin HEAD:main "refs/tags/v$NEW"
 
           echo "NEW_TAG=v$NEW" >> "$GITHUB_ENV"
 
@@ -313,26 +329,41 @@ jobs:
           done
           exit 1
 
-      # A run ci.yml started emails no one when it fails: one issue while it is open,
-      # assigned and @mentioning the owner. (A run the owner started, or one on CI's
-      # workflow_run event, emails them itself.)
+      # A failed release: one issue while it is open, assigned and @mentioning the owner. A
+      # run ci.yml started emails no one. A run on CI's workflow_run event should email the
+      # one who pushed, but no failed run there has ever shown it (none of 91 runs failed),
+      # and a release missed in silence leaves main unreleased; so it reports too. A
+      # dispatch the owner started or re-ran emails them, and is left out.
       - name: Report this workflow's own failure
-        if: failure() && github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]'
+        if: >-
+          failure() && (github.event_name == 'workflow_run' ||
+          (github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]'))
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
+          EVENT: ${{ github.event_name }}
           SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           TITLE: 'Auto release failed'
         run: |
           set -euo pipefail
-          titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title')
-          if grep -qxF "$TITLE" <<< "$titles"; then
-            echo "Already reported in the open issue \"$TITLE\"."
+          # A failure while the issue is open is a comment on it with this run's link, so
+          # the issue shows each failure, not only the first. When the issues cannot be
+          # read, a second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Auto release failed again: %s\n' "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
             exit 0
           fi
-          printf '@%s A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release: %s\n\nThe CI run was red, or a release step failed; the log says which. main'"'"'s newest changes are not released until this is fixed. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          if [ "$EVENT" = workflow_run ]; then
+            what='CI on main passed, and releasing it failed'
+          else
+            what='A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release'
+          fi
+          printf '@%s %s: %s\n\nThe CI run was red, or a release step failed; the log says which. main'"'"'s newest changes are not released until this is fixed. Close this issue once it is fixed; a failure while it is open adds a comment.\n' \
+            "$OWNER" "$what" "$SELF_URL" > "$RUNNER_TEMP/body.md"
           gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
 
   # Restarts a CI run on main that a later run cancelled (see the header). After every CI
@@ -392,10 +423,13 @@ jobs:
               elif any(.[]; .status != "completed") then "running"
               else "" end' "$RUNNER_TEMP/mine.json"
           }
-          report() { # the reason; one issue while it is open
-            titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title')
-            if grep -qxF "$TITLE" <<< "$titles"; then
-              echo "Already reported in the open issue \"$TITLE\"."
+          report() { # the reason; one issue while it is open, and a comment on it after
+            number=$(gh issue list --state open --limit 200 --json number,title \
+              --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+            if [ -n "$number" ]; then
+              printf '@%s CI on main for %s cannot finish either: %s. The run: %s\n' \
+                "$OWNER" "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/comment.md"
+              gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
               exit 0
             fi
             printf '@%s CI on main for %s cannot finish: %s. Its changes are not released until it passes.\n\nThe run: %s\n\nRe-run it from that page (a re-run you start releases as usual once it is green), or push. This issue closes on its own at the next green CI run on main.\n' \
