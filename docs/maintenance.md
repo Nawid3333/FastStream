@@ -21,7 +21,7 @@ workflows, which stay silent while they pass.
 | Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | waits for you | one comment, and the assignment |
 | WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
 | patched libraries | a PR from `patched-libraries.yml` on `patched/<name>-<version>`, with CI dispatched on it | waits for you | one comment, and the assignment |
-| upstream sync | a PR from `sync-upstream.yml`, daily and on every push to `main` | waits for you | one comment, and the assignment |
+| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | waits for you | one comment, and the assignment |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile`, which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
