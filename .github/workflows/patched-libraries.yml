@@ -40,7 +40,7 @@ permissions:
   contents: write       # push the patched/<name>-<version> branch
   pull-requests: write  # open the update pull request
   issues: write         # open the issue when the re-cut stops
-  actions: write        # start CI on the branch
+  actions: write        # start CI and the dependency review on the branch
 
 concurrency:
   group: patched-libraries
@@ -185,7 +185,7 @@ jobs:
                 printf '@%s %s %s is out: %s\n\n' "$OWNER" "$name" "$latest" "$url"
                 printf 'tools/recut-patch.mjs moved the patch from %s onto %s and its checks passed - each patched file parses, and no name is undefined or unused that neither the new release nor the old patch has. Its report:\n\n```\n' "$current" "$latest"
                 cat "$RUNNER_TEMP/report.txt"
-                printf '```\n\nThat is not the proof: CI is, and this workflow has started it on this branch - the full `pnpm run verify` suite, playback included. Green: merge, and it releases. Red, or to look closer: `docs/updating-patched-libraries.md`. Closing this pull request skips %s %s for good.\n' "$name" "$latest"
+                printf '```\n\nThat is not the proof: CI is, and this workflow has started it on this branch - the full `pnpm run verify` suite, playback included - with "Review dependency changes" for what the lockfile adds. Green: merge, and it releases. Red, or to look closer: `docs/updating-patched-libraries.md`. Closing this pull request skips %s %s for good.\n' "$name" "$latest"
                 if [ "${latest%%.*}" != "${current%%.*}" ]; then
                   printf '\nThis is a new **major** version (%s -> %s): read its release notes before merging.\n' "$current" "$latest"
                 fi
@@ -193,7 +193,9 @@ jobs:
               } > "$RUNNER_TEMP/body.md"
               gh pr create --base main --head "$branch" --title "$title" --assignee "$OWNER" \
                 --body-file "$RUNNER_TEMP/body.md"
+              # The pull request's own runs wait for an approval (this token opened it).
               gh workflow run ci.yml --ref "$branch"
+              gh workflow run dependency-review.yml --ref "$branch"
             else
               # shellcheck disable=SC2016
               {

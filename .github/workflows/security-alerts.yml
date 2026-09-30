@@ -1,0 +1,193 @@
+name: Security alerts
+
+# Dependabot opens a pull request for a security fix, and update-prs.yml merges it or hands
+# it to the owner. When Dependabot cannot make the fix - a package the lockfile holds at
+# several majors, as brace-expansion was (2026-09-30) - its "Dependabot Updates" run fails
+# where nobody looks and the alert stays open on the Security tab, with GitHub's alert email
+# as the only notice. So once a day this reads the repository's open Dependabot alerts. A
+# package with an alert over 6 hours old (Dependabot's pull request comes within minutes)
+# and no open Dependabot pull request naming it gets one issue, "Security alert: <package>",
+# assigned to the owner and @mentioning them, listing its alerts and how to fix them by
+# hand. A later alert for that package is added to the open issue with a comment.
+#
+# The issue closes itself once none of the package's alerts is open: fixed on main (GitHub
+# marks an alert fixed once main's lockfile no longer has the version) or dismissed. A
+# push to main that changes a lockfile waits up to 10 minutes for that; the daily run
+# closes what it missed. Closing the issue by hand skips the alerts it lists: the
+# `<!-- alerts: ... -->` line in its body records them, and an alert an issue has listed,
+# open or closed, is never raised again.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - pnpm-lock.yaml
+      - fsaunpack/package-lock.json
+  workflow_dispatch:
+
+permissions:
+  vulnerability-alerts: read  # list the Dependabot alerts
+  pull-requests: read  # see which packages an open Dependabot pull request updates
+  issues: write  # open, update and close the "Security alert" issues
+
+concurrency:
+  group: security-alerts
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the open Dependabot alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      EVENT: ${{ github.event_name }}
+      PREFIX: 'Security alert: '
+    steps:
+      - name: Open, update and close the issues
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          ALERTS="https://github.com/$GH_REPO/security/dependabot"
+
+          # The open alerts, and every issue this workflow ever opened, open or closed, with
+          # the alerts its body lists. A list of issues, not a search: the search index can
+          # lag behind an issue opened minutes ago. The issues endpoint lists pull requests
+          # too, and pages through all of them.
+          fetch_alerts() {
+            gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" \
+              --jq '.[] | {number, created_at, package: .dependency.package.name, manifest: .dependency.manifest_path, severity: .security_advisory.severity, summary: .security_advisory.summary, range: .security_vulnerability.vulnerable_version_range, patched: .security_vulnerability.first_patched_version.identifier}' \
+              | jq -s . > "$T/alerts.json"
+          }
+          fetch_issues() {
+            gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
+              --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | {number, state, package: (.title | ltrimstr(env.PREFIX)), listed: [(.body // "") | capture("<!-- alerts: (?<n>[0-9 ]*) -->") | .n | splits(" +") | select(. != "") | tonumber]}' \
+              | jq -s . > "$T/issues.json"
+          }
+
+          # Close every open issue whose package has no open alert left, naming what became
+          # of each alert it listed. Alert numbers are written "alert 43", never "#43":
+          # GitHub links #43 to issue 43.
+          close_done() {
+            jq -r --slurpfile a "$T/alerts.json" \
+              '.[] | select(.state == "open") | select(.package as $p | any($a[0][]; .package == $p) | not) | [.number, .package, (.listed | map(tostring) | join(" "))] | @tsv' \
+              "$T/issues.json" > "$T/done.tsv"
+            while IFS=$'\t' read -r number package listed; do
+              {
+                # shellcheck disable=SC2016 # backticks are Markdown
+                printf 'No Dependabot alert for `%s` is open any more:\n\n' "$package"
+                for n in $listed; do
+                  printf -- '- [alert %s](%s/%s): %s\n' "$n" "$ALERTS" "$n" "$(gh api "repos/$GH_REPO/dependabot/alerts/$n" --jq .state)"
+                done
+              } > "$T/comment.md"
+              gh issue close "$number" --reason completed --comment "$(cat "$T/comment.md")"
+              echo "Closed #$number ($package)"
+            done < "$T/done.tsv"
+          }
+
+          fetch_alerts
+          fetch_issues
+          close_done
+
+          if [ "$EVENT" = push ]; then
+            # GitHub marks the alerts fixed a few minutes after the push: until then, the
+            # open issues whose package still has an open alert are looked at again every
+            # 30 seconds. A push that fixed none of them waits the whole 10 minutes.
+            for _ in $(seq 1 20); do
+              waiting=$(jq --slurpfile a "$T/alerts.json" \
+                '[.[] | select(.state == "open") | select(.package as $p | any($a[0][]; .package == $p))] | length' \
+                "$T/issues.json")
+              if [ "$waiting" -eq 0 ]; then break; fi
+              echo "$waiting open issue(s) still have an open alert; looking again in 30 seconds."
+              sleep 30
+              fetch_alerts
+              fetch_issues
+              close_done
+            done
+            exit 0
+          fi
+
+          # The packages an open Dependabot pull request updates: Dependabot is fixing those,
+          # and update-prs.yml tells the owner about the pull request. Read from the parts
+          # Dependabot writes itself - the title ("Bump <package> from ..."), the links before
+          # the first <details> ("Bumps [<package>](...)", a grouped update's list, an
+          # ancestor it updates too) and a grouped update's "Updates `<package>` from ..."
+          # lines - not from the release notes and commits quoted below them. A name matched
+          # by mistake only holds the issue back until that pull request is merged or closed.
+          # shellcheck disable=SC2016 # backticks are Markdown, matched by jq
+          gh api --paginate "repos/$GH_REPO/pulls?state=open&per_page=100" \
+            --jq '.[] | select(.user.login == "dependabot[bot]") | (.title | capture("^Bump (?<p>\\S+) from ") | .p), ((.body // "") | (split("<details>")[0] // "") | scan("\\[([^\\]\\[]+)\\]\\(") | .[0]), ((.body // "") | scan("(?m)^Updates `([^`]+)` from ") | .[0])' \
+            | jq -R -s 'split("\n") | map(select(. != "")) | unique' > "$T/pr-packages.json"
+
+          # Per package: the alerts that are due (over 6 hours old, no pull request), the
+          # ones no issue has listed yet, and the open issue, if there is one.
+          jq -r --slurpfile i "$T/issues.json" --slurpfile w "$T/pr-packages.json" --argjson now "$(date -u +%s)" '
+            [.[] | select((.created_at | fromdateiso8601) < $now - 21600)
+                 | select(.package as $p | any($w[0][]; . == $p) | not)]
+            | group_by(.package)[]
+            | .[0].package as $p
+            | [.[].number] as $due
+            | ($due - [$i[0][] | select(.package == $p) | .listed[]]) as $new
+            | select($new | length > 0)
+            | ([$i[0][] | select(.package == $p and .state == "open") | .number][0] // 0) as $open
+            | ([$i[0][] | select(.number == $open) | .listed[]] + $due | unique) as $list
+            | [$p, $open, ($new | map(tostring) | join(" ")), ($list | map(tostring) | join(" "))] | @tsv' \
+            "$T/alerts.json" > "$T/due.tsv"
+
+          while IFS=$'\t' read -r package open new list; do
+            # The alerts it lists that are still open, as a table. The advisory's summary is
+            # another project's text: a | in it is escaped, and a < too, as a
+            # "<!-- alerts: ... -->" in it would hide the real list from the next run.
+            jq -r --arg p "$package" --arg list "$list" --arg base "$ALERTS" '
+              ($list | split(" ") | map(tonumber)) as $l
+              | .[] | select(.package == $p and (.number as $n | any($l[]; . == $n)))
+              | "| [\(.number)](\($base)/\(.number)) | \(.severity) | `\(.manifest)` | `\(.range)` | \(.patched // "none yet") | \(.summary | gsub("[\r\n]+"; " ") | gsub("\\|"; "\\|") | gsub("<"; "&lt;")) |"' \
+              "$T/alerts.json" > "$T/rows.md"
+            {
+              # shellcheck disable=SC2016 # backticks are Markdown
+              printf '@%s Dependabot has open security alerts for `%s` and no pull request that fixes them:\n\n' "$OWNER" "$package"
+              printf '| Alert | Severity | In | Vulnerable | Fixed in | Advisory |\n| --- | --- | --- | --- | --- | --- |\n'
+              cat "$T/rows.md"
+              cat <<EOF
+
+          Dependabot opens a pull request for a security fix when it can; when it cannot, the failed "Dependabot Updates" run on the Actions tab says why (a package the lockfile holds at several majors fails, as brace-expansion did on 2026-09-30). To fix it by hand, on a branch: \`pnpm update $package\` for \`pnpm-lock.yaml\`, or \`npm update $package\` in \`fsaunpack/\` for its lockfile, then check that \`git diff\` changes nothing but that package, and open a pull request. \`docs/maintenance.md\` has the details.
+
+          This issue closes itself once none of these alerts is open: fixed on \`main\`, or dismissed on the Security tab. Closing it by hand skips them: an alert this issue lists is not raised again, though a new one for \`$package\` is.
+
+          <!-- alerts: $list -->
+          EOF
+            } > "$T/body.md"
+
+            if [ "$open" != 0 ]; then
+              gh issue edit "$open" --body-file "$T/body.md"
+              links=$(for n in $new; do printf '[alert %s](%s/%s) ' "$n" "$ALERTS" "$n"; done)
+              if [ "$(wc -w <<< "$new")" -eq 1 ]; then what='Another security alert'; else what='More security alerts'; fi
+              gh issue comment "$open" --body "@$OWNER $what for \`$package\`, with no pull request that fixes it: ${links% }. The list above now includes it."
+              echo "Added alert(s) $new to #$open ($package)"
+            else
+              url=$(gh issue create --title "$PREFIX$package" --assignee "$OWNER" --body-file "$T/body.md")
+              echo "Opened $url ($package: alerts $list)"
+            fi
+          done < "$T/due.tsv"
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as wsl-releases.yml does.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Security alerts workflow failed'
+        run: |
+          set -euo pipefail
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "$TITLE"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s security-alerts.yml failed: %s\n\nThe run log names the failed command. Until it is fixed, a Dependabot alert with no pull request raises no issue. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

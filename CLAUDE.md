@@ -94,11 +94,13 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   and a row whose key another action shares is marked with a warning naming the other action
   (`conflictPartners`; nothing stops the choice, the user may be mid-rearrangement).
 - Locale keys `welcome_page_keybinds_content10` and `content11` exist in all 16 locales.
-  **Gotcha:** `en/messages.json` carries 7 keys that are not in `combined-locales.json`
-  (`extension_toggle_label_mpv`, `options_general_buffer*`, `options_general_blockpopups`,
-  `player_mpv_content_*`), so `localescript.mjs --split` without a whitelist deletes them from
-  en. Both files are formatted with a 4-space indent; keep it, or a one-key change shows up as
-  thousands of changed lines.
+  **Gotcha:** `combined-locales.json` is behind the 16 `messages.json` files (406 keys each,
+  counted 2026-09-30): 15 keys are not in it at all, 17 have only their English text there, and
+  17 single translations (of 2 keys) differ. `localescript.mjs --split` writes it over the
+  locales, so it would delete 495 strings and revert 17; do not run it, edit each locale's
+  `messages.json` instead. (Plain `node localescript.mjs`, which the build runs, only compares
+  keys.) Both files are formatted with a 4-space indent; keep it, or a one-key change shows up
+  as thousands of changed lines.
 - Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
   (the default layout has no clashes and every default has a handler, the storage path, the
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
@@ -122,21 +124,22 @@ lines that matter, and check what it reports against the source.
 
 ```bash
 pnpm install              # pnpm 11, pinned via packageManager
-pnpm run build            # 4 targets -> built/*.zip, unpacked dirs deleted
+pnpm run build            # 3 targets -> built/firefox-*.zip + built/web, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
 pnpm run lint             # eslint (must stay at 0), plus eslint.modules.config.js:
                           # undefined/unused names in chrome/player/modules, which the main
                           # config skips entirely (first-party code lives there next to vendored libs)
 pnpm run lint:amo         # web-ext lint on build_firefox_amo (--self-hosted)
-pnpm run start:ff         # web-ext run — launches Firefox with the extension
+pnpm run start:ff         # rebuilds, then web-ext run on the dev profile (tools/launch-ff.mjs)
 pnpm test                 # vitest
 pnpm run test:ext         # installed extension, ordinary windows
 pnpm run test:ext:github  # the same, against the GitHub self-host build
 pnpm run test:pbm         # installed extension, private windows
 ```
 
-`build:keep` must run before any `lint:amo` or `start:ff` — those need an
-unpacked directory, and a plain build leaves only zips.
+`build:keep` must run before any `lint:amo` or `start:ff:clean` — those need an
+unpacked directory, and a plain build leaves only zips. (`start:ff` and `start:ff:fresh`
+rebuild by themselves.)
 
 ## Manual playback testing
 
@@ -381,7 +384,7 @@ What that fix put in place, and the invariants to keep:
   this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
   accumulation if its OPFS writes throw.
 - `OPFSManager.isSupported()` additionally refuses up front when
-  `EnvUtils.isFirefox() && EnvUtils.isIncognito()`, purely to avoid spawning
+  `EnvUtils.isIncognito()`, purely to avoid spawning
   a worker and logging a `SecurityError` per player open. It is not the
   safety net — the runtime fall-through is, and it has to be, because the
   web build has no `chrome.extension` to read `inIncognitoContext` from and
@@ -434,8 +437,8 @@ with the fix.
 always opens the file picker anyway". Firefox private-window downloads open
 no picker — they land in the download directory under whatever name they are
 given — so both the video and screenshot saves silently used the page title
-instead of asking. Both now skip the prompt only when
-`isChrome() && isIncognito()`.
+instead of asking. Both now always ask (they skipped it only for
+`isChrome() && isIncognito()` until Chrome was dropped).
 
 Deliberately left alone: `FastStreamClient.updateHasDownloadSpace()` still
 refuses to predownload a whole video in a private session
@@ -712,9 +715,11 @@ survival inside a real kill-on-close job object.
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
 
-Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_PROMO`, `NO_UPDATE_CHECKER`.
+Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_UPDATE_CHECKER`; no code carries a
+`FIREFOX` block any more, but both Firefox builds still pass it.
 (`CENSORYT` and `NO_YOUTUBE` existed before YouTube support was removed
-entirely — see "YouTube removal" below — and no longer apply to anything.)
+entirely — see "YouTube removal" below — and no longer apply to anything;
+`NO_PROMO` went with the review prompt on 2026-09-20.)
 
 ## Build targets
 
@@ -735,7 +740,7 @@ e2e suite runs against it, in Firefox.
 
 | Target | Splices | Notes |
 |---|---|---|
-| `firefox-github` | EXTENSION, FIREFOX, NO_PROMO | manual install |
+| `firefox-github` | EXTENSION, FIREFOX | manual install |
 | `firefox-amo` | EXTENSION, FIREFOX, NO_UPDATE_CHECKER | AMO target; min version 142, declares data_collection_permissions |
 | `web` | WEB, NO_UPDATE_CHECKER | faststream.online, no extension APIs |
 
@@ -744,9 +749,8 @@ dist build for now"). Re-enabled in `7ed4723`.
 
 The 12 `EnvUtils.isChrome()`/`isFirefox()` branches elsewhere in the
 codebase (playback-rate caps, the 7.1-audio workaround, OPFS backend
-selection, SponsorBlock's extension ID) were deliberately left in place —
-narrow, self-contained, and not worth the risk of touching working
-audio/playback logic for a small cleanup win.
+selection, SponsorBlock's extension ID), left in place on 2026-09-11, went
+with the rest of Chrome's code on 2026-09-20; none is left.
 
 ## Releasing (auto-release.yml, added 2026-09-12)
 
@@ -827,7 +831,9 @@ the change went in.
 
 - **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm`, `verify:ort` and,
   since 2026-09-25, `verify:vtt`/`verify:knob`/`verify:vad` - `verify:vtt` had been red
-  for three days when nothing ran it), plus a `workflows` job: actionlint with its
+  for three days when nothing ran it - and since 2026-09-30 `verify:fsaunpack`, which
+  installs fsaunpack's own npm lockfile and starts its express test server), plus a
+  `workflows` job: actionlint with its
   bundled shellcheck over every workflow.
 - **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
   and failed on CI). The e2e fixtures are built with the machine's ffmpeg: CI's has
@@ -863,6 +869,31 @@ the change went in.
   job would have checked out that commit with a write token, pushed it and released it.
   When `main` has moved past the commit while CI ran, it stops with a notice (2026-09-28):
   the later push's run releases both, and pushing the bump would only be refused.
+- **Two ways `main`'s changes went unreleased with no one told** (fixed 2026-09-30).
+  (1) A late CI run can cancel the run of `main`'s newest commit: on 2026-09-29 GitHub
+  delivered the push of 3b74403c a second time, after `main` had moved to 477bcd59;
+  through `ci.yml`'s `cancel-in-progress` that run cancelled 477bcd59's, went green, and was
+  rightly not released, being behind `main`. 477bcd59 had no run and no release until it
+  was re-run by hand. `auto-release.yml`'s `restart-cancelled-ci` job now runs after every
+  CI push run on `main`: it finds the newest commit on `main` with a CI run, back to the
+  last release bump, and re-runs that run when it was cancelled and a CI run on `main`
+  started after it did. A run cancelled by hand is left alone; after a third cancelled
+  attempt, or when GitHub refuses the re-run, the issue "CI on main needs a re-run" goes to
+  the owner. (2) A push by `GITHUB_TOKEN` starts no CI (`mpv-updates.yml`'s pin,
+  `update-prs.yml`'s merges), so one landing while CI ran on a commit left that commit's
+  run seeing `main` moved on, to a commit whose run never comes. "Is this commit still
+  main's newest?" now waits a minute for a later commit's CI run on `main` and, with none,
+  starts CI on `main` by dispatch (a release bump after the commit means it is released).
+  Both kinds of run are `GITHUB_TOKEN`'s and send no `workflow_run`: `ci.yml`'s
+  `release-hand-off` job starts `auto-release.yml` by `workflow_dispatch` with the run's
+  id and commit, whatever the run concluded, and "Which CI run?" waits for it to end and
+  checks it as the job condition checks the event. A red one, a failed release, or a
+  hand-off GitHub refuses opens "Auto release failed", since no one is emailed for a run
+  the token started. The concurrency group is per commit, at job level: a workflow-wide
+  group keeps one pending run and cancels it when another arrives, which could have
+  dropped the newest commit's release behind a stale one's. The three scripts ran against
+  a fake `gh` in WSL, 47 cases, each of eight mutations caught, and a GLM review before they
+  went in. Not covered: a push GitHub never delivers.
 - **`release.yml`** checks the tag against `package.json` and `chrome/manifest.json` before
   building, and runs lint + unit tests (a hand-cut tag reaches it without CI). Only
   lowercase `v` tags: the 106 capital-`V` tags in the repository are upstream's, copied at
@@ -919,12 +950,16 @@ the change went in.
   into the extension) and `tooling-minor-and-patch` (everything else), so a tooling
   update is not held back by a shipped one; `update-prs.yml` merges the green
   tooling PR, a shipped one waits for the owner.
-- **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`)
-  for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and `sync/upstream`
-  branches, and never checks out PR code. CI red: failed jobs are rerun once; still
-  red, one comment @mentions the owner with a table of failed job, step and what the
-  step checks, the last 40 lines of each failed log and `main`'s latest CI status, and
-  the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
+- **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
+  for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
+  `workflow_dispatch`) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
+  `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
+  on the same commit, and that run decides (a new run, not a re-run: a re-run by this
+  workflow's token would reach no workflow when it ends); not when CI already failed on
+  that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
+  to start it, this run decides. Still red, one comment @mentions the owner with a
+  table of failed job, step and what the step checks, the last 40 lines of each failed
+  log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
   Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
   only when that bot opened it (not a draft, against `main`) and its commits are the
   bot's or this workflow's merges of `main`, only `package.json` and
@@ -1055,13 +1090,44 @@ the change went in.
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
+- **`mpv-host-changed.yml`** (a push to `main` changing `native-host/faststream-mpv-host.mjs`
+  or `native-host/install.ps1`): the helper runs from the copy install.ps1 puts in
+  `%LOCALAPPDATA%\FastStreamMpvHost`, which a `git pull` leaves alone, so it comments with
+  an @mention on the reminder issue #73: run install.ps1 again, then restart Firefox. Reads
+  only the push event's file list, no checkout; `issues: write` only.
 - **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
   and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
   microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:
   <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
+- **`security-alerts.yml`** (daily, 06:30 UTC; and on a push to `main` that changes a
+  lockfile, closing only), 2026-09-30: Dependabot could not make the security fix for
+  brace-expansion (three majors in the lockfile), its failed run emailed no one, and 12
+  alerts sat on the Security tab unseen. For an open alert over 6 hours old with no open
+  Dependabot PR naming the package (title, the links before the first `<details>`, a
+  grouped update's "Updates" lines), it opens "Security alert: <package>", assigned +
+  @mention; a later alert edits it and comments. The body's `<!-- alerts: ... -->` line
+  records what it listed: a listed alert is never raised again, so closing by hand skips.
+  The advisory summary's `<` is escaped in the table, as a marker in it would hide that
+  line from the next run (which would comment every day). Closes itself when no alert for the package is open. `vulnerability-alerts: read` is
+  what lets `GITHUB_TOKEN` list the alerts (403 without it, checked on a probe branch);
+  actionlint 1.7.12, the latest, does not know that permission, so
+  `.github/actionlint.yaml` ignores that one message for that one file
+  (rhysd/actionlint#666). `tests/workflows/security-alerts.test.sh`: 37 scenarios, and 25
+  mutations of the workflow each fail it. Its stub `gh` applies `--jq` with jq, as CI has
+  it; the real gh uses gojq, built in, and the filters avoid the one difference found
+  (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
+  swapped in too.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
+  Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
+  `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so
+  the `pull_request` run waits for an approval, and the two PR kinds that change the
+  lockfile from outside Dependabot went unreviewed. A dispatched run compares `main` with
+  the commit's hash (`base-ref`/`head-ref`; the compare API answers 404 for an unencoded
+  branch name with a `/`). Checked on two probe branches off `main`: brace-expansion
+  2.1.4 -> 2.1.3 failed on its three high advisories, the fixed lockfile passed.
+  `update-prs.yml` names a review that did not pass in its comment on those PRs.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
 - **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
   assigned to the owner and @mentions them (a bot PR alone is not emailed); a comment
@@ -1091,8 +1157,10 @@ the change went in.
 ## Rules
 
 - **Never hand-edit `chrome/player/modules/*`** — vendored third-party code
-  (dash.mjs 3.5 MB, hls.mjs 1.3 MB, yt.mjs 1.3 MB). Excluded from eslint and
-  tsconfig; they stall the language server otherwise.
+  (dash.mjs 3.3 MB, hls.mjs 1.5 MB). Excluded from eslint and
+  tsconfig; they stall the language server otherwise. Those two and a dozen more are
+  copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
+  a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
 - **`build.mjs` rewrites `chrome/manifest.json` in place** on every run to
   sync the version from `package.json`. The tree is dirty after each build.
   Don't sweep it into an unrelated commit.
@@ -1151,11 +1219,12 @@ output that never showed the error section at all.
 
 ## Vendored libraries
 
-The in-tree hls.js is **1.6.9 with 466 lines of divergence across 22 hunks**
-(1.3%), not a fork. Much of it has already landed upstream. See
-[docs/vendored-libraries.md](docs/vendored-libraries.md) for the full hunk
-classification and the recommended `pnpm patch` approach; the raw diff is
-`docs/hls.js-1.6.9-faststream.patch`.
+hls.js is the npm release, **1.7.3**, plus `patches/hls.js@1.7.3.patch` (the extra
+demuxer exports, `outputSamples` on the remux result and the VTT part-loading guard),
+which pnpm applies at install; dash.js is `dashjs@5.2.1` with its patch the same way. The
+in-tree hls.js they replaced was 1.6.9 with 466 lines of divergence across 22 hunks (1.3%),
+not a fork; that diff is kept as `docs/hls.js-1.6.9-faststream.patch`. See
+[docs/vendored-libraries.md](docs/vendored-libraries.md) for the hunk classification.
 
 Do not try to replace these with wrapper classes — the extra demuxer exports
 that `hls2mp4/transmuxer.mjs` needs have no public-API equivalent in any

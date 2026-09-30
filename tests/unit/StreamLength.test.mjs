@@ -104,6 +104,19 @@ function float32(value) {
 const EBML_HEADER = ebml(0x1A45DFA3, ebml(0x4282, new TextEncoder().encode('webm')));
 const SEEK_HEAD = ebml(0x114D9B74, ebml(0x4DBB, new Uint8Array(12)));
 
+// An Info in the default timecode scale, with a length in its ticks or without one.
+function info(duration) {
+  const scale = ebml(0x2AD7B1, new Uint8Array([0x0F, 0x42, 0x40]));
+  return duration === undefined ?
+    ebml(0x1549A966, scale) :
+    ebml(0x1549A966, scale, ebml(0x4489, float64(duration)));
+}
+
+// Tracks with one TrackEntry, and a Cluster with a timecode and a block: skipped unread.
+const TRACKS = ebml(0x1654AE6B, ebml(0xAE, new Uint8Array(8)));
+const CLUSTER = ebml(0x1F43B675, ebml(0xE7, u32(1600)), ebml(0xA3, new Uint8Array(32)));
+const VOID = ebml(0xEC, new Uint8Array(20));
+
 describe('StreamLength.fromMp4', () => {
   it('reads the length from a movie header version 0', () => {
     expect(StreamLength.fromFile(concat(ftyp, box('moov', mvhd(0, 1000, 90500))))).toEqual({duration: 90.5});
@@ -219,6 +232,41 @@ describe('StreamLength.fromWebm', () => {
     expect(StreamLength.fromFile(concat(EBML_HEADER, ebmlUnknownSize(0x18538067),
         ebmlUnknownSize(0x1F43B675)))).toBeNull();
     expect(StreamLength.fromWebm(concat(ebml(0x1A45DFA3), ebml(0x1654AE6B)))).toBeNull();
+  });
+
+  // A DASH WebM stream keeps its pieces in files of their own, as an MP4 stream does: a
+  // media segment starts at its Cluster, with no EBML header before it. Read as unknown,
+  // it ranked 600 s, over a short title's manifest.
+  it('takes a media segment for a piece of a stream: a Cluster, with no header before it', () => {
+    expect(StreamLength.fromFile(CLUSTER)).toEqual({duration: PIECE_LENGTH});
+    expect(StreamLength.fromFile(ebmlUnknownSize(0x1F43B675))).toEqual({duration: PIECE_LENGTH});
+    // Only at a file's start: a read further into a file is not a file of its own.
+    expect(StreamLength.fromFile(CLUSTER, 4096)).toBeNull();
+  });
+
+  // And its init segment is the header and the Tracks. ffmpeg's DASH muxer writes no
+  // length in its Info, so it ranked as unknown too; with one, it would tie with the
+  // manifest. It plays nothing by itself either way.
+  it('takes an init segment for a piece of a stream: Tracks, and no Cluster, where the file ends', () => {
+    const init = concat(EBML_HEADER, ebmlUnknownSize(0x18538067), SEEK_HEAD, VOID, info(1452345), TRACKS);
+    expect(StreamLength.fromFile(init, 0, true)).toEqual({duration: PIECE_LENGTH});
+    expect(StreamLength.fromFile(concat(EBML_HEADER, ebmlUnknownSize(0x18538067), info(), TRACKS), 0, true))
+        .toEqual({duration: PIECE_LENGTH});
+    // Not where the read stopped short of the file's end: its Clusters may follow.
+    expect(StreamLength.fromFile(init)).toEqual({duration: 1452.345});
+    expect(StreamLength.fromFile(concat(EBML_HEADER, ebmlUnknownSize(0x18538067), info(), TRACKS))).toBeNull();
+    // Nor without the Tracks, or without anything after the Segment's start.
+    expect(StreamLength.fromFile(concat(EBML_HEADER, ebmlUnknownSize(0x18538067), info(1452345)), 0, true))
+        .toEqual({duration: 1452.345});
+    expect(StreamLength.fromFile(concat(EBML_HEADER, ebmlUnknownSize(0x18538067)), 0, true)).toBeNull();
+  });
+
+  it('keeps the length of a whole file that ends inside one read, and none for a live stream', () => {
+    const header = concat(EBML_HEADER, ebmlUnknownSize(0x18538067), SEEK_HEAD, VOID);
+    expect(StreamLength.fromFile(concat(header, info(1452345), TRACKS, CLUSTER, CLUSTER), 0, true))
+        .toEqual({duration: 1452.345});
+    expect(StreamLength.fromFile(concat(header, info(), TRACKS, ebmlUnknownSize(0x1F43B675)), 0, true))
+        .toBeNull();
   });
 });
 

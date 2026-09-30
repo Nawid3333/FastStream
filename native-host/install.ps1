@@ -29,7 +29,7 @@ if (-not (Test-Path $HostScript)) {
 
 $nodeCmd = (Get-Command $NodePath -ErrorAction SilentlyContinue).Source
 if (-not $nodeCmd) {
-    Write-Error "node not found. Install Node.js (>=20) or pass -NodePath <path-to-node.exe>."
+    Write-Error "node not found. Install Node.js (22 or newer) or pass -NodePath <path-to-node.exe>."
     exit 1
 }
 

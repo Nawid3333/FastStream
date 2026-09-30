@@ -37,6 +37,8 @@ const EBML_SEGMENT = 0x18538067;
 const EBML_INFO = 0x1549A966;
 const EBML_TIMECODE_SCALE = 0x2AD7B1;
 const EBML_DURATION = 0x4489;
+const EBML_TRACKS = 0x1654AE6B;
+const EBML_CLUSTER = 0x1F43B675;
 
 export class StreamLength {
   /**
@@ -131,10 +133,15 @@ export class StreamLength {
    *   that are neither, or tell no length.
    */
   static fromFile(bytes, offset = 0, ended = false) {
-    if (offset === 0 && bytes.length >= 4 &&
-        new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0) === EBML_MAGIC) {
-      const duration = StreamLength.fromWebm(bytes);
+    const first = offset === 0 && bytes.length >= 4 ?
+      new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(0) : null;
+    if (first === EBML_MAGIC) {
+      const duration = StreamLength.fromWebm(bytes, ended);
       return duration ? {duration} : null;
+    }
+    // A WebM media segment: a Cluster, with no EBML header before it. WebM's moof.
+    if (first === EBML_CLUSTER) {
+      return {duration: PIECE_LENGTH};
     }
     return StreamLength.fromMp4(bytes, offset, ended);
   }
@@ -269,9 +276,10 @@ export class StreamLength {
   /**
    * Reads a WebM (Matroska) file's length from its Segment > Info.
    * @param {Uint8Array} bytes - The start of the file.
-   * @return {number|null} Seconds, or null.
+   * @param {boolean} [ended=false] - Whether the file ends where the bytes do.
+   * @return {number|null} Seconds (PIECE_LENGTH for an init segment), or null.
    */
-  static fromWebm(bytes) {
+  static fromWebm(bytes, ended = false) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     let pos = 0;
 
@@ -308,40 +316,55 @@ export class StreamLength {
       return null;
     }
 
+    // The Segment's children, as far as the bytes go: the Info tells the length, the
+    // Tracks what the stream holds, a Cluster its media.
+    /** @type {number|null} */
+    let seconds = null;
+    let tracks = false;
+    let media = false;
     while (pos < bytes.length) {
       const id = readVint(true);
       const size = readVint(false);
       if (id === null || size === null) {
-        return null;
+        break;
       }
-      if (id !== EBML_INFO) {
-        pos += size;
-        continue;
-      }
-
-      const end = Math.min(bytes.length, pos + size);
-      let scale = 1000000;
-      let duration = 0;
-      while (pos < end) {
-        const childId = readVint(true);
-        const childSize = readVint(false);
-        if (childId === null || childSize === null || pos + childSize > end) {
-          break;
-        }
-        if (childId === EBML_TIMECODE_SCALE && childSize >= 1 && childSize <= 8) {
-          scale = 0;
-          for (let i = 0; i < childSize; i++) {
-            scale = scale * 256 + bytes[pos + i];
+      const next = pos + size;
+      if (id === EBML_INFO && seconds === null) {
+        const end = Math.min(bytes.length, next);
+        let scale = 1000000;
+        let duration = 0;
+        while (pos < end) {
+          const childId = readVint(true);
+          const childSize = readVint(false);
+          if (childId === null || childSize === null || pos + childSize > end) {
+            break;
           }
-        } else if (childId === EBML_DURATION && (childSize === 4 || childSize === 8)) {
-          duration = childSize === 4 ? view.getFloat32(pos) : view.getFloat64(pos);
+          if (childId === EBML_TIMECODE_SCALE && childSize >= 1 && childSize <= 8) {
+            scale = 0;
+            for (let i = 0; i < childSize; i++) {
+              scale = scale * 256 + bytes[pos + i];
+            }
+          } else if (childId === EBML_DURATION && (childSize === 4 || childSize === 8)) {
+            duration = childSize === 4 ? view.getFloat32(pos) : view.getFloat64(pos);
+          }
+          pos += childSize;
         }
-        pos += childSize;
+        seconds = duration * scale / 1e9;
+      } else if (id === EBML_TRACKS) {
+        tracks = true;
+      } else if (id === EBML_CLUSTER) {
+        media = true;
       }
-      const seconds = duration * scale / 1e9;
-      return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+      pos = next;
     }
-    return null;
+
+    // An init segment: the Tracks, and the file ends before any Cluster. It plays nothing
+    // by itself, whatever its Info says (ffmpeg's DASH muxer gives it no length there, so
+    // it read as unknown).
+    if (ended && tracks && !media) {
+      return PIECE_LENGTH;
+    }
+    return seconds !== null && Number.isFinite(seconds) && seconds > 0 ? seconds : null;
   }
 
   /**

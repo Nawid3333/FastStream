@@ -16,7 +16,9 @@ name: Update PRs
 #   routine     toolchain-updates.yml's pnpm update within its major. Only when every one
 #               of these holds: opened by that bot and only its commits on it; it changes
 #               package.json and pnpm-lock.yaml and nothing else; not a major version;
-#               Dependabot's dependency review passed; the branch holds the newest main,
+#               Dependabot's dependency review passed; every package version it adds to
+#               pnpm-lock.yaml is 7 days old on the npm registry (Dependabot's cooldown
+#               holds back only what it bumps); the branch holds the newest main,
 #               so what merges is exactly what CI tested; and CI's build of the extension
 #               is file for file the one in the latest release, the version number aside.
 #               That last one is auto-release.yml's own test: such a merge would release
@@ -70,7 +72,7 @@ permissions:
   pull-requests: write  # comment, assign, label, merge
   issues: write         # the ci-failed label, and the issue when this workflow fails
   actions: write        # start CI once more, or on an updated branch
-  checks: read          # Dependabot's dependency review
+  checks: read          # the dependency review's check runs
 
 concurrency:
   group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
@@ -304,6 +306,24 @@ jobs:
             gh pr edit "$number" --remove-label "$LABEL" > /dev/null
           fi
 
+          # The "Review dependency changes" check on a commit: "success" when a run of it passed,
+          # "missing" when there is none, else the newest run's conclusion (the API lists them
+          # in no stated order). A run still going ("pending") and a failed request are asked
+          # again for up to 5 minutes; a request that keeps failing gives "unreadable".
+          review_of() {
+            local review=missing
+            if [ -z "$1" ]; then echo missing; return; fi
+            for _ in $(seq 10); do
+              review=$(gh api "repos/$GH_REPO/commits/$1/check-runs?check_name=Review%20dependency%20changes" \
+                --jq '[.check_runs[] | {id, c: (.conclusion // "pending")}] |
+                  if any(.c == "success") then "success" elif length == 0 then "missing" else max_by(.id).c end') ||
+                review=unreadable
+              if [ "$review" != pending ] && [ "$review" != unreadable ]; then break; fi
+              sleep 30
+            done
+            echo "$review"
+          }
+
           # Why this one waits for the owner, if it does.
           reasons=()
           case $kind in
@@ -316,6 +336,14 @@ jobs:
             upstream) reasons+=("taking upstream's commits is your decision") ;;
             *) reasons+=("branch $BRANCH is not one this workflow merges") ;;
           esac
+          # An upstream sync or patched-library pull request changes the lockfile, and its own
+          # pull_request runs wait for an approval, so sync-upstream.yml and
+          # patched-libraries.yml start the dependency review on the branch, next to CI. The
+          # pull request waits for the owner anyway; a review that did not pass is named.
+          if [ "$kind" = upstream ] || [ "$kind" = patched ]; then
+            review=$(review_of "$SHA")
+            if [ "$review" != success ]; then reasons+=("its dependency review (\"Review dependency changes\", started on this branch) is $review"); fi
+          fi
           if [ ${#reasons[@]} = 0 ]; then
             if [ "$(jq -r .isDraft <<< "$pr")" = true ]; then reasons+=('it is a draft'); fi
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
@@ -336,16 +364,44 @@ jobs:
               # Dependency review runs on Dependabot's own push (a pull_request event), not on
               # a run this workflow starts: the newest Dependabot commit's review counts.
               reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")
-              review=''
-              for _ in $(seq 10); do
-                review=$(gh api "repos/$GH_REPO/commits/$reviewed/check-runs?check_name=Review%20dependency%20changes" \
-                  --jq '[.check_runs[] | .conclusion // "pending"] |
-                    if any(. == "success") then "success" elif length == 0 then "missing" else first end' \
-                  2> /dev/null || echo missing)
-                if [ "$review" != pending ]; then break; fi
-                sleep 30
-              done
+              review=$(review_of "$reviewed")
               if [ "$review" != success ]; then reasons+=("Dependabot's dependency review is $review"); fi
+              # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
+              # new lockfile brings in with them: a sub-dependency published an hour ago comes
+              # along unseen, and a poisoned release is usually caught within days. Every
+              # package version this pull request adds to pnpm-lock.yaml must be 7 days old,
+              # or a person merges it. Whatever cannot be checked counts as too young.
+              lock_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
+              if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/pnpm-lock.yaml?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
+                 gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/pnpm-lock.yaml?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
+                # One name@version per line: the keys of the lockfile's packages section.
+                entries() {
+                  awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
+                    tr -d "'" | LC_ALL=C sort -u
+                }
+                entries "$RUNNER_TEMP/lock.base" > "$RUNNER_TEMP/lock.base.txt"
+                entries "$RUNNER_TEMP/lock.head" > "$RUNNER_TEMP/lock.head.txt"
+                cutoff=$(date -u -d '7 days ago' +%s)
+                young=()
+                while IFS= read -r entry; do
+                  name=${entry%@*}
+                  version=${entry##*@}
+                  published=$(curl -fsSL --retry 2 --max-time 60 "https://registry.npmjs.org/${name/\//%2F}" |
+                    jq -r --arg v "$version" '.time[$v] // empty' 2> /dev/null || true)
+                  seconds=''
+                  if [ -n "$published" ]; then seconds=$(date -u -d "$published" +%s 2> /dev/null || true); fi
+                  if [ -z "$seconds" ]; then
+                    young+=("$entry (age unknown)")
+                  elif [ "$seconds" -gt "$cutoff" ]; then
+                    young+=("$entry (published ${published:0:10})")
+                  fi
+                done < <(LC_ALL=C comm -13 "$RUNNER_TEMP/lock.base.txt" "$RUNNER_TEMP/lock.head.txt")
+                if [ ${#young[@]} != 0 ]; then
+                  reasons+=("its lockfile adds package versions under 7 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
+                fi
+              else
+                reasons+=('its pnpm-lock.yaml could not be read, to check how old the package versions it adds are')
+              fi
             fi
             if [ "$kind" = pnpm ]; then
               pinned=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=main" |

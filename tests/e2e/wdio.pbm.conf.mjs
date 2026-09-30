@@ -26,7 +26,8 @@
 
 import path from 'node:path';
 
-import {config as base, EXTENSION_ID} from './wdio.extension.conf.mjs';
+import {keepDriverLogs} from './driverLogs.mjs';
+import {BUILD, config as base, EXTENSION_ID} from './wdio.extension.conf.mjs';
 
 // ExtensionPermissions and AddonManager are chrome-privileged, and
 // browser.setMozContext('chrome') is a WebDriver-classic command that the
@@ -45,6 +46,7 @@ export const config = {
   ...base,
   capabilities: caps,
   specs: [path.join(import.meta.dirname, 'pbm-specs/**/*.e2e.mjs')],
+  onWorkerEnd: keepDriverLogs(base.outputDir, `pbm-${BUILD}`),
 
   before: async function(...args) {
     // Installs the add-on and sets the shared globals.

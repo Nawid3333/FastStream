@@ -548,21 +548,23 @@ describe('Save video (locally generated fMP4)', function() {
           client.freeFragment(client.getFragments(levels[0])[-1]);
           player.downloadFragment = () => Promise.reject(new Error('Failed to download fragment'));
 
-          let error = null;
+          // saveError, not error: over WebDriver classic (see tests/e2e/bidi.mjs) a result
+          // with an `error` field reads as a failed command, and this one has it on success.
+          let saveError = null;
           try {
             await player.saveVideo({onProgress: () => {}, registerCancel: () => {}, partialSave: false});
           } catch (e) {
-            error = e.message;
+            saveError = e.message;
           }
           const pinned = levels.flatMap((level) => (client.getFragments(level) || [])
               .filter((frag) => frag && frag.references.includes(ReferenceTypes.SAVER))
               .map((frag) => `${level}/${frag.sn}`));
-          done({error, pinned});
-        }).catch((e) => done({error: 'test setup: ' + e.message, pinned: null}));
+          done({saveError, pinned});
+        }).catch((e) => done({saveError: 'test setup: ' + e.message, pinned: null}));
       });
       console.log('      result:', JSON.stringify(result));
 
-      expect(result.error).toBe('Failed to download fragment');
+      expect(result.saveError).toBe('Failed to download fragment');
       expect(result.pinned).toEqual([]);
     });
   }

@@ -59,6 +59,12 @@ jobs:
           fi
           docker run --rm -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo "$image" -color
 
+      - name: Workflow script tests
+        # tests/workflows: the run: scripts that decide something (merge, comment, open an
+        # issue), each run as GitHub runs it against a stubbed gh. Needs bash, jq, git,
+        # node and python3, which the runner has; about 20 seconds.
+        run: bash tests/workflows/run.sh
+
   verify:
     name: Lint, test and build
     runs-on: ${{ inputs.linux-runner || 'ubuntu-latest' }}
@@ -118,6 +124,12 @@ jobs:
       # (2026-09-22 to 09-25) when nothing ran it. Early, because they take seconds.
       - name: Vendored file provenance (vtt.js, knob, VAD model)
         run: pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad
+
+      # fsaunpack, the .fsa archive helper, has its own npm lockfile and nothing else runs
+      # it: this installs that lockfile (install scripts off) and starts its test server,
+      # so a Dependabot pull request for its express is tested at all. Seconds.
+      - name: fsaunpack test server
+        run: pnpm run verify:fsaunpack
 
       # ffmpeg (Firefox on Linux decodes H.264/AAC through it), the e2e ports reserved,
       # and the current stable Firefox - the one users run - as FIREFOX_BINARY.
@@ -331,3 +343,49 @@ jobs:
         run: |
           start() { gh workflow run update-prs.yml --ref main -f run_id="$RUN_ID" -f branch="$BRANCH"; }
           start || { sleep 30; start; } || { sleep 120; start; }
+
+  # auto-release.yml releases main on the workflow_run event of a green push run, which a
+  # run this repository's token started sends none of, for the reason above: a re-run of a
+  # run a late run cancelled, or CI on main that auto-release.yml starts when main moved on
+  # by pushes that start none (both in auto-release.yml). For such a run this job starts
+  # auto-release.yml by workflow_dispatch instead, with the run's id; it waits for the
+  # run to end and checks it as it checks the event. Whatever the other jobs concluded:
+  # auto-release.yml reports a red one, which no one would otherwise hear of. The commit
+  # goes along, so that auto-release.yml runs one release of it at a time. Tried three
+  # times like the job above; if all three fail, this job fails and opens an issue that
+  # tells the owner to start auto-release.yml from the Actions tab with this run's id. A
+  # run called by runner-images.yml carries the caller's name and is left alone.
+  release-hand-off:
+    name: Hand over to auto-release
+    needs: [workflows, verify, e2e-windows]
+    if: >-
+      !cancelled() && github.workflow == 'CI' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.triggering_actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write  # start auto-release.yml
+      issues: write   # say so when it cannot
+    steps:
+      - name: Start auto-release.yml for this run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          TITLE: 'Auto release failed'
+        run: |
+          start() { gh workflow run auto-release.yml --ref main -f run_id="$RUN_ID" -f sha="$SHA"; }
+          if start || { sleep 30; start; } || { sleep 120; start; }; then
+            exit 0
+          fi
+          # This run emails no one, so the owner hears of it here: one issue while it is open.
+          titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title') || titles=''
+          if ! grep -qxF "$TITLE" <<< "$titles"; then
+            printf '@%s GitHub refused three times to start auto-release.yml for CI run %s on main (%s), a run this repository started. Start it from the Actions tab: Auto release, Run workflow, run_id %s. Close this issue once it has run.\n' \
+              "$OWNER" "$RUN_ID" "${SHA:0:8}" "$RUN_ID" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md" || true
+          fi
+          exit 1

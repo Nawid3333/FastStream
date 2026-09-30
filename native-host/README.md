@@ -69,7 +69,8 @@ detached spawn is used.
 
 ## Requirements
 
-- Node.js >= 20 (building this repository needs 22)
+- Node.js 22 or newer, as for building this repository. CI tests the host with
+  the version in the repository's `.nvmrc`.
 - mpv on your machine (e.g. `C:\Program Files\mpv\mpv.exe`)
 
 ## Setup

@@ -3,7 +3,6 @@ import {Localize} from '../../modules/Localize.mjs';
 import {WebVTT} from '../../modules/vtt.mjs';
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
-import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
 import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -382,9 +381,9 @@ export class SubtitlesManager extends EventEmitter {
       // The track's name, as its tooltip has it: the row shows it cut to 30 characters and,
       // with more than one track on, after its place ("1: ").
       const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_');
-      // EnvUtils, since `chrome` is not declared at all in the web build, where
-      // chrome?.extension threw a ReferenceError and the button did nothing.
-      const dlname = EnvUtils.isIncognito() ? suggestedName : await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+      // Asked in a private window too: a Firefox save lands straight in the download
+      // directory under whatever name is passed, as SaveManager says.
+      const dlname = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
       if (!dlname) {
         return;

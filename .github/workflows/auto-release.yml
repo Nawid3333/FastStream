@@ -44,40 +44,142 @@ name: Auto release
 # fork's commit (head_sha) with this job's write token, pushed it to main and
 # released it. The job condition therefore also requires a push event from
 # this repository, as the sibling Python repos' auto-release.yml does.
+#
+# Two ways main's newest changes could go unreleased with no one told (since
+# 2026-09-30). A late CI run can cancel the run of main's newest commit: ci.yml
+# cancels a run on main when another one starts, and on 2026-09-29 GitHub
+# delivered the push of an older commit a second time, after main had moved on;
+# that run cancelled the newest commit's, went green, and was not released
+# because main had moved on. The restart-cancelled-ci job below starts such a run
+# again. And a push by this repository's token (mpv-updates.yml's pin,
+# update-prs.yml's merges) starts no CI: one landing while CI ran on a commit
+# left that commit's run seeing main moved on, to a commit whose run never comes.
+# "Is this commit still main's newest?" now starts CI on main by dispatch then.
+# Both runs are this repository's token's, so they send no workflow_run when they
+# end; ci.yml's "Hand over to auto-release" job starts this workflow for them by
+# workflow_dispatch instead, and the "Which CI run?" step checks that run as the
+# job condition checks the event's. A push GitHub never delivers at all is not
+# covered.
 
 on:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
     branches: [main]
+  # A CI run this repository's token started (a re-run, or CI on main started below)
+  # sends no workflow_run when it ends: GitHub starts no workflow for what its own token did.
+  # ci.yml's "Hand over to auto-release" job starts this instead, with the run's id and
+  # commit. The owner can do the same from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "The id of a CI run on main to release (the number at the end of its URL, .../actions/runs/<id>)"
+        required: true
+      sha:
+        description: "The commit that run is on (optional; ci.yml passes it)"
+        required: false
 
 permissions:
   contents: write
   actions: write
-
-# Never run two of these at once - two overlapping pushes both computing
-# "current version + 1" at the same time would tag the same version twice.
-# Queue rather than cancel, so every green push still gets its own release.
-concurrency:
-  group: auto-release
-  cancel-in-progress: false
+  issues: write  # report a failed release this workflow was started for by ci.yml
 
 jobs:
   auto-release:
     if: >
+      github.event_name == 'workflow_dispatch' || (
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      !startsWith(github.event.workflow_run.head_commit.message, 'chore: release ')
+      !startsWith(github.event.workflow_run.head_commit.message, 'chore: release '))
     runs-on: ubuntu-latest
-    # A version bump and two pushes; a hung git or gh call should not hold the
-    # runner for GitHub's 6-hour default.
-    timeout-minutes: 10
+    # Up to 400 s waiting for a CI run to end and a minute for a later one to appear, then
+    # a version bump and two pushes; a hung git or gh call should not hold the runner for
+    # GitHub's 6-hour default.
+    timeout-minutes: 15
+    # One release of a commit at a time, so that a second run of the same commit finds
+    # the first one's bump and stops, rather than racing it to the push and going red.
+    # (What keeps a version from being released twice is that the bump's push to main is
+    # refused once main has moved, before any tag is pushed.) One group per commit, not
+    # one for all: GitHub keeps one pending job per group and cancels it when another
+    # arrives, whatever cancel-in-progress says, so a release of main's head waiting
+    # behind another could be replaced by a stale commit's (see restart-cancelled-ci).
+    # At job level, so that a run whose job is skipped (CI red, or not a push to main)
+    # never takes a place in the group. The owner's dispatch without a sha falls back to
+    # a group of its run.
+    concurrency:
+      group: auto-release-${{ github.event.workflow_run.head_sha || inputs.sha || inputs.run_id }}
+      cancel-in-progress: false
     steps:
+      # The run this releases: from the event, or for a run started by its id, read once
+      # that run has ended (ci.yml's hand-off starts this from inside it), under the same
+      # conditions as the job's own.
+      - name: Which CI run?
+        id: run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          EVENT_RUN_ID: ${{ github.event.workflow_run.id }}
+          EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          INPUT_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = workflow_run ]; then
+            printf 'ok=yes\nid=%s\nsha=%s\n' "$EVENT_RUN_ID" "$EVENT_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! [[ $INPUT_RUN_ID =~ ^[0-9]+$ ]]; then
+            echo "::error::run_id is '$INPUT_RUN_ID', not a CI run's id."
+            exit 1
+          fi
+          echo '{}' > "$RUNNER_TEMP/run.json"
+          for _ in $(seq 40); do
+            # A failed look is tried again with the next one.
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$INPUT_RUN_ID" > "$RUNNER_TEMP/look.json"; then
+              mv "$RUNNER_TEMP/look.json" "$RUNNER_TEMP/run.json"
+            fi
+            if [ "$(jq -r .status "$RUNNER_TEMP/run.json")" = completed ]; then break; fi
+            sleep 10
+          done
+          # ci.yml starts this from its last job, so the run ends within seconds.
+          if [ "$(jq -r .status "$RUNNER_TEMP/run.json")" != completed ]; then
+            echo "::error::CI run $INPUT_RUN_ID has not ended after 400 s; not released."
+            exit 1
+          fi
+          # The group this run waited in is the commit's only when the sha given is the run's.
+          if [ -n "$INPUT_SHA" ] && [ "$INPUT_SHA" != "$(jq -r .head_sha "$RUNNER_TEMP/run.json")" ]; then
+            echo "::error::CI run $INPUT_RUN_ID is not on $INPUT_SHA."
+            exit 1
+          fi
+          # ci.yml hands such a run over whatever its jobs concluded: a red run that the
+          # repository's token started emails no one, so it fails this job, which reports it.
+          # Cancelled means a newer run took over.
+          conclusion=$(jq -r .conclusion "$RUNNER_TEMP/run.json")
+          if [ "$conclusion" != success ] && [ "$conclusion" != cancelled ]; then
+            echo "::error::CI run $INPUT_RUN_ID concluded $conclusion; nothing is released."
+            exit 1
+          fi
+          why=$(jq -r --arg repo "$GITHUB_REPOSITORY" '
+            if (.path | split("@")[0]) != ".github/workflows/ci.yml" then "it is not a CI run"
+            elif .conclusion != "success" then "it concluded \(.conclusion)"
+            elif .event != "push" and .event != "workflow_dispatch" then "it ran on a \(.event) event, not a push"
+            elif .head_branch != "main" then "it ran on \(.head_branch), not main"
+            elif .head_repository.full_name != $repo then "it ran on \(.head_repository.full_name)"
+            elif (.head_commit.message | startswith("chore: release ")) then "it is a release bump"
+            else "" end' "$RUNNER_TEMP/run.json")
+          if [ -n "$why" ]; then
+            echo "::notice::CI run $INPUT_RUN_ID is not released: $why."
+            echo 'ok=no' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf 'ok=yes\nid=%s\nsha=%s\n' "$INPUT_RUN_ID" "$(jq -r .head_sha "$RUNNER_TEMP/run.json")" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.run.outputs.ok == 'yes'
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ steps.run.outputs.sha }}
           fetch-depth: 0
 
       # CI uploads its build of this commit (faststream-bundles); compare it file by
@@ -89,9 +191,10 @@ jobs:
       # unzip, any difference at all.
       - name: Did anything shipped change since the last release?
         id: shipped
+        if: steps.run.outputs.ok == 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_ID: ${{ steps.run.outputs.id }}
         run: |
           set -uo pipefail
           release=yes
@@ -119,19 +222,48 @@ jobs:
       # A push that landed while CI ran is on main now, on top of this commit, and its own
       # CI run releases this commit's changes with its own. Bumping here would be refused
       # at the push (main is no longer this commit) and the run would go red for nothing.
+      # (If that newer run was cancelled by a stale one, restart-cancelled-ci starts it again.)
+      # But a push by this repository's token starts no CI (mpv-updates.yml's pin,
+      # update-prs.yml's merges): when no commit after this one has a CI run on main a
+      # minute after this one ended, this starts one on main, and that run releases both
+      # (since 2026-09-30). A release bump after this commit has released it already.
       - name: Is this commit still main's newest?
         id: head
         if: steps.shipped.outputs.release == 'yes'
         env:
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.run.outputs.sha }}
         run: |
+          set -euo pipefail
           main=$(git ls-remote origin refs/heads/main | cut -f1)
           if [ "$main" = "$HEAD_SHA" ]; then
             echo "current=yes" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::main moved on to ${main:0:8} while CI ran on ${HEAD_SHA:0:8}. That push's own run releases both; nothing to do here."
-            echo "current=no" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "current=no" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GH_REPO/compare/$HEAD_SHA...$main" > "$RUNNER_TEMP/compare.json"
+          if [ "$(jq -r .status "$RUNNER_TEMP/compare.json")" != ahead ]; then
+            echo "::notice::${HEAD_SHA:0:8} is not on main any more; nothing to release."
+            exit 0
+          fi
+          bump=$(jq -r '[.commits[] | select(.commit.message | startswith("chore: release "))][0].sha // ""' "$RUNNER_TEMP/compare.json")
+          if [ -n "$bump" ]; then
+            echo "::notice::The release bump ${bump:0:8} after ${HEAD_SHA:0:8} has released it already."
+            exit 0
+          fi
+          jq -r '.commits[].sha' "$RUNNER_TEMP/compare.json" > "$RUNNER_TEMP/newer.txt"
+          for _ in 1 2 3 4 5 6; do
+            gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?branch=main&exclude_pull_requests=true&per_page=100" \
+              --jq '.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch") | .head_sha' > "$RUNNER_TEMP/ran.txt"
+            if grep -qxFf "$RUNNER_TEMP/newer.txt" "$RUNNER_TEMP/ran.txt"; then
+              echo "::notice::main moved on to ${main:0:8} while CI ran on ${HEAD_SHA:0:8}. A later commit's CI run releases both; nothing to do here."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::notice::main moved on to ${main:0:8} while CI ran on ${HEAD_SHA:0:8}, by pushes that start no CI. Starting CI on main; that run releases both."
+          gh workflow run ci.yml --ref main
 
       - name: Configure git identity
         if: steps.shipped.outputs.release == 'yes' && steps.head.outputs.current == 'yes'
@@ -180,3 +312,150 @@ jobs:
             sleep 20
           done
           exit 1
+
+      # A run ci.yml started emails no one when it fails: one issue while it is open,
+      # assigned and @mentioning the owner. (A run the owner started, or one on CI's
+      # workflow_run event, emails them itself.)
+      - name: Report this workflow's own failure
+        if: failure() && github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Auto release failed'
+        run: |
+          set -euo pipefail
+          titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title')
+          if grep -qxF "$TITLE" <<< "$titles"; then
+            echo "Already reported in the open issue \"$TITLE\"."
+            exit 0
+          fi
+          printf '@%s A CI run on main that this repository started (a re-run, or a run for pushes that start none) did not lead to a release: %s\n\nThe CI run was red, or a release step failed; the log says which. main'"'"'s newest changes are not released until this is fixed. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+  # Restarts a CI run on main that a later run cancelled (see the header). After every CI
+  # push run on main ends, whatever it concluded, it finds the newest commit on main with a
+  # CI run of its own, back to the last release bump: the pushes after that commit, if any,
+  # were by this repository's token, which start no CI and ship nothing (update-prs.yml's
+  # merges, mpv-updates.yml's pin). With no such commit there is nothing to release. Then:
+  #
+  # - a run still going, or a green one: nothing is missing (when main has moved on from
+  #   a green commit, "Is this commit still main's newest?" starts CI on main itself);
+  # - the newest run red: red is the release gate; nothing to do;
+  # - the newest run cancelled, and a CI run on main started after it did: started again.
+  #   With no such run it was cancelled by hand, and is left alone. (A run cancelled by
+  #   hand is restarted all the same once a CI run of an older commit starts after it:
+  #   the run list cannot tell the two apart.)
+  #
+  # When its third attempt was cancelled too, or GitHub refuses the re-run, one issue asks
+  # the owner instead; the next green CI run on main closes it. This job never releases or
+  # pushes anything.
+  restart-cancelled-ci:
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write  # gh run rerun
+      issues: write
+    # Each run reads the state afresh, so when several wait, only the newest has to run.
+    concurrency:
+      group: restart-cancelled-ci
+      cancel-in-progress: false
+    steps:
+      - name: Was a CI run on main cancelled by a later one?
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          TITLE: 'CI on main needs a re-run'
+        run: |
+          set -euo pipefail
+          # Newest first; main is linear (no force-pushes, squash merges).
+          gh api "repos/$GH_REPO/commits?sha=main&per_page=30" \
+            --jq '.[] | [.sha, (.commit.message | split("\n")[0])] | @tsv' > "$RUNNER_TEMP/commits.tsv"
+          # CI's runs on main, newest first. Only a push or a dispatched run shares main's
+          # concurrency group; a pull request's run can come from a fork's branch called main.
+          fetch() {
+            gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?branch=main&exclude_pull_requests=true&per_page=100" \
+              --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")]' > "$RUNNER_TEMP/runs.json"
+            jq --arg sha "$sha" '[.[] | select(.head_sha == $sha)]' "$RUNNER_TEMP/runs.json" > "$RUNNER_TEMP/mine.json"
+          }
+          settled() { # prints how the commit's runs stand when nothing is missing
+            jq -r 'if any(.[]; .conclusion == "success") then "green"
+              elif any(.[]; .status != "completed") then "running"
+              else "" end' "$RUNNER_TEMP/mine.json"
+          }
+          report() { # the reason; one issue while it is open
+            titles=$(gh issue list --state open --limit 200 --json title --jq '.[].title')
+            if grep -qxF "$TITLE" <<< "$titles"; then
+              echo "Already reported in the open issue \"$TITLE\"."
+              exit 0
+            fi
+            printf '@%s CI on main for %s cannot finish: %s. Its changes are not released until it passes.\n\nThe run: %s\n\nRe-run it from that page (a re-run you start releases as usual once it is green), or push. This issue closes on its own at the next green CI run on main.\n' \
+              "$OWNER" "${sha:0:8}" "$1" "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$id" > "$RUNNER_TEMP/body.md"
+            gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+            exit 0
+          }
+          sha=''
+          fetch
+          while IFS=$'\t' read -r commit subject; do
+            if [[ $subject == 'chore: release '* ]]; then break; fi
+            if jq -e --arg c "$commit" 'any(.[]; .head_sha == $c)' "$RUNNER_TEMP/runs.json" > /dev/null; then
+              sha=$commit
+              break
+            fi
+          done < "$RUNNER_TEMP/commits.tsv"
+          if [ -z "$sha" ]; then
+            echo "::notice::No commit on main since the last release has a CI run: they came by this repository's token, whose pushes start none and ship nothing."
+            exit 0
+          fi
+          fetch
+          state=$(settled)
+          case $state in
+            running)
+              echo "${sha:0:8}, the newest commit on main with a CI run, has one going; nothing is missing."
+              exit 0 ;;
+            green)
+              echo "${sha:0:8}, the newest commit on main with a CI run, has a green one; nothing is missing."
+              for number in $(gh issue list --state open --limit 200 --json number,title --jq ".[] | select(.title == \"$TITLE\") | .number"); do
+                gh issue close "$number" --comment "CI on main is green again, on ${sha:0:8}. Closing."
+              done
+              exit 0 ;;
+          esac
+          jq 'max_by(.run_started_at)' "$RUNNER_TEMP/mine.json" > "$RUNNER_TEMP/newest.json"
+          id=$(jq -r .id "$RUNNER_TEMP/newest.json")
+          conclusion=$(jq -r .conclusion "$RUNNER_TEMP/newest.json")
+          attempt=$(jq -r .run_attempt "$RUNNER_TEMP/newest.json")
+          if [ "$conclusion" != cancelled ]; then
+            echo "::notice::CI run $id on ${sha:0:8}, the newest commit on main with a CI run, concluded $conclusion. Red is the release gate; nothing to do."
+            exit 0
+          fi
+          later=$(jq --slurpfile newest "$RUNNER_TEMP/newest.json" \
+            '[.[] | select(.id != $newest[0].id and .run_started_at > $newest[0].run_started_at)] | length' \
+            "$RUNNER_TEMP/runs.json")
+          if [ "$later" = 0 ]; then
+            echo "::notice::CI run $id on ${sha:0:8} was cancelled, and no CI run on main started after it: cancelled by hand, so left alone."
+            exit 0
+          fi
+          if [ "$attempt" -ge 3 ]; then
+            report "its attempt $attempt was cancelled by a later run too"
+          fi
+          echo "::notice::A later CI run cancelled run $id on ${sha:0:8} (attempt $attempt). Starting it again."
+          if gh run rerun "$id"; then
+            exit 0
+          fi
+          # Another run of this job may have started it a moment ago.
+          sleep 15
+          fetch
+          state=$(settled)
+          case $state in
+            running|green) echo "It has been started meanwhile."; exit 0 ;;
+          esac
+          report "GitHub refused to start run $id again"

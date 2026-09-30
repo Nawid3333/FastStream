@@ -75,9 +75,10 @@ updates:
 
   # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
   # express (fsaunpack/, its own package.json and package-lock.json). It is not
-  # part of the extension, and CI neither installs nor runs it, so a green run says
-  # nothing about an update here. Every one waits for the owner: update-prs.yml
-  # merges only PRs that change nothing but the root package.json and
+  # part of the extension. CI installs that lockfile and starts the test server on a
+  # recorded archive (pnpm run verify:fsaunpack). Every update still waits for the
+  # owner, by his choice: the helper runs on his PC, where npm runs install scripts.
+  # update-prs.yml merges only PRs that change nothing but the root package.json and
   # pnpm-lock.yaml.
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
