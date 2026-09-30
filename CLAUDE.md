@@ -827,7 +827,9 @@ the change went in.
 
 - **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm`, `verify:ort` and,
   since 2026-09-25, `verify:vtt`/`verify:knob`/`verify:vad` - `verify:vtt` had been red
-  for three days when nothing ran it), plus a `workflows` job: actionlint with its
+  for three days when nothing ran it - and since 2026-09-30 `verify:fsaunpack`, which
+  installs fsaunpack's own npm lockfile and starts its express test server), plus a
+  `workflows` job: actionlint with its
   bundled shellcheck over every workflow.
 - **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
   and failed on CI). The e2e fixtures are built with the machine's ffmpeg: CI's has

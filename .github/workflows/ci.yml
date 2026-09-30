@@ -119,6 +119,12 @@ jobs:
       - name: Vendored file provenance (vtt.js, knob, VAD model)
         run: pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad
 
+      # fsaunpack, the .fsa archive helper, has its own npm lockfile and nothing else runs
+      # it: this installs that lockfile (install scripts off) and starts its test server,
+      # so a Dependabot pull request for its express is tested at all. Seconds.
+      - name: fsaunpack test server
+        run: pnpm run verify:fsaunpack
+
       # ffmpeg (Firefox on Linux decodes H.264/AAC through it), the e2e ports reserved,
       # and the current stable Firefox - the one users run - as FIREFOX_BINARY.
       - name: e2e setup
