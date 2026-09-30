@@ -67,12 +67,21 @@ case "$1 $2" in
       files,commits) cat "$STATE/prview.json" ;;
       mergeable)
         n=$(cat "$STATE/mergeable_calls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STATE/mergeable_calls"
-        if [ "$n" -le "$(cat "$STATE/mergeable_unknown" 2> /dev/null || echo 0)" ]; then echo UNKNOWN; else cat "$STATE/mergeable"; fi
+        m=$(cat "$STATE/mergeable")
+        if [ "$n" -le "$(cat "$STATE/mergeable_unknown" 2> /dev/null || echo 0)" ]; then m=UNKNOWN; fi
+        jq -n --arg m "$m" '{mergeable: $m}' > "$STATE/m.json"
+        jqout "$STATE/m.json"
         ;;
       headRefOid)
-        if [ -f "$STATE/head_moved" ] || { [ -f "$STATE/updated" ] && [ ! -f "$STATE/head_stuck" ]; }; then echo 'ffffffffffffffffffffffffffffffffffffffff'; else echo "$SHA"; fi
+        head=$SHA
+        if [ -f "$STATE/head_moved" ] || { [ -f "$STATE/updated" ] && [ ! -f "$STATE/head_stuck" ]; }; then head=ffffffffffffffffffffffffffffffffffffffff; fi
+        jq -n --arg h "$head" '{headRefOid: $h}' > "$STATE/h.json"
+        jqout "$STATE/h.json"
         ;;
-      state) cat "$STATE/pr_state" 2> /dev/null || echo OPEN ;;
+      state)
+        jq -n --arg s "$(cat "$STATE/pr_state" 2> /dev/null || echo OPEN)" '{state: $s}' > "$STATE/s.json"
+        jqout "$STATE/s.json"
+        ;;
       state,headRefOid)
         head=$SHA
         if [ -f "$STATE/head_moved" ] || { [ -f "$STATE/updated" ] && [ ! -f "$STATE/head_stuck" ]; }; then head=ffffffffffffffffffffffffffffffffffffffff; fi
@@ -287,6 +296,7 @@ published() { # <name> <version> <ISO time>: when the npm registry says that ver
   jq --arg v "$2" --arg t "$3" '.time[$v] = $t' "$f" > "$f.new" && mv "$f.new" "$f"
 }
 days_ago() { date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%S.000Z; }
+hours_ago() { date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%S.000Z; }
 
 bundle() { # <dir name> <version> <player.js content>: a firefox-github zip
   local d=$STATE/$1
@@ -539,6 +549,7 @@ green_no_artifact() {
   setup
   rm "$STATE/new.zip"
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
 }
@@ -687,6 +698,8 @@ green_behind_three_times() {
   m="Merge branch 'main' into $BRANCH"
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'github-actions[bot]' "$m"), $(commit 'github-actions[bot]' "$m x"), $(commit 'github-actions[bot]' "$m y")]"
   run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'no fourth update' bash -c '! grep -q update-branch "$0"' "$STATE/gh.log"
   check 'waits for the owner' grep -qF 'main moved on 3 times' <(last_comment)
 }
@@ -696,6 +709,8 @@ green_again_same() {
   bundle new 1.3.82.40 'changed()'
   run_step
   run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'one comment, edited' test "$(comments_n)" -eq 1
   check 'edited' has_call 'api -X PATCH repos/me/fs/issues/comments/1000'
 }
@@ -708,6 +723,8 @@ red_then_green() {
   pr app/dependabot false '[{"name":"ci-failed"}]'
   export CONCLUSION=success
   run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'a second comment for the new verdict' test "$(comments_n)" -eq 2
   check 'label removed' grep -qx 'removed ci-failed' "$STATE/labels"
 }
@@ -730,7 +747,9 @@ pnpm_same_major() {
   check 'exit 0' test "$rc" -eq 0
   check 'merged' merged
   check 'no dependency review asked' bash -c '! grep -q check-runs "$0"' "$STATE/gh.log"
-  check 'package.json read at the merge base' has_call 'contents/package.json?ref=1111111111111111111111111111111111111111'
+  check "main's pnpm read, as the raw file" has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=main'
+  check 'package.json read at the merge base, raw' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=1111111111111111111111111111111111111111'
+  check "and the pull request's, raw" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=$sha"
   check 'no lockfile read: that check is for Dependabot pull requests' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
 }
 
@@ -755,6 +774,7 @@ pnpm_package_manager_mismatch() {
   prview '["package.json"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 11.27.1')]"
   jq '.packageManager = "pnpm@11.99.0"' "$STATE/main-package.json" > "$STATE/head-package.json"
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says so' grep -qF 'changes more than packageManager' <(last_comment)
 }
@@ -765,6 +785,7 @@ pnpm_lockfile_changed() {
   pr app/github-actions
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 11.27.1')]"
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says so' grep -qF 'it changes pnpm-lock.yaml' <(last_comment)
 }
@@ -775,6 +796,7 @@ pnpm_major() {
   pr app/github-actions
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 12.6.0')]"
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says another major' grep -qF 'pnpm 12.6.0 is another major' <(last_comment)
 }
@@ -800,6 +822,36 @@ node_waits() {
   check '@mentions' grep -qF '@nawid CI passes' <(last_comment)
   check 'assigned' grep -qx nawid "$STATE/assignees"
   check 'skip hint' grep -qF 'skips this version for good' <(last_comment)
+}
+
+docker_waits() {
+  setup
+  export BRANCH='dependabot/docker/actionlint-1234'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says the actionlint image' grep -qF 'it changes the actionlint image, the check every workflow file has to pass, which a person reviews' <(last_comment)
+}
+
+upstream_green() {
+  # Reviewed and green: still the owner's to take.
+  setup
+  export BRANCH='sync/upstream'
+  pr app/github-actions
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF "taking upstream's commits is your decision" <(last_comment)
+  check 'assigned' grep -qx nawid "$STATE/assignees"
+}
+
+other_base() {
+  setup
+  jq '.[0].baseRefName = "release"' "$STATE/prs.json" > "$STATE/p.json" && mv "$STATE/p.json" "$STATE/prs.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF 'it does not target main' <(last_comment)
 }
 
 actions_waits() {
@@ -1003,6 +1055,7 @@ compare_after_bundle() {
   # The behind-main check is the last call before the merge.
   setup
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'compare right before the merge' bash -c 'grep -E "^(api repos/me/fs/compare|pr merge|release download|run download)" "$0" | tail -n 2 | head -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
 }
 
@@ -1012,6 +1065,7 @@ compare_after_bundle() {
 lock_nothing_added() {
   setup
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'reads the merge base lockfile' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=1111111111111111111111111111111111111111'
   check "and the pull request's" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=$sha"
   check 'asks the registry nothing' test ! -s "$STATE/curl.log"
@@ -1034,13 +1088,33 @@ lock_young_package() {
   setup
   lock_adds left-pad@1.3.0 pnpm@11.28.2
   published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  published pnpm 11.28.2 "$(days_ago 6)"
+  pub=$(days_ago 6)
+  published pnpm 11.28.2 "$pub"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published $(days_ago 6 | cut -c1-10))" <(last_comment)
+  check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published ${pub:0:10})" <(last_comment)
   check 'not the old one' bash -c '! grep -qF left-pad <<< "$0"' "$(last_comment)"
   check 'assigned' grep -qx nawid "$STATE/assignees"
+}
+
+lock_just_under_7_days() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 167)"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
+}
+
+lock_just_over_7_days() {
+  setup
+  lock_adds pnpm@11.28.2
+  published pnpm 11.28.2 "$(hours_ago 169)"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
 }
 
 lock_changed_version() {
@@ -1080,6 +1154,7 @@ lock_head_unreadable() {
   setup
   : > "$STATE/lock_unreadable_$sha"
   run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
 }
@@ -1132,6 +1207,9 @@ pnpm_major
 pnpm_by_dependabot_author
 node_waits
 actions_waits
+docker_waits
+upstream_green
+other_base
 patched_waits
 upstream_red
 patched_review_passed
@@ -1155,6 +1233,8 @@ compare_after_bundle
 lock_nothing_added
 lock_old_packages
 lock_young_package
+lock_just_under_7_days
+lock_just_over_7_days
 lock_changed_version
 lock_unknown_age
 lock_base_unreadable
