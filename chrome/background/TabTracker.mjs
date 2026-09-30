@@ -13,6 +13,8 @@ export class FrameHolder {
 
   reset() {
     this.playerOpening = false;
+    // Which openPlayer attempt playerOpening is for (content.js's PLAYER_OPEN_GONE names it).
+    this.playerOpeningAttempt = 0;
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
@@ -63,6 +65,16 @@ export class FrameHolder {
     return this.trackedSources;
   }
 
+  /**
+   * Whether the tab still tracks this frame under its id. A new page in the frame keeps it
+   * (FRAME_ADDED resets it in place); a frame forgotten (FRAME_REMOVED), or dropped with its
+   * page's streams by the reset on a new site (tabs.onUpdated), is no longer the frame of
+   * that id: the next page there gets a new one.
+   * @return {boolean}
+   */
+  isTracked() {
+    return this.tab.getFrame(this.frameId) === this;
+  }
 
   resetSelfAndChildren() {
     let count = this.isPlayer ? 1 : 0;
@@ -80,6 +92,19 @@ export class FrameHolder {
 // How many gone pages a tab remembers (TabHolder.goneDocuments). Navigating a tab would
 // otherwise grow it without end; the oldest go first.
 const GoneDocumentLimit = 16;
+
+/**
+ * @param {string} a - A URL, or anything else.
+ * @param {string} b - Another.
+ * @return {boolean} Whether both are URLs of one hostname.
+ */
+function sameHostname(a, b) {
+  try {
+    return new URL(a).hostname === new URL(b).hostname;
+  } catch (e) {
+    return false;
+  }
+}
 
 export class TabHolder {
   constructor(tracker, tabId) {
@@ -143,6 +168,39 @@ export class TabHolder {
       }
     }
     this.reset();
+  }
+
+  /**
+   * The reset for a tab gone to another site (tabs.onUpdated, a new hostname). It races
+   * the new page's own FRAME_ADDED: a page Firefox's back-forward cache gives back names
+   * itself again and gets its streams back (restoreGoneDocument), and a new page names
+   * itself as its content script starts. Coming after, reset() wiped that page's frame,
+   * and nothing gave it back. A frame 0 that already shows the new site - a page named in
+   * it, at a URL of the new hostname - is that page: it is kept, with the frames under it.
+   * Only a page naming itself moves a frame's URL to another host (FRAME_ADDED). The
+   * player page the tab can be sent to runs no content script, so there frame 0 still
+   * shows the page it replaced, and is dropped as before.
+   * @param {string} url - The URL the tab went to.
+   */
+  resetForNewSite(url) {
+    const kept = [];
+    const zero = this.frames.get(0);
+    if (zero && zero.documentKey && sameHostname(zero.url, url)) {
+      const collect = (frame) => {
+        kept.push(frame);
+        frame.children.forEach(collect);
+      };
+      collect(zero);
+    }
+    this.reset();
+    let players = 0;
+    for (const frame of kept) {
+      this.frames.set(frame.frameId, frame);
+      if (frame.isPlayer) {
+        players++;
+      }
+    }
+    this.playerCount = players;
   }
 
   getFrames() {

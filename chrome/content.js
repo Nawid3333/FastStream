@@ -29,6 +29,7 @@
     HAS_PLAYER: 'HAS_PLAYER',
     REPORT_LOADED_MEDIA: 'REPORT_LOADED_MEDIA',
     LOADED_MEDIA: 'LOADED_MEDIA',
+    PLAYER_OPEN_GONE: 'PLAYER_OPEN_GONE',
   };
 
   const iframeMap = new Map();
@@ -205,10 +206,61 @@
       }
 
       iframeMap.set(request.frameId, newFrameObj);
+      checkPendingPlayers();
 
       updateReplacedPlayers();
     }
   });
+
+  // Player iframes put in the page whose players have not linked up yet (above), with the
+  // attempt OPEN_PLAYER named. A page that takes one out before that (a re-render) runs
+  // nothing in it to say so, and the background kept that frame's player opening
+  // (frame.playerOpening): no player opened there again until the page navigated.
+  const pendingPlayers = new Map();
+  let pendingPlayersWatch = null;
+
+  /**
+   * Watches a player iframe until its player links up, or the page takes it out.
+   * @param {HTMLIFrameElement} iframe - The player's iframe, in the page.
+   * @param {*} attempt - OPEN_PLAYER's attempt; nothing to report without one.
+   */
+  function watchPendingPlayer(iframe, attempt) {
+    if (typeof attempt !== 'number') {
+      return;
+    }
+    pendingPlayers.set(iframe, attempt);
+    if (!pendingPlayersWatch) {
+      pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
+      pendingPlayersWatch.observe(document.documentElement, {childList: true, subtree: true});
+    }
+  }
+
+  /** Reports each pending player iframe out of the page (PLAYER_OPEN_GONE), once. */
+  function checkPendingPlayers() {
+    const linked = new Set();
+    iframeMap.forEach((iframeObj) => linked.add(iframeObj.iframe));
+    pendingPlayers.forEach((attempt, iframe) => {
+      if (linked.has(iframe)) {
+        pendingPlayers.delete(iframe);
+      } else if (!iframe.isConnected) {
+        pendingPlayers.delete(iframe);
+        try {
+          chrome.runtime.sendMessage({
+            type: MessageTypes.PLAYER_OPEN_GONE,
+            attempt,
+          }, () => {
+            void chrome.runtime.lastError;
+          });
+        } catch (e) {
+          // The extension was reloaded under this page: nothing to report to.
+        }
+      }
+    });
+    if (pendingPlayers.size === 0 && pendingPlayersWatch) {
+      pendingPlayersWatch.disconnect();
+      pendingPlayersWatch = null;
+    }
+  }
 
   function frameLoadListener(e) {
     // Find match in iframeMap
@@ -321,6 +373,7 @@
           document.body.appendChild(iframe);
           fillScreenIframe(iframe);
           overlayPlayers.push({iframe, watcher});
+          watchPendingPlayer(iframe, request.attempt);
           console.log('Overlaying iframe');
           sendResponse('replaceall');
         }
@@ -358,6 +411,7 @@
         pobj.video = video.video || (inBox.length === 1 ? inBox[0] : null);
         pobj.played = playedVideo(pobj.video);
         replacedPlayerQueue.push(pobj);
+        watchPendingPlayer(iframe, request.attempt);
 
         updateReplacedPlayer(video.highest, iframe, softReplace);
 

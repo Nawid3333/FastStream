@@ -586,10 +586,17 @@ URL) still names the page it replaced. A player naming a gone page is refused ev
 the reload left no named frame to tell by (a player in an iframe of an iframe). Firefox's
 back-forward cache gives a page back with its content script alive and fetches nothing:
 content.js names the page again on a persisted `pageshow`, and its streams come back by
-its name (random per page, so its URL may have moved on), for the toolbar or a shortcut
-only; nothing opens by itself. On a Back from another site the reset on the new hostname
-can still come after that and drop them: content-cleanup's case passes, but the order is
-not guaranteed. `FRAME_REMOVED` names its page, and a late one from the page before (a
+its name (random per page, so its URL may have moved on), for the toolbar, a shortcut or a
+play in MPV mode; nothing opens by itself. The reset on a new hostname can come after that
+page (or any new page) named itself: it keeps a frame 0 already named at a URL of the new
+hostname, with the frames under it (`resetForNewSite`), where a plain reset wiped them. A
+play on the MPV allowlist sends the page's stream while none went on that page yet
+(`onUserPlay`): a page Back gave back detects nothing for the allowlist to send by itself
+(mpv-shortcut's "on a page Back brought back" cases; a WebDriver click leaves an unload
+listener on the page, which keeps it out of the cache, so the first play there is a
+script's). An open timer fires only for a frame the tab still tracks (`isTracked`): the
+reset on a new site drops frames with their streams on them, and OPEN_PLAYER goes by frame
+id. `FRAME_REMOVED` names its page, and a late one from the page before (a
 known name that is not the frame's) is ignored. A page that takes the player's iframe out
 itself runs no `beforeunload` in it, so the player also reports on `pagehide` (Firefox
 fires it on removal; content-cleanup's case fails without it), and `removePlayers`
