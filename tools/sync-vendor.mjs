@@ -90,6 +90,14 @@ const VENDOR = [
     transform: toSweetAlertModule,
   },
   {
+    // The dialogs' stylesheet, from the same release as the script above. Until 2026-09-30
+    // the copy here was 11.12.4's (2024) while the script followed npm.
+    name: 'sweetalert2',
+    from: 'node_modules/sweetalert2/dist/sweetalert2.css',
+    to: 'chrome/player/assets/sweetalert/css/sweetalert.css',
+    transform: toSweetAlertCss,
+  },
+  {
     // The vendored copy of this was hand-minified by the upstream author
     // ("Minified to reduce loading time (https://minify-js.com/)"), which is
     // the one thing AMO's policy on minified code is explicitly about: a
@@ -301,6 +309,32 @@ function stripLocaleMessageBlock(text) {
  */
 function addSortableNamedExport(src) {
   return normaliseText(src) + '\nexport {Sortable};\n';
+}
+
+/**
+ * sweetalert2's stylesheet with FastStream's changes.
+ *
+ * The dialogs render inside the player's container, not the page's <body> (see
+ * toSweetAlertModule), and sweetalert2 marks that container with the classes it puts on
+ * <body>: its `body.swal2-*` rules match only with the `body` left out. The one that sets
+ * the body's height to auto is dropped, since on the container it would collapse the
+ * player. The rest is tools/sweetalert-overrides.css, appended.
+ *
+ * @param {string} src sweetalert2.css
+ * @return {string} the stylesheet the player loads
+ */
+function toSweetAlertCss(src) {
+  const heightAuto = /^body\.swal2-height-auto \{\n {2}height: auto !important;\n\}\n/m;
+  const text = normaliseText(src);
+  if (!heightAuto.test(text)) {
+    throw new Error('sweetalert2.css: the body.swal2-height-auto rule is not where it was; check the transform');
+  }
+  const scoped = text.replace(heightAuto, '').replaceAll('body.swal2-', '.swal2-');
+  if (/\bbody\b/.test(scoped)) {
+    throw new Error('sweetalert2.css: a rule still names body; check the transform');
+  }
+  const overrides = fs.readFileSync(path.join(root, 'tools/sweetalert-overrides.css'), 'utf8');
+  return scoped + '\n' + normaliseText(overrides);
 }
 
 /**
