@@ -1,5 +1,15 @@
 # FastStream modernisation — checkpoint
 
+**ONNX Runtime 1.30.0 and Mediabunny (2026-09-30):** the VAD runs the stock
+onnxruntime-web 1.30.0 loader/glue/wasm (synced verbatim from npm,
+gitignored) with `silero_vad_half.onnx` - the silero-vad v6.2.1 file,
+sha256-checked by `verify:vad`; the custom reduced wasm, the `.ort`,
+`verify:ort`, `reproduce-ort-wasm.sh` and CI's ORT provenance step are gone
+(`vad.e2e.mjs` reference check: max diff 3.4e-6, 0 of 600 decisions
+changed). mp4-muxer is replaced by Mediabunny 1.60.0 (`reencoder/mp4-writer.mjs`,
+`reencoder/TimestampRebaser.mjs`), and codec failures end a re-encode save
+instead of hanging it. xpi 4.41 MB -> 7.45 MB.
+
 **Chromium dropped (2026-09-20):** Firefox is the only browser this project is written, built and
 tested for. See CLAUDE.md, "Build targets".
 

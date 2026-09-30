@@ -171,17 +171,20 @@ upstream, applies the three documented changes, and asserts the two parse to
 the same program. Editing this line would add a fourth change to that list
 for a warning that isn't pointing at a real problem.
 
-### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vad/ort.wasm.mjs` line 1599
+### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vad/ort.wasm.mjs` line 1440
 
-ONNX Runtime's own `await import(url)` (`webpackIgnore`d), part of its
-proxy-worker mechanism: `dynamicImportDefault` imports a module from a URL
-that was itself built two lines earlier from a same-origin `fetch` and
-`URL.createObjectURL`. The file is **generated unmodified** from
-`onnxruntime-web@1.20.0` by `tools/sync-vendor.mjs`; a reviewer can install
-that version and diff. Generated emscripten/onnxruntime-web glue is not
-something to hand-patch line by line — the correct lever, if this needed to
-change, is the build flags in `tools/reproduce-ort-wasm.sh` and the npm
-release pin, not this file.
+ONNX Runtime's own `await import(url)` (`webpackIgnore`d):
+`dynamicImportDefault = async (url) => (await import(/* webpackIgnore */ url)).default`,
+which in `onnxruntime-web@1.30.0` loads the wasm-glue module beside the
+loader. The `blob:` preload path beside it is taken only when the runtime is
+multi-threaded and the glue sits on another origin — this extension runs ONNX
+Runtime single-threaded (`numThreads 1`: the page is not cross-origin
+isolated) and from its own origin, so that path is not taken here. The file
+is **generated** from `onnxruntime-web@1.30.0` by `tools/sync-vendor.mjs` —
+the only edit is stripping its inline source map — and a reviewer can
+install that version and diff. Generated onnxruntime-web code is not
+something to hand-patch line by line; a change worth making is upstream's
+first.
 
 ### `DANGEROUS_EVAL` x1 — `player/modules/dash.mjs` line 85152
 

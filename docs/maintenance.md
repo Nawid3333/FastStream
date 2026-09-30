@@ -33,11 +33,14 @@ security updates skip the wait. The cooldown covers only the packages it bumps, 
 the new lockfile brings in with them, so `update-prs.yml` looks up every package version a
 Dependabot PR adds to `pnpm-lock.yaml` on the npm registry: one under 7 days old, or whose
 age the registry does not give, makes the PR wait for you, even a tooling one. A poisoned
-release is usually found and pulled within days. The patched libraries, `onnxruntime-web` and `mp4-muxer`
-are ignored by Dependabot on purpose: the patched ones arrive from `patched-libraries.yml`
-(`docs/updating-patched-libraries.md`), `onnxruntime-web` only moves with its wasm
-rebuilt (`docs/vendored-libraries.md`), and `mp4-muxer` is deprecated, its last release
-crashing where the pinned 4.3.3 does not.
+release is usually found and pulled within days. The patched libraries are ignored by
+Dependabot on purpose: they arrive from `patched-libraries.yml`
+(`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
+weekly shipped group, `onnxruntime-web` and `mediabunny` among them since 2026-09-30 (until
+then the first was held for its custom wasm, and `mp4-muxer`, which Mediabunny replaced, for
+a last release that crashed). A PR from that group changes the extension, so it waits for
+you; CI's `tests/e2e/ext-specs/vad.e2e.mjs` and `tests/e2e/specs/modules.e2e.mjs` are what
+check those two. Mediabunny releases every few days, so expect it in most of them.
 A security update Dependabot cannot make itself leaves its alert open with no PR: a
 package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
 2026-09-30), fails in its "Dependabot Updates" run, which emails no one. So

@@ -67,7 +67,7 @@ const MIME = {
   '.wasm': 'application/wasm',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
-  '.ort': 'application/octet-stream',
+  '.onnx': 'application/octet-stream',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   // The local HLS fixtures, with the types HLS servers send.
