@@ -12,21 +12,31 @@ name: Update PRs
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
 #               the update). Nothing is guessed about the cause beyond that.
-#   CI passed,  merged here, with no one asked: Dependabot's minor and patch updates, and
-#   routine     toolchain-updates.yml's pnpm update within its major. Only when every one
-#               of these holds: opened by that bot and only its commits on it; it changes
-#               package.json and pnpm-lock.yaml and nothing else; not a major version;
-#               Dependabot's dependency review passed; every package version it adds to
-#               pnpm-lock.yaml is 7 days old on the npm registry (Dependabot's cooldown
-#               holds back only what it bumps); the branch holds the newest main,
-#               so what merges is exactly what CI tested; and CI's build of the extension
-#               is file for file the one in the latest release, the version number aside.
-#               That last one is auto-release.yml's own test: such a merge would release
-#               nothing, and nothing reaches Firefox untried by the owner.
+#   CI passed,  merged here, with no one asked: Dependabot's minor and patch updates,
+#   routine     toolchain-updates.yml's pnpm update within its major, and
+#               patched-libraries.yml's minor and patch updates. Only when every one of
+#               these holds: opened by that bot and only its commits on it; it changes
+#               package.json and pnpm-lock.yaml and nothing else (a patched library's also
+#               pnpm-workspace.yaml, patches/ and tools/sync-vendor.mjs, what its re-cut
+#               commits); not a major version; its dependency review passed; every package
+#               version it adds to pnpm-lock.yaml is 7 days old on the npm registry
+#               (Dependabot's cooldown holds back only what it bumps); and the branch holds
+#               the newest main, so what merges is exactly what CI tested.
+#               What happens next depends on whether it changes what the extension ships:
+#               - Dependabot's shipped group (the libraries tools/sync-vendor.mjs copies into
+#                 the extension) and the patched libraries do, and are meant to. After the
+#                 merge this starts CI on main (its own merge starts none, see below): a
+#                 green run there releases, through ci.yml's hand-off to auto-release.yml;
+#                 a red one releases nothing, and the watch-main job opens an issue for the
+#                 owner. Nothing is reverted on its own.
+#               - The rest must not: CI's build of the extension must be file for file the
+#                 one in the latest release, the version number aside (auto-release.yml's
+#                 own test), so such a merge releases nothing.
 #   CI passed,  a comment @mentions the owner and assigns them, saying CI is green and
-#   otherwise   why it waits for them: a major, a new Node, GitHub Actions (workflow
-#               files), the actionlint or zizmor image (Dependabot's docker entry), a library the
-#               extension ships, an upstream sync.
+#   otherwise   why it waits for them: the label hold, a major (a shipped or patched
+#               library's too), a new Node, GitHub Actions (workflow files), the actionlint
+#               or zizmor image (Dependabot's docker entry), an upstream sync, a tooling
+#               update whose build differs from the latest release.
 # A run with the same verdict as the pull request's last comment from here edits that
 # comment instead of adding one: the owner hears when a verdict changes, not every run.
 #
@@ -43,8 +53,10 @@ name: Update PRs
 # it the same way for any CI run of an update branch (Actions, Update PRs, Run workflow).
 #
 # The merge is made with this workflow's token, and a push by that token starts no
-# workflow: no CI run on main and no release follow it, which is right, since nothing
-# shipped changed and CI already passed on this exact tree.
+# workflow: no CI run on main and no release follow it. For a merge that ships nothing that
+# is right: CI already passed on this exact tree. For one that ships, this workflow starts
+# CI on main itself (gh workflow run ci.yml --ref main); ci.yml's release-hand-off job
+# hands that run to auto-release.yml, which releases it once green.
 #
 # Runs on CI's completion, with a write token, so it never checks out or runs anything
 # from the pull request: it reads the API, and compares CI's build artifact as data. Only
@@ -67,12 +79,7 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write       # merge, and bring a branch up to date
-  pull-requests: write  # comment, assign, label, merge
-  issues: write         # the ci-failed label, and the issue when this workflow fails
-  actions: write        # start CI once more, or on an updated branch
-  checks: read          # the dependency review's check runs
+permissions: {}  # each job asks for what it needs
 
 concurrency:
   group: update-prs-${{ github.event.workflow_run.head_branch || inputs.branch }}
@@ -80,6 +87,12 @@ concurrency:
 
 jobs:
   decide:
+    permissions:
+      contents: write       # merge, and bring a branch up to date
+      pull-requests: write  # comment, assign, label, merge
+      issues: write         # the ci-failed label, and the issue when this workflow fails
+      actions: write        # start CI once more, on an updated branch, or on main after a merge that ships
+      checks: read          # the dependency review's check runs
     name: Merge, report or hand over an update PR
     # A run whose actor is this repository's own token comes by workflow_dispatch, should
     # GitHub ever send workflow_run for it as well: one decision per run.
@@ -92,7 +105,13 @@ jobs:
         startsWith(github.event.workflow_run.head_branch, 'patched/') ||
         github.event.workflow_run.head_branch == 'sync/upstream'))
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Finding the CI run started on main after a merge that ships adds up to two minutes.
+    timeout-minutes: 28
+    # For watch-main: the CI run started on main after a merge that ships, and the pull
+    # request. Empty after any other outcome.
+    outputs:
+      main-run-id: ${{ steps.decide.outputs.main-run-id }}
+      pr-number: ${{ steps.decide.outputs.pr-number }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
@@ -138,9 +157,10 @@ jobs:
             "$RUNNER_TEMP/run.json" >> "$GITHUB_OUTPUT"
 
       - name: Decide
+        id: decide
         # Its own limit, under the job's: a step that runs out of time fails, and the report
         # step below then runs. Nothing else would tell the owner.
-        timeout-minutes: 13
+        timeout-minutes: 16
         env:
           RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
           RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || steps.run.outputs.attempt }}
@@ -197,6 +217,13 @@ jobs:
             patched/*) kind=patched ;;
             sync/upstream) kind=upstream ;;
             *) kind=other ;;
+          esac
+          # Whether merging it changes what the extension ships, as it is meant to: a
+          # patched library, or Dependabot's shipped group, whose branch Dependabot names
+          # after the group in .github/dependabot.yml (a rename there must come here too).
+          ships=0
+          case $BRANCH in
+            patched/*|dependabot/npm_and_yarn/shipped-minor-and-patch-*) ships=1 ;;
           esac
           # The backticks here and below are Markdown for the comment, not command substitution.
           # shellcheck disable=SC2016
@@ -326,20 +353,55 @@ jobs:
 
           # Why this one waits for the owner, if it does.
           reasons=()
+          # The owner's own "not yet": whatever else holds, a pull request labelled hold is not
+          # merged while the label is on. It was a comment once, and a pull request on hold
+          # (#67) was merged anyway.
+          if jq -e '.labels | any(.name == "hold")' <<< "$pr" > /dev/null; then
+            reasons+=('it is labelled hold: it merges once you take the label off')
+          fi
           case $kind in
             dependabot) bot='dependabot[bot]' ;;
             pnpm) bot='github-actions[bot]' ;;
             actions) reasons+=('it changes workflow files, which a person reviews (and which this token may not merge)') ;;
             docker) reasons+=('it changes the image of a check every workflow file has to pass (actionlint or zizmor), which a person reviews') ;;
             node) reasons+=('a new Node.js major is your decision') ;;
-            patched) reasons+=('a patched library is part of the extension: merging releases it to Firefox') ;;
+            patched) bot='github-actions[bot]' ;;
             upstream) reasons+=("taking upstream's commits is your decision") ;;
             *) reasons+=("branch $BRANCH is not one this workflow merges") ;;
           esac
+          # patched/<name>-<version>: a minor or patch step from the version main's package.json
+          # holds (the one the patch is cut against). The name is the longest of main's
+          # dependencies the branch starts with. Anything that cannot be told (a name main has
+          # not, a version that does not parse, the version main has) waits, as a major does.
+          if [ "$kind" = patched ]; then
+            gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=main" \
+              > "$RUNNER_TEMP/package.main.json"
+            rest=${BRANCH#patched/}
+            library=''
+            version=''
+            while IFS= read -r name; do
+              case $rest in
+                "$name"-[0-9]*)
+                  if [ "${#name}" -gt "${#library}" ]; then library=$name; version=${rest#"$name"-}; fi ;;
+              esac
+            done < <(jq -r '(.dependencies // {}) + (.devDependencies // {}) | keys[]' "$RUNNER_TEMP/package.main.json")
+            current=$(jq -r --arg n "$library" '(.dependencies // {}) + (.devDependencies // {}) | .[$n] // ""' \
+              "$RUNNER_TEMP/package.main.json")
+            semver='^[0-9]+\.[0-9]+\.[0-9]+$'
+            if [ -z "$library" ]; then
+              reasons+=("$BRANCH names no library of main's package.json")
+            elif ! [[ $version =~ $semver ]] || ! [[ $current =~ $semver ]]; then
+              reasons+=("$library $current -> $version cannot be told apart as a minor or patch step")
+            elif [ "$version" = "$current" ]; then
+              reasons+=("main has $library $current already")
+            elif [ "${version%%.*}" != "${current%%.*}" ]; then
+              reasons+=("$library $current -> $version is a major version: read its release notes")
+            fi
+          fi
           # An upstream sync or patched-library pull request changes the lockfile, and its own
           # pull_request runs wait for an approval, so sync-upstream.yml and
-          # patched-libraries.yml start the dependency review on the branch, next to CI. The
-          # pull request waits for the owner anyway; a review that did not pass is named.
+          # patched-libraries.yml start the dependency review on the branch, next to CI. A
+          # review that did not pass is named.
           if [ "$kind" = upstream ] || [ "$kind" = patched ]; then
             review=$(review_of "$SHA")
             if [ "$review" != success ]; then reasons+=("its dependency review (\"Review dependency changes\", started on this branch) is $review"); fi
@@ -355,8 +417,15 @@ jobs:
                 (([.authors[].login] | all(. == "github-actions[bot]")) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
                 | not) | .oid[0:8]' "$RUNNER_TEMP/pr.json")
             if [ -n "$others" ]; then reasons+=("it has commits from someone else ($(tr '\n' ' ' <<< "$others" | sed 's/ $//')): a person's change is merged by a person"); fi
-            files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
-            if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only package.json and pnpm-lock.yaml"); fi
+            if [ "$kind" = patched ]; then
+              # What patched-libraries.yml's re-cut commits, and nothing else.
+              files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml" and
+                . != "pnpm-workspace.yaml" and . != "tools/sync-vendor.mjs" and (startswith("patches/") | not))' "$RUNNER_TEMP/pr.json")
+              if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only what a patch re-cut changes"); fi
+            else
+              files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
+              if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only package.json and pnpm-lock.yaml"); fi
+            fi
             if [ "$kind" = dependabot ]; then
               if jq -e '[.commits[].messageBody] | any(test("update-type: version-update:semver-major"))' "$RUNNER_TEMP/pr.json" > /dev/null; then
                 reasons+=('it holds a major version: read its release notes')
@@ -366,6 +435,8 @@ jobs:
               reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")
               review=$(review_of "$reviewed")
               if [ "$review" != success ]; then reasons+=("Dependabot's dependency review is $review"); fi
+            fi
+            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
               # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
               # new lockfile brings in with them: a sub-dependency published an hour ago comes
               # along unseen, and a poisoned release is usually caught within days. Every
@@ -427,9 +498,10 @@ jobs:
             fi
           fi
 
-          if [ ${#reasons[@]} = 0 ]; then
-            # CI's build against the latest release's, as auto-release.yml compares them, with
-            # manifest.json's version left out: nothing else may differ.
+          # What must not ship: CI's build against the latest release's, as auto-release.yml
+          # compares them, with manifest.json's version left out; nothing else may differ. An
+          # update that ships is meant to differ, and is tried on main instead (below).
+          if [ ${#reasons[@]} = 0 ] && [ "$ships" = 0 ]; then
             tag=$(gh release view --json tagName --jq .tagName 2> /dev/null || true)
             new=$RUNNER_TEMP/new
             old=$RUNNER_TEMP/old
@@ -517,8 +589,33 @@ jobs:
               head_moved
               exit 1
             fi
-            printf 'CI passed (%s), and its build of the extension is file for file the one in %s, the version number aside: nothing reaches Firefox. Merged, with no release.\n' \
-              "$RUN_URL" "$tag" > "$RUNNER_TEMP/body.md"
+            if [ "$ships" = 1 ]; then
+              # The merge started no CI on main (this token's push): CI is started here, and
+              # its run found by the merge commit, for watch-main to follow.
+              main_run=''
+              merged_sha=$(gh pr view "$number" --json mergeCommit --jq '.mergeCommit.oid // ""' || true)
+              if [ -n "$merged_sha" ] && gh workflow run ci.yml --ref main; then
+                for _ in $(seq 12); do
+                  sleep 10
+                  main_run=$(gh run list --workflow ci.yml --branch main --event workflow_dispatch --limit 20 \
+                    --json databaseId,headSha --jq "[.[] | select(.headSha == \"$merged_sha\")][0].databaseId // empty" || true)
+                  if [ -n "$main_run" ]; then break; fi
+                done
+              fi
+              printf 'CI passed (%s). This update changes what the extension ships, and is a minor or patch version: merged.\n\n' \
+                "$RUN_URL" > "$RUNNER_TEMP/body.md"
+              if [ -n "$main_run" ]; then
+                printf 'CI now runs on main with it (%s). A green run there releases it; a red one releases nothing, and an issue tells @%s.\n' \
+                  "$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$main_run" "$OWNER" >> "$RUNNER_TEMP/body.md"
+                printf 'main-run-id=%s\npr-number=%s\n' "$main_run" "$number" >> "$GITHUB_OUTPUT"
+              else
+                printf '@%s CI could not be started on main, or its run did not show up within two minutes: nothing is released until CI passes on main. Start it from Actions, CI, Run workflow, branch main.\n' \
+                  "$OWNER" >> "$RUNNER_TEMP/body.md"
+              fi
+            else
+              printf 'CI passed (%s), and its build of the extension is file for file the one in %s, the version number aside: nothing reaches Firefox. Merged, with no release.\n' \
+                "$RUN_URL" "$tag" > "$RUNNER_TEMP/body.md"
+            fi
             # Another merge can land between the check above and this one (two update pull
             # requests decided at once). The squash commit's parent is then not the main that was
             # checked, and main holds a combination no CI run built: the owner hears of it.
@@ -576,4 +673,77 @@ jobs:
           fi
           printf '@%s update-prs.yml failed while deciding on an update pull request: %s\n\nThat pull request is neither merged nor reported until this is fixed. The run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
             "$OWNER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+  # After a merge that ships: CI on main, which decide started. A green run is released by
+  # auto-release.yml (ci.yml hands it over). A red one releases nothing, and a run this
+  # repository's token started is emailed to no one, so this job waits for it and opens one
+  # issue for the owner, or comments on the open one. Nothing is reverted.
+  watch-main:
+    name: Report a red main after a merge that ships
+    needs: decide
+    if: needs.decide.outputs.main-run-id != ''
+    runs-on: ubuntu-latest
+    # A whole CI run: about 35 minutes, more while runners are busy.
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      SELF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      MAIN_RUN: ${{ needs.decide.outputs.main-run-id }}
+      PR_NUMBER: ${{ needs.decide.outputs.pr-number }}
+    steps:
+      - name: Wait for CI on main, and report a red run
+        env:
+          TITLE: 'CI failed on main after an update merged itself'
+        run: |
+          set -euo pipefail
+          status=''
+          for _ in $(seq 85); do
+            gh api "repos/$GH_REPO/actions/runs/$MAIN_RUN" > "$RUNNER_TEMP/main.json"
+            status=$(jq -r .status "$RUNNER_TEMP/main.json")
+            if [ "$status" = completed ]; then break; fi
+            sleep 60
+          done
+          if [ "$status" != completed ]; then
+            echo "CI run $MAIN_RUN on main has not ended after 85 minutes." >&2
+            exit 1
+          fi
+          conclusion=$(jq -r .conclusion "$RUNNER_TEMP/main.json")
+          url=$(jq -r .html_url "$RUNNER_TEMP/main.json")
+          case $conclusion in
+            success) echo "CI passed on main: auto-release.yml releases it."; exit 0 ;;
+            # Cancelled by a newer run on main, which decides the release instead.
+            cancelled) echo "CI run $MAIN_RUN on main was cancelled: a newer run decides."; exit 0 ;;
+          esac
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s CI failed on main again (%s), after #%s merged itself.\n' "$OWNER" "$url" "$PR_NUMBER" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s CI failed on main (%s) after #%s, an update that changes what the extension ships, merged itself (its own CI run was green). Nothing was released, and nothing was reverted: releases wait until CI passes on main. The failed jobs are in the run. If the update is at fault, revert its merge; close this issue once CI on main is green again.\n' \
+            "$OWNER" "$url" "$PR_NUMBER" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+      - name: Report the watch's own failure
+        if: failure()
+        env:
+          TITLE: 'Update PRs workflow failed'
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again, while it watched CI on main after #%s merged itself: %s\n' "$OWNER" "$PR_NUMBER" "$SELF_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s update-prs.yml failed while it watched CI on main after #%s merged itself: %s\n\nWhether CI passed there is not reported until this is fixed; a red run releases nothing either way. The run log names the failed command. Close this issue once it is fixed.\n' \
+            "$OWNER" "$PR_NUMBER" "$SELF_URL" > "$RUNNER_TEMP/body.md"
           gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

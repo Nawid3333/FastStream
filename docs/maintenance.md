@@ -2,8 +2,11 @@
 
 Nothing merges itself without a green CI run. `update-prs.yml` runs after every
 completed CI run for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-`sync/upstream` branches: it merges the PRs that change nothing the extension
-ships, and hands every other one to the owner with one comment. Updates without a
+`sync/upstream` branches. It merges the routine ones: tooling updates that change nothing
+the extension ships, and minor and patch updates of the libraries it ships (both the
+Dependabot group and the patched libraries). After a merge that ships it starts CI on
+`main`: a green run releases, a red one releases nothing and opens an issue for you, and
+nothing is reverted on its own. Every other PR is handed to you with one comment. Updates without a
 PR - the mpv pin, a runner image, a new Firefox - are watched by their own
 workflows, which stay silent while they pass.
 
@@ -12,7 +15,7 @@ workflows, which stay silent while they pass.
 | What | How it arrives | What happens on green | What reaches you |
 | ---- | -------------- | ---------------------- | ---------------- |
 | npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | merged by `update-prs.yml` | nothing (a comment on the PR records the merge) |
-| npm shipped libraries (fuse.js, pako, sortablejs) | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | waits for you: the build copies them into the extension, so its bundle differs from the release's | one comment, and the assignment |
+| npm shipped libraries (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | merged by `update-prs.yml`, which then starts CI on `main`; a green run there releases it | nothing when `main` stays green; an issue, "CI failed on main after an update merged itself", when not |
 | npm major | a Dependabot PR of its own | waits for you | one comment, and the assignment |
 | fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | waits for you: CI installs it and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`), but the helper runs on your PC, where npm runs install scripts | one comment, and the assignment |
 | GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | waits for you: it changes workflow files | one comment, and the assignment |
@@ -20,7 +23,8 @@ workflows, which stay silent while they pass.
 | pnpm next major | a PR from `toolchain-updates.yml`, once dependabot/dependabot-core#15904 is closed | waits for you | one comment, and the assignment |
 | Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | waits for you | one comment, and the assignment |
 | WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
-| patched libraries | a PR from `patched-libraries.yml` on `patched/<name>-<version>`, with CI dispatched on it | waits for you | one comment, and the assignment |
+| patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | merged by `update-prs.yml` when the version is a minor or patch step from main's, then CI on `main` as above | as above |
+| patched libraries, major | the same | waits for you | one comment, and the assignment |
 | upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | waits for you | one comment, and the assignment |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |

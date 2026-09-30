@@ -30,10 +30,10 @@ name: mpv updates
 # made again. The issue also closes once main pins the latest build, however it got
 # there.
 #
-# Not reported on the issue: this workflow's own failure (shinchiro renaming the builds,
-# the API down). That fails the run, and GitHub emails a failed scheduled run. If CI
-# could not be started on the branch, the branch is deleted first, so the next run tries
-# the build again.
+# This workflow's own failure (shinchiro renaming the builds, the API down) is not a
+# build's: it opens its own issue, "mpv updates workflow failed" (GitHub emails a failed
+# scheduled run only to whoever last changed the cron line). If CI could not be started
+# on the branch, the branch is deleted first, so the next run tries the build again.
 #
 # A pull request that changes this file runs it as a dry run: everything is read and
 # what a real run would do is printed, but nothing is pushed, started or reported.
@@ -318,3 +318,30 @@ jobs:
             } > "$RUNNER_TEMP/body.md"
             report "gone $pinned" "the pinned $pinned is gone upstream" "$RUNNER_TEMP/body.md"
           fi
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as wsl-releases.yml does. A failure while it is open adds a
+      # comment to it.
+      # Not for a pull request's dry run: its failure shows on the pull request.
+      - name: Report this workflow's own failure
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'mpv updates workflow failed'
+        run: |
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s mpv-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
