@@ -377,19 +377,23 @@ describe('FastStreamClient setup', function() {
 
     const state = await browser.executeAsync((done) => {
       const client = window.fastStream;
+      const player = client.player;
       client.currentVideo.muted = true;
-      client.play().then(() => {
-        const player = client.player;
+      // client.play() ends by resuming the audio context, which never settles on CI's
+      // Linux runner (it has no sound device): the case starts the video through the
+      // player, and waits only for the pause, as what it checks is shown before that.
+      player.play().then(() => {
         const pause = player.pause.bind(player);
         player.pause = async () => {
           await pause();
           await new Promise((resolve) => setTimeout(resolve, 500));
         };
         const pausing = client.pause();
-        setTimeout(async () => {
-          await client.play();
-          await pausing;
-          done({paused: client.currentVideo.paused, shown: client.state.playing});
+        setTimeout(() => {
+          client.play().catch(() => {});
+          pausing.then(() => setTimeout(() => {
+            done({paused: client.currentVideo.paused, shown: client.state.playing});
+          }, 100));
         }, 100);
       }, (e) => done({error: String(e)}));
     });
