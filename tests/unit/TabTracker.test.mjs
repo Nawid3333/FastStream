@@ -405,3 +405,25 @@ describe('isTracked', () => {
     expect(next.isTracked()).toBe(true);
   });
 });
+
+// The allowlist's MPV sends a play's stream only on a page the back-forward cache gave back
+// (background.mjs onUserPlay): elsewhere the play's own stream is detected and goes by itself.
+describe('restoredFromCache', () => {
+  it('marks a page given back its streams, until the frame shows another page', () => {
+    const {tab, main} = tabWithEmbed();
+    tab.forgetRemovedFrame(main, 'main');
+    const back = tab.getFrameOrCreate(0);
+    expect(back.restoredFromCache).toBe(false);
+    back.documentKey = 'main';
+    tab.restoreGoneDocument(back);
+    expect(back.restoredFromCache).toBe(true);
+    back.resetSelfAndChildren();
+    expect(back.restoredFromCache).toBe(false);
+  });
+
+  it('does not mark a page that never left', () => {
+    const {tab, main} = tabWithEmbed();
+    tab.restoreGoneDocument(main);
+    expect(main.restoredFromCache).toBe(false);
+  });
+});

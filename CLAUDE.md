@@ -589,12 +589,17 @@ content.js names the page again on a persisted `pageshow`, and its streams come 
 its name (random per page, so its URL may have moved on), for the toolbar, a shortcut or a
 play in MPV mode; nothing opens by itself. The reset on a new hostname can come after that
 page (or any new page) named itself: it keeps a frame 0 already named at a URL of the new
-hostname, with the frames under it (`resetForNewSite`), where a plain reset wiped them. A
-play on the MPV allowlist sends the page's stream while none went on that page yet
-(`onUserPlay`): a page Back gave back detects nothing for the allowlist to send by itself
-(mpv-shortcut's "on a page Back brought back" cases; a WebDriver click leaves an unload
-listener on the page, which keeps it out of the cache, so the first play there is a
-script's). An open timer fires only for a frame the tab still tracks (`isTracked`): the
+hostname, with the frames under it (`resetForNewSite`), where a plain reset wiped them. On
+the MPV allowlist, a play sends the page's stream only on a page Back gave back
+(`frame.restoredFromCache`), while none went on it (`onUserPlay`): such a page detects
+nothing for the allowlist to send by itself. Its file goes at once; a blob: player's stream
+after 3 s, if none was detected meanwhile. Anywhere else a play sends nothing: a site that
+plays its next episode in the same page (a URL change without a load) still has the last
+one's streams when the play is reported, and the next one's detection sends it (GLM's
+review of #87 caught the play sending the last one again). mpv-shortcut covers both, and
+the Back cases need a script's play before leaving: a WebDriver click leaves an unload
+listener on the page, which keeps it out of the cache. An open timer fires only for a
+frame the tab still tracks (`isTracked`): the
 reset on a new site drops frames with their streams on them, and OPEN_PLAYER goes by frame
 id. `FRAME_REMOVED` names its page, and a late one from the page before (a
 known name that is not the frame's) is ignored. A page that takes the player's iframe out

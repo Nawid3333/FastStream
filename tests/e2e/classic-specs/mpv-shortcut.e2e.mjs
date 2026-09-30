@@ -394,16 +394,24 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
         return;
       }
       if (req.url.startsWith('/lazy')) {
-        // As most sites: the video loads only when the user starts it.
+        // As most sites: the video loads only when the user starts it. Next plays the next
+        // episode in the same page, its URL changed without a load.
         res.end(`<!doctype html><title>mpv shortcut test, lazy</title>
           <video id="main" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
           <button id="play">Play</button>
+          <button id="next">Next</button>
           <script>
             document.getElementById('play').addEventListener('click', () => {
               const main = document.getElementById('main');
               if (!main.getAttribute('src')) {
                 main.src = '${CDN}/clip.mp4?t=' + Date.now();
               }
+              main.play().catch(() => {});
+            });
+            document.getElementById('next').addEventListener('click', () => {
+              history.pushState({}, '', '/lazy/next');
+              const main = document.getElementById('main');
+              main.src = '${CDN}/clip.mp4?next=' + Date.now();
               main.play().catch(() => {});
             });
           </script>`);
@@ -1046,5 +1054,41 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
         await replaceSiteTab();
       }
     });
+  });
+
+  // A site that plays its next episode in the same page: the URL change lets the page's MPV
+  // send again, and the user's play of the next episode is reported before its stream is
+  // detected, while the page still has the last one's. The next one goes, not the last again.
+  it('sends the next episode a site plays in the same page, not the last one again', async function() {
+    if (!HAVE_HOST) {
+      // eslint-disable-next-line no-invalid-this
+      this.skip();
+    }
+    await setOptions({mpvMode: true, mpvAllowlist: [SITE]});
+    try {
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}/lazy`);
+      await expectMode('mpv', 'opening a site on the MPV allowlist');
+
+      let before = mpvCount();
+      await clickPlay();
+      await expectMainInMpv(before, 'clicking play on the allowlisted site');
+
+      before = mpvCount();
+      await browser.switchToWindow(siteHandle);
+      await browser.$('#next').click();
+      await browser.waitUntil(async () => requests.filter(isMpvRequest).slice(before)
+          .some((r) => r.url.startsWith('/clip.mp4?next=')), {
+        timeout: 45000,
+        interval: 500,
+        timeoutMsg: `the next episode never reached mpv. Seen: ${seenRequests(testStart)}`,
+      });
+      const again = requests.filter(isMpvRequest).slice(before)
+          .filter((r) => !r.url.startsWith('/clip.mp4?next='));
+      expect(again.map((r) => r.url)).toEqual([]);
+    } finally {
+      await setOptions({mpvMode: true, mpvAllowlist: []});
+      await replaceSiteTab();
+    }
   });
 });

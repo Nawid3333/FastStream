@@ -15,6 +15,9 @@ export class FrameHolder {
     this.playerOpening = false;
     // Which openPlayer attempt playerOpening is for (content.js's PLAYER_OPEN_GONE names it).
     this.playerOpeningAttempt = 0;
+    // The page here came back from Firefox's back-forward cache, with the streams it had
+    // (TabHolder.restoreGoneDocument); it fetches nothing again.
+    this.restoredFromCache = false;
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
@@ -304,6 +307,7 @@ export class TabHolder {
       return;
     }
     this.goneDocuments.delete(frame.documentKey);
+    frame.restoredFromCache = true;
     // FrameHolder.reset() sets both lists, which the checker cannot see from here.
     const sources = /** @type {Array<Object>} */ (frame.getSources());
     for (const source of kept.sources) {

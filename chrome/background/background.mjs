@@ -37,6 +37,10 @@ let LastManualMpvTime = 0;
 // itself, not a second request.
 const MpvPlayPendingMs = 15000;
 const MpvPlayRepeatMs = 10000;
+// The allowlist's MPV, on a page Back gave back: how long a play whose stream is not
+// known waits for it to be detected before the page's known stream goes
+// (autoOpenKnownLater).
+const MpvPlayKnownAfterMs = 3000;
 
 // How long a tab stays "armed" after content.js reports focus moving into
 // one of its player iframes (see the tabs.onCreated listener below). Short
@@ -1949,6 +1953,30 @@ function autoOpenInMpv(tab, url, headers) {
 }
 
 /**
+ * The allowlist's MPV, after a play on a page Back gave back whose own stream is not
+ * among the page's streams (an MSE player's blob:). The page may still ask for one
+ * now (it moved on to another video without a load), and its detection sends it;
+ * when none has gone within MpvPlayKnownAfterMs, the page's known stream goes.
+ *
+ * @param {Object} tab - TabHolder the video is in.
+ * @param {number} frameId - Frame the video is in.
+ * @param {string} src - The video element's currentSrc.
+ * @param {?Object} video - What it plays (content.js playedVideo).
+ */
+function autoOpenKnownLater(tab, frameId, src, video) {
+  const waiting = () => tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened;
+  setTimeout(async () => {
+    if (!waiting()) {
+      return;
+    }
+    const source = await findPlayedSource(tab, frameId, src, video);
+    if (source && waiting()) {
+      autoOpenInMpv(tab, source.url, source.headers);
+    }
+  }, MpvPlayKnownAfterMs);
+}
+
+/**
  * A video the user started, in a tab whose MPV came from the shortcut: hands
  * that video's stream to mpv and pauses the page.
  *
@@ -1957,10 +1985,14 @@ function autoOpenInMpv(tab, url, headers) {
  * taken as this one (see onSourceRecieved).
  *
  * In the allowlist's MPV, the first stream detected on a page goes to mpv by
- * itself, and a play only counts while none has gone on this page: one Back
- * brought out of Firefox's back-forward cache fetches nothing again, so its
- * video plays what it had loaded and nothing is detected. Its streams are the
- * ones the background kept for it (TabHolder.restoreGoneDocument).
+ * itself. A play counts only on a page Back brought out of Firefox's
+ * back-forward cache (frame.restoredFromCache), while none has gone on it: it
+ * fetches nothing again, so its video plays what it had loaded and nothing is
+ * detected. Its streams are the ones the background kept for it
+ * (TabHolder.restoreGoneDocument). Anywhere else the play's own stream is
+ * detected, and goes by itself: a site that plays its next episode in the same
+ * page (a URL change without a load, which lets the page's MPV send again) still
+ * has the last one's streams, and the play came before the new one's.
  *
  * @param {Object} sender - The message sender: its tab and frameId.
  * @param {string} src - The video element's currentSrc.
@@ -1980,6 +2012,10 @@ async function onUserPlay(sender, src, video) {
     return;
   }
   const onPlay = tab.mpvOnPlay;
+  const frame = tab.getFrame(sender.frameId);
+  if (!onPlay && !(frame && frame.restoredFromCache)) {
+    return;
+  }
 
   const source = await findPlayedSource(tab, sender.frameId, src, video);
   // The tab may have left MPV while the lengths were read, or a stream went meanwhile.
@@ -1988,9 +2024,11 @@ async function onUserPlay(sender, src, video) {
   }
   if (Logging) console.log('[MPV] user started a video:', src, source && source.url);
   if (!onPlay) {
-    // Nothing known yet: the stream the play asks for is detected next, and goes by itself.
-    if (source) {
+    if (source && source.url === src) {
+      // The file the video plays, among the page's streams.
       autoOpenInMpv(tab, source.url, source.headers);
+    } else {
+      autoOpenKnownLater(tab, sender.frameId, src, video);
     }
   } else if (source) {
     sendPlayedToMpv(tab, source);
