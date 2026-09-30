@@ -84,6 +84,12 @@ export class MpvBackend {
       if (!/^(referer|origin|user-agent)$/i.test(header.name)) {
         return false;
       }
+      // Printable ASCII only, as the host requires too: a value can come from a page
+      // (a player's source headers), and mpv needs nothing else. No CR/LF, no quote
+      // characters beyond ASCII.
+      if (typeof header.value !== 'string' || !/^[ -~]{1,4096}$/.test(header.value)) {
+        return false;
+      }
       const key = header.name.toLowerCase();
       if (seen.has(key)) {
         return false;

@@ -6,55 +6,17 @@
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
+import {openExtensionPage} from '../extension-page.mjs';
 
 /**
- * Opens an extension page and focuses it. geckodriver refuses to navigate to
- * moz-extension:// directly, so an ordinary http page opens it via
- * window.open, which only works because the page is a web-accessible
- * resource.
- *
- * Finds the target window by URL rather than by assuming it is the newest
- * handle: a freshly installed temporary add-on opens its own welcome.html
- * tab, asynchronously and on no fixed schedule relative to this function's
- * own window.open call. Trusting "last handle" landed this on welcome.html
- * instead of the requested page in practice (options/index.html is heavy
- * enough to load that the race went the wrong way reliably, not just
- * occasionally) -- confirmed with a throwaway diagnostic that logged
- * document.URL every second and found it pinned to welcome.html throughout.
- *
+ * Opens an extension page (extension-page.mjs) and waits for its saved options: they
+ * arrive after the page has loaded, and applying them resets every control, so a click
+ * made before that is undone.
  * @param {string} pagePath - Path under the extension origin.
- * @return {Promise<void>} Resolves once the extension page is focused.
+ * @return {Promise<void>}
  */
-async function openExtensionPage(pagePath) {
-  const target = ORIGIN + pagePath;
-
-  const handlesBefore = await browser.getWindowHandles();
-  for (const h of handlesBefore.slice(1)) {
-    await browser.switchToWindow(h);
-    await browser.closeWindow();
-  }
-  await browser.switchToWindow(handlesBefore[0]);
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), target);
-
-  await browser.waitUntil(async () => {
-    for (const h of await browser.getWindowHandles()) {
-      await browser.switchToWindow(h);
-      if ((await browser.getUrl()) === target) {
-        return true;
-      }
-    }
-    return false;
-  }, {timeout: 15000, timeoutMsg: `the extension page (${target}) never opened`});
-
-  await browser.waitUntil(
-      async () => browser.execute(() => document.readyState === 'complete'),
-      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
-  // The saved options arrive after the page has loaded, and applying them resets every
-  // control: a click made before that is undone. Wait for them.
+async function openOptionsPage(pagePath) {
+  await openExtensionPage(pagePath);
   await browser.waitUntil(
       async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
       {timeout: 15000, timeoutMsg: 'the options page never loaded its options'});
@@ -62,7 +24,7 @@ async function openExtensionPage(pagePath) {
 
 describe('options page: search and export/import cover MPV settings', function() {
   it('search reveals MPV rows on a matching query and hides them on an unrelated one', async function() {
-    await openExtensionPage('/player/options/index.html');
+    await openOptionsPage('/player/options/index.html');
 
     // SearchUtils keeps two flat, page-wide arrays -- .search-target-remove
     // elements (what gets hidden/shown) and .search-target-text elements
@@ -125,7 +87,7 @@ describe('options page: search and export/import cover MPV settings', function()
   });
 
   it('an exported settings file round-trips every MPV option through import', async function() {
-    await openExtensionPage('/player/options/index.html');
+    await openOptionsPage('/player/options/index.html');
 
     const mpvSettings = {
       mpvMode: true,
@@ -189,7 +151,7 @@ describe('options page: search and export/import cover MPV settings', function()
       window.chrome.storage.local.set({options: JSON.stringify(s)});
     }, exported);
 
-    await openExtensionPage('/player/options/index.html');
+    await openOptionsPage('/player/options/index.html');
     await browser.waitUntil(async () => {
       return await browser.execute(() => document.getElementById('mpvpath').value !== '');
     }, {timeout: 5000, timeoutMsg: 'imported options never loaded into the fresh page'});
@@ -214,7 +176,7 @@ describe('options page: search and export/import cover MPV settings', function()
   });
 
   it('importing a pre-MPV export (no mpv keys at all) fills in defaults instead of breaking', async function() {
-    await openExtensionPage('/player/options/index.html');
+    await openOptionsPage('/player/options/index.html');
 
     // Simulates a settings file exported before this feature existed: the
     // mpv* keys are simply absent, the way an old faststream-options.json

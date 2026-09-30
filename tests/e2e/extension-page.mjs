@@ -14,6 +14,50 @@ import {EXTENSION_UUID, OPENER_URL} from './wdio.extension.conf.mjs';
 const PLAYER_PAGE = `moz-extension://${EXTENSION_UUID}/player/index.html`;
 
 /**
+ * Opens a page of the extension in a tab of its own and focuses it, closing every tab
+ * but the first. geckodriver refuses to navigate to moz-extension:// directly, so an
+ * http page opens the player page (web-accessible), and that extension page goes on to
+ * the target. The target itself need not be web-accessible: the options page is not.
+ *
+ * Finds the tab by URL rather than taking the newest handle: a freshly installed
+ * temporary add-on opens its own welcome.html tab at no fixed moment.
+ *
+ * @param {string} pagePath - Path under the extension origin, e.g. '/player/options/index.html'.
+ * @return {Promise<void>} Resolves once the page has loaded.
+ */
+export async function openExtensionPage(pagePath) {
+  const target = `moz-extension://${EXTENSION_UUID}${pagePath}`;
+
+  const handlesBefore = await browser.getWindowHandles();
+  for (const h of handlesBefore.slice(1)) {
+    await browser.switchToWindow(h);
+    await browser.closeWindow();
+  }
+  await browser.switchToWindow(handlesBefore[0]);
+  await browser.url(OPENER_URL);
+  await browser.execute((u) => window.open(u, '_blank'), PLAYER_PAGE + '?t=' + Date.now());
+
+  await browser.waitUntil(async () => {
+    for (const h of await browser.getWindowHandles()) {
+      await browser.switchToWindow(h);
+      const url = await browser.getUrl();
+      if (url === target) {
+        return true;
+      }
+      if (url.startsWith(PLAYER_PAGE)) {
+        // A page still loading may refuse the script; the next round tries again.
+        await browser.execute((u) => location.replace(u), target).catch(() => {});
+      }
+    }
+    return false;
+  }, {timeout: 20000, interval: 200, timeoutMsg: `the extension page (${target}) never opened`});
+
+  await browser.waitUntil(
+      async () => browser.execute(() => document.readyState === 'complete'),
+      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
+}
+
+/**
  * Runs a function in a page of the extension, where chrome.* is available.
  * @param {Function} fn - Called as fn(arg, done).
  * @param {*} arg - A serialisable argument.

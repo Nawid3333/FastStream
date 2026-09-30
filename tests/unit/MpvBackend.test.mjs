@@ -8,6 +8,20 @@ import {MpvBackend} from '../../chrome/background/MpvBackend.mjs';
 // would leak credentials out of the browser.
 
 describe('pickRelayHeaders', () => {
+  // A value can come from a page (a player's source headers). The native host starts mpv
+  // through PowerShell, which also ends a quoted string at the typographic quotes, and mpv
+  // would send a CR/LF on as a second header: only printable ASCII is relayed.
+  it.each([
+    ['a typographic quote', 'x' + String.fromCodePoint(0x2019) + ';k=1'],
+    ['CR LF', 'https://site.test/' + String.fromCharCode(13, 10) + 'X-Evil: 1'],
+    ['a NUL', 'https://site.test/' + String.fromCharCode(0)],
+    ['non-ASCII', 'https://site.test/vid' + String.fromCodePoint(0xE9) + 'o'],
+    ['over 4096 characters', 'https://site.test/' + 'a'.repeat(4096)],
+    ['a number', 5],
+  ])('drops a value with %s', (what, value) => {
+    expect(MpvBackend.pickRelayHeaders([{name: 'Referer', value}])).toBeUndefined();
+  });
+
   it('returns undefined for a missing header list', () => {
     expect(MpvBackend.pickRelayHeaders(undefined)).toBeUndefined();
     expect(MpvBackend.pickRelayHeaders(null)).toBeUndefined();

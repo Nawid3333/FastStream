@@ -34,6 +34,7 @@ import fs from 'fs';
 import path from 'path';
 import {execFile, spawn} from 'child_process';
 import net from 'net';
+import os from 'os';
 import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -115,6 +116,15 @@ export function findMpvOnPath(env = process.env, platform = process.platform) {
   return null;
 }
 
+// A UNC or device path (\\server\share, //server, \\?\, \\.\): Windows signs in to a
+// UNC host with the user's credentials on a mere stat.
+const NetworkOrDevicePath = /^[\\/]{2}/;
+
+// The executable's own name: mpv, mpv.exe, mpv.com, or a build named after it
+// (mpv-x86_64.exe). The path comes from the options page, and the host starts whatever
+// it names, so a settings change must not turn this into "run any program".
+const MpvExecutableName = /^mpv[\w.-]*$/i;
+
 export function resolveMpvPath(messagePath) {
   const config = readConfig();
   const candidates = [
@@ -131,6 +141,9 @@ export function resolveMpvPath(messagePath) {
       }
       continue;
     }
+    if (NetworkOrDevicePath.test(candidate)) {
+      continue;
+    }
     try {
       // Accept both the exe itself and its folder (e.g. the user entered
       // "C:\Program Files\mpv" instead of "C:\Program Files\mpv\mpv.exe").
@@ -139,6 +152,9 @@ export function resolveMpvPath(messagePath) {
         const exe = path.join(candidate, 'mpv.exe');
         fs.accessSync(exe, fs.constants.X_OK);
         return exe;
+      }
+      if (!MpvExecutableName.test(path.basename(candidate))) {
+        continue;
       }
       fs.accessSync(candidate, fs.constants.X_OK);
       return candidate;
@@ -167,7 +183,18 @@ function sendMessage(message) {
   });
 }
 
-function readMessage() {
+// An open message is a URL, a page URL and three headers: a few KB. The length prefix
+// is trusted for the allocation, so a bigger one is refused rather than allocated
+// (up to 4 GB).
+export const MaxMessageBytes = 1024 * 1024;
+
+/**
+ * Reads one native-messaging frame.
+ * @param {import('stream').Readable} [input] - The stream to read; stdin by default.
+ * @return {Promise<?Object>} The message, or null for none, a malformed one or one
+ *   over MaxMessageBytes.
+ */
+export function readMessage(input = process.stdin) {
   return new Promise((resolve) => {
     let header = null;
     let headerRead = 0;
@@ -175,7 +202,9 @@ function readMessage() {
     let bodyRead = 0;
 
     const finish = (result) => {
-      process.stdin.removeAllListeners();
+      input.removeListener('data', onData);
+      input.removeListener('end', onEnd);
+      input.removeListener('error', onEnd);
       resolve(result);
     };
 
@@ -195,7 +224,7 @@ function readMessage() {
           offset += toCopy;
           if (headerRead === 4) {
             const length = header.readUInt32LE(0);
-            if (length === 0) {
+            if (length === 0 || length > MaxMessageBytes) {
               finish(null);
               return;
             }
@@ -222,9 +251,9 @@ function readMessage() {
       finish(null);
     };
 
-    process.stdin.on('data', onData);
-    process.stdin.on('end', onEnd);
-    process.stdin.on('error', onEnd);
+    input.on('data', onData);
+    input.on('end', onEnd);
+    input.on('error', onEnd);
   });
 }
 
@@ -338,6 +367,57 @@ function withFragmentTag(streamUrl, tag) {
 }
 
 /**
+ * Drops fs-* tags a stream URL already carries in its fragment. The tags this host
+ * appends come after them, and mpv's scripts must never read one a page made up (a
+ * stream URL can come from a page): a forged fs-id= would move another site's resume
+ * position, a forged fs-page= the "Site page" link.
+ * @param {string} streamUrl - The stream URL as the extension sent it.
+ * @return {string} The URL without fs-* fragment tags.
+ */
+export function withoutFsTags(streamUrl) {
+  const hashIndex = streamUrl.indexOf('#');
+  if (hashIndex === -1) {
+    return streamUrl;
+  }
+  const kept = streamUrl.slice(hashIndex + 1).split('&')
+      .filter((part) => !/^fs-/i.test(part));
+  return kept.some(Boolean) ?
+    streamUrl.slice(0, hashIndex + 1) + kept.join('&') :
+    streamUrl.slice(0, hashIndex);
+}
+
+// The headers mpv is given, as MpvBackend.pickRelayHeaders picks them. The host checks
+// again: anything that talks to it gets this far.
+const RelayHeaderNames = /^(referer|origin|user-agent)$/i;
+
+// Printable ASCII only, space to tilde: no CR/LF (a second header in mpv's request), no
+// NUL, and none of the typographic quotes PowerShell treats as quote characters. A real
+// Referer, Origin or User-Agent never needs anything else; a browser sends non-ASCII
+// percent-encoded.
+const RelayHeaderValue = /^[ -~]{1,4096}$/;
+
+/**
+ * The "Name: value" fields mpv is given for an open message's headers. Headers other
+ * than Referer, Origin and User-Agent, and values that are not printable ASCII, are
+ * dropped.
+ * @param {*} headers - The message's headers, [{name, value}].
+ * @return {Array<string>}
+ */
+export function relayHeaderFields(headers) {
+  if (!Array.isArray(headers)) {
+    return [];
+  }
+  const fields = [];
+  for (const header of headers) {
+    if (header && typeof header.name === 'string' && typeof header.value === 'string' &&
+        RelayHeaderNames.test(header.name) && RelayHeaderValue.test(header.value)) {
+      fields.push(`${header.name}: ${header.value}`);
+    }
+  }
+  return fields;
+}
+
+/**
  * Whether a URL may be handed to mpv: http or https only. mpv also opens local files
  * and UNC paths, and a UNC path makes Windows sign in to that host with the user's
  * credentials. The extension checks this too (MpvBackend.isStreamUrl); the host checks
@@ -415,7 +495,7 @@ export function pageFragmentFor(pageUrl) {
  * @return {string} The URL for mpv.
  */
 export function mpvTargetUrl(message) {
-  const target = withContentTypeFragment(message.url, message.contentType);
+  const target = withContentTypeFragment(withoutFsTags(message.url), message.contentType);
   const resumeId = resumeIdFor(message.pageUrl);
   const withId = resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
   // The page URL itself, percent-encoded, for source-info.lua's
@@ -423,6 +503,55 @@ export function mpvTargetUrl(message) {
   // fs-id: http(s) pages only, still never sent to the CDN.
   const pageFragment = pageFragmentFor(message.pageUrl);
   return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
+}
+
+const IpcLockFile = path.join(os.tmpdir(), 'faststream-mpv-ipc.lock');
+
+// Longer than any exchange with mpv takes (mpvIpcRequest gives up after 1.5 s): a lock
+// this old was left by a host that was killed.
+const IpcLockStaleMs = 10000;
+
+/**
+ * Runs fn while holding a lock every host process shares. Each "Send to mpv" is its own
+ * host process, and loading into the running mpv sets the headers globally, then loads
+ * the file: two sends a few milliseconds apart could run as set A, set B, load B, load A,
+ * and A then played with B's headers (a 403 on a CDN that checks them).
+ * @param {function(): Promise<*>} fn - The exchange with mpv.
+ * @param {string} [lockFile] - The lock; a shared one in the temp folder by default.
+ * @param {number} [waitMs] - How long to wait for another host before going ahead anyway.
+ * @return {Promise<*>} What fn returns.
+ */
+export async function withIpcLock(fn, lockFile = IpcLockFile, waitMs = 5000) {
+  const deadline = Date.now() + waitMs;
+  let fd = null;
+  while (fd === null && Date.now() <= deadline) {
+    try {
+      fd = fs.openSync(lockFile, 'wx');
+    } catch (e) {
+      if (e.code !== 'EEXIST') {
+        // No lock to be had here (a read-only temp folder): go ahead without.
+        break;
+      }
+      try {
+        if (Date.now() - fs.statSync(lockFile).mtimeMs > IpcLockStaleMs) {
+          fs.rmSync(lockFile, {force: true});
+          continue;
+        }
+      } catch (e2) {
+        // Gone in between: try again at once.
+        continue;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+  try {
+    return await fn();
+  } finally {
+    if (fd !== null) {
+      fs.closeSync(fd);
+      fs.rmSync(lockFile, {force: true});
+    }
+  }
 }
 
 /**
@@ -433,10 +562,11 @@ export function mpvTargetUrl(message) {
  * @param {string} title - Media title to display.
  * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
  *   to the real named-pipe transport.
+ * @param {string} [lockFile] - withIpcLock's lock; the shared one by default.
  * @return {Promise<{ok: boolean, pid?: number}>} ok:false when no instance of
  *   ours answered, in which case the caller should start one.
  */
-export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest) {
+export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, lockFile = IpcLockFile) {
   const commands = [
     {command: ['set_property', 'http-header-fields', headerFields]},
     {command: ['set_property', 'force-media-title', title]},
@@ -447,7 +577,9 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   commands.push({command: ['loadfile', mpvTargetUrl(message), 'replace']});
   commands.push({command: ['get_property', 'pid']});
 
-  const result = await ipcRequest(commands);
+  // The headers are set for the whole player, then the file loads: another host's
+  // send must not come in between (withIpcLock).
+  const result = await withIpcLock(() => ipcRequest(commands), lockFile);
   if (!result.ok) {
     return {ok: false};
   }
@@ -529,15 +661,19 @@ function focusWindowLines(pidExpr) {
     '    $deadline = (Get-Date).AddSeconds(' + WindowWaitSeconds + ')',
     '    $h = [IntPtr]::Zero',
     '    $seen = $false',
+    '    $misses = 0',
     '    while ((Get-Date) -lt $deadline) {',
     '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
-    '      if ($p) { $seen = $true }',
+    '      if ($p) { $seen = $true } else { $misses++ }',
     '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
       '{ $h = $p.MainWindowHandle; break }',
     // mpv gone again after we saw it: it failed to open the URL and quit.
     // Give up instead of polling the full deadline for a window that can
     // never appear.
     '      if ($seen -and -not $p) { break }',
+    // Never there at all: mpv quit before the first look (an option mpv
+    // refuses, a broken install). Stop after about 2 s, not the full 30.
+    '      if (-not $seen -and $misses -ge 20) { break }',
     '      Start-Sleep -Milliseconds 100',
     '    }',
     '    if ($h -ne [IntPtr]::Zero) {',
@@ -565,28 +701,58 @@ function focusWindowLines(pidExpr) {
     '      }',
     '      Write-Output ("FOCUS=" + $ok + " FGOK=" + $fgok + ' +
       '" TRIES=" + $tries)',
-    '    } else { Write-Output "FOCUS=nowindow" }',
+    '    } elseif (-not $seen) { Write-Output "FOCUS=gone" }',
+    '    else { Write-Output "FOCUS=nowindow" }',
     '  } catch { Write-Output "FOCUS=error" }',
   ];
 }
 
 /**
  * Runs a PowerShell script and returns its stdout.
+ *
+ * The script must be fixed text: data goes in through `env` and is read back as
+ * `$env:NAME`. -EncodedCommand only gets the script past the command line; inside it,
+ * a single-quoted string also ends at the typographic quotes U+2018-U+201B, so escaping
+ * `'` alone let a header value close the string and run code.
+ *
  * @param {Array<string>} lines - Script lines.
  * @param {number} timeoutMs - Kill the shell after this long.
+ * @param {Object<string, string>} [env] - Extra environment variables for the script.
  * @return {Promise<string>} Captured stdout, empty on failure.
  */
-function runPowerShell(lines, timeoutMs) {
-  // -EncodedCommand takes UTF-16LE base64, which sidesteps every layer of
-  // shell quoting the URL would otherwise have to survive.
+export function runPowerShell(lines, timeoutMs, env = {}) {
   const encoded = Buffer.from(lines.join(String.fromCharCode(10)), 'utf16le')
       .toString('base64');
   return new Promise((resolve) => {
     execFile('powershell.exe',
         ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
-        {timeout: timeoutMs, windowsHide: true},
+        {timeout: timeoutMs, windowsHide: true, env: {...process.env, ...env}},
         (error, stdout) => resolve(String(stdout || '')));
   });
+}
+
+// The environment variable launchViaWmi hands mpv's command line over in.
+export const CommandLineEnv = 'FASTSTREAM_MPV_COMMAND_LINE';
+
+// CreateProcess refuses a longer command line.
+const MaxCommandLineChars = 32767;
+
+/**
+ * The PowerShell that starts mpv through WMI and focuses its window. Fixed text: the
+ * command line is read from the environment (CommandLineEnv).
+ * @return {Array<string>} Script lines.
+ */
+export function wmiLaunchLines() {
+  return [
+    ...focusApiLines(),
+    'try { $null = [FSFg]::AllowSetForegroundWindow(-1) } catch {}',
+    '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create ' +
+      '-Arguments @{CommandLine=$env:' + CommandLineEnv + '}',
+    'Write-Output ("RC=" + $r.ReturnValue + " PID=" + $r.ProcessId)',
+    'if ($r.ReturnValue -eq 0) {',
+    ...focusWindowLines('$r.ProcessId'),
+    '}',
+  ];
 }
 
 /**
@@ -621,20 +787,11 @@ async function focusPid(pid) {
  */
 function launchViaWmi(mpvPath, args) {
   const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
-  const psCommandLine = commandLine.replace(/'/g, '\'\'');
+  if (commandLine.length >= MaxCommandLineChars) {
+    return Promise.resolve({ok: false, error: 'the stream URL is too long for mpv\'s command line'});
+  }
 
-  const lines = [
-    ...focusApiLines(),
-    'try { $null = [FSFg]::AllowSetForegroundWindow(-1) } catch {}',
-    '$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create ' +
-      '-Arguments @{CommandLine=\'' + psCommandLine + '\'}',
-    'Write-Output ("RC=" + $r.ReturnValue + " PID=" + $r.ProcessId)',
-    'if ($r.ReturnValue -eq 0) {',
-    ...focusWindowLines('$r.ProcessId'),
-    '}',
-  ];
-
-  return runPowerShell(lines, PowerShellTimeoutMs).then((text) => {
+  return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then((text) => {
     const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
     if (!match) {
       return {ok: false, error: 'unexpected WMI output: ' + text};
@@ -643,6 +800,9 @@ function launchViaWmi(mpvPath, args) {
       return {ok: false, error: 'WMI Create returned ' + match[1]};
     }
     const focus = /FOCUS=(\S+)/.exec(text);
+    if (focus && focus[1] === 'gone') {
+      return {ok: false, error: 'mpv quit right after it started: check the mpv path, and mpv.conf for an option mpv refuses'};
+    }
     const fgOk = /FGOK=(\S+)/.exec(text);
     const tries = /TRIES=(\d+)/.exec(text);
     return {
@@ -657,15 +817,7 @@ function launchViaWmi(mpvPath, args) {
 
 async function launchMpv(mpvPath, message, config) {
   const args = [];
-  const headerFields = [];
-
-  if (message.headers && Array.isArray(message.headers)) {
-    for (const header of message.headers) {
-      if (header && header.name && header.value) {
-        headerFields.push(`${header.name}: ${header.value}`);
-      }
-    }
-  }
+  const headerFields = relayHeaderFields(message.headers);
 
   // One --http-header-fields-append per header. The plain
   // --http-header-fields form takes a comma-separated list, so a value
@@ -727,10 +879,10 @@ async function launchMpv(mpvPath, message, config) {
         return {ok: true};
       }
       debugLog(config, 'wmi-failed', result);
-      // WMI can be locked down or the service stopped. A direct spawn at
-      // least works for as long as the browser lets it live, which beats
-      // refusing to play at all.
-      return launchDirect(mpvPath, args);
+      // No direct spawn as a fallback: Firefox kills it the moment this host
+      // exits (see launchViaWmi), so it reported success for an mpv that was
+      // gone before it showed anything.
+      return {ok: false, error: 'Could not start mpv: ' + result.error};
     });
   }
 

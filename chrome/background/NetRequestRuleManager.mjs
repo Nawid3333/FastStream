@@ -12,6 +12,15 @@ function asRequested(url) {
   }
 }
 
+/**
+ * The extension's own host in its moz-extension:// URLs, which is what Firefox matches
+ * initiatorDomains against for its pages' requests.
+ * @return {string}
+ */
+function extensionHost() {
+  return new URL(chrome.runtime.getURL('/')).hostname;
+}
+
 export class RuleEntry {
   constructor(id) {
     this.id = id;
@@ -102,6 +111,10 @@ export class RuleManager {
         // lost that "https://" instead.
         urlFilter: '||' + asRequested(url).replace(/^https?:\/\//, ''),
         tabIds: [tabId],
+        // Only the extension's own requests (the player, the background). The tab is
+        // the page's too, and without this the page's own requests to that URL got the
+        // player's Origin, Referer or Cookie for those 5 seconds.
+        initiatorDomains: [extensionHost()],
       },
     };
 

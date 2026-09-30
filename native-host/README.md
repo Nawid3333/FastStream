@@ -63,9 +63,9 @@ Measured, spawning mpv from inside such a job and then closing it:
 
 So on Windows the host asks the WMI service to create the process; mpv ends up
 parented to `WmiPrvSE` and outlives the browser's job. If WMI is unavailable
-the host falls back to a direct spawn, which still plays for as long as the
-browser allows. On other platforms there is no job object and the direct
-detached spawn is used.
+the host reports the error: a direct spawn would be killed the moment the host
+exits, before mpv shows anything. On other platforms there is no job object and
+the direct detached spawn is used.
 
 ## Requirements
 

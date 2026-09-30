@@ -351,7 +351,12 @@ async function setup() {
     }
   });
 
-  if (window.location.hash) {
+  // A source in the address (#url, with faststream-headers) is taken only in a tab of
+  // its own: the extension puts one there when you open a stream URL (the redirect rule
+  // is main_frame only), and never in the player iframes it adds to pages. A player
+  // inside a page with a hash was framed by that page, which could hand it made-up
+  // headers (for mpv, or for the header rules on its own requests).
+  if (window.location.hash && (!EnvUtils.isExtension() || window.top === window)) {
     const url = window.location.hash.substring(1);
     const ext = URLUtils.get_url_extension(url);
     let mode = PlayerModes.DIRECT;

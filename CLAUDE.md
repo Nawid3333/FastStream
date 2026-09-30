@@ -473,6 +473,38 @@ there on a machine without it, and WMI's provider searches its own PATH, not the
 `findMpvOnPath` returns `mpv.exe`'s absolute path from the user's PATH, or nothing.
 Both need `install.ps1` run again on a machine, like any host change.
 
+**A page could run code through "Send to mpv" (fixed 2026-09-30).** The chain: a page
+reads the extension's address from a player iframe's `src`, frames
+`player/index.html#<url>?faststream-headers={"Referer":"x’;…;’"}` itself, and the user
+clicks the mpv button. The Referer reached the host unchecked, and `launchViaWmi` put
+mpv's command line into the PowerShell script as a single-quoted string with only the
+ASCII `'` escaped; PowerShell also ends such a string at U+2018-U+201B. Proven on the real
+PowerShell (`tests/unit/mpvHostSecurity.test.mjs`) and the Firefox half in
+`ext-specs/framed-player.e2e.mjs`. The fixes, in layers:
+- **No data in PowerShell source.** The command line goes in through the environment
+  (`FASTSTREAM_MPV_COMMAND_LINE`, read as `$env:`), so the script text never changes.
+  This also removed the ~9 KB limit a long URL hit inside `-EncodedCommand`.
+- **Header values are printable ASCII** (`MpvBackend.pickRelayHeaders` and the host's
+  `relayHeaderFields`): Referer, Origin and User-Agent only, no CR/LF, no quotes beyond ASCII.
+- **A framed player ignores its address.** The extension puts a source in the address
+  only of a player in a tab of its own (the stream-URL redirect rule is `main_frame`
+  only); `main.mjs` takes the hash only when `window.top === window`. The copy-URL
+  buttons' `faststream-headers` links still work when opened in a tab.
+- **Header rules cover only the extension's own requests** (`initiatorDomains`, the
+  moz-extension host): the rule is per tab, and the tab is the page's, so for 5 s the
+  page's own requests to that URL got the player's Origin or Cookie.
+- **The options page is not web-accessible.** Only the player frames it, and an
+  extension page needs no entry for that. The e2e helpers open it from the player page
+  (`extension-page.mjs`'s `openExtensionPage`).
+- **The host starts only an mpv**: a file named `mpv*` (or `mpv.exe` in a named folder),
+  never a UNC or device path, which it does not even `stat`.
+- Also in the host: a 1 MB cap on a message's length prefix, a page's own `fs-*`
+  fragment tags dropped before the host's are added, no direct-spawn fallback when WMI
+  fails on Windows (Firefox kills that mpv as the host exits, so it reported success for
+  nothing), "mpv quit right after it started" after ~2 s instead of a 30 s wait, and a
+  lock file around loading into the running mpv, so two sends milliseconds apart cannot
+  swap headers.
+
 Four things here are counter-intuitive enough that each shipped broken once:
 
 - **A child of the host does not survive the browser.** Firefox runs a native
@@ -742,9 +774,10 @@ or a pinned release gone upstream (shinchiro keeps about 30), opens or updates
 one assigned issue, "mpv update failed: ...", which a later pass closes. A
 failed build keeps its branch, so it is not tried again; delete the branch to
 retry it.
-The host itself is covered by no suite; verify it by driving
-`com.faststream.mpv.bat` with a length-prefixed message, and by checking
-survival inside a real kill-on-close job object.
+The host's own functions are unit tested (`tests/unit/MpvNativeHost`, `mpvHostPath`,
+`mpvHostSecurity`, `mpvHostInstall`); the last two run the real PowerShell and the
+installed `.bat` on Windows only. What no suite covers is survival inside a real
+kill-on-close job object: check that by hand after a change to the launch.
 
 ## The SPLICER preprocessor
 

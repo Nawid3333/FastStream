@@ -8,37 +8,7 @@
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
-
-// See options-mpv.e2e.mjs for why this finds the window by URL.
-async function openExtensionPage(pagePath) {
-  const target = ORIGIN + pagePath;
-
-  const handlesBefore = await browser.getWindowHandles();
-  for (const h of handlesBefore.slice(1)) {
-    await browser.switchToWindow(h);
-    await browser.closeWindow();
-  }
-  await browser.switchToWindow(handlesBefore[0]);
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), target);
-
-  await browser.waitUntil(async () => {
-    for (const h of await browser.getWindowHandles()) {
-      await browser.switchToWindow(h);
-      if ((await browser.getUrl()) === target) {
-        return true;
-      }
-    }
-    return false;
-  }, {timeout: 15000, timeoutMsg: `the extension page (${target}) never opened`});
-
-  await browser.waitUntil(
-      async () => browser.execute(() => document.readyState === 'complete'),
-      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
-}
+import {openExtensionPage} from '../extension-page.mjs';
 
 const setStored = (options) => browser.executeAsync((value, done) => {
   chrome.storage.local.set({options: value === null ? undefined : JSON.stringify(value)}, () => done(true));

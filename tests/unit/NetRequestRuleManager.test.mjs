@@ -14,6 +14,9 @@ describe('RuleManager.addHeaderRule', () => {
     vi.useFakeTimers();
     added = [];
     globalThis.chrome = {
+      runtime: {
+        getURL: (path) => 'moz-extension://0f3e2c1a-uuid-of-the-extension' + path,
+      },
       declarativeNetRequest: {
         getSessionRules: async () => [],
         updateSessionRules: async (update) => {
@@ -43,9 +46,23 @@ describe('RuleManager.addHeaderRule', () => {
     await manager.addHeaderRule(url, 7, commands);
 
     expect(added).toHaveLength(1);
-    expect(added[0].condition).toEqual({urlFilter: '||' + rest, tabIds: [7]});
+    expect(added[0].condition).toEqual({
+      urlFilter: '||' + rest,
+      tabIds: [7],
+      initiatorDomains: ['0f3e2c1a-uuid-of-the-extension'],
+    });
     expect(added[0].condition.urlFilter.includes(String.fromCharCode(92))).toBe(false);
     expect(added[0].action.requestHeaders).toEqual(commands);
+  });
+
+  // The rule is for one tab, and a player's tab is the page's tab: without the initiator
+  // condition, the page's own requests to that URL got the player's headers for 5 s. A
+  // page that framed the player could then send its requests to another site with a
+  // made-up Origin (past Origin-based CSRF checks) or Cookie.
+  it('applies only to the extension\'s own requests, not the page\'s in the same tab', async () => {
+    const manager = new RuleManager();
+    await manager.addHeaderRule('https://bank.test/transfer', 7, [{operation: 'set', header: 'origin', value: 'https://bank.test'}]);
+    expect(added[0].condition.initiatorDomains).toEqual(['0f3e2c1a-uuid-of-the-extension']);
   });
 });
 
