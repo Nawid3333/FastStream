@@ -22,7 +22,7 @@ describe('isPlayerOpeningResponse', () => {
     expect(BackgroundUtils.isPlayerOpeningResponse(response)).toBe(true);
   });
 
-  it.each(['no_video', undefined, null, '', 'ok', true])('%s: none is', (response) => {
+  it.each(['no_video', 'error', undefined, null, '', 'ok', true])('%s: none is', (response) => {
     expect(BackgroundUtils.isPlayerOpeningResponse(response)).toBe(false);
   });
 });
@@ -33,8 +33,9 @@ describe('the OPEN_PLAYER answers', () => {
     const handler = /function handlePlayerOpen\([\s\S]*?\n {2}function /.exec(source);
     expect(handler).not.toBeNull();
     const sent = new Set(Array.from(handler[0].matchAll(/sendResponse\('([a-z_]+)'\)/g), (m) => m[1]));
-    // A new answer in content.js has to be sorted into "a player is coming" or not.
-    expect([...sent].sort()).toEqual([...BackgroundUtils.PlayerOpeningResponses, 'no_video'].sort());
+    // A new answer in content.js has to be sorted into "a player is coming" or not. 'error':
+    // putting the player in threw.
+    expect([...sent].sort()).toEqual([...BackgroundUtils.PlayerOpeningResponses, 'no_video', 'error'].sort());
   });
 
   it('decide whether the background keeps the frame marked playerOpening', () => {
