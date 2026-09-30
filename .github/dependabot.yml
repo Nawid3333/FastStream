@@ -37,13 +37,15 @@ updates:
       - 'dependencies'
     groups:
       # Keep in step with tools/sync-vendor.mjs: the unpatched libraries it copies.
-      # The patched ones are ignored below. A new mediabunny must write files that
-      # read back sample for sample (tests/e2e/specs/modules.e2e.mjs).
+      # The patched ones are ignored below. A new onnxruntime-web must score the voice
+      # detector's reference signal as before (tests/e2e/ext-specs/vad.e2e.mjs), and a
+      # new mediabunny must write files that read back sample for sample
+      # (tests/e2e/specs/modules.e2e.mjs).
       shipped-minor-and-patch:
-        patterns: ['fuse.js', 'mediabunny', 'pako', 'sortablejs']
+        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
       tooling-minor-and-patch:
-        exclude-patterns: ['fuse.js', 'mediabunny', 'pako', 'sortablejs']
+        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump
@@ -61,12 +63,6 @@ updates:
       - dependency-name: 'jswebm'
       - dependency-name: 'mp4box'
       - dependency-name: 'sweetalert2'
-      # Not patched, but tied to its version the same way: the voice detector runs a
-      # custom reduced ONNX Runtime wasm built from a 1.20-era commit, and only
-      # onnxruntime-web 1.20.0's loader (ort.wasm.mjs) fits it. #23 took 1.30.0 and
-      # the VAD e2e test failed in the runtime. Moving it means rebuilding that wasm
-      # (tools/reproduce-ort-wasm.sh; docs/vendored-libraries.md, "The VAD blobs").
-      - dependency-name: 'onnxruntime-web'
 
   # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
   # express (fsaunpack/, its own package.json and package-lock.json). It is not
