@@ -9,6 +9,7 @@ step_script toolchain-updates.yml 'Open, and close, the toolchain update pull re
 checks=0
 fails=0
 TDIRS=()
+REAL_NODE=$(command -v node)
 cleanup() { rm -rf "$STEP" "${TDIRS[@]}"; }
 trap cleanup EXIT
 
@@ -37,8 +38,11 @@ ORIG=("$@")
 opt() { local flag=$1 prev= a; shift; for a in "$@"; do if [ "$prev" = "$flag" ]; then printf '%s\n' "$a"; return 0; fi; prev=$a; done; return 1; }
 jqout() { local e; if e=$(opt --jq "${ORIG[@]}"); then jq -r "$e" "$1"; else cat "$1"; fi; }
 case "$1 $2" in
-  'pr list') jqout "$STATE/prs.json" ;;
-  'issue list') jqout "$STATE/issues.json" ;;
+  'pr list'|'issue list')
+    # Only open ones: the fixtures hold no others.
+    [[ " $* " == *' --state open --limit 200 '* ]] || { echo "stub gh: not a list of all open ones: $*" >&2; exit 99; }
+    jqout "$STATE/${1}s.json"
+    ;;
   'label create') [ -f "$STATE/label_exists" ] && { echo 'label already exists' >&2; exit 1; }; exit 0 ;;
   'pr create')
     opt --title "$@" > "$STATE/created.title"
@@ -75,9 +79,9 @@ if [ "\${1-}" = tools/check-toolchain.mjs ]; then
   if [ "\${2-}" = --plan ]; then cp "\$3" "\$STATE/open.seen"; cp "\$4" "\$STATE/titles.seen"; cat "\$STATE/plan.json"; else echo 'UPDATE  (canned)'; fi
   exit 0
 fi
-exec $(command -v node) "\$@"
+exec "$REAL_NODE" "\$@"
 EOF
-  printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/sleep"
+  printf '#!/usr/bin/env bash\necho "$*" >> "$STATE/sleeps"\n' > "$BIN/sleep"
   chmod +x "$BIN/gh" "$BIN/node" "$BIN/sleep"
 }
 
@@ -211,7 +215,8 @@ dispatch_retried() {
   plan "[$(pnpm_update 11.27.1)]" '[]'
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'dispatched twice' test "$(n_calls '^workflow run ci.yml')" = 2
+  check 'dispatched twice' test "$(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = 2
+  check 'waiting 30 s between' test "$(cat "$STATE/sleeps")" = 30
 }
 
 dispatch_fails() {
@@ -290,34 +295,44 @@ repair_no_ci() {
 }
 
 repair_run_conclusions() {
-  # A cancelled or broken run decides nothing; a queued one will.
+  # A cancelled or broken run decides nothing; a queued one will, as a failed or timed-out
+  # one did.
   setup
   open_pr 9 'Toolchain update: Node.js 26' toolchain/node-26 abc123
   open_pr 10 'Toolchain update: pnpm 11.27.1' toolchain/pnpm-11.27.1 def456
+  open_pr 11 'Toolchain update: Node.js 25' toolchain/node-25 aaa111
+  open_pr 12 'Toolchain update: pnpm 12.7.0' toolchain/pnpm-12.7.0 bbb222
   echo '[{"status": "completed", "conclusion": "cancelled"}, {"status": "completed", "conclusion": "startup_failure"}]' > "$STATE/runs-abc123"
   echo '[{"status": "queued", "conclusion": null}]' > "$STATE/runs-def456"
+  echo '[{"status": "completed", "conclusion": "failure"}]' > "$STATE/runs-aaa111"
+  echo '[{"status": "completed", "conclusion": "timed_out"}]' > "$STATE/runs-bbb222"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'CI on the cancelled one' has_call 'workflow run ci.yml --ref toolchain/node-26'
   check 'none on the queued one' bash -c '! grep -q "ref toolchain/pnpm-11.27.1" "$0"' "$STATE/gh.log"
+  check 'none on the failed one' bash -c '! grep -q "ref toolchain/node-25" "$0"' "$STATE/gh.log"
+  check 'none on the timed-out one' bash -c '! grep -q "ref toolchain/pnpm-12.7.0" "$0"' "$STATE/gh.log"
 }
 
 only_own() {
   # Anyone's pull request or issue with such a title neither blocks an update, nor is
-  # closed, rebuilt or given CI.
+  # closed, rebuilt or given CI; nor is this workflow's own without the title prefix.
   setup
   open_pr 9 'Toolchain update: pnpm 12.7.0' toolchain/pnpm-12.7.0 abc stranger
   open_pr 10 'Toolchain update: Node.js 26' toolchain/node-26 def app/github-actions true
   open_pr 11 'Toolchain update: Node.js 24' toolchain/node-24 fff
+  open_pr 12 'pnpm 12.8.0' toolchain/pnpm-12.8.0 ggg
+  echo '[{"number": 13, "title": "Toolchain update: Node.js 23", "author": {"login": "app/github-actions"}}, {"number": 14, "title": "Toolchain update: Node.js 21", "author": {"login": "stranger"}}]' > "$STATE/issues.json"
   echo CONFLICTING > "$STATE/pr-9-mergeable"
   echo CONFLICTING > "$STATE/pr-10-mergeable"
+  echo CONFLICTING > "$STATE/pr-12-mergeable"
   echo '[{"status": "completed", "conclusion": "success"}]' > "$STATE/runs-fff"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check "a stranger's open one is not planned" jq -e 'all(.[]; .number != 9) and any(.[]; .number == 11)' "$STATE/open.seen"
+  check 'the open ones planned: its own, with the prefix' jq -e '[.[].number] | sort == [10, 11, 13]' "$STATE/open.seen"
   check "a stranger's title is not used" bash -c '! grep -qF "Node.js 30" "$0"' "$STATE/titles.seen"
   check 'its own title is' grep -qxF 'Toolchain update: Node.js 24' "$STATE/titles.seen"
-  check 'nothing done to the others' bash -c '! grep -qE "^(workflow run|pr view (9|10) )" "$0"' "$STATE/gh.log"
+  check 'nothing done to the others' bash -c '! grep -qE "^(workflow run|pr view (9|10|12) )" "$0"' "$STATE/gh.log"
   check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
 
@@ -352,23 +367,59 @@ repair_main_has_it() {
 
 close_fails_continues() {
   setup
-  plan '[]' '[{"number": 5, "comment": "c5"}, {"number": 7, "comment": "c7"}]'
+  plan '[]' '[{"number": 5, "comment": "c5"}, {"number": 7, "comment": "c7"}, {"number": 8, "comment": "c8"}]'
   echo OPEN > "$STATE/pr-5-state"
   : > "$STATE/close-5-fails"
   echo OPEN > "$STATE/issue-7-state"
+  : > "$STATE/close-7-fails"
+  echo OPEN > "$STATE/issue-8-state"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'warns' grep -qF '::warning::Could not close #5' "$T/out"
+  check 'warns: the pull request' grep -qF '::warning::Could not close #5 (merged meanwhile?); the next run tries again.' "$T/out"
   check 'goes on' has_call 'issue close 7 --comment c7'
+  check 'warns: the issue' grep -qF '::warning::Could not close #7; the next run tries again.' "$T/out"
+  check 'goes on' has_call 'issue close 8 --comment c8'
 }
 
 repair_skips_raised() {
+  # The pull request raised in this run is in the repair pass's list, and gets no second CI
+  # run. (The plan is canned: the real one never raises a title that is open.)
   setup
   plan "[$(pnpm_update 11.27.1)]" '[]'
   open_pr 100 'Toolchain update: pnpm 11.27.1' toolchain/pnpm-11.27.1 fff
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'CI started once' test "$(n_calls '^workflow run ci.yml')" = 1
+  check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = 1
+}
+
+weekly_two() {
+  # Each update gets its own branch off main, with only its own change.
+  setup
+  plan "[{\"name\": \"Node.js\", \"current\": \"22\", \"latest\": \"26\", \"behind\": true, \"automerge\": false, \"note\": \"n\", \"title\": \"Toolchain update: Node.js 26\"}, $(pnpm_update 11.27.1)]" '[]'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'Node.js: only .nvmrc' test "$(branch_diff toolchain/node-26)" = .nvmrc
+  check 'pnpm: only package.json' test "$(branch_diff toolchain/pnpm-11.27.1)" = package.json
+  check 'Node.js off main' test "$(origin rev-parse toolchain/node-26~1)" = "$(origin rev-parse main)"
+  check 'pnpm off main' test "$(origin rev-parse toolchain/pnpm-11.27.1~1)" = "$(origin rev-parse main)"
+  check 'two pull requests' test "$(n_calls '^pr create')" = 2
+  check 'one for Node.js' has_call 'pr create --base main --head toolchain/node-26 --title Toolchain update: Node.js 26 --label dependencies'
+  check 'one for pnpm' has_call 'pr create --base main --head toolchain/pnpm-11.27.1 --title Toolchain update: pnpm 11.27.1 --label dependencies'
+  check 'CI on each, once' test "$(n_calls '^workflow run ci.yml --ref toolchain/node-26$') $(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = '1 1'
+}
+
+repair_mergeable_unknown() {
+  # GitHub never works out whether it merges: after ten tries, CI is started if the head
+  # has no run that decides.
+  setup
+  open_pr 9 'Toolchain update: Node.js 26' toolchain/node-26 abc123
+  echo UNKNOWN > "$STATE/pr-9-mergeable"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'asks ten times' test "$(n_calls '^pr view 9 --json mergeable')" = 10
+  check 'six seconds apart' test "$(grep -cx 6 "$STATE/sleeps")" = 10
+  check 'then starts CI' has_call 'workflow run ci.yml --ref toolchain/node-26'
+  check 'not rebuilt' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
 
 repair_leaves_strangers() {
@@ -384,6 +435,7 @@ repair_leaves_strangers() {
 
 weekly_pnpm
 weekly_node
+weekly_two
 unexpected_file
 push_closes_only
 close_states
@@ -397,6 +449,7 @@ repair_no_ci
 repair_skips_raised
 repair_leaves_strangers
 repair_run_conclusions
+repair_mergeable_unknown
 only_own
 repair_on_fresh_main
 repair_main_has_it
