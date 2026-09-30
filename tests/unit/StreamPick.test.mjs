@@ -171,3 +171,47 @@ describe('StreamPick.fallbacks', () => {
     expect(candidates).toEqual(before);
   });
 });
+
+describe('StreamPick.conflicts', () => {
+  // The MPV shortcut sends the stream of the video the user started. One whose length is
+  // plainly another video's (an ad's, a preview's) is held back; one whose length or the
+  // video's is unknown, or live, is sent as before.
+  it('holds back a stream plainly longer or shorter than the video', () => {
+    expect(StreamPick.conflicts({duration: 1800}, 9)).toBe(true);
+    expect(StreamPick.conflicts({duration: 9}, 1800)).toBe(true);
+  });
+
+  it('keeps a stream as long as the video, give or take the manifest\'s slack', () => {
+    expect(StreamPick.conflicts({duration: 1800}, 1799.2)).toBe(false);
+    expect(StreamPick.conflicts({duration: 1800}, 1803)).toBe(false);
+    expect(StreamPick.conflicts({duration: 300}, 298)).toBe(false);
+  });
+
+  it('tells nothing from an unread, missing or live length', () => {
+    expect(StreamPick.conflicts({duration: 1800}, null)).toBe(false);
+    expect(StreamPick.conflicts({duration: 1800}, undefined)).toBe(false);
+    expect(StreamPick.conflicts({duration: 1800}, Infinity)).toBe(false);
+    expect(StreamPick.conflicts({duration: Infinity}, 30)).toBe(false);
+    expect(StreamPick.conflicts({duration: null}, 30)).toBe(false);
+    expect(StreamPick.conflicts(null, 30)).toBe(false);
+  });
+});
+
+describe('StreamPick.outrun', () => {
+  it('says a short video beside a far longer stream is likely an ad', () => {
+    expect(StreamPick.outrun([{duration: 1800}], 30)).toBe(true);
+    // Short, and a stream plainly longer.
+    expect(StreamPick.outrun([{duration: 120}], 30)).toBe(true);
+  });
+
+  it('keeps a video beside streams no longer than it, or its equal', () => {
+    expect(StreamPick.outrun([{duration: 30}], 30)).toBe(false);
+    expect(StreamPick.outrun([{duration: 2000}], 1800)).toBe(false);
+    expect(StreamPick.outrun([], 30)).toBe(false);
+  });
+
+  it('tells nothing for an unknown or live length', () => {
+    expect(StreamPick.outrun([{duration: 1800}], null)).toBe(false);
+    expect(StreamPick.outrun([{duration: 1800}], Infinity)).toBe(false);
+  });
+});

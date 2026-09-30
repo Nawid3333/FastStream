@@ -218,6 +218,7 @@ async function startMpv(tab, onPlay = false) {
     tab.mpvSentUrls.clear();
     tab.mpvLastPlaySend = null;
     tab.mpvPlayPendingUntil = 0;
+    tab.mpvPlayedVideo = null;
     chrome.tabs.sendMessage(tab.tabId, {
       type: MessageTypes.MPV_REPORT_PLAYING,
     }, () => {
@@ -512,6 +513,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.mpvAutoOpened = false;
     tab.mpvSentUrls.clear();
     tab.mpvPlayPendingUntil = 0;
+    tab.mpvPlayedVideo = null;
 
     chrome.tabs.sendMessage(tabid, {
       type: MessageTypes.REMOVE_PLAYERS,
@@ -1798,8 +1800,25 @@ async function onSourceRecieved(details, frame, mode) {
       // from - unless the user already pressed play and the player asked
       // for its stream only afterwards, in which case this is that stream.
       if (frame.tab.mpvPlayPendingUntil > Date.now()) {
-        frame.tab.mpvPlayPendingUntil = 0;
-        sendPlayedToMpv(frame.tab, {url, headers: customHeaders});
+        const tab = frame.tab;
+        const until = tab.mpvPlayPendingUntil;
+        const page = {url: tab.url, document: frame.documentKey};
+        // Taken now, so another stream found while this one's length is read waits.
+        tab.mpvPlayPendingUntil = 0;
+        // Its length, read above, tells whether it is the video the user started: the
+        // first stream after the play went unchecked, a preview's or an ad's as well.
+        await Lengths.settle(() => [{url, mode, headers: customHeaders}], SourceLengthWaitMs);
+        if (tab.url !== page.url || frame.documentKey !== page.document) {
+          return;
+        }
+        if (StreamPick.conflicts(tab.mpvPlayedVideo, Lengths.lengthOf(url))) {
+          // Another video's: the next one may be the video's, while the wait lasts.
+          tab.mpvPlayPendingUntil = until;
+          return;
+        }
+        if (tab.isOn && tab.isMpv && tab.mpvOnPlay) {
+          sendPlayedToMpv(tab, {url, headers: customHeaders});
+        }
       }
       return;
     }
@@ -2017,9 +2036,16 @@ async function onUserPlay(sender, src, video) {
     return;
   }
 
+  // The page the video plays in: the tab may load another while the lengths are read, and
+  // the next page's first stream went to mpv for a video of the page before (G3).
+  const page = {url: tab.url, document: frame ? frame.documentKey : undefined};
   const source = await findPlayedSource(tab, sender.frameId, src, video);
   // The tab may have left MPV while the lengths were read, or a stream went meanwhile.
   if (!waiting(onPlay)) {
+    return;
+  }
+  const frameNow = tab.getFrame(sender.frameId);
+  if (tab.url !== page.url || (frameNow ? frameNow.documentKey : undefined) !== page.document) {
     return;
   }
   if (Logging) console.log('[MPV] user started a video:', src, source && source.url);
@@ -2033,6 +2059,9 @@ async function onUserPlay(sender, src, video) {
   } else if (source) {
     sendPlayedToMpv(tab, source);
   } else {
+    // None yet, or only another video's by length (findPlayedSource): the next stream the
+    // page asks for decides, when its length can be the video's (onSourceRecieved).
+    tab.mpvPlayedVideo = video || null;
     tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;
   }
 }
@@ -2045,7 +2074,10 @@ async function onUserPlay(sender, src, video) {
  * src is a blob: and its manifest a request of that frame - and one that ran an
  * ad first has the ad's among them. Their
  * lengths may not be read yet: the page can have asked for them before this
- * tab's MPV started, when nothing read them.
+ * tab's MPV started, when nothing read them. A short video beside a far longer
+ * stream is an ad or a preview, found by URL or not: the longest decides. A
+ * pick plainly another length than the video is none: the video's stream is
+ * still to come.
  *
  * @param {Object} tab - TabHolder the video is in.
  * @param {number} frameId - Frame the video is in.
@@ -2054,24 +2086,56 @@ async function onUserPlay(sender, src, video) {
  * @return {Promise<Object|null>} The source, or null when none is detected yet.
  */
 async function findPlayedSource(tab, frameId, src, video) {
+  let byUrl = null;
   if (/^https?:\/\//i.test(src)) {
     for (const frame of tab.getFrames()) {
-      const match = getSourceFromURL(frame, src);
-      if (match) {
-        return match;
+      byUrl = getSourceFromURL(frame, src);
+      if (byUrl) {
+        break;
       }
     }
   }
 
   const frame = tab.getFrame(frameId);
+  const others = frame ? frame.getSources().filter((source) => source !== byUrl) : [];
+  if (byUrl && others.length === 0) {
+    return byUrl;
+  }
   if (!frame) {
     return null;
   }
 
-  if (frame.getSources().length > 1) {
+  // The lengths decide below, and a stream the page asked for before this tab's MPV started
+  // has none read. One stream alone too, when the video's length is known: sent unread, an
+  // ad's or a preview's went to mpv for a film the user started.
+  if (frame.getSources().length > 1 || StreamPick.lengthOf(video ? video.duration : null) !== null) {
     await Lengths.settle(() => frame.getSources(), SourceLengthWaitMs);
   }
-  return newestOfLongest(frame.getSources(), video);
+
+  const sources = frame.getSources();
+  const lengths = Lengths.lengthsOf(sources);
+  const measured = StreamLength.withoutStills(sources.map((source, i) => ({source, url: source.url, duration: lengths[i]})));
+  const videoLength = StreamPick.lengthOf(video ? video.duration : null);
+  if (byUrl) {
+    // The file the video plays, unless a far longer stream plays beside it (StreamPick's
+    // rule for a video it matches by length): then the video is a preroll ad or a preview
+    // the same click started, and the longest decides.
+    const length = StreamPick.lengthOf(Lengths.lengthsOf([byUrl])[0]) ?? videoLength;
+    if (!StreamPick.outrun(measured.filter((entry) => entry.source !== byUrl), length)) {
+      return byUrl;
+    }
+    return newestOfLongest(sources, video);
+  }
+
+  const picked = newestOfLongest(sources, video);
+  // A stream plainly another length than the video is not its stream, unless the video is
+  // the ad (a far longer stream beside it): an ad's or a preview's the page fetched before
+  // went to mpv for a film. None yet then: the next stream the page asks for decides.
+  if (picked && !StreamPick.outrun(measured, videoLength) &&
+      StreamPick.conflicts(video, Lengths.lengthsOf([picked])[0])) {
+    return null;
+  }
+  return picked;
 }
 
 /**
