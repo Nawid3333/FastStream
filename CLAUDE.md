@@ -1381,6 +1381,13 @@ the change went in.
   tsconfig; they stall the language server otherwise. Those two and a dozen more are
   copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
   a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
+- **Property tests for what a page feeds in** (2026-10-01, T8): `tests/unit/*.property.test.mjs`
+  run fast-check against SubtitleUtils (SRT/VTT/XML), StreamLength (m3u8/mpd), URLUtils,
+  DownloadFilename and the host's `readMessage`: no throw on arbitrary text, round trips,
+  and models (an HLS length is the sum of its finite positive EXTINFs). Random text rarely
+  hits the cases that matter, so each rule has a targeted generator too (device names,
+  emoji at the 200-character cut, broken EXTINF values); 7 broken rules were each caught.
+  A failure prints its seed and shrunk input: reproduce with `fc.assert(..., {seed})`.
 - **`build.mjs` rewrites `chrome/manifest.json` in place** on every run to
   sync the version from `package.json`. The tree is dirty after each build.
   Don't sweep it into an unrelated commit.
