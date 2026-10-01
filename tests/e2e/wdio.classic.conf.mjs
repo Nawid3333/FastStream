@@ -13,7 +13,7 @@
 
 import path from 'node:path';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 const caps = structuredClone(base.capabilities);
@@ -23,5 +23,5 @@ export const config = {
   ...base,
   capabilities: caps,
   specs: [path.join(import.meta.dirname, 'classic-specs/**/*.e2e.mjs')],
-  onWorkerEnd: keepDriverLogs(base.outputDir, `classic-${BUILD}`),
+  onWorkerEnd: recordRetriedSpecs(base.outputDir, `classic-${BUILD}`),
 };

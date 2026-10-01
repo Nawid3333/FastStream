@@ -115,6 +115,11 @@ dismissed. If `update-prs.yml`, `toolchain-updates.yml`, `wsl-releases.yml` or
 "Toolchain updates workflow failed", "WSL releases workflow failed" or "Security alerts
 workflow failed", while that one is open.
 
+Once a week, `flaky-specs.yml` opens "Flaky e2e specs: week to <date>" when a CI run in
+those 7 days had to run a spec file again: a test that failed once and passed on its
+retry leaves a green run, so this is the only place it shows up besides that run's
+summary. The next week's issue closes it, and so does a week with no retry.
+
 A push to `main` is released even when a late run cancelled its CI run (GitHub once
 delivered an older push a second time), or when an mpv pin or an update merge landed while
 it ran and nothing started CI after it: `auto-release.yml` restarts the run, or starts CI

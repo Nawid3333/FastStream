@@ -27,14 +27,31 @@ describe('Download names', function() {
 
   for (const [name, asked, saved] of cases) {
     it(`saves ${name}`, async function() {
-      const downloadId = await inExtensionPage((args, done) => {
+      // The page stays open until Firefox has the file: the blob URL is the page's, and
+      // inExtensionPage closes the page once this calls done. Closed as soon as the
+      // download had its id, the page took the blob with it before Firefox read it, and
+      // the file never came (CI, about 1 run in 7, any of the cases).
+      const download = await inExtensionPage((args, done) => {
         import('/player/utils/Utils.mjs').then(async ({Utils}) => {
           const url = URL.createObjectURL(new Blob(['saved']));
-          done(await Utils.downloadURL(url, args.asked));
-        }).catch((e) => done('error: ' + e));
+          const id = await Utils.downloadURL(url, args.asked);
+          if (typeof id !== 'number') {
+            done({id});
+            return;
+          }
+          const until = Date.now() + 10000;
+          let item;
+          do {
+            [item] = await chrome.downloads.search({id});
+            if (item && item.state !== 'in_progress') break;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          } while (Date.now() < until);
+          done({id, state: item?.state, error: item?.error, filename: item?.filename});
+        }).catch((e) => done({id: 'error: ' + e}));
       }, {asked});
-      console.log('      download id:', downloadId);
-      expect(typeof downloadId).toBe('number');
+      console.log('      download:', JSON.stringify(download));
+      expect(typeof download.id).toBe('number');
+      expect(download.state).toBe('complete');
       // Firefox makes the file when the download starts and writes its bytes at the end:
       // read as soon as it existed, it was empty on the Windows runner.
       const file = path.join(downloadDir, saved);
