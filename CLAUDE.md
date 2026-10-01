@@ -887,10 +887,12 @@ default `GITHUB_TOKEN`, and GitHub deliberately does not let a
 tag landed with no Release run behind it, before this dispatch step
 existed.
 
-The bump commit is itself a push to the branch, which reruns CI, which
-would re-trigger `auto-release.yml` — the workflow's `if:` skips any
-`workflow_run` whose head commit message starts with `chore: release `,
-which is what stops that loop rather than looping forever.
+The bump commit is pushed with `GITHUB_TOKEN` like the tag, so it starts no
+CI run: the release commit itself is never CI-tested (it changes only the
+version; release commit `598c2d6a` has no CI run). Should CI run on it anyway,
+by a dispatch or a re-run, the workflow's `if:` skips any `workflow_run` whose
+head commit message starts with `chore: release `, so a release never
+releases itself.
 
 **Only when something shipped changed** (2026-09-25). Before bumping,
 auto-release downloads CI's build of the commit (the `faststream-bundles`
