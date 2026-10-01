@@ -119,8 +119,11 @@ describe('combined-locales.json', () => {
     const expected = {};
     for (const locale of fs.readdirSync(path.join(chromeDir, '_locales'))) {
       const messages = JSON.parse(fs.readFileSync(path.join(chromeDir, '_locales', locale, 'messages.json'), 'utf8'));
-      for (const [key, {message}] of Object.entries(messages)) {
-        (expected[key] ||= {})[locale] = message;
+      for (const [key, value] of Object.entries(messages)) {
+        // Own keys only, and the locale folder name as the key: a key like __proto__
+        // would end up as a real member of expected (CodeQL js/remote-property-injection).
+        if (!Object.hasOwn(messages, key)) continue;
+        (expected[key] ||= {})[locale] = value.message;
       }
     }
     expect(Object.keys(expected).length).toBeGreaterThanOrEqual(400);

@@ -63,13 +63,16 @@ if (gecko.strict_min_version) {
   updateEntry.applications = {gecko: {strict_min_version: gecko.strict_min_version}};
 }
 
-const updateManifest = {
-  addons: {
-    [id]: {
-      updates: [updateEntry],
-    },
-  },
-};
+// The id keys the addons map; an id with a prototype-ish name ("__proto__") would be
+// written as a real member here. AMO ids are like an email/localPart@host, which never
+// matches one (CodeQL js/remote-property-injection).
+if (!/^[\w.+@-]+$/.test(id)) {
+  console.error(`Unexpected gecko id in ${manifestPath}: ${id}`);
+  process.exit(1);
+}
+const addons = {};
+addons[id] = {updates: [updateEntry]};
+const updateManifest = {addons};
 
 const outPath = path.join(artifactsDir, 'updates.json');
 fs.writeFileSync(outPath, JSON.stringify(updateManifest, null, 2) + '\n');

@@ -69,12 +69,26 @@ const libs = {};
 async function npmFile(pkg, file) {
   const pkgJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const version = String(pkgJson.devDependencies[pkg]).replace(/^[\^~]/, '');
-  const cached = path.join(os.tmpdir(), 'faststream-live-libs', `${pkg}@${version}`, file);
-  if (fs.existsSync(cached)) {
+  // The registry host is pinned: the version comes from this repo's own package.json,
+  // and both the fetch and the cache land under it (CodeQL js/request-forgery,
+  // js/http-to-file-access).
+  const registry = 'https://registry.npmjs.org';
+  const cacheDir = path.join(os.tmpdir(), 'faststream-live-libs', `${pkg}@${version}`);
+  const cached = path.join(cacheDir, file);
+  // Read without a preceding existsSync: gone-in-between is handled by the catch
+  // (CodeQL js/file-system-race).
+  try {
     return fs.readFileSync(cached);
+  } catch (e) {
+    if (e.code !== 'ENOENT') {
+      throw e;
+    }
+  }
+  if (!file.startsWith('/') && file.includes('..')) {
+    throw new Error(`${pkg}: refusing a file path that climbs out of the package: ${file}`);
   }
 
-  const res = await fetch(`https://registry.npmjs.org/${pkg}/-/${pkg}-${version}.tgz`);
+  const res = await fetch(`${registry}/${pkg}/-/${pkg}-${version}.tgz`);
   if (!res.ok) {
     throw new Error(`could not download ${pkg}@${version}: HTTP ${res.status}`);
   }
@@ -90,8 +104,18 @@ async function npmFile(pkg, file) {
     const prefix = field(offset + 345, 155);
     if ((prefix ? prefix + '/' : '') + name === 'package/' + file) {
       const data = tar.subarray(offset + 512, offset + 512 + size);
-      fs.mkdirSync(path.dirname(cached), {recursive: true});
-      fs.writeFileSync(cached, data);
+      // 'wx' fails when another process wrote the cache entry in between, and reading
+      // it back then gives the same bytes (CodeQL js/file-system-race).
+      fs.mkdirSync(cacheDir, {recursive: true});
+      let fd;
+      try {
+        fd = fs.openSync(cached, 'wx');
+        fs.writeFileSync(fd, data);
+      } catch (e) {
+        if (e.code !== 'EEXIST') throw e;
+      } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+      }
       return data;
     }
     offset += 512 + Math.ceil(size / 512) * 512;

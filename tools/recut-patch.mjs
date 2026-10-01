@@ -73,6 +73,13 @@ function parseArgs(argv) {
   }
   if (rest.length !== 2) usage('expected <package> <new-version>');
   [opts.pkg, opts.to] = rest;
+  // A package name is npm's own shape (optionally @scope/name); a version is semver.
+  // Both end up in paths (node_modules/<pkg>, the mkdtemp work dir) and in a shell
+  // command (npm pack <pkg>@<version>), so anything off this shape is refused before
+  // any of that (CodeQL js/path-injection, js/command-line-injection).
+  if (!/^@[\w.-]+\/[\w.-]+$|^[A-Za-z0-9][\w.-]*$/.test(opts.pkg)) usage(`not an npm package name: ${opts.pkg}`);
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][\w.-]+)?$/.test(opts.to)) usage(`not a version: ${opts.to}`);
+  if (opts.patch && !/^[\w/@.-]+\.patch$/.test(opts.patch)) usage(`not a patch file: ${opts.patch}`);
   if ((opts.from === undefined) !== (opts.patch === undefined)) usage('--from and --patch go together');
   if (opts.apply && opts.from) usage('--apply takes the current patch, not --from/--patch');
   if (opts.resume && !opts.out) usage('--resume needs the --out directory of the run it resumes');
@@ -91,7 +98,10 @@ function usage(msg) {
 function run(cmd, args, opts = {}) {
   const base = {encoding: 'utf8', maxBuffer: 1 << 30, ...opts};
   // npm and pnpm are .cmd shims on Windows, which Node only starts through a shell - and
-  // a shell does not quote arguments, so they are quoted here (paths have spaces).
+  // a shell does not quote arguments, so they are quoted here (paths have spaces). The
+  // percent sign joins the quoted set: cmd.exe expands %VAR% even inside double quotes,
+  // and pnpm patch-commit's output paths reach this line (CodeQL
+  // js/command-line-injection; the args are this repo's own values).
   const r = process.platform === 'win32' && (cmd === 'npm' || cmd === 'pnpm') ?
     spawnSync([cmd, ...args].map((a) => /[\s"&|<>^()%!]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a).join(' '), {...base, shell: true}) :
     spawnSync(cmd, args, base);
@@ -139,8 +149,12 @@ async function fetchRelease(pkg, version, dir) {
   if (git) {
     // GitHub's archive of the tag. Not `npm pack <git spec>`: npm may be set not to fetch
     // git dependencies (allow-git), and this needs no git at all.
-    const m = /^github:([^/#]+)\/([^#]+)#(.+)$/.exec(git);
+    const m = /^github:([\w.-]+)\/([\w.-]+)#([\w.-]+)$/.exec(git);
     if (!m) throw new Error(`${pkg}: only github: git specs are supported (${git})`);
+    // The host is pinned to codeload.github.com, and the owner/repo/tag are checked
+    // against a strict shape, so the spec (from this repo's own package.json) cannot
+    // direct the request anywhere else (CodeQL js/request-forgery).
+    if (!/^[a-zA-Z0-9._-]+$/.test(m[3])) throw new Error(`${pkg}: unsupported tag ${m[3]}`);
     const res = await fetch(`https://codeload.github.com/${m[1]}/${m[2]}/tar.gz/refs/tags/${m[3]}`);
     if (!res.ok) throw new Error(`${pkg}: GitHub has no tag ${m[3]} (${res.status})`);
     fs.writeFileSync(path.join(dir, 'release.tgz'), Buffer.from(await res.arrayBuffer()));

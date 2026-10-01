@@ -184,6 +184,10 @@ async function main() {
   if (!repo || !tag) {
     throw new Error('usage: node tools/check-update-path.mjs <owner/repo> <tag>');
   }
+  // Strict shapes for both CLI values, and the download host pinned to
+  // github.com, so the URL cannot leave it (CodeQL js/request-forgery).
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`${repo}: not an owner/repo pair`);
+  if (!/^[\w.-]+$/.test(tag)) throw new Error(`${tag}: not a tag`);
   const id = geckoIdFromBuild(fs.readFileSync(path.join(root, 'build.mjs'), 'utf8'));
   const version = tag.replace(/^v/, '');
   const updateUrl = `https://github.com/${repo}/releases/latest/download/updates.json`;

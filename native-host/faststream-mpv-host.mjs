@@ -508,7 +508,13 @@ export function mpvTargetUrl(message) {
   return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
 }
 
-const IpcLockFile = path.join(os.tmpdir(), 'faststream-mpv-ipc.lock');
+// The IPC lock lives in a per-run directory under the user's own temp folder: a fresh
+// mkdtempSync name (random suffix) instead of one fixed, predictable file in the shared
+// temp root that another local process could create first (CodeQL
+// js/insecure-temporary-file). The directory is what the lock opens into; the lock file
+// itself keeps its name inside it.
+const IpcLockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'faststream-mpv-ipc-'));
+const IpcLockFile = path.join(IpcLockDir, 'ipc.lock');
 
 // Longer than any exchange with mpv takes (mpvIpcRequest gives up after 1.5 s): a lock
 // this old was left by a host that was killed.

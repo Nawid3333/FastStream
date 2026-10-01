@@ -28,8 +28,18 @@ const logsDir = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '
  * @return {string} Its text, or '' before it exists.
  */
 function driverLog() {
+  // The worker id is digits (wdio's own), and the read has no existsSync in front of
+  // it: absent means '' (CodeQL js/path-injection, js/file-system-race).
+  if (!/^\d+$/.test(process.env.WDIO_WORKER_ID || '')) {
+    return '';
+  }
   const file = path.join(logsDir, `wdio-${process.env.WDIO_WORKER_ID}-geckodriver.log`);
-  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return '';
+    throw e;
+  }
 }
 
 describe('The background log', function() {

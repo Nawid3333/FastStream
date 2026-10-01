@@ -14,6 +14,10 @@ import {MIN_AGE_DAYS, newestOfMajor} from './check-toolchain.mjs';
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// The only hosts this tool talks to; `name` never leaves them (CodeQL js/request-forgery).
+const NODE_INDEX_URL = 'https://nodejs.org/dist/index.json';
+const NPM_REGISTRY = 'https://registry.npmjs.org/';
+
 /**
  * @param {Array<{version: string, date: string}>} index - nodejs.org/dist/index.json, newest first.
  * @param {number} major
@@ -54,9 +58,11 @@ async function main() {
   const [what, name] = process.argv.slice(2);
   let version;
   if (what === 'node' && /^\d+$/.test(name || '')) {
-    version = newestNode(await getJson('https://nodejs.org/dist/index.json'), Number(name), Date.now());
-  } else if (what === 'npm' && name) {
-    version = newestPackage(await getJson(`https://registry.npmjs.org/${name.replaceAll('/', '%2F')}`), Date.now());
+    version = newestNode(await getJson(NODE_INDEX_URL), Number(name), Date.now());
+  } else if (what === 'npm' && /^[^/]+(\/[^/]+)?$/.test(name || '')) {
+    // Exactly one or two path segments, percent-encoded: the scoped name stays on the
+    // pinned registry host (CodeQL js/request-forgery).
+    version = newestPackage(await getJson(NPM_REGISTRY + encodeURIComponent(name)), Date.now());
   } else {
     throw new Error('usage: node tools/newest-release.mjs node <major> | npm <package>');
   }

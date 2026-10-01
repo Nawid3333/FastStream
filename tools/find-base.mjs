@@ -43,9 +43,13 @@ import {fingerprint} from './ast-compare.mjs';
 const args = process.argv.slice(2);
 const positional = [];
 const opts = {};
+// Two fixed option names only: anything else falls through to the positional list, so
+// an argv value never becomes an object key (CodeQL js/remote-property-injection).
+const optionNames = new Set(['repo', 'path']);
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--repo' || args[i] === '--path') {
-    opts[args[i].slice(2)] = args[++i];
+  const opt = /^--([a-z]+)$/.exec(args[i] || '');
+  if (opt && optionNames.has(opt[1])) {
+    opts[opt[1]] = args[++i];
   } else if (args[i] === '--tags' || args[i] === '--commits') {
     opts.mode = args[i].slice(2);
   } else {
@@ -90,6 +94,10 @@ async function candidates() {
   if (!opts.repo || !opts.path) {
     throw new Error('--tags and --commits both need --repo and --path');
   }
+  // The CLI values get a strict shape and the two hosts below stay pinned, so
+  // --repo/--path cannot send the request anywhere else (CodeQL js/request-forgery).
+  if (!/^[\w.-]+\/[\w.-]+$/.test(opts.repo)) throw new Error(`${opts.repo}: not an owner/repo pair`);
+  if (!/^[\w./-]+\.[a-z]+$/.test(opts.path)) throw new Error(`${opts.path}: not a file path`);
   const raw = (ref) =>
     `https://raw.githubusercontent.com/${opts.repo}/${ref}/${opts.path}`;
 

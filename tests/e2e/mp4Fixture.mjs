@@ -44,8 +44,16 @@ export async function writeFixture(file, write) {
  * @return {Promise<void>}
  */
 export async function ensureMp4Fixture() {
-  if (fs.existsSync(MP4_FIXTURE) && fs.statSync(MP4_FIXTURE).size > 0) return;
+  // Read (size included) without a preceding existsSync: no gap between the two
+  // calls (CodeQL js/file-system-race).
+  try {
+    if (fs.statSync(MP4_FIXTURE).size > 0) return;
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
   fs.mkdirSync(fixturesDir, {recursive: true});
+  // The fixture host is a pinned constant, not an interpolated URL; the
+  // destination is this suite's own fixtures dir (CodeQL js/http-to-file-access).
   const res = await fetch(MP4_FIXTURE_URL);
   if (!res.ok) {
     throw new Error(

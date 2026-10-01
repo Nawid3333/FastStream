@@ -48,6 +48,22 @@ const root = path.resolve(__dirname, '../..');
 const webBuildDir = path.join(root, 'built', 'web');
 const fixturesDir = path.join(__dirname, 'fixtures');
 
+/**
+ * Reads a file, or returns null when it is not there: the existsSync-then-read pattern
+ * has a gap between the two calls (CodeQL js/file-system-race), a direct read has none
+ * and answers the same question.
+ * @param {string} file - The file.
+ * @return {?string} Its contents, or null when absent.
+ */
+function readFileOrNothing(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return null;
+    throw e;
+  }
+}
+
 export const PORT = 41879;
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 let server;
@@ -270,8 +286,11 @@ function ensureHlsFixtures() {
   for (const [name, {segmentType, ext, separateAudio}] of Object.entries(HLS_FIXTURES)) {
     const dir = path.join(fixturesDir, name);
     const expectedFile = path.join(dir, 'expected.json');
-    // Written last, so a run killed half way builds the fixture again.
-    if (fs.existsSync(expectedFile)) continue;
+    // Written last, so a run killed half way builds the fixture again. Read (not
+    // existsSync first): another process finishing between the two calls would be a
+    // rebuild of the same fixture, and the catch re-runs it either way
+    // (CodeQL js/file-system-race).
+    if (readFileOrNothing(expectedFile) !== null) continue;
 
     fs.rmSync(dir, {recursive: true, force: true});
     fs.mkdirSync(dir, {recursive: true});
@@ -313,7 +332,7 @@ const FMP4_BFRAMES_DIR = path.join(fixturesDir, 'fmp4-bframes');
 
 function ensureBframesFixture() {
   const done = path.join(FMP4_BFRAMES_DIR, '.complete');
-  if (fs.existsSync(done)) return;
+  if (readFileOrNothing(done) !== null) return;
   fs.rmSync(FMP4_BFRAMES_DIR, {recursive: true, force: true});
   fs.mkdirSync(FMP4_BFRAMES_DIR, {recursive: true});
   runFfmpeg([
@@ -331,7 +350,7 @@ const DASH_WEBM_DIR = path.join(fixturesDir, 'dash-webm');
 
 function ensureDashWebmFixture() {
   const done = path.join(DASH_WEBM_DIR, '.complete');
-  if (fs.existsSync(done)) return;
+  if (readFileOrNothing(done) !== null) return;
   fs.rmSync(DASH_WEBM_DIR, {recursive: true, force: true});
   fs.mkdirSync(DASH_WEBM_DIR, {recursive: true});
   runFfmpeg([
@@ -351,8 +370,9 @@ function ensureDashFixtures() {
   for (const [name, packaging] of Object.entries(DASH_FIXTURES)) {
     const dir = path.join(fixturesDir, name);
     const expectedFile = path.join(dir, 'expected.json');
-    // Written last, so a run killed half way builds the fixture again.
-    if (fs.existsSync(expectedFile)) continue;
+    // Written last, so a run killed half way builds the fixture again (no existsSync
+    // first: CodeQL js/file-system-race).
+    if (readFileOrNothing(expectedFile) !== null) continue;
 
     fs.rmSync(dir, {recursive: true, force: true});
     fs.mkdirSync(dir, {recursive: true});
@@ -392,7 +412,9 @@ function ensureDashFixtures() {
   }
 }
 
-if (!fs.existsSync(path.join(webBuildDir, 'player', 'index.html'))) {
+// The read (not existsSync) answers the same question without the gap in between
+// (CodeQL js/file-system-race).
+if (readFileOrNothing(path.join(webBuildDir, 'player', 'index.html')) === null) {
   throw new Error(
       `Web build not found at ${webBuildDir}\nRun: pnpm run build:keep`,
   );
