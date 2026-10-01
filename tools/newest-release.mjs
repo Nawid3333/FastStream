@@ -56,7 +56,7 @@ async function main() {
   if (what === 'node' && /^\d+$/.test(name || '')) {
     version = newestNode(await getJson('https://nodejs.org/dist/index.json'), Number(name), Date.now());
   } else if (what === 'npm' && name) {
-    version = newestPackage(await getJson(`https://registry.npmjs.org/${name.replace('/', '%2F')}`), Date.now());
+    version = newestPackage(await getJson(`https://registry.npmjs.org/${name.replaceAll('/', '%2F')}`), Date.now());
   } else {
     throw new Error('usage: node tools/newest-release.mjs node <major> | npm <package>');
   }
