@@ -63,24 +63,29 @@ verdict as the last one is edited in place, so a repeat sends no second email.
 
 ## Your PC
 
-GitHub can't update your PC, so one double-click does: `update-local.cmd` in the
-repository's root. It brings your tools to what CI uses, by CI's rule (a release counts
-once it is 5 days old):
+GitHub can't update your PC, so one double-click checks it: `update-local.cmd` in the
+repository's root. It compares your tools with what CI uses, by CI's rule (a release counts
+once it is 5 days old), and changes nothing:
 
-- Node.js of the major `.nvmrc` names: nodejs.org's installer, checked against its
-  `SHASUMS256.txt`. Windows asks for admin rights; say yes.
+- Node.js of the major `.nvmrc` names: whether a newer eligible release is on nodejs.org.
 - npm's newest release, and the pnpm version `package.json` pins (inside the repository
   pnpm switches to that one by itself).
-- On `main` with nothing uncommitted: `git pull`, then the locked dependencies
-  (`pnpm install --frozen-lockfile`) and fsaunpack's (`npm ci`, scripts off).
-- The mpv helper, again, when the repository's differs from the installed one; it keeps
-  your mpv and Node paths.
+- On `main` with nothing uncommitted: how many commits it is behind origin, and whether the
+  locked dependencies (`pnpm install --frozen-lockfile`, fsaunpack's `npm ci`, scripts off)
+  would need a run.
+- The mpv helper: whether the repository's differs from the installed one.
+
+Whatever it reports as out of date, one run applies: `tools/update-local.ps1 -Apply`. The
+same rule as the check: Node comes as nodejs.org's installer, checked against its
+`SHASUMS256.txt` (Windows asks for admin rights; say yes), npm and pnpm install with
+scripts off, the pull is `--ff-only` on a clean `main`, and the mpv helper keeps your mpv
+and Node paths.
 
 It never touches Firefox (it updates itself, and FastStream from the releases), mpv
 (`C:\Program Files\mpv` has its own repository and updater) or WSL (`pnpm run verify:linux`
-updates its distros; a "WSL update" issue says when WSL itself has a new release). Run it
-after updates merged, or whenever you like: it only changes what is out of date, and lists
-what it did. `tools/update-local.ps1 -DryRun` says what it would do and changes nothing.
+updates its distros; a "WSL update" issue says when WSL itself has a new release). Run the
+check whenever you like: it changes nothing, and lists everything out of date with what to
+do about it.
 
 ## When you get an email
 
