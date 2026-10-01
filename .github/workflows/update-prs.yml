@@ -389,7 +389,14 @@ jobs:
           fi
           # The token that updates the branch and merges it: the owner's for workflow files.
           merge_token=$GH_TOKEN
-          if [ "$kind" = actions ] && [ -n "${MERGE_TOKEN:-}" ]; then merge_token=$MERGE_TOKEN; fi
+          if [ "$kind" = actions ] && [ -n "${MERGE_TOKEN:-}" ]; then
+            merge_token=$MERGE_TOKEN
+            # An expired or revoked token would fail the merge, and this run with it, over and
+            # over: a reason on the pull request says so instead.
+            if ! GH_TOKEN=$MERGE_TOKEN gh api "repos/$GH_REPO" --jq .full_name > /dev/null 2>&1; then
+              reasons+=('the UPDATE_PRS_TOKEN secret does not work (expired, revoked, or without access to this repository): renew it (docs/maintenance.md, "A token for workflow updates")')
+            fi
+          fi
           # patched/<name>-<version>: a step from the version main's package.json holds (the
           # one the patch is cut against). The name is the longest of main's dependencies the
           # branch starts with. Anything that cannot be told (a name main has not, a version
@@ -430,6 +437,15 @@ jobs:
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
             if [ "$author" != "app/${bot%\[bot\]}" ]; then reasons+=("$author opened it, not $bot"); fi
             gh pr view "$number" --json files,commits > "$RUNNER_TEMP/pr.json"
+            # gh pr view reads at most 100 files and 100 commits (measured on gh 2.101: a pull
+            # request of 789 files and 217 commits gave 100 of each). One with more is not seen
+            # whole by the checks below, so a person looks at it.
+            # Unreadable counts leave both empty, and the pull request waits.
+            read -r all_files all_commits < <(gh api "repos/$GH_REPO/pulls/$number" --jq '"\(.changed_files) \(.commits)"') || true
+            if [ -z "${all_commits:-}" ] || [ "$all_files" -gt "$(jq '.files | length' "$RUNNER_TEMP/pr.json")" ] ||
+               [ "$all_commits" -gt "$(jq '.commits | length' "$RUNNER_TEMP/pr.json")" ]; then
+              reasons+=("it has ${all_files:-?} changed files and ${all_commits:-?} commits, more than this workflow reads at once (100 of each): a person checks it")
+            fi
             # Its own commits, and the merges of main that "Update branch" makes here (the
             # owner's, when made with their token).
             others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" '.commits[] | select(
@@ -489,12 +505,16 @@ jobs:
               # A file this project deleted on purpose (Chromium, YouTube, the re-encoder) that
               # upstream still has, coming back with the sync: no test notices a file that should
               # not be there. Added here, and once on main: it was deleted there.
+              # Read into a file first: a failed call then stops this run (set -e), where a
+              # process substitution would hand the loop nothing and let it merge.
+              gh api --paginate "repos/$GH_REPO/pulls/$number/files" --jq '.[] | select(.status == "added") | .filename' \
+                > "$RUNNER_TEMP/added.txt"
               back=()
               while IFS= read -r f; do
                 if [ -n "$f" ] && [ "$(gh api -X GET "repos/$GH_REPO/commits" -f sha=main -f path="$f" -f per_page=1 --jq length)" != 0 ]; then
                   back+=("$f")
                 fi
-              done < <(gh api --paginate "repos/$GH_REPO/pulls/$number/files" --jq '.[] | select(.status == "added") | .filename')
+              done < "$RUNNER_TEMP/added.txt"
               if [ ${#back[@]} != 0 ]; then
                 reasons+=("it brings back $(printf '%s ' "${back[@]}" | sed 's/ $//'), which this project deleted")
               fi
@@ -518,7 +538,7 @@ jobs:
                 ships=1
               fi
             fi
-            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
+            if [ "$kind" = dependabot ] || [ "$kind" = patched ] || [ "$kind" = upstream ]; then
               # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
               # new lockfile brings in with them: a sub-dependency published an hour ago comes
               # along unseen, and a poisoned release is usually caught within days. Every
@@ -534,7 +554,7 @@ jobs:
                 # links aside).
                 entries() {
                   if [ "$fsa" = 1 ]; then
-                    jq -r '.packages // {} | to_entries[] | select(.key != "" and (.value.link | not) and .value.version != null) |
+                    jq -r '.packages // {} | to_entries[] | select((.key | startswith("node_modules/")) and (.value.link | not) and .value.version != null) |
                       "\(.key | sub("^(.*/)?node_modules/"; ""))@\(.value.version)"' "$1" | LC_ALL=C sort -u
                   else
                     awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |

@@ -224,8 +224,22 @@ case "$1 $2" in
         jq -n --arg s "$oid" '{sha: $s}' > "$STATE/uc.json"; jqout "$STATE/uc.json"
         ;;
       "GET repos/me/fs/pulls/"*/files)
+        if [ -f "$STATE/pr_files_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
         [ -f "$STATE/pr_files.json" ] || echo '[]' > "$STATE/pr_files.json"
         jqout "$STATE/pr_files.json"
+        ;;
+      "GET repos/me/fs/pulls/"*)
+        # The pull request's own counts: those of prview.json unless pr_counts says.
+        if [ -f "$STATE/pr_counts_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+        if [ -f "$STATE/pr_counts" ]; then read -r nf nc < "$STATE/pr_counts"; else
+          nf=$(jq '.files | length' "$STATE/prview.json"); nc=$(jq '.commits | length' "$STATE/prview.json"); fi
+        jq -n --argjson f "$nf" --argjson c "$nc" '{changed_files: $f, commits: $c}' > "$STATE/pull.json"
+        jqout "$STATE/pull.json"
+        ;;
+      "GET repos/me/fs")
+        # The owner's token works unless token_broken says otherwise.
+        if [ "$GH_TOKEN" = owner-token ] && [ -f "$STATE/token_broken" ]; then echo 'stub gh: HTTP 401 Bad credentials' >&2; exit 1; fi
+        echo '{"full_name":"me/fs"}' > "$STATE/repo.json"; jqout "$STATE/repo.json"
         ;;
       "GET repos/me/fs/commits")
         # main's history of one path (-f path=...): a commit when deleted_on_main names it.
@@ -1011,6 +1025,25 @@ upstream_brings_back_waits() {
   check 'not the new one' bash -c '! grep -qF "New.mjs" <<< "$0"' "$(last_comment)"
 }
 
+upstream_added_list_fails_stops() {
+  # The list of added files could not be read: no merge on a check that did not run.
+  upstream_setup
+  : > "$STATE/pr_files_fail"
+  run_step
+  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+}
+
+upstream_young_package_waits() {
+  # Upstream's lockfile change gets the 7-day check as Dependabot's does.
+  upstream_setup
+  lock_adds 'left-pad@9.9.9'
+  published left-pad 9.9.9 "$(hours_ago 5)"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF 'left-pad@9.9.9 (published' <(last_comment)
+}
+
 upstream_github_waits() {
   upstream_setup '["chrome/player/FastStreamClient.mjs",".github/workflows/release.yml"]'
   run_step
@@ -1070,6 +1103,45 @@ actions_behind_updates_with_token() {
   check "updated with the owner's token" grep -qx owner-token "$STATE/update_token"
   check 'starts no CI itself: that push does' bash -c '! grep -qF "workflow run ci.yml" "$0"' "$STATE/gh.log"
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+}
+
+actions_broken_token_waits() {
+  # An expired or revoked token: a reason on the pull request, not a failed run.
+  setup
+  export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
+  prview '[".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
+  : > "$STATE/token_broken"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says to renew it' grep -qF 'the UPDATE_PRS_TOKEN secret does not work' <(last_comment)
+}
+
+too_many_files_waits() {
+  # gh pr view reads 100 files and 100 commits at most: more, and a person checks it.
+  setup
+  echo '150 1' > "$STATE/pr_counts"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF 'it has 150 changed files and 1 commits, more than this workflow reads at once' <(last_comment)
+}
+
+too_many_commits_waits() {
+  setup
+  echo '2 101' > "$STATE/pr_counts"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF '2 changed files and 101 commits' <(last_comment)
+}
+
+counts_unreadable_waits() {
+  setup
+  : > "$STATE/pr_counts_fail"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF 'it has ? changed files and ? commits' <(last_comment)
 }
 
 actions_other_file_waits() {
@@ -1276,6 +1348,16 @@ fsaunpack_young_package_waits() {
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
+}
+
+fsaunpack_workspace_entry_ignored() {
+  # npm lists a workspace folder under packages too, with a version: not a registry package.
+  fsa_setup
+  jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
 }
 
 fsaunpack_other_file_waits() {
@@ -1668,13 +1750,19 @@ node_other_file_waits
 actions_waits
 actions_merges_with_token
 actions_behind_updates_with_token
+actions_broken_token_waits
 actions_other_file_waits
+too_many_files_waits
+too_many_commits_waits
+counts_unreadable_waits
 docker_merges
 docker_review_failed_waits
 docker_other_file_waits
 upstream_merges
 upstream_conflicts_waits
 upstream_brings_back_waits
+upstream_added_list_fails_stops
+upstream_young_package_waits
 upstream_github_waits
 upstream_foreign_commit_waits
 other_base
@@ -1694,6 +1782,7 @@ shipped_major_own_branch_merges
 shipped_list_unreadable_waits
 fsaunpack_merges
 fsaunpack_young_package_waits
+fsaunpack_workspace_entry_ignored
 fsaunpack_other_file_waits
 shipped_young_package_waits
 shipped_main_run_not_found
