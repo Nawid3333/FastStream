@@ -57,6 +57,10 @@ if (EnvUtils.isExtension()) {
           const filename = request.filename;
           Utils.downloadURL(url, filename, true).then((response) => {
             sendResponse(response);
+          }).catch((e) => {
+            // The background waits for an answer, and takes null as none (its own timeout's).
+            console.error('Starting the download failed', e);
+            sendResponse(null);
           });
           return true;
         } else {
@@ -372,9 +376,7 @@ async function setup() {
     const source = new VideoSource(url, {}, mode);
     source.parseHeadersParam();
 
-    window.fastStream.addSource(source, true).then(() => {
-
-    });
+    window.fastStream.addSource(source, true).catch((e) => console.error('Opening the stream in the address failed', e));
   }
 
   if (!EnvUtils.isExtension()) {

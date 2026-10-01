@@ -43,4 +43,48 @@ describe('Dialogs', function() {
     }
     expect(left).toBe(null);
   });
+
+  it('keeps FastStream\'s dialog sizes with the stylesheet generated from npm', async function() {
+    // tools/sweetalert-overrides.css: a dialog grows past sweetalert2's 32em for a long
+    // line (sweetalert2 fixes its width), a toast does not take that width (it was
+    // clipped), and the player keeps its height while a dialog is open (sweetalert2 sets
+    // the height of what it marks swal2-height-auto: here the player, not <body>).
+    await browser.setWindowSize(1280, 800);
+    await browser.url('/player/index.html?t=' + Date.now());
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
+        {timeout: 15000, timeoutMsg: 'window.fastStream never appeared'});
+
+    const measure = async (open) => {
+      const size = await browser.executeAsync((open, done) => {
+        import('/player/utils/AlertPolyfill.mjs').then(({AlertPolyfill}) => {
+          const player = document.querySelector('.mainplayer');
+          const before = player.getBoundingClientRect().height;
+          if (open === 'toast') {
+            AlertPolyfill.toast('success', 'Saved', 'The video was saved.');
+          } else {
+            AlertPolyfill.confirm('Do you want to download the whole video? This can take quite a long while.', 'warning');
+          }
+          setTimeout(() => {
+            const popup = document.querySelector('.swal2-popup');
+            const em = parseFloat(getComputedStyle(popup).fontSize);
+            done({
+              width: popup.getBoundingClientRect().width,
+              em32: 32 * em,
+              playerBefore: before,
+              playerAfter: player.getBoundingClientRect().height,
+            });
+          }, 500);
+        });
+      }, open);
+      await browser.execute(() => document.querySelector('.swal2-container')?.remove());
+      return size;
+    };
+
+    const dialog = await measure('confirm');
+    const toast = await measure('toast');
+    console.log('      sizes:', JSON.stringify({dialog, toast}));
+    expect(dialog.width).toBeGreaterThan(dialog.em32 + 10);
+    expect(dialog.playerAfter).toBe(dialog.playerBefore);
+    expect(toast.width).toBeLessThan(toast.em32);
+  });
 });

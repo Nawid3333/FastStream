@@ -90,7 +90,7 @@ OptionsStore.init().then(() => {
   loadOptions(OptionsStore.get());
   // Lets the e2e specs wait for the saved options instead of guessing when they arrived.
   document.documentElement.dataset.optionsLoaded = 'true';
-});
+}).catch((e) => console.error('Loading the saved options failed', e));
 
 
 if (!EnvUtils.isExtension()) {

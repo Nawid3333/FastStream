@@ -250,6 +250,47 @@ export class Utils {
   }
 
   /**
+   * Revokes a download's blob: URL once the download no longer needs it.
+   *
+   * downloads.download() resolves before Firefox has read a blob: URL: revoked at once, 8
+   * of 60 small downloads failed (interrupted, CRASH) and no file came, with no message -
+   * a subtitle saved from the menu, the end of a save. So the URL stays until Firefox says
+   * the download is over. A link click reads the blob at once (40 of 40 survived a revoke
+   * right after it); with no download to ask about (a link click, the web build), it
+   * stays a minute.
+   * @param {string} url - The blob: URL.
+   * @param {*} download - What downloadURL resolved with: the download's id, or not.
+   */
+  static revokeWhenDownloaded(url, download) {
+    const revoke = () => URL.revokeObjectURL(url);
+    const downloads = globalThis.chrome?.downloads;
+    if (typeof download !== 'number' || !downloads?.onChanged || !downloads.search) {
+      setTimeout(revoke, 60000);
+      return;
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      downloads.onChanged.removeListener(changed);
+      revoke();
+    };
+    const changed = (delta) => {
+      if (delta.id === download && delta.state && delta.state.current !== 'in_progress') {
+        finish();
+      }
+    };
+    // A download that never ends keeps its data no longer than this.
+    const timer = setTimeout(finish, 30 * 60 * 1000);
+    downloads.onChanged.addListener(changed);
+    // It may have ended before the listener was there.
+    downloads.search({id: download}).then(([item]) => {
+      if (!item || item.state !== 'in_progress') finish();
+    }).catch(finish);
+  }
+
+  /**
    * Downloads a file from a URL, using extension APIs if available.
    * @param {string} url - The file URL.
    * @param {string} filename - The filename to save as.

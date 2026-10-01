@@ -16,6 +16,7 @@ import * as url from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../../..');
@@ -67,6 +68,14 @@ const cleanupPage = (t) => `<!doctype html><title>cleanup</title>
     const div = document.createElement('div');
     div.innerHTML = '<video id="nested" muted autoplay loop src="/clip.mp4?nested=${t}"></video>';
     window.wrap.appendChild(div);
+  };
+  // A re-render as a custom element: its video in the element's own shadow root.
+  window.addShadowHost = () => {
+    const host = document.createElement('div');
+    host.id = 'host';
+    host.attachShadow({mode: 'open'}).innerHTML =
+        '<video id="shadowed" muted autoplay loop src="/clip.mp4?shadowed=${t}"></video>';
+    window.wrap.appendChild(host);
   };
   window.addAudio = () => {
     const audio = document.createElement('audio');
@@ -544,7 +553,7 @@ describe('content.js around an in-page player', function() {
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);
-        if ((await browser.getUrl()).startsWith(ORIGIN)) {
+        if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
           extHandle = handle;
           return true;
         }
@@ -600,6 +609,19 @@ describe('content.js around an in-page player', function() {
         {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
     // The <audio> kept its pause-on-play hook, so the page's sounds never played again.
     expect(await playingAfterPlay(['main', 'nested', 'sfx'])).toEqual({main: true, nested: true, sfx: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('keeps a video paused that the page adds inside a new element\'s shadow root', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => window.addShadowHost());
+    await browser.pause(2000);
+    // The observer looked below each added element, but not into its own shadow root.
+    expect(await inPage(() => {
+      const video = document.getElementById('host').shadowRoot.getElementById('shadowed');
+      return {paused: video.paused, played: video.currentTime > 0.5};
+    })).toEqual({paused: true, played: false});
     expect(await takeContentErrors()).toEqual([]);
   });
 

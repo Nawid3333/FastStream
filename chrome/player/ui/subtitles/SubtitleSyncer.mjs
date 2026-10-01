@@ -116,7 +116,7 @@ export class SubtitleSyncer extends EventEmitter {
               this.trackToSync.cues.splice(index, 1);
             }
           }
-        });
+        }).catch((e) => console.error('Applying the subtitle edit failed', e));
       } else {
         // create new cue at this time with default duration of 2 seconds
         const newCue = new VTTCue(time, time + 2, 'New subtitle');
@@ -146,7 +146,7 @@ export class SubtitleSyncer extends EventEmitter {
               this.trackToSync.cues.splice(index, 1);
             }
           }
-        });
+        }).catch((e) => console.error('Applying the subtitle edit failed', e));
       }
     });
 

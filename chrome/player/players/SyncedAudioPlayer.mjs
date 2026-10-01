@@ -16,6 +16,10 @@ export class SyncedAudioPlayer extends EventEmitter {
     this.audioDelayNode = null;
     this.resyncDecreaseCount = 0;
     this.madePlayers = false;
+    // Set by destroy(): a build or a resync still on its way stops at its next step. They
+    // went on after the video changed, adding players that kept downloading, showing their
+    // errors on the new video, and muting it.
+    this.destroyed = false;
   }
 
   async setup(audioContext, audioSource, audioOutputNode) {
@@ -33,8 +37,20 @@ export class SyncedAudioPlayer extends EventEmitter {
 
     if (this.shouldUseSeparateAudioPlayers()) {
       if (!this.madePlayers) {
+        // Set before the build, so a second call meanwhile does not start another.
         this.madePlayers = true;
-        await this.makePlayers(this.client.player.getSource());
+        try {
+          await this.makePlayers(this.client.player.getSource());
+        } catch (e) {
+          // One failed build left the flag set and half the players: every later call
+          // skipped the build, the delay stayed off for the session, and a resync threw.
+          // What was built goes, and the next change of the delay builds again.
+          console.error('Could not build the audio players for the video delay', e);
+          this.audioPlayers.forEach((player) => player.destroy());
+          this.audioPlayers = [];
+          this.madePlayers = false;
+          return;
+        }
       }
       this.resync();
     } else {
@@ -45,22 +61,26 @@ export class SyncedAudioPlayer extends EventEmitter {
       });
     }
 
-    if (this.audioContext && this.videoDelay < 0) {
+    const delaySeconds = -this.videoDelay / 1000;
+    // A delay node holds up to the most it was made for: one made for 1 s held a delay of
+    // -1500 ms at -1000 (the options field takes any number; its slider stops at 1000).
+    if (this.audioDelayNode && !(this.audioContext && delaySeconds > 0 && delaySeconds <= this.audioDelayMax)) {
+      this.outputNode.disconnectFrom(this.audioDelayNode);
+      this.audioSource.disconnect(this.audioDelayNode);
+      this.outputNode.connectFrom(this.audioSource);
+      this.audioDelayNode = null;
+    }
+    if (this.audioContext && delaySeconds > 0) {
       if (!this.audioDelayNode) {
-        this.audioDelayNode = this.audioContext.createDelay(1);
+        // Up to the 180 s Web Audio allows.
+        this.audioDelayMax = Math.min(Math.max(1, delaySeconds), 179);
+        this.audioDelayNode = this.audioContext.createDelay(this.audioDelayMax);
         this.outputNode.disconnectFrom(this.audioSource);
         this.audioSource.connect(this.audioDelayNode);
         this.outputNode.connectFrom(this.audioDelayNode);
       }
 
-      this.audioDelayNode.delayTime.value = -this.videoDelay / 1000;
-    } else {
-      if (this.audioDelayNode) {
-        this.outputNode.disconnectFrom(this.audioDelayNode);
-        this.audioSource.disconnect(this.audioDelayNode);
-        this.outputNode.connectFrom(this.audioSource);
-        this.audioDelayNode = null;
-      }
+      this.audioDelayNode.delayTime.value = Math.min(delaySeconds, this.audioDelayMax);
     }
     this.consecutiveResyncs = 0;
   }
@@ -76,8 +96,16 @@ export class SyncedAudioPlayer extends EventEmitter {
       const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
         isAudioOnly: true,
       });
+      if (this.destroyed) {
+        player.destroy();
+        return;
+      }
 
       await player.setup();
+      if (this.destroyed) {
+        player.destroy();
+        return;
+      }
       this.client.interfaceController.addVideo(player.getVideo());
 
       if (this.audioContext) {
@@ -99,6 +127,10 @@ export class SyncedAudioPlayer extends EventEmitter {
       });
 
       await player.setSource(source);
+      if (this.destroyed) {
+        player.destroy();
+        return;
+      }
 
       this.audioPlayers.push(player);
     }
@@ -109,7 +141,7 @@ export class SyncedAudioPlayer extends EventEmitter {
   }
 
   async play() {
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length !== 2) {
+    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
     this.audioPlayers[this.currentAudioPlayer].play();
@@ -118,7 +150,7 @@ export class SyncedAudioPlayer extends EventEmitter {
   }
 
   async pause() {
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length !== 2) {
+    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
     this.audioPlayers[this.currentAudioPlayer].pause();
@@ -126,7 +158,7 @@ export class SyncedAudioPlayer extends EventEmitter {
   }
 
   setCurrentTime(time) {
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length !== 2) {
+    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
     this.audioPlayers.forEach((player) => {
@@ -192,13 +224,15 @@ export class SyncedAudioPlayer extends EventEmitter {
     // console.log('Error is', error);
     if (error > 0.01 && this.client.currentVideo.readyState >= 2) {
       if (!this.resyncing) {
+        // The largest error first: tested from the smallest, anything over 0.05 s took
+        // the first branch, and a drift never got more than 3 tries.
         let resyncMax = 1;
-        if (error > 0.05) {
-          resyncMax = 3;
+        if (error > 0.2) {
+          resyncMax = 10;
         } else if (error > 0.1) {
           resyncMax = 6;
-        } else if (error > 0.2) {
-          resyncMax = 10;
+        } else if (error > 0.05) {
+          resyncMax = 3;
         }
 
         if (this.consecutiveResyncs < resyncMax) {
@@ -220,12 +254,20 @@ export class SyncedAudioPlayer extends EventEmitter {
     }
 
     this.resyncing = true;
-    await this.silentResyncInternal();
-    this.resyncing = false;
+    try {
+      await this.silentResyncInternal();
+    } catch (e) {
+      console.error('Audio resync failed', e);
+    } finally {
+      // One throw left this set, and the drift was never corrected again that session.
+      this.resyncing = false;
+    }
   }
 
   async silentResyncInternal() {
-    if (this.audioPlayers.length < 1) {
+    // Both players: it swaps between them. With one (a build that failed half way), the
+    // other was undefined, and this threw.
+    if (this.audioPlayers.length < 2 || this.destroyed) {
       return false;
     }
 
@@ -257,7 +299,8 @@ export class SyncedAudioPlayer extends EventEmitter {
       return false;
     }
 
-    if (!this.shouldUseSeparateAudioPlayers()) {
+    // Destroyed meanwhile: the video changed, and the swap below muted the new one.
+    if (this.destroyed || !this.shouldUseSeparateAudioPlayers()) {
       return false;
     }
 
@@ -281,7 +324,7 @@ export class SyncedAudioPlayer extends EventEmitter {
   setVolume(value) {
     this.volume = value;
 
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length !== 2) {
+    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
 
@@ -292,7 +335,7 @@ export class SyncedAudioPlayer extends EventEmitter {
   setPlaybackRate(value) {
     this.playbackRate = value;
 
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length !== 2) {
+    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
       return;
     }
 
@@ -322,8 +365,10 @@ export class SyncedAudioPlayer extends EventEmitter {
   }
 
   destroy() {
+    this.destroyed = true;
     this.audioPlayers.forEach((player) => player.destroy());
     this.audioPlayers = [];
-    this.audioContext.close();
+    // None without Web Audio, or before setup().
+    this.audioContext?.close();
   }
 }

@@ -117,7 +117,12 @@ case "$1 $2" in
     if printf '%s\n' "$@" | grep -qx -- --log-failed; then cat "$STATE/failed.log"; else jqout "$STATE/jobs.json"; fi
     ;;
   'run list')
-    if c=$(opt --commit "$@"); then
+    if [ "$(opt --event "$@")" = workflow_dispatch ]; then
+      # CI's dispatched runs on main: the one started after a merge that ships, when a
+      # scenario gives it.
+      [ -f "$STATE/dispatched.json" ] || echo '[]' > "$STATE/dispatched.json"
+      jqout "$STATE/dispatched.json"
+    elif c=$(opt --commit "$@"); then
       # CI's runs on a commit: this one alone unless a scenario says otherwise.
       [ "$c" = "$SHA" ] || { echo "stub gh: run list for another commit $c" >&2; exit 98; }
       [ -f "$STATE/commit_runs.json" ] || jq -n --argjson id "$RUN_ID" '[{databaseId: $id, conclusion: "failure"}]' > "$STATE/commit_runs.json"
@@ -317,6 +322,8 @@ setup() {
   export PATH="$BIN:$PATH"
   export RUNNER_TEMP="$T/tmp"
   export GH_TOKEN=x GH_REPO=me/fs OWNER=nawid
+  export GITHUB_OUTPUT=$T/output GITHUB_SERVER_URL=https://github.com
+  : > "$T/output"
   export SELF_URL='https://github.com/me/fs/actions/runs/9000'
   export RUN_ID=555 RUN_ATTEMPT=1 RUN_URL='https://github.com/me/fs/actions/runs/555'
   export CONCLUSION=success
@@ -499,6 +506,8 @@ green_merge() {
   check 'not assigned' test ! -s "$STATE/assignees"
   check 'no branch update' bash -c '! grep -q update-branch "$0"' "$STATE/gh.log"
   check 'branch deleted' has_call "api -X DELETE repos/me/fs/git/refs/heads/$BRANCH"
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+  check 'nothing for watch-main' test ! -s "$T/output"
 }
 
 green_version_only() {
@@ -830,7 +839,7 @@ docker_waits() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says the actionlint image' grep -qF 'it changes the actionlint image, the check every workflow file has to pass, which a person reviews' <(last_comment)
+  check 'says the check image' grep -qF 'it changes the image of a check every workflow file has to pass (actionlint or zizmor), which a person reviews' <(last_comment)
 }
 
 upstream_green() {
@@ -868,7 +877,169 @@ patched_waits() {
   pr app/github-actions
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says it releases' grep -qF 'merging releases it to Firefox' <(last_comment)
+  check 'says main has no such library' grep -qF "patched/hls.js-1.7.4 names no library of main's package.json" <(last_comment)
+}
+
+# --- Updates that ship (D1): Dependabot's shipped group, and patched libraries, minor and
+# patch. They merge on green CI, with no build comparison (they are meant to change the
+# build), and CI is then started on main; watch-main follows that run.
+patched_setup() { # <branch version> [main's version]: a clean patch re-cut of hls.js
+  setup
+  scenario=${FUNCNAME[1]}
+  export BRANCH="patched/hls.js-$1"
+  printf '{"name":"faststream","packageManager":"pnpm@11.22.0","devDependencies":{"hls.js":"%s","mp4box":"2.4.1"}}\n' "${2:-1.7.3}" \
+    > "$STATE/main-package.json"
+  pr app/github-actions
+  prview "[\"package.json\",\"pnpm-lock.yaml\",\"pnpm-workspace.yaml\",\"patches/hls.js@$1.patch\",\"tools/sync-vendor.mjs\"]" \
+    "[$(commit 'github-actions[bot]' "deps: hls.js 1.7.3 -> $1, patch re-cut by tools/recut-patch.mjs")]"
+  bundle new 1.3.82.40 'play(); hls174()'
+  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
+}
+
+patched_patch_merges() {
+  patched_setup 1.7.4
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'names the run on main' grep -qF 'https://github.com/me/fs/actions/runs/777' <(last_comment)
+  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+  check 'with the pull request' grep -qx 'pr-number=42' "$T/output"
+}
+
+patched_minor_merges() {
+  patched_setup 1.8.0
+  run_step
+  check 'merged' merged
+}
+
+patched_major_waits() {
+  patched_setup 2.0.0
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says major' grep -qF 'hls.js 1.7.3 -> 2.0.0 is a major version' <(last_comment)
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+}
+
+patched_same_version_waits() {
+  patched_setup 1.7.3
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says main has it' grep -qF 'main has hls.js 1.7.3 already' <(last_comment)
+}
+
+patched_unparseable_waits() {
+  patched_setup 1.8 1.7.3
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says it cannot tell' grep -qF 'hls.js 1.7.3 -> 1.8 cannot be told apart' <(last_comment)
+}
+
+patched_range_on_main_waits() {
+  patched_setup 1.7.4 '^1.7.3'
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says it cannot tell' grep -qF 'cannot be told apart as a minor or patch step' <(last_comment)
+}
+
+patched_extra_file_waits() {
+  patched_setup 1.7.4
+  prview '["package.json","pnpm-lock.yaml","patches/hls.js@1.7.4.patch","tests/e2e/specs/x.e2e.mjs"]' \
+    "[$(commit 'github-actions[bot]' 'deps: hls.js 1.7.3 -> 1.7.4')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the file' grep -qF 'it changes tests/e2e/specs/x.e2e.mjs, not only what a patch re-cut changes' <(last_comment)
+}
+
+patched_young_package_waits() {
+  patched_setup 1.7.4
+  lock_adds 'hls.js@1.7.4'
+  published hls.js 1.7.4 "$(days_ago 2)"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF 'hls.js@1.7.4 (published' <(last_comment)
+}
+
+patched_foreign_commit_waits() {
+  patched_setup 1.7.4
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'deps: hls.js'),$(commit 'someone' 'tweak')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says someone else' grep -qF 'it has commits from someone else' <(last_comment)
+}
+
+shipped_setup() {
+  setup
+  scenario=${FUNCNAME[1]}
+  export BRANCH='dependabot/npm_and_yarn/shipped-minor-and-patch-0123abcd'
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump mediabunny' "${1:-$dep_meta}")]"
+  bundle new 1.3.82.40 'play(); mediabunny161()'
+  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
+}
+
+shipped_merges() {
+  shipped_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged, though the build differs' merged
+  check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'says a green run releases' grep -qF 'A green run there releases it' <(last_comment)
+  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+}
+
+shipped_major_waits() {
+  shipped_setup "${dep_meta/semver-minor/semver-major}"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says major' grep -qF 'it holds a major version' <(last_comment)
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+}
+
+shipped_young_package_waits() {
+  shipped_setup
+  lock_adds 'mediabunny@1.61.0'
+  published mediabunny 1.61.0 "$(hours_ago 5)"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF 'mediabunny@1.61.0 (published' <(last_comment)
+}
+
+shipped_main_run_not_found() {
+  shipped_setup
+  echo '[]' > "$STATE/dispatched.json"
+  run_step
+  check 'merged' merged
+  check 'asks the owner to start CI on main' grep -qF '@nawid CI could not be started on main' <(last_comment)
+  check 'nothing for watch-main' test ! -s "$T/output"
+}
+
+shipped_dispatch_refused() {
+  shipped_setup
+  : > "$STATE/dispatch_fails"
+  run_step
+  check 'merged' merged
+  check 'asks the owner to start CI on main' grep -qF '@nawid CI could not be started on main' <(last_comment)
+}
+
+# A tooling update whose build differs still waits: only the shipped group ships.
+# The owner's hold label stops a merge that everything else allows.
+held_waits() {
+  setup
+  pr app/dependabot false '[{"name":"hold"}]'
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says hold' grep -qF 'it is labelled hold' <(last_comment)
+}
+
+tooling_that_ships_waits() {
+  setup
+  bundle new 1.3.82.40 'play(); pwn()'
+  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
 upstream_red() {
@@ -883,24 +1054,18 @@ upstream_red() {
 # The sync and patched-library pull requests: sync-upstream.yml and patched-libraries.yml
 # start the dependency review on the branch's head, which is the run's SHA.
 patched_review_passed() {
-  setup
-  export BRANCH='patched/hls.js-1.7.4'
-  pr app/github-actions
+  patched_setup 1.7.4
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check "asks about the run's commit" has_call "repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
-  check 'names no review' bash -c '! grep -qF "dependency review" <<< "$0"' "$(last_comment)"
+  check 'merged' merged
+  check "asked about the run's commit" has_call "repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
 }
 
 patched_review_failed() {
-  setup
-  export BRANCH='patched/hls.js-1.7.4'
-  pr app/github-actions
+  patched_setup 1.7.4
   echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
   check 'says the review' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
-  check 'says it releases too' grep -qF 'merging releases it to Firefox' <(last_comment)
 }
 
 upstream_review_missing() {
@@ -1211,6 +1376,22 @@ docker_waits
 upstream_green
 other_base
 patched_waits
+patched_patch_merges
+patched_minor_merges
+patched_major_waits
+patched_same_version_waits
+patched_unparseable_waits
+patched_range_on_main_waits
+patched_extra_file_waits
+patched_young_package_waits
+patched_foreign_commit_waits
+shipped_merges
+shipped_major_waits
+shipped_young_package_waits
+shipped_main_run_not_found
+shipped_dispatch_refused
+tooling_that_ships_waits
+held_waits
 upstream_red
 patched_review_passed
 patched_review_failed

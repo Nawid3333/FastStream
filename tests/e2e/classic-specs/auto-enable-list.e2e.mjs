@@ -14,6 +14,7 @@ import http from 'node:http';
 import {browser, expect} from '@wdio/globals';
 
 import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const PORT = 41990;
@@ -101,7 +102,7 @@ describe('The Auto-enable URLs list', function() {
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);
-        if ((await browser.getUrl()).startsWith(ORIGIN)) {
+        if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
           extHandle = handle;
           return true;
         }

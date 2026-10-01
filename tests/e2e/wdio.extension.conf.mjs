@@ -29,11 +29,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {keepDriverLogs} from './driverLogs.mjs';
+import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {testTimeout} from './testTimeout.mjs';
-import {bidiRootHooks, ensureBidi} from './bidi.mjs';
+import {ensureBidi} from './bidi.mjs';
+import {guardSetup, rootHooks} from './setupGuard.mjs';
+import {ensureMp4Fixture} from './mp4Fixture.mjs';
+import {decodePath, sendFile} from './serveFile.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -93,8 +96,12 @@ let server;
 // files either.
 const downloadDir = path.join(root, '.e2e-downloads');
 function resetDownloadDir() {
-  fs.rmSync(downloadDir, {recursive: true, force: true});
   fs.mkdirSync(downloadDir, {recursive: true});
+  // Emptied in place: a spec file's setup runs this too (before), with Firefox already
+  // pointed at the folder.
+  for (const name of fs.readdirSync(downloadDir)) {
+    fs.rmSync(path.join(downloadDir, name), {recursive: true, force: true});
+  }
 }
 
 export const config = {
@@ -132,6 +139,11 @@ export const config = {
       args: ['-headless', '-no-remote', '-new-instance'],
       prefs: {
         'browser.shell.checkDefaultBrowser': false,
+        // Web pages' and the extension's console calls go to Firefox's stdout, which
+        // geckodriver writes into this spec's driver log (kept per spec and attempt,
+        // driverLogs.mjs): the background's debug lines, on for this temporary install,
+        // show what it did in a failed run. background-log.e2e.mjs checks both.
+        'devtools.console.stdout.content': true,
         'media.autoplay.default': 0,
         'media.autoplay.blocking_policy': 0,
         'media.volume_scale': '0.0',
@@ -153,16 +165,25 @@ export const config = {
   outputDir: path.join(root, 'logs'),
   // Each spec's and each retry's driver log kept under its own name: see driverLogs.mjs.
   // The configs built on this one name their own suite.
-  onWorkerEnd: keepDriverLogs(path.join(root, 'logs'), `ext-${BUILD}`),
+  onWorkerEnd: recordRetriedSpecs(path.join(root, 'logs'), `ext-${BUILD}`),
   framework: 'mocha',
   reporters: ['spec'],
-  mochaOpts: {ui: 'bdd', timeout: testTimeout(120000), rootHooks: bidiRootHooks},
+  // A failed setup, or a session without BiDi, fails every test: setupGuard.mjs.
+  mochaOpts: {ui: 'bdd', timeout: testTimeout(120000), rootHooks},
 
-  onPrepare: function() {
+  onPrepare: async function() {
     resetDownloadDir();
+    // The specs' /fixtures/sample.mp4: `pnpm run test:ext` alone, on a fresh clone, has
+    // no web suite run before it to fetch it.
+    await ensureMp4Fixture();
     return new Promise((resolve) => {
       server = http.createServer((req, res) => {
-        const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
+        const pathname = decodePath((req.url || '/').split('?')[0]);
+        if (pathname === null) {
+          res.writeHead(400);
+          res.end('bad request');
+          return;
+        }
 
         // /fixtures/<name> serves the shared binary fixtures so the
         // embedded-player specs can load real media. CORS is required: the
@@ -196,7 +217,7 @@ export const config = {
             'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
             'Accept-Ranges': 'none',
           });
-          fs.createReadStream(filePath).pipe(res);
+          sendFile(res, filePath);
           return;
         }
 
@@ -237,18 +258,25 @@ export const config = {
     await speedAfterTest(test, passed);
   },
 
+  // A failure here fails every test of the spec file (setupGuard.mjs): without the add-on,
+  // a spec that checks the player does not open would pass.
   before: async function() {
-    // Before the add-on: a browser started again has none. (The classic and pbm suites
-    // share this hook and ask for classic, which it leaves alone.)
-    await ensureBidi();
-    // Temporary rather than permanent: the package is unsigned, and a
-    // temporary install is exactly how a reviewer or a developer loads it.
-    await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);
-    // Specs navigate to the harness server for the embed page; the trailing
-    // slash matters (it makes 'embed?...' append correctly).
-    globalThis.__EXT_OPENER_URL__ = OPENER_URL.endsWith('/') ? OPENER_URL : OPENER_URL + '/';
-    // Specs load real media through the harness server; the MP4 fixture is
-    // what the accelerated-MP4 specs drive.
-    globalThis.__EXT_FIXTURE_MP4__ = globalThis.__EXT_OPENER_URL__ + 'fixtures/sample.mp4';
+    await guardSetup(async () => {
+      // Each spec file's attempt starts with no downloads: a retry's save otherwise went
+      // to "name(1).png" beside the first attempt's file, and the spec read that one.
+      resetDownloadDir();
+      // Before the add-on: a browser started again has none. (The classic and pbm suites
+      // share this hook and ask for classic, which it leaves alone.)
+      await ensureBidi();
+      // Temporary rather than permanent: the package is unsigned, and a
+      // temporary install is exactly how a reviewer or a developer loads it.
+      await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);
+      // Specs navigate to the harness server for the embed page; the trailing
+      // slash matters (it makes 'embed?...' append correctly).
+      globalThis.__EXT_OPENER_URL__ = OPENER_URL.endsWith('/') ? OPENER_URL : OPENER_URL + '/';
+      // Specs load real media through the harness server; the MP4 fixture is
+      // what the accelerated-MP4 specs drive.
+      globalThis.__EXT_FIXTURE_MP4__ = globalThis.__EXT_OPENER_URL__ + 'fixtures/sample.mp4';
+    });
   },
 };

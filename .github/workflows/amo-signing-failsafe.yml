@@ -60,11 +60,14 @@ jobs:
       PATH_PREFIX: 'Update path broken: '
 
     steps:
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       # main, with every tag: the release tools below are main's, and a tag is checked out
       # only to build it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Look at the newest tag and the latest release
         id: release
@@ -96,6 +99,31 @@ jobs:
             echo "orphan=$orphan"
           } >> "$GITHUB_OUTPUT"
 
+      # already_reported <title>, for the steps below: true when an issue with that title is
+      # open, or was closed by a person (the owner closing one means: stop telling me). Not
+      # when this workflow closed it itself, once the problem was gone: the same thing can
+      # break again, and then it is news. Who closed one comes from its events, as gh issue
+      # list does not say. A close it cannot attribute counts as a person's. The steps below
+      # run on the release's tag checked out, so the function lives in the runner's temp
+      # folder, not in a file of the repository.
+      - name: Define already_reported
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/already-reported.sh" <<'EOF'
+          already_reported() {
+            local number state closer
+            gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json number,state,title \
+              --jq ".[] | select(.title == \"$1\") | \"\(.number)\t\(.state)\"" > "$RUNNER_TEMP/same-title.tsv"
+            while IFS=$'\t' read -r number state; do
+              if [ "$state" = OPEN ]; then return 0; fi
+              closer=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$number/events" \
+                --jq '.[] | select(.event == "closed") | .actor.login' | tail -n 1) || closer=''
+              if [ "$closer" != 'github-actions[bot]' ]; then return 0; fi
+            done < "$RUNNER_TEMP/same-title.tsv"
+            return 1
+          }
+          EOF
+
       - name: Close the issues that are resolved
         env:
           TAG: ${{ steps.release.outputs.tag }}
@@ -126,9 +154,14 @@ jobs:
           ORPHAN: ${{ steps.release.outputs.orphan }}
         run: |
           set -euo pipefail
-          runs() { # jq filter over this tag's release.yml runs
+          # A tag deleted and made again starts afresh: only the runs since it was made count,
+          # or the failed runs of its earlier life would allow it no restart.
+          tagged=$(git for-each-ref --format='%(creatordate:unix)' "refs/tags/$ORPHAN")
+          TAGGED_AT=$(date -u -d "@$tagged" +%Y-%m-%dT%H:%M:%SZ)
+          export TAGGED_AT
+          runs() { # jq filter over this tag's release.yml runs since the tag was made
             gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --branch "$ORPHAN" --limit 20 \
-              --json status --jq "$1"
+              --json status,createdAt --jq "[.[] | select(.createdAt >= env.TAGGED_AT)] | $1"
           }
           # release.yml starts this failsafe as its last step, so its run for the tag is
           # usually still finishing.
@@ -141,7 +174,6 @@ jobs:
             exit 0
           fi
           attempts=$(runs '[.[] | select(.status == "completed")] | length')
-          tagged=$(git for-each-ref --format='%(creatordate:unix)' "refs/tags/$ORPHAN")
           age_minutes=$(( ( $(date +%s) - tagged ) / 60 ))
           if [ "$attempts" -eq 0 ] && [ "$age_minutes" -lt 10 ]; then
             echo "$ORPHAN was tagged $age_minutes min ago and release.yml has not run for it yet: auto-release.yml starts it."
@@ -153,7 +185,9 @@ jobs:
             exit 0
           fi
           title="Release $ORPHAN failed"
-          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+          # shellcheck source=/dev/null
+          source "$RUNNER_TEMP/already-reported.sh"
+          if already_reported "$title"; then
             echo "Already reported: $title."
             exit 0
           fi
@@ -199,7 +233,9 @@ jobs:
           # The issue is the notice; a red run every 3 hours on top would only repeat it.
           echo "::warning::The update path of $TAG is broken; see the issue \"$PATH_PREFIX$TAG\"."
           title="$PATH_PREFIX$TAG"
-          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+          # shellcheck source=/dev/null
+          source "$RUNNER_TEMP/already-reported.sh"
+          if already_reported "$title"; then
             echo "Already reported: $title."
             exit 0
           fi
@@ -232,7 +268,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           check-latest: true
-          cache: pnpm
+          # No cache: other workflows' runs write it, and this job holds the AMO keys. setup-node
+          # caches on its own when package.json names a package manager, so it is turned off.
+          package-manager-cache: false
 
       - name: Build the release's tag
         if: steps.release.outputs.complete == 'false'
@@ -298,7 +336,9 @@ jobs:
         run: |
           set -euo pipefail
           title="$SIGNING_PREFIX$TAG"
-          if gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 500 --json title --jq '.[].title' | grep -qxF "$title"; then
+          # shellcheck source=/dev/null
+          source "$RUNNER_TEMP/already-reported.sh"
+          if already_reported "$title"; then
             echo "Already reported $TAG."
             exit 0
           fi

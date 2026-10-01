@@ -2,8 +2,11 @@
 
 Nothing merges itself without a green CI run. `update-prs.yml` runs after every
 completed CI run for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-`sync/upstream` branches: it merges the PRs that change nothing the extension
-ships, and hands every other one to the owner with one comment. Updates without a
+`sync/upstream` branches. It merges the routine ones: tooling updates that change nothing
+the extension ships, and minor and patch updates of the libraries it ships (both the
+Dependabot group and the patched libraries). After a merge that ships it starts CI on
+`main`: a green run releases, a red one releases nothing and opens an issue for you, and
+nothing is reverted on its own. Every other PR is handed to you with one comment. Updates without a
 PR - the mpv pin, a runner image, a new Firefox - are watched by their own
 workflows, which stay silent while they pass.
 
@@ -12,7 +15,7 @@ workflows, which stay silent while they pass.
 | What | How it arrives | What happens on green | What reaches you |
 | ---- | -------------- | ---------------------- | ---------------- |
 | npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | merged by `update-prs.yml` | nothing (a comment on the PR records the merge) |
-| npm shipped libraries (fuse.js, pako, sortablejs) | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | waits for you: the build copies them into the extension, so its bundle differs from the release's | one comment, and the assignment |
+| npm shipped libraries (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | merged by `update-prs.yml`, which then starts CI on `main`; a green run there releases it | nothing when `main` stays green; an issue, "CI failed on main after an update merged itself", when not |
 | npm major | a Dependabot PR of its own | waits for you | one comment, and the assignment |
 | fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | waits for you: CI installs it and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`), but the helper runs on your PC, where npm runs install scripts | one comment, and the assignment |
 | GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | waits for you: it changes workflow files | one comment, and the assignment |
@@ -20,11 +23,12 @@ workflows, which stay silent while they pass.
 | pnpm next major | a PR from `toolchain-updates.yml`, once dependabot/dependabot-core#15904 is closed | waits for you | one comment, and the assignment |
 | Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | waits for you | one comment, and the assignment |
 | WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
-| patched libraries | a PR from `patched-libraries.yml` on `patched/<name>-<version>`, with CI dispatched on it | waits for you | one comment, and the assignment |
+| patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | merged by `update-prs.yml` when the version is a minor or patch step from main's, then CI on `main` as above | as above |
+| patched libraries, major | the same | waits for you | one comment, and the assignment |
 | upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | waits for you | one comment, and the assignment |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
-| actionlint image | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
+| actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping the cooldown; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
@@ -111,6 +115,11 @@ dismissed. If `update-prs.yml`, `toolchain-updates.yml`, `wsl-releases.yml` or
 "Toolchain updates workflow failed", "WSL releases workflow failed" or "Security alerts
 workflow failed", while that one is open.
 
+Once a week, `flaky-specs.yml` opens "Flaky e2e specs: week to <date>" when a CI run in
+those 7 days had to run a spec file again: a test that failed once and passed on its
+retry leaves a green run, so this is the only place it shows up besides that run's
+summary. The next week's issue closes it, and so does a week with no retry.
+
 A push to `main` is released even when a late run cancelled its CI run (GitHub once
 delivered an older push a second time), or when an mpv pin or an update merge landed while
 it ran and nothing started CI after it: `auto-release.yml` restarts the run, or starts CI
@@ -186,3 +195,23 @@ image pinned in a form Dependabot does not update:
 - Node only in `.nvmrc`, pnpm only in `package.json`'s `packageManager`, npm packages in
   `package.json` and `pnpm-lock.yaml`, mpv in `.github/mpv-build.json`: each has its
   updater in the table above.
+
+## Vendored files
+
+Two files the extension ships come from another project without a package manager:
+`vendored-updates.yml` (daily) watches them.
+
+- **The voice detector's model** (`chrome/player/modules/vad/silero_vad_half.onnx`, from
+  snakers4/silero-vad): a newer release with a different model opens a pull request,
+  "Vendored model update: silero-vad <tag>", with the model and its pin in
+  `tools/verify-vad.mjs` replaced, and starts CI on it. The voice detector's reference test
+  decides; merge it when green, close it to skip that release. If the model is not where
+  the release used to keep it, an issue tells you so instead.
+- **vtt.js** (`chrome/player/modules/vtt.mjs`, from dash.js): a dash.js release that changes
+  the file opens an issue, "vtt.js changed in dash.js <tag>". Move the tag in
+  `tools/verify-vtt.mjs` and run `pnpm run verify:vtt`, which says where FastStream's changes
+  no longer apply.
+
+Each closes itself once its pin reaches the release; a newer release closes the older one.
+If the workflow itself fails, it opens "Vendored updates workflow failed (model)" or
+"(vtt.js)".

@@ -403,8 +403,7 @@ export class SubtitlesManager extends EventEmitter {
         type: 'text/plain',
       });
       const url = window.URL.createObjectURL(blob);
-      await Utils.downloadURL(url, dlname + '.srt');
-      window.URL.revokeObjectURL(url);
+      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, dlname + '.srt'));
     }, true);
 
     const removeTrack = document.createElement('div');

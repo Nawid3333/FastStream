@@ -274,16 +274,14 @@ function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFiles = [
 }
 
 async function runWebExtBuild(sourceDir, artifactsDir) {
-  return new Promise((resolve, reject) => {
-    // run web-ext build
-    webExt.cmd.build({
-      sourceDir: sourceDir,
-      artifactsDir: artifactsDir,
-      overwriteDest: true,
-    }).then((result) => {
-      resolve(result.extensionPath);
-    });
+  // A failed build rejects: the promise this was wrapped in never settled then, and the
+  // build hung or died on an unhandled rejection with no word of what failed.
+  const result = await webExt.cmd.build({
+    sourceDir: sourceDir,
+    artifactsDir: artifactsDir,
+    overwriteDest: true,
   });
+  return result.extensionPath;
 }
 
 function insertLicense(buildDir) {

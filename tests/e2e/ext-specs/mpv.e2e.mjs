@@ -23,6 +23,7 @@ import {browser, expect} from '@wdio/globals';
 
 import {closeSpecMpv, hostInstalled} from '../mpvTestProcesses.mjs';
 import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../../..');
@@ -136,7 +137,7 @@ describe('MPV mode, end to end', function() {
         await browser.waitUntil(async () => {
           for (const handle of await browser.getWindowHandles()) {
             await browser.switchToWindow(handle);
-            if ((await browser.getUrl()).startsWith(ORIGIN)) {
+            if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
               return true;
             }
           }
@@ -291,7 +292,7 @@ describe('MPV mode, end to end', function() {
         await browser.waitUntil(async () => {
           for (const handle of await browser.getWindowHandles()) {
             await browser.switchToWindow(handle);
-            if ((await browser.getUrl()).startsWith(ORIGIN)) {
+            if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
               return true;
             }
           }

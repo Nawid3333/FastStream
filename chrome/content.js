@@ -117,6 +117,10 @@
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
       getVideo().then((video) => {
         sendResponse(video ? video.size : 0);
+      }).catch((e) => {
+        // The background waits for an answer: none found is 0.
+        console.error('Finding the largest video failed', e);
+        sendResponse(0);
       });
       return true;
     } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
@@ -307,8 +311,24 @@
     }
   }
 
+  /**
+   * Tells the background something, with no answer to wait for. Such a message rejects
+   * when the page goes away before the background has answered - the FRAME_REMOVED of a
+   * page being left ("Actor 'Conduits' destroyed") - or when nothing listens yet. Nothing
+   * waits for the answer, so that is not an error: unhandled, the rejection reached the
+   * page's console as one, and failed an e2e that watches for them (content-cleanup's Back
+   * case on Windows, 2026-10-01). tests/unit/contentMessages.test.mjs keeps every other
+   * sendMessage here with a callback.
+   * @param {Object} message - The message.
+   */
+  function notifyBackground(message) {
+    chrome.runtime.sendMessage(message).catch((e) => {
+      console.debug('FastStream: no answer to', message.type, e && e.message);
+    });
+  }
+
   async function sendToOtherContents(message) {
-    chrome.runtime.sendMessage({
+    notifyBackground({
       type: 'SEND_TO_CONTENT',
       data: message,
       destination: 'custom',
@@ -721,7 +741,7 @@
     iframeMap.forEach((iframeObj, frameId) => {
       if (!iframeObj.iframe.isConnected) {
         iframeMap.delete(frameId);
-        chrome.runtime.sendMessage({
+        notifyBackground({
           type: MessageTypes.FRAME_REMOVED,
           frameId,
         });
@@ -1310,6 +1330,15 @@
       }
     });
 
+    // The element's own shadow root too: querySelectorAll('*') lists only what is below
+    // it. A page that re-renders its player as a custom element with its <video> in its
+    // shadow root added it while FastStream's player was up, and pauseAllWithin's observer,
+    // which looks inside each added element, never paused it. Last, so what the walk above
+    // found keeps its place.
+    if (currentElement.shadowRoot) {
+      querySelectorAllIncludingShadows(query, currentElement.shadowRoot, results);
+    }
+
     return results;
   }
 
@@ -1719,7 +1748,7 @@
       if (iframeObj.iframe === active) isOurIframe = true;
     });
     if (isOurIframe) {
-      chrome.runtime.sendMessage({type: MessageTypes.POPUP_GUARD_ARM});
+      notifyBackground({type: MessageTypes.POPUP_GUARD_ARM});
     }
   });
 
@@ -1932,7 +1961,7 @@
     }
     // The page's name: this message can reach the background after the next page's
     // FRAME_ADDED, and must not make it forget that page's frame.
-    chrome.runtime.sendMessage({
+    notifyBackground({
       type: MessageTypes.FRAME_REMOVED,
       document: DocumentKey,
     });
@@ -1948,7 +1977,7 @@
       return;
     }
     RedirectingToPlayer = false;
-    chrome.runtime.sendMessage({
+    notifyBackground({
       type: MessageTypes.FRAME_ADDED,
       url: window.location.href,
       document: DocumentKey,
@@ -1956,12 +1985,12 @@
   });
 
   document.addEventListener('DOMContentLoaded', () => {
-    chrome.runtime.sendMessage({
+    notifyBackground({
       type: MessageTypes.FRAME_LOADED,
     });
   });
 
-  chrome.runtime.sendMessage({
+  notifyBackground({
     type: MessageTypes.FRAME_ADDED,
     url: window.location.href,
     document: DocumentKey,
