@@ -94,7 +94,16 @@ function ensureOptions() {
   return OptionsLoadPromise;
 }
 const ExtensionVersion = chrome.runtime.getManifest().version;
-const Logging = false;
+// The debug lines (`if (Logging)`) are on for a temporary install - the e2e suites'
+// (installAddOn(xpi, true)) and a developer's (web-ext run, about:debugging) - and off for
+// an installed release. The e2e configs print the background's console into each spec's
+// driver log, which CI keeps for a failed or retried spec: what the background detected,
+// opened and sent to mpv. getSelf() needs no permission; it answers within a tick, before
+// any page the tests open sends a request.
+let Logging = false;
+chrome.management.getSelf().then((self) => {
+  Logging = self.installType === 'development';
+}).catch(console.error);
 const Tabs = new TabTracker();
 const ruleManager = new RuleManager();
 

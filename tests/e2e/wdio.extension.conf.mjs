@@ -139,6 +139,11 @@ export const config = {
       args: ['-headless', '-no-remote', '-new-instance'],
       prefs: {
         'browser.shell.checkDefaultBrowser': false,
+        // Web pages' and the extension's console calls go to Firefox's stdout, which
+        // geckodriver writes into this spec's driver log (kept per spec and attempt,
+        // driverLogs.mjs): the background's debug lines, on for this temporary install,
+        // show what it did in a failed run. background-log.e2e.mjs checks both.
+        'devtools.console.stdout.content': true,
         'media.autoplay.default': 0,
         'media.autoplay.blocking_policy': 0,
         'media.volume_scale': '0.0',
