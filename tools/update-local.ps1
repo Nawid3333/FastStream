@@ -42,7 +42,16 @@ function Invoke-Change([string]$what, [scriptblock]$action) {
         return
     }
     $global:LASTEXITCODE = 0
-    & $action
+    # Windows PowerShell 5.1 turns what a native command writes to stderr (git's fetch report,
+    # npm's warnings) into a terminating error under 'Stop' when output is redirected: the
+    # exit code alone judges.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $action
+    } finally {
+        $ErrorActionPreference = $previous
+    }
     if ($LASTEXITCODE -ne 0) { throw "$what failed (exit code $LASTEXITCODE)" }
     Note "done: $what"
 }
@@ -67,6 +76,16 @@ function Get-NewestRelease([string]$what, [string]$name) {
 
 # The version a tool reports, from outside the repository (inside it, pnpm runs the
 # version package.json pins).
+# [version] reads 1-4 numbers: "v27.0.0-nightly1" or "10.1.0+sha512.x" lose their suffix.
+function ConvertTo-Version([string]$text) {
+    $m = [regex]::Match($text, '\d+(\.\d+){0,3}')
+    if (-not $m.Success) { throw "no version in '$text'" }
+    # [version] wants two numbers at least: "22" is 22.0.
+    $value = $m.Value
+    if ($value -notmatch '\.') { $value = "$value.0" }
+    return [version]$value
+}
+
 function Get-ToolVersion([string]$tool) {
     Push-Location $env:TEMP
     try {
@@ -79,31 +98,40 @@ function Get-ToolVersion([string]$tool) {
 }
 
 Invoke-Step 'Node.js' {
-    $major = [int]((Get-Content -Raw (Join-Path $repo '.nvmrc')).Trim())
+    $major = (ConvertTo-Version (Get-Content -Raw -LiteralPath (Join-Path $repo '.nvmrc'))).Major
     $have = Get-ToolVersion 'node'
     $want = Get-NewestRelease 'node' "$major"
-    if (([version]$have).Major -gt $major) {
+    if ((ConvertTo-Version $have).Major -gt $major) {
         Note "Node.js ${have}: kept, newer than the $major.x .nvmrc names"
     } elseif (-not $want) {
         Note "Node.js ${have}: no $major.x release is 5 days old yet, kept"
-    } elseif ([version]$have -ge [version]$want) {
+    } elseif ((ConvertTo-Version $have) -ge (ConvertTo-Version $want)) {
         Note "Node.js ${have}: up to date"
     } else {
         $base = "https://nodejs.org/dist/v$want"
         $file = "node-v$want-x64.msi"
-        $msi = Join-Path $env:TEMP $file
+        $work = Join-Path $env:TEMP ('faststream-node-' + [guid]::NewGuid().ToString('N'))
+        $msi = Join-Path $work $file
         Invoke-Change "Node.js $have -> $want (nodejs.org installer; Windows asks for admin rights)" {
-            Invoke-WebRequest -UseBasicParsing -Uri "$base/$file" -OutFile $msi
+            New-Item -ItemType Directory -Path $work | Out-Null
+            $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
             $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
             $line = ($sums -split "`n") | Where-Object { $_ -match ('\s' + [regex]::Escape($file) + '\s*$') } | Select-Object -First 1
             if (-not $line) { throw "SHASUMS256.txt names no $file" }
             $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
             $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $msi).Hash.ToLowerInvariant()
             if ($expected -ne $actual) { throw "$file does not match SHASUMS256.txt ($actual, expected $expected)" }
-            $process = Start-Process -FilePath msiexec.exe -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
+            # A hash from the same host proves nothing against whoever serves both: the installer
+            # must also carry the OpenJS Foundation's valid code signature.
+            $signature = Get-AuthenticodeSignature -LiteralPath $msi
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
+                throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
+            }
+            $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
             # 3010: installed, a restart completes it.
             if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
-            Remove-Item -LiteralPath $msi -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $work -Recurse -ErrorAction SilentlyContinue
         }
     }
 }
@@ -111,7 +139,7 @@ Invoke-Step 'Node.js' {
 Invoke-Step 'npm' {
     $have = Get-ToolVersion 'npm'
     $want = Get-NewestRelease 'npm' 'npm'
-    if (-not $want -or [version]$have -ge [version]$want) {
+    if (-not $want -or (ConvertTo-Version $have) -ge (ConvertTo-Version $want)) {
         Note "npm ${have}: up to date"
     } else {
         Invoke-Change "npm $have -> $want" { & npm install --global --ignore-scripts "npm@$want" }
@@ -119,9 +147,9 @@ Invoke-Step 'npm' {
 }
 
 Invoke-Step 'pnpm' {
-    $pin = ((Get-Content -Raw (Join-Path $repo 'package.json') | ConvertFrom-Json).packageManager) -replace '^pnpm@', ''
+    $pin = ((Get-Content -Raw -LiteralPath (Join-Path $repo 'package.json') | ConvertFrom-Json).packageManager) -replace '^pnpm@', '' -replace '\+.*$', ''
     $have = Get-ToolVersion 'pnpm'
-    if ([version]$have -ge [version]$pin) {
+    if ((ConvertTo-Version $have) -ge (ConvertTo-Version $pin)) {
         Note "pnpm ${have}: up to date (package.json pins $pin)"
     } else {
         Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global --ignore-scripts "pnpm@$pin" }
@@ -147,7 +175,7 @@ Invoke-Step 'The repository' {
             $storeArgs = @()
             $modules = Join-Path $repo 'node_modules\.modules.yaml'
             if (Test-Path -LiteralPath $modules) {
-                $match = Select-String -LiteralPath $modules -Pattern '"?storeDir"?:\s*"?([^",]+)' | Select-Object -First 1
+                $match = Select-String -LiteralPath $modules -Encoding UTF8 -Pattern '"?storeDir"?:\s*"?([^",]+)' | Select-Object -First 1
                 if ($match) {
                     $store = $match.Matches[0].Groups[1].Value.Trim() -replace '\\\\', '\' -replace '[\\/]v\d+$', ''
                     $storeArgs = @('--store-dir', $store)
@@ -180,8 +208,8 @@ Invoke-Step 'The mpv helper' {
     } elseif ((Get-FileHash -LiteralPath $installed).Hash -eq (Get-FileHash -LiteralPath $source).Hash) {
         Note 'mpv helper: up to date'
     } else {
-        $config = Get-Content -Raw (Join-Path $installDir 'config.json') | ConvertFrom-Json
-        $bat = Get-Content -Raw (Join-Path $installDir 'com.faststream.mpv.bat')
+        $config = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $installDir 'config.json') | ConvertFrom-Json
+        $bat = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $installDir 'com.faststream.mpv.bat')
         $node = 'node'
         if ($bat -match '"([^"]*node(\.exe)?)"') { $node = $Matches[1] }
         Invoke-Change "mpv helper: install.ps1 again (mpv $($config.mpvPath), Node $node)" {
