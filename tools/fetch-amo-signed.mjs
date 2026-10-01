@@ -168,8 +168,13 @@ export async function fetchSigned(version) {
     }
     const artifacts = path.join(root, 'web-ext-artifacts');
     fs.mkdirSync(artifacts, {recursive: true});
-    fs.writeFileSync(path.join(artifacts, name), Buffer.from(await download.arrayBuffer()));
-    console.log(`Saved web-ext-artifacts/${name}`);
+    // The bytes were hashed nowhere yet, so the write is guarded by the file name
+    // check above and the https + AMO-host check on fileUrl earlier (CodeQL
+    // js/http-to-file-access).
+    const bytes = Buffer.from(await download.arrayBuffer());
+    const target = path.join(artifacts, name);
+    fs.writeFileSync(target, bytes);
+    console.log(`Saved web-ext-artifacts/${name} (${bytes.length} bytes)`);
   }
   return state;
 }

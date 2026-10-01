@@ -68,6 +68,12 @@ const libs = {};
 async function npmFile(pkg, file) {
   const pkgJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const version = String(pkgJson.devDependencies[pkg]).replace(/^[\^~]/, '');
+  // The version read from package.json never reaches the fetch URL unvalidated: a
+  // semver must be exactly this shape, so a hand-edited or corrupt lockfile value
+  // cannot point the request anywhere else (CodeQL js/file-access-to-http).
+  if (!/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(version)) {
+    throw new Error(`package.json has ${pkg} at ${version}, which is not a semver`);
+  }
   // The registry host is pinned: the version comes from this repo's own package.json,
   // and both the fetch and the cache land under it (CodeQL js/request-forgery,
   // js/http-to-file-access). The cache lives next to the suite's gitignored fixtures
