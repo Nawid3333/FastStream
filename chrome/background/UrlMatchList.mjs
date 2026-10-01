@@ -150,7 +150,7 @@ export class UrlMatchList {
   /**
    * Returns the content-type tag ('anime'|'movie') of the entry that
    * decides this URL, for the mpv allowlist's per-site default.
-   * @param {string} url - The URL to test.
+   * @param {string} [url] - The URL to test; none matches nothing.
    * @return {string|null} 'anime', 'movie', or null when the matching entry
    *   (if any) carries no tag, is a negative entry, or nothing matched.
    */
@@ -164,7 +164,7 @@ export class UrlMatchList {
 
   /**
    * Finds the entry that decides a URL's match result.
-   * @param {string} url - The URL to test.
+   * @param {string} [url] - The URL to test; none matches nothing.
    * @return {Object|null} The matching entry (later entries take
    *   precedence, mirroring the reversed AutoEnableList), or null when
    *   nothing matched.

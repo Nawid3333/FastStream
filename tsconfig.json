@@ -26,7 +26,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
 
-    "types": ["chrome"]
+    "types": ["chrome", "node"]
   },
   "include": [
     "types/**/*.d.ts",
@@ -34,6 +34,7 @@
     "chrome/player/utils/**/*.mjs",
     "chrome/player/enums/**/*.mjs",
     "chrome/player/network/**/*.mjs",
+    "native-host/**/*.mjs",
     "tests/**/*.mjs",
     "tools/**/*.mjs"
   ],

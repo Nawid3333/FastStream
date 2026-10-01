@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // FastStream mpv native messaging host.
 //
 // Receives messages from the FastStream extension over the Firefox
@@ -196,8 +197,10 @@ export const MaxMessageBytes = 1024 * 1024;
  */
 export function readMessage(input = process.stdin) {
   return new Promise((resolve) => {
+    /** @type {?Buffer} */
     let header = null;
     let headerRead = 0;
+    /** @type {?Buffer} */
     let body = null;
     let bodyRead = 0;
 
@@ -516,13 +519,14 @@ const IpcLockStaleMs = 10000;
  * host process, and loading into the running mpv sets the headers globally, then loads
  * the file: two sends a few milliseconds apart could run as set A, set B, load B, load A,
  * and A then played with B's headers (a 403 on a CDN that checks them).
- * @param {function(): Promise<*>} fn - The exchange with mpv.
+ * @param {() => Promise<*>} fn - The exchange with mpv.
  * @param {string} [lockFile] - The lock; a shared one in the temp folder by default.
  * @param {number} [waitMs] - How long to wait for another host before going ahead anyway.
  * @return {Promise<*>} What fn returns.
  */
 export async function withIpcLock(fn, lockFile = IpcLockFile, waitMs = 5000) {
   const deadline = Date.now() + waitMs;
+  /** @type {?number} */
   let fd = null;
   while (fd === null && Date.now() <= deadline) {
     try {
@@ -567,6 +571,7 @@ export async function withIpcLock(fn, lockFile = IpcLockFile, waitMs = 5000) {
  *   ours answered, in which case the caller should start one.
  */
 export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, lockFile = IpcLockFile) {
+  /** @type {Array<{command: Array<*>}>} */
   const commands = [
     {command: ['set_property', 'http-header-fields', headerFields]},
     {command: ['set_property', 'force-media-title', title]},
@@ -783,7 +788,8 @@ async function focusPid(pid) {
  *
  * @param {string} mpvPath - Path to the mpv executable.
  * @param {Array<string>} args - Arguments to pass to mpv.
- * @return {Promise<{ok: boolean, pid?: number, error?: string}>} Result.
+ * @return {Promise<{ok: boolean, pid?: number, error?: string, focus?: string, foreground?: string}>}
+ *   Result; focus and foreground are what the PowerShell script reported.
  */
 function launchViaWmi(mpvPath, args) {
   const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
