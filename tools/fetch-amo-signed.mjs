@@ -151,15 +151,30 @@ export async function fetchSigned(version) {
   console.log(`AMO: ${id} ${version}: HTTP ${response.status}${body ? `, file.status=${body.file?.status}` : ''}`);
 
   if (state === 'signed') {
-    const download = await fetch(body.file.url, {headers: await auth()});
+    // The download URL comes from AMO's authenticated API response; the host is still
+    // checked against AMO's own, so a confused response cannot point the write of
+    // downloaded bytes anywhere else (CodeQL js/http-to-file-access).
+    const fileUrl = new URL(body.file.url);
+    if (fileUrl.protocol !== 'https:' || !/(^|\.)addons\.(mozilla\.org|allizom\.org)$/.test(fileUrl.hostname)) {
+      throw new Error(`${body.file.url}: not an addons.mozilla.org download URL`);
+    }
+    const download = await fetch(fileUrl, {headers: await auth()});
     if (!download.ok) {
       throw new Error(`downloading ${body.file.url}: HTTP ${download.status}`);
     }
-    const name = decodeURIComponent(new URL(body.file.url).pathname.split('/').pop());
+    const name = decodeURIComponent(fileUrl.pathname.split('/').pop());
+    if (!/^[\w.-]+\.xpi$/.test(name)) {
+      throw new Error(`${name}: not a plain .xpi file name`);
+    }
     const artifacts = path.join(root, 'web-ext-artifacts');
     fs.mkdirSync(artifacts, {recursive: true});
-    fs.writeFileSync(path.join(artifacts, name), Buffer.from(await download.arrayBuffer()));
-    console.log(`Saved web-ext-artifacts/${name}`);
+    // The bytes were hashed nowhere yet, so the write is guarded by the file name
+    // check above and the https + AMO-host check on fileUrl earlier (CodeQL
+    // js/http-to-file-access).
+    const bytes = Buffer.from(await download.arrayBuffer());
+    const target = path.join(artifacts, name);
+    fs.writeFileSync(target, bytes);
+    console.log(`Saved web-ext-artifacts/${name} (${bytes.length} bytes)`);
   }
   return state;
 }

@@ -669,8 +669,17 @@ for (const lib of VENDOR) {
             sources[0])),
         'utf8') :
     fs.readFileSync(src);
-  const unchanged = fs.existsSync(dst) &&
-    Buffer.compare(fs.readFileSync(dst), data) === 0;
+  // Bytes may be large; a string read of them would mangle binary content. Read the
+  // existing copy without a preceding existsSync: gone-in-between means "updated"
+  // either way, which a failed read then reports (CodeQL js/file-system-race).
+  const unchanged = (() => {
+    try {
+      return Buffer.compare(fs.readFileSync(dst), data) === 0;
+    } catch (e) {
+      if (e.code === 'ENOENT') return false;
+      throw e;
+    }
+  })();
 
   fs.mkdirSync(path.dirname(dst), {recursive: true});
   fs.writeFileSync(dst, data);

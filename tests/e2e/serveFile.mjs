@@ -66,7 +66,9 @@ export function byteRange(header, size) {
 export function sendFile(res, file, range) {
   const stream = fs.createReadStream(file, range);
   stream.on('error', (e) => {
-    console.error(`test server: could not read ${file}: ${e.message}`);
+    // The path is JSON-quoted so control characters cannot forge extra log lines
+    // (CodeQL js/log-injection).
+    console.error(`test server: could not read ${JSON.stringify(file)}: ${e.message}`);
     res.destroy();
   });
   stream.pipe(res);

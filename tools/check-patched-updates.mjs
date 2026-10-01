@@ -67,14 +67,20 @@ async function getJson(url) {
  * @return {Promise<{latest: string, url: string}>}
  */
 async function latestRelease(name, spec) {
-  const github = /^github:([^/#]+\/[^#]+)/.exec(spec || '');
+  // Both hosts are pinned; the name comes from this repo's package.json
+  // (CodeQL js/request-forgery).
+  const github = /^github:([^/#]+)\/([^/#]+)$/.exec(spec || '');
   if (github) {
-    const release = await getJson(`https://api.github.com/repos/${github[1]}/releases/latest`);
+    if (!/^[\w.-]+$/.test(github[1]) || !/^[\w.-]+$/.test(github[2])) {
+      throw new Error(`${spec}: not an owner/repo pair`);
+    }
+    const release = await getJson(`https://api.github.com/repos/${github[1]}/${github[2]}/releases/latest`);
     return {latest: release.tag_name.replace(/^v/i, ''), url: release.html_url};
   }
-  const info = await getJson(`https://registry.npmjs.org/${name.replaceAll('/', '%2F')}`);
+  if (!/^[^/]+(\/[^/]+)?$/.test(name)) throw new Error(`${name}: not an npm package name`);
+  const info = await getJson(`https://registry.npmjs.org/${encodeURIComponent(name)}`);
   const latest = info['dist-tags'].latest;
-  return {latest, url: `https://www.npmjs.com/package/${name}/v/${latest}`};
+  return {latest, url: `https://www.npmjs.com/package/${encodeURIComponent(name)}/v/${encodeURIComponent(latest)}`};
 }
 
 async function main() {

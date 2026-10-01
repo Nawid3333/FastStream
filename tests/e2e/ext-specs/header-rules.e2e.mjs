@@ -76,7 +76,9 @@ describe('Header rules for a stream URL', function() {
   for (const [name, id, path] of cases) {
     it(`sends the Referer for ${name}`, async function() {
       const page = await fetchWithReferer(SITE + path);
-      console.log('      page:', JSON.stringify(page), 'server saw:', seen.get(id));
+      // Quoted, so the URL's control characters cannot forge log lines
+      // (CodeQL js/log-injection).
+      console.log('      page:', JSON.stringify(page), 'server saw:', JSON.stringify(seen.get(id) || null));
       expect(page.status).toBe(200);
       expect(seen.get(id)).toBe(REFERER);
     });

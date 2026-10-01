@@ -33,11 +33,11 @@
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 import {pageState, phaseTimer} from './diagnostics.mjs';
+import {withTempFile} from '../tempFile.mjs';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
@@ -98,9 +98,9 @@ function toneShare(file, frequency) {
  *   last the share of the audio that is the fixtures' 440 Hz tone (see toneShare).
  */
 function decodeWithFfmpeg(base64) {
-  const file = path.join(os.tmpdir(), `faststream-e2e-${process.pid}-${Date.now()}.mp4`);
-  fs.writeFileSync(file, Buffer.from(base64, 'base64'));
-  try {
+  // A fresh mkdtemp directory per run: CodeQL js/insecure-temporary-file — see tempFile.mjs.
+  const bytes = Buffer.from(base64, 'base64');
+  return withTempFile('saved.mp4', bytes, (file) => {
     const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
     const probe = spawnSync('ffprobe', [
       '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,codec_name,nb_read_frames,duration,start_time',
@@ -125,9 +125,7 @@ function decodeWithFfmpeg(base64) {
       audio,
       audioToneShare: audio ? toneShare(file, 440) : null,
     };
-  } finally {
-    fs.rmSync(file, {force: true});
-  }
+  });
 }
 
 /**

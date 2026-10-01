@@ -28,8 +28,18 @@ const logsDir = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '
  * @return {string} Its text, or '' before it exists.
  */
 function driverLog() {
-  const file = path.join(logsDir, `wdio-${process.env.WDIO_WORKER_ID}-geckodriver.log`);
-  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  // The worker id is wdio's own ("0", "0-16": digits and dashes). URI-encoding the
+  // whole file name is the path cut (CodeQL js/path-injection): whatever the value
+  // held, spaces, dots, slashes and separators become %XX, and it names no other
+  // file than the digits-and-dashes log name it already is.
+  const name = encodeURIComponent(`wdio-${process.env.WDIO_WORKER_ID}-geckodriver.log`);
+  const file = path.join(logsDir, name);
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') return '';
+    throw e;
+  }
 }
 
 describe('The background log', function() {

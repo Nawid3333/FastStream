@@ -16,11 +16,9 @@
 // region and several seconds of playback to reach the same code.
 
 import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import {browser, expect} from '@wdio/globals';
 import {createFile} from 'mp4box';
+import {withTempFile} from '../tempFile.mjs';
 
 /**
  * Runs an async snippet in the page and waits for it to settle.
@@ -82,9 +80,8 @@ const PTS_TOLERANCE = 0.0005;
  */
 function probeMp4(base64) {
   const bytes = Buffer.from(base64, 'base64');
-  const file = path.join(os.tmpdir(), `faststream-e2e-${process.pid}-${Date.now()}.mp4`);
-  fs.writeFileSync(file, bytes);
-  try {
+  // A fresh mkdtemp directory per run: CodeQL js/insecure-temporary-file — see tempFile.mjs.
+  return withTempFile('probe.mp4', bytes, (file) => {
     const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
     if (decode.error) {
       throw new Error(`ffmpeg must be on PATH to decode a written file: ${decode.error.message}`);
@@ -119,9 +116,7 @@ function probeMp4(base64) {
       video: samplesOf('video'),
       audio: samplesOf('audio'),
     };
-  } finally {
-    fs.rmSync(file, {force: true});
-  }
+  });
 }
 
 describe('vendored encoding libraries', function() {

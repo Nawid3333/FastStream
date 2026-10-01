@@ -25,12 +25,16 @@ export function keepDriverLogs(outputDir, suite) {
   // Workers per id so far: the first run of a spec file is attempt 1, its retry 2.
   const attempts = new Map();
   return function onWorkerEnd(cid, exitCode, specs) {
+    // wdio's worker ids are digit groups joined by dashes (0, 0-4); anything else
+    // never joins a path below (CodeQL js/path-injection).
+    if (!/^[\d-]+$/.test(cid) || cid.startsWith('-') || cid.endsWith('-') || cid.includes('--')) {
+      return;
+    }
     const attempt = (attempts.get(cid) || 0) + 1;
     attempts.set(cid, attempt);
     const from = path.join(outputDir, `wdio-${cid}-geckodriver.log`);
-    if (!fs.existsSync(from)) {
-      return;
-    }
+    // Renaming (not existsSync-then-read) has no gap in between; a log that vanished
+    // is a lost diagnostic, not a failure (CodeQL js/file-system-race).
     try {
       const spec = specs && specs[0] ? String(specs[0]) : '';
       const file = spec.startsWith('file:') ? url.fileURLToPath(spec) : spec;

@@ -177,8 +177,11 @@ function splice(fileText, target, relativePath) {
 
           const messages = JSON.parse(fs.readFileSync(localePath, 'utf8'));
           const translationMap = {};
+          // Own-property reads only: a messages.json key like __proto__ must not reach
+          // the lookup (CodeQL js/remote-property-injection).
           Object.keys(messages).forEach((key) => {
-            translationMap[key] = messages[key].message;
+            if (!Object.hasOwn(messages, key)) return;
+            translationMap[key] = messages[key] && messages[key].message;
           });
           locales.push({
             translationMap,

@@ -354,9 +354,15 @@ async function run() {
 
   // Apply results
   let changed = 0;
+  // A language code is 2-3 letters or 2-3 letters, a script tag of 4 and a region of
+  // 2-4: anything else (a key like __proto__, or one with a path) never writes into
+  // items (CodeQL js/remote-property-injection).
+  const langShape = /^[a-z]{2,3}(?:[-_][A-Za-z]{4})?(?:[-_](?:[A-Z]{2}|\d{3}))?$/;
   for (const [key, translation] of Object.entries(results)) {
-    if (!items[key]) continue; // safety
+    if (!Object.hasOwn(items, key)) continue; // safety (own-property only)
     if (typeof translation !== 'string') continue;
+    if (typeof items[key] !== 'object' || items[key] === null) continue;
+    if (!langShape.test(opts.lang)) continue;
     if (!opts.overwrite && items[key][opts.lang]) continue;
     items[key][opts.lang] = translation;
     changed++;

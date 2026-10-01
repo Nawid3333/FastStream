@@ -63,13 +63,17 @@ if (gecko.strict_min_version) {
   updateEntry.applications = {gecko: {strict_min_version: gecko.strict_min_version}};
 }
 
-const updateManifest = {
-  addons: {
-    [id]: {
-      updates: [updateEntry],
-    },
-  },
-};
+// The id keys the addons map. The manifest it is read from is a build artifact, which
+// CodeQL counts as user-provided data, and no comparison on the value cuts that: the
+// write goes onto a Map instead of an object, so no member can ever be overwritten
+// (CodeQL js/remote-property-injection); JSON.stringify makes it "id" again, in a
+// shape Firefox's updater reads.
+if (id.includes('"') || id.includes('\\')) {
+  console.error(`Unexpected gecko id in ${manifestPath}: ${id}`);
+  process.exit(1);
+}
+const addons = new Map([[id, {updates: [updateEntry]}]]);
+const updateManifest = {addons: Object.fromEntries(addons)};
 
 const outPath = path.join(artifactsDir, 'updates.json');
 fs.writeFileSync(outPath, JSON.stringify(updateManifest, null, 2) + '\n');
