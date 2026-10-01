@@ -105,8 +105,10 @@ async function npmFile(pkg, file) {
     if ((prefix ? prefix + '/' : '') + name === 'package/' + file) {
       const data = tar.subarray(offset + 512, offset + 512 + size);
       // 'wx' fails when another process wrote the cache entry in between, and reading
-      // it back then gives the same bytes (CodeQL js/file-system-race).
-      fs.mkdirSync(cacheDir, {recursive: true});
+      // it back then gives the same bytes (CodeQL js/file-system-race). The entry's
+      // own directory (dist/ inside the package) is made too: a recursive mkdir on
+      // cacheDir alone leaves it missing (this broke the first CI run of the change).
+      fs.mkdirSync(path.dirname(cached), {recursive: true});
       let fd;
       try {
         fd = fs.openSync(cached, 'wx');
