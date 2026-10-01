@@ -222,6 +222,20 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 
 ## Architecture facts that are easy to get wrong
 
+- **Measured cheap, so left alone (2026-10-01, PF1-PF4).** In the e2e Firefox, on the
+  Guardian, BBC, Spiegel and CNN front pages (20 s each):
+  - **PF1:** the webRequest listeners ran 49-115 times per page, about 1-6 ms of handler
+    time in all. A `types` filter would drop 65-85% of the calls (script, image,
+    imageset, font, stylesheet, beacon) but saves no measurable time; not worth risking
+    a stream of a type nobody thought of.
+  - **PF2:** overlay-guard.js's check took 1.3 ms a second on a 1,500-element page,
+    2.3 ms on 5,000, 9.5 ms on 20,000 and 23 ms on 50,000; dropping its per-element
+    array spread saved only 5-25%.
+  - **PF3:** content.js sends 3 messages per frame per page load, 9-12 on those pages.
+  - **PF4:** `querySelectorAllIncludingShadows` took 0.2-3 ms per call, and one-walk
+    rewrites were no faster. What it did have was a bug (searching an element's own
+    shadow root), fixed and tested in content-cleanup.e2e.mjs.
+
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.
