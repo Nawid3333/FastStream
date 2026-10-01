@@ -236,6 +236,13 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
     rewrites were no faster. What it did have was a bug (searching an element's own
     shadow root), fixed and tested in content-cleanup.e2e.mjs.
 
+- **`play()` does not wait for the audio (2026-10-01).** With no sound device (CI's Linux
+  runner) the player's AudioContext stays suspended and `resume()` never settles; `play()`
+  waited for it, so it never finished, and autoplay's `autoPlayTriggered` was never set.
+  `startAudio()` now starts the context once, without waiting, and starts the background
+  analyzer when the audio runs (client-setup.e2e.mjs fakes the never-settling resume).
+  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`.
+
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.

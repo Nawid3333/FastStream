@@ -33,8 +33,8 @@ async function loadVideo(url, play) {
     return !!client.player && client.source?.url === url && client.duration > 0 && client.currentVideo?.readyState >= 2;
   }, url), {timeout: 30000, timeoutMsg: 'the video never loaded'});
   if (!play) return true;
-  // Not awaited: play() also waits for its AudioContext to resume, which never settles on
-  // a machine without a sound device (the Linux CI runner), as in keybinds.e2e.mjs.
+  // What counts is the sound, waited for below: on a machine without a sound device (the
+  // Linux CI runner) the AudioContext never starts, though play() itself finishes.
   await browser.execute(() => {
     window.fastStream.play().catch(() => {});
   });
