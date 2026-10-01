@@ -410,6 +410,15 @@ What that fix put in place, and the invariants to keep:
   `StreamSaver.mjs` picks its sink on first write via `ready()` for exactly
   this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
   accumulation if its OPFS writes throw.
+- **A download's `blob:` URL must outlive the download** (2026-10-01).
+  `downloads.download()` resolves before Firefox has read the URL: revoked at once, 8 of
+  60 small downloads were interrupted (`CRASH`) with no file and no message - a subtitle
+  saved from the menu, the end of a StreamSaver save. Pass what `Utils.downloadURL`
+  resolved with to `Utils.revokeWhenDownloaded(url, download)`, which revokes once
+  `downloads.onChanged` says the download is over (a minute without an id). A link click
+  (`<a download>`) reads the blob at once: 40 of 40 survived a revoke right after it.
+  `ext-specs/download-blob-lifetime.e2e.mjs`; found through download-names' CI flake, whose
+  test page closed with its blob before Firefox read it.
 - `OPFSManager.isSupported()` additionally refuses up front when
   `EnvUtils.isIncognito()`, purely to avoid spawning
   a worker and logging a `SecurityError` per player open. It is not the
