@@ -1293,7 +1293,7 @@ the change went in.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
-  libsamplerate, StreamSaver): measured 2026-09-25, OSV has
+  StreamSaver): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are
   covered by the provenance checks instead. The lockfile-backed libraries are covered by
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3);
@@ -1480,8 +1480,7 @@ they belong in the Phase 7 npm migration rather than being removed:
 |---|---|---|
 | `vad/ort.wasm.mjs` + `ort-wasm-simd-threaded.mjs` + `ort-wasm-simd-threaded.wasm` | **ONNX Runtime Web 1.30.0**, Microsoft, MIT | `onnxruntime-web@1.30.0` |
 | `vad/silero_vad_half.onnx` | Silero VAD model, `.onnx`, MIT | published model, silero-vad tag v6.2.1 |
-| `reencoder/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
-| `reencoder/libsamplerate.wasm` + `.mjs` | `aolsenjazz/libsamplerate-js`, MIT | `@alexanderolsen/libsamplerate-js` |
+| `remux/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
 
 `vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carried the comment
 "Minified to reduce loading time (https://minify-js.com/)"** — Andrew

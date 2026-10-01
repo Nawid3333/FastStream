@@ -80,7 +80,7 @@ Many thanks to the contributors of this project.
 - [dash.js](https://github.com/Dash-Industry-Forum/dash.js): Used for DASH playback
 - [mp4box.js](https://github.com/gpac/mp4box.js): Used for automatic fragmentation of mp4 files
 - [vtt.js](https://github.com/mozilla/vtt.js): Used for parsing VTT subtitles
-- [jswebm](https://github.com/jscodec/jswebm): Used for demuxing webm files
+- [Mediabunny](https://github.com/Vanilagy/mediabunny): Used for reading WebM and copying streams into MP4 when saving
 - And some more! Check the `chrome/player/modules` directory for more information.
 
 ## Funding & Donation Policy

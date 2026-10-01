@@ -31,12 +31,9 @@ export class DASH2MP4 extends EventEmitter {
         throw e;
       }
 
-      if (!window.VideoDecoder || !window.VideoEncoder || !window.AudioDecoder || !window.AudioEncoder) {
-        throw e;
-      }
-
-      const {Reencoder} = await import('../reencoder/reencoder.mjs');
-      this.converter = new Reencoder(this.registerCancel);
+      // What the merger cannot join, Mediabunny copies as it is: see remuxer.mjs.
+      const {Remuxer} = await import('../remux/remuxer.mjs');
+      this.converter = new Remuxer(this.registerCancel);
       this.converter.on('progress', (progress) => {
         this.emit('progress', progress);
       });

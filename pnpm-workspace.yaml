@@ -1,11 +1,10 @@
 overrides:
   # Dependabot #27/#14/#17/#19/#20/#18/#21: these devDependencies (web-ext's
-  # firefox-profile, mocha's reporters, jswebm/archiver's lodash) pin older
+  # firefox-profile, mocha's reporters) pin older
   # transitive versions than what upstream has since patched. None of these ship
   # in the extension; forcing the patched versions here avoids waiting on those
   # maintainers to bump their own lockfiles.
   adm-zip: ^0.6.1
-  lodash: ^4.18.1
   serialize-javascript: ^7.1.1
   # Dependabot #24/#25: the original extract-zip is unmaintained (no npm release
   # since 2020, no commits since 2022) and has two unpatched symlink-traversal
@@ -37,6 +36,5 @@ patchedDependencies:
   dashjs@5.2.1: patches/dashjs@5.2.1.patch
   gif.js@0.2.0: patches/gif.js@0.2.0.patch
   hls.js@1.7.3: patches/hls.js@1.7.3.patch
-  jswebm@0.1.2: patches/jswebm@0.1.2.patch
   mp4box@2.4.1: patches/mp4box@2.4.1.patch
   sweetalert2@11.26.25: patches/sweetalert2@11.26.25.patch

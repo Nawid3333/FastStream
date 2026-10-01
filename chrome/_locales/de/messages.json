@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "Privater Modus wird RAM benutzten um Videos zu puffern. Dein Computer hat villeicht nicht genug speicher um das gesamte video zu speichern!\nBist du sicher das du fortfahren willst?"
     },
-    "player_savevideo_reencode": {
-        "message": "Speichern erfordert neukodierung. Dies kann eine lange Zeit brauchen. Willst du fortfahren?"
-    },
     "player_savevideo_cancelling": {
         "message": "Breche speichern ab..."
     },

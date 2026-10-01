@@ -425,7 +425,7 @@ export class MP4Merger extends EventEmitter {
   async convert(videoDuration, videoInitSegment, audioDuration, audioInitSegment, zippedFragments) {
     try {
       // Inside the try: setup() throws for a codec or packaging this merger cannot
-      // handle, which is what sends the caller to the re-encode fallback, and the
+      // handle, which is what sends the caller to the remux fallback, and the
       // OPFS save the constructor began has to be closed on that path as well.
       this.setup(videoDuration, videoInitSegment, audioDuration, audioInitSegment);
 

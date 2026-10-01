@@ -63,7 +63,6 @@ updates:
       - dependency-name: 'dashjs'
       - dependency-name: 'gif.js'
       - dependency-name: 'hls.js'
-      - dependency-name: 'jswebm'
       - dependency-name: 'mp4box'
       - dependency-name: 'sweetalert2'
 

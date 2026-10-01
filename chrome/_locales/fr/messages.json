@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "Le mode navigation privée utilisera la RAM pour mettre en tampon les vidéos. Votre ordinateur pourrait ne pas avoir assez de mémoire pour sauvegarder la vidéo en entier !\nVoulez-vous continuer ?"
     },
-    "player_savevideo_reencode": {
-        "message": "La sauvegarde nécessitera un réencodage. Cela peut prendre beaucoup de temps. Voulez-vous continuer ?"
-    },
     "player_savevideo_cancelling": {
         "message": "Annulation de la sauvegarde..."
     },

@@ -111,6 +111,7 @@ function probeMp4(base64) {
       boxBytes: mp4.boxes.reduce((sum, box) => sum + box.size, 0),
       size: bytes.length,
       streams: tracks.map((t) => t.type),
+      codecs: tracks.map((t) => t.codec),
       width: video?.video.width,
       height: video?.video.height,
       sampleRate: audio?.audio.sample_rate,
@@ -174,14 +175,14 @@ describe('vendored encoding libraries', function() {
   });
 
   it('Mediabunny finishes a file with an empty video track, and one whose video never came', async function() {
-    // mp4-muxer 5.2.2 crashed finishing a file whose video track had no chunks, which is
-    // why it was reverted (#25); its successor Mediabunny replaced it. The re-encoder's
-    // writer (mp4-writer.mjs) meets both shapes here. A video encoder that puts out
-    // nothing leaves the audio held in TimestampRebaser until finalize() flushes it, so
-    // the second file checks the audio arrives, from 0: dash-list's segment 2, 2 s in.
+    // mp4-muxer 5.2.2 crashed finishing a file whose video track had no packets, which is
+    // why it was reverted (#25); its successor Mediabunny replaced it. The remuxer's
+    // writer (mp4-writer.mjs) meets both shapes here. A video track that sends nothing
+    // leaves the audio held in TimestampRebaser until finalize() flushes it, so the second
+    // file checks the audio arrives, from 0: dash-list's segment 2, 2 s in.
     const result = await runInPage(async () => {
-      const {MP4Writer} = await import('/player/modules/reencoder/mp4-writer.mjs');
-      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
+      const {MP4Writer} = await import('/player/modules/remux/mp4-writer.mjs');
+      const {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} = await import('/player/modules/remux/mediabunny.mjs');
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
       const base64 = async (blob) => {
@@ -193,27 +194,26 @@ describe('vendored encoding libraries', function() {
         return btoa(text);
       };
       const blobManager = new FSBlob();
-      const errors = [];
 
-      const empty = new MP4Writer(blobManager, {video: true}, (e) => errors.push(String(e)));
+      const empty = new MP4Writer(blobManager, {video: 'avc'});
       await empty.start();
       const emptyFile = await empty.finalize();
 
-      const audio = new MP4Demuxer();
-      audio.initialize(await get('dash-list/init-stream1.m4s'));
-      audio.appendBuffer(await get('dash-list/chunk-stream1-00002.m4s'));
-      const chunks = audio.getAudioChunks(true);
-      // MP4Demuxer leaves the AudioSpecificConfig out (the decoder does not need it for
-      // AAC); a muxer does, so it comes from the init segment's esds box.
-      const entry = audio.file.getTrackById(audio.audioTrack.id).mdia.minf.stbl.stsd.entries[0];
-      const decoderConfig = {
-        ...audio.getAudioDecoderConfig(),
-        description: entry.esds.esd.findDescriptor(4).findDescriptor(5).data,
-      };
-      const noVideo = new MP4Writer(blobManager, {video: true, audio: true}, (e) => errors.push(String(e)));
+      const input = new Input({
+        source: new BlobSource(new Blob([await get('dash-list/init-stream1.m4s'), await get('dash-list/chunk-stream1-00002.m4s')])),
+        formats: ALL_FORMATS,
+      });
+      const track = await input.getPrimaryAudioTrack();
+      const decoderConfig = await track.getDecoderConfig();
+      const noVideo = new MP4Writer(blobManager, {video: 'avc', audio: await track.getCodec()});
       await noVideo.start();
-      chunks.forEach((chunk, i) => noVideo.addAudioChunk(chunk, i ? undefined : {decoderConfig}));
+      const packets = [];
+      for await (const packet of new EncodedPacketSink(track).packets()) {
+        await noVideo.add('audio', packet, packets.length ? undefined : {decoderConfig});
+        packets.push({timestamp: packet.microsecondTimestamp, size: packet.data.byteLength});
+      }
       const noVideoFile = await noVideo.finalize();
+      input.dispose();
       await blobManager.close();
 
       return {
@@ -222,13 +222,11 @@ describe('vendored encoding libraries', function() {
           boxType: new TextDecoder().decode(await emptyFile.slice(4, 8).arrayBuffer()),
         },
         noVideo: await base64(noVideoFile),
-        input: chunks.map((chunk) => ({timestamp: chunk.timestamp, size: chunk.byteLength})),
-        errors,
+        input: packets,
       };
     });
 
-    console.log('      empty track:', JSON.stringify(result.empty), result.errors);
-    expect(result.errors).toEqual([]);
+    console.log('      empty track:', JSON.stringify(result.empty));
     expect(result.empty.boxType).toBe('ftyp');
     expect(result.empty.size).toBeGreaterThan(0);
 
@@ -241,31 +239,27 @@ describe('vendored encoding libraries', function() {
     expect(file.audio.length).toBe(result.input.length);
     // Guards the fixture: a segment that starts at 0 proves nothing about moving it there.
     expect(first).toBeGreaterThan(1e6);
-    result.input.forEach((chunk, i) => {
-      expect(Math.abs(file.audio[i].pts - (chunk.timestamp - first) / 1e6)).toBeLessThan(PTS_TOLERANCE);
-      expect(file.audio[i].size).toBe(chunk.size);
+    result.input.forEach((packet, i) => {
+      expect(Math.abs(file.audio[i].pts - (packet.timestamp - first) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.audio[i].size).toBe(packet.size);
     });
   });
 
   it('Mediabunny writes H.264 with B-frames and AAC from mid-stream into a file that starts at 0', async function() {
-    // The re-encoder's writer (mp4-writer.mjs), fed stream-copied chunks so the file can
-    // be checked packet by packet against its input on every platform: WebCodecs H.264
-    // encoding is not there on every runner. The video is fmp4-bframes' second segment,
-    // from its keyframe 8.4 s in, B-frames and all; the audio is dash-list's segments 4
-    // and 5, from 6.037 s (both as MP4Demuxer times them, before the fixtures' edit
-    // lists). A save from the middle of a stream looks like this, and the file must
-    // start at 0 with the video 2.363 s after the audio, as they played.
+    // The remuxer's writer (mp4-writer.mjs), fed packets as Mediabunny reads them. The
+    // video is fmp4-bframes' second segment, from its keyframe, B-frames and all; the audio
+    // is dash-list's segments 4 and 5. A save from the middle of a stream looks like this,
+    // and the file must start at 0 with the video as far after the audio as it played.
     //
-    // All the video goes in before any audio, as a video encoder that runs ahead would
-    // send it. Nothing may reach the file before the audio's first chunk says where 0 is
-    // (TimestampRebaser); moved by the video's own start, the audio would begin at -2.3 s.
+    // All the video goes in before any audio. Nothing may reach the file before the
+    // audio's first packet says where 0 is (TimestampRebaser); moved by the video's own
+    // start, the audio would begin before 0.
     //
     // The writer keeps the file in 16 KB pieces here instead of 16 MB, so it runs its
     // piece store the way a long save does: most pieces go to FSBlob and back.
     const result = await runInPage(async () => {
-      const {MP4Writer} = await import('/player/modules/reencoder/mp4-writer.mjs');
-      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
-      const {DataStream, Endianness} = await import('/player/modules/mp4box/mp4box.all.mjs');
+      const {MP4Writer} = await import('/player/modules/remux/mp4-writer.mjs');
+      const {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} = await import('/player/modules/remux/mediabunny.mjs');
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');
       const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
       const base64 = async (blob) => {
@@ -276,44 +270,38 @@ describe('vendored encoding libraries', function() {
         }
         return btoa(text);
       };
-      const entryOf = (demuxer, track) =>
-        demuxer.file.getTrackById(track.id).mdia.minf.stbl.stsd.entries[0];
-
-      // MP4Demuxer's configs have no description, which a muxer needs: the avcC and the
-      // AudioSpecificConfig come from the init segments.
-      const video = new MP4Demuxer();
-      video.initialize(await get('fmp4-bframes/init-stream0.m4s'));
-      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00002.m4s'));
-      const videoChunks = video.getVideoChunks(true);
-      const avcC = new DataStream();
-      avcC.endianness = Endianness.BIG_ENDIAN;
-      entryOf(video, video.videoTrack).avcC.write(avcC);
-      const videoConfig = {
-        ...video.getVideoDecoderConfig(),
-        description: new Uint8Array(avcC.buffer, 8),
+      const open = async (files, type) => {
+        const input = new Input({
+          source: new BlobSource(new Blob(await Promise.all(files.map(get)))),
+          formats: ALL_FORMATS,
+        });
+        const track = type === 'video' ? await input.getPrimaryVideoTrack() : await input.getPrimaryAudioTrack();
+        const packets = [];
+        for await (const packet of new EncodedPacketSink(track).packets()) {
+          packets.push(packet);
+        }
+        return {input, codec: await track.getCodec(), decoderConfig: await track.getDecoderConfig(), packets};
       };
 
-      const audio = new MP4Demuxer();
-      audio.initialize(await get('dash-list/init-stream1.m4s'));
-      audio.appendBuffer(await get('dash-list/chunk-stream1-00004.m4s'));
-      audio.appendBuffer(await get('dash-list/chunk-stream1-00005.m4s'));
-      const audioChunks = audio.getAudioChunks(true);
-      const audioConfig = {
-        ...audio.getAudioDecoderConfig(),
-        description: entryOf(audio, audio.audioTrack).esds.esd.findDescriptor(4).findDescriptor(5).data,
-      };
+      const video = await open(['fmp4-bframes/init-stream0.m4s', 'fmp4-bframes/chunk-stream0-00002.m4s'], 'video');
+      const audio = await open(['dash-list/init-stream1.m4s', 'dash-list/chunk-stream1-00004.m4s',
+        'dash-list/chunk-stream1-00005.m4s'], 'audio');
 
       const blobManager = new FSBlob();
-      const errors = [];
-      const writer = new MP4Writer(blobManager, {video: true, audio: true}, (e) => errors.push(String(e)), 16 * 1024);
+      const writer = new MP4Writer(blobManager, {video: video.codec, audio: audio.codec}, 16 * 1024);
       await writer.start();
-      videoChunks.forEach((chunk, i) => writer.addVideoChunk(chunk, i ? undefined : {decoderConfig: videoConfig}));
-      audioChunks.forEach((chunk, i) => writer.addAudioChunk(chunk, i ? undefined : {decoderConfig: audioConfig}));
+      for (const [i, packet] of video.packets.entries()) {
+        await writer.add('video', packet, i ? undefined : {decoderConfig: video.decoderConfig});
+      }
+      for (const [i, packet] of audio.packets.entries()) {
+        await writer.add('audio', packet, i ? undefined : {decoderConfig: audio.decoderConfig});
+      }
       const file = await writer.finalize();
+      video.input.dispose();
+      audio.input.dispose();
 
       // And Firefox plays it: loads it, and has a frame after a seek to where both tracks
-      // play (video from 2.363 s, audio to 2.986 s). Firefox reports a fragmented file's
-      // duration as its shortest track's end, for mp4-muxer 4.3.3's files as for these, so
+      // play. Firefox reports a fragmented file's duration as its shortest track's end, so
       // the duration is not what this checks.
       const element = document.createElement('video');
       element.muted = true;
@@ -348,9 +336,8 @@ describe('vendored encoding libraries', function() {
         pieces,
         onDisk,
         played,
-        errors,
-        video: videoChunks.map((c) => ({timestamp: c.timestamp, key: c.type === 'key', size: c.byteLength})),
-        audio: audioChunks.map((c) => ({timestamp: c.timestamp, size: c.byteLength})),
+        video: video.packets.map((p) => ({timestamp: p.microsecondTimestamp, key: p.type === 'key', size: p.data.byteLength})),
+        audio: audio.packets.map((p) => ({timestamp: p.microsecondTimestamp, size: p.data.byteLength})),
       };
     });
 
@@ -360,9 +347,8 @@ describe('vendored encoding libraries', function() {
       size: result.size, pieces: result.pieces, onDisk: result.onDisk, played: result.played,
       streams: file.streams, video: file.video.length, audio: file.audio.length,
       videoStart: file.video[0]?.pts, audioStart: file.audio[0]?.pts,
-    }), result.errors);
+    }));
 
-    expect(result.errors).toEqual([]);
     expect(file.decodeErrors).toBe('');
     // Whole: the boxes fill the file exactly, up to the index at its end (ffmpeg and mp4box
     // read a file that lost its last bytes without a word).
@@ -377,20 +363,20 @@ describe('vendored encoding libraries', function() {
 
     // Guards the fixtures: the audio starts first, and the video has reordered frames.
     expect(result.audio[0].timestamp).toBeLessThan(result.video[0].timestamp - 2e6);
-    const inputPts = result.video.map((c) => c.timestamp);
+    const inputPts = result.video.map((p) => p.timestamp);
     expect(inputPts.some((t, i) => i > 0 && t < inputPts[i - 1])).toBe(true);
 
-    // Every sample, in order, where its chunk was less the start, same size, same keyframes.
+    // Every sample, in order, where its packet was less the start, same size, same keyframes.
     expect(file.video.length).toBe(result.video.length);
-    result.video.forEach((chunk, i) => {
-      expect(Math.abs(file.video[i].pts - (chunk.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
-      expect(file.video[i].key).toBe(chunk.key);
-      expect(file.video[i].size).toBe(chunk.size);
+    result.video.forEach((packet, i) => {
+      expect(Math.abs(file.video[i].pts - (packet.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.video[i].key).toBe(packet.key);
+      expect(file.video[i].size).toBe(packet.size);
     });
     expect(file.audio.length).toBe(result.audio.length);
-    result.audio.forEach((chunk, i) => {
-      expect(Math.abs(file.audio[i].pts - (chunk.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
-      expect(file.audio[i].size).toBe(chunk.size);
+    result.audio.forEach((packet, i) => {
+      expect(Math.abs(file.audio[i].pts - (packet.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+      expect(file.audio[i].size).toBe(packet.size);
     });
     expect(file.audio[0].pts).toBe(0);
 
@@ -405,299 +391,123 @@ describe('vendored encoding libraries', function() {
   });
 });
 
-describe('the re-encoder', function() {
+describe('the remuxer', function() {
   beforeEach(async function() {
     await browser.url('/player/index.html?t=' + Date.now());
   });
 
   /**
-   * Re-encodes fmp4-bframes' two segments with fake codecs and reports how it ended.
-   *
-   * The decoder turns each chunk into a small real VideoFrame, a task later, as a
-   * decoder does. The encoder fails as window.__encoderFails says: 'error' fails the
-   * first frame the way WebCodecs fails an encoder (closed, then the error callback, in
-   * one task of their own); 'delta' puts out a delta chunk first, which the MP4 writer
-   * refuses. Fakes, so every platform takes the same path.
-   *
-   * @return {Promise<Object>} {outcome, ms, destroyed, openCodecs, codecs, framesEncoded}:
-   *     outcome is {name, message} for a rejection, {resolved: true}, or {hung: true}
-   *     after 20 s; framesEncoded how many frames the encoder took (the video has 300)
+   * Remuxes dash-webm's segments 2 and 3 of both tracks (VP9 and Opus in WebM, which
+   * MP4Merger cannot join) as a save from the middle of the stream hands them over.
+   * @param {boolean} [cancel] whether to cancel the save once its first progress comes
+   * @return {Promise<Object>} the file (base64) and its input's packets, or the error
    */
-  function reencodeWithFailingEncoder() {
+  async function remuxDashWebm(cancel = false) {
+    await browser.execute((cancel) => window.__cancelRemux = cancel, cancel);
     return runInPage(async () => {
-      const {Reencoder} = await import('/player/modules/reencoder/reencoder.mjs');
-      const {AlertPolyfill} = await import('/player/utils/AlertPolyfill.mjs');
-      AlertPolyfill.confirm = async () => true;
-
-      const canvas = new OffscreenCanvas(16, 16);
-      canvas.getContext('2d').fillRect(0, 0, 16, 16);
-      const codecs = [];
-      let framesEncoded = 0;
-      const invalid = (what, codec) => new DOMException(`${what} on a ${codec.state} codec`, 'InvalidStateError');
-      class FakeDecoder {
-        static isConfigSupported(config) {
-          return Promise.resolve({supported: true, config});
+      const cancel = window.__cancelRemux;
+      const {Remuxer} = await import('/player/modules/remux/remuxer.mjs');
+      const {ALL_FORMATS, BlobSource, EncodedPacketSink, Input} = await import('/player/modules/remux/mediabunny.mjs');
+      const get = async (file) => (await fetch('/fixtures/dash-webm/' + file)).arrayBuffer();
+      const fragment = (track, data) => ({track, getEntry: async () => ({getData: async () => new Blob([data])})});
+      const base64 = async (blob) => {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let text = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         }
-        constructor({output}) {
-          this.output = output;
-          this.state = 'unconfigured';
-          this.decodeQueueSize = 0;
-          this.pending = Promise.resolve();
-          codecs.push(this);
-        }
-        configure() {
-          this.state = 'configured';
-        }
-        decode(chunk) {
-          if (this.state !== 'configured') throw invalid('decode', this);
-          this.decodeQueueSize++;
-          const timestamp = chunk.timestamp;
-          this.pending = this.pending.then(() => new Promise((resolve) => setTimeout(resolve))).then(() => {
-            this.decodeQueueSize--;
-            if (this.state === 'configured') {
-              this.output(new VideoFrame(canvas, {timestamp}));
-            }
-          });
-        }
-        flush() {
-          return this.state === 'configured' ? this.pending : Promise.reject(invalid('flush', this));
-        }
-        close() {
-          if (this.state === 'closed') throw invalid('close', this);
-          this.state = 'closed';
-        }
-      }
-      class FailingEncoder {
-        static isConfigSupported(config) {
-          return Promise.resolve({supported: true, config});
-        }
-        constructor({output, error}) {
-          this.output = output;
-          this.error = error;
-          this.state = 'unconfigured';
-          this.encodeQueueSize = 0;
-          codecs.push(this);
-        }
-        configure() {
-          this.state = 'configured';
-        }
-        encode(frame) {
-          if (this.state !== 'configured') throw invalid('encode', this);
-          framesEncoded++;
-          const timestamp = frame.timestamp;
-          this.encodeQueueSize++;
-          setTimeout(() => {
-            this.encodeQueueSize--;
-            if (this.state !== 'configured') return;
-            if (window.__encoderFails === 'error') {
-              this.state = 'closed';
-              this.error(new DOMException('the fake encoder failed', 'EncodingError'));
-            } else {
-              this.output(new EncodedVideoChunk({type: 'delta', timestamp, data: new Uint8Array(8)}), {
-                decoderConfig: {
-                  codec: 'avc1.42001e', codedWidth: 16, codedHeight: 16,
-                  description: new Uint8Array([1, 0x42, 0, 0x1e, 0xff, 0xe0, 0]),
-                },
-              });
-            }
-          });
-        }
-        flush() {
-          return this.state === 'configured' ? Promise.resolve() : Promise.reject(invalid('flush', this));
-        }
-        close() {
-          if (this.state === 'closed') throw invalid('close', this);
-          this.state = 'closed';
-        }
-      }
-      window.VideoDecoder = FakeDecoder;
-      window.VideoEncoder = FailingEncoder;
-
-      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
-      const fragment = (file) => ({track: 0, getEntry: async () => ({getData: async () => new Blob([file])})});
-      const init = await get('fmp4-bframes/init-stream0.m4s');
-      const fragments = [
-        fragment(await get('fmp4-bframes/chunk-stream0-00001.m4s')),
-        fragment(await get('fmp4-bframes/chunk-stream0-00002.m4s')),
-      ];
-
-      const reencoder = new Reencoder(() => {});
-      const t0 = performance.now();
-      const outcome = await Promise.race([
-        reencoder.convert('video/mp4', 10, init, '', 0, null, fragments).then(
-            () => ({resolved: true}),
-            (e) => ({name: e && e.name, message: String(e && e.message)})),
-        new Promise((resolve) => setTimeout(() => resolve({hung: true}), 20000)),
-      ]);
-      return {
-        outcome,
-        ms: Math.round(performance.now() - t0),
-        destroyed: reencoder.destroyed === true,
-        openCodecs: codecs.filter((codec) => codec.state !== 'closed').length,
-        codecs: codecs.length,
-        framesEncoded,
+        return btoa(text);
       };
-    }, 40000);
+      const videoInit = await get('init-stream0.webm');
+      const audioInit = await get('init-stream1.webm');
+      const fragments = [];
+      for (const n of ['00002', '00003']) {
+        fragments.push(fragment(0, await get(`chunk-stream0-${n}.webm`)));
+        fragments.push(fragment(1, await get(`chunk-stream1-${n}.webm`)));
+      }
+
+      // The input's packets, as Mediabunny reads them from the same bytes.
+      const packetsOf = async (init, track) => {
+        const input = new Input({
+          source: new BlobSource(new Blob([init, ...await Promise.all(fragments.filter((f) => f.track === track)
+              .map(async (f) => (await f.getEntry()).getData()))])),
+          formats: ALL_FORMATS,
+        });
+        const t = track === 0 ? await input.getPrimaryVideoTrack() : await input.getPrimaryAudioTrack();
+        const packets = [];
+        for await (const p of new EncodedPacketSink(t).packets()) {
+          packets.push({timestamp: p.microsecondTimestamp, key: p.type === 'key', size: p.data.byteLength});
+        }
+        input.dispose();
+        return packets;
+      };
+
+      let cancelSave;
+      const remuxer = new Remuxer((fn) => cancelSave = fn);
+      const progress = [];
+      remuxer.on('progress', (value) => {
+        progress.push(value);
+        if (cancel) cancelSave();
+      });
+      try {
+        const file = await remuxer.convert('video/webm', 4, videoInit, 'audio/webm', 4, audioInit, fragments);
+        return {
+          bytes: await base64(file),
+          type: file.type,
+          progress,
+          video: await packetsOf(videoInit, 0),
+          audio: await packetsOf(audioInit, 1),
+        };
+      } catch (e) {
+        return {error: String(e && e.message || e), progress, destroyed: remuxer.destroyed};
+      }
+    });
   }
 
-  it('ends the save with the encoder\'s error instead of waiting forever', async function() {
-    // Firefox on Windows fails H.264 encoding of the re-encoder's frames with an
-    // EncodingError. A codec that fails closes itself and puts out nothing more, and
-    // pushFragment() waited for its output: the save hung where it was, and the error
-    // handler's own close() threw on the closed codec. Now the save fails with the
-    // encoder's error, and the codecs are closed.
-    await browser.execute(() => {
-      window.__encoderFails = 'error';
+  it('copies VP9 and Opus from WebM segments into an MP4, packet for packet', async function() {
+    // The re-encoder this replaced decoded and re-encoded them to H.264 and AAC with
+    // WebCodecs encoders, which Firefox has on no Windows: every such save failed there.
+    const result = await remuxDashWebm();
+    expect(result.error).toBe(undefined);
+    const file = probeMp4(result.bytes);
+    const start = Math.min(result.video[0].timestamp, result.audio[0].timestamp);
+    console.log('      remuxed:', JSON.stringify({type: result.type, streams: file.streams, codecs: file.codecs,
+      video: file.video.length, audio: file.audio.length, inputVideo: result.video.length,
+      inputAudio: result.audio.length, videoStart: file.video[0]?.pts, audioStart: file.audio[0]?.pts,
+      inputVideoStart: result.video[0].timestamp / 1e6, inputAudioStart: result.audio[0].timestamp / 1e6,
+      progress: result.progress.slice(-3)}));
+
+    expect(result.type).toBe('video/mp4');
+    expect(file.decodeErrors).toBe('');
+    expect(file.streams).toEqual(['video', 'audio']);
+    expect(file.codecs[0]).toMatch(/^vp09\./);
+    expect(file.codecs[1]).toBe('Opus');
+    expect(file.width).toBe(320);
+    expect(file.height).toBe(180);
+
+    // Guards the fixture: from the middle of the stream, not its start.
+    expect(start).toBeGreaterThan(1e6);
+    // Every packet, the same bytes (its size), keyframes kept, each where it was less the
+    // save's start.
+    expect(file.video.length).toBe(result.video.length);
+    result.video.forEach((packet, i) => {
+      expect(file.video[i].size).toBe(packet.size);
+      expect(file.video[i].key).toBe(packet.key);
+      expect(Math.abs(file.video[i].pts - (packet.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
     });
-    const result = await reencodeWithFailingEncoder();
-    console.log('      encoder error:', JSON.stringify(result));
-    expect(result.outcome).toEqual({name: 'EncodingError', message: 'the fake encoder failed'});
-    expect(result.framesEncoded).toBeLessThan(50);
+    expect(file.audio.length).toBe(result.audio.length);
+    result.audio.forEach((packet, i) => {
+      expect(file.audio[i].size).toBe(packet.size);
+      expect(Math.abs(file.audio[i].pts - (packet.timestamp - start) / 1e6)).toBeLessThan(PTS_TOLERANCE);
+    });
+    expect(result.progress.at(-1)).toBe(1);
+  });
+
+  it('stops a cancelled save with "Cancelled"', async function() {
+    const result = await remuxDashWebm(true);
+    console.log('      cancelled:', JSON.stringify(result));
+    expect(result.error).toBe('Cancelled');
     expect(result.destroyed).toBe(true);
-    expect(result.codecs).toBe(2);
-    expect(result.openCodecs).toBe(0);
-  });
-
-  it('ends the save with the MP4 writer\'s error when Mediabunny refuses a chunk', async function() {
-    // Mediabunny rejects add() for a chunk it cannot take (here a first chunk that is
-    // not a keyframe); the writer hands that to the re-encoder, which ends the save
-    // with it at once instead of encoding the rest for a file that cannot be written.
-    await browser.execute(() => {
-      window.__encoderFails = 'delta';
-    });
-    const result = await reencodeWithFailingEncoder();
-    console.log('      writer error:', JSON.stringify(result));
-    expect(result.outcome.message).toContain('key packet');
-    // At once, not after the other 299 frames were encoded for nothing.
-    expect(result.framesEncoded).toBeLessThan(50);
-    expect(result.destroyed).toBe(true);
-    expect(result.openCodecs).toBe(0);
-  });
-});
-
-describe('vendored demuxers', function() {
-  beforeEach(async function() {
-    await browser.url('/player/index.html?t=' + Date.now());
-  });
-
-  it('webm.mjs demuxes a real VP9 stream', async function() {
-    // Every change in patches/jswebm@0.1.2.patch is exercised here, which is
-    // the point: webm.mjs stopped being a hand-made blob and became jswebm's
-    // published sources plus that patch, and nothing else in the suite
-    // touches this code path.
-    //
-    // demux()'s boolean return is the one to watch. Upstream returns
-    // nothing, so WebMDemuxer.process() - `while (this.demuxer.demux())` -
-    // stops on the first call and the demuxer yields no packets at all.
-    // Verified by removing the return and watching this fail; a test that
-    // only imported the module would not notice.
-    const result = await runInPage(async () => {
-      const {WebMDemuxer} =
-        await import('/player/modules/reencoder/demuxers.mjs');
-      const bytes = new Uint8Array(
-          await (await fetch('/fixtures/sample.webm')).arrayBuffer());
-
-      const demuxer = new WebMDemuxer();
-      demuxer.initialize(bytes.buffer);
-      const config = demuxer.getVideoDecoderConfig();
-      const chunks = demuxer.getVideoChunks(10);
-      return {
-        codec: config && config.codec,
-        width: config && config.codedWidth,
-        height: config && config.codedHeight,
-        chunks: chunks.length,
-        keyframes: chunks.filter((c) => c.type === 'key').length,
-      };
-    });
-
-    console.log('      webm:', JSON.stringify(result));
-    // The full codec string comes from initVp9Headers, which reads the VP9
-    // profile out of the first frame. Upstream jswebm reports a bare "vp9",
-    // which WebCodecs rejects as an incomplete codec string.
-    expect(result.codec).toMatch(/^vp09\.\d\d\.\d\d\.\d\d/);
-    expect(result.width).toBe(160);
-    expect(result.height).toBe(120);
-    expect(result.chunks).toBeGreaterThan(0);
-    // Chunk types come from `isKeyframe`, which upstream sets from a
-    // misspelled field and so leaves undefined on every frame.
-    expect(result.keyframes).toBeGreaterThan(0);
-  });
-
-  it('MP4Demuxer (mp4box) demuxes fragmented MP4 the way the re-encoder feeds it', async function() {
-    // The re-encoder (reencoder.mjs) demuxes MP4 through mp4box: an initialization
-    // segment, then media segments, then the samples it extracted. That reads more of
-    // mp4box's API than anything else - getInfo()'s track fields, sample extraction,
-    // releaseSample - and it depends on `samples_stored`, which patches/mp4box@*.patch
-    // adds: every sample getSample() loaded, so exactly those can be handed on and freed.
-    // Nothing else in the suite runs this code.
-    //
-    // The video is fmp4-bframes (wdio.conf.mjs): sample.mp4's own H.264, 300 frames, 2 of
-    // them keyframes and 250 B-frames, the same bytes on every platform. B-frames are the
-    // point: samples come in decode order, so a chunk's duration cannot be the gap to the
-    // next sample's presentation time - that goes negative, and EncodedVideoChunk throws.
-    // The audio is the first two segments of dash-list: 4 s of 44.1 kHz mono AAC.
-    const result = await runInPage(async () => {
-      const {MP4Demuxer} = await import('/player/modules/reencoder/demuxers.mjs');
-      const get = async (file) => (await fetch('/fixtures/' + file)).arrayBuffer();
-
-      const video = new MP4Demuxer();
-      video.initialize(await get('fmp4-bframes/init-stream0.m4s'));
-      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00001.m4s'));
-      video.appendBuffer(await get('fmp4-bframes/chunk-stream0-00002.m4s'));
-      const videoConfig = video.getVideoDecoderConfig();
-      const videoChunks = video.getVideoChunks(true);
-      const videoTrak = video.file.getTrackById(video.videoTrack.id);
-      const released = videoTrak.samples_stored.slice(0, -1);
-      video.clearChunks();
-      const timestamps = videoChunks.map((c) => c.timestamp);
-
-      const audio = new MP4Demuxer();
-      audio.initialize(await get('dash-list/init-stream1.m4s'));
-      audio.appendBuffer(await get('dash-list/chunk-stream1-00001.m4s'));
-      audio.appendBuffer(await get('dash-list/chunk-stream1-00002.m4s'));
-      const audioConfig = audio.getAudioDecoderConfig();
-      const audioChunks = audio.getAudioChunks(true);
-
-      return {
-        videoCodec: videoConfig.codec,
-        width: videoConfig.codedWidth,
-        height: videoConfig.codedHeight,
-        videoChunks: videoChunks.length,
-        keyframes: videoChunks.filter((c) => c.type === 'key').length,
-        firstIsKey: videoChunks[0]?.type === 'key',
-        reordered: timestamps.some((t, i) => i > 0 && t < timestamps[i - 1]),
-        distinctTimestamps: new Set(timestamps).size,
-        videoSeconds: videoChunks.reduce((sum, c) => sum + c.duration, 0) / 1e6,
-        storedAfterClear: videoTrak.samples_stored.length,
-        releasedStillHoldData: released.filter((s) => s.data).length,
-        audioCodec: audioConfig.codec,
-        sampleRate: audioConfig.sampleRate,
-        channels: audioConfig.numberOfChannels,
-        audioChunks: audioChunks.length,
-        audioSeconds: audioChunks.reduce((sum, c) => sum + c.duration, 0) / 1e6,
-      };
-    });
-
-    console.log('      mp4:', JSON.stringify(result));
-    expect(result.videoCodec).toMatch(/^avc1./);
-    expect(result.width).toBe(640);
-    expect(result.height).toBe(360);
-    expect(result.videoChunks).toBe(300);
-    expect(result.keyframes).toBe(2);
-    expect(result.firstIsKey).toBe(true);
-    // Guards the fixture: without reordered frames this test proves much less.
-    expect(result.reordered).toBe(true);
-    expect(result.distinctTimestamps).toBe(300);
-    expect(Math.abs(result.videoSeconds - 10)).toBeLessThan(0.1);
-    // clearChunks() keeps the last sample, which getVideoChunks() holds back until its
-    // final call, and releases the data of every other one.
-    expect(result.storedAfterClear).toBe(1);
-    expect(result.releasedStillHoldData).toBe(0);
-    expect(result.audioCodec).toMatch(/^mp4a./);
-    expect(result.sampleRate).toBe(44100);
-    expect(result.channels).toBe(1);
-    expect(result.audioChunks).toBeGreaterThan(0);
-    expect(Math.abs(result.audioSeconds - 4)).toBeLessThan(0.2);
   });
 });
 
@@ -828,187 +638,4 @@ describe('the colour picker', function() {
     // rounded.
     expect(result.hueMarkerLeft).toBe('33.3333%');
   });
-});
-
-describe('the audio resampler', function() {
-  beforeEach(async function() {
-    await browser.url('/player/index.html?t=' + Date.now());
-  });
-
-  /**
-   * Runs a snippet inside a module Worker and returns what it posts back.
-   *
-   * libsamplerate cannot be exercised from the page. Its glue is built with
-   * `BINARYEN_ASYNC_COMPILATION=0`, so it instantiates the wasm synchronously
-   * and reads it with a blocking XHR - which only exists in a worker. Loading
-   * it from a window throws "sync fetching of the wasm failed" before any of
-   * the library's own code runs.
-   *
-   * That is also how the product loads it: `reencoder.mjs` spawns
-   * `resampler-worker.mjs`. The worker cannot be driven directly here because
-   * its protocol takes `AudioData`, which is WebCodecs and absent in Firefox,
-   * so this stands up an equivalent worker around the same module.
-   *
-   * @param {string} body worker source; posts its result with postMessage
-   * @param {number} [timeout] how long to allow, in ms
-   * @return {Promise<any>} whatever the worker posted
-   */
-  async function runInWorker(body, timeout = 60000) {
-    await browser.execute((src) => {
-      window.__out = undefined;
-      window.__err = undefined;
-      const url = URL.createObjectURL(
-          new Blob([src], {type: 'text/javascript'}));
-      const worker = new Worker(url, {type: 'module'});
-      worker.onmessage = (e) => {
-        window.__out = e.data;
-      };
-      // A module worker reports a failed import as an ErrorEvent with an
-      // empty message, so record whatever detail there is rather than
-      // letting the poll below time out with nothing to show.
-      worker.onerror = (e) => {
-        window.__err = 'worker error: ' + (e.message || '(no message)') +
-          ' at ' + (e.filename || '?') + ':' + (e.lineno || '?');
-      };
-    }, body);
-
-    await browser.waitUntil(
-        async () => browser.execute(
-            () => window.__out !== undefined || window.__err !== undefined),
-        {timeout, interval: 250, timeoutMsg: 'the worker never settled'},
-    );
-
-    const {out, err} = await browser.execute(
-        () => ({out: window.__out, err: window.__err}));
-    if (err) throw new Error(err);
-    if (out && out.error) throw new Error('worker-side failure: ' + out.error);
-    return out;
-  }
-
-  const MODULE = '/player/modules/reencoder/libsamplerate.mjs';
-
-  it('resamples 48 kHz to 44.1 kHz and keeps the tone', async function() {
-    const result = await runInWorker(`
-      const IN_RATE = 48000;
-      const OUT_RATE = 44100;
-      const FREQ = 440;
-      (async () => {
-        try {
-          const m = await import(location.origin + '${MODULE}');
-          const input = new Float32Array(IN_RATE);
-          for (let i = 0; i < input.length; i++) {
-            input[i] = Math.sin(2 * Math.PI * FREQ * i / IN_RATE);
-          }
-          const r = await m.create(1, IN_RATE, OUT_RATE, {
-            converterType: m.ConverterType.SRC_SINC_MEDIUM_QUALITY,
-          });
-          const output = r.full(input);
-          r.destroy();
-
-          let peak = 0;
-          let sumSquares = 0;
-          for (let i = 0; i < output.length; i++) {
-            peak = Math.max(peak, Math.abs(output[i]));
-            sumSquares += output[i] * output[i];
-          }
-          const rms = Math.sqrt(sumSquares / output.length);
-          // A clean sine crosses zero exactly twice per cycle, so counting
-          // sign changes recovers its frequency without an FFT. That is
-          // enough to catch the failures that matter - silence, a copy of
-          // the input at the wrong rate, or garbage - and unlike a spectral
-          // check it needs no windowing and has no leakage to reason about.
-          let crossings = 0;
-          for (let i = 1; i < output.length; i++) {
-            if ((output[i - 1] < 0) !== (output[i] < 0)) crossings++;
-          }
-          const seconds = output.length / OUT_RATE;
-          postMessage({
-            length: output.length,
-            peak,
-            rms,
-            hz: Math.round(crossings / 2 / seconds),
-          });
-        } catch (e) {
-          postMessage({error: (e && e.stack) || String(e)});
-        }
-      })();
-    `);
-
-    console.log('      resampler:', JSON.stringify(result));
-    // One second in must be one second out, at the new rate.
-    expect(result.length).toBeGreaterThan(44000);
-    expect(result.length).toBeLessThan(44200);
-    // Not silence, and not clipped or scaled.
-    expect(result.peak).toBeGreaterThan(0.9);
-    expect(result.peak).toBeLessThan(1.1);
-    // Still a sine, not merely something with the right period. A sine of
-    // peak 1 has an RMS of 1/sqrt(2); a square wave of peak 1 has an RMS of
-    // 1, and would otherwise satisfy every other assertion here.
-    expect(result.rms).toBeGreaterThan(0.70);
-    expect(result.rms).toBeLessThan(0.71);
-    // The tone survived the conversion.
-    expect(result.hz).toBeGreaterThan(435);
-    expect(result.hz).toBeLessThan(445);
-  });
-
-  it('pins which converter types this wasm build can actually run',
-      async function() {
-        // The vendored wasm is 117 KB where the published one is 1.5 MB, and
-        // this is where the difference shows: only three of the five
-        // converters produce audio. SRC_SINC_BEST_QUALITY and
-        // SRC_SINC_FASTEST construct without error and then return 2 frames
-        // for 48000 in, which is what an absent coefficient table looks like
-        // from JavaScript - the module's own validation accepts all five, so
-        // nothing before this test could tell them apart.
-        //
-        // Order-independent: probing them in a different sequence gives the
-        // same answer, so this is the build, not leaked state between
-        // instances.
-        //
-        // FastStream only ever asks for SRC_SINC_MEDIUM_QUALITY, so the
-        // product is unaffected - but swapping this wasm for a stock build
-        // would silently change resampling quality, and this pins it.
-        const result = await runInWorker(`
-      (async () => {
-        try {
-          const m = await import(location.origin + '${MODULE}');
-          const order = ['SRC_SINC_MEDIUM_QUALITY', 'SRC_SINC_BEST_QUALITY',
-            'SRC_SINC_FASTEST', 'SRC_ZERO_ORDER_HOLD', 'SRC_LINEAR'];
-          const input = new Float32Array(48000);
-          for (let i = 0; i < input.length; i++) {
-            input[i] = Math.sin(2 * Math.PI * 440 * i / 48000);
-          }
-          const support = {};
-          for (const name of order) {
-            try {
-              const r = await m.create(1, 48000, 44100, {
-                converterType: m.ConverterType[name],
-              });
-              const out = r.full(input);
-              r.destroy();
-              // The length is reported, not asserted. 48000 frames at this
-              // ratio is 44100 exactly, but a sinc converter cannot emit the
-              // tail it has no future input for, so each converter returns a
-              // slightly different count. Recording them shows how much of
-              // the shortfall is filter delay rather than lost audio.
-              support[name] = out.length > 0 ? 'ok ' + out.length : 'empty';
-            } catch (e) {
-              support[name] = 'failed: ' + ((e && e.message) || e);
-            }
-          }
-          postMessage(support);
-        } catch (e) {
-          postMessage({error: (e && e.stack) || String(e)});
-        }
-      })();
-    `);
-
-        console.log('      converters:', JSON.stringify(result));
-        // The three that work, including the one the product uses. The other
-        // two are recorded above rather than asserted, so that shipping a
-        // fuller wasm later is not a test failure.
-        expect(result.SRC_SINC_MEDIUM_QUALITY).toBe('ok 44054');
-        expect(result.SRC_ZERO_ORDER_HOLD).toBe('ok 44100');
-        expect(result.SRC_LINEAR).toBe('ok 44100');
-      });
 });

@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "Incognito-modus gebruikt RAM om video's te bufferen. Je computer heeft mogelijk niet genoeg geheugen om de hele video op te slaan!\nWeet je zeker dat je wilt doorgaan?"
     },
-    "player_savevideo_reencode": {
-        "message": "Opslaan vereist hercodering. Dit kan lang duren. Wil je doorgaan?"
-    },
     "player_savevideo_cancelling": {
         "message": "Opslaan annuleren..."
     },

@@ -228,7 +228,7 @@ export default class HLSPlayer extends EventEmitter {
     try {
       if (mergeable) {
         // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a
-        // codec/packaging failure here gets the same WebCodecs re-encode
+        // codec/packaging failure here gets the same remux
         // fallback DASH already has, instead of hard-failing the save.
         const {DASH2MP4} = await import('../../modules/dash2mp4/dash2mp4.mjs');
 

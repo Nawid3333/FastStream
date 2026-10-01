@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "시크릿 모드에서는 비디오 버퍼링에 RAM을 사용합니다. 컴퓨터에 전체 비디오를 저장할 충분한 메모리가 없을 수 있습니다!\n계속 진행하시겠습니까?"
     },
-    "player_savevideo_reencode": {
-        "message": "저장하려면 재인코딩이 필요합니다. 시간이 오래 걸릴 수 있습니다. 계속 진행하시겠습니까?"
-    },
     "player_savevideo_cancelling": {
         "message": "저장 취소 중..."
     },

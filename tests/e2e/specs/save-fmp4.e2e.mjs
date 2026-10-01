@@ -26,9 +26,10 @@
 // fixture is, so nothing large is committed. The fixtures directory is
 // gitignored and rebuilt when missing.
 //
-// WebCodecs is switched off in the page before saving. DASH2MP4 answers a
-// merger failure by silently re-encoding the whole clip, which would turn a
-// broken merger into a slow pass; what is under test here is the merger.
+// DASH2MP4 answers a merger failure by copying the streams with the remuxer instead,
+// which would turn a broken merger into a pass: each save reports which of the two made
+// the file (the merger writes one mdat and no moof; the remuxer, a fragmented MP4), and a
+// case says which one it expects. A DASH stream in WebM is the remuxer's case.
 
 import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -102,7 +103,7 @@ function decodeWithFfmpeg(base64) {
   try {
     const decode = spawnSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'null', '-'], {encoding: 'utf8'});
     const probe = spawnSync('ffprobe', [
-      '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,duration,start_time',
+      '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,codec_name,nb_read_frames,duration,start_time',
       '-of', 'json', file,
     ], {encoding: 'utf8'});
     const missing = decode.error || probe.error;
@@ -113,7 +114,8 @@ function decodeWithFfmpeg(base64) {
     const summarise = (type) => {
       const found = streams.find((stream) => stream.codec_type === type);
       return found ? {
-        frames: Number(found.nb_read_frames), duration: Number(found.duration), start: Number(found.start_time),
+        codec: found.codec_name, frames: Number(found.nb_read_frames), duration: Number(found.duration),
+        start: Number(found.start_time),
       } : null;
     };
     const audio = summarise('audio');
@@ -148,13 +150,14 @@ function sourceFrameCount() {
 /**
  * Counts the frames of each kind in a fixture, as ffmpeg decodes it from its playlist,
  * and finds when each kind starts.
- * @param {string} name - Directory under fixtures/, holding index.m3u8.
+ * @param {string} name - Directory under fixtures/.
+ * @param {string} [index] - Its playlist or manifest.
  * @return {Object} {frames, start} per codec type ('video', 'audio').
  */
-function fixtureStreams(name) {
+function fixtureStreams(name, index = 'index.m3u8') {
   const {stdout, error} = spawnSync('ffprobe', [
     '-v', 'error', '-count_frames', '-show_entries', 'stream=codec_type,nb_read_frames,start_time',
-    '-of', 'json', path.join(fixturesDir, name, 'index.m3u8'),
+    '-of', 'json', path.join(fixturesDir, name, index),
   ], {encoding: 'utf8'});
   if (error) {
     throw new Error(`ffprobe must be on PATH to count a fixture's frames: ${error.message}`);
@@ -243,18 +246,25 @@ async function openPlayer(source) {
  *
  * @param {Function} [prepare] - Run in the page once everything has downloaded, before
  *   the save.
+ * @param {boolean} [remux] - Whether the remuxer, not MP4Merger, should make the file.
  * @return {Promise<Object>} {saveError, blobSize, decodeOk, duration,
- *   trakCount, mdatBytes}
+ *   trakCount, mdatBytes, moofs}; saveError also says when the other one made the file
  */
-async function saveAndInspect(prepare) {
+async function saveAndInspect(prepare, remux = false) {
   // Each phase is logged with its time, so a run that hits the test timeout shows which
   // one it spent it in (a Windows CI run once did, with nothing else in the log), and a
   // failure carries the video and OPFS state (pageState).
+  let result;
   try {
-    return await saveAndInspectPhases(phaseTimer(), prepare);
+    result = await saveAndInspectPhases(phaseTimer(), prepare);
   } catch (e) {
     throw new Error(`${e.message} ${JSON.stringify(await pageState())}`);
   }
+  if (result.saveError === null && (result.moofs > 0) !== remux) {
+    result.saveError = remux ? 'MP4Merger made the file, not the remuxer' :
+      'MP4Merger did not take this stream: the remuxer made the file';
+  }
+  return result;
 }
 
 async function saveAndInspectPhases(phase, prepare) {
@@ -291,16 +301,13 @@ async function saveAndInspectPhases(phase, prepare) {
   const saved = await browser.executeAsync((done) => {
     const info = {
       saveError: null, blobSize: null, decodeOk: null, duration: null,
-      trakCount: null, mdatBytes: null,
+      trakCount: null, mdatBytes: null, moofs: null,
     };
-
-    // See the header comment: a merger failure must surface, not be re-encoded.
-    window.VideoDecoder = undefined;
 
     /**
      * Reads the top-level boxes of an MP4 and counts the tracks in its moov.
      * @param {ArrayBuffer} buffer - The whole file.
-     * @return {Object} {trakCount, mdatBytes}
+     * @return {Object} {trakCount, mdatBytes, moofs}
      */
     const inspect = (buffer) => {
       const view = new DataView(buffer);
@@ -308,6 +315,7 @@ async function saveAndInspectPhases(phase, prepare) {
           view.getUint8(at), view.getUint8(at + 1), view.getUint8(at + 2), view.getUint8(at + 3));
       let trakCount = 0;
       let mdatBytes = 0;
+      let moofs = 0;
       let at = 0;
       while (at + 8 <= buffer.byteLength) {
         let size = view.getUint32(at);
@@ -319,6 +327,8 @@ async function saveAndInspectPhases(phase, prepare) {
         }
         if (type === 'mdat') {
           mdatBytes += size;
+        } else if (type === 'moof') {
+          moofs++;
         } else if (type === 'moov') {
           for (let i = at + 8; i + 4 <= at + size; i++) {
             if (fourcc(i) === 'trak') trakCount++;
@@ -327,7 +337,7 @@ async function saveAndInspectPhases(phase, prepare) {
         if (size < 8) break;
         at += size;
       }
-      return {trakCount, mdatBytes};
+      return {trakCount, mdatBytes, moofs};
     };
 
     window.fastStream.player.saveVideo({
@@ -502,6 +512,31 @@ describe('Save video (locally generated fMP4)', function() {
     expect(decoded.audio.frames).toBeGreaterThan(0);
     expect(decoded.audio.duration).toBeGreaterThan(9.5);
     expect(decoded.audio.duration).toBeLessThan(10.6);
+    expect(decoded.audioToneShare).toBeGreaterThan(0.8);
+  });
+
+  it('saves a DASH stream in WebM (VP9 and Opus) by copying both into an MP4', async function() {
+    // MP4Merger cannot join WebM. The re-encoder that took it before decoded and encoded
+    // it again with WebCodecs, whose H.264 and AAC encoders Firefox has on no Windows: the
+    // save failed there. The remuxer copies the packets as they are. dash-webm is made by
+    // wdio.conf.mjs.
+    const source = fixtureStreams('dash-webm', 'manifest.mpd');
+    await openPlayer(globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/dash-webm/manifest.mpd');
+    const result = await saveAndInspect(undefined, true);
+    const decoded = result.base64 ? decodeWithFfmpeg(result.base64) : null;
+    delete result.base64;
+
+    console.log('      source:', JSON.stringify(source), 'result:', JSON.stringify(result),
+        'ffmpeg:', JSON.stringify(decoded));
+    expect(result.saveError).toBe(null);
+    expect(result.decodeOk).toBe(true);
+    expect(result.trakCount).toBe(2);
+    expect(decoded.decodeErrors).toBe('');
+    expect(decoded.video.codec).toBe('vp9');
+    expect(decoded.audio.codec).toBe('opus');
+    expect(decoded.video.frames).toBe(source.video.frames);
+    expect(decoded.audio.duration).toBeGreaterThan(8.5);
+    expect(decoded.audio.duration).toBeLessThan(9.6);
     expect(decoded.audioToneShare).toBeGreaterThan(0.8);
   });
 

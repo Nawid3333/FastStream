@@ -89,8 +89,7 @@ chrome/player/modules/sweetalert.mjs
 chrome/player/assets/sweetalert/css/sweetalert.css
 chrome/player/modules/vad/ort.wasm.mjs
 chrome/player/modules/vad/ort-wasm-simd-threaded.mjs
-chrome/player/modules/reencoder/mediabunny.mjs
-chrome/player/modules/reencoder/webm.mjs
+chrome/player/modules/remux/mediabunny.mjs
 chrome/player/modules/gif/gif.mjs
 chrome/player/modules/gif/gif.worker.js
 chrome/player/modules/mp4box/

@@ -6,7 +6,7 @@
  * frame at 5.999 s. Both then move back by 5.999 s, the smaller of the two, so audio starts
  * at 0 and video 2.334 s later, as they played. mp4-muxer did this itself
  * (firstTimestampBehavior: 'cross-track-offset'); Mediabunny keeps a fragmented MP4's
- * timestamps as they come, so the re-encoder does it here.
+ * timestamps as they come, so the remuxer does it here.
  *
  * The amount is known only once every track has sent its first packet, so the packets that
  * come before that wait here. A track that never sends one holds nothing back after flush().
