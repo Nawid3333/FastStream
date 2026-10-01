@@ -21,12 +21,13 @@ function escapeData(text) {
 }
 
 /**
- * A table cell: no line breaks, no column separators.
+ * A table cell: no line breaks, no column separators. Backslashes first, so one before a
+ * `|` cannot undo that `|`'s escape.
  * @param {*} value
  * @return {string}
  */
 function cell(value) {
-  return String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|');
+  return String(value ?? '').replace(/[\r\n]+/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 }
 
 /**

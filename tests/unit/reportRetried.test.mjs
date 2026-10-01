@@ -39,4 +39,10 @@ describe('reportRetried', () => {
     expect(warnings[0]).toContain('x%25%0A::error::y.e2e.mjs');
     expect(warnings[0].split('\n')).toHaveLength(1);
   });
+
+  it('escapes a backslash too, so one before a | cannot undo its escape', () => {
+    const {summary} = reportRetried(line({...flaky, suite: 'a\\|b'}));
+    // a\|b becomes a\\\|b: the backslash, then the escaped |.
+    expect(summary).toContain('| a\\\\\\|b |');
+  });
 });
