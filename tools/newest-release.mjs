@@ -49,7 +49,14 @@ export function newestPackage(doc, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 async function getJson(url) {
-  const response = await fetch(url, {headers: {'accept': 'application/json', 'user-agent': 'faststream-update-local'}});
+  // Only the two pinned hosts are talked to, however `name` was spelled on the
+  // command line (CodeQL js/request-forgery), and the URL object proves the origin.
+  const allowed = [NODE_INDEX_URL, NPM_REGISTRY];
+  const parsed = new URL(url);
+  if (!allowed.some((base) => parsed.origin + parsed.pathname.startsWith(base))) {
+    throw new Error(`getJson refuses ${url}: not one of ${allowed.join(', ')}`);
+  }
+  const response = await fetch(parsed, {headers: {'accept': 'application/json', 'user-agent': 'faststream-update-local'}});
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return response.json();
 }
@@ -62,7 +69,7 @@ async function main() {
   } else if (what === 'npm' && /^[^/]+(\/[^/]+)?$/.test(name || '')) {
     // Exactly one or two path segments, percent-encoded: the scoped name stays on the
     // pinned registry host (CodeQL js/request-forgery).
-    version = newestPackage(await getJson(NPM_REGISTRY + encodeURIComponent(name)), Date.now());
+    version = newestPackage(await getJson(new URL(encodeURIComponent(name), NPM_REGISTRY)), Date.now());
   } else {
     throw new Error('usage: node tools/newest-release.mjs node <major> | npm <package>');
   }

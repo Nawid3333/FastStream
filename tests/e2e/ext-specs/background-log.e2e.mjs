@@ -28,12 +28,14 @@ const logsDir = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '
  * @return {string} Its text, or '' before it exists.
  */
 function driverLog() {
-  // The worker id is digits (wdio's own), and the read has no existsSync in front of
-  // it: absent means '' (CodeQL js/path-injection, js/file-system-race).
-  if (!/^\d+$/.test(process.env.WDIO_WORKER_ID || '')) {
+  // The worker id is numeric (wdio's own). The Number() cut makes a hostile value
+  // impossible to smuggle into the path: NaN or a partial parse falls through to ''
+  // (CodeQL js/path-injection).
+  const id = Number(process.env.WDIO_WORKER_ID);
+  if (!Number.isSafeInteger(id) || id < 0) {
     return '';
   }
-  const file = path.join(logsDir, `wdio-${process.env.WDIO_WORKER_ID}-geckodriver.log`);
+  const file = path.join(logsDir, `wdio-${id}-geckodriver.log`);
   try {
     return fs.readFileSync(file, 'utf8');
   } catch (e) {

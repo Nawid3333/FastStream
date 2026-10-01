@@ -63,14 +63,17 @@ if (gecko.strict_min_version) {
   updateEntry.applications = {gecko: {strict_min_version: gecko.strict_min_version}};
 }
 
-// The id keys the addons map; an id with a prototype-ish name ("__proto__") would be
-// written as a real member here. AMO ids are like an email/localPart@host, which never
-// matches one (CodeQL js/remote-property-injection).
-if (!/^[\w.+@-]+$/.test(id)) {
-  console.error(`Unexpected gecko id in ${manifestPath}: ${id}`);
+// The id keys the addons map. The manifest it is read from is a build artifact, which
+// CodeQL counts as user-provided data; the write is made onto a prototype-less object
+// whose key is also compared against the id build.mjs hardcodes, so nothing crafted in
+// the artifact (or a prototype-ish name) can become a member (CodeQL
+// js/remote-property-injection).
+const expectedId = /^id:\s*'([^']+)'/.exec(fs.readFileSync(path.join(root, 'build.mjs'), 'utf8'));
+if (!expectedId || expectedId[1] !== id) {
+  console.error(`build_firefox_amo/manifest.json has id ${id}; build.mjs names ${expectedId ? expectedId[1] : '(none)'}. Build first.`);
   process.exit(1);
 }
-const addons = {};
+const addons = Object.create(null);
 addons[id] = {updates: [updateEntry]};
 const updateManifest = {addons};
 

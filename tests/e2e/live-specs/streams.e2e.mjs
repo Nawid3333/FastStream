@@ -22,7 +22,6 @@
 
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import * as url from 'node:url';
 import zlib from 'node:zlib';
@@ -71,9 +70,11 @@ async function npmFile(pkg, file) {
   const version = String(pkgJson.devDependencies[pkg]).replace(/^[\^~]/, '');
   // The registry host is pinned: the version comes from this repo's own package.json,
   // and both the fetch and the cache land under it (CodeQL js/request-forgery,
-  // js/http-to-file-access).
+  // js/http-to-file-access). The cache lives next to the suite's gitignored fixtures
+  // directory, not in the OS temp root whose fixed paths are world-readable and
+  // pre-createable (CodeQL js/insecure-temporary-file).
   const registry = 'https://registry.npmjs.org';
-  const cacheDir = path.join(os.tmpdir(), 'faststream-live-libs', `${pkg}@${version}`);
+  const cacheDir = path.join(__dirname, 'fixtures', 'live-libs', `${pkg}@${version}`);
   const cached = path.join(cacheDir, file);
   // Read without a preceding existsSync: gone-in-between is handled by the catch
   // (CodeQL js/file-system-race).
