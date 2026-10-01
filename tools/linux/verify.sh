@@ -20,7 +20,10 @@ mkdir -p "$dst"
 # The working tree as it stands, committed or not, without what .gitignore keeps out.
 # node_modules (Linux's own) and the pnpm store stay between runs; the e2e fixtures are
 # rebuilt every time, as on CI, where each run starts empty.
-rsync -a --delete --exclude=.git --exclude=node_modules --exclude=tests/e2e/fixtures \
+# --delete-after: deleting during the transfer reads the copy's own, older .gitignore, which
+# kept what it ignored. #101 removed the re-encoder and its ignore lines, and the copy's
+# generated reencoder/mediabunny.mjs and webm.mjs stayed and failed lint on both distros.
+rsync -a --delete-after --exclude=.git --exclude=node_modules --exclude=tests/e2e/fixtures \
   --filter=':- .gitignore' "$src/" "$dst/"
 cd "$dst"
 mkdir -p tests/e2e/fixtures
