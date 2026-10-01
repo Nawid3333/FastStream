@@ -17,7 +17,9 @@
 # into it) are grouped apart, in shipped-minor-and-patch: that PR merges too, and CI then
 # runs on main; a green run there releases it, a red one releases nothing and opens an
 # issue for the owner. update-prs.yml tells that group by its branch, which Dependabot
-# names after it: a rename here must be made there too. Majors wait for the owner.
+# names after it: a rename here must be made there too. A major comes on a branch of its
+# own and merges too (the owner's choice, 2026-10-01): update-prs.yml tells a shipped
+# library's by the patterns of shipped-minor-and-patch below, read from main.
 #
 # cooldown: a release is proposed once it is 5 days old. A package taken over to
 # publish malware is usually caught and pulled within days, and routine PRs now
@@ -69,10 +71,9 @@ updates:
   # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
   # express (fsaunpack/, its own package.json and package-lock.json). It is not
   # part of the extension. CI installs that lockfile and starts the test server on a
-  # recorded archive (pnpm run verify:fsaunpack). Every update still waits for the
-  # owner, by his choice: the helper runs on his PC, where npm runs install scripts.
-  # update-prs.yml merges only PRs that change nothing but the root package.json and
-  # pnpm-lock.yaml.
+  # recorded archive (pnpm run verify:fsaunpack), with install scripts off. update-prs.yml
+  # merges a PR that changes only fsaunpack/package.json and fsaunpack/package-lock.json,
+  # once every version that lockfile adds is 7 days old (since 2026-10-01).
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
     schedule:
@@ -87,9 +88,9 @@ updates:
   # so a moved or hijacked tag cannot change what runs next to the AMO signing
   # keys. Nothing arrives on its own any more; Dependabot updates the SHA and
   # the comment together - minor and patch releases as one grouped PR a week, a
-  # new major on its own. These always wait for the owner: they change workflow
-  # files, which are reviewed by a person (and which a workflow's token may not
-  # merge). (The actionlint image ci.yml runs is pinned by digest too, in
+  # new major on its own. They change workflow files, which a workflow's own token may
+  # not merge: update-prs.yml merges them with the owner's token, UPDATE_PRS_TOKEN
+  # (docs/maintenance.md), and without it they wait. (The actionlint image ci.yml runs is pinned by digest too, in
   # .github/actionlint/Dockerfile; the docker entry below updates it.)
   # '/' covers .github/workflows only; the composite actions (.github/actions/<name>,
   # e2e-setup's setup-firefox) need their own directory, or they are never updated.
@@ -112,8 +113,8 @@ updates:
   # actionlint and shellcheck from the first). Their tags and digests are in
   # .github/actionlint/Dockerfile and .github/zizmor/Dockerfile, because Dependabot does not
   # update a docker:// line in a workflow. A new version, or a new digest for the same tag,
-  # waits for the owner in update-prs.yml: it changes a check every workflow file has to
-  # pass, and CI's checks are reviewed by a person.
+  # merges itself in update-prs.yml once CI, which runs every workflow file through it, is
+  # green.
   - package-ecosystem: 'docker'
     directories:
       - '/.github/actionlint'

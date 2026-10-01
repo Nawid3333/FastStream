@@ -5,8 +5,8 @@
 // of these changes what ships.
 //
 //   - Node.js: a newer LTS major than .nvmrc names. Every workflow's setup-node reads
-//     .nvmrc, so the pull request changes that one file. A major is a decision: it waits
-//     for the maintainer's merge.
+//     .nvmrc, so the pull request changes that one file. It merges itself once CI passes
+//     and the build is unchanged (the owner's choice, 2026-10-01).
 //   - pnpm, same major: the newest release of the pinned major ("packageManager" in
 //     package.json) that is at least MIN_AGE_DAYS old, so a broken release is usually
 //     pulled or fixed before it is tried. Routine: .github/workflows/update-prs.yml merges
@@ -16,7 +16,8 @@
 //     which holds only pnpm's own binaries, and so sees none of the project's dependencies
 //     - Dependabot alerts and dependency-review.yml would go quiet
 //     (dependabot/dependabot-core#15904). Measured 2026-09-25: pnpm 12.6.0 otherwise passes
-//     the full `pnpm run verify`. A decision too: it waits for the maintainer.
+//     the full `pnpm run verify`. It merges itself as the same major does, unless it wants
+//     the lockfile rewritten (CI fails at the frozen install, and the owner pushes it).
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
@@ -166,12 +167,12 @@ async function updates() {
 
   const result = [
     {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > nodeCurrent,
-      automerge: false, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
+      automerge: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
     {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
       automerge: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
   ];
   if (nextMajor) {
-    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: !blocked, automerge: false,
+    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: !blocked, automerge: true,
       note: blocked ? `pnpm ${nextMajor} is out, still blocked by ${PNPM12_BLOCKER} (${blocker.state})` :
         `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
   }

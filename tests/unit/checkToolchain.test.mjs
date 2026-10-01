@@ -105,12 +105,27 @@ describe('every pinned tool is one Dependabot updates', () => {
     }
   });
 
-  it('keeps an actionlint image update waiting for the owner', () => {
-    // A CI check changes only with a person's review; update-prs.yml gives the kind a
-    // reason, and a pull request with any reason waits.
+  it('names the shipped libraries the way update-prs.yml reads them', () => {
+    // update-prs.yml tells a shipped library's major by the patterns of the
+    // shipped-minor-and-patch group: awk takes the first patterns: line after the group's
+    // key and the quoted names on it. Another layout (a block list, globs) would leave it
+    // with none, and every shipped major would wait as if it were tooling.
+    const lines = read('.github/dependabot.yml').split('\n');
+    const at = lines.findIndex((line) => /^\s*shipped-minor-and-patch:\s*$/.test(line));
+    expect(at).toBeGreaterThan(-1);
+    const patterns = lines.slice(at + 1).find((line) => /^\s*patterns:/.test(line));
+    expect(patterns).toMatch(/^\s+patterns: \['[^'*]+'(, '[^'*]+')*\]$/);
+    const pkg = JSON.parse(read('package.json'));
+    const deps = {...pkg.dependencies, ...pkg.devDependencies};
+    for (const [, name] of patterns.matchAll(/'([^']+)'/g)) expect(deps, name).toHaveProperty([name]);
+  });
+
+  it('merges an actionlint or zizmor image update only when it changes nothing but their Dockerfiles', () => {
+    // The owner's choice, 2026-10-01: CI runs every workflow file through the new image, and
+    // update-prs.yml merges the pull request once that is green and is all it changes.
     const gate = read('.github/workflows/update-prs.yml');
     expect(gate).toMatch(/^ +dependabot\/docker\/\*\) kind=docker ;;$/m);
-    expect(gate).toMatch(/^ +docker\) reasons\+=\('[^']+'\) ;;$/m);
+    expect(gate).toContain('select(. != ".github/actionlint/Dockerfile" and . != ".github/zizmor/Dockerfile")');
   });
 
   it('has Dependabot watch the workflows and every composite action', () => {

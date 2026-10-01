@@ -5,12 +5,12 @@ name: Toolchain updates
 # with CI started on it (a push by this workflow's token starts no workflow; a dispatch
 # does):
 #   - Node.js, a newer LTS major: .nvmrc, the file every workflow's setup-node reads (this
-#     token may not push a workflow file). A decision: update-prs.yml tells the owner when
-#     CI is green or red, and the merge is theirs.
+#     token may not push a workflow file). update-prs.yml merges it once CI passes and the
+#     build is unchanged (the owner's choice, 2026-10-01), and tells the owner only of a red run.
 #   - pnpm, the newest release of the pinned major at least 5 days old: "packageManager"
 #     in package.json, and nothing else. Routine: update-prs.yml merges it once CI passes
 #     and nothing the extension ships has changed.
-#   - pnpm, the next major, once nothing blocks it: the same change; a decision, as Node.
+#   - pnpm, the next major, once nothing blocks it: the same change, merged the same way.
 # The weekly run also rebuilds an open one on main when main has moved into conflict with
 # it, and starts CI on one whose head has none.
 # A title is never used twice, as a pull request or an issue, open or closed: closing one

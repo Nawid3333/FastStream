@@ -12,31 +12,34 @@ name: Update PRs
 #               failed jobs and steps, what each step checks, the last lines of each
 #               failed log, and how main's own CI stands (red there too points away from
 #               the update). Nothing is guessed about the cause beyond that.
-#   CI passed,  merged here, with no one asked: Dependabot's minor and patch updates,
-#   routine     toolchain-updates.yml's pnpm update within its major, and
-#               patched-libraries.yml's minor and patch updates. Only when every one of
-#               these holds: opened by that bot and only its commits on it; it changes
-#               package.json and pnpm-lock.yaml and nothing else (a patched library's also
-#               pnpm-workspace.yaml, patches/ and tools/sync-vendor.mjs, what its re-cut
-#               commits); not a major version; its dependency review passed; every package
-#               version it adds to pnpm-lock.yaml is 7 days old on the npm registry
-#               (Dependabot's cooldown holds back only what it bumps); and the branch holds
-#               the newest main, so what merges is exactly what CI tested.
+#   CI passed   merged here, with no one asked, majors included (the owner's choice,
+#               2026-10-01): Dependabot's npm updates (fsaunpack's too), GitHub Actions
+#               (with the owner's token, UPDATE_PRS_TOKEN: GitHub's own may not merge a
+#               workflow file) and the actionlint and zizmor images; toolchain-updates.yml's
+#               Node.js and pnpm; patched-libraries.yml's re-cuts; and sync-upstream.yml's
+#               upstream sync. Only when every one of these holds: opened by that bot and
+#               only its commits on it (an upstream sync: upstream's own commits); it changes
+#               only what that kind of update changes (package.json and pnpm-lock.yaml;
+#               fsaunpack's two files; .nvmrc; workflow files; the two Dockerfiles; a
+#               re-cut's files; an upstream sync anything but .github/, with no conflict and
+#               no file this project deleted coming back); its dependency review passed;
+#               every package version it adds to the lockfile is 7 days old on the npm
+#               registry (Dependabot's cooldown holds back only what it bumps); and the
+#               branch holds the newest main, so what merges is exactly what CI tested.
 #               What happens next depends on whether it changes what the extension ships:
-#               - Dependabot's shipped group (the libraries tools/sync-vendor.mjs copies into
-#                 the extension) and the patched libraries do, and are meant to. After the
-#                 merge this starts CI on main (its own merge starts none, see below): a
-#                 green run there releases, through ci.yml's hand-off to auto-release.yml;
-#                 a red one releases nothing, and the watch-main job opens an issue for the
-#                 owner. Nothing is reverted on its own.
+#               - Dependabot's shipped libraries (tools/sync-vendor.mjs copies them into the
+#                 extension), the patched libraries and an upstream sync do, and are meant
+#                 to. After the merge this starts CI on main (its own merge starts none, see
+#                 below): a green run there releases, through ci.yml's hand-off to
+#                 auto-release.yml; a red one releases nothing, and the watch-main job opens
+#                 an issue for the owner. Nothing is reverted on its own.
 #               - The rest must not: CI's build of the extension must be file for file the
 #                 one in the latest release, the version number aside (auto-release.yml's
 #                 own test), so such a merge releases nothing.
-#   CI passed,  a comment @mentions the owner and assigns them, saying CI is green and
-#   otherwise   why it waits for them: the label hold, a major (a shipped or patched
-#               library's too), a new Node, GitHub Actions (workflow files), the actionlint
-#               or zizmor image (Dependabot's docker entry), an upstream sync, a tooling
-#               update whose build differs from the latest release.
+#               Otherwise a comment @mentions the owner and assigns them, saying CI is green
+#               and why it waits: the label hold, a check above that failed, a tooling
+#               update whose build differs from the latest release, GitHub Actions while
+#               UPDATE_PRS_TOKEN is not set.
 # A run with the same verdict as the pull request's last comment from here edits that
 # comment instead of adding one: the owner hears when a verdict changes, not every run.
 #
@@ -56,7 +59,9 @@ name: Update PRs
 # workflow: no CI run on main and no release follow it. For a merge that ships nothing that
 # is right: CI already passed on this exact tree. For one that ships, this workflow starts
 # CI on main itself (gh workflow run ci.yml --ref main); ci.yml's release-hand-off job
-# hands that run to auto-release.yml, which releases it once green.
+# hands that run to auto-release.yml, which releases it once green. (A GitHub Actions
+# update is merged with the owner's token, whose push starts CI on main as any push does;
+# it ships nothing, so auto-release finds nothing to release.)
 #
 # Runs on CI's completion, with a write token, so it never checks out or runs anything
 # from the pull request: it reads the API, and compares CI's build artifact as data. Only
@@ -168,6 +173,12 @@ jobs:
           CONCLUSION: ${{ github.event.workflow_run.conclusion || steps.run.outputs.conclusion }}
           BRANCH: ${{ github.event.workflow_run.head_branch || inputs.branch }}
           SHA: ${{ github.event.workflow_run.head_sha || steps.run.outputs.sha }}
+          # GitHub's own token may not merge or update a branch that changes workflow files: a
+          # GitHub Actions update is merged with the owner's fine-grained token (this repository
+          # only; Contents, Pull requests and Workflows: read and write). Used for nothing else;
+          # without it, those updates wait (docs/maintenance.md, "A token for workflow updates").
+          MERGE_TOKEN: ${{ secrets.UPDATE_PRS_TOKEN }}
+          UPSTREAM_REPO: Andrews54757/FastStream
         run: |
           set -euo pipefail
           LABEL=ci-failed
@@ -219,11 +230,18 @@ jobs:
             *) kind=other ;;
           esac
           # Whether merging it changes what the extension ships, as it is meant to: a
-          # patched library, or Dependabot's shipped group, whose branch Dependabot names
-          # after the group in .github/dependabot.yml (a rename there must come here too).
+          # patched library, Dependabot's shipped group, whose branch Dependabot names after
+          # the group in .github/dependabot.yml (a rename there must come here too), or an
+          # upstream sync. A shipped library's major comes on a branch of its own: found below,
+          # by the libraries of that group.
           ships=0
           case $BRANCH in
-            patched/*|dependabot/npm_and_yarn/shipped-minor-and-patch-*) ships=1 ;;
+            patched/*|dependabot/npm_and_yarn/shipped-minor-and-patch-*|sync/upstream) ships=1 ;;
+          esac
+          # fsaunpack, the archive helper with its own package.json and npm lockfile.
+          fsa=0
+          case $BRANCH in
+            dependabot/npm_and_yarn/fsaunpack/*) fsa=1 ;;
           esac
           # The backticks here and below are Markdown for the comment, not command substitution.
           # shellcheck disable=SC2016
@@ -359,20 +377,30 @@ jobs:
           if jq -e '.labels | any(.name == "hold")' <<< "$pr" > /dev/null; then
             reasons+=('it is labelled hold: it merges once you take the label off')
           fi
+          # Every kind merges itself once CI is green and the checks below hold, majors
+          # included (the owner's choice, 2026-10-01).
           case $kind in
-            dependabot) bot='dependabot[bot]' ;;
-            pnpm) bot='github-actions[bot]' ;;
-            actions) reasons+=('it changes workflow files, which a person reviews (and which this token may not merge)') ;;
-            docker) reasons+=('it changes the image of a check every workflow file has to pass (actionlint or zizmor), which a person reviews') ;;
-            node) reasons+=('a new Node.js major is your decision') ;;
-            patched) bot='github-actions[bot]' ;;
-            upstream) reasons+=("taking upstream's commits is your decision") ;;
+            dependabot|actions|docker) bot='dependabot[bot]' ;;
+            pnpm|node|patched|upstream) bot='github-actions[bot]' ;;
             *) reasons+=("branch $BRANCH is not one this workflow merges") ;;
           esac
-          # patched/<name>-<version>: a minor or patch step from the version main's package.json
-          # holds (the one the patch is cut against). The name is the longest of main's
-          # dependencies the branch starts with. Anything that cannot be told (a name main has
-          # not, a version that does not parse, the version main has) waits, as a major does.
+          if [ "$kind" = actions ] && [ -z "${MERGE_TOKEN:-}" ]; then
+            reasons+=("it changes workflow files, which this workflow's own token may not merge: once the UPDATE_PRS_TOKEN secret is set (docs/maintenance.md, \"A token for workflow updates\"), these merge themselves")
+          fi
+          # The token that updates the branch and merges it: the owner's for workflow files.
+          merge_token=$GH_TOKEN
+          if [ "$kind" = actions ] && [ -n "${MERGE_TOKEN:-}" ]; then
+            merge_token=$MERGE_TOKEN
+            # An expired or revoked token would fail the merge, and this run with it, over and
+            # over: a reason on the pull request says so instead.
+            if ! GH_TOKEN=$MERGE_TOKEN gh api "repos/$GH_REPO" --jq .full_name > /dev/null 2>&1; then
+              reasons+=('the UPDATE_PRS_TOKEN secret does not work (expired, revoked, or without access to this repository): renew it (docs/maintenance.md, "A token for workflow updates")')
+            fi
+          fi
+          # patched/<name>-<version>: a step from the version main's package.json holds (the
+          # one the patch is cut against). The name is the longest of main's dependencies the
+          # branch starts with. Anything that cannot be told (a name main has not, a version
+          # that does not parse, the version main has) waits.
           if [ "$kind" = patched ]; then
             gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=main" \
               > "$RUNNER_TEMP/package.main.json"
@@ -391,11 +419,9 @@ jobs:
             if [ -z "$library" ]; then
               reasons+=("$BRANCH names no library of main's package.json")
             elif ! [[ $version =~ $semver ]] || ! [[ $current =~ $semver ]]; then
-              reasons+=("$library $current -> $version cannot be told apart as a minor or patch step")
+              reasons+=("$library $current -> $version cannot be read as a version step")
             elif [ "$version" = "$current" ]; then
               reasons+=("main has $library $current already")
-            elif [ "${version%%.*}" != "${current%%.*}" ]; then
-              reasons+=("$library $current -> $version is a major version: read its release notes")
             fi
           fi
           # An upstream sync or patched-library pull request changes the lockfile, and its own
@@ -411,44 +437,129 @@ jobs:
             if [ "$(jq -r .baseRefName <<< "$pr")" != main ]; then reasons+=('it does not target main'); fi
             if [ "$author" != "app/${bot%\[bot\]}" ]; then reasons+=("$author opened it, not $bot"); fi
             gh pr view "$number" --json files,commits > "$RUNNER_TEMP/pr.json"
-            # Its own commits, and the merges of main that "Update branch" makes here.
-            others=$(jq -r --arg bot "$bot" '.commits[] | select(
-                ([.authors[].login] | all(. == $bot)) or
-                (([.authors[].login] | all(. == "github-actions[bot]")) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
-                | not) | .oid[0:8]' "$RUNNER_TEMP/pr.json")
-            if [ -n "$others" ]; then reasons+=("it has commits from someone else ($(tr '\n' ' ' <<< "$others" | sed 's/ $//')): a person's change is merged by a person"); fi
-            if [ "$kind" = patched ]; then
-              # What patched-libraries.yml's re-cut commits, and nothing else.
-              files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml" and
-                . != "pnpm-workspace.yaml" and . != "tools/sync-vendor.mjs" and (startswith("patches/") | not))' "$RUNNER_TEMP/pr.json")
-              if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only what a patch re-cut changes"); fi
-            else
-              files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
-              if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only package.json and pnpm-lock.yaml"); fi
+            # gh pr view reads at most 100 files and 100 commits (measured on gh 2.101: a pull
+            # request of 789 files and 217 commits gave 100 of each). One with more is not seen
+            # whole by the checks below, so a person looks at it.
+            # Unreadable counts leave both empty, and the pull request waits.
+            read -r all_files all_commits < <(gh api "repos/$GH_REPO/pulls/$number" --jq '"\(.changed_files) \(.commits)"') || true
+            if [ -z "${all_commits:-}" ] || [ "$all_files" -gt "$(jq '.files | length' "$RUNNER_TEMP/pr.json")" ] ||
+               [ "$all_commits" -gt "$(jq '.commits | length' "$RUNNER_TEMP/pr.json")" ]; then
+              reasons+=("it has ${all_files:-?} changed files and ${all_commits:-?} commits, more than this workflow reads at once (100 of each): a person checks it")
             fi
-            if [ "$kind" = dependabot ]; then
-              if jq -e '[.commits[].messageBody] | any(test("update-type: version-update:semver-major"))' "$RUNNER_TEMP/pr.json" > /dev/null; then
-                reasons+=('it holds a major version: read its release notes')
+            # Its own commits, and the merges of main that "Update branch" makes here (the
+            # owner's, when made with their token).
+            others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" '.commits[] | select(
+                ([.authors[].login] | all(. == $bot)) or
+                (([.authors[].login] | all(. == "github-actions[bot]" or . == $owner)) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+                | not) | .oid' "$RUNNER_TEMP/pr.json")
+            # An upstream sync brings upstream's commits, whoever wrote them there: each must be
+            # one of upstream's own, which GitHub finds in that repository.
+            if [ "$kind" = upstream ] && [ -n "$others" ]; then
+              foreign=''
+              while IFS= read -r oid; do
+                if ! gh api "repos/$UPSTREAM_REPO/commits/$oid" --jq .sha > /dev/null 2>&1; then foreign+="$oid"$'\n'; fi
+              done <<< "$others"
+              others=${foreign%$'\n'}
+            fi
+            if [ -n "$others" ]; then reasons+=("it has commits from someone else ($(cut -c1-8 <<< "$others" | tr '\n' ' ' | sed 's/ $//')): a person's change is merged by a person"); fi
+            # What each kind of update changes, and nothing else.
+            case $kind in
+              patched)
+                # What patched-libraries.yml's re-cut commits.
+                files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml" and
+                  . != "pnpm-workspace.yaml" and . != "tools/sync-vendor.mjs" and (startswith("patches/") | not))' "$RUNNER_TEMP/pr.json")
+                only='what a patch re-cut changes' ;;
+              node)
+                files=$(jq -r '.files[].path | select(. != ".nvmrc")' "$RUNNER_TEMP/pr.json")
+                only='.nvmrc' ;;
+              actions)
+                files=$(jq -r '.files[].path | select((startswith(".github/workflows/") or startswith(".github/actions/")) | not)' "$RUNNER_TEMP/pr.json")
+                only='workflow and action files' ;;
+              docker)
+                files=$(jq -r '.files[].path | select(. != ".github/actionlint/Dockerfile" and . != ".github/zizmor/Dockerfile")' "$RUNNER_TEMP/pr.json")
+                only='the actionlint and zizmor Dockerfiles' ;;
+              upstream)
+                # Upstream's code may change anything but what runs with this repository's
+                # tokens and the AMO keys: a person reads a change there.
+                files=''
+                github=$(jq -r '.files[].path | select(startswith(".github/"))' "$RUNNER_TEMP/pr.json")
+                if [ -n "$github" ]; then
+                  reasons+=("it changes $(tr '\n' ' ' <<< "$github" | sed 's/ $//'), which run with this repository's tokens and keys: a person reads that")
+                fi
+                only='' ;;
+              *)
+                if [ "$fsa" = 1 ]; then
+                  files=$(jq -r '.files[].path | select(. != "fsaunpack/package.json" and . != "fsaunpack/package-lock.json")' "$RUNNER_TEMP/pr.json")
+                  only='fsaunpack/package.json and fsaunpack/package-lock.json'
+                else
+                  files=$(jq -r '.files[].path | select(. != "package.json" and . != "pnpm-lock.yaml")' "$RUNNER_TEMP/pr.json")
+                  only='package.json and pnpm-lock.yaml'
+                fi ;;
+            esac
+            if [ -n "$files" ]; then reasons+=("it changes $(tr '\n' ' ' <<< "$files" | sed 's/ $//'), not only $only"); fi
+            if [ "$kind" = upstream ]; then
+              # The merge sync-upstream.yml commits with conflict markers in it, for a person.
+              if jq -e '[.commits[].messageHeadline] | any(contains("(CONFLICTS - resolve before merging)"))' "$RUNNER_TEMP/pr.json" > /dev/null; then
+                reasons+=("upstream's commits conflict with main's: the branch holds the conflict markers, to resolve by hand")
               fi
+              # A file this project deleted on purpose (Chromium, YouTube, the re-encoder) that
+              # upstream still has, coming back with the sync: no test notices a file that should
+              # not be there. Added here, and once on main: it was deleted there.
+              # Read into a file first: a failed call then stops this run (set -e), where a
+              # process substitution would hand the loop nothing and let it merge.
+              gh api --paginate "repos/$GH_REPO/pulls/$number/files" --jq '.[] | select(.status == "added") | .filename' \
+                > "$RUNNER_TEMP/added.txt"
+              back=()
+              while IFS= read -r f; do
+                if [ -n "$f" ] && [ "$(gh api -X GET "repos/$GH_REPO/commits" -f sha=main -f path="$f" -f per_page=1 --jq length)" != 0 ]; then
+                  back+=("$f")
+                fi
+              done < "$RUNNER_TEMP/added.txt"
+              if [ ${#back[@]} != 0 ]; then
+                reasons+=("it brings back $(printf '%s ' "${back[@]}" | sed 's/ $//'), which this project deleted")
+              fi
+            fi
+            if [ "$kind" = dependabot ] || [ "$kind" = actions ] || [ "$kind" = docker ]; then
               # Dependency review runs on Dependabot's own push (a pull_request event), not on
               # a run this workflow starts: the newest Dependabot commit's review counts.
               reviewed=$(jq -r '[.commits[] | select([.authors[].login] | all(. == "dependabot[bot]")) | .oid] | last // ""' "$RUNNER_TEMP/pr.json")
               review=$(review_of "$reviewed")
               if [ "$review" != success ]; then reasons+=("Dependabot's dependency review is $review"); fi
             fi
-            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
+            # A shipped library's major: Dependabot names the libraries in its commit message
+            # (dependency-name), and main's .github/dependabot.yml names the shipped ones, in the
+            # patterns of its shipped-minor-and-patch group.
+            if [ "$kind" = dependabot ] && [ "$ships" = 0 ] && [ "$fsa" = 0 ]; then
+              shipped=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/.github/dependabot.yml?ref=main" |
+                awk '/^[[:space:]]*shipped-minor-and-patch:[[:space:]]*$/ {f = 1; next} f && /^[[:space:]]*patterns:/ {print; exit}' |
+                grep -oE "'[^']+'" | tr -d "'" || true)
+              updated=$(jq -r '.commits[].messageBody' "$RUNNER_TEMP/pr.json" | sed -n 's/^- dependency-name: //p' | sort -u)
+              if [ -n "$shipped" ] && [ -n "$updated" ] && grep -qxF -f <(printf '%s\n' "$shipped") <<< "$updated"; then
+                ships=1
+              fi
+            fi
+            if [ "$kind" = dependabot ] || [ "$kind" = patched ] || [ "$kind" = upstream ]; then
               # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
               # new lockfile brings in with them: a sub-dependency published an hour ago comes
               # along unseen, and a poisoned release is usually caught within days. Every
               # package version this pull request adds to pnpm-lock.yaml must be 7 days old,
               # or a person merges it. Whatever cannot be checked counts as too young.
               lock_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
-              if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/pnpm-lock.yaml?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
-                 gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/pnpm-lock.yaml?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
-                # One name@version per line: the keys of the lockfile's packages section.
+              lockfile=pnpm-lock.yaml
+              if [ "$fsa" = 1 ]; then lockfile=fsaunpack/package-lock.json; fi
+              if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
+                 gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
+                # One name@version per line: the keys of pnpm-lock.yaml's packages section, or
+                # npm's packages (node_modules/<name>, nested ones too; the project itself and
+                # links aside).
                 entries() {
-                  awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
-                    tr -d "'" | LC_ALL=C sort -u
+                  if [ "$fsa" = 1 ]; then
+                    jq -r '.packages // {} | to_entries[] | select((.key | startswith("node_modules/")) and (.value.link | not) and .value.version != null) |
+                      "\(.key | sub("^(.*/)?node_modules/"; ""))@\(.value.version)"' "$1" | LC_ALL=C sort -u
+                  else
+                    awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
+                      tr -d "'" | LC_ALL=C sort -u
+                  fi
                 }
                 entries "$RUNNER_TEMP/lock.base" > "$RUNNER_TEMP/lock.base.txt"
                 entries "$RUNNER_TEMP/lock.head" > "$RUNNER_TEMP/lock.head.txt"
@@ -471,15 +582,14 @@ jobs:
                   reasons+=("its lockfile adds package versions under 7 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
                 fi
               else
-                reasons+=('its pnpm-lock.yaml could not be read, to check how old the package versions it adds are')
+                reasons+=("its $lockfile could not be read, to check how old the package versions it adds are")
               fi
             fi
             if [ "$kind" = pnpm ]; then
-              pinned=$(gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/package.json?ref=main" |
-                jq -r '.packageManager // ""')
+              # The same major or the next: toolchain-updates.yml raises the next only once
+              # nothing blocks it (tools/check-toolchain.mjs). Should that pnpm want the lockfile
+              # rewritten, CI fails at the frozen install, and the pull request waits.
               version=${BRANCH#toolchain/pnpm-}
-              pinned=${pinned#pnpm@}
-              if [ "${version%%.*}" != "${pinned%%.*}" ]; then reasons+=("pnpm $version is another major than main's $pinned: your decision"); fi
               # The one change toolchain-updates.yml makes: packageManager, to the branch's
               # version. The lockfile stays as it is (CI installed it frozen with this pnpm);
               # any other change is not routine. Against the merge base, so a main that moved on
@@ -568,7 +678,7 @@ jobs:
                 reasons+=("main moved on $updates times while CI ran on it")
               else
                 echo "The branch is $behind commit(s) behind main: updating it, then CI runs again and decides."
-                if ! gh api -X PUT "repos/$GH_REPO/pulls/$number/update-branch" -f "expected_head_sha=$SHA" > /dev/null; then
+                if ! GH_TOKEN=$merge_token gh api -X PUT "repos/$GH_REPO/pulls/$number/update-branch" -f "expected_head_sha=$SHA" > /dev/null; then
                   head_moved
                   exit 1
                 fi
@@ -582,7 +692,8 @@ jobs:
                   echo "The branch did not move within two minutes of the update." >&2
                   exit 1
                 fi
-                gh workflow run ci.yml --ref "$BRANCH"
+                # A push with the owner's token starts CI on its own; this token's starts none.
+                if [ "$merge_token" = "$GH_TOKEN" ]; then gh workflow run ci.yml --ref "$BRANCH"; fi
                 exit 0
               fi
             fi
@@ -590,7 +701,11 @@ jobs:
 
           # --- Merge, or hand over.
           if [ ${#reasons[@]} = 0 ]; then
-            if ! gh pr merge "$number" --squash --match-head-commit "$SHA"; then
+            # An upstream sync keeps upstream's commits (a merge commit), so the next sync
+            # finds them handled; everything else is one squashed commit.
+            method=--squash
+            if [ "$kind" = upstream ]; then method=--merge; fi
+            if ! GH_TOKEN=$merge_token gh pr merge "$number" "$method" --match-head-commit "$SHA"; then
               head_moved
               exit 1
             fi
@@ -607,7 +722,7 @@ jobs:
                   if [ -n "$main_run" ]; then break; fi
                 done
               fi
-              printf 'CI passed (%s). This update changes what the extension ships, and is a minor or patch version: merged.\n\n' \
+              printf 'CI passed (%s). This update changes what the extension ships: merged.\n\n' \
                 "$RUN_URL" > "$RUNNER_TEMP/body.md"
               if [ -n "$main_run" ]; then
                 printf 'CI now runs on main with it (%s). A green run there releases it; a red one releases nothing, and an issue tells @%s.\n' \

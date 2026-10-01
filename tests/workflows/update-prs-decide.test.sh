@@ -109,6 +109,9 @@ case "$1 $2" in
   'pr merge')
     if [ -f "$STATE/merge_fails" ]; then echo 'stub gh: merge refused' >&2; exit 1; fi
     opt --match-head-commit "$@" > "$STATE/merged"
+    # Which token merged it, and how.
+    printf '%s\n' "$GH_TOKEN" > "$STATE/merge_token"
+    for a in "$@"; do case $a in --squash|--merge|--rebase) echo "$a" > "$STATE/merge_method" ;; esac; done
     ;;
   'run rerun')
     if [ -f "$STATE/rerun_fails" ]; then echo 'stub gh: rerun refused' >&2; exit 1; fi
@@ -204,7 +207,46 @@ case "$1 $2" in
       "DELETE repos/me/fs/git/refs/heads/"*) : > "$STATE/branch_deleted" ;;
       "PUT repos/me/fs/pulls/"*/update-branch)
         if [ -f "$STATE/update_fails" ]; then echo 'stub gh: expected_head_sha does not match' >&2; exit 1; fi
-        : > "$STATE/updated"; echo '{}'
+        : > "$STATE/updated"; printf '%s\n' "$GH_TOKEN" > "$STATE/update_token"; echo '{}'
+        ;;
+      "GET repos/me/fs/contents/.github/dependabot.yml?ref=main")
+        [ -f "$STATE/dependabot.yml" ] || { echo 'stub gh: HTTP 404' >&2; exit 1; }
+        cat "$STATE/dependabot.yml"
+        ;;
+      "GET repos/me/fs/contents/fsaunpack/package-lock.json?ref="*)
+        ref=${path##*ref=}
+        if [ "$ref" = "$SHA" ] && [ -f "$STATE/npmlock.head" ]; then cat "$STATE/npmlock.head"; else cat "$STATE/npmlock.base"; fi
+        ;;
+      "GET repos/Andrews54757/FastStream/commits/"*)
+        # Upstream's own commits: those in upstream_commits; any other is not found there.
+        oid=${path##*/}
+        grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null || { echo 'stub gh: HTTP 404 No commit found' >&2; exit 1; }
+        jq -n --arg s "$oid" '{sha: $s}' > "$STATE/uc.json"; jqout "$STATE/uc.json"
+        ;;
+      "GET repos/me/fs/pulls/"*/files)
+        if [ -f "$STATE/pr_files_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+        [ -f "$STATE/pr_files.json" ] || echo '[]' > "$STATE/pr_files.json"
+        jqout "$STATE/pr_files.json"
+        ;;
+      "GET repos/me/fs/pulls/"*)
+        # The pull request's own counts: those of prview.json unless pr_counts says.
+        if [ -f "$STATE/pr_counts_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+        if [ -f "$STATE/pr_counts" ]; then read -r nf nc < "$STATE/pr_counts"; else
+          nf=$(jq '.files | length' "$STATE/prview.json"); nc=$(jq '.commits | length' "$STATE/prview.json"); fi
+        jq -n --argjson f "$nf" --argjson c "$nc" '{changed_files: $f, commits: $c}' > "$STATE/pull.json"
+        jqout "$STATE/pull.json"
+        ;;
+      "GET repos/me/fs")
+        # The owner's token works unless token_broken says otherwise.
+        if [ "$GH_TOKEN" = owner-token ] && [ -f "$STATE/token_broken" ]; then echo 'stub gh: HTTP 401 Bad credentials' >&2; exit 1; fi
+        echo '{"full_name":"me/fs"}' > "$STATE/repo.json"; jqout "$STATE/repo.json"
+        ;;
+      "GET repos/me/fs/commits")
+        # main's history of one path (-f path=...): a commit when deleted_on_main names it.
+        p='' prev=''
+        for a in "${ORIG[@]}"; do if [ "$prev" = -f ]; then case $a in path=*) p=${a#path=} ;; esac; fi; prev=$a; done
+        if grep -qxF -- "$p" "$STATE/deleted_on_main" 2> /dev/null; then echo '[{"sha":"dddd"}]' > "$STATE/hist.json"; else echo '[]' > "$STATE/hist.json"; fi
+        jqout "$STATE/hist.json"
         ;;
       *) unhandled ;;
     esac
@@ -329,6 +371,7 @@ setup() {
   export CONCLUSION=success
   export BRANCH='dependabot/npm_and_yarn/tooling-minor-and-patch-0123abcd'
   export SHA=$sha
+  export MERGE_TOKEN='' UPSTREAM_REPO=Andrews54757/FastStream
   write_stubs
   : > "$STATE/gh.log"
   echo '[]' > "$STATE/comments.json"
@@ -338,6 +381,21 @@ setup() {
   echo '{"check_runs":[{"conclusion":"success"}]}' > "$STATE/checkruns.json"
   echo '{"name":"faststream","packageManager":"pnpm@11.22.0"}' > "$STATE/main-package.json"
   lock_base
+  # main's .github/dependabot.yml as far as update-prs reads it: the shipped group's
+  # libraries (the header names the group in prose too, as the real one does).
+  cat > "$STATE/dependabot.yml" <<'EOF'
+# the libraries the extension ships are grouped apart, in shipped-minor-and-patch: that PR merges too
+# (its patterns: are package names)
+updates:
+  - package-ecosystem: 'npm'
+    groups:
+      shipped-minor-and-patch:
+        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        update-types: ['minor', 'patch']
+      tooling-minor-and-patch:
+        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        update-types: ['minor', 'patch']
+EOF
   : > "$STATE/curl.log"
   bundle old 1.3.82.40 'play()'
   bundle new 1.3.82.40 'play()'
@@ -563,12 +621,28 @@ green_no_artifact() {
   check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
 }
 
-green_major() {
+green_major_merges() {
+  # A tooling major merges as a minor does: CI green, the build unchanged.
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump eslint' "${dep_meta/semver-minor/semver-major}")]"
   run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check 'squashed' grep -qx -- --squash "$STATE/merge_method"
+  check "with this workflow's token" grep -qx x "$STATE/merge_token"
+  check 'build compared: a tooling major ships nothing' has_call 'release download'
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+}
+
+tooling_major_own_branch_that_ships_waits() {
+  # A tooling major whose build differs from the latest release: not what tooling does.
+  setup
+  export BRANCH='dependabot/npm_and_yarn/eslint-11.0.0'
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump eslint' "${dep_meta/semver-minor/semver-major}")]"
+  bundle new 1.3.82.40 'play(); pwn()'
+  run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says major' grep -qF 'major version' <(last_comment)
+  check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
 }
 
 green_other_file() {
@@ -771,7 +845,6 @@ pnpm_same_major() {
   check 'exit 0' test "$rc" -eq 0
   check 'merged' merged
   check 'no dependency review asked' bash -c '! grep -q check-runs "$0"' "$STATE/gh.log"
-  check "main's pnpm read, as the raw file" has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=main'
   check 'package.json read at the merge base, raw' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=1111111111111111111111111111111111111111'
   check "and the pull request's, raw" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=$sha"
   check 'no lockfile read: that check is for Dependabot pull requests' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
@@ -814,7 +887,19 @@ pnpm_lockfile_changed() {
   check 'says so' grep -qF 'it changes pnpm-lock.yaml' <(last_comment)
 }
 
-pnpm_major() {
+pnpm_major_merges() {
+  # The next major, raised only once nothing blocks it: merged as the same major's are.
+  setup
+  export BRANCH='toolchain/pnpm-12.6.0'
+  pr app/github-actions
+  prview '["package.json"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 12.6.0')]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+}
+
+pnpm_major_lockfile_waits() {
+  # A pnpm that wanted the lockfile rewritten is not a routine change.
   setup
   export BRANCH='toolchain/pnpm-12.6.0'
   pr app/github-actions
@@ -822,7 +907,7 @@ pnpm_major() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says another major' grep -qF 'pnpm 12.6.0 is another major' <(last_comment)
+  check 'says the lockfile' grep -qF 'it changes pnpm-lock.yaml, which a pnpm update does not' <(last_comment)
 }
 
 pnpm_by_dependabot_author() {
@@ -834,39 +919,146 @@ pnpm_by_dependabot_author() {
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
 }
 
-node_waits() {
+node_merges() {
+  # A new LTS major, CI green on it and the build unchanged: merged, with no one asked.
   setup
   export BRANCH='toolchain/node-26'
   pr app/github-actions
   prview '[".nvmrc"]' "[$(commit 'github-actions[bot]' 'build: Node.js 22 -> 26')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says Node is a decision' grep -qF 'new Node.js major is your decision' <(last_comment)
-  check '@mentions' grep -qF '@nawid CI passes' <(last_comment)
-  check 'assigned' grep -qx nawid "$STATE/assignees"
-  check 'skip hint' grep -qF 'skips this version for good' <(last_comment)
+  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'build compared' has_call 'release download'
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+  check 'no @mention' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
+  check 'not assigned' test ! -s "$STATE/assignees"
 }
 
-docker_waits() {
+node_other_file_waits() {
+  setup
+  export BRANCH='toolchain/node-26'
+  pr app/github-actions
+  prview '[".nvmrc","package.json"]' "[$(commit 'github-actions[bot]' 'build: Node.js 22 -> 26')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the file' grep -qF 'it changes package.json, not only .nvmrc' <(last_comment)
+}
+
+docker_merges() {
   setup
   export BRANCH='dependabot/docker/actionlint-1234'
+  prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says the check image' grep -qF 'it changes the image of a check every workflow file has to pass (actionlint or zizmor), which a person reviews' <(last_comment)
+  check 'merged' merged
+  check "with this workflow's token" grep -qx x "$STATE/merge_token"
 }
 
-upstream_green() {
-  # Reviewed and green: still the owner's to take.
+docker_review_failed_waits() {
   setup
+  export BRANCH='dependabot/docker/actionlint-1234'
+  prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
+  echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says the review' grep -qF "Dependabot's dependency review is failure" <(last_comment)
+}
+
+docker_other_file_waits() {
+  setup
+  export BRANCH='dependabot/docker/actionlint-1234'
+  prview '[".github/actionlint/Dockerfile",".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the file' grep -qF 'it changes .github/workflows/ci.yml, not only the actionlint and zizmor Dockerfiles' <(last_comment)
+}
+
+upstream_setup() { # [files json]: a sync of one upstream commit, without conflicts
+  setup
+  scenario=${FUNCNAME[1]}
   export BRANCH='sync/upstream'
   pr app/github-actions
+  local up
+  up=$(commit 'Andrews54757' 'Bug fixes')
+  jq -r .oid <<< "$up" > "$STATE/upstream_commits"
+  prview "${1:-[\"chrome/player/FastStreamClient.mjs\",\"chrome/player/New.mjs\"]}" \
+    "[$up, $(commit 'github-actions[bot]' "Merge remote-tracking branch 'upstream/main' into sync/upstream")]"
+  echo '[{"filename":"chrome/player/FastStreamClient.mjs","status":"modified"},{"filename":"chrome/player/New.mjs","status":"added"}]' \
+    > "$STATE/pr_files.json"
+  bundle new 1.3.82.40 'play(); upstreamFix()'
+  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
+}
+
+upstream_merges() {
+  # Clean, reviewed and green: upstream's bug fixes arrive with no one asked. A new file
+  # of upstream's (one main never had) is fine.
+  upstream_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check "a merge commit, keeping upstream's commits" grep -qx -- --merge "$STATE/merge_method"
+  check 'asked upstream about its commit' has_call 'api repos/Andrews54757/FastStream/commits/'
+  check "asked main's history of the added file" has_call 'api -X GET repos/me/fs/commits -f sha=main -f path=chrome/player/New.mjs'
+  check 'no build comparison: it ships' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+}
+
+upstream_conflicts_waits() {
+  upstream_setup
+  prview '["chrome/player/FastStreamClient.mjs"]' "[$(commit 'github-actions[bot]' 'merge upstream/main (CONFLICTS - resolve before merging)')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says why' grep -qF "taking upstream's commits is your decision" <(last_comment)
-  check 'assigned' grep -qx nawid "$STATE/assignees"
+  check 'says it conflicts' grep -qF "upstream's commits conflict with main's" <(last_comment)
+  check '@mentions' grep -qF '@nawid CI passes' <(last_comment)
+}
+
+upstream_brings_back_waits() {
+  upstream_setup '["chrome/player/FastStreamClient.mjs","chrome/youtube/YouTubeHandler.mjs","chrome/player/New.mjs"]'
+  echo '[{"filename":"chrome/player/FastStreamClient.mjs","status":"modified"},{"filename":"chrome/youtube/YouTubeHandler.mjs","status":"added"},{"filename":"chrome/player/New.mjs","status":"added"}]' \
+    > "$STATE/pr_files.json"
+  echo 'chrome/youtube/YouTubeHandler.mjs' > "$STATE/deleted_on_main"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the deleted file' grep -qF 'it brings back chrome/youtube/YouTubeHandler.mjs, which this project deleted' <(last_comment)
+  check 'not the new one' bash -c '! grep -qF "New.mjs" <<< "$0"' "$(last_comment)"
+}
+
+upstream_added_list_fails_stops() {
+  # The list of added files could not be read: no merge on a check that did not run.
+  upstream_setup
+  : > "$STATE/pr_files_fail"
+  run_step
+  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+}
+
+upstream_young_package_waits() {
+  # Upstream's lockfile change gets the 7-day check as Dependabot's does.
+  upstream_setup
+  lock_adds 'left-pad@9.9.9'
+  published left-pad 9.9.9 "$(hours_ago 5)"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF 'left-pad@9.9.9 (published' <(last_comment)
+}
+
+upstream_github_waits() {
+  upstream_setup '["chrome/player/FastStreamClient.mjs",".github/workflows/release.yml"]'
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names it' grep -qF "it changes .github/workflows/release.yml, which run with this repository's tokens and keys" <(last_comment)
+}
+
+upstream_foreign_commit_waits() {
+  # A commit on the sync branch that upstream does not have: someone else's.
+  upstream_setup
+  prview '["chrome/player/FastStreamClient.mjs"]' \
+    "[$(commit 'Andrews54757' 'Bug fixes'), $(commit mallory 'sneaky'), $(commit 'github-actions[bot]' "Merge remote-tracking branch 'upstream/main' into sync/upstream")]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names that commit only' grep -qF "commits from someone else ($(commit mallory sneaky | jq -r '.oid[0:8]'))" <(last_comment)
 }
 
 other_base() {
@@ -879,11 +1071,86 @@ other_base() {
 }
 
 actions_waits() {
+  # Without the owner's token: GitHub's own may not merge a workflow file.
   setup
   export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234'
+  prview '[".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says how to let it merge' grep -qF 'once the UPDATE_PRS_TOKEN secret is set' <(last_comment)
+}
+
+actions_merges_with_token() {
+  setup
+  export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
+  prview '[".github/workflows/ci.yml",".github/actions/e2e-setup/action.yml"]' \
+    "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout'), $(commit nawid "Merge branch 'main' into $BRANCH")]"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check "with the owner's token" grep -qx owner-token "$STATE/merge_token"
+  check 'build compared: workflows ship nothing' has_call 'release download'
+}
+
+actions_behind_updates_with_token() {
+  setup
+  export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
+  prview '[".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
+  echo 2 > "$STATE/behind"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check "updated with the owner's token" grep -qx owner-token "$STATE/update_token"
+  check 'starts no CI itself: that push does' bash -c '! grep -qF "workflow run ci.yml" "$0"' "$STATE/gh.log"
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+}
+
+actions_broken_token_waits() {
+  # An expired or revoked token: a reason on the pull request, not a failed run.
+  setup
+  export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
+  prview '[".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
+  : > "$STATE/token_broken"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says to renew it' grep -qF 'the UPDATE_PRS_TOKEN secret does not work' <(last_comment)
+}
+
+too_many_files_waits() {
+  # gh pr view reads 100 files and 100 commits at most: more, and a person checks it.
+  setup
+  echo '150 1' > "$STATE/pr_counts"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF 'it has 150 changed files and 1 commits, more than this workflow reads at once' <(last_comment)
+}
+
+too_many_commits_waits() {
+  setup
+  echo '2 101' > "$STATE/pr_counts"
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says workflow files' grep -qF 'workflow files' <(last_comment)
+  check 'says why' grep -qF '2 changed files and 101 commits' <(last_comment)
+}
+
+counts_unreadable_waits() {
+  setup
+  : > "$STATE/pr_counts_fail"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'says why' grep -qF 'it has ? changed files and ? commits' <(last_comment)
+}
+
+actions_other_file_waits() {
+  setup
+  export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
+  prview '[".github/workflows/ci.yml","package.json"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the file' grep -qF 'it changes package.json, not only workflow and action files' <(last_comment)
 }
 
 patched_waits() {
@@ -929,12 +1196,14 @@ patched_minor_merges() {
   check 'merged' merged
 }
 
-patched_major_waits() {
+patched_major_merges() {
+  # A clean re-cut of a new major: merged, and CI on main decides the release.
   patched_setup 2.0.0
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says major' grep -qF 'hls.js 1.7.3 -> 2.0.0 is a major version' <(last_comment)
-  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
 }
 
 patched_same_version_waits() {
@@ -948,14 +1217,14 @@ patched_unparseable_waits() {
   patched_setup 1.8 1.7.3
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says it cannot tell' grep -qF 'hls.js 1.7.3 -> 1.8 cannot be told apart' <(last_comment)
+  check 'says it cannot tell' grep -qF 'hls.js 1.7.3 -> 1.8 cannot be read as a version step' <(last_comment)
 }
 
 patched_range_on_main_waits() {
   patched_setup 1.7.4 '^1.7.3'
   run_step
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says it cannot tell' grep -qF 'cannot be told apart as a minor or patch step' <(last_comment)
+  check 'says it cannot tell' grep -qF 'cannot be read as a version step' <(last_comment)
 }
 
 patched_extra_file_waits() {
@@ -1004,12 +1273,100 @@ shipped_merges() {
   check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
 }
 
-shipped_major_waits() {
+shipped_major_merges() {
   shipped_setup "${dep_meta/semver-minor/semver-major}"
   run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+}
+
+# A shipped library's major, as Dependabot raises it: on a branch of its own.
+shipped_own_branch_setup() {
+  setup
+  scenario=${FUNCNAME[1]}
+  export BRANCH='dependabot/npm_and_yarn/mediabunny-2.0.0'
+  local meta=$'---\nupdated-dependencies:\n- dependency-name: mediabunny\n  dependency-version: 2.0.0\n  dependency-type: direct:development\n  update-type: version-update:semver-major\n...'
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump mediabunny from 1.61.0 to 2.0.0' "$meta")]"
+  bundle new 1.3.82.40 'play(); mediabunny2()'
+  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
+}
+
+shipped_major_own_branch_merges() {
+  shipped_own_branch_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged, though the build differs' merged
+  check "read the shipped libraries from main's dependabot.yml" has_call 'repos/me/fs/contents/.github/dependabot.yml?ref=main'
+  check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
+  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+}
+
+shipped_list_unreadable_waits() {
+  # Without main's dependabot.yml it counts as tooling, whose build must not differ.
+  shipped_own_branch_setup
+  rm "$STATE/dependabot.yml"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
   check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says major' grep -qF 'it holds a major version' <(last_comment)
+  check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
+}
+
+# fsaunpack, the archive helper: its own package.json and npm lockfile.
+fsa_setup() {
+  setup
+  scenario=${FUNCNAME[1]}
+  export BRANCH='dependabot/npm_and_yarn/fsaunpack/express-5.3.0'
+  local meta=$'---\nupdated-dependencies:\n- dependency-name: express\n  dependency-version: 5.3.0\n  dependency-type: direct:production\n  update-type: version-update:semver-minor\n...'
+  prview '["fsaunpack/package.json","fsaunpack/package-lock.json"]' \
+    "[$(commit 'dependabot[bot]' 'build(deps): bump express from 5.2.1 to 5.3.0 in /fsaunpack' "$meta")]"
+  echo '{"name":"fsaunpack","lockfileVersion":3,"packages":{"":{"name":"fsaunpack"},"node_modules/express":{"version":"5.2.1"},"node_modules/body-parser/node_modules/qs":{"version":"6.14.0"}}}' \
+    > "$STATE/npmlock.base"
+  jq '.packages["node_modules/express"].version = "5.3.0"' "$STATE/npmlock.base" > "$STATE/npmlock.head"
+  published express 5.3.0 "$(days_ago 9)"
+}
+
+fsaunpack_merges() {
+  fsa_setup
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check "fsaunpack's lockfile read at the merge base" has_call 'contents/fsaunpack/package-lock.json?ref=1111111111111111111111111111111111111111'
+  check 'the version it adds checked on the registry' grep -qx 'https://registry.npmjs.org/express' "$STATE/curl.log"
+  check 'nothing else looked up' test "$(wc -l < "$STATE/curl.log")" -eq 1
+  check 'pnpm-lock.yaml not read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
+  check 'build compared: fsaunpack ships nothing' has_call 'release download'
+}
+
+fsaunpack_young_package_waits() {
+  fsa_setup
+  jq '.packages["node_modules/express/node_modules/qs"] = {version: "6.16.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" &&
+    mv "$STATE/n.tmp" "$STATE/npmlock.head"
+  published qs 6.16.0 "$(hours_ago 5)"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
+}
+
+fsaunpack_workspace_entry_ignored() {
+  # npm lists a workspace folder under packages too, with a version: not a registry package.
+  fsa_setup
+  jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'merged' merged
+  check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
+}
+
+fsaunpack_other_file_waits() {
+  fsa_setup
+  prview '["fsaunpack/package.json","fsaunpack/package-lock.json","package.json"]' \
+    "[$(commit 'dependabot[bot]' 'build(deps): bump express from 5.2.1 to 5.3.0 in /fsaunpack')]"
+  run_step
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'names the file' grep -qF 'it changes package.json, not only fsaunpack/package.json and fsaunpack/package-lock.json' <(last_comment)
 }
 
 shipped_young_package_waits() {
@@ -1358,7 +1715,8 @@ green_manifest_other_field
 green_extra_file
 green_no_release
 green_no_artifact
-green_major
+green_major_merges
+tooling_major_own_branch_that_ships_waits
 green_other_file
 green_foreign_commit
 green_actions_merge_commit_is_not_a_merge_of_main
@@ -1384,17 +1742,34 @@ pnpm_same_major
 pnpm_package_json_more
 pnpm_package_manager_mismatch
 pnpm_lockfile_changed
-pnpm_major
+pnpm_major_merges
+pnpm_major_lockfile_waits
 pnpm_by_dependabot_author
-node_waits
+node_merges
+node_other_file_waits
 actions_waits
-docker_waits
-upstream_green
+actions_merges_with_token
+actions_behind_updates_with_token
+actions_broken_token_waits
+actions_other_file_waits
+too_many_files_waits
+too_many_commits_waits
+counts_unreadable_waits
+docker_merges
+docker_review_failed_waits
+docker_other_file_waits
+upstream_merges
+upstream_conflicts_waits
+upstream_brings_back_waits
+upstream_added_list_fails_stops
+upstream_young_package_waits
+upstream_github_waits
+upstream_foreign_commit_waits
 other_base
 patched_waits
 patched_patch_merges
 patched_minor_merges
-patched_major_waits
+patched_major_merges
 patched_same_version_waits
 patched_unparseable_waits
 patched_range_on_main_waits
@@ -1402,7 +1777,13 @@ patched_extra_file_waits
 patched_young_package_waits
 patched_foreign_commit_waits
 shipped_merges
-shipped_major_waits
+shipped_major_merges
+shipped_major_own_branch_merges
+shipped_list_unreadable_waits
+fsaunpack_merges
+fsaunpack_young_package_waits
+fsaunpack_workspace_entry_ignored
+fsaunpack_other_file_waits
 shipped_young_package_waits
 shipped_main_run_not_found
 shipped_dispatch_refused
