@@ -1270,6 +1270,20 @@ the change went in.
   it; the real gh uses gojq, built in, and the filters avoid the one difference found
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
   swapped in too.
+- **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
+  other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
+  half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the
+  model replaced and TAG/SHA256 moved in `tools/verify-vad.mjs`, and CI dispatched on it
+  (the reference e2e decides); update-prs.yml leaves `vendored/` branches to the owner. A
+  model missing at its path gets an issue, "Silero VAD <tag>: the model file moved".
+  **vtt.js:** a dash.js release that changes `contrib/videojs-vtt.js/vtt.js` gets an issue,
+  "vtt.js changed in dash.js <tag>", with the changed-line count and a compare link: a
+  person moves `tools/verify-vtt.mjs`'s tag and re-runs `verify:vtt`. Each item is assigned
+  + @mention, is never raised twice (closing it skips that release), closes itself once its
+  pin reaches its tag, and a newer release's item closes older ones. On 2026-10-01 both
+  were current in effect: silero-vad v6.2.3 and dash.js v5.2.1 publish the same bytes as
+  the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
+  (real git pushing to a local bare origin), and 7 undone rules each fail it.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
   `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so

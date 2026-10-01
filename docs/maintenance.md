@@ -186,3 +186,23 @@ image pinned in a form Dependabot does not update:
 - Node only in `.nvmrc`, pnpm only in `package.json`'s `packageManager`, npm packages in
   `package.json` and `pnpm-lock.yaml`, mpv in `.github/mpv-build.json`: each has its
   updater in the table above.
+
+## Vendored files
+
+Two files the extension ships come from another project without a package manager:
+`vendored-updates.yml` (daily) watches them.
+
+- **The voice detector's model** (`chrome/player/modules/vad/silero_vad_half.onnx`, from
+  snakers4/silero-vad): a newer release with a different model opens a pull request,
+  "Vendored model update: silero-vad <tag>", with the model and its pin in
+  `tools/verify-vad.mjs` replaced, and starts CI on it. The voice detector's reference test
+  decides; merge it when green, close it to skip that release. If the model is not where
+  the release used to keep it, an issue tells you so instead.
+- **vtt.js** (`chrome/player/modules/vtt.mjs`, from dash.js): a dash.js release that changes
+  the file opens an issue, "vtt.js changed in dash.js <tag>". Move the tag in
+  `tools/verify-vtt.mjs` and run `pnpm run verify:vtt`, which says where FastStream's changes
+  no longer apply.
+
+Each closes itself once its pin reaches the release; a newer release closes the older one.
+If the workflow itself fails, it opens "Vendored updates workflow failed (model)" or
+"(vtt.js)".
