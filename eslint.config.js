@@ -32,6 +32,8 @@ module.exports = [
       '.git/',
       '.vscode/',
       '.claude/',
+      // Stryker's copies of the repo; one outlives a run that could not delete it.
+      '.stryker-tmp/',
     ],
   },
   ...google,

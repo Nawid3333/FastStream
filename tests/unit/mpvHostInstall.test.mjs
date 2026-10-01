@@ -1,4 +1,4 @@
-import {execFile, spawn} from 'node:child_process';
+import {execFile, spawn, spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,16 +14,33 @@ import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 const root = path.resolve(import.meta.dirname, '../..');
 // "José 中文", from code points: the file tools used to write this suite mangle escapes.
 const FOLDER = 'Jos' + String.fromCodePoint(0xE9) + ' ' + String.fromCodePoint(0x4E2D, 0x6587);
+// A host that never answers (a mutation test's endless read loop, a real hang) used to outlive
+// the run: Stryker gives up on a mutant about a minute in, before this test's own timeout, and
+// nothing stopped the host, which spun a core for good. A ping answers well within this.
+const REPLY_TIMEOUT_MS = 15000;
 
 let dir;
+/** @type {import('node:child_process').ChildProcess[]} */
+const children = [];
 
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-install-'));
 });
 
 afterEach(() => {
+  for (const child of children.splice(0)) stopTree(child);
   fs.rmSync(dir, {recursive: true, force: true});
 });
+
+/**
+ * Stops a process ask() started, with everything it started, if it still runs.
+ * @param {import('node:child_process').ChildProcess} child - The process.
+ */
+function stopTree(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  // cmd.exe runs node as its own child: kill() would stop cmd and leave the host running.
+  spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {windowsHide: true, stdio: 'ignore'});
+}
 
 /**
  * Runs install.ps1 with the given arguments.
@@ -51,14 +68,20 @@ function ask(bat, message) {
   return new Promise((resolve, reject) => {
     // As Firefox starts a .bat host: cmd /s /c strips the outer pair of quotes.
     const child = spawn('cmd.exe', ['/d', '/s', '/c', `""${bat}""`], {windowsVerbatimArguments: true, windowsHide: true});
+    children.push(child);
     const chunks = [];
     let stderr = '';
+    const timer = setTimeout(() => {
+      stopTree(child);
+      reject(new Error(`no reply from the host in ${REPLY_TIMEOUT_MS / 1000} s; stderr: ${stderr}`));
+    }, REPLY_TIMEOUT_MS);
     child.stdout.on('data', (chunk) => chunks.push(chunk));
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
     });
     child.on('error', reject);
     child.on('close', () => {
+      clearTimeout(timer);
       const out = Buffer.concat(chunks);
       if (out.length < 4) {
         reject(new Error('no reply from the host; stderr: ' + stderr));
