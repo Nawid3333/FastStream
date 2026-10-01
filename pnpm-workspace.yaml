@@ -20,6 +20,10 @@ overrides:
   # so each keeps its own.
   undici@6: ^6.28.1
   undici@7: ^7.29.1
+  # Dependabot #56-#58: @stryker-mutator/core 10.0.0 (its newest) wants typed-rest-client
+  # ~2.3.0, which pins qs to exactly 6.15.1; typed-rest-client 3 moved to ^6.16.0. Stryker
+  # uses it only for `stryker init` and its dashboard reporter, neither of which runs here.
+  qs: ^6.16.0
 allowBuilds:
   geckodriver: true
   esbuild: true
