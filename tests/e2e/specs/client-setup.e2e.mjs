@@ -379,10 +379,7 @@ describe('FastStreamClient setup', function() {
       const client = window.fastStream;
       const player = client.player;
       client.currentVideo.muted = true;
-      // client.play() ends by resuming the audio context, which never settles on CI's
-      // Linux runner (it has no sound device): the case starts the video through the
-      // player, and waits only for the pause, as what it checks is shown before that.
-      player.play().then(() => {
+      client.play().then(() => {
         const pause = player.pause.bind(player);
         player.pause = async () => {
           await pause();
@@ -400,6 +397,46 @@ describe('FastStreamClient setup', function() {
     console.log('      state:', JSON.stringify(state));
     expect(state.paused).toBe(false);
     expect(state.shown).toBe(true);
+  });
+
+  it('finishes a play when the audio cannot start, as with no sound device', async function() {
+    // On a machine with no sound device (CI's Linux runner) the AudioContext stays
+    // suspended and its resume() never settles; play() waited for it and never finished.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+
+    const state = await browser.executeAsync((done) => {
+      const client = window.fastStream;
+      client.currentVideo.muted = true;
+      const context = client.audioContext;
+      context.suspend().then(() => {
+        let resumes = 0;
+        context.resume = () => {
+          resumes++;
+          return new Promise(() => {});
+        };
+        const giveUp = setTimeout(() => done({settled: false, resumes}), 5000);
+        client.play().then(() => client.play()).then(() => {
+          clearTimeout(giveUp);
+          done({
+            settled: true,
+            resumes,
+            paused: client.currentVideo.paused,
+            shown: client.state.playing,
+          });
+        }, (e) => {
+          clearTimeout(giveUp);
+          done({error: String(e)});
+        });
+      }, (e) => done({error: String(e)}));
+    });
+    console.log('      state:', JSON.stringify(state));
+    expect(state.settled).toBe(true);
+    expect(state.paused).toBe(false);
+    expect(state.shown).toBe(true);
+    // The second play() found the context still starting and left it be.
+    expect(state.resumes).toBe(1);
   });
 
   it('ignores the keys and menus that act on the video while there is none', async function() {

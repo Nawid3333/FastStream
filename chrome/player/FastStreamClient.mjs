@@ -151,6 +151,8 @@ export class FastStreamClient extends EventEmitter {
     this.previewPlayerSetup = null;
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
+    // The audio context startAudio() is waiting on, if any.
+    this.startingAudioContext = null;
     this.customChapters = null;
     this.saveSeek = true;
     this.pastSeeks = [];
@@ -1756,11 +1758,40 @@ export class FastStreamClient extends EventEmitter {
     }
 
     this.interfaceController.play();
+    this.startAudio();
+  }
 
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+  /**
+   * Starts the audio context if it is suspended, without waiting for it: with no sound
+   * device it never starts (resume() never settles; CI's Linux runner has none), and play()
+   * waited for it forever, so what follows a play, autoplay's own bookkeeping included,
+   * never ran. The background analyzer starts once the audio runs.
+   */
+  startAudio() {
+    const context = this.audioContext;
+    if (!context || context.state !== 'suspended') {
+      this.audioAnalyzer.updateBackgroundAnalyzer();
+      return;
     }
-    this.audioAnalyzer.updateBackgroundAnalyzer();
+    // A play while the context is still starting has nothing to add.
+    if (this.startingAudioContext === context) {
+      return;
+    }
+    this.startingAudioContext = context;
+    const started = () => {
+      if (this.startingAudioContext === context) {
+        this.startingAudioContext = null;
+      }
+    };
+    context.resume().then(() => {
+      started();
+      if (context === this.audioContext) {
+        this.audioAnalyzer.updateBackgroundAnalyzer();
+      }
+    }).catch((e) => {
+      started();
+      console.warn('The audio did not start', e);
+    });
   }
 
   /**
