@@ -713,6 +713,21 @@ green_behind_three_times() {
   check 'waits for the owner' grep -qF 'main moved on 3 times' <(last_comment)
 }
 
+green_behind_main_shipped() {
+  # Behind main, which shipped since: the branch's build lacks main's change, which the
+  # latest release has, and that must not count as the update's own (#95, 2026-09-30).
+  setup
+  echo 2 > "$STATE/behind"
+  bundle old 1.3.82.40 'play(); fromMain()'
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called a change to what ships' bash -c '! grep -qF "changes what the extension ships" "$0"' "$STATE/comments.json"
+  check 'no comment' test "$(comments_n)" -eq 0
+  check 'updates the branch at the tested commit' has_call "api -X PUT repos/me/fs/pulls/42/update-branch -f expected_head_sha=$sha"
+  check 'starts CI on the branch' has_call "workflow run ci.yml --ref $BRANCH"
+  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+}
+
 green_again_same() {
   setup
   bundle new 1.3.82.40 'changed()'
@@ -1361,6 +1376,7 @@ green_mergeable_unknown_then_ok
 green_behind
 green_behind_stuck
 green_behind_three_times
+green_behind_main_shipped
 green_again_same
 red_then_green
 green_label_removed_then_merged

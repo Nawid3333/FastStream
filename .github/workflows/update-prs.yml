@@ -501,7 +501,12 @@ jobs:
           # What must not ship: CI's build against the latest release's, as auto-release.yml
           # compares them, with manifest.json's version left out; nothing else may differ. An
           # update that ships is meant to differ, and is tried on main instead (below).
-          if [ ${#reasons[@]} = 0 ] && [ "$ships" = 0 ]; then
+          # Only a branch that holds main is compared: one behind it lacks what main shipped
+          # since, and that would count as its own change (#95 waited on 2026-09-30 for 33
+          # "differences" that were #93-#97's). The update below brings it up to main, and
+          # CI on the updated branch compares again.
+          behind_main=$(gh api "repos/$GH_REPO/compare/$SHA...main" --jq .ahead_by)
+          if [ ${#reasons[@]} = 0 ] && [ "$ships" = 0 ] && [ "$behind_main" = 0 ]; then
             tag=$(gh release view --json tagName --jq .tagName 2> /dev/null || true)
             new=$RUNNER_TEMP/new
             old=$RUNNER_TEMP/old
