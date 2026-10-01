@@ -1381,6 +1381,16 @@ the change went in.
   were current in effect: silero-vad v6.2.3 and dash.js v5.2.1 publish the same bytes as
   the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
   (real git pushing to a local bare origin), and 7 undone rules each fail it.
+  **Adapted copies** (job `sources`, 2026-10-01): `tools/vendored-sources.json` lists code
+  copied from other projects and changed here (knob.mjs from jherrm/knobs, StreamSaver.mjs,
+  crosstalk/fft.mjs from indutny/fft.js, vad/vad.mjs from ricky0123/vad), each with the
+  upstream path and the commit it was taken from. When upstream's newest commit to that path
+  is not in the ref (compare status behind or diverged), an issue "Vendored source changed
+  upstream: <name> (<repo> <sha8>)" lists the commits after the ref that changed it; port by
+  hand, move the ref, and it closes itself. The lists are read on fds 3/4 (gh.exe via WSL
+  swallowed stdin and ended the loop after the first source). On 2026-10-01 knob (16 commits
+  after its 2012 pin) and vad-web (37 since 2023-03-30) were behind, StreamSaver and fft.js
+  current. `tests/workflows/vendored-sources.test.sh`: 8 scenarios, 10 undone rules caught.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
   `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so

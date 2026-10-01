@@ -1,0 +1,33 @@
+{
+  "about": "Adapted copies of other projects' code, which no package manager updates. vendored-updates.yml (job sources) opens an issue when upstream changes the file a copy came from after its ref; port what matters by hand, then move ref to the upstream commit you reviewed, and the issue closes itself. Each ref is the last upstream commit to that path before the copy entered this repository (2026-10-01), or the pin its verify script proves.",
+  "sources": [
+    {
+      "name": "knob",
+      "copy": "chrome/player/modules/knob.mjs",
+      "repo": "jherrm/knobs",
+      "path": "Knob.js",
+      "ref": "cf2db70f804d04556e8ebb264dfe590d5215ffa8"
+    },
+    {
+      "name": "StreamSaver",
+      "copy": "chrome/player/modules/StreamSaver.mjs",
+      "repo": "jimmywarting/StreamSaver.js",
+      "path": "StreamSaver.js",
+      "ref": "5297ec4a16b91126b66dedc8ef215368edcfe08a"
+    },
+    {
+      "name": "fft.js",
+      "copy": "chrome/player/modules/crosstalk/fft.mjs",
+      "repo": "indutny/fft.js",
+      "path": "lib/fft.js",
+      "ref": "d73c1546ec9e43757a6d5a7a24fa3e1061b67f84"
+    },
+    {
+      "name": "vad-web",
+      "copy": "chrome/player/modules/vad/vad.mjs",
+      "repo": "ricky0123/vad",
+      "path": "packages/web/src",
+      "ref": "7c2f259b9977125e6b8665118f24cdc1ed59c8ff"
+    }
+  ]
+}
