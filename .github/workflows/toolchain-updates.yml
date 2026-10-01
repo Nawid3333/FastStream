@@ -50,7 +50,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -68,6 +72,10 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # git reaches the repository with the token only here, one command at a time: the
+          # checkout keeps none in .git/config. The header is the one actions/checkout uses.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           node tools/check-toolchain.mjs
 
           # This workflow's open pull requests and issues, and every title it ever used: the issues
@@ -139,7 +147,7 @@ jobs:
             # shellcheck disable=SC2086 # one path per word
             git add -- $allowed
             git commit -q -m "build: $1 $was -> $2"
-            git push -q -f origin "$3"
+            authgit push -q -f origin "$3"
             git checkout -q -f "$start"
           }
           version_on_main() { # <name>: the version $start has
@@ -225,7 +233,7 @@ jobs:
           # (a lost dispatch; a cancelled or broken run, which update-prs.yml passes over) gets
           # one.
           if [ "$EVENT" != push ]; then
-            git fetch -q --depth=1 origin main
+            authgit fetch -q --depth=1 origin main
             start=$(git rev-parse FETCH_HEAD)
             gh pr list --state open --limit 200 --json number,title,headRefName,headRefOid,author,isCrossRepository > "$RUNNER_TEMP/prs.json"
             jq -c --arg p "$PREFIX" '.[] | select((.title | startswith($p)) and .author.login == "app/github-actions" and (.isCrossRepository | not))' \

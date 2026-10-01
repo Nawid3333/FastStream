@@ -1066,10 +1066,10 @@ the change went in.
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
   updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
-  (fuse.js, pako, sortablejs - the unpatched libraries `tools/sync-vendor.mjs` copies
-  into the extension) and `tooling-minor-and-patch` (everything else), so a tooling
-  update is not held back by a shipped one; `update-prs.yml` merges the green
-  tooling PR, a shipped one waits for the owner.
+  (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs - the unpatched libraries
+  `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
+  (everything else), so a tooling update is not held back by a shipped one;
+  `update-prs.yml` merges both when green (the shipped one then releases, see below).
 - **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
@@ -1081,24 +1081,34 @@ the change went in.
   to start it, this run decides. Still red, one comment @mentions the owner with a
   table of failed job, step and what the step checks, the last 40 lines of each failed
   log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
-  Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
+  Dependabot npm minor/patch PR, the toolchain pnpm same-major PR or a patched library's
+  minor/patch PR (`patched/<name>-<version>` against the version main's `package.json`
+  holds; a version it cannot compare waits) is merged, and none labelled `hold` (the
+  owner's "not yet", since #67 was merged while on hold), and
   only when that bot opened it (not a draft, against `main`) and its commits are the
   bot's or this workflow's merges of `main`, only `package.json` and
   `pnpm-lock.yaml` change (for pnpm: only `packageManager`, to the branch's version,
-  against the merge base; the lockfile untouched), there is no major, Dependabot's dependency review passed,
+  against the merge base; the lockfile untouched; for a patched library also
+  `pnpm-workspace.yaml`, `patches/` and `tools/sync-vendor.mjs`, what its re-cut
+  commits), there is no major, the dependency review passed,
   it is mergeable, it contains the newest `main` (otherwise GitHub's update-branch
-  runs, CI restarts and that run decides, at most 3 times), and CI's build of the
+  runs, CI restarts and that run decides, at most 3 times), and, for an update that
+  must not ship (all but the shipped group and patched libraries), CI's build of the
   extension (the `faststream-bundles` artifact, firefox-github zip) is file-for-file
   identical to the latest release's zip apart from `manifest.json`'s version -
-  `auto-release.yml`'s own test, so such a merge releases nothing and nothing reaches
-  Firefox untested by the owner. Every other green PR (Node, pnpm major, GitHub
-  Actions updates, patched libraries, the upstream sync, a Dependabot update of a
-  shipped library or of a major) gets one comment @mentioning the owner - CI is
+  `auto-release.yml`'s own test, so such a merge releases nothing. After a merge that
+  ships (the owner's choice, 2026-09-30: shipped and patched libraries' minor and patch
+  merge themselves), it starts CI on `main` by dispatch (its own merge starts none) and
+  hands the run to its `watch-main` job: `ci.yml`'s release-hand-off gives a green run
+  to `auto-release.yml`, which releases; a red one releases nothing, nothing is
+  reverted, and watch-main opens "CI failed on main after an update merged itself"
+  (assigned, @mention; a comment while it is open). Every other green PR (Node, pnpm
+  major, GitHub Actions updates, the upstream sync, a major of any library) gets one
+  comment @mentioning the owner - CI is
   green, and why it waits - and is assigned to them. A comment with the same verdict
   as the last one is edited in place, so it sends no new mail: the owner hears when a
   verdict changes. The merge is made with `GITHUB_TOKEN`, which starts no workflow:
-  no CI on `main`, no release - fine, because the merged tree is exactly the tested
-  one and nothing shipped changed. The "behind main" check is the last call before the
+  no CI on `main` and no release by itself (for an update that ships, see above). The "behind main" check is the last call before the
   merge; if another merge still lands in between (two update PRs decided at once), the
   squash commit's parent is not the checked `main`, and the merged comment @mentions
   the owner that `main` holds an untested combination. A merge or branch update refused
@@ -1106,8 +1116,7 @@ the change went in.
   is no failure: the new commit's CI run decides, or there is nothing to decide. A
   cancelled or skipped CI run decides nothing. The waiting comment keeps one key while
   it waits, so a changed reason edits it without a new email. A merged branch is
-  deleted. Only updates that ship nothing merge themselves (the
-  owner's choice, 2026-09-29): a Node major is a PR the owner merges; `main`'s ruleset
+  deleted. A Node major is a PR the owner merges; `main`'s ruleset
   blocks force-pushes and deletion only, no required checks, so direct pushes and
   `mpv-updates.yml`'s pin commits keep working. If `update-prs.yml` itself fails, it
   opens one issue "Update PRs workflow failed" (the decide step has its own

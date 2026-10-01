@@ -124,10 +124,17 @@ describe('every pinned tool is one Dependabot updates', () => {
   it('pins the actionlint image by tag and digest where Dependabot updates it', () => {
     const from = read('.github/actionlint/Dockerfile').split('\n').filter((line) => /^FROM\b/i.test(line));
     expect(from).toEqual([expect.stringMatching(/^FROM rhysd\/actionlint:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/)]);
-    expect(entry('docker')).toMatch(/^ +directory: '\/\.github\/actionlint'$/m);
+    expect(entry('docker')).toMatch(/^ +- '\/\.github\/actionlint'$/m);
     // Both readers of the pin read it from there.
     expect(read('.github/workflows/ci.yml')).toContain('sed -n \'s/^FROM //p\' .github/actionlint/Dockerfile');
     expect(read('tools/linux/setup.sh')).toContain('"$repo/.github/actionlint/Dockerfile"');
+  });
+
+  it('pins the zizmor image by tag and digest where Dependabot updates it', () => {
+    const from = read('.github/zizmor/Dockerfile').split('\n').filter((line) => /^FROM\b/i.test(line));
+    expect(from).toEqual([expect.stringMatching(/^FROM ghcr\.io\/zizmorcore\/zizmor:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/)]);
+    expect(entry('docker')).toMatch(/^ +- '\/\.github\/zizmor'$/m);
+    expect(read('.github/workflows/ci.yml')).toContain('sed -n \'s/^FROM //p\' .github/zizmor/Dockerfile');
   });
 });
 

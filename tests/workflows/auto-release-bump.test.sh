@@ -14,6 +14,9 @@ step_script auto-release.yml 'Bump version, commit, tag, push' > "$here/bump.sh"
 mkdir -p "$here/bin"
 cat > "$here/bin/git" <<'EOF'
 #!/usr/bin/env bash
+# The remote lookup and the push carry the token as an http header of their own (the
+# checkout keeps none in .git/config): recorded apart, then set aside.
+if [ "$1" = -c ]; then printf '%s\n' "$2" >> "$FIX/auth"; shift 2; fi
 printf '%s\n' "$*" >> "$FIX/calls"
 case $1 in
   tag)
@@ -39,10 +42,11 @@ scenario() {
   mkdir -p "$RUNNER_TEMP" "$FIX/repo/chrome"
   : > "$FIX/calls"
   : > "$FIX/env"
+  : > "$FIX/auth"
   for f in package.json chrome/manifest.json; do
     printf '{\n  "name": "faststream",\n  "version": "1.3.82.44"\n}\n' > "$FIX/repo/$f"
   done
-  (cd "$FIX/repo" && GITHUB_ENV=$FIX/env PATH="$here/bin:$PATH" run_step "$here/bump.sh") > "$FIX/out" 2>&1
+  (cd "$FIX/repo" && GITHUB_OUTPUT=$FIX/env GH_TOKEN=secret PATH="$here/bin:$PATH" run_step "$here/bump.sh") > "$FIX/out" 2>&1
   status=$?
 }
 version() { node -p "require('$FIX/repo/$1').version"; }
@@ -54,14 +58,16 @@ check 'bumps both files to 1.3.82.45' test "$(version package.json) $(version ch
 check 'tags v1.3.82.45' contains "$FIX/calls" 'tag -a v1.3.82.45 -m FastStream 1.3.82.45'
 check 'pushes the commit and the tag in one atomic push' contains "$FIX/calls" 'push --atomic origin HEAD:main refs/tags/v1.3.82.45'
 check 'pushes nothing else' test "$(grep -c '^push' "$FIX/calls")" -eq 1
-check 'hands the tag on' contains "$FIX/env" 'NEW_TAG=v1.3.82.45'
+# eC1hY2Nlc3MtdG9rZW46c2VjcmV0 is x-access-token:secret in base64.
+check 'the lookup and the push carry the token themselves' test "$(grep -cxF 'http.https://github.com/.extraheader=AUTHORIZATION: basic eC1hY2Nlc3MtdG9rZW46c2VjcmV0' "$FIX/auth")" -eq 2
+check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.45'
 
 export TAGS='v1.3.82.44 v1.3.82.45'
 scenario 'a reverted release: its tag is in the checkout'
 check 'succeeds' test "$status" -eq 0
 check 'says it skips it' contains "$FIX/out" 'v1.3.82.45 is taken; skipping it.'
 check 'tags v1.3.82.46' contains "$FIX/calls" 'tag -a v1.3.82.46 -m FastStream 1.3.82.46'
-check 'hands the tag on' contains "$FIX/env" 'NEW_TAG=v1.3.82.46'
+check 'hands the tag on' contains "$FIX/env" 'tag=v1.3.82.46'
 
 export TAGS='v1.3.82.44' REMOTE_TAGS='v1.3.82.44 v1.3.82.45 v1.3.82.46'
 scenario 'tags only on the remote'

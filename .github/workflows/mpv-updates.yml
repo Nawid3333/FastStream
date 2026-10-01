@@ -30,10 +30,10 @@ name: mpv updates
 # made again. The issue also closes once main pins the latest build, however it got
 # there.
 #
-# Not reported on the issue: this workflow's own failure (shinchiro renaming the builds,
-# the API down). That fails the run, and GitHub emails a failed scheduled run. If CI
-# could not be started on the branch, the branch is deleted first, so the next run tries
-# the build again.
+# This workflow's own failure (shinchiro renaming the builds, the API down) is not a
+# build's: it opens its own issue, "mpv updates workflow failed" (GitHub emails a failed
+# scheduled run only to whoever last changed the cron line). If CI could not be started
+# on the branch, the branch is deleted first, so the next run tries the build again.
 #
 # A pull request that changes this file runs it as a dry run: everything is read and
 # what a real run would do is printed, but nothing is pushed, started or reported.
@@ -67,7 +67,11 @@ jobs:
     # twice with the rerun, plus the wait for runners. Each attempt is given 65 minutes.
     timeout-minutes: 150
     steps:
+      # The token is not kept in .git/config (persist-credentials: false): every later
+      # step could read it there, dev dependencies' install scripts included.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Move the pin to the latest build, if CI passes with it
         env:
@@ -80,6 +84,10 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # git reaches the repository with the token only here, one command at a time: the
+          # checkout keeps none in .git/config. The header is the one actions/checkout uses.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           if [ "$EVENT" != pull_request ] && [ "$GITHUB_REF" != refs/heads/main ]; then
             echo "Run this on main: it reads the pin there and moves it there." >&2
             exit 1
@@ -115,7 +123,7 @@ jobs:
 
           # --- Tried before: only a build that failed leaves its mpv/<release> branch.
           status=0
-          git ls-remote --exit-code --heads origin "refs/heads/$branch" > /dev/null || status=$?
+          authgit ls-remote --exit-code --heads origin "refs/heads/$branch" > /dev/null || status=$?
           case $status in
             0) tried=1 ;;
             2) tried=0 ;;
@@ -198,18 +206,18 @@ jobs:
           else
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git fetch -q origin main
+            authgit fetch -q origin main
             git checkout -q -B "$branch" origin/main
             jq -n --arg release "$latest" --arg asset "$asset" --arg sha256 "${digest#sha256:}" \
               '{release: $release, asset: $asset, sha256: $sha256}' > .github/mpv-build.json
             git commit -q -m "ci: mpv $latest (shinchiro)" -- .github/mpv-build.json
             commit=$(git rev-parse HEAD)
-            git push -q origin "$branch"
+            authgit push -q origin "$branch"
 
             # Until CI runs on it, a failure takes the branch down again: the next run tries
             # this build anew instead of counting it as tried.
             if ! gh workflow run ci.yml --ref "$branch"; then
-              git push -q origin --delete "$branch"
+              authgit push -q origin --delete "$branch"
               exit 1
             fi
             # The dispatch gives no run id. The run is the workflow_dispatch one on the
@@ -223,7 +231,7 @@ jobs:
             done
             if [ -z "$run_id" ]; then
               echo "CI was started on $branch, but no run showed up within two minutes." >&2
-              git push -q origin --delete "$branch"
+              authgit push -q origin --delete "$branch"
               exit 1
             fi
             run_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs/$run_id"
@@ -244,7 +252,7 @@ jobs:
               # Onto the newest main. A push can lose to another push, so up to four tries.
               landed=0
               for _ in 1 2 3 4; do
-                git fetch -q origin main
+                authgit fetch -q origin main
                 main_pin=$(git show origin/main:.github/mpv-build.json | jq -r .release)
                 # Pinned there meanwhile by hand, to this build or a newer one.
                 if [ "$main_pin" -ge "$latest" ] 2> /dev/null; then
@@ -252,7 +260,7 @@ jobs:
                   break
                 fi
                 git checkout -q -B land origin/main
-                if git cherry-pick "$commit" && git push -q origin HEAD:main; then
+                if git cherry-pick "$commit" && authgit push -q origin HEAD:main; then
                   landed=1
                   main_pin=$latest
                   break
@@ -263,10 +271,10 @@ jobs:
                 moved=1
                 echo "main pins $main_pin now."
                 # This build's branch, and the failed builds' ones, kept until a build passed.
-                refs=$(git ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
+                refs=$(authgit ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
                 if [ -n "$refs" ]; then
                   # shellcheck disable=SC2086 # one ref per word
-                  git push -q origin --delete ${refs//refs\/heads\//}
+                  authgit push -q origin --delete ${refs//refs\/heads\//}
                 fi
                 if [ -n "$issue" ]; then
                   gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url), and main pins $main_pin now. Closing."
@@ -310,3 +318,30 @@ jobs:
             } > "$RUNNER_TEMP/body.md"
             report "gone $pinned" "the pinned $pinned is gone upstream" "$RUNNER_TEMP/body.md"
           fi
+
+      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
+      # whoever last changed the cron line): one issue while it is open, assigned and
+      # @mentioning the owner, as wsl-releases.yml does. A failure while it is open adds a
+      # comment to it.
+      # Not for a pull request's dry run: its failure shows on the pull request.
+      - name: Report this workflow's own failure
+        if: failure() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'mpv updates workflow failed'
+        run: |
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s mpv-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
