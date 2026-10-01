@@ -1304,6 +1304,21 @@ the change went in.
 - All of it was dry-run with a stub `gh` against the real upstream history (sync: adopted
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
+- **`mutation-tests.yml`** (Mondays 06:40 UTC), 2026-10-01, T4: Stryker
+  (`stryker.config.mjs`, `pnpm run test:mutation`) over the 15 pure-logic modules with unit
+  tests. A report, not a gate: the run summary gets a table per file
+  (`tools/mutation-report.mjs`), the HTML report is the `mutation-reports` artifact, and when
+  the unit tests missed mutants (survived, or no test reaches them), one issue "Mutation
+  testing: week to <date>" lists them, assigned + @mention; next week's replaces it, a week
+  with all caught closes it. **The command runner**, not the vitest one: every mutant runs the
+  whole unit suite (`__STRYKER_ACTIVE_MUTANT__`), about 1.2 s each with 4 workers. Stryker's
+  vitest runner 10.0.0 (August 2026) predates vitest 5 and switched no mutant on there (every
+  one "survived"); switch back once a release supports vitest 5, and per-test coverage makes
+  the run far faster. The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
+  TypeScript's JS API, which TypeScript 7 does not have. `tests/workflows/mutation-tests.test.sh`.
+  Baseline, 2026-10-01 (73 min locally): 71.8% of 3,614 mutants caught; the weakest are the
+  mpv host (47.7%), MpvBackend (58.4%), SubtitleUtils (63.2%) and TabTracker (68.4%), the
+  best SubtitleSyncUtils (96%), MultiRegexMatcher, UrlMatchList and StreamPick (92%).
 
 ## Rules
 
