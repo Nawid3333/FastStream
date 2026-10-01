@@ -1,6 +1,6 @@
 name: Vendored updates
 
-# Two vendored files no other workflow watches (U1):
+# Vendored files no other workflow watches (U1):
 #
 #   chrome/player/modules/vad/silero_vad_half.onnx - snakers4/silero-vad's published
 #     half-precision model, shipped as released and pinned by TAG and SHA256 in
@@ -13,6 +13,12 @@ name: Vendored updates
 #     changes tools/verify-vtt.mjs re-applies, pinned to a dash.js tag. When the newest
 #     dash.js release changes that file, an issue "vtt.js changed in dash.js <tag>": the
 #     changes may need re-deriving, so a person moves the pin.
+#
+#   The adapted copies of other projects' code in tools/vendored-sources.json (knob.mjs,
+#     StreamSaver.mjs, crosstalk/fft.mjs, vad/vad.mjs; 2026-10-01): when upstream changes the
+#     file one came from after its ref, an issue "Vendored source changed upstream: <name>
+#     (<repo> <commit>)" lists the commits. A copy is adapted, so a person ports what matters
+#     and moves the ref; the issue then closes itself, and a newer upstream change replaces it.
 #
 # Each is assigned to the owner and @mentions them. A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at
@@ -290,6 +296,113 @@ jobs:
         if: failure()
         env:
           TITLE: 'Vendored updates workflow failed (vtt.js)'
+        run: |
+          set -euo pipefail
+          number=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s vendored-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+  sources:
+    name: Check the adapted copies' upstream code
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read  # the checkout
+      issues: write   # the "changed upstream" issues; this job's own failure
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      PREFIX: 'Vendored source changed upstream: '
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Open the issue for a changed upstream source
+        run: |
+          set -euo pipefail
+          jq -c '.sources[]' tools/vendored-sources.json > "$RUNNER_TEMP/sources.jsonl"
+          if [ ! -s "$RUNNER_TEMP/sources.jsonl" ]; then
+            echo 'tools/vendored-sources.json lists no sources.'
+            exit 1
+          fi
+          gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | [.number, .state, .title] | @tsv' \
+            > "$RUNNER_TEMP/mine.tsv"
+
+          # Both loops read their lists on their own descriptors (3, 4): a command inside that
+          # reads standard input would otherwise swallow the rest of the list.
+          while IFS= read -r source <&3; do
+            name=$(jq -r .name <<< "$source")
+            repo=$(jq -r .repo <<< "$source")
+            path=$(jq -r .path <<< "$source")
+            ref=$(jq -r .ref <<< "$source")
+            copy=$(jq -r .copy <<< "$source")
+            prefix="$PREFIX$name ("
+            # Closes this source's open issues, all but the one titled $2 if given.
+            close_open() { # <comment> [title to keep]
+              while IFS=$'\t' read -r number state title <&4; do
+                [ "$state" = open ] || continue
+                case $title in "$prefix"*) ;; *) continue ;; esac
+                if [ "$title" = "${2-}" ]; then continue; fi
+                gh issue close "$number" --comment "$1"
+                echo "Closed #$number ($title)"
+              done 4< "$RUNNER_TEMP/mine.tsv"
+            }
+
+            # The newest upstream commit that changed the path, and whether the copy's ref
+            # holds it (the ref is that commit, or after it).
+            newest=$(gh api -X GET "repos/$repo/commits" -f path="$path" -f per_page=1 --jq '.[0].sha // ""')
+            if [ -z "$newest" ]; then
+              echo "$repo has no commit that changed $path."
+              exit 1
+            fi
+            status=$(gh api "repos/$repo/compare/$newest...$ref" --jq .status)
+            if [ "$status" = identical ] || [ "$status" = ahead ]; then
+              echo "$name: $repo's newest change to $path is in ${ref:0:8}."
+              close_open "tools/vendored-sources.json has $name at ${ref:0:8}, which holds $repo's newest change to $path."
+              continue
+            fi
+
+            title="$prefix$repo ${newest:0:8})"
+            if awk -F '\t' -v t="$title" '$3 == t {found = 1} END {exit !found}' "$RUNNER_TEMP/mine.tsv"; then
+              echo "$name: $repo ${newest:0:8} was raised before."
+              close_open "$repo changed $path again: the issue for ${newest:0:8} replaces this one." "$title"
+              continue
+            fi
+            # The commits after the ref (the compare: exact, where a date is not) that changed
+            # the path (upstream's history of it, newest first).
+            gh api "repos/$repo/compare/$ref...$newest" --jq '[.commits[].sha]' > "$RUNNER_TEMP/after.json"
+            gh api -X GET "repos/$repo/commits" -f path="$path" -f sha="$newest" -f per_page=100 > "$RUNNER_TEMP/commits.json"
+            jq -r --slurpfile after "$RUNNER_TEMP/after.json" '.[] | select(.sha as $s | $after[0] | index($s)) |
+              "- [\(.sha[0:8])](\(.html_url)) \(.commit.committer.date[0:10]) \(.commit.message | split("\n")[0])"' \
+              "$RUNNER_TEMP/commits.json" > "$RUNNER_TEMP/commits.md"
+            # shellcheck disable=SC2016 # backticks are Markdown
+            {
+              printf '@%s %s changed `%s` after the commit `%s` was taken from (%s):\n\n' "$OWNER" "$repo" "$path" "$copy" "${ref:0:8}"
+              cat "$RUNNER_TEMP/commits.md"
+              printf '\nAll of it: https://github.com/%s/compare/%s...%s\n\n' "$repo" "$ref" "$newest"
+              printf '`%s` is an adapted copy, so nothing updates it by itself: port what matters, then set the `ref` of %s in `tools/vendored-sources.json` to `%s`, and this issue closes itself. Closing it skips this change; a later one raises a new issue.\n' \
+                "$copy" "$name" "$newest"
+            } > "$RUNNER_TEMP/body.md"
+            url=$(gh issue create --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
+            echo "Opened $url"
+            close_open "$repo changed $path again: $url replaces this one." "$title"
+          done 3< "$RUNNER_TEMP/sources.jsonl"
+
+      - name: Report the sources job's own failure
+        if: failure()
+        env:
+          TITLE: 'Vendored updates workflow failed (sources)'
         run: |
           set -euo pipefail
           number=$(gh issue list --state open --limit 200 --json number,title \
