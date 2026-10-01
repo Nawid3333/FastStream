@@ -1,10 +1,10 @@
-// The re-encoder's MP4 starts at zero with its tracks as far apart as they played: a save from
+// The remuxer's MP4 starts at zero with its tracks as far apart as they played: a save from
 // the middle of a stream moves every track back by the smallest first timestamp.
 // Mediabunny keeps a fragmented MP4's timestamps as they come, so TimestampRebaser does this;
 // tests/e2e/specs/modules.e2e.mjs reads the file it ends up in back with mp4box and ffmpeg.
 
 import {describe, expect, it} from 'vitest';
-import {TimestampRebaser} from '../../chrome/player/modules/reencoder/TimestampRebaser.mjs';
+import {TimestampRebaser} from '../../chrome/player/modules/remux/TimestampRebaser.mjs';
 
 /**
  * Builds a rebaser that records what it passes on.

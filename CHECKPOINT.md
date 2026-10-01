@@ -1,5 +1,12 @@
 # FastStream modernisation — checkpoint
 
+**Saves copy streams, the re-encoder is gone (2026-09-30, later):** what MP4Merger cannot
+join (WebM, odd fMP4 packaging) is copied into an MP4 as it is by `remux/remuxer.mjs`:
+Mediabunny reads the streams and writes their packets, nothing decoded or encoded. The
+re-encoder (WebCodecs H.264/AAC encoders, which Firefox has on no Windows), libsamplerate,
+the resampler worker, jswebm and `demuxers.mjs` are removed. See
+`docs/vendored-libraries.md`, Mediabunny.
+
 **ONNX Runtime 1.30.0 and Mediabunny (2026-09-30):** the VAD runs the stock
 onnxruntime-web 1.30.0 loader/glue/wasm (synced verbatim from npm,
 gitignored) with `silero_vad_half.onnx` - the silero-vad v6.2.1 file,

@@ -25,6 +25,7 @@ import * as url from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../../..');
@@ -194,7 +195,7 @@ describe('Toolbar: Off right after On', function() {
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);
-        if ((await browser.getUrl()).startsWith(ORIGIN)) {
+        if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
           extHandle = handle;
           return true;
         }

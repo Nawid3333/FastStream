@@ -176,7 +176,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - run: echo "${{ needs.detect.outputs.latest-images }}" > .runner-image-tested
+      - env:
+          IMAGES: ${{ needs.detect.outputs.latest-images }}
+        run: echo "$IMAGES" > .runner-image-tested
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .runner-image-tested
@@ -189,7 +191,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - run: echo "${{ needs.detect.outputs.next-images }}" > .runner-image-tested
+      - env:
+          IMAGES: ${{ needs.detect.outputs.next-images }}
+        run: echo "$IMAGES" > .runner-image-tested
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .runner-image-tested

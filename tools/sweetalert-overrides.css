@@ -1,0 +1,24 @@
+/*
+ * FastStream's changes to sweetalert2's stylesheet. tools/sync-vendor.mjs appends this file
+ * to node_modules/sweetalert2/dist/sweetalert2.css (having scoped its body.swal2-* rules to
+ * the classes alone, see toSweetAlertCss there) to make
+ * chrome/player/assets/sweetalert/css/sweetalert.css. They came in with the 11.12.4 copy
+ * kept here until 2026-09-30.
+ */
+
+/* As wide as sweetalert2's default at least, and wider for a longer message. */
+div:where(.swal2-container) div:where(.swal2-popup) {
+  width: auto;
+  min-width: 32em;
+}
+
+/* Not toasts: the rule above made them wider than their corner, and clipped them. */
+div:where(.swal2-container) div:where(.swal2-toast) {
+  min-width: unset;
+}
+
+/* The error report's stack trace (AlertPolyfill.errorSendToDeveloper), line by line. */
+.error-popup-stack {
+  text-align: left;
+  white-space: pre-wrap;
+}

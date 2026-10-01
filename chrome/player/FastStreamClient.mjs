@@ -149,6 +149,10 @@ export class FastStreamClient extends EventEmitter {
     this.sourceRequests = 0;
     this.fallbacks = {request: 0, sources: []};
     this.previewPlayerSetup = null;
+    // Counts play() and pause() calls: the later one wins (play()).
+    this.playPauseTurn = 0;
+    // The audio context startAudio() is waiting on, if any.
+    this.startingAudioContext = null;
     this.customChapters = null;
     this.saveSeek = true;
     this.pastSeeks = [];
@@ -189,7 +193,7 @@ export class FastStreamClient extends EventEmitter {
       Utils.loadAndParseOptions('toolSettings', DefaultToolSettings).then((settings) => {
         this.options.toolSettings = settings;
         this.interfaceController.updateToolVisibility();
-      });
+      }).catch((e) => console.error('Loading the tool settings failed', e));
     } catch (e) {
       console.error(e);
     }
@@ -748,10 +752,14 @@ export class FastStreamClient extends EventEmitter {
     // a source is being set, say — would build another and leave its video in the seek
     // preview alongside the first, so callers join the build that is already running.
     if (!this.previewPlayerSetup) {
-      this.previewPlayerSetup = this.buildPreviewPlayer();
-      this.previewPlayerSetup.catch(() => {}).then(() => {
-        this.previewPlayerSetup = null;
-      });
+      const setup = this.buildPreviewPlayer();
+      this.previewPlayerSetup = setup;
+      setup.catch(() => {}).then(() => {
+        // resetPlayer() may have handed the field to the next video's build already.
+        if (this.previewPlayerSetup === setup) {
+          this.previewPlayerSetup = null;
+        }
+      }).catch((e) => console.error(e));
     }
 
     return this.previewPlayerSetup;
@@ -830,7 +838,7 @@ export class FastStreamClient extends EventEmitter {
       if (this.sourceChange === change) {
         this.sourceChange = null;
       }
-    });
+    }).catch((e) => console.error(e));
 
     return change;
   }
@@ -898,10 +906,14 @@ export class FastStreamClient extends EventEmitter {
       this.bindPlayer(this.player);
 
       if (!this.initPromise) {
-        this.initPromise = this.setupInitHook();
-        this.initPromise.then(() => {
-          this.initPromise = null;
-        });
+        const hook = this.setupInitHook();
+        this.initPromise = hook;
+        hook.then(() => {
+          // The next source's may be in the field by then.
+          if (this.initPromise === hook) {
+            this.initPromise = null;
+          }
+        }).catch((e) => console.error(e));
       }
 
 
@@ -947,7 +959,7 @@ export class FastStreamClient extends EventEmitter {
       if (autoPlay) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;
-        });
+        }).catch((e) => console.warn('Autoplay failed', e));
       }
 
       this.loadProgressData().then(async () => {
@@ -981,7 +993,13 @@ export class FastStreamClient extends EventEmitter {
         if (autoPlay && !this.state.autoPlayTriggered) {
           this.play().then(() => {
             this.state.autoPlayTriggered = true;
-          });
+          }).catch((e) => console.warn('Autoplay failed', e));
+        }
+      }).catch((e) => {
+        console.error('Applying the remembered time failed', e);
+        // Saving was switched off while the time was applied.
+        if (this.source === source) {
+          this.disableProgressSave = false;
         }
       });
     } catch (e) {
@@ -1385,7 +1403,7 @@ export class FastStreamClient extends EventEmitter {
     fallbacks.next = next;
     this.setSource(next, fallbacks.sources).then(() => {
       this.sourcesBrowser.updateSources();
-    });
+    }).catch((e) => console.error('Switching to the next stream failed', e));
     return true;
   }
 
@@ -1433,6 +1451,10 @@ export class FastStreamClient extends EventEmitter {
     this.progressData = null;
     this.disableProgressSave = false;
     this.lastProgressSave = 0;
+    // Its wait for a picture listens on the player going: a source that never got one left
+    // it, and the next source joined it, its own picture then seen only by the wait's
+    // once-a-second check. The next source makes its own.
+    this.initPromise = null;
     this.state.bufferBehind = this.options.bufferBehind;
     this.state.bufferAhead = this.options.bufferAhead;
     if (this.context) {
@@ -1469,6 +1491,9 @@ export class FastStreamClient extends EventEmitter {
       }
       this.previewPlayer = null;
     }
+    // A preview build still running is the old video's: the next video joined it, the build
+    // discarded itself over the changed source, and the next video had no seek preview.
+    this.previewPlayerSetup = null;
 
     if (this.syncedAudioPlayer) {
       try {
@@ -1715,21 +1740,58 @@ export class FastStreamClient extends EventEmitter {
       throw new Error('No source is loaded!');
     }
 
+    // A pause() (or another play()) made while this waits wins: this one went on after
+    // it, showing "playing" over a paused video, and with a delay set, starting the
+    // separate audio over it.
+    const turn = ++this.playPauseTurn;
+
     // Will throw if browser blocks autoplay
     await this.player.play();
 
     // Everything below will only run if browser allows playing the video
     // (e.g. not blocked by autoplay policy)
-    if (this.syncedAudioPlayer) {
+    if (this.syncedAudioPlayer && turn === this.playPauseTurn) {
       await this.syncedAudioPlayer.play();
+    }
+    if (turn !== this.playPauseTurn) {
+      return;
     }
 
     this.interfaceController.play();
+    this.startAudio();
+  }
 
-    if (this.audioContext && this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
+  /**
+   * Starts the audio context if it is suspended, without waiting for it: with no sound
+   * device it never starts (resume() never settles; CI's Linux runner has none), and play()
+   * waited for it forever, so what follows a play, autoplay's own bookkeeping included,
+   * never ran. The background analyzer starts once the audio runs.
+   */
+  startAudio() {
+    const context = this.audioContext;
+    if (!context || context.state !== 'suspended') {
+      this.audioAnalyzer.updateBackgroundAnalyzer();
+      return;
     }
-    this.audioAnalyzer.updateBackgroundAnalyzer();
+    // A play while the context is still starting has nothing to add.
+    if (this.startingAudioContext === context) {
+      return;
+    }
+    this.startingAudioContext = context;
+    const started = () => {
+      if (this.startingAudioContext === context) {
+        this.startingAudioContext = null;
+      }
+    };
+    context.resume().then(() => {
+      started();
+      if (context === this.audioContext) {
+        this.audioAnalyzer.updateBackgroundAnalyzer();
+      }
+    }).catch((e) => {
+      started();
+      console.warn('The audio did not start', e);
+    });
   }
 
   /**
@@ -1737,20 +1799,27 @@ export class FastStreamClient extends EventEmitter {
    * @return {Promise<void>}
    */
   async pause() {
+    // No player while a source is being swapped: a key pressed then threw.
+    if (!this.player) {
+      return;
+    }
+    const turn = ++this.playPauseTurn;
     await this.player.pause();
 
     if (this.syncedAudioPlayer) {
       await this.syncedAudioPlayer.pause();
     }
 
-    this.interfaceController.pause();
+    if (turn === this.playPauseTurn) {
+      this.interfaceController.pause();
+    }
   }
 
   /**
    * Undoes the last seek operation.
    */
   undoSeek() {
-    if (this.pastSeeks.length) {
+    if (this.player && this.pastSeeks.length) {
       this.pastUnseeks.push(this.player.currentTime);
       // Through the setter, so a separate audio track follows at once; not saved, or
       // the undo would be a seek to undo.
@@ -1765,7 +1834,7 @@ export class FastStreamClient extends EventEmitter {
    * Redoes the last undone seek operation.
    */
   redoSeek() {
-    if (this.pastUnseeks.length) {
+    if (this.player && this.pastUnseeks.length) {
       this.pastSeeks.push(this.player.currentTime);
       this.setSeekSave(false);
       this.currentTime = this.pastUnseeks.pop();
@@ -1907,6 +1976,7 @@ export class FastStreamClient extends EventEmitter {
    * @param {string|number} levelID
    */
   setCurrentVideoLevelID(levelID) {
+    if (!this.player) return;
     this.player.setCurrentVideoLevelID(levelID);
     this.checkLevelChange();
   }
@@ -1916,6 +1986,7 @@ export class FastStreamClient extends EventEmitter {
    * @param {string|number} levelID
    */
   setCurrentAudioLevelID(levelID) {
+    if (!this.player) return;
     this.player.setCurrentAudioLevelID(levelID);
     this.checkLevelChange();
   }
@@ -2222,7 +2293,8 @@ export class FastStreamClient extends EventEmitter {
       return {
         name: chapter.name ? String(chapter.name) : 'Chapter',
         startTime: Math.max(0, chapter.startTime),
-        endTime: isFinite(chapter.endTime) ? chapter.endTime : null,
+        // An end before the start is none: the chapter runs to the next one.
+        endTime: isFinite(chapter.endTime) && chapter.endTime > Math.max(0, chapter.startTime) ? chapter.endTime : null,
       };
     }).sort((a, b) => a.startTime - b.startTime);
 

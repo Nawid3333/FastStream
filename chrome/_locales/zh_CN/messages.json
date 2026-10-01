@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "隐身模式会使用内存（RAM）来缓冲视频。您的电脑可能没有足够的内存来保存整个视频！\n确定要继续吗？"
     },
-    "player_savevideo_reencode": {
-        "message": "保存将需要重新编码，可能会耗时较长。是否继续？"
-    },
     "player_savevideo_cancelling": {
         "message": "正在取消保存..."
     },

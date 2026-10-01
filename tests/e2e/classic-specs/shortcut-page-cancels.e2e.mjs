@@ -17,6 +17,7 @@ import http from 'node:http';
 import {browser, expect} from '@wdio/globals';
 
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {hasExtensionApi} from '../extension-api.mjs';
 
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 
@@ -309,7 +310,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await browser.waitUntil(async () => {
       for (const handle of await browser.getWindowHandles()) {
         await browser.switchToWindow(handle);
-        if ((await browser.getUrl()).startsWith(ORIGIN)) {
+        if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
           extHandle = handle;
           return true;
         }

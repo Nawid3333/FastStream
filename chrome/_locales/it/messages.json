@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "La modalità di navigazione in incognito utilizzerà la RAM per mettere in buffer i video. Il tuo computer potrebbe non avere memoria sufficiente per salvare l'intero video!\nVuoi davvero procedere?"
     },
-    "player_savevideo_reencode": {
-        "message": "Il salvataggio richiederà una nuova codifica. Potrebbe richiedere molto tempo. Vuoi procedere?"
-    },
     "player_savevideo_cancelling": {
         "message": "Annullamento del salvataggio..."
     },

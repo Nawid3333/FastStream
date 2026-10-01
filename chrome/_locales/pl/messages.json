@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "Tryb incognito będzie używał pamięci RAM do buforowania wideo. Twój komputer może nie mieć wystarczającej pamięci, aby zapisać całe wideo!\nCzy na pewno chcesz kontynuować?"
     },
-    "player_savevideo_reencode": {
-        "message": "Zapisywanie będzie wymagać ponownego przekodowania. Może to potrwać długo. Czy chcesz kontynuować?"
-    },
     "player_savevideo_cancelling": {
         "message": "Anulowanie zapisu..."
     },

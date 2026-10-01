@@ -12,8 +12,11 @@ email (assigned to you, with an @mention) in one of two ways:
 
 - **A pull request, "Patched library update: `<name>` `<version>`"** - the patch moved
   onto the new release cleanly and passed the tool's checks. The workflow starts CI on
-  it, which runs everything `pnpm run verify` runs. Green: merge it, and it releases.
-  Red: fix it on the branch (below), or close it to skip that version.
+  it, which runs everything `pnpm run verify` runs. Green, and a minor or patch version:
+  `update-prs.yml` merges it and starts CI on `main`, and a green run there releases it
+  (a red one opens an issue for you and releases nothing). Green and a major version:
+  it waits for you; merge it, and it releases. Red: fix it on the branch (below), or close
+  it to skip that version.
 - **An issue with the same title** - the tool stopped: a conflict, or a check failed. The
   issue lists where. Take it by hand (below), or close it to skip that version.
 
@@ -84,8 +87,7 @@ request waits for CI and a hand update for `pnpm run verify`. What covers each o
 |---|---|
 | hls.js | `playback.e2e.mjs` (HLS), the HLS saves in `save-video.e2e.mjs` and `save-fmp4.e2e.mjs` |
 | dash.js | `playback.e2e.mjs` (a public stream, and one local stream per segment getter with its fragment list checked), the DASH saves |
-| mp4box | `playback.e2e.mjs` (MP4), the DASH and fMP4 saves, `modules.e2e.mjs` (the re-encoder's MP4 demuxer) |
-| jswebm | `modules.e2e.mjs` (WebM demuxer) |
+| mp4box | `playback.e2e.mjs` (MP4), the DASH and fMP4 saves |
 | gif.js | `modules.e2e.mjs` |
 | Coloris | `modules.e2e.mjs` |
 | sweetalert2 | `dialogs.e2e.mjs`, and the extension save-dialog specs |

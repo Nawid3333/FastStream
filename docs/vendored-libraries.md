@@ -337,14 +337,15 @@ what can actually change behaviour.
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
+| sweetalert2 (CSS) | 11.26.25 | `body.swal2-*` rules scoped to the classes; three rules appended from `tools/sweetalert-overrides.css` | **generated since 2026-09-30** (was an 11.12.4 copy) |
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.25.0, git tag (not on npm) | 9 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
-| jswebm | 0.1.2 | generated from `src/`, 23 KB patch | **migrated** |
+| jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
-| libsamplerate-js | none published | filename bug fixed; wrapper+library rebuilt and checked | **reproduced** |
+| libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
@@ -371,7 +372,7 @@ its real names, and the published source maps carry the original TypeScript.
 See "mp4box - measured, migrated, then reverted" below, **Fifth**.
 
 **mp4-muxer 5.2.2 was tried (2026-09-06) and reverted.** The API surface
-`reencoder.mjs` uses (`Muxer`, `StreamTarget`, `addVideoChunk`,
+the re-encoder (`reencoder.mjs`, since removed) used (`Muxer`, `StreamTarget`, `addVideoChunk`,
 `addAudioChunk`, `finalize`) is unchanged between 4.3.3 and 5.2.2 - checked
 directly against 5.2.2's `.d.ts` before touching anything. But
 `tests/e2e/specs/modules.e2e.mjs`'s existing "writes a valid MP4 container"
@@ -403,14 +404,22 @@ before `finalize()`), but it does whenever a video track ends up with no
 encoded frame. Moving on from 4.3.3 means migrating to Mediabunny.
 
 It did: on 2026-09-30 mp4-muxer was replaced by **mediabunny 1.60.0** (row
-in the table above; `reencoder/mp4-writer.mjs`, with
-`reencoder/TimestampRebaser.mjs` doing what `firstTimestampBehavior:
+in the table above; `remux/mp4-writer.mjs`, with
+`remux/TimestampRebaser.mjs` doing what `firstTimestampBehavior:
 'cross-track-offset'` used to). mp4-muxer left `package.json`,
 `tools/sync-vendor.mjs`, `.gitignore` and the eslint ignore. The empty-track
 case that sank 5.2.2 is asserted in the other direction in
 `tests/e2e/specs/modules.e2e.mjs`: Mediabunny finishes a file whose only
 (video) track got no packets, and a file whose video never came still
 flushes its audio from `TimestampRebaser.mjs` starting at 0.
+
+The same day the re-encoder went. It decoded what MP4Merger cannot join (WebM, odd
+fMP4 packaging) and encoded it again as H.264 and AAC with WebCodecs, whose encoders
+Firefox has on no Windows, so every such save failed there. `remux/remuxer.mjs` has
+Mediabunny read the streams and copies their packets into an MP4 as they are (an MP4
+takes VP8, VP9, AV1, Opus and Vorbis too). Nothing decodes or encodes any more, so
+libsamplerate and the resampler worker left the tree, and jswebm with the hand-made
+demuxers (`demuxers.mjs`): Mediabunny reads WebM itself.
 
 **fuse.js** needed nothing at all: 34 AST differences, every one of them lint
 autofix, and identical exports.
@@ -479,176 +488,12 @@ disappear on a real `lint:amo` run, with nothing else in the 12-warning count
 changing. `module.exports` still returns the same shaped object, so nothing
 downstream can observe the rename.
 
-### libsamplerate: a shipped bug, and why npm is the wrong answer
+### libsamplerate: removed
 
-This section used to say the answer here was "use the published package".
-Measuring it says the opposite, and on the way to that measurement the
-resampler turned out to have never worked at all.
-
-#### The resampler was broken in every build, including upstream's
-
-The vendored `libsamplerate.mjs` is webpack output, and webpack emitted the
-wasm reference under its content-hashed name:
-
-```js
-module.exports = __webpack_require__.p + "625941a851f0440e1705.wasm";
-```
-
-The file vendored beside it is called `libsamplerate.wasm`. Nothing sets
-`Module.locateFile` or `Module.wasmBinary`, so the request 404s. The glue is
-built with `BINARYEN_ASYNC_COMPILATION=0`, which means it instantiates
-synchronously through a blocking `XMLHttpRequest` rather than
-`WebAssembly.instantiateStreaming` - so the 404 response body was handed
-straight to `WebAssembly.Module`, which rejected it:
-
-```
-at offset 4: failed to match magic number
-```
-
-Every call to `create()` threw. The same mismatch is present in upstream
-v1.3.77, so this is not something the fork introduced.
-
-It went unnoticed because of where the code sits: the resampler is reached
-only from `reencoder.mjs`, which needs WebCodecs and therefore runs on Chrome
-only, and only when a user re-encodes a download. Nothing on the playback path
-touches it, and no test did either.
-
-The fix is the one string literal, and it is annotated in place. With it
-applied, 1 second of a 440 Hz sine resampled 48000 -> 44100 comes back as
-44054 samples at peak 1.0, RMS 0.7071 and still 440 Hz.
-`tests/e2e/specs/modules.e2e.mjs` now asserts exactly that, and it was watched
-failing with the magic-number error before the fix.
-
-#### Do not replace it with the npm package
-
-The earlier recommendation assumed npm's build was the same thing with better
-provenance. It is not the same thing. Measured, not estimated:
-
-| Artifact | JS | wasm | Real WebAssembly? | Zipped total |
-|---|---|---|---|---|
-| vendored (Andrew's build) | 50,636 | 117,508, separate file | **yes** | **110,601** |
-| npm 1.4.3 | 24,714 | 1,501,929, separate file | yes | 1,352,606 |
-| npm 2.1.0 - 2.1.2 | 2,016,428, wasm inlined | none | **no** | 1,470,718 |
-
-`@alexanderolsen/libsamplerate-js` has shipped **no WebAssembly at all** since
-2.1.0. The string `WebAssembly` does not appear anywhere in its published
-bundles; what is there is a wasm2js shim whose `instantiate` returns a
-thenable. Upstream's own build script says why:
-
-```sh
--s WASM=0 \        # don't generate a separate .wasm file
--s SINGLE_FILE=1 \ # inline the generated wasm
-```
-
-So migrating to npm would mean shipping **+1.36 MB compressed** - a 32%
-increase on the 4.28 MB AMO zip - to replace working WebAssembly with
-asm.js. That is a worse product in exchange for provenance, and the size lands
-on every user whether or not they ever re-encode anything.
-
-Version 1.4.3 is the last release with real wasm in a separate file, and it is
-no cheaper: its wasm is 1.5 MB and barely compresses, because sinc coefficient
-tables are incompressible float data.
-
-#### The 117 KB is not free, and now we know what it costs
-
-Probing each converter with a full second of audio - rather than merely
-constructing one - shows where the 12x size difference went:
-
-| Converter | Frames out for 48000 in |
-|---|---|
-| `SRC_SINC_MEDIUM_QUALITY` | 44054 |
-| `SRC_SINC_BEST_QUALITY` | **2** |
-| `SRC_SINC_FASTEST` | **2** |
-| `SRC_ZERO_ORDER_HOLD` | 44100 |
-| `SRC_LINEAR` | 44100 |
-
-Two of the five sinc converters construct without error and then emit almost
-nothing, which is what an absent coefficient table looks like from
-JavaScript - and libsamplerate's sinc tables are exactly the megabyte-scale
-static float data missing from this build. Probing them in a different order
-gives the same result, so it is the build and not leaked state between
-instances.
-
-The 46-frame shortfall on the medium converter is different in kind and is not
-a defect: a sinc converter cannot emit the tail it has no future input for.
-`SRC_ZERO_ORDER_HOLD` and `SRC_LINEAR`, which need no lookahead, return 44100
-exactly.
-
-FastStream only ever asks for `SRC_SINC_MEDIUM_QUALITY`, so none of this
-affects the product - but it does mean the vendored wasm is **not**
-interchangeable with a stock build, and swapping it would silently change
-resampling quality. The e2e suite now pins the three that work.
-
-So Andrew's build is not sloppy, it is a deliberate trade: `-O3`, `-g0`, real
-WebAssembly, one converter's tables, and 12x smaller than the published one.
-
-#### What is actually left to do
-
-Only provenance, and it is a narrower problem than it looked. The glue carries
-the machine that produced it:
-
-```js
-var _scriptName = "file:///Users/andrews/Desktop/fs/libsamplerate-js/src/glue.js";
-```
-
-Mozilla's requirement for compiled code is source plus build instructions, and
-those instructions are now known: upstream's `scripts/build_emscripten.sh`
-with `WASM=0` changed to `WASM=1` and `SINGLE_FILE=1` to `SINGLE_FILE=0`,
-against `libsamplerate.a` from `scripts/library/build_library.sh`. The
-remaining work is to pin an emscripten version, run that build, and ship a
-`verify:libsamplerate` that reproduces the artifact and compares hashes - the
-same shape as `verify:vtt`, which is already how vtt.js is handled.
-
-#### Reproduced, with an honest limit on what that proves
-
-`tools/reproduce-libsamplerate-wasm.sh` does exactly that: fetches the
-wrapper unmodified from `aolsenjazz/libsamplerate-js` (confirmed unchanged
-since commit `581aac655d`, 2021-01-13 - checked via that path's own commit
-history, not assumed), builds `libsamplerate` 0.2.2 with `emconfigure`, and
-compiles the two with `em++` using upstream's own flags minus the two that
-turn off WebAssembly.
-
-libsamplerate 0.2.2 is a choice, not a certainty: it was published 2021-09-05,
-four days before npm 1.4.3 - the last release with a real, separate wasm -
-went out on 2021-09-09. That is the reasoning; there is nothing to check it
-against, because `lib/libsamplerate.a` was committed as a **prebuilt binary
-in that repository's very first commit** (`d5e77f2720`, 2021-01-12), with no
-source and no build script anywhere in its history. That was confirmed by
-walking the commit history of that exact path, the same way the mp4box bisect
-was - there is nothing left to bisect here. This is the same shape of problem
-the whole file started from, one level down: not "who modified this," but
-"nobody ever recorded how this was built," and libsamplerate-js's own history
-proves it, rather than assuming it.
-
-So this script cannot claim byte-identity, and does not. What it produces is
-run through the exact numeric check `modules.e2e.mjs` runs on the shipped
-module - a 440 Hz sine, 48000 -> 44100 - and the result for
-`SRC_SINC_MEDIUM_QUALITY`, the only converter the product uses, is:
-
-| | shipped | rebuilt (0.2.2) | rebuilt (0.2.0, control) |
-|---|---|---|---|
-| length | 44054 | 44054 | 44054 |
-| peak | 1.0000001192092896 | 1.0000001192092896 | 1.0000001192092896 |
-| rms | 0.7070750381175818 | 0.7070750381175818 | 0.7070750381175818 |
-
-Exact agreement on all three figures - but the 0.2.0 control matches too,
-which means this particular signal is not sensitive enough to tell
-libsamplerate versions apart on its own. What it does establish is narrower
-and still real: the published wrapper, compiled with documented flags against
-a real release of the library it wraps, reproduces the shipped module's
-behaviour on the one converter FastStream calls. The version pin stays a
-documented inference, not a proven match, and the difference between those
-two claims is written down here rather than blurred.
-
-One thing the rebuild does that the shipped file does not: **every converter
-works.** The shipped wasm returns 2 frames - not reduced quality, no usable
-output at all - for `SRC_SINC_BEST_QUALITY` and `SRC_SINC_FASTEST`; the
-rebuild returns correct audio for both, alongside the same match on the other
-three. FastStream never asks for either, so this is not a product bug, but it
-is a genuine defect in the shipped binary that a full rebuild does not carry.
-
-The script needs a real toolchain - emsdk plus autotools - so it is
-documentation to run by hand, not a `pnpm run` target.
+The resampler fed the re-encoder's AAC encoder and went with it on 2026-09-30 (see
+Mediabunny above). Its story (a wasm filename that never matched, so it had never
+worked in any build; `tools/reproduce-libsamplerate-wasm.sh`, which rebuilt it from
+upstream source) is in git history before that date.
 
 ### The VAD blobs: the model is published, the runtime is stock
 
@@ -835,59 +680,13 @@ document), which is a weaker guarantee resting on browsers not fetching
 resources for a detached document rather than on what the parser is
 spec-required to produce. Left as upstream ships it.
 
-### webm.mjs is generated from jswebm's published sources
+### webm.mjs: removed
 
-`reencoder/webm.mjs` was readable `class Track { ... }` source ending in
-`window.JsWebm = JsWebm;`, whereas jswebm's npm package ships a minified
-webpack bundle in `dist/`. So the vendored file was jswebm's `src/` directory
-concatenated into one ES module - the same shape as mp4box 0.5.3.
-
-That turned out to be good news, because jswebm publishes `src/` in the npm
-tarball alongside the bundle. Comparing declaration by declaration with
-`tools/compare-decls.mjs` settled it immediately: **30 of the 35 top-level
-declarations were already byte-for-byte identical** to jswebm@0.1.2's sources
-once eslint's autofixes were normalised away. Nothing about that is a
-judgement call - either a declaration parses to the same tree or it does not.
-
-So webm.mjs is now generated, on the same model as hls.js: the npm tarball
-plus `patches/jswebm@0.1.2.patch`. Five changes are FastStream's, and a
-reviewer reads them in the patch instead of taking a 104 KB file on trust:
-
-| Change | Where | Why it matters |
-|---|---|---|
-| `MasteringData` and `Colour` classes added | `Track.js` | parses Matroska colour metadata, which upstream skips over |
-| `case 0x55B0` builds a `Colour` | `VideoTrack.js` | upstream read the element as an integer and discarded it |
-| `initVp8Headers` / `initVp9Headers` added | `JsWebm.js` | derives a full `vp09.00.10.08…` codec string; WebCodecs rejects a bare `vp9` |
-| the three Vorbis setup headers are not pushed as packets | `JsWebm.js` | FastStream hands `codecPrivate` to WebCodecs itself |
-| `demux()` returns whether it advanced | `JsWebm.js` | `WebMDemuxer.process()` is `while (this.demuxer.demux())` |
-| `keyframe` → `keyFrame`, track looked up by number, frame length validated, `isKeyframe` on audio packets | `SimpleBlock.js` | upstream *writes* `this.keyframe` and *reads* `this.keyFrame`, so every chunk was `delta` |
-
-The last two rows are upstream bugs rather than product changes, which is
-worth saying plainly: this is a maintained fork, not a mangled copy.
-
-After the migration all 35 declarations match. The generated file additionally
-contains upstream's `UNSET` constant, which the hand-made concatenation had
-dropped; it appears exactly once in the file - its own declaration - so it is
-dead code, and keeping upstream's own line is preferable to inventing a rule
-that deletes it.
-
-One cost worth stating: jswebm lists `@babel/preset-env`, `lodash`,
-`circular-json` and `eslint-utils` as *runtime* dependencies rather than dev
-ones, which is a packaging mistake on its author's part and pulls about a
-hundred packages into the dev tree. None of it ships - the build reads
-`node_modules/jswebm/src/*.js` as text and nothing ever imports the package -
-and the lockfile still passes the supply-chain check. It is a slower install
-in exchange for a hash-verified base, which is the right way round.
-
-`src/Chapters.js` and `src/Queue.js` stay out: the vendored file never
-included them and nothing references them.
-
-**Tested, not assumed.** `tests/e2e/specs/modules.e2e.mjs` demuxes a real VP9
-file through `WebMDemuxer` and asserts the codec string, the dimensions, the
-chunk count and that at least one chunk is a keyframe - which covers every
-row of the table above. Removing `demux()`'s return makes it fail, verified
-by doing exactly that. The fixture is transcoded from the MP4 one with ffmpeg
-on first run, so no binary enters the repository.
+`webm.mjs` was generated from jswebm 0.1.2's published `src/` plus a 23 KB patch, for
+the re-encoder's WebM demuxer. The remuxer reads WebM with Mediabunny, so jswebm,
+`patches/jswebm@0.1.2.patch` and its sync-vendor entry went on 2026-09-30. It also
+took `@babel/preset-env` and `lodash` out of the lockfile, which jswebm listed as
+dependencies.
 
 ### coloris: generated from a pinned commit, with an 11 KB patch
 
@@ -1085,6 +884,20 @@ Firefox and Chromium/Edge (confirms `parent` resolves to `.mainplayer`,
 swatches render, hue slider positions correctly), plus the full extension
 e2e suite (8 spec files) on Firefox.
 
+### sweetalert.css follows the script since 2026-09-30
+
+The dialogs' stylesheet was a copy of 11.12.4's, from 2024, while the script followed npm.
+Compared rule by rule (whitespace aside), that copy was 11.12.4's `dist/sweetalert2.css`
+exactly, plus four changes of upstream FastStream's: the `body.swal2-*` rules without the
+`body` (the dialogs render in the player's container, which sweetalert2 marks instead of
+`<body>`), no `swal2-height-auto` rule (on the container it collapses the player to
+height 0), a `min-width: 32em` in place of the popup's fixed width, a toast exempt from
+it, and `.error-popup-stack`. `tools/sync-vendor.mjs` now makes the file from the npm one
+(`toSweetAlertCss`) with the last three in `tools/sweetalert-overrides.css`, and
+`dialogs.e2e.mjs` checks what they do. Screenshots of every dialog kind before and after
+matched: the same sizes and places, and pixels apart only in the warning icon's ring
+(at most 16 of 255 in brightness).
+
 ### sweetalert2 ships a payload that must stay removed
 
 Worth stating plainly, because taking the npm file naively would have
@@ -1263,7 +1076,7 @@ two still needed porting:
 |---|---|
 | `writeHeader` writes a uuid box's hex-string `uuid` as 16 bytes | **landed upstream** - 2.x's `Box.writeHeader` does exactly that |
 | `flattenItemInfo` without the idat offset for `construction_method` 1 | **upstream's own code, not a fork change** - it is, whitespace aside, mp4box's source as of `6ebcc41` (2023-10-26), the commit before `a6ff3ce` added that offset. It differs from both releases because Andrew's copy was built between them, like dash.js's. 2.4.1's is taken; FastStream reads no image items |
-| `samples_stored`: `buildTrakSampleLists` starts it, `getSample` records each sample whose data it loads | **ported** - `MP4Player.freeSamples` and the re-encoder's `MP4Demuxer` release exactly those |
+| `samples_stored`: `buildTrakSampleLists` starts it, `getSample` records each sample whose data it loads | **ported** - `MP4Player.freeSamples` releases exactly those (so did the re-encoder's `MP4Demuxer`, removed 2026-09-30) |
 | `getSampleList(moof, trexList)` | **ported**, same logic; the chunk inlines most flag constants as numbers, so the port does too. `mp4merger.mjs` reads every fragment of a DASH or fMP4 HLS save with it |
 
 So `patches/mp4box@2.4.1.patch` is 5 KB against 37 KB, all of it additions to
@@ -1286,8 +1099,8 @@ Checked by: ESLint's `no-undef`/`no-unused-vars` over the stock and the patched
 chunk (nothing either way); `plays MP4 (mp4box)` for `MP4Player`; the DASH and
 fMP4 HLS saves in `save-video.e2e.mjs` and `save-fmp4.e2e.mjs` for
 `mp4merger.mjs`; and a new test in `modules.e2e.mjs` for the re-encoder's
-`MP4Demuxer`, which no test ran before and which reads the most of mp4box's
-API. Each was mutation-checked: without the `samples_stored` push the demuxer
+`MP4Demuxer` (removed with it on 2026-09-30), which no test ran before and which read
+the most of mp4box's API. Each was mutation-checked: without the `samples_stored` push the demuxer
 test fails, with the default combined `initializeSegmentation()` MP4 playback
 fails, and with an empty `getSampleList()` every DASH and fMP4 save fails.
 

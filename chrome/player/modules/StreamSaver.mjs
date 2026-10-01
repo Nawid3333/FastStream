@@ -82,18 +82,18 @@ function createOPFSSink(filename, blobManager) {
       await opfs.saveEnd(identifier);
       const file = await opfs.getSavedFile(identifier);
       const url = URL.createObjectURL(file);
+      let download;
       try {
-        await Utils.downloadURL(url, filename);
+        download = await Utils.downloadURL(url, filename);
       } catch (e) {
         URL.revokeObjectURL(url);
         throw e;
       }
-      // chrome.downloads resolves once the transfer STARTS; the OPFS file
-      // (not the blob URL) backs the rest of the transfer. Defer closing
-      // the worker the same way mp4merger.mjs's destroy() does, so a slow
-      // transfer still has time to finish reading from the OPFS-backed
-      // file before its session is torn down.
-      URL.revokeObjectURL(url);
+      // chrome.downloads resolves before Firefox has read the blob URL: kept until the
+      // download is over (revokeWhenDownloaded). Defer closing the worker the same way
+      // mp4merger.mjs's destroy() does, so a slow transfer still has time to finish
+      // reading from the OPFS-backed file before its session is torn down.
+      Utils.revokeWhenDownloaded(url, download);
       setTimeout(() => {
         blobManager.close();
       }, 120000);
@@ -124,8 +124,7 @@ function createMemorySink(filename, blobManager) {
       const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
       const blob = new Blob(chunks, {type: 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
-      await Utils.downloadURL(url, filename);
-      URL.revokeObjectURL(url);
+      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, filename));
 
       setTimeout(() => {
         blobManager.close();

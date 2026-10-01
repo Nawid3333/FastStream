@@ -653,9 +653,9 @@ describe('mpv frame step', function() {
     });
   });
 
-  // Plays the video element and does not wait on the promise, as every other spec does:
-  // window.fastStream.play() also waits for its AudioContext to resume, which on the Linux
-  // CI runner (no sound device) never settled, so awaiting it hung the test.
+  // Plays the video element and does not wait on the promise: the steps below wait for the
+  // frames themselves. (window.fastStream.play() once waited for its AudioContext, which on
+  // the Linux CI runner, with no sound device, never started, and hung the test.)
   const startPlayback = () => browser.execute(() => {
     window.fastStream.player.getVideo().play().catch(() => {});
   });

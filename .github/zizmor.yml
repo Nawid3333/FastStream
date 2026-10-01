@@ -1,0 +1,32 @@
+# zizmor (ci.yml's "Lint workflows" job) checks the workflows for security mistakes. What it
+# flags and this repository keeps, and why:
+rules:
+  # workflow_run starts these with the repository's token after another workflow's run. Both
+  # act only on runs of this repository (auto-release.yml checks the run's repository, branch
+  # and event; update-prs.yml checks each pull request's author, commits and files before it
+  # merges one), and neither checks out or runs code from a fork.
+  dangerous-triggers:
+    ignore:
+      - auto-release.yml
+      - update-prs.yml
+  # github.actor == 'github-actions[bot]' can be true for a run whose commits someone else
+  # made. Here it only decides whether a run hands over to update-prs.yml (ci.yml), which
+  # checks everything again, or whether a failure is reported (auto-release.yml).
+  bot-conditions:
+    ignore:
+      - ci.yml
+      - auto-release.yml
+  # The value is the path of the Firefox the action itself set up, not text from a page,
+  # a pull request or an issue.
+  github-env:
+    ignore:
+      - action.yml
+  # Dependabot proposes a release once it is 5 days old (see the header of dependabot.yml);
+  # zizmor's default asks for 7.
+  dependabot-cooldown:
+    config:
+      days: 5
+  # `uses: $/...` for an action in this repository: actionlint, which checks every workflow
+  # here, does not accept it yet. `./...` means the same.
+  self-repository:
+    disable: true

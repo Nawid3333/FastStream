@@ -10,11 +10,14 @@
 # decision rather than routine.
 #
 # What happens to each PR once CI has run is update-prs.yml's job: a red one is
-# reported to the owner, a green one merged when it is routine - minor or patch,
-# package.json and pnpm-lock.yaml only, and the built extension identical to the
-# latest release, so nothing reaches Firefox - and otherwise handed to the owner.
-# The libraries the extension ships (tools/sync-vendor.mjs copies them into it)
-# are grouped apart for that reason, so a tooling update is not held back by one.
+# reported to the owner, and a green one merged when it is minor or patch, changes only
+# package.json and pnpm-lock.yaml, and adds no package version under 7 days old. A tooling
+# update must also leave the built extension identical to the latest release, so it
+# releases nothing. The libraries the extension ships (tools/sync-vendor.mjs copies them
+# into it) are grouped apart, in shipped-minor-and-patch: that PR merges too, and CI then
+# runs on main; a green run there releases it, a red one releases nothing and opens an
+# issue for the owner. update-prs.yml tells that group by its branch, which Dependabot
+# names after it: a rename here must be made there too. Majors wait for the owner.
 #
 # cooldown: a release is proposed once it is 5 days old. A package taken over to
 # publish malware is usually caught and pulled within days, and routine PRs now
@@ -60,7 +63,6 @@ updates:
       - dependency-name: 'dashjs'
       - dependency-name: 'gif.js'
       - dependency-name: 'hls.js'
-      - dependency-name: 'jswebm'
       - dependency-name: 'mp4box'
       - dependency-name: 'sweetalert2'
 
@@ -106,13 +108,16 @@ updates:
       actions-minor-and-patch:
         update-types: ['minor', 'patch']
 
-  # The actionlint image that ci.yml's workflows job runs and the WSL verify takes
-  # actionlint and shellcheck from. Its tag and digest are in .github/actionlint/Dockerfile,
-  # because Dependabot does not update a docker:// line in a workflow. A new version, or
-  # a new digest for the same tag, waits for the owner in update-prs.yml: it changes the
-  # check every workflow file has to pass, and CI's checks are reviewed by a person.
+  # The actionlint and zizmor images that ci.yml's workflows job runs (the WSL verify takes
+  # actionlint and shellcheck from the first). Their tags and digests are in
+  # .github/actionlint/Dockerfile and .github/zizmor/Dockerfile, because Dependabot does not
+  # update a docker:// line in a workflow. A new version, or a new digest for the same tag,
+  # waits for the owner in update-prs.yml: it changes a check every workflow file has to
+  # pass, and CI's checks are reviewed by a person.
   - package-ecosystem: 'docker'
-    directory: '/.github/actionlint'
+    directories:
+      - '/.github/actionlint'
+      - '/.github/zizmor'
     schedule:
       interval: 'weekly'
     cooldown:

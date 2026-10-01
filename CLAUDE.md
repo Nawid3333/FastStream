@@ -222,6 +222,27 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 
 ## Architecture facts that are easy to get wrong
 
+- **Measured cheap, so left alone (2026-10-01, PF1-PF4).** In the e2e Firefox, on the
+  Guardian, BBC, Spiegel and CNN front pages (20 s each):
+  - **PF1:** the webRequest listeners ran 49-115 times per page, about 1-6 ms of handler
+    time in all. A `types` filter would drop 65-85% of the calls (script, image,
+    imageset, font, stylesheet, beacon) but saves no measurable time; not worth risking
+    a stream of a type nobody thought of.
+  - **PF2:** overlay-guard.js's check took 1.3 ms a second on a 1,500-element page,
+    2.3 ms on 5,000, 9.5 ms on 20,000 and 23 ms on 50,000; dropping its per-element
+    array spread saved only 5-25%.
+  - **PF3:** content.js sends 3 messages per frame per page load, 9-12 on those pages.
+  - **PF4:** `querySelectorAllIncludingShadows` took 0.2-3 ms per call, and one-walk
+    rewrites were no faster. What it did have was a bug (searching an element's own
+    shadow root), fixed and tested in content-cleanup.e2e.mjs.
+
+- **`play()` does not wait for the audio (2026-10-01).** With no sound device (CI's Linux
+  runner) the player's AudioContext stays suspended and `resume()` never settles; `play()`
+  waited for it, so it never finished, and autoplay's `autoPlayTriggered` was never set.
+  `startAudio()` now starts the context once, without waiting, and starts the background
+  analyzer when the audio runs (client-setup.e2e.mjs fakes the never-settling resume).
+  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`.
+
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.
@@ -410,6 +431,15 @@ What that fix put in place, and the invariants to keep:
   `StreamSaver.mjs` picks its sink on first write via `ready()` for exactly
   this reason, and `mp4merger.mjs`'s `finalize()` falls back to Blob
   accumulation if its OPFS writes throw.
+- **A download's `blob:` URL must outlive the download** (2026-10-01).
+  `downloads.download()` resolves before Firefox has read the URL: revoked at once, 8 of
+  60 small downloads were interrupted (`CRASH`) with no file and no message - a subtitle
+  saved from the menu, the end of a StreamSaver save. Pass what `Utils.downloadURL`
+  resolved with to `Utils.revokeWhenDownloaded(url, download)`, which revokes once
+  `downloads.onChanged` says the download is over (a minute without an id). A link click
+  (`<a download>`) reads the blob at once: 40 of 40 survived a revoke right after it.
+  `ext-specs/download-blob-lifetime.e2e.mjs`; found through download-names' CI flake, whose
+  test page closed with its blob before Firefox read it.
 - `OPFSManager.isSupported()` additionally refuses up front when
   `EnvUtils.isIncognito()`, purely to avoid spawning
   a worker and logging a `SecurityError` per player open. It is not the
@@ -878,10 +908,12 @@ default `GITHUB_TOKEN`, and GitHub deliberately does not let a
 tag landed with no Release run behind it, before this dispatch step
 existed.
 
-The bump commit is itself a push to the branch, which reruns CI, which
-would re-trigger `auto-release.yml` — the workflow's `if:` skips any
-`workflow_run` whose head commit message starts with `chore: release `,
-which is what stops that loop rather than looping forever.
+The bump commit is pushed with `GITHUB_TOKEN` like the tag, so it starts no
+CI run: the release commit itself is never CI-tested (it changes only the
+version; release commit `598c2d6a` has no CI run). Should CI run on it anyway,
+by a dispatch or a re-run, the workflow's `if:` skips any `workflow_run` whose
+head commit message starts with `chore: release `, so a release never
+releases itself.
 
 **Only when something shipped changed** (2026-09-25). Before bumping,
 auto-release downloads CI's build of the commit (the `faststream-bundles`
@@ -1066,10 +1098,10 @@ the change went in.
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
   updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
-  (fuse.js, pako, sortablejs - the unpatched libraries `tools/sync-vendor.mjs` copies
-  into the extension) and `tooling-minor-and-patch` (everything else), so a tooling
-  update is not held back by a shipped one; `update-prs.yml` merges the green
-  tooling PR, a shipped one waits for the owner.
+  (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs - the unpatched libraries
+  `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
+  (everything else), so a tooling update is not held back by a shipped one;
+  `update-prs.yml` merges both when green (the shipped one then releases, see below).
 - **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
@@ -1081,24 +1113,34 @@ the change went in.
   to start it, this run decides. Still red, one comment @mentions the owner with a
   table of failed job, step and what the step checks, the last 40 lines of each failed
   log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
-  Dependabot npm minor/patch PR or the toolchain pnpm same-major PR is merged, and
+  Dependabot npm minor/patch PR, the toolchain pnpm same-major PR or a patched library's
+  minor/patch PR (`patched/<name>-<version>` against the version main's `package.json`
+  holds; a version it cannot compare waits) is merged, and none labelled `hold` (the
+  owner's "not yet", since #67 was merged while on hold), and
   only when that bot opened it (not a draft, against `main`) and its commits are the
   bot's or this workflow's merges of `main`, only `package.json` and
   `pnpm-lock.yaml` change (for pnpm: only `packageManager`, to the branch's version,
-  against the merge base; the lockfile untouched), there is no major, Dependabot's dependency review passed,
+  against the merge base; the lockfile untouched; for a patched library also
+  `pnpm-workspace.yaml`, `patches/` and `tools/sync-vendor.mjs`, what its re-cut
+  commits), there is no major, the dependency review passed,
   it is mergeable, it contains the newest `main` (otherwise GitHub's update-branch
-  runs, CI restarts and that run decides, at most 3 times), and CI's build of the
+  runs, CI restarts and that run decides, at most 3 times), and, for an update that
+  must not ship (all but the shipped group and patched libraries), CI's build of the
   extension (the `faststream-bundles` artifact, firefox-github zip) is file-for-file
   identical to the latest release's zip apart from `manifest.json`'s version -
-  `auto-release.yml`'s own test, so such a merge releases nothing and nothing reaches
-  Firefox untested by the owner. Every other green PR (Node, pnpm major, GitHub
-  Actions updates, patched libraries, the upstream sync, a Dependabot update of a
-  shipped library or of a major) gets one comment @mentioning the owner - CI is
+  `auto-release.yml`'s own test, so such a merge releases nothing. After a merge that
+  ships (the owner's choice, 2026-09-30: shipped and patched libraries' minor and patch
+  merge themselves), it starts CI on `main` by dispatch (its own merge starts none) and
+  hands the run to its `watch-main` job: `ci.yml`'s release-hand-off gives a green run
+  to `auto-release.yml`, which releases; a red one releases nothing, nothing is
+  reverted, and watch-main opens "CI failed on main after an update merged itself"
+  (assigned, @mention; a comment while it is open). Every other green PR (Node, pnpm
+  major, GitHub Actions updates, the upstream sync, a major of any library) gets one
+  comment @mentioning the owner - CI is
   green, and why it waits - and is assigned to them. A comment with the same verdict
   as the last one is edited in place, so it sends no new mail: the owner hears when a
   verdict changes. The merge is made with `GITHUB_TOKEN`, which starts no workflow:
-  no CI on `main`, no release - fine, because the merged tree is exactly the tested
-  one and nothing shipped changed. The "behind main" check is the last call before the
+  no CI on `main` and no release by itself (for an update that ships, see above). The "behind main" check is the last call before the
   merge; if another merge still lands in between (two update PRs decided at once), the
   squash commit's parent is not the checked `main`, and the merged comment @mentions
   the owner that `main` holds an untested combination. A merge or branch update refused
@@ -1106,8 +1148,7 @@ the change went in.
   is no failure: the new commit's CI run decides, or there is nothing to decide. A
   cancelled or skipped CI run decides nothing. The waiting comment keeps one key while
   it waits, so a changed reason edits it without a new email. A merged branch is
-  deleted. Only updates that ship nothing merge themselves (the
-  owner's choice, 2026-09-29): a Node major is a PR the owner merges; `main`'s ruleset
+  deleted. A Node major is a PR the owner merges; `main`'s ruleset
   blocks force-pushes and deletion only, no required checks, so direct pushes and
   `mpv-updates.yml`'s pin commits keep working. If `update-prs.yml` itself fails, it
   opens one issue "Update PRs workflow failed" (the decide step has its own
@@ -1196,11 +1237,39 @@ the change went in.
   `specFileRetries: 1` - a failed spec file runs once more in a fresh browser: after the two
   bugs above were fixed, 3 x 12 parallel Windows runs showed only rare timing-budget
   overruns (a 6 s streamSaver write, a 30 s player start) with nothing pending. A real bug
-  fails twice and still blocks the release.
+  fails twice and still blocks the release. Since 2026-10-01 a retry leaves a trace
+  (W5): each config's `onWorkerEnd` is `recordRetriedSpecs` (`tests/e2e/retriedSpecs.mjs`),
+  which appends a spec file that was run again to `logs/retried.jsonl`; ci.yml lists them
+  in the run's summary with a warning for each that passed only on its retry
+  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried`/`e2e-retried-windows`
+  (14 days), and uploads `e2e-logs` for such a green job too, so the failed attempt's driver
+  log is there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
+- **e2e harness, 2026-10-01 (F1, F4-F6):** a config's `before` hook runs its setup
+  through `guardSetup` (`tests/e2e/setupGuard.mjs`): WebdriverIO only logs a hook's
+  error, so a failed add-on install let every spec run without the extension (a probe
+  test passed that way); now the mocha root hook fails each test with the setup's reason.
+  Each spec file's attempt starts with an empty `.e2e-downloads` (a retry's save went to
+  `name(1).png` and the spec read the first attempt's file). download-names keeps its
+  extension page open until Firefox reports the download `complete`: closed at once, the
+  page took its blob with it before Firefox read it, the CI flake. Single-file fixtures are
+  written under `.partial` and renamed (`writeFixture`); the extension config fetches
+  `sample.mp4` itself (`mp4Fixture.mjs`), so `pnpm run test:ext` works on a fresh clone.
+  Both test servers answer a bad `%` escape with 400, end a response whose read fails, and
+  read `bytes=-N` as the last N bytes (`serveFile.mjs`). A retried test's screenshot is
+  numbered, not written over the first attempt's.
 - **e2e test cap, 2026-09-30:** mocha stops a test at 120 s (the live suite at 300 s), and a
   test's own `this.timeout()` did not lift that under WebdriverIO. For a long local run (a
   timing sweep, a loop waiting for a rare race) set `E2E_TEST_TIMEOUT_MS`
   (`tests/e2e/testTimeout.mjs`); CI keeps the caps, so a hang there still ends the test.
+- **The extension's console in the driver logs, 2026-10-01 (W6):** background.mjs's debug
+  lines (`if (Logging)`) are on for a temporary install (`management.getSelf()` says
+  `development`: the e2e suites' `installAddOn(xpi, true)`, `web-ext run`, about:debugging)
+  and off for an installed release. The extension suites set
+  `devtools.console.stdout.content`, so the background's and the player's console go to
+  Firefox's stdout and into each spec's `geckodriver-<suite>-<spec>-<worker>-attempt<N>.log`
+  (`e2e-logs` artifact on CI): grep `console.log:` for what the background detected
+  (`Found source`), opened, and sent to mpv. About 13 KB per spec.
+  `ext-specs/background-log.e2e.mjs` fails without either half.
 - **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
   step), the specs listed in `tests/e2e/mozLog.mjs` run with `MOZ_LOG` (cache2 and nsHttp),
   and an attempt with a failed test keeps its log under `logs-moz/`, uploaded as
@@ -1231,7 +1300,7 @@ the change went in.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
-  libsamplerate, StreamSaver): measured 2026-09-25, OSV has
+  StreamSaver): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are
   covered by the provenance checks instead. The lockfile-backed libraries are covered by
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3);
@@ -1252,6 +1321,13 @@ the change went in.
   <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
+- **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
+  (`e2e-retried` and `e2e-retried-windows` artifacts, all branches, the last 7 days) in one
+  issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was
+  run again, how often its retry passed, suites, branches and runs. It finds the artifacts
+  through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
+  next week's issue closes it, and so does a week with no retry. Permissions: `actions:
+  read`, `issues: write`; no checkout. Tested by `tests/workflows/flaky-specs.test.sh`.
 - **`security-alerts.yml`** (daily, 06:30 UTC; and on a push to `main` that changes a
   lockfile, closing only), 2026-09-30: Dependabot could not make the security fix for
   brace-expansion (three majors in the lockfile), its failed run emailed no one, and 12
@@ -1270,6 +1346,20 @@ the change went in.
   it; the real gh uses gojq, built in, and the filters avoid the one difference found
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
   swapped in too.
+- **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
+  other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
+  half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the
+  model replaced and TAG/SHA256 moved in `tools/verify-vad.mjs`, and CI dispatched on it
+  (the reference e2e decides); update-prs.yml leaves `vendored/` branches to the owner. A
+  model missing at its path gets an issue, "Silero VAD <tag>: the model file moved".
+  **vtt.js:** a dash.js release that changes `contrib/videojs-vtt.js/vtt.js` gets an issue,
+  "vtt.js changed in dash.js <tag>", with the changed-line count and a compare link: a
+  person moves `tools/verify-vtt.mjs`'s tag and re-runs `verify:vtt`. Each item is assigned
+  + @mention, is never raised twice (closing it skips that release), closes itself once its
+  pin reaches its tag, and a newer release's item closes older ones. On 2026-10-01 both
+  were current in effect: silero-vad v6.2.3 and dash.js v5.2.1 publish the same bytes as
+  the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
+  (real git pushing to a local bare origin), and 7 undone rules each fail it.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
   `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so
@@ -1327,6 +1417,13 @@ the change went in.
   tsconfig; they stall the language server otherwise. Those two and a dozen more are
   copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
   a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
+- **Property tests for what a page feeds in** (2026-10-01, T8): `tests/unit/*.property.test.mjs`
+  run fast-check against SubtitleUtils (SRT/VTT/XML), StreamLength (m3u8/mpd), URLUtils,
+  DownloadFilename and the host's `readMessage`: no throw on arbitrary text, round trips,
+  and models (an HLS length is the sum of its finite positive EXTINFs). Random text rarely
+  hits the cases that matter, so each rule has a targeted generator too (device names,
+  emoji at the 200-character cut, broken EXTINF values); 7 broken rules were each caught.
+  A failure prints its seed and shrunk input: reproduce with `fc.assert(..., {seed})`.
 - **`build.mjs` rewrites `chrome/manifest.json` in place** on every run to
   sync the version from `package.json`. The tree is dirty after each build.
   Don't sweep it into an unrelated commit.
@@ -1405,8 +1502,7 @@ they belong in the Phase 7 npm migration rather than being removed:
 |---|---|---|
 | `vad/ort.wasm.mjs` + `ort-wasm-simd-threaded.mjs` + `ort-wasm-simd-threaded.wasm` | **ONNX Runtime Web 1.30.0**, Microsoft, MIT | `onnxruntime-web@1.30.0` |
 | `vad/silero_vad_half.onnx` | Silero VAD model, `.onnx`, MIT | published model, silero-vad tag v6.2.1 |
-| `reencoder/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
-| `reencoder/libsamplerate.wasm` + `.mjs` | `aolsenjazz/libsamplerate-js`, MIT | `@alexanderolsen/libsamplerate-js` |
+| `remux/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
 
 `vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carried the comment
 "Minified to reduce loading time (https://minify-js.com/)"** — Andrew
@@ -1421,14 +1517,19 @@ audio analyzer runs.
 ## Type checking
 
 `tsconfig.json` type checks without emitting. `checkJs` is off; files opt in
-with `// @ts-check` on line 1. `pnpm run typecheck` is gated in CI, so the
-opted-in set is a ratchet.
+with `// @ts-check` on line 1 (line 2 after a shebang). `pnpm run typecheck` is
+gated in CI, and `tests/unit/typeChecked.test.mjs` lists the opted-in files: taking
+the comment out of one, or opting one in without listing it, fails it (T5's ratchet).
 
-Opted in: `BackgroundUtils`, `MultiRegexMatcher`,
-`TabTracker`. Not yet: `background.mjs` (23 errors),
-`NetRequestRuleManager` (1) — mostly nullability and API-shape issues
-in the header-spoofing and download paths, where a wrong guard causes silent
-403s. Fix those only with the playback checklist to hand.
+Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
+`NetRequestRuleManager` (1 error), `StreamLength`, and the mpv host
+(`native-host/faststream-mpv-host.mjs`). The types are Chrome's (`@types/chrome`,
+which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
+and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
+(`cookieStoreId`, `originUrl`). background.mjs's own fixes were JSDoc, a few
+`undefined` checks that return what the code returned before (through a throw), and
+one guard: a message from a page outside any tab is no longer handled as a tab's. The
+player's files are next; fix what tsc reports only with the playback suites to hand.
 
 `types/messages.d.ts` describes the cross-context message contracts. Add a
 message only after reading its real payload; an inaccurate type is worse

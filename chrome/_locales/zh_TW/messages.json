@@ -524,9 +524,6 @@
     "player_savevideo_incognito_confirm": {
         "message": "無痕模式會使用記憶體緩衝影片。你的電腦可能沒有足夠的記憶體來儲存整段影片！\n確定要繼續嗎？"
     },
-    "player_savevideo_reencode": {
-        "message": "儲存將需要重新編碼，可能會耗費較長時間。要繼續嗎？"
-    },
     "player_savevideo_cancelling": {
         "message": "正在取消儲存..."
     },
