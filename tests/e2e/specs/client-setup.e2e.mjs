@@ -257,4 +257,192 @@ describe('FastStreamClient setup', function() {
     console.log('      currentTime:', currentTime);
     expect(currentTime).toBeGreaterThanOrEqual(3.9);
   });
+
+  it('gives the next video a seek preview when the one before changed while its preview built', async function() {
+    // A preview build that turning previews on started (not the setup of a source, which
+    // the next source waits for) was still running when the next video came. That video
+    // joined it; the build then threw its preview away (its source was gone), and the next
+    // video had none.
+    await openEmptyPlayer();
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.options.previewEnabled = false;
+      const loader = client.playerLoader;
+      const createPlayer = loader.createPlayer.bind(loader);
+      // Each build is held until the case lets it go.
+      window.releasePreview = [];
+      loader.createPlayer = async (mode, client, options) => {
+        if (options?.isPreview) {
+          await new Promise((resolve) => window.releasePreview.push(resolve));
+        }
+        return createPlayer(mode, client, options);
+      };
+      const buildPreviewPlayer = client.buildPreviewPlayer.bind(client);
+      window.previewBuilds = [];
+      client.buildPreviewPlayer = () => {
+        const build = {done: false};
+        window.previewBuilds.push(build);
+        return buildPreviewPlayer().finally(() => build.done = true);
+      };
+    });
+    await addSource(`${mp4Url()}?first`);
+    await waitForPicture();
+    // What setOptions() does when previews are turned on.
+    await browser.execute(() => {
+      window.fastStream.options.previewEnabled = true;
+      window.fastStream.setupPreviewPlayer();
+    });
+    await browser.waitUntil(async () => browser.execute(() => window.releasePreview.length === 1),
+        {timeout: 10000, timeoutMsg: 'the first video never started its preview'});
+    await addSource(`${mp4Url()}?second`);
+    await browser.waitUntil(async () => browser.execute(() => window.releasePreview.length === 2),
+        {timeout: 30000, timeoutMsg: 'the second video never started its preview'});
+
+    // The first build ends (and throws its preview away) while the second is still held: a
+    // caller then joins the second, rather than starting a third.
+    await browser.execute(() => window.releasePreview[0]());
+    await browser.waitUntil(async () => browser.execute(() => window.previewBuilds[0].done),
+        {timeout: 10000, timeoutMsg: 'the first preview build never ended'});
+    await browser.execute(() => {
+      window.fastStream.setupPreviewPlayer();
+      window.releasePreview[1]();
+    });
+
+    let state;
+    await browser.waitUntil(async () => {
+      state = await browser.execute(() => ({
+        builds: window.previewBuilds.length,
+        preview: window.fastStream.previewPlayer?.getSource()?.url || null,
+      }));
+      return !!state.preview;
+    }, {timeout: 10000, interval: 250}).catch(() => {});
+    console.log('      state:', JSON.stringify(state));
+    expect(state.preview).toContain('?second');
+    expect(state.builds).toBe(2);
+  });
+
+  it('does not reuse the wait for a picture of a source that never had one', async function() {
+    // The next source joined that wait, which listened on the player before it: its own
+    // picture was only noticed by the wait's once-a-second check.
+    await openEmptyPlayer();
+    await browser.execute(() => {
+      const client = window.fastStream;
+      const setupInitHook = client.setupInitHook.bind(client);
+      window.initHooks = 0;
+      client.setupInitHook = () => {
+        window.initHooks++;
+        return setupInitHook();
+      };
+    });
+    await addSource(missingUrl());
+    await browser.pause(1500);
+    await addSource(mp4Url());
+    await waitForPicture();
+
+    const hooks = await browser.execute(() => window.initHooks);
+    expect(hooks).toBe(2);
+  });
+
+  it('shows the video as paused when a pause comes while a play is still starting', async function() {
+    // play() went on after the pause, and showed "playing" over the paused video.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+
+    const state = await browser.executeAsync((done) => {
+      const client = window.fastStream;
+      const player = client.player;
+      const play = player.play.bind(player);
+      player.play = async () => {
+        await play();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      };
+      client.currentVideo.muted = true;
+      const playing = client.play();
+      setTimeout(async () => {
+        await client.pause();
+        await playing;
+        done({paused: client.currentVideo.paused, shown: client.state.playing});
+      }, 100);
+    });
+    console.log('      state:', JSON.stringify(state));
+    expect(state.paused).toBe(true);
+    expect(state.shown).toBe(false);
+  });
+
+  it('shows the video as playing when a play comes while a pause is still going', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+
+    const state = await browser.executeAsync((done) => {
+      const client = window.fastStream;
+      const player = client.player;
+      client.currentVideo.muted = true;
+      // client.play() ends by resuming the audio context, which never settles on CI's
+      // Linux runner (it has no sound device): the case starts the video through the
+      // player, and waits only for the pause, as what it checks is shown before that.
+      player.play().then(() => {
+        const pause = player.pause.bind(player);
+        player.pause = async () => {
+          await pause();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        };
+        const pausing = client.pause();
+        setTimeout(() => {
+          client.play().catch(() => {});
+          pausing.then(() => setTimeout(() => {
+            done({paused: client.currentVideo.paused, shown: client.state.playing});
+          }, 100));
+        }, 100);
+      }, (e) => done({error: String(e)}));
+    });
+    console.log('      state:', JSON.stringify(state));
+    expect(state.paused).toBe(false);
+    expect(state.shown).toBe(true);
+  });
+
+  it('ignores the keys and menus that act on the video while there is none', async function() {
+    // Between two sources there is no player: a key pressed then threw.
+    await openEmptyPlayer();
+    const errors = await browser.executeAsync((done) => {
+      const client = window.fastStream;
+      const errors = [];
+      const attempt = async (name, action) => {
+        try {
+          await action();
+        } catch (e) {
+          errors.push(`${name}: ${e}`);
+        }
+      };
+      (async () => {
+        client.pastSeeks.push(5);
+        client.pastUnseeks.push(5);
+        await attempt('pause', () => client.pause());
+        await attempt('undoSeek', () => client.undoSeek());
+        await attempt('redoSeek', () => client.redoSeek());
+        await attempt('setCurrentVideoLevelID', () => client.setCurrentVideoLevelID('0'));
+        await attempt('setCurrentAudioLevelID', () => client.setCurrentAudioLevelID('0'));
+        done(errors);
+      })();
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it('lets a chapter whose end is before its start run to the next one', async function() {
+    // It was kept, and marked a segment running backwards over the timeline.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+
+    const chapters = await browser.execute(() => {
+      window.fastStream.setChapters([
+        {name: 'Backwards', startTime: 3, endTime: 1},
+        {name: 'Empty', startTime: 5, endTime: 5},
+        {name: 'Next', startTime: 6, endTime: 8},
+      ]);
+      return window.fastStream.chapters.map((c) => [c.name, c.startTime, c.endTime]);
+    });
+    expect(chapters).toEqual([['Backwards', 3, 5], ['Empty', 5, 6], ['Next', 6, 8]]);
+  });
 });

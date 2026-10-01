@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {LevelManager} from '../../chrome/player/players/LevelManager.mjs';
 
 // matchQuality() is the "which resolution actually gets picked" logic - a
@@ -74,5 +74,58 @@ describe('getDesiredVideoHeight', () => {
 
   it('parses an explicit quality setting into a target height', () => {
     expect(getDesiredVideoHeight('1440p')).toBe(1440);
+  });
+});
+
+describe('the preferred language', () => {
+  // Levels are ranked by how well their language matches, then sorted by quality or
+  // bitrate, which threw that rank away: with an en-GB preference, en-US 1080p beat
+  // en-GB 720p. Only the best-matching levels go on to the quality sort.
+  const levels = [
+    {id: 'us-1080', language: 'en-US', height: 1080, bitrate: 8e6},
+    {id: 'gb-720', language: 'en-GB', height: 720, bitrate: 3e6},
+    {id: 'de-1080', language: 'de', height: 1080, bitrate: 8e6},
+  ];
+
+  it('keeps only the video levels of the best-matching dialect', () => {
+    const filtered = LevelManager.prototype.filterVideoLevelsByLanguage.call({getVideoLanguage: () => 'en-GB'}, levels);
+    expect(filtered.map((l) => l.id)).toEqual(['gb-720']);
+  });
+
+  it('keeps only the audio levels of the best-matching dialect', () => {
+    const filtered = LevelManager.prototype.filterAudioLevelsByLanguage.call({getAudioLanguage: () => 'en-GB'}, levels);
+    expect(filtered.map((l) => l.id)).toEqual(['gb-720']);
+  });
+
+  it('keeps every dialect of a language when the preference names none', () => {
+    const filtered = LevelManager.prototype.filterVideoLevelsByLanguage.call({getVideoLanguage: () => 'en'}, levels);
+    expect(filtered.map((l) => l.id)).toEqual(['us-1080', 'gb-720']);
+  });
+
+  it('keeps every level when none matches', () => {
+    const filtered = LevelManager.prototype.filterVideoLevelsByLanguage.call({getVideoLanguage: () => 'ja'}, levels);
+    expect(filtered).toEqual(levels);
+  });
+});
+
+describe('Prefer DRC audio, loaded', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const load = (saved) => {
+    vi.stubGlobal('localStorage', {getItem: () => JSON.stringify(saved)});
+    const manager = {};
+    LevelManager.prototype.loadPreferences.call(manager);
+    return manager.shouldPreferDRCAudio;
+  };
+
+  it('is on for settings saved before it existed, as its default is', () => {
+    // `|| false` loaded it as off.
+    expect(load({videoLanguage: 'en'})).toBe(true);
+  });
+
+  it('stays off when it was turned off', () => {
+    expect(load({shouldPreferDRCAudio: false})).toBe(false);
   });
 });
