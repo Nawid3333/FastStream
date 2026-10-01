@@ -40,7 +40,8 @@
     "verify:fsaunpack": "node tools/verify-fsaunpack.mjs",
     "sign:amo": "node tools/sign-amo.mjs",
     "sign:amo:listed": "node tools/sign-amo.mjs --listed",
-    "release": "node tools/cut-release.mjs"
+    "release": "node tools/cut-release.mjs",
+    "test:mutation": "stryker run"
   },
   "repository": {
     "type": "git",
@@ -53,6 +54,7 @@
   "homepage": "https://github.com/Nawid3333/FastStream#readme",
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@stryker-mutator/core": "10.0.0",
     "@types/chrome": "^0.3.0",
     "@types/node": "^22.20.2",
     "@vitest/coverage-v8": "^5.0.1",

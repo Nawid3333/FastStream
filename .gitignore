@@ -43,3 +43,7 @@ lint-*.json
 
 # vitest --coverage output.
 coverage/
+
+# Stryker (pnpm run test:mutation): its reports and its sandboxes
+reports/mutation/
+.stryker-tmp/
