@@ -141,6 +141,16 @@ pnpm run test:pbm         # installed extension, private windows
 unpacked directory, and a plain build leaves only zips. (`start:ff` and `start:ff:fresh`
 rebuild by themselves.)
 
+`update-local.cmd` (double-click; `tools/update-local.ps1 [-DryRun] [-Repo <path>]`) brings
+the owner's PC to what CI uses (2026-10-01): Node of the `.nvmrc` major (nodejs.org MSI,
+SHA-256 checked, admin prompt), npm's newest and the pinned pnpm, each 5 days old by
+`tools/newest-release.mjs` (CI's rule, `tools/check-toolchain.mjs`); on a clean `main`
+`git pull --ff-only`, `pnpm install --frozen-lockfile` into the store `node_modules/.modules.yaml`
+names, fsaunpack's `npm ci --ignore-scripts`; and `native-host/install.ps1` again (with the
+installed mpv and Node paths) when the repository's host differs from
+`%LOCALAPPDATA%\FastStreamMpvHost`'s. Never Firefox, mpv (`C:\Program Files\mpv` is the
+owner's own repository, Nawid3333/mpv, with its own updater) or WSL.
+
 ## Manual playback testing
 
 ```bash

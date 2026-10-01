@@ -61,6 +61,27 @@ In the table, "waits for you" means one comment that @mentions you - CI is green
 and why the PR is not merged - with the PR assigned to you; a comment with the same
 verdict as the last one is edited in place, so a repeat sends no second email.
 
+## Your PC
+
+GitHub can't update your PC, so one double-click does: `update-local.cmd` in the
+repository's root. It brings your tools to what CI uses, by CI's rule (a release counts
+once it is 5 days old):
+
+- Node.js of the major `.nvmrc` names: nodejs.org's installer, checked against its
+  `SHASUMS256.txt`. Windows asks for admin rights; say yes.
+- npm's newest release, and the pnpm version `package.json` pins (inside the repository
+  pnpm switches to that one by itself).
+- On `main` with nothing uncommitted: `git pull`, then the locked dependencies
+  (`pnpm install --frozen-lockfile`) and fsaunpack's (`npm ci`, scripts off).
+- The mpv helper, again, when the repository's differs from the installed one; it keeps
+  your mpv and Node paths.
+
+It never touches Firefox (it updates itself, and FastStream from the releases), mpv
+(`C:\Program Files\mpv` has its own repository and updater) or WSL (`pnpm run verify:linux`
+updates its distros; a "WSL update" issue says when WSL itself has a new release). Run it
+after updates merged, or whenever you like: it only changes what is out of date, and lists
+what it did. `tools/update-local.ps1 -DryRun` says what it would do and changes nothing.
+
 ## When you get an email
 
 ### CI red on an update PR
