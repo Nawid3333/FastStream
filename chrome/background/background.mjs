@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {STILLS_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
 import {StreamPick} from '../player/utils/StreamPick.mjs';
@@ -64,7 +65,7 @@ const PopupGuardChainMs = 400;
  * `movie` rather than nothing (which would leave it to mpv's own, less
  * reliable folder-name heuristic).
  *
- * @param {string} [explicit] - The player's manual per-video override
+ * @param {?string} [explicit] - The player's manual per-video override
  *   (SaveManager.mjs's mpvContentType), or anything else to fall through.
  * @param {string} [url] - Tab URL to check against the MPV Allowlist.
  * @return {string} 'anime' or 'movie', never null/undefined.
@@ -83,6 +84,7 @@ function resolveMpvContentType(explicit, url) {
 // The toolbar state saved before the event page was last unloaded comes back
 // on the same promise, for the same reason: an allowlisted site's reload would
 // otherwise find no record of the user's choice and auto-start MPV again.
+/** @type {?Promise<*>} */
 let OptionsLoadPromise = null;
 function ensureOptions() {
   if (!OptionsLoadPromise) {
@@ -476,7 +478,7 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
   if (!openerTab || openerTab.popupGuardArmedUntil <= Date.now()) return;
 
   if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
-  chrome.tabs.remove(newTab.id);
+  chrome.tabs.remove(/** @type {number} */ (newTab.id));
 
   // Re-arm briefly rather than clearing outright: a single popup/popunder
   // script commonly chains two or three tabs off one click, and this still
@@ -649,7 +651,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   }
 
-  const tab = Tabs.getTabOrCreate(sender.tab.id);
+  // The messages below come from a page in a tab, a content script's or a player's; an
+  // extension page outside any tab has none to give them.
+  const senderTab = sender.tab;
+  if (!senderTab) {
+    return;
+  }
+  const tab = Tabs.getTabOrCreate(senderTab.id);
   const frame = tab.getFrameOrCreate(sender.frameId);
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
@@ -800,7 +808,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   } else if (msg.type === MessageTypes.SET_HEADERS) {
     if (msg.commands.length) {
-      ruleManager.addHeaderRule(msg.url, sender.tab.id, msg.commands).then((rule) => {
+      ruleManager.addHeaderRule(msg.url, senderTab.id, msg.commands).then((rule) => {
         if (Logging) console.log('Added rule', msg, rule);
         sendResponse();
       }).catch((e) => {
@@ -825,10 +833,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // silently did not happen: every screenshot ("@00:05") and any title with a colon.
     const filename = sanitizeDownloadFilename(msg.filename);
     // Check if cookieStoreId is set
-    if (sender.tab.cookieStoreId && sender.tab.cookieStoreId !== 'firefox-default') {
+    if (senderTab.cookieStoreId && senderTab.cookieStoreId !== 'firefox-default') {
       chrome.tabs.create({
         url: BackgroundUtils.getPlayerUrl(),
-        cookieStoreId: sender.tab.cookieStoreId,
+        cookieStoreId: senderTab.cookieStoreId,
         active: false,
       }, (tabobj2) => {
         if (!tabobj2) {
@@ -848,7 +856,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           if (tab2.downloadInfo) {
             tab2.downloadInfo.resolve(null);
             tab2.downloadInfo = null;
-            chrome.tabs.remove(tabobj2.id).catch(() => {});
+            chrome.tabs.remove(/** @type {number} */ (tabobj2.id)).catch(() => {});
           }
         }, 30000);
       });
@@ -1142,6 +1150,11 @@ async function checkIsFull(frame) {
   });
 }
 
+/**
+ * Introduces a frame to its parent frame's content script, which then knows the iframe.
+ * @param {FrameHolder} frame - The frame.
+ * @return {Promise<void>} Resolves once both have answered.
+ */
 async function linkToParentFrame(frame) {
   if (!frame.parent) return;
 
@@ -1175,8 +1188,8 @@ function getMediaInfoFromTab(tab) {
   // Get name of website through tab url
   const url = new URL(tab.url);
   const hostname = url.hostname;
-  let name = hostname.split('.');
-  name = name[name.length - 2];
+  const parts = hostname.split('.');
+  const name = parts[parts.length - 2];
 
   if (!name) return;
 
@@ -1210,7 +1223,9 @@ function getMediaInfoFromTab(tab) {
 
   title = words.join(' ');
 
+  /** @type {?number} */
   let season = null;
+  /** @type {?number} */
   let episode = null;
   // Remove season #, episode #, s#, e#
   title = title.replace(/\bseason\s*([0-9]+)/gi, (match, p1) => {
@@ -1298,6 +1313,7 @@ async function setupRedirectRule(ruleID, filetypes) {
     }
   }
 
+  /** @type {chrome.declarativeNetRequest.Rule} */
   const rule = {
     id: ruleID,
     action: {
@@ -1360,7 +1376,7 @@ function handleSubtitles(url, frame, headers) {
   })) return;
 
   if (Logging) console.log('Found subtitle', url);
-  const u = (new URL(url)).pathname.split('/').pop();
+  const u = (new URL(url)).pathname.split('/').pop() || '';
 
   subtitles.push({
     source: url,
@@ -1425,6 +1441,9 @@ function modeFromQuery(url) {
   }
   return null;
 }
+
+/** @typedef {import('./TabTracker.mjs').FrameHolder} FrameHolder */
+/** @typedef {import('./TabTracker.mjs').TabHolder} TabHolder */
 
 /**
  * Whether a frame's streams include one that may show a video, and not only playlists of
@@ -1527,12 +1546,15 @@ function recoverFrameSources(frame, msg) {
 /**
  * The Referer and Origin a page's request carries by default (strict-origin-when-cross-
  * origin): for a stream recovered from the page, whose own request headers are gone.
- * @param {string} pageUrl - The page.
+ * @param {string|undefined} pageUrl - The page; none gives no headers.
  * @param {string} url - The stream.
  * @param {boolean} media - Whether a media element loaded it, which sends no Origin.
  * @return {Array<{name: string, value: string}>} The headers.
  */
 function pageHeaders(pageUrl, url, media) {
+  if (!pageUrl) {
+    return [];
+  }
   let page;
   let target;
   try {
@@ -1613,6 +1635,7 @@ async function sendSources(frame) {
   // meanwhile, if any (one still unread from before is not waited for twice). A playlist
   // is read even when it is the only source: it may be one of stills, which the player
   // lists but does not play by itself (STILLS_LENGTH).
+  /** @type {?{src: string, duration: ?number}} */
   let video = null;
   const detected = collectSources(frame).sources;
   const several = detected.length > 1;
@@ -1707,6 +1730,7 @@ async function getVideoSize(frame) {
  * @return {?string} The name, or null when the URL has none.
  */
 function playerOpener(url) {
+  if (!url) return null;
   try {
     return new URL(url).searchParams.get('opener');
   } catch (e) {
@@ -2114,6 +2138,7 @@ async function findPlayedSource(tab, frameId, src, video) {
 
   const sources = frame.getSources();
   const lengths = Lengths.lengthsOf(sources);
+  /** @type {Array<{source: *, url: string, duration?: ?number}>} */
   const measured = StreamLength.withoutStills(sources.map((source, i) => ({source, url: source.url, duration: lengths[i]})));
   const videoLength = StreamPick.lengthOf(video ? video.duration : null);
   if (byUrl) {
@@ -2150,8 +2175,10 @@ async function findPlayedSource(tab, frameId, src, video) {
  */
 function newestOfLongest(sources, video = null) {
   const lengths = Lengths.lengthsOf(sources);
+  /** @type {Array<{source: *, url: string, duration?: ?number}>} */
   const measured = StreamLength.withoutStills(sources.map((source, i) => ({source, url: source.url, duration: lengths[i]})));
   const longest = StreamPick.played(measured, video) || StreamLength.longest(measured);
+  /** @type {*} */
   let newest = null;
   for (const {source} of longest) {
     if (!newest || source.time > newest.time) {
@@ -2248,13 +2275,15 @@ function openMpvWithSources(tab) {
   return true;
 }
 
+/** @type {Array<'requestHeaders'|'extraHeaders'|'blocking'>} */
 const webRequestPerms = ['requestHeaders'];
 // Detection reads a page load's Content-Type, to tell an HTML page from a stream.
+/** @type {Array<'responseHeaders'|'extraHeaders'|'blocking'>} */
 const webRequestPerms2 = ['responseHeaders'];
 
 /**
  * Whether a response is an HTML page, by its Content-Type.
- * @param {Array<{name: string, value: string}>} [headers] - webRequest's responseHeaders.
+ * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
  * @return {boolean} True for text/html and application/xhtml+xml.
  */
 function isHtmlResponse(headers) {
@@ -2299,7 +2328,8 @@ chrome.webRequest.onHeadersReceived.addListener(
       const ext = urlType(url);
 
       if (BackgroundUtils.isSubtitles(ext)) {
-        return handleSubtitles(url, frame, frame.requestHeaders.get(details.requestId));
+        handleSubtitles(url, frame, frame.requestHeaders.get(details.requestId));
+        return;
       }
 
       let mode = URLUtils.getModeFromExtension(ext);
@@ -2342,6 +2372,11 @@ chrome.webRequest.onErrorOccurred.addListener(deleteHeaderCache, {
   urls: ['<all_urls>'],
 });
 
+/**
+ * Forgets a request's headers once its response or its error came.
+ * @param {{tabId: number, frameId: number, requestId: string}} details - webRequest's.
+ * @return {undefined}
+ */
 function deleteHeaderCache(details) {
   const tab = Tabs.getTabOrCreate(details.tabId);
   const frame = tab.getFrameOrCreate(details.frameId);

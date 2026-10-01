@@ -1406,14 +1406,19 @@ audio analyzer runs.
 ## Type checking
 
 `tsconfig.json` type checks without emitting. `checkJs` is off; files opt in
-with `// @ts-check` on line 1. `pnpm run typecheck` is gated in CI, so the
-opted-in set is a ratchet.
+with `// @ts-check` on line 1 (line 2 after a shebang). `pnpm run typecheck` is
+gated in CI, and `tests/unit/typeChecked.test.mjs` lists the opted-in files: taking
+the comment out of one, or opting one in without listing it, fails it (T5's ratchet).
 
-Opted in: `BackgroundUtils`, `MultiRegexMatcher`,
-`TabTracker`. Not yet: `background.mjs` (23 errors),
-`NetRequestRuleManager` (1) — mostly nullability and API-shape issues
-in the header-spoofing and download paths, where a wrong guard causes silent
-403s. Fix those only with the playback checklist to hand.
+Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
+`NetRequestRuleManager` (1 error), `StreamLength`, and the mpv host
+(`native-host/faststream-mpv-host.mjs`). The types are Chrome's (`@types/chrome`,
+which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
+and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
+(`cookieStoreId`, `originUrl`). background.mjs's own fixes were JSDoc, a few
+`undefined` checks that return what the code returned before (through a throw), and
+one guard: a message from a page outside any tab is no longer handled as a tab's. The
+player's files are next; fix what tsc reports only with the playback suites to hand.
 
 `types/messages.d.ts` describes the cross-context message contracts. Add a
 message only after reading its real payload; an inaccurate type is worse
