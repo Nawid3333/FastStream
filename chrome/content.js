@@ -1310,6 +1310,15 @@
       }
     });
 
+    // The element's own shadow root too: querySelectorAll('*') lists only what is below
+    // it. A page that re-renders its player as a custom element with its <video> in its
+    // shadow root added it while FastStream's player was up, and pauseAllWithin's observer,
+    // which looks inside each added element, never paused it. Last, so what the walk above
+    // found keeps its place.
+    if (currentElement.shadowRoot) {
+      querySelectorAllIncludingShadows(query, currentElement.shadowRoot, results);
+    }
+
     return results;
   }
 
