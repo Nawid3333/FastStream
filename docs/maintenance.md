@@ -1,12 +1,15 @@
 # How updates reach FastStream
 
-Nothing merges itself without a green CI run. `update-prs.yml` runs after every
-completed CI run for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-`sync/upstream` branches. It merges the routine ones: tooling updates that change nothing
-the extension ships, and minor and patch updates of the libraries it ships (both the
-Dependabot group and the patched libraries). After a merge that ships it starts CI on
-`main`: a green run releases, a red one releases nothing and opens an issue for you, and
-nothing is reverted on its own. Every other PR is handed to you with one comment. Updates without a
+Nothing merges itself without a green CI run, and every update merges itself with one
+(majors included, since 2026-10-01). `update-prs.yml` runs after every completed CI run
+for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and `sync/upstream`
+branches and merges the PR once CI is green and its checks hold: only that bot's commits,
+only the files that kind of update changes, the dependency review passed, no package
+version under 7 days old in its lockfile, and the build unchanged when it is not meant to
+ship. After a merge that ships it starts CI on `main`: a green run releases, a red one
+releases nothing and opens an issue for you, and nothing is reverted on its own. A PR
+handed to you with one comment is one that failed a check (the comment names it) or carries
+the `hold` label. Updates without a
 PR - the mpv pin, a runner image, a new Firefox - are watched by their own
 workflows, which stay silent while they pass.
 
@@ -16,19 +19,19 @@ workflows, which stay silent while they pass.
 | ---- | -------------- | ---------------------- | ---------------- |
 | npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | merged by `update-prs.yml` | nothing (a comment on the PR records the merge) |
 | npm shipped libraries (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | merged by `update-prs.yml`, which then starts CI on `main`; a green run there releases it | nothing when `main` stays green; an issue, "CI failed on main after an update merged itself", when not |
-| npm major | a Dependabot PR of its own | waits for you | one comment, and the assignment |
-| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | waits for you: CI installs it and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`), but the helper runs on your PC, where npm runs install scripts | one comment, and the assignment |
-| GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | waits for you: it changes workflow files | one comment, and the assignment |
+| npm major | a Dependabot PR of its own (after the 5-day cooldown) | merged by `update-prs.yml`: a tooling major when the build is unchanged; a shipped library's, then CI on `main` as for the shipped group | nothing |
+| fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | merged by `update-prs.yml` when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json` and every version that lockfile adds is 7 days old; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | nothing |
+| GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | merged by `update-prs.yml` with your token `UPDATE_PRS_TOKEN` (below), when it changes only workflow and action files; without the token it waits for you | nothing; one comment while the token is missing |
 | pnpm 11.x | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`, once the release is 5 days old; one in conflict with `main` is rebuilt on it weekly | merged by `update-prs.yml` | nothing (a comment on the PR records the merge) |
-| pnpm next major | a PR from `toolchain-updates.yml`, once dependabot/dependabot-core#15904 is closed | waits for you | one comment, and the assignment |
-| Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | waits for you | one comment, and the assignment |
+| pnpm next major | a PR from `toolchain-updates.yml`, once dependabot/dependabot-core#15904 is closed | merged by `update-prs.yml` like an 11.x; one that wants the lockfile rewritten fails CI and waits for you | nothing, or one comment |
+| Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | merged by `update-prs.yml` when the build is unchanged | nothing |
 | WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
-| patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | merged by `update-prs.yml` when the version is a minor or patch step from main's, then CI on `main` as above | as above |
-| patched libraries, major | the same | waits for you | one comment, and the assignment |
-| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | waits for you | one comment, and the assignment |
+| patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | merged by `update-prs.yml`, then CI on `main` as above | as above |
+| patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | merged by `update-prs.yml`, then CI on `main` as above | as above |
+| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | merged by `update-prs.yml` (a merge commit, keeping upstream's commits) when it has no conflict, changes nothing under `.github/`, brings back no file this project deleted, and every commit on it is upstream's own; then CI on `main` as above | nothing; one comment when a condition fails |
 | mpv build | `mpv-updates.yml`; no PR - the pin lands on `main` by itself once CI is green | the pin is on `main` | nothing; an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
-| actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | waits for you: it changes the check every workflow file has to pass | one comment, and the assignment |
+| actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | merged by `update-prs.yml` when it changes only those files: CI ran every workflow file through the new checks | nothing |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping the cooldown; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
@@ -42,8 +45,8 @@ Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
 weekly shipped group, `onnxruntime-web` and `mediabunny` among them since 2026-09-30 (until
 then the first was held for its custom wasm, and `mp4-muxer`, which Mediabunny replaced, for
-a last release that crashed). A PR from that group changes the extension, so it waits for
-you; CI's `tests/e2e/ext-specs/vad.e2e.mjs` and `tests/e2e/specs/modules.e2e.mjs` are what
+a last release that crashed). A PR from that group changes the extension, so CI runs on `main` after its
+merge and decides the release; CI's `tests/e2e/ext-specs/vad.e2e.mjs` and `tests/e2e/specs/modules.e2e.mjs` are what
 check those two. Mediabunny releases every few days, so expect it in most of them.
 A security update Dependabot cannot make itself leaves its alert open with no PR: a
 package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
@@ -84,9 +87,11 @@ label and is assigned to you. Then:
 
 ### CI green and waiting for you
 
-The comment names the reasons the PR waits - it ships something, it is a major, it
-changes workflow files, it is the upstream sync - and the PR is assigned to you.
-Merge it, or close it as above; a Node major is a PR you merge. The comment is
+The comment names the check the PR failed - a tooling update whose build differs from
+the latest release, a file that kind of update does not change, a package version under 7
+days old, an upstream sync with a conflict or a file this project deleted, a GitHub
+Actions update while `UPDATE_PRS_TOKEN` is missing - and the PR is assigned to you.
+Merge it, or close it as above. The comment is
 edited in place while the PR keeps waiting, even if the reasons change: a new email
 comes when it turns red, turns green, is merged, or fails at a different step.
 
@@ -134,37 +139,39 @@ lists them: each is a place a fix could ship without a test that fails without i
 waits on it; the next week's issue replaces it, and a week with every change caught closes
 it.
 
-## Why nothing that ships merges itself
+## What update-prs.yml checks before it merges
 
-`update-prs.yml` merges only two kinds of PR - a Dependabot npm minor/patch PR,
-and the toolchain pnpm same-major PR - and only when all of this holds:
+Every kind of update merges itself once CI is green (the owner's choice, 2026-10-01;
+until then only routine updates that ship nothing did). It merges only when all of this
+holds:
 
-- the PR was opened by that bot, targets `main` and is not a draft;
-- its commits are that bot's, or the merges of `main` this workflow makes when it
-  updates the branch;
-- only `package.json` and `pnpm-lock.yaml` change; for pnpm, only the
-  `packageManager` line of `package.json`, to the version the branch is named for;
-- there is no major;
-- Dependabot's dependency review passed;
-- CI's build of the extension (the `faststream-bundles` artifact, firefox-github
-  zip) is file-for-file identical to the latest release's zip apart from
-  `manifest.json`'s version (if either cannot be fetched, the PR waits);
-- last, just before the merge: the PR is mergeable and the branch contains the
-  newest `main`; if it does not, the workflow runs GitHub's update-branch, CI
-  starts again and that run decides, at most 3 times.
+- the PR was opened by its bot, targets `main`, is not a draft and has no `hold` label;
+- its commits are that bot's, or the merges of `main` this workflow makes when it updates
+  the branch; an upstream sync's are upstream's own, checked against upstream's repository;
+- it changes only what that kind of update changes: `package.json` and `pnpm-lock.yaml`
+  (Dependabot npm; for pnpm, only the `packageManager` line); `fsaunpack/package.json` and
+  `fsaunpack/package-lock.json`; `.nvmrc` (Node); workflow and action files (GitHub
+  Actions); the two Dockerfiles (actionlint, zizmor); a re-cut's files (patched libraries);
+  anything but `.github/` (upstream sync, which must also have no conflict and bring back no
+  file this project deleted);
+- its dependency review passed, and every package version it adds to its lockfile is 7 days
+  old on the npm registry (Dependabot's cooldown covers only what it bumps);
+- an update not meant to ship (tooling, toolchain, workflows, fsaunpack): CI's build of the
+  extension is file-for-file the latest release's, the version number aside, so it releases
+  nothing. A shipped library, a patched library or an upstream sync is meant to ship: CI
+  then runs on `main` and a green run releases;
+- last, just before the merge: the PR is mergeable and the branch contains the newest
+  `main`; if it does not, the workflow runs GitHub's update-branch, CI starts again and that
+  run decides, at most 3 times.
 
-The build check is `auto-release.yml`'s own test for whether a merge ships
-anything, run on the PR's build. A PR that changes what the extension ships
-fails it and waits for you; a PR that passes it can only change tools. The merge
-is made with `GITHUB_TOKEN`, which starts no workflow - no CI on `main`, no
-release - and that is fine, because the merged tree is exactly the one CI tested
-and nothing shipped changed. (Should another merge land on `main` in the moment
-between that last check and the merge, the merged comment @mentions you: that
-combination was not built.) Nothing reaches Firefox that you did not merge on
-purpose. This was decided on 2026-09-29: only updates that ship nothing merge
-themselves, and a Node major is a PR you merge. `main` carries a ruleset that
-blocks force-pushes and deletion only, with no required checks, so direct pushes
-and `mpv-updates.yml`'s pin commits keep working.
+The merge is made with `GITHUB_TOKEN` (a GitHub Actions update with `UPDATE_PRS_TOKEN`),
+which starts no workflow, so for an update that ships, `update-prs.yml` starts CI on `main`
+itself. (Should another merge land on `main` in the moment between that last check and the
+merge, the merged comment @mentions you: that combination was not built.) A red `main`
+releases nothing and opens an issue; nothing is reverted on its own. To keep one update
+from merging, label its PR `hold`. `main` carries a ruleset that blocks force-pushes and
+deletion only, with no required checks, so direct pushes and `mpv-updates.yml`'s pin commits
+keep working.
 
 ## Moving Node by hand
 
@@ -181,8 +188,8 @@ Node update is therefore a one-file change: the toolchain workflow's
   touches `.nvmrc` or `package.json`, and closes any open PR the project has
   just reached.
 - Or run the Toolchain updates workflow (Actions, Run workflow), which opens the
-  PR on `toolchain/node-<major>` for a newer LTS major, with CI on it; merge it
-  when you are ready.
+  PR on `toolchain/node-<major>` for a newer LTS major, with CI on it; it merges
+  itself once CI is green.
 
 ## Pinning a new tool
 
@@ -221,3 +228,24 @@ Two files the extension ships come from another project without a package manage
 Each closes itself once its pin reaches the release; a newer release closes the older one.
 If the workflow itself fails, it opens "Vendored updates workflow failed (model)" or
 "(vtt.js)".
+
+## A token for workflow updates
+
+GitHub's own token in a workflow may not merge a change to a workflow file, so Dependabot's
+GitHub Actions updates need one of yours. `update-prs.yml` uses it only to bring such a PR up
+to date with `main` and to merge it; nothing else sees it, and it never runs the PR's code.
+Without it those updates wait for you, with a comment saying so.
+
+1. On GitHub: your picture, **Settings**, **Developer settings**, **Personal access tokens**,
+   **Fine-grained tokens**, **Generate new token**.
+2. Name it `FastStream update-prs`. Expiration: the longest offered (GitHub emails you a week
+   before it runs out; an expired token fails `update-prs.yml`, which opens an issue).
+3. **Repository access**: Only select repositories, `Nawid3333/FastStream`.
+4. **Permissions**, Repository permissions: **Contents**, **Pull requests** and **Workflows**,
+   each Read and write. (Metadata: read-only is added by itself.)
+5. **Generate token**, and copy it.
+6. In the repository: **Settings**, **Secrets and variables**, **Actions**,
+   **New repository secret**. Name `UPDATE_PRS_TOKEN`, paste the token, **Add secret**.
+
+A merge made with it is a push like yours, so CI runs on `main` after it; an Actions update
+changes nothing the extension ships, so auto-release releases nothing.

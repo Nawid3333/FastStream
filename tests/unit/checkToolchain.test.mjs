@@ -105,12 +105,12 @@ describe('every pinned tool is one Dependabot updates', () => {
     }
   });
 
-  it('keeps an actionlint image update waiting for the owner', () => {
-    // A CI check changes only with a person's review; update-prs.yml gives the kind a
-    // reason, and a pull request with any reason waits.
+  it('merges an actionlint or zizmor image update only when it changes nothing but their Dockerfiles', () => {
+    // The owner's choice, 2026-10-01: CI runs every workflow file through the new image, and
+    // update-prs.yml merges the pull request once that is green and is all it changes.
     const gate = read('.github/workflows/update-prs.yml');
     expect(gate).toMatch(/^ +dependabot\/docker\/\*\) kind=docker ;;$/m);
-    expect(gate).toMatch(/^ +docker\) reasons\+=\('[^']+'\) ;;$/m);
+    expect(gate).toContain('select(. != ".github/actionlint/Dockerfile" and . != ".github/zizmor/Dockerfile")');
   });
 
   it('has Dependabot watch the workflows and every composite action', () => {

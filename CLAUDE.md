@@ -1069,7 +1069,8 @@ the change went in.
   per update, "Toolchain update: <name> <version>", on `toolchain/node-<major>` or
   `toolchain/pnpm-<version>`, with CI started on the branch by `gh workflow run ci.yml`
   (a `GITHUB_TOKEN` push starts no workflow). A newer Node LTS major changes `.nvmrc`
-  and waits for the owner. `.nvmrc` is the one place the Node major is named, so a
+  and merges itself once CI is green and the build is unchanged (since 2026-10-01).
+  `.nvmrc` is the one place the Node major is named, so a
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
@@ -1078,7 +1079,7 @@ the change went in.
   by `update-prs.yml`. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
   wants it rewritten fails CI and reaches the owner. A newer pnpm major waits
-  for the owner, and for dependabot-core#15904 to close (pnpm 12's two-document
+  for dependabot-core#15904 to close, then merges itself the same way (pnpm 12's two-document
   lockfile hides every dependency from GitHub's dependency graph; 12.6.0 otherwise
   passed the full verify on 2026-09-25).
   A title is never used twice (issue or PR, open or closed): closing one skips that
@@ -1112,30 +1113,39 @@ the change went in.
   that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
   to start it, this run decides. Still red, one comment @mentions the owner with a
   table of failed job, step and what the step checks, the last 40 lines of each failed
-  log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green: only a
-  Dependabot npm minor/patch PR, the toolchain pnpm same-major PR or a patched library's
-  minor/patch PR (`patched/<name>-<version>` against the version main's `package.json`
-  holds; a version it cannot compare waits) is merged, and none labelled `hold` (the
-  owner's "not yet", since #67 was merged while on hold), and
-  only when that bot opened it (not a draft, against `main`) and its commits are the
-  bot's or this workflow's merges of `main`, only `package.json` and
-  `pnpm-lock.yaml` change (for pnpm: only `packageManager`, to the branch's version,
-  against the merge base; the lockfile untouched; for a patched library also
-  `pnpm-workspace.yaml`, `patches/` and `tools/sync-vendor.mjs`, what its re-cut
-  commits), there is no major, the dependency review passed,
-  it is mergeable, it contains the newest `main` (otherwise GitHub's update-branch
-  runs, CI restarts and that run decides, at most 3 times), and, for an update that
-  must not ship (all but the shipped group and patched libraries), CI's build of the
-  extension (the `faststream-bundles` artifact, firefox-github zip) is file-for-file
-  identical to the latest release's zip apart from `manifest.json`'s version -
-  `auto-release.yml`'s own test, so such a merge releases nothing. After a merge that
-  ships (the owner's choice, 2026-09-30: shipped and patched libraries' minor and patch
-  merge themselves), it starts CI on `main` by dispatch (its own merge starts none) and
+  log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green:
+  every kind merges itself, majors included (the owner's choice, 2026-10-01: Dependabot
+  npm, fsaunpack, GitHub Actions, the actionlint/zizmor images, toolchain Node and pnpm,
+  patched libraries, the upstream sync), none labelled `hold` (the owner's "not yet",
+  since #67 was merged while on hold), and only when its bot opened it (not a draft,
+  against `main`) and its commits are the bot's or this workflow's merges of `main` (the
+  owner's, made with their token; an upstream sync's: upstream's own, checked with
+  `gh api repos/Andrews54757/FastStream/commits/<sha>`), it changes only what its kind
+  changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
+  untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
+  the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`;
+  an upstream sync anything but `.github/`, with no "(CONFLICTS - resolve before merging)"
+  commit and no added file that main's history has, i.e. one this project deleted), the
+  dependency review passed, every version its lockfile adds is 7 days old (fsaunpack's
+  `package-lock.json` read with jq), it is mergeable, it contains the newest `main`
+  (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
+  times), and, for an update that must not ship (all but the shipped libraries, patched
+  libraries and the upstream sync), CI's build of the extension (the `faststream-bundles`
+  artifact, firefox-github zip) is file-for-file identical to the latest release's zip
+  apart from `manifest.json`'s version - `auto-release.yml`'s own test, so such a merge
+  releases nothing. A shipped library's major comes on its own branch: it ships when one of
+  its `dependency-name`s is in the `shipped-minor-and-patch` patterns of main's
+  `.github/dependabot.yml` (unreadable: treated as tooling, whose build must not differ).
+  GitHub Actions updates change workflow files, which `GITHUB_TOKEN` may not merge or
+  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN`
+  (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
+  updates"); without it they wait. An upstream sync merges as a merge commit (`--merge`),
+  keeping upstream's commits; everything else squashes. After a merge that
+  ships, it starts CI on `main` by dispatch (its own merge starts none) and
   hands the run to its `watch-main` job: `ci.yml`'s release-hand-off gives a green run
   to `auto-release.yml`, which releases; a red one releases nothing, nothing is
   reverted, and watch-main opens "CI failed on main after an update merged itself"
-  (assigned, @mention; a comment while it is open). Every other green PR (Node, pnpm
-  major, GitHub Actions updates, the upstream sync, a major of any library) gets one
+  (assigned, @mention; a comment while it is open). A green PR that fails a check gets one
   comment @mentioning the owner - CI is
   green, and why it waits - and is assigned to them. A comment with the same verdict
   as the last one is edited in place, so it sends no new mail: the owner hears when a
@@ -1376,6 +1386,9 @@ the change went in.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
+  `update-prs.yml` merges the PR (`--merge`) once CI is green when it is clean (no
+  conflict, nothing under `.github/`, no deleted file back, only upstream's commits);
+  otherwise it waits for the owner (2026-10-01).
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
   (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.
@@ -1443,9 +1456,9 @@ the change went in.
 - Branches: `main` is the project and the only long-lived branch. It was
   `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
   and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
-  from `sync/upstream` when Andrew has commits `main` lacks, and taking or
-  skipping them is decided on that PR - close it to skip, merge it to take.
-  `docs/upstream-sync-log.md` records what was decided and why. `pr/*`
+  from `sync/upstream` when Andrew has commits `main` lacks. A clean one merges
+  itself (`update-prs.yml`); one that waits is decided on that PR - close it to skip,
+  merge it to take. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
   branches, if ever needed, get cut fresh off `upstream/main`.
 
 ## AMO lint (firefox-amo, current: 0 errors / 3 warnings, needs `--self-hosted`)

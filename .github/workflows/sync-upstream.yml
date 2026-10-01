@@ -5,9 +5,11 @@ name: Sync upstream
 #
 # main IS the project. Upstream is not mirrored anywhere: this job fetches it and
 # merges it into one throwaway branch (sync/upstream), so the change arrives as a
-# single PR with CI in front of it. It never merges anything itself. An upstream
-# commit may touch code this fork has rewritten or removed, so taking it is a
-# decision and not a default.
+# single PR with CI in front of it. It never merges anything itself: update-prs.yml merges
+# the PR once CI is green (since 2026-10-01), when the merge has no conflict, changes
+# nothing under .github/, brings back no file this project deleted and holds only
+# upstream's commits. Any other sync PR is the owner's to take or skip: an upstream
+# commit may touch code this fork has rewritten or removed.
 #
 # Deciding on a sync PR:
 #   take it   Resolve any conflicts on the branch, keep only what this project
@@ -238,6 +240,7 @@ jobs:
             cat <<'EOF'
           ### Deciding
 
+          - **It merges itself** once CI is green, when the merge has no conflict, changes nothing under `.github/` and brings back no file this project deleted (`update-prs.yml`). Otherwise a comment here says which, and it is yours.
           - **Take it.** Resolve any conflicts on this branch, keep only what this project wants, and merge. The merge commit records every commit below as handled, kept or not, so the next sync shows only newer ones.
           - **Skip it.** Close this PR without merging. It is not reopened for the same upstream commit, and comes back once upstream moves again.
           - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
