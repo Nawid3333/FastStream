@@ -13,3 +13,6 @@
 *.onnx   binary
 *.zip    binary
 *.xpi    binary
+
+# Windows batch files: cmd.exe misreads some LF-only ones.
+*.cmd    text eol=crlf
