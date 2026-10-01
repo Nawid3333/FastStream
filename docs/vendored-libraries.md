@@ -337,6 +337,7 @@ what can actually change behaviour.
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
+| sweetalert2 (CSS) | 11.26.25 | `body.swal2-*` rules scoped to the classes; three rules appended from `tools/sweetalert-overrides.css` | **generated since 2026-09-30** (was an 11.12.4 copy) |
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
@@ -1084,6 +1085,20 @@ warnings), and real e2e - `modules.e2e.mjs`'s colour-picker test on both
 Firefox and Chromium/Edge (confirms `parent` resolves to `.mainplayer`,
 swatches render, hue slider positions correctly), plus the full extension
 e2e suite (8 spec files) on Firefox.
+
+### sweetalert.css follows the script since 2026-09-30
+
+The dialogs' stylesheet was a copy of 11.12.4's, from 2024, while the script followed npm.
+Compared rule by rule (whitespace aside), that copy was 11.12.4's `dist/sweetalert2.css`
+exactly, plus four changes of upstream FastStream's: the `body.swal2-*` rules without the
+`body` (the dialogs render in the player's container, which sweetalert2 marks instead of
+`<body>`), no `swal2-height-auto` rule (on the container it collapses the player to
+height 0), a `min-width: 32em` in place of the popup's fixed width, a toast exempt from
+it, and `.error-popup-stack`. `tools/sync-vendor.mjs` now makes the file from the npm one
+(`toSweetAlertCss`) with the last three in `tools/sweetalert-overrides.css`, and
+`dialogs.e2e.mjs` checks what they do. Screenshots of every dialog kind before and after
+matched: the same sizes and places, and pixels apart only in the warning icon's ring
+(at most 16 of 255 in brightness).
 
 ### sweetalert2 ships a payload that must stay removed
 
