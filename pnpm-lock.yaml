@@ -11,6 +11,7 @@ overrides:
   undici@6: ^6.28.1
   undici@7: ^7.29.1
   qs: ^6.16.0
+  basic-ftp: ^6.2.1
 
 patchedDependencies:
   Coloris@0.25.0: b8149226d6e64d4d2baa3a1e7eebf5743a030819825a77a808e847e57755c39b
@@ -1679,8 +1680,8 @@ packages:
     engines: {node: '>=6.0.0'}
     hasBin: true
 
-  basic-ftp@5.3.1:
-    resolution: {integrity: sha512-bopVNp6ugyA150DDuZfPFdt1KZ5a94ZDiwX4hMgZDzF+GttD80lEy8kj98kbyhLXnPvhtIo93mdnLIjpCAeeOw==}
+  basic-ftp@6.2.1:
+    resolution: {integrity: sha512-bK67isD+lKq46AU8vNtjvMaT2ZqAOAmNCbxUHlFBRD4k15NWxyEjmaKtZPlgce58So4BNTjITGQOVTjL9y0ECA==}
     engines: {node: '>=10.0.0'}
 
   bcp-47-match@2.0.3:
@@ -5613,7 +5614,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.26: {}
 
-  basic-ftp@5.3.1: {}
+  basic-ftp@6.2.1: {}
 
   bcp-47-match@2.0.3: {}
 
@@ -6474,7 +6475,7 @@ snapshots:
 
   get-uri@6.0.5(supports-color@8.1.1):
     dependencies:
-      basic-ftp: 5.3.1
+      basic-ftp: 6.2.1
       data-uri-to-buffer: 6.0.2
       debug: 4.4.3(supports-color@8.1.1)
     transitivePeerDependencies:
