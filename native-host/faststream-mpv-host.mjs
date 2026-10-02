@@ -611,15 +611,22 @@ function listItem(item) {
  * the one loadfile command (or the --{ ... --} group of a fresh start), so neither can
  * happen, and no lock between host processes is needed. Measured on mpv 0.41
  * (2026-10-02, a local server logging each request's headers): the file got them, commas
- * inside a value included, and the next file loaded without them.
+ * inside a value included, and the next file loaded without them; so did start and
+ * sub-files.
+ *
+ * sub-files is a PATH list, not a string list: its items are separated by the system's
+ * path delimiter (';' on Windows) and a backslash is part of the path (escaped as a string
+ * list, mpv looked for "C:\\Users\\...", measured). A file whose path holds the delimiter
+ * is left out.
  *
  * @param {Array<string>} headerFields - "Name: value" strings for mpv.
  * @param {string} title - Media title to display.
  * @param {{start?: number, subFiles?: Array<string>}} [extras] - Where to start, and
  *   subtitle files to load with the stream.
+ * @param {string} [delimiter] - The path list separator; the system's by default.
  * @return {Object<string, string>} loadfile's options.
  */
-export function perFileOptions(headerFields, title, extras = {}) {
+export function perFileOptions(headerFields, title, extras = {}, delimiter = path.delimiter) {
   /** @type {Object<string, string>} */
   const options = {
     'http-header-fields': headerFields.map(listItem).join(','),
@@ -628,8 +635,9 @@ export function perFileOptions(headerFields, title, extras = {}) {
   if (extras.start !== undefined) {
     options.start = String(extras.start);
   }
-  if (extras.subFiles && extras.subFiles.length > 0) {
-    options['sub-files'] = extras.subFiles.map(listItem).join(',');
+  const subFiles = (extras.subFiles || []).filter((file) => !file.includes(delimiter));
+  if (subFiles.length > 0) {
+    options['sub-files'] = subFiles.join(delimiter);
   }
   return options;
 }

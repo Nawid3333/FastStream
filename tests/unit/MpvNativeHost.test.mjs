@@ -385,13 +385,20 @@ describe('start and subtitles from the player', () => {
   });
 
   it('gives mpv the start and the files as per-file options', () => {
-    expect(perFileOptions([], 't', {start: 754.5, subFiles: ['C:\\Temp\\a,b\\1 English.srt', 'C:\\Temp\\2.srt']})).toEqual({
+    // sub-files is a path list: ';' between the paths on Windows, backslashes as they are
+    // (escaped like a string list, mpv looked for "C:\\Temp\\..." - measured).
+    expect(perFileOptions([], 't', {start: 754.5, subFiles: ['C:\\Temp\\a,b\\1 English.srt', 'C:\\Temp\\2.srt']}, ';')).toEqual({
       'http-header-fields': '',
       'force-media-title': 't',
       'start': '754.5',
-      'sub-files': 'C:\\\\Temp\\\\a\\,b\\\\1 English.srt,C:\\\\Temp\\\\2.srt',
+      'sub-files': 'C:\\Temp\\a,b\\1 English.srt;C:\\Temp\\2.srt',
     });
     expect(perFileOptions([], 't', {})).toEqual({'http-header-fields': '', 'force-media-title': 't'});
+  });
+
+  it('leaves out a subtitle file whose path holds the list separator', () => {
+    expect(perFileOptions([], 't', {subFiles: ['C:\\a;b\\1.srt', 'C:\\ok\\2.srt']}, ';')['sub-files']).toBe('C:\\ok\\2.srt');
+    expect(perFileOptions([], 't', {subFiles: ['C:\\a;b\\1.srt']}, ';')).not.toHaveProperty('sub-files');
   });
 
   it('sends them with the file into a running mpv', async () => {
@@ -401,7 +408,7 @@ describe('start and subtitles from the player', () => {
       return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
     };
     await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['C:\\s\\1.srt']});
-    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': 'C:\\\\s\\\\1.srt'});
+    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': 'C:\\s\\1.srt'});
   });
 });
 
