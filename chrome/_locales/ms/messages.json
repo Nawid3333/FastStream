@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv ditemui"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv ditemui: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv ditemui: $1 (laluan di atas tidak ditemui, jadi hos menggunakan yang ini)"
+    },
     "options_mpv_test_nompv": {
         "message": "Hos boleh dihubungi, tetapi mpv tidak ditemui"
     },

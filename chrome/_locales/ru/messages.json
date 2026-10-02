@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv найден"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv найден: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv найден: $1 (путь, указанный выше, не найден, поэтому хост использует этот)"
+    },
     "options_mpv_test_nompv": {
         "message": "Хост доступен, но mpv не найден"
     },

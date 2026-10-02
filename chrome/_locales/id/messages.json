@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv ditemukan"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv ditemukan: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv ditemukan: $1 (jalur di atas tidak ditemukan, jadi host memakai yang ini)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host dapat dijangkau, tetapi mpv tidak ditemukan"
     },

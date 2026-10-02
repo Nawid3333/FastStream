@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv bulundu"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv bulundu: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv bulundu: $1 (yukarıda ayarlanan yol bulunamadı, bu yüzden ana bilgisayar bunu kullanıyor)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host'a ulaşıldı, ancak mpv bulunamadı"
     },

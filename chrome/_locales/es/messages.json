@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv encontrado"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv encontrado: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv encontrado: $1 (no se encontró la ruta indicada arriba, así que el host usa esta)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host accesible, pero no se encontró mpv"
     },

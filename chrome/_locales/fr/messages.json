@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv trouvé"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv trouvé : $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv trouvé : $1 (le chemin indiqué ci-dessus est introuvable, l'hôte utilise donc celui-ci)"
+    },
     "options_mpv_test_nompv": {
         "message": "Hôte joignable, mais mpv introuvable"
     },

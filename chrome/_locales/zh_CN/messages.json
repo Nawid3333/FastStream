@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "已找到 mpv"
     },
+    "options_mpv_test_ok_at": {
+        "message": "已找到 mpv：$1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "已找到 mpv：$1（上面设置的路径不存在，因此主机使用此路径）"
+    },
     "options_mpv_test_nompv": {
         "message": "主机可达，但未找到 mpv"
     },

@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv が見つかりました"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpvが見つかりました: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpvが見つかりました: $1 (上で設定したパスが見つからないため、ホストはこちらを使います)"
+    },
     "options_mpv_test_nompv": {
         "message": "ホストには到達できましたが、mpv が見つかりません"
     },

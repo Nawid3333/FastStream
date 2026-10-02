@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "已找到 mpv"
     },
+    "options_mpv_test_ok_at": {
+        "message": "已找到 mpv：$1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "已找到 mpv：$1（上面設定的路徑不存在，因此主機改用此路徑）"
+    },
     "options_mpv_test_nompv": {
         "message": "主機可連線，但找不到 mpv"
     },

@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv gevonden"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv gevonden: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv gevonden: $1 (het pad hierboven is niet gevonden, dus de host gebruikt dit)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host bereikbaar, maar mpv is niet gevonden"
     },
