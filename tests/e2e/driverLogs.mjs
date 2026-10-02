@@ -34,11 +34,12 @@ export function keepDriverLogs(outputDir, suite) {
     attempts.set(cid, attempt);
     const from = path.join(outputDir, `wdio-${cid}-geckodriver.log`);
     // Renaming (not existsSync-then-read) has no gap in between; a log that vanished
-    // is a lost diagnostic, not a failure (CodeQL js/file-system-race).
+    // is a lost diagnostic, not a failure (CodeQL js/file-system-race). The name part
+    // is URI-encoded as the path cut (CodeQL js/path-injection).
     try {
       const spec = specs && specs[0] ? String(specs[0]) : '';
       const file = spec.startsWith('file:') ? url.fileURLToPath(spec) : spec;
-      const name = path.basename(file).replace(/\.e2e\.mjs$/, '') || 'spec';
+      const name = encodeURIComponent(path.basename(file).replace(/\.e2e\.mjs$/, '') || 'spec');
       fs.renameSync(from, path.join(outputDir, `geckodriver-${suite}-${name}-${cid}-attempt${attempt}.log`));
     } catch (e) {
       // A log is a diagnostic aid: failing to keep one must not fail the run.

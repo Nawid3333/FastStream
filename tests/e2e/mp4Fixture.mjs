@@ -61,6 +61,12 @@ export async function ensureMp4Fixture() {
         `after that the suite runs offline.`,
     );
   }
+  // Only bytes that are actually an MP4 (ftyp box, which starts every one of them)
+  // become the fixture: the download's content is checked before it is written
+  // (CodeQL js/http-to-file-access).
   const data = Buffer.from(await res.arrayBuffer());
+  if (data.length < 12 || data.toString('latin1', 4, 8) !== 'ftyp') {
+    throw new Error('the fetched MP4 fixture is not an MP4 (no ftyp box)');
+  }
   await writeFixture(MP4_FIXTURE, (partial) => fs.writeFileSync(partial, data));
 }
