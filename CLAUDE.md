@@ -834,10 +834,12 @@ x86_64-v3 Windows build, the one the maintainer runs (release, asset and
 SHA-256 pinned in `.github/mpv-build.json`, logging through
 `portable_config`), registered by `native-host/install.ps1`, the step failing
 if the registry key or its manifest is missing rather than letting the specs
-skip. `mpv-updates.yml` moves the pin by itself: each day it pushes shinchiro's
+skip. `mpv-updates.yml` offers each new pin: each day it pushes shinchiro's
 newest build as `mpv/<release>`, dispatches CI on it, reruns failed jobs once,
-and on a pass puts the pin commit on main (no PR; the push by `GITHUB_TOKEN`
-starts no CI and so no release, and the pin ships nothing). A failed build,
+and on a pass moves branch `mpv-update` to that commit, with ONE pull request from
+it that keeps up (retitled per build, assigned to the owner, who merges it; the
+pin ships nothing, so his merge releases nothing). Until 2026-10-02 the pin
+commit went onto main directly. A failed build,
 or a pinned release gone upstream (shinchiro keeps about 30), opens or updates
 one assigned issue, "mpv update failed: ...", which a later pass closes. A
 failed build keeps its branch, so it is not tried again; delete the branch to
@@ -1035,8 +1037,8 @@ the change went in.
   last release bump, and re-runs that run when it was cancelled and a CI run on `main`
   started after it did. A run cancelled by hand is left alone; after a third cancelled
   attempt, or when GitHub refuses the re-run, the issue "CI on main needs a re-run" goes to
-  the owner. (2) A push by `GITHUB_TOKEN` starts no CI (`mpv-updates.yml`'s pin,
-  `update-prs.yml`'s merges), so one landing while CI ran on a commit left that commit's
+  the owner. (2) A push by `GITHUB_TOKEN` starts no CI (until 2026-10-02 `mpv-updates.yml`'s
+  pin and `update-prs.yml`'s merges were such pushes), so one landing while CI ran on a commit left that commit's
   run seeing `main` moved on, to a commit whose run never comes. "Is this commit still
   main's newest?" now waits a minute for a later commit's CI run on `main` and, with none,
   starts CI on `main` by dispatch (a release bump after the commit means it is released).
@@ -1080,17 +1082,17 @@ the change went in.
   per update, "Toolchain update: <name> <version>", on `toolchain/node-<major>` or
   `toolchain/pnpm-<version>`, with CI started on the branch by `gh workflow run ci.yml`
   (a `GITHUB_TOKEN` push starts no workflow). A newer Node LTS major changes `.nvmrc`
-  and merges itself once CI is green and the build is unchanged (since 2026-10-01).
+  and waits for the owner's merge (nothing merges itself since 2026-10-02).
   `.nvmrc` is the one place the Node major is named, so a
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
   `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
-  5 days old, changes `packageManager` in `package.json` and nothing else, and is merged
-  by `update-prs.yml`. Nothing from npm runs in that job, beside its write token: CI
+  5 days old, changes `packageManager` in `package.json` and nothing else, and waits
+  for the owner's merge. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
   wants it rewritten fails CI and reaches the owner. A newer pnpm major waits
-  for dependabot-core#15904 to close, then merges itself the same way (pnpm 12's two-document
+  for dependabot-core#15904 to close, then comes the same way (pnpm 12's two-document
   lockfile hides every dependency from GitHub's dependency graph; 12.6.0 otherwise
   passed the full verify on 2026-09-25).
   A title is never used twice (issue or PR, open or closed): closing one skips that
@@ -1124,11 +1126,12 @@ the change went in.
   that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
   to start it, this run decides. Still red, one comment @mentions the owner with a
   table of failed job, step and what the step checks, the last 40 lines of each failed
-  log and `main`'s latest CI status, and the PR is labelled `ci-failed`, assigned to them and not merged. CI green:
-  every kind merges itself, majors included (the owner's choice, 2026-10-01: Dependabot
+  log and `main`'s latest CI status, and the PR is labelled `ci-failed` and assigned to them. CI green:
+  **nothing merges itself** (the owner's choice, 2026-10-02; from 2026-10-01 every kind
+  did). One comment @mentions the owner, assigned: "ready to merge" for any kind (Dependabot
   npm, fsaunpack, GitHub Actions, the actionlint/zizmor images, toolchain Node and pnpm,
-  patched libraries, the upstream sync), none labelled `hold` (the owner's "not yet",
-  since #67 was merged while on hold), and only when its bot opened it (not a draft,
+  patched libraries, the upstream sync) when it is not labelled `hold`, and only when its
+  bot opened it (not a draft,
   against `main`) and its commits are the bot's or this workflow's merges of `main` (the
   owner's, made with their token; an upstream sync's: upstream's own, checked with
   `gh api repos/Andrews54757/FastStream/commits/<sha>`), it changes only what its kind
@@ -1150,28 +1153,19 @@ the change went in.
   GitHub Actions updates change workflow files, which `GITHUB_TOKEN` may not merge or
   update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN`
   (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
-  updates"); without it they wait. An upstream sync merges as a merge commit (`--merge`),
-  keeping upstream's commits; everything else squashes. After a merge that
-  ships, it starts CI on `main` by dispatch (its own merge starts none) and
-  hands the run to its `watch-main` job: `ci.yml`'s release-hand-off gives a green run
-  to `auto-release.yml`, which releases; a red one releases nothing, nothing is
-  reverted, and watch-main opens "CI failed on main after an update merged itself"
-  (assigned, @mention; a comment while it is open). A green PR that fails a check gets one
-  comment @mentioning the owner - CI is
-  green, and why it waits - and is assigned to them. A comment with the same verdict
+  updates"), used only to bring such a branch up to date. The comment tells the owner to
+  merge an upstream sync with a merge commit, keeping upstream's commits. His merge is his
+  push: CI runs on `main`, and a green run of a merge that ships releases. A green PR that
+  fails a check gets one comment @mentioning the owner - CI is green, and what to look at
+  before merging - and is assigned to them. A comment with the same verdict
   as the last one is edited in place, so it sends no new mail: the owner hears when a
-  verdict changes. The merge is made with `GITHUB_TOKEN`, which starts no workflow:
-  no CI on `main` and no release by itself (for an update that ships, see above). The "behind main" check is the last call before the
-  merge; if another merge still lands in between (two update PRs decided at once), the
-  squash commit's parent is not the checked `main`, and the merged comment @mentions
-  the owner that `main` holds an untested combination. A merge or branch update refused
-  because the branch moved on meanwhile (Dependabot rebased it), or the PR was closed,
-  is no failure: the new commit's CI run decides, or there is nothing to decide. A
-  cancelled or skipped CI run decides nothing. The waiting comment keeps one key while
-  it waits, so a changed reason edits it without a new email. A merged branch is
-  deleted. A Node major is a PR the owner merges; `main`'s ruleset
-  blocks force-pushes and deletion only, no required checks, so direct pushes and
-  `mpv-updates.yml`'s pin commits keep working. If `update-prs.yml` itself fails, it
+  verdict changes. The "behind main" check is the last one: a branch behind `main` is
+  brought up to date and CI decides again, so what he merges is what CI tested. A branch
+  update refused because the branch moved on meanwhile (Dependabot rebased it), or the PR
+  was closed, is no failure: the new commit's CI run decides, or there is nothing to
+  decide. A cancelled or skipped CI run decides nothing. The comment keeps one key per
+  verdict, so a changed reason edits it without a new email. GitHub deletes a merged
+  branch. `main`'s ruleset blocks force-pushes and deletion only, no required checks. If `update-prs.yml` itself fails, it
   opens one issue "Update PRs workflow failed" (the decide step has its own
   `timeout-minutes` under the job's, so running out of time fails the step and still
   reaches the report).
@@ -1316,8 +1310,8 @@ the change went in.
 - **Every action is pinned to a commit SHA** with the exact version as a comment (and the
   actionlint image by digest, in `.github/actionlint/Dockerfile`, since Dependabot does
   not update a `docker://` line); Dependabot bumps them, the workflows' and the composite
-  actions' (`/.github/actions/*`), minor/patch grouped weekly, and `update-prs.yml` never
-  merges them (they change workflow files or the workflow check).
+  actions' (`/.github/actions/*`), minor/patch grouped weekly, and wait for the owner's
+  merge like every update.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
 - **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,

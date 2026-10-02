@@ -5,12 +5,12 @@ name: Toolchain updates
 # with CI started on it (a push by this workflow's token starts no workflow; a dispatch
 # does):
 #   - Node.js, a newer LTS major: .nvmrc, the file every workflow's setup-node reads (this
-#     token may not push a workflow file). update-prs.yml merges it once CI passes and the
-#     build is unchanged (the owner's choice, 2026-10-01), and tells the owner only of a red run.
+#     token may not push a workflow file). update-prs.yml tells the owner whether it is
+#     ready to merge; nothing merges itself (the owner's choice, 2026-10-02).
 #   - pnpm, the newest release of the pinned major at least 5 days old: "packageManager"
-#     in package.json, and nothing else. Routine: update-prs.yml merges it once CI passes
-#     and nothing the extension ships has changed.
-#   - pnpm, the next major, once nothing blocks it: the same change, merged the same way.
+#     in package.json, and nothing else. Routine: ready to merge once CI passes and nothing
+#     the extension ships has changed.
+#   - pnpm, the next major, once nothing blocks it: the same change, handled the same way.
 # The weekly run also rebuilds an open one on main when main has moved into conflict with
 # it, and starts CI on one whose head has none.
 # A title is never used twice, as a pull request or an issue, open or closed: closing one
@@ -187,8 +187,8 @@ jobs:
               {
                 printf '%s %s -> %s (%s).\n\n' "$name" "$was" "$latest" "$(jq -r .note <<< "$update")"
                 printf 'This pull request changes only %s, and CI has been started on it: the whole of `pnpm run verify`, on Linux and on Windows.\n\n' "$what"
-                if [ "$(jq -r .automerge <<< "$update")" = true ]; then
-                  printf 'Routine: `update-prs.yml` merges it once CI passes, and tells @%s only if it fails.\n' "$OWNER"
+                if [ "$(jq -r .routine <<< "$update")" = true ]; then
+                  printf 'Routine: `update-prs.yml` tells @%s once CI has run whether it is ready to merge, and the merge is theirs.\n' "$OWNER"
                 else
                   printf 'A decision: `update-prs.yml` tells @%s when CI is green or red, and the merge is theirs. Closing this pull request skips %s %s for good.\n' "$OWNER" "$name" "$latest"
                 fi

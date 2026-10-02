@@ -1,7 +1,7 @@
 name: Security alerts
 
-# Dependabot opens a pull request for a security fix, and update-prs.yml merges it or hands
-# it to the owner. When Dependabot cannot make the fix - a package the lockfile holds at
+# Dependabot opens a pull request for a security fix, and update-prs.yml tells the owner
+# whether it is ready to merge. When Dependabot cannot make the fix - a package the lockfile holds at
 # several majors, as brace-expansion was (2026-09-30) - its "Dependabot Updates" run fails
 # where nobody looks and the alert stays open on the Security tab, with GitHub's alert email
 # as the only notice. So once a day this reads the repository's open Dependabot alerts. A

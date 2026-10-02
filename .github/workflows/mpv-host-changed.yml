@@ -8,8 +8,8 @@ name: mpv helper changed
 #
 # It checks nothing out and runs nothing from the repository: it reads the pushed
 # commits' changed files from the commits API and writes one comment. A push by a
-# workflow's own token starts no workflow, but none of those (the release, the mpv pin,
-# update-prs' merges) change these files. If this workflow fails, GitHub tells the
+# workflow's own token starts no workflow, but none of those (the release commit, the
+# branches update-prs.yml brings up to date) change these files. If this workflow fails, GitHub tells the
 # pusher about the failed run (by email, with the default notification settings).
 
 on:

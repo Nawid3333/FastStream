@@ -12,10 +12,9 @@ email (assigned to you, with an @mention) in one of two ways:
 
 - **A pull request, "Patched library update: `<name>` `<version>`"** - the patch moved
   onto the new release cleanly and passed the tool's checks. The workflow starts CI on
-  it, which runs everything `pnpm run verify` runs. Green, and a minor or patch version:
-  `update-prs.yml` merges it and starts CI on `main`, and a green run there releases it
-  (a red one opens an issue for you and releases nothing). Green and a major version:
-  it waits for you; merge it, and it releases. Red: fix it on the branch (below), or close
+  it, which runs everything `pnpm run verify` runs. Green: `update-prs.yml` comments
+  "ready to merge" (or what to look at first), and it waits for you; merge it, and CI on
+  `main` releases it once green. Red: fix it on the branch (below), or close
   it to skip that version.
 - **An issue with the same title** - the tool stopped: a conflict, or a check failed. The
   issue lists where. Take it by hand (below), or close it to skip that version.

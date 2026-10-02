@@ -382,8 +382,9 @@ jobs:
   # Restarts a CI run on main that a later run cancelled (see the header). After every CI
   # push run on main ends, whatever it concluded, it finds the newest commit on main with a
   # CI run of its own, back to the last release bump: the pushes after that commit, if any,
-  # were by this repository's token, which start no CI and ship nothing (update-prs.yml's
-  # merges, mpv-updates.yml's pin). With no such commit there is nothing to release. Then:
+  # were by this repository's token, which start no CI and ship nothing (until 2026-10-02:
+  # update-prs.yml's merges, mpv-updates.yml's pin). With no such commit there is nothing to
+  # release. Then:
   #
   # - a run still going, or a green one: nothing is missing (when main has moved on from
   #   a green commit, "Is this commit still main's newest?" starts CI on main itself);

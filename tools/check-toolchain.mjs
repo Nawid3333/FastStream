@@ -5,23 +5,23 @@
 // of these changes what ships.
 //
 //   - Node.js: a newer LTS major than .nvmrc names. Every workflow's setup-node reads
-//     .nvmrc, so the pull request changes that one file. It merges itself once CI passes
-//     and the build is unchanged (the owner's choice, 2026-10-01).
+//     .nvmrc, so the pull request changes that one file. Routine: ready to merge once CI
+//     passes and the build is unchanged; the owner merges it (2026-10-02).
 //   - pnpm, same major: the newest release of the pinned major ("packageManager" in
 //     package.json) that is at least MIN_AGE_DAYS old, so a broken release is usually
-//     pulled or fixed before it is tried. Routine: .github/workflows/update-prs.yml merges
-//     it once CI passes.
+//     pulled or fixed before it is tried. Routine: .github/workflows/update-prs.yml says
+//     it is ready to merge once CI passes.
 //   - pnpm, next major: reported only once nothing blocks it. pnpm 12 writes
 //     pnpm-lock.yaml as two YAML documents; GitHub's dependency graph reads the first,
 //     which holds only pnpm's own binaries, and so sees none of the project's dependencies
 //     - Dependabot alerts and dependency-review.yml would go quiet
 //     (dependabot/dependabot-core#15904). Measured 2026-09-25: pnpm 12.6.0 otherwise passes
-//     the full `pnpm run verify`. It merges itself as the same major does, unless it wants
-//     the lockfile rewritten (CI fails at the frozen install, and the owner pushes it).
+//     the full `pnpm run verify`. Routine as the same major is, unless it wants the
+//     lockfile rewritten (CI fails at the frozen install, and the owner pushes it).
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
-//   --json   one {name, current, latest, behind, automerge, note} object per line.
+//   --json   one {name, current, latest, behind, routine, note} object per line.
 //   --plan   what the workflow is to do, as one JSON object {raise: [...], close: [...]}.
 //            open.json: [{number, title}] - the open pull requests and issues whose titles
 //            start with TITLE_PREFIX. titles.txt: every title ever used, one per line, open
@@ -141,7 +141,7 @@ async function getJson(url) {
   return response.json();
 }
 
-/** The updates, one per track, each {name, current, latest, behind, automerge, note}. */
+/** The updates, one per track, each {name, current, latest, behind, routine, note}. */
 async function updates() {
   const workflows = path.join(root, '.github', 'workflows');
   const texts = fs.readdirSync(workflows).filter((f) => f.endsWith('.yml'))
@@ -167,12 +167,12 @@ async function updates() {
 
   const result = [
     {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > nodeCurrent,
-      automerge: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
+      routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
     {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
-      automerge: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
+      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
   ];
   if (nextMajor) {
-    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: !blocked, automerge: true,
+    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: !blocked, routine: true,
       note: blocked ? `pnpm ${nextMajor} is out, still blocked by ${PNPM12_BLOCKER} (${blocker.state})` :
         `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
   }
