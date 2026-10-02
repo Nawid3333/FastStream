@@ -1164,7 +1164,7 @@
         "message": "无法在 mpv 中打开：$1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv 无法打开该流：$1"
+        "message": "FastStream - MPV - 流未能打开：$1"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中打开此视频流（内容类型：自动——除非网站标记 @anime，否则为电影；右键点击可为该视频覆盖）"

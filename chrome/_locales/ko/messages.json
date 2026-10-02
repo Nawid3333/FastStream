@@ -1164,7 +1164,7 @@
         "message": "mpv에서 열 수 없습니다: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv에서 스트림을 열 수 없습니다: $1"
+        "message": "FastStream - MPV - 스트림을 열지 못했습니다: $1"
     },
     "player_mpv_content_unset": {
         "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 자동 — 사이트에 @anime 태그가 없으면 영화, 우클릭하여 이 동영상만 변경)"

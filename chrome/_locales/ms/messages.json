@@ -1164,7 +1164,7 @@
         "message": "Tidak dapat dibuka dalam mpv: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv tidak dapat membuka strim: $1"
+        "message": "FastStream - MPV - strim tidak dibuka: $1"
     },
     "player_mpv_content_unset": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"

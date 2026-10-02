@@ -1164,7 +1164,7 @@
         "message": "mpv'de açılamadı: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv akışı açamadı: $1"
+        "message": "FastStream - MPV - akış açılmadı: $1"
     },
     "player_mpv_content_unset": {
         "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"

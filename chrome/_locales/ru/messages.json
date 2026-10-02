@@ -1164,7 +1164,7 @@
         "message": "Не удалось открыть в mpv: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv не смог открыть поток: $1"
+        "message": "FastStream - MPV - поток не открылся: $1"
     },
     "player_mpv_content_unset": {
         "message": "Открыть этот поток в mpv (тип содержимого: авто — фильм, если только сайт не помечен @anime; щёлкните правой кнопкой, чтобы переопределить для этого видео)"

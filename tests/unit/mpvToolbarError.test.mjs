@@ -34,7 +34,7 @@ describe('the toolbar button in MPV mode', () => {
   it('shows "!" and the reason after a failed hand-off', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: 'mpv executable not found'});
     expect(calls.badge).toEqual({text: '!', tabId: 7});
-    expect(calls.title).toEqual({title: 'FastStream - mpv could not open the stream: mpv executable not found', tabId: 7});
+    expect(calls.title).toEqual({title: 'FastStream - MPV - the stream did not open: mpv executable not found', tabId: 7});
     expect(calls.icon).toEqual({path: '/icon3_128.png', tabId: 7});
   });
 

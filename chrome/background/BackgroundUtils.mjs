@@ -59,7 +59,7 @@ export class BackgroundUtils {
     if (tab.isOn && tab.isMpv) {
       // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
       // last hand-off failed, say so: the page plays on in the browser, and nothing else
-      // would tell why.
+      // would tell why. The title still names the mode ("MPV"): the tab is in it.
       chrome.action.setBadgeText({
         text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
@@ -70,7 +70,7 @@ export class BackgroundUtils {
       chrome.action.setTitle({
         title: tab.mpvError ?
           chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
-            'FastStream - mpv could not open the stream: ' + tab.mpvError :
+            'FastStream - MPV - the stream did not open: ' + tab.mpvError :
           chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV',
         tabId: tab.tabId,
       });

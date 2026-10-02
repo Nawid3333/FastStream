@@ -1164,7 +1164,7 @@
         "message": "No se pudo abrir en mpv: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv no pudo abrir el stream: $1"
+        "message": "FastStream - MPV - el stream no se abrió: $1"
     },
     "player_mpv_content_unset": {
         "message": "Abrir esta transmisión en mpv (tipo de contenido: automático – Película, salvo que el sitio esté etiquetado con @anime; clic derecho para cambiarlo en este vídeo)"

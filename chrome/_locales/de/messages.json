@@ -1164,7 +1164,7 @@
         "message": "Konnte nicht in mpv geöffnet werden: $1"
     },
     "extension_toggle_label_mpv_failed": {
-        "message": "FastStream - mpv konnte den Stream nicht öffnen: $1"
+        "message": "FastStream - MPV - der Stream wurde nicht geöffnet: $1"
     },
     "player_mpv_content_unset": {
         "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Automatisch – Film, außer die Seite ist mit @anime markiert; Rechtsklick, um es für dieses Video zu ändern)"
