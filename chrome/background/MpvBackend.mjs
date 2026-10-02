@@ -115,10 +115,12 @@ export class MpvBackend {
    *   playback position by. Only http(s) URLs are relayed.
    * @param {string} [pageTitle] - The tab's title, which mpv shows for the stream
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
+   * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>}} [extras]
+   *   - Where the browser's player was, and the subtitles it shows (the player's button).
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean}>} Host response;
    *   noHost when the host itself could not be reached.
    */
-  openStream(url, tab, headers, contentType, pageUrl, pageTitle) {
+  openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
     if (!MpvBackend.isStreamUrl(url)) {
       return Promise.resolve({ok: false, error: 'mpv is only given http(s) streams'});
     }
@@ -146,6 +148,20 @@ export class MpvBackend {
 
     if (typeof pageTitle === 'string' && pageTitle.trim()) {
       message.title = pageTitle.trim().slice(0, 300);
+    }
+
+    if (typeof extras.startTime === 'number' && Number.isFinite(extras.startTime) && extras.startTime >= 1) {
+      message.start = extras.startTime;
+    }
+
+    if (Array.isArray(extras.subtitles)) {
+      const subtitles = extras.subtitles
+          .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
+          .slice(0, 8)
+          .map((s) => ({label: typeof s.label === 'string' ? s.label.slice(0, 100) : '', srt: s.srt}));
+      if (subtitles.length > 0) {
+        message.subtitles = subtitles;
+      }
     }
 
     // Relay the user's mpv path preference (options page) so the host does

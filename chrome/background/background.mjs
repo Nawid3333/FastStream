@@ -638,7 +638,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const contentType = resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url);
 
     Mpv.openStream(msg.url, null, headers, contentType, sender.tab && sender.tab.url,
-        sender.tab && sender.tab.title).then((result) => {
+        sender.tab && sender.tab.title, {startTime: msg.startTime, subtitles: msg.subtitles}).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
         // Let the user retry immediately when the launch actually failed.

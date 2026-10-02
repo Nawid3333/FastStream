@@ -32,6 +32,7 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import {execFile, spawn} from 'child_process';
 import net from 'net';
@@ -521,6 +522,86 @@ export function mpvTargetUrl(message) {
   return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
 }
 
+// What else a sender may hand over with a stream (the player's mpv button): where to
+// start, and the subtitles it shows, as SubRip text. Checked here again, since anything
+// that talks to the host gets this far.
+const MaxSubtitles = 8;
+const MaxSubtitleChars = 5 * 1024 * 1024;
+// The folders the subtitles are written into, one per send, in the user's temp folder.
+export const SubtitleDirPrefix = 'faststream-mpv-subs-';
+// mpv reads a subtitle file when it loads the stream; older folders are removed.
+const SubtitleDirMaxAgeMs = 24 * 60 * 60 * 1000;
+
+/**
+ * The position to start the stream at, when the message names a usable one.
+ * @param {{start?: *}} message - The open message.
+ * @return {number|undefined} Seconds (millisecond precision), or undefined.
+ */
+export function startOf(message) {
+  const t = message.start;
+  return typeof t === 'number' && Number.isFinite(t) && t >= 1 && t < 1e7 ?
+    Math.floor(t * 1000) / 1000 : undefined;
+}
+
+/**
+ * The subtitles the message carries that the host takes: SubRip text, at most
+ * MaxSubtitles, each at most MaxSubtitleChars long.
+ * @param {{subtitles?: *}} message - The open message.
+ * @return {Array<{srt: string, label: string}>} The subtitles.
+ */
+export function subtitlesOf(message) {
+  if (!Array.isArray(message.subtitles)) {
+    return [];
+  }
+  return message.subtitles
+      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim().length > 0 && s.srt.length <= MaxSubtitleChars)
+      .slice(0, MaxSubtitles)
+      .map((s) => ({srt: s.srt, label: typeof s.label === 'string' ? s.label : ''}));
+}
+
+/**
+ * Writes subtitles into a fresh folder of their own (mkdtemp: a random name in the
+ * user's temp folder) for mpv to load, after removing such folders older than a day.
+ * The file name is what mpv's track list shows.
+ * @param {Array<{srt: string, label: string}>} subtitles - From subtitlesOf.
+ * @param {string} [base] - The folder to write under; the temp folder by default.
+ * @return {Array<string>} The files, in order.
+ */
+export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
+  if (subtitles.length === 0) {
+    return [];
+  }
+  try {
+    for (const entry of fs.readdirSync(base, {withFileTypes: true})) {
+      if (entry.isDirectory() && entry.name.startsWith(SubtitleDirPrefix)) {
+        const dir = path.join(base, entry.name);
+        if (Date.now() - fs.statSync(dir).mtimeMs > SubtitleDirMaxAgeMs) {
+          fs.rmSync(dir, {recursive: true, force: true});
+        }
+      }
+    }
+  } catch (e) {
+    // Cleaning up is a courtesy; writing the new ones is what matters.
+  }
+  const dir = fs.mkdtempSync(path.join(base, SubtitleDirPrefix));
+  return subtitles.map((s, i) => {
+    const label = s.label.replace(/[^\p{L}\p{N} ._-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const file = path.join(dir, `${i + 1}${label ? ' ' + label : ''}.srt`);
+    fs.writeFileSync(file, s.srt, 'utf8');
+    return file;
+  });
+}
+
+/**
+ * Escapes one item of an mpv string list option: ',' separates the items, and '\'
+ * escapes ',' and itself.
+ * @param {string} item - The item.
+ * @return {string} The escaped item.
+ */
+function listItem(item) {
+  return item.replace(/\\/g, '\\\\').replace(/,/g, '\\,');
+}
+
 /**
  * mpv's per-file options for one stream: its headers and title, which come with the file
  * and go with it. Set for the whole player (set_property, or --http-header-fields on the
@@ -534,16 +615,23 @@ export function mpvTargetUrl(message) {
  *
  * @param {Array<string>} headerFields - "Name: value" strings for mpv.
  * @param {string} title - Media title to display.
- * @return {{'http-header-fields': string, 'force-media-title': string}} loadfile's options.
+ * @param {{start?: number, subFiles?: Array<string>}} [extras] - Where to start, and
+ *   subtitle files to load with the stream.
+ * @return {Object<string, string>} loadfile's options.
  */
-export function perFileOptions(headerFields, title) {
-  return {
-    // A string list: ',' separates the items, and '\' escapes ',' and itself.
-    'http-header-fields': headerFields
-        .map((field) => field.replace(/\\/g, '\\\\').replace(/,/g, '\\,'))
-        .join(','),
+export function perFileOptions(headerFields, title, extras = {}) {
+  /** @type {Object<string, string>} */
+  const options = {
+    'http-header-fields': headerFields.map(listItem).join(','),
     'force-media-title': title,
   };
+  if (extras.start !== undefined) {
+    options.start = String(extras.start);
+  }
+  if (extras.subFiles && extras.subFiles.length > 0) {
+    options['sub-files'] = extras.subFiles.map(listItem).join(',');
+  }
+  return options;
 }
 
 /**
@@ -554,11 +642,12 @@ export function perFileOptions(headerFields, title) {
  * @param {string} title - Media title to display.
  * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
  *   to the real named-pipe transport.
+ * @param {{start?: number, subFiles?: Array<string>}} [extras] - perFileOptions'.
  * @return {Promise<{ok: boolean, pid?: number, busy?: boolean}>} ok:false when no
  *   instance of ours answered, in which case the caller should start one - unless busy:
  *   one is running and did not answer in time.
  */
-export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest) {
+export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, extras = {}) {
   /** @type {Array<{command: *}>} */
   const commands = [];
   if (message.fullscreen) {
@@ -571,7 +660,7 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
     url: mpvTargetUrl(message),
     flags: 'replace',
     index: -1,
-    options: perFileOptions(headerFields, title),
+    options: perFileOptions(headerFields, title, extras),
   }});
   commands.push({command: ['get_property', 'pid']});
 
@@ -846,12 +935,20 @@ async function launchMpv(mpvPath, message, config) {
   const args = [];
   const headerFields = relayHeaderFields(message.headers);
   const title = streamTitle(message);
+  /** @type {{start?: number, subFiles: Array<string>}} */
+  const extras = {start: startOf(message), subFiles: []};
+  try {
+    extras.subFiles = writeSubtitleFiles(subtitlesOf(message));
+  } catch (e) {
+    // The stream still plays without them.
+    debugLog(config, 'subtitles-failed', {error: String(e)});
+  }
 
   // Reuse the window we already own, rather than stacking up players. Only
   // instances started with our pipe answer, so an mpv the user opened
   // themselves is never loaded into.
   if (message.singleInstance) {
-    const existing = await loadIntoExisting(message, headerFields, title);
+    const existing = await loadIntoExisting(message, headerFields, title, mpvIpcRequest, extras);
     if (existing.ok) {
       let focus;
       if (existing.pid) {
@@ -891,6 +988,12 @@ async function launchMpv(mpvPath, message, config) {
     args.push(`--http-header-fields-append=${field}`);
   }
   args.push(`--force-media-title=${title}`);
+  if (extras.start !== undefined) {
+    args.push(`--start=${extras.start}`);
+  }
+  for (const file of extras.subFiles) {
+    args.push(`--sub-files-append=${file}`);
+  }
   args.push(mpvTargetUrl(message));
   args.push('--}');
 

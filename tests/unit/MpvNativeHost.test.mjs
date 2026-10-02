@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, describe, expect, it} from 'vitest';
-import {loadIntoExisting, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, streamTitle, withContentTypeFragment} from '../../native-host/faststream-mpv-host.mjs';
+import {SubtitleDirPrefix, loadIntoExisting, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -332,3 +332,76 @@ describe('fs-page fragment (source-info.lua reads it)', () => {
     expect(decodeURIComponent(value)).toBe(pageUrl);
   });
 });
+
+// The player's mpv button hands over where it was and the subtitles it shows (as SubRip
+// text); the host writes those into a fresh folder and gives mpv the files.
+describe('start and subtitles from the player', () => {
+  const dirs = [];
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) fs.rmSync(dir, {recursive: true, force: true});
+  });
+  const scratch = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-subs-test-'));
+    dirs.push(dir);
+    return dir;
+  };
+
+  it('takes a start position of a second or more, to the millisecond', () => {
+    expect(startOf({start: 754.123456})).toBe(754.123);
+    for (const start of [undefined, 0, 0.5, -3, NaN, Infinity, '754', 1e8]) {
+      expect(startOf({start})).toBeUndefined();
+    }
+  });
+
+  it('takes at most 8 non-empty SubRip texts', () => {
+    const many = Array.from({length: 10}, (_, i) => ({srt: `1\n00:00:01,000 --> 00:00:02,000\nline ${i}`, label: 'L' + i}));
+    expect(subtitlesOf({subtitles: many})).toHaveLength(8);
+    expect(subtitlesOf({subtitles: [{srt: ' '}, {srt: 5}, null, {srt: 'x', label: 7}]})).toEqual([{srt: 'x', label: ''}]);
+    expect(subtitlesOf({subtitles: 'nope'})).toEqual([]);
+  });
+
+  it('writes each into a fresh folder, named for mpv\'s track list', () => {
+    const base = scratch();
+    const files = writeSubtitleFiles([{srt: 'one', label: 'English <CC>'}, {srt: 'two', label: ''}], base);
+    expect(files.map((f) => path.basename(f))).toEqual(['1 English CC.srt', '2.srt']);
+    expect(path.dirname(files[0]).startsWith(path.join(base, SubtitleDirPrefix))).toBe(true);
+    expect(fs.readFileSync(files[0], 'utf8')).toBe('one');
+    expect(writeSubtitleFiles([], base)).toEqual([]);
+  });
+
+  it('removes its folders older than a day, and only those', () => {
+    const base = scratch();
+    const old = path.join(base, SubtitleDirPrefix + 'old');
+    const recent = path.join(base, SubtitleDirPrefix + 'recent');
+    const foreign = path.join(base, 'someone-else');
+    for (const dir of [old, recent, foreign]) fs.mkdirSync(dir);
+    const twoDaysAgo = (Date.now() - 2 * 24 * 3600 * 1000) / 1000;
+    fs.utimesSync(old, twoDaysAgo, twoDaysAgo);
+    fs.utimesSync(foreign, twoDaysAgo, twoDaysAgo);
+    writeSubtitleFiles([{srt: 'x', label: 'a'}], base);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(recent)).toBe(true);
+    expect(fs.existsSync(foreign)).toBe(true);
+  });
+
+  it('gives mpv the start and the files as per-file options', () => {
+    expect(perFileOptions([], 't', {start: 754.5, subFiles: ['C:\\Temp\\a,b\\1 English.srt', 'C:\\Temp\\2.srt']})).toEqual({
+      'http-header-fields': '',
+      'force-media-title': 't',
+      'start': '754.5',
+      'sub-files': 'C:\\\\Temp\\\\a\\,b\\\\1 English.srt,C:\\\\Temp\\\\2.srt',
+    });
+    expect(perFileOptions([], 't', {})).toEqual({'http-header-fields': '', 'force-media-title': 't'});
+  });
+
+  it('sends them with the file into a running mpv', async () => {
+    let sent;
+    const ipcRequest = async (commands) => {
+      sent = commands;
+      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
+    };
+    await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['C:\\s\\1.srt']});
+    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': 'C:\\\\s\\\\1.srt'});
+  });
+});
+

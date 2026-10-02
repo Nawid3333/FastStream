@@ -272,4 +272,24 @@ describe('openStream contentType', () => {
       expect(host.message()).not.toHaveProperty('title');
     }
   });
+
+  it('relays where the player was and its subtitles (the player\'s button)', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 754.5, subtitles: [{label: 'English', srt}, {label: 'empty', srt: '  '}, {srt: 5}]});
+    expect(host.message().start).toBe(754.5);
+    expect(host.message().subtitles).toEqual([{label: 'English', srt}]);
+
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 0.4, subtitles: []});
+    expect(host.message()).not.toHaveProperty('start');
+    expect(host.message()).not.toHaveProperty('subtitles');
+
+    await backend.openStream('https://cdn/c.m3u8');
+    expect(host.message()).not.toHaveProperty('start');
+    expect(host.message()).not.toHaveProperty('subtitles');
+  });
 });
