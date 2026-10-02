@@ -8,7 +8,7 @@
  * The host is registered under the name com.faststream.mpv. It receives
  * small JSON messages and launches mpv on the user's machine:
  *   {type: 'ping'}                                -> {ok, mpv, path}
- *   {type: 'open', url, headers?, contentType?, pageUrl?}  -> {ok, error?}
+ *   {type: 'open', url, headers?, contentType?, pageUrl?, title?}  -> {ok, error?}
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
@@ -113,9 +113,11 @@ export class MpvBackend {
    *   dropped rather than relayed.
    * @param {string} [pageUrl] - The tab's page URL, the key mpv resumes the
    *   playback position by. Only http(s) URLs are relayed.
+   * @param {string} [pageTitle] - The tab's title, which mpv shows for the stream
+   *   (window, taskbar, top bar); without one the host shows the stream's host name.
    * @return {Promise<{ok: boolean, error?: string}>} Host response.
    */
-  openStream(url, tab, headers, contentType, pageUrl) {
+  openStream(url, tab, headers, contentType, pageUrl, pageTitle) {
     if (!MpvBackend.isStreamUrl(url)) {
       return Promise.resolve({ok: false, error: 'mpv is only given http(s) streams'});
     }
@@ -139,6 +141,10 @@ export class MpvBackend {
 
     if (typeof pageUrl === 'string' && /^https?:\/\//i.test(pageUrl)) {
       message.pageUrl = pageUrl;
+    }
+
+    if (typeof pageTitle === 'string' && pageTitle.trim()) {
+      message.title = pageTitle.trim().slice(0, 300);
     }
 
     // Relay the user's mpv path preference (options page) so the host does

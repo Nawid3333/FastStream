@@ -242,4 +242,20 @@ describe('openStream contentType', () => {
     await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'about:blank');
     expect(host.message()).not.toHaveProperty('pageUrl');
   });
+
+  it('relays the tab\'s title for mpv to show, trimmed and bounded', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', '  Show - Episode 3 ');
+    expect(host.message().title).toBe('Show - Episode 3');
+
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', 'x'.repeat(400));
+    expect(host.message().title).toHaveLength(300);
+
+    for (const none of [undefined, '', '   ', 42]) {
+      await backend.openStream('https://cdn/c.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', none);
+      expect(host.message()).not.toHaveProperty('title');
+    }
+  });
 });

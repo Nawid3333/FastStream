@@ -26,10 +26,16 @@ web page ──▶ FastStream content script ──▶ background (stream detect
 The host is a small Node.js script that speaks the standard
 [native messaging](https://developer.chrome.com/docs/apps/nativeMessaging)
 protocol. The extension sends it `{type: 'open', url, headers?, pageUrl?,
-contentType?, ...}` and it launches mpv with that URL, tagged as below. The
+title?, contentType?, ...}` and it launches mpv with that URL, tagged as below. The
 extension passes on only `Referer`, `Origin` and `User-Agent`
-(`MpvBackend.pickRelayHeaders`), and the host gives mpv one
-`--http-header-fields-append` per header. Referer/Origin are what
+(`MpvBackend.pickRelayHeaders`). The headers and the title (the browser tab's,
+or the stream's host name without one) go to mpv as **per-file options** of
+that one file: on a fresh start inside a `--{ ... --}` group, one
+`--http-header-fields-append` per header; into a running mpv as the options of
+its `loadfile` command. So the next file in that window does not inherit them,
+and two quick sends cannot mix one site's headers with the other's stream (until
+2026-10-02 they were set for the whole player, with a lock file between host
+processes). Referer/Origin are what
 CDN-protected streams check; the browser's User-Agent is relayed because mpv
 otherwise identifies itself as `libmpv`, which UA-gated CDNs reject. Cookies
 and every other header stay in the browser, so streams behind a per-session
@@ -101,7 +107,7 @@ perform the same steps by hand instead of running the script.
 | # | Action | Manual equivalent |
 |---|---|---|
 | 1 | Creates `%LOCALAPPDATA%\FastStreamMpvHost\` and copies `faststream-mpv-host.mjs` into it | `New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\FastStreamMpvHost"` then copy the file |
-| 2 | Writes `config.json` there containing only `{"mpvPath": "..."}` — the mpv location the host should launch | create the same file by hand |
+| 2 | Writes `mpvPath` into `config.json` there — the mpv location the host should launch; anything else the file holds (`"debug": true`) stays | create the same file by hand |
 | 3 | Writes `com.faststream.mpv.bat` — a two-line wrapper that runs `node faststream-mpv-host.mjs`. Needed because Windows won't start a `.mjs` as a program. Firefox passes the manifest's path and the add-on's id as arguments; the wrapper hands them on, and the host ignores them | create the same file by hand |
 | 4 | Writes `com.faststream.mpv.json` — the native-messaging manifest: host name, path to the `.bat`, `type: "stdio"`, and which extension may talk to it (`allowed_extensions` = `thanatus@Nawid`) | create the same file by hand |
 | 5 | Creates registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv` (default value = path to the manifest JSON) so **Firefox** can find the host | `New-Item` + `Set-ItemProperty`, see the key paths in the script |

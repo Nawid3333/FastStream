@@ -117,3 +117,34 @@ describe.runIf(process.platform === 'win32')('install.ps1 under a folder name th
     expect(reply).toEqual({ok: true, mpv: true, path: mpv});
   }, 60000);
 });
+
+describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
+  // update-local.ps1 reinstalls the host on every update: it used to write config.json
+  // anew with mpvPath alone, which dropped "debug": true and with it the host's log.
+  it('keeps what else config.json holds and sets mpvPath', async () => {
+    const installDir = path.join(dir, 'FastStreamMpvHost');
+    fs.mkdirSync(installDir, {recursive: true});
+    fs.writeFileSync(path.join(installDir, 'config.json'),
+        JSON.stringify({mpvPath: 'C:\\old\\mpv.exe', debug: true}));
+    const mpv = path.join(dir, 'mpv.exe');
+    fs.writeFileSync(mpv, '');
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
+
+    const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
+    expect(config).toEqual({mpvPath: mpv, debug: true});
+  }, 60000);
+
+  it('writes a new config.json over one it cannot read', async () => {
+    const installDir = path.join(dir, 'FastStreamMpvHost');
+    fs.mkdirSync(installDir, {recursive: true});
+    fs.writeFileSync(path.join(installDir, 'config.json'), '{not json');
+    const mpv = path.join(dir, 'mpv.exe');
+    fs.writeFileSync(mpv, '');
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
+
+    const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
+    expect(config).toEqual({mpvPath: mpv});
+  }, 60000);
+});
