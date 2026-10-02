@@ -113,8 +113,8 @@ setup() {
   printf '\n=== %s ===\n' "$scenario"
 }
 plan() { jq -n --argjson r "$1" --argjson c "$2" '{raise: $r, close: $c}' > "$STATE/plan.json"; }
-pnpm_update() { # <latest> [automerge]
-  jq -cn --arg l "$1" --argjson a "${2:-true}" '{name: "pnpm", current: "11.22.0", latest: $l, behind: true, automerge: $a, note: "n", title: "Toolchain update: pnpm \($l)"}'
+pnpm_update() { # <latest> [routine]
+  jq -cn --arg l "$1" --argjson a "${2:-true}" '{name: "pnpm", current: "11.22.0", latest: $l, behind: true, routine: $a, note: "n", title: "Toolchain update: pnpm \($l)"}'
 }
 run_step() {
   rc=0
@@ -149,7 +149,7 @@ weekly_pnpm() {
   check 'main untouched' test "$(origin rev-list --count main)" = 1
   check 'pull request' has_call 'pr create --base main --head toolchain/pnpm-11.27.1 --title Toolchain update: pnpm 11.27.1 --label dependencies'
   check 'CI started once' test "$(n_calls '^workflow run ci.yml --ref toolchain/pnpm-11.27.1$')" = 1
-  check 'routine body' grep -qF 'Routine: `update-prs.yml` merges it' "$STATE/created.body"
+  check 'routine body' grep -qF 'Routine: `update-prs.yml` tells @nawid once CI has run whether it is ready to merge' "$STATE/created.body"
   check 'names the change' grep -qF 'changes only `packageManager` in `package.json`' "$STATE/created.body"
   check 'lockfile hint' grep -qF 'The lockfile is left as it is' "$STATE/created.body"
   check 'every title, paginated' has_call 'api --paginate repos/me/fs/issues?state=all&per_page=100'
@@ -159,7 +159,7 @@ weekly_pnpm() {
 
 weekly_node() {
   setup
-  plan '[{"name": "Node.js", "current": "22", "latest": "26", "behind": true, "automerge": false, "note": "n", "title": "Toolchain update: Node.js 26"}]' '[]'
+  plan '[{"name": "Node.js", "current": "22", "latest": "26", "behind": true, "routine": false, "note": "n", "title": "Toolchain update: Node.js 26"}]' '[]'
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'only .nvmrc' test "$(branch_diff toolchain/node-26)" = .nvmrc
@@ -395,7 +395,7 @@ repair_skips_raised() {
 weekly_two() {
   # Each update gets its own branch off main, with only its own change.
   setup
-  plan "[{\"name\": \"Node.js\", \"current\": \"22\", \"latest\": \"26\", \"behind\": true, \"automerge\": false, \"note\": \"n\", \"title\": \"Toolchain update: Node.js 26\"}, $(pnpm_update 11.27.1)]" '[]'
+  plan "[{\"name\": \"Node.js\", \"current\": \"22\", \"latest\": \"26\", \"behind\": true, \"routine\": false, \"note\": \"n\", \"title\": \"Toolchain update: Node.js 26\"}, $(pnpm_update 11.27.1)]" '[]'
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'Node.js: only .nvmrc' test "$(branch_diff toolchain/node-26)" = .nvmrc
