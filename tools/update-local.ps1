@@ -9,6 +9,10 @@ out of date, run:
 
   powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-local.ps1 -Apply
 
+update-local.cmd asks "Update these now?" after a check that found something, and Y runs
+exactly that. Exit codes: 0 nothing to do (or all applied), 1 a step failed, 2 the check
+found something to update.
+
 What it checks, and what -Apply does about it:
   - Node.js: the newest release of the major .nvmrc names, the one CI builds with, once it
     is 5 days old (CI's rule). -Apply fetches the installer from nodejs.org, checked against
@@ -22,7 +26,8 @@ What it checks, and what -Apply does about it:
   - The repository: on main with nothing uncommitted, how many commits main is behind origin
     (the check reports against what git already knows; -Apply fetches, then runs
     git pull --ff-only), then pnpm install --frozen-lockfile into the store node_modules was
-    installed from, and fsaunpack's npm ci (scripts off) when it is installed.
+    installed from, and fsaunpack's npm ci (scripts off) when it is installed: each only when
+    its lockfile changed after its last install.
   - The mpv helper: whether %LOCALAPPDATA%\FastStreamMpvHost's copy is the repository's;
     -Apply runs native-host\install.ps1 again, with the mpv and Node paths it was installed
     with.
@@ -35,6 +40,7 @@ checkout than the one this script is in.
 param([switch]$Apply, [switch]$DryRun, [string]$Repo = (Split-Path -Parent $PSScriptRoot))
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'update-local-lib.ps1')
 
 # Windows PowerShell 5.1 may still offer TLS 1.0 first; nodejs.org wants 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -136,18 +142,9 @@ Invoke-Step 'Node.js' {
         $work = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) ('FastStream\node-' + [guid]::NewGuid().ToString('N'))
         $msi = Join-Path $work $file
         Invoke-Change "Node.js $have -> $want (nodejs.org installer; Windows asks for admin rights)" {
-            New-Item -ItemType Directory -Path $work | Out-Null
-            # Inheritance off, everyone else out: only this user (writes and hashes the
-            # file), Administrators and SYSTEM (msiexec runs as one of them) stay. The
-            # default %ProgramData% ACL inherits entries other users can create files in.
-            $acl = Get-Acl -LiteralPath $work
-            $acl.SetAccessRuleProtection($true, $false)
-            [void]$acl.Access | Out-Null
-            foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($rule) }
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('Administrators', 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('SYSTEM', 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            Set-Acl -LiteralPath $work -AclObject $acl
+            # Only this user (writes and hashes the file), Administrators and SYSTEM
+            # (msiexec runs as one of them) may write there.
+            New-PrivateDirectory $work
             $ProgressPreference = 'SilentlyContinue'
             Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
             $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
@@ -245,15 +242,30 @@ Invoke-Step 'The repository' {
                     $storeArgs = @('--store-dir', $store)
                 }
             }
+            # An install only when the lockfile changed after the last one: git rewrites a file
+            # only when it changes, and every install that changes something rewrites its
+            # marker (pnpm's node_modules\.modules.yaml, npm's node_modules\.package-lock.json).
+            # Offered every time, the check never came back clean (2026-10-03).
             $label = ('pnpm install --frozen-lockfile ' + ($storeArgs -join ' ')).Trim()
-            Invoke-Change $label { & pnpm install --frozen-lockfile @storeArgs }
-            if (Test-Path -LiteralPath (Join-Path $repo 'fsaunpack\node_modules')) {
-                Push-Location (Join-Path $repo 'fsaunpack')
-                try {
-                    Invoke-Change 'fsaunpack: npm ci --ignore-scripts' { & npm ci --ignore-scripts }
+            if (Test-ChangedSince (Join-Path $repo 'pnpm-lock.yaml') $modules) {
+                Invoke-Change $label { & pnpm install --frozen-lockfile @storeArgs }
+            }
+            else {
+                Note 'node_modules: installed from the current pnpm-lock.yaml'
+            }
+            $unpack = Join-Path $repo 'fsaunpack'
+            if (Test-Path -LiteralPath (Join-Path $unpack 'node_modules')) {
+                if (Test-ChangedSince (Join-Path $unpack 'package-lock.json') (Join-Path $unpack 'node_modules\.package-lock.json')) {
+                    Push-Location $unpack
+                    try {
+                        Invoke-Change 'fsaunpack: npm ci --ignore-scripts' { & npm ci --ignore-scripts }
+                    }
+                    finally {
+                        Pop-Location
+                    }
                 }
-                finally {
-                    Pop-Location
+                else {
+                    Note 'fsaunpack: node_modules installed from the current package-lock.json'
                 }
             }
         }
@@ -291,7 +303,8 @@ Write-Host ''
 Write-Host '== Summary' -ForegroundColor Cyan
 foreach ($line in $summary) { Write-Host "  $line" }
 Write-Host '  Not touched: Firefox (updates itself), mpv (its own repository), WSL (pnpm run verify:linux).'
-if (-not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })) {
+$due = -not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })
+if ($due) {
     Write-Host '  Run tools\update-local.ps1 -Apply to bring everything reported above up to date.'
 }
 if ($failed.Count -gt 0) {
@@ -300,4 +313,6 @@ if ($failed.Count -gt 0) {
     foreach ($line in $failed) { Write-Host "  $line" -ForegroundColor Red }
     exit 1
 }
+# 2: the check found something to update (update-local.cmd then offers to apply it).
+if ($due) { exit 2 }
 exit 0

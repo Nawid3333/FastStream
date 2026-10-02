@@ -1,0 +1,32 @@
+# Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory, Test-ChangedSince.
+
+# True when $File was written after $Marker, or $Marker does not exist (nothing installed yet).
+function Test-ChangedSince([string]$File, [string]$Marker) {
+    if (-not (Test-Path -LiteralPath $Marker)) { return $true }
+    return (Get-Item -LiteralPath $File).LastWriteTimeUtc -gt (Get-Item -LiteralPath $Marker -Force).LastWriteTimeUtc
+}
+
+# Creates $Path with an ACL that admits only the current user, Administrators and SYSTEM,
+# inheritance off. update-local.ps1 stages the Node.js installer there: %TEMP% is writable
+# by any process running as this user, and one of them could swap the MSI between the hash
+# check and the elevated msiexec.
+# Accounts by SID, never by name: Windows names its built-in accounts in its own language
+# ("Administratoren" on German Windows), and an English name fails there with "Some or all
+# identity references could not be translated" (2026-10-03, the user's PC).
+function New-PrivateDirectory([string]$Path) {
+    New-Item -ItemType Directory -Path $Path | Out-Null
+    $acl = Get-Acl -LiteralPath $Path
+    # Inheritance off, inherited entries dropped: the default %ProgramData% ACL inherits
+    # entries other users can create files in.
+    $acl.SetAccessRuleProtection($true, $false)
+    foreach ($rule in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($rule) }
+    $owners = @(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+        (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')), # Administrators
+        (New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')) # SYSTEM
+    )
+    foreach ($sid in $owners) {
+        $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+    }
+    Set-Acl -LiteralPath $Path -AclObject $acl
+}
