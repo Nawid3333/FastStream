@@ -1154,6 +1154,12 @@
     "player_mpv_fail": {
         "message": "mpv で開けませんでした。FastStream mpv ホストはインストールされていますか？"
     },
+    "player_mpv_fail_reason": {
+        "message": "mpvで開けませんでした: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - mpvでストリームを開けませんでした: $1"
+    },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
     },

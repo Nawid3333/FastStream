@@ -82,6 +82,10 @@ export class SaveManager {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
         return;
       }
+      // The host's own reason when it gave one ("mpv executable not found", "mpv is
+      // busy..."); "is the host installed?" only when the host itself was not reached.
+      const reason = response && !response.ok && !response.noHost && typeof response.error === 'string' ?
+        response.error : '';
       if (response && response.ok) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
@@ -89,6 +93,8 @@ export class SaveManager {
         if (this.client.options.mpvPausePage) {
           this.client.pause().catch(() => {});
         }
+      } else if (reason) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail_reason', [reason]), 'error', 6000);
       } else {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
       }

@@ -523,6 +523,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     // already handed a stream to mpv.
     tab.mpvAutoOpened = false;
     tab.mpvSentUrls.clear();
+    tab.mpvError = null;
     tab.mpvPlayPendingUntil = 0;
     tab.mpvPlayedVideo = null;
 
@@ -2010,6 +2011,7 @@ function autoOpenInMpv(tab, url, headers) {
   tabTitle(tab.tabId).then((title) =>
     Mpv.openStream(url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
+    setMpvError(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else {
@@ -2017,7 +2019,31 @@ function autoOpenInMpv(tab, url, headers) {
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
-  }).catch((e) => console.error('Handing the stream to mpv failed', e));
+  }).catch((e) => {
+    console.error('Handing the stream to mpv failed', e);
+    setMpvError(tab, {ok: false, error: String(e)});
+  });
+}
+
+/**
+ * Shows a failed MPV-mode hand-off on the tab's toolbar button ("!", and the reason in
+ * its tooltip), or clears it after one that worked. Without it the page simply played
+ * on in the browser, and nothing said why.
+ * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {{ok: boolean, error?: string, noHost?: boolean}} result - The host's answer.
+ */
+function setMpvError(tab, result) {
+  /** @type {?string} */
+  let error = null;
+  if (!result.ok) {
+    error = result.noHost || !result.error ?
+      'the FastStream mpv host did not answer - is it installed?' :
+      result.error;
+  }
+  if (tab.mpvError !== error) {
+    tab.mpvError = error;
+    BackgroundUtils.updateTabIcon(tab);
+  }
 }
 
 /**
@@ -2251,13 +2277,17 @@ function sendPlayedToMpv(tab, source) {
   tabTitle(tab.tabId).then((title) =>
     Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
+    setMpvError(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
       // The host never launched mpv, so let the next play try again.
       tab.mpvLastPlaySend = null;
     }
-  }).catch((e) => console.error('Handing the played video to mpv failed', e));
+  }).catch((e) => {
+    console.error('Handing the played video to mpv failed', e);
+    setMpvError(tab, {ok: false, error: String(e)});
+  });
 }
 
 /**
@@ -2306,6 +2336,7 @@ function openMpvWithSources(tab) {
   tabTitle(tab.tabId).then((title) =>
     Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
+    setMpvError(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else {
@@ -2313,7 +2344,10 @@ function openMpvWithSources(tab) {
       tab.mpvAutoOpened = false;
       Tabs.saveTabState(tab);
     }
-  }).catch((e) => console.error('Handing the stream to mpv failed', e));
+  }).catch((e) => {
+    console.error('Handing the stream to mpv failed', e);
+    setMpvError(tab, {ok: false, error: String(e)});
+  });
   return true;
 }
 

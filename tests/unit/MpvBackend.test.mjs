@@ -175,6 +175,20 @@ describe('openStream retry bookkeeping', () => {
     await backend.openStream('https://cdn/a.m3u8', tab);
     expect(host.calls()).toBe(2);
   });
+
+  // The player and the toolbar show the host's own reason, and "is the host
+  // installed?" only when the host itself could not be reached.
+  it('says when the host itself could not be reached', async () => {
+    stubNativeHost(undefined, {message: 'no such native application'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+        .toEqual({ok: false, error: 'no such native application', noHost: true});
+  });
+
+  it('passes the host\'s own reason on, without noHost', async () => {
+    stubNativeHost({ok: false, error: 'mpv executable not found'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+        .toEqual({ok: false, error: 'mpv executable not found'});
+  });
 });
 
 // contentType is the MPV allowlist tag or the player's manual anime/movie

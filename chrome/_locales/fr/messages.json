@@ -1154,6 +1154,12 @@
     "player_mpv_fail": {
         "message": "Impossible d'ouvrir dans mpv. L'hôte mpv de FastStream est-il installé ?"
     },
+    "player_mpv_fail_reason": {
+        "message": "Impossible d'ouvrir dans mpv : $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - mpv n'a pas pu ouvrir le flux : $1"
+    },
     "player_mpv_content_unset": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
     },

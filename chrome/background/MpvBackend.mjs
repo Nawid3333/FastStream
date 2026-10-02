@@ -115,7 +115,8 @@ export class MpvBackend {
    *   playback position by. Only http(s) URLs are relayed.
    * @param {string} [pageTitle] - The tab's title, which mpv shows for the stream
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
-   * @return {Promise<{ok: boolean, error?: string}>} Host response.
+   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean}>} Host response;
+   *   noHost when the host itself could not be reached.
    */
   openStream(url, tab, headers, contentType, pageUrl, pageTitle) {
     if (!MpvBackend.isStreamUrl(url)) {
@@ -179,7 +180,9 @@ export class MpvBackend {
               this.warnedAboutHost = true;
               console.warn('MPV native host not available:', lastError.message);
             }
-            resolve({ok: false, error: lastError.message});
+            // noHost: Firefox could not run the host at all (not installed, or it
+            // died), as opposed to a reason the host itself gave.
+            resolve({ok: false, error: lastError.message, noHost: true});
             return;
           }
 

@@ -1154,6 +1154,12 @@
     "player_mpv_fail": {
         "message": "Could not open in mpv. Is the FastStream mpv host installed?"
     },
+    "player_mpv_fail_reason": {
+        "message": "Could not open in mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - mpv could not open the stream: $1"
+    },
     "player_mpv_content_unset": {
         "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
     },
