@@ -407,8 +407,9 @@ describe('start and subtitles from the player', () => {
       sent = commands;
       return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
     };
-    await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['C:\\s\\1.srt']});
-    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': 'C:\\s\\1.srt'});
+    // A path with neither ';' nor ':' (the delimiter on Windows and on Linux CI).
+    await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['/subs/1 English.srt']});
+    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': '/subs/1 English.srt'});
   });
 });
 
