@@ -23,7 +23,7 @@ name: Vendored updates
 # Each is assigned to the owner and @mentions them. A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at
 # its tag or later, and a newer release's item closes the older ones. Nothing merges here:
-# the pull request waits for the owner (update-prs.yml merges no vendored/ branch).
+# the pull request waits for the owner, as every pull request does.
 
 on:
   schedule:

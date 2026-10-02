@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# update-prs.yml's Decide step: when a pull request merges, waits, or is reported red.
+# update-prs.yml's Decide step: what it tells the owner about a pull request - ready to merge,
+# look at this first, or red. It never merges one (nothing merges itself, 2026-10-02).
 # gh, curl, sleep and unzip are stubbed (unzip by python's zipfile, curl by canned npm
 # registry answers); jq, awk, sed, sha1sum and diff run for real. Every gh call is logged
 # to $STATE/gh.log, every curl call to $STATE/curl.log. KEEP=1 keeps the scenarios' temp
@@ -35,6 +36,8 @@ check() {
 run_step() {
   rc=0
   (cd "$T" && timeout 60 bash -e "$STEP") > "$T/out" 2>&1 || rc=$?
+  # Whatever the scenario: nothing merges itself.
+  check 'merges nothing' bash -c '! test -f "$0/merged" && ! grep -q "^pr merge" "$0/gh.log"' "$STATE"
 }
 
 mutations() { grep -E '^(pr (comment|edit|merge)|api -X (PATCH|PUT)|run rerun|workflow run|label create|issue )' "$STATE/gh.log" || true; }
@@ -43,6 +46,9 @@ has_call() { grep -qF -- "$1" "$STATE/gh.log"; }
 comments_n() { jq length "$STATE/comments.json"; }
 last_comment() { jq -r '.[-1].body' "$STATE/comments.json"; }
 merged() { [ -f "$STATE/merged" ]; }
+# Ready to merge: the comment says so, and nothing merged it.
+ready() { ! merged && grep -qF '<!-- update-prs: ready -->' <(last_comment); }
+not_ready() { ! grep -qF '<!-- update-prs: ready -->' <(last_comment); }
 
 write_stubs() {
   cat > "$BIN/gh" <<'GHSTUB'
@@ -421,13 +427,13 @@ no_pr() {
 }
 
 other_branch_name() {
-  # The job's condition keeps such a branch out; the step on its own still never merges it.
+  # The job's condition keeps such a branch out; the step on its own never calls it ready.
   setup
   export BRANCH='feature/x'
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says so' grep -qF 'not one this workflow merges' <(last_comment)
+  check 'not called ready' not_ready
+  check 'says so' grep -qF 'not one this workflow checks' <(last_comment)
 }
 
 red_first() {
@@ -503,7 +509,7 @@ red_second() {
   check 'carries a red key' grep -qE '<!-- update-prs: red [0-9a-f]{12} -->' <(last_comment)
   check 'labelled ci-failed' grep -qx 'ci-failed' "$STATE/labels"
   check 'assigned to the owner' grep -qx 'nawid' "$STATE/assignees"
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'Dependabot hint' grep -qF '@dependabot ignore' <(last_comment)
 }
 
@@ -551,21 +557,20 @@ timed_out() {
   check 'no comment yet' test "$(comments_n)" -eq 0
 }
 
-green_merge() {
+green_ready() {
   setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
   # Only the review's own check run: without the name, CI's green run would pass for it.
   check 'asks for the review check by name' has_call 'check-runs?check_name=Review%20dependency%20changes'
-  check 'squash' has_call "pr merge 42 --squash --match-head-commit $sha"
-  check 'a merged comment' grep -qF '<!-- update-prs: merged -->' <(last_comment)
-  check 'no @mention when merged' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
-  check 'not assigned' test ! -s "$STATE/assignees"
+  check '@mentions the owner' grep -qF '@nawid CI passes on this pull request (https://github.com/me/fs/actions/runs/555), and every check holds' <(last_comment)
+  check 'says merging releases nothing' grep -qF 'file for file the one in v1.3.82.40, the version number aside: merging it releases nothing' <(last_comment)
+  check 'assigned' grep -qx nawid "$STATE/assignees"
   check 'no branch update' bash -c '! grep -q update-branch "$0"' "$STATE/gh.log"
-  check 'branch deleted' has_call "api -X DELETE repos/me/fs/git/refs/heads/$BRANCH"
+  check 'branch kept' bash -c '! grep -q "api -X DELETE" "$0"' "$STATE/gh.log"
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
-  check 'nothing for watch-main' test ! -s "$T/output"
+  check 'no job outputs' test ! -s "$T/output"
 }
 
 green_version_only() {
@@ -573,7 +578,7 @@ green_version_only() {
   bundle new 1.3.82.41 'play()'
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged: only the version differs' merged
+  check 'ready to merge: only the version differs' ready
 }
 
 green_ships() {
@@ -581,11 +586,12 @@ green_ships() {
   bundle new 1.3.82.40 'play(); pwn()'
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
   check '@mentions and assigns' grep -qF '@nawid CI passes' <(last_comment)
   check 'assigned' grep -qx nawid "$STATE/assignees"
-  check 'green key' grep -qF '<!-- update-prs: green -->' <(last_comment)
+  check 'a look key' grep -qF '<!-- update-prs: look -->' <(last_comment)
+  check 'says to look first' grep -qF 'Look at this before merging' <(last_comment)
 }
 
 green_manifest_other_field() {
@@ -593,14 +599,14 @@ green_manifest_other_field() {
   printf '{"name":"FastStream","version":"1.3.82.40","manifest_version":3,"permissions":["<all_urls>"]}\n' > "$STATE/new/manifest.json"
   (cd "$STATE/new" && rm -f "$STATE/new.zip" && python3 -m zipfile -c "$STATE/new.zip" manifest.json player.js)
   run_step
-  check 'not merged: a manifest field besides version differs' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready: a manifest field besides version differs' not_ready
 }
 
 green_extra_file() {
   setup
   (cd "$STATE/new" && printf 'x\n' > extra.js && rm -f "$STATE/new.zip" && python3 -m zipfile -c "$STATE/new.zip" manifest.json player.js extra.js)
   run_step
-  check 'not merged: a file was added' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready: a file was added' not_ready
 }
 
 green_no_release() {
@@ -608,7 +614,7 @@ green_no_release() {
   rm "$STATE/tag"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
 }
 
@@ -617,19 +623,17 @@ green_no_artifact() {
   rm "$STATE/new.zip"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
 }
 
-green_major_merges() {
-  # A tooling major merges as a minor does: CI green, the build unchanged.
+green_major_ready() {
+  # A tooling major is ready as a minor is: CI green, the build unchanged.
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump eslint' "${dep_meta/semver-minor/semver-major}")]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check 'squashed' grep -qx -- --squash "$STATE/merge_method"
-  check "with this workflow's token" grep -qx x "$STATE/merge_token"
+  check 'ready to merge' ready
   check 'build compared: a tooling major ships nothing' has_call 'release download'
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
@@ -641,7 +645,7 @@ tooling_major_own_branch_that_ships_waits() {
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump eslint' "${dep_meta/semver-minor/semver-major}")]"
   bundle new 1.3.82.40 'play(); pwn()'
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
 }
 
@@ -649,7 +653,7 @@ green_other_file() {
   setup
   prview '["package.json","pnpm-lock.yaml",".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta")]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF '.github/workflows/ci.yml' <(last_comment)
   check 'no artifact downloaded' bash -c '! grep -q "run download" "$0"' "$STATE/gh.log"
 }
@@ -658,7 +662,7 @@ green_foreign_commit() {
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'Nawid3333' 'fix the lint')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says someone else committed' grep -qF 'commits from someone else' <(last_comment)
 }
 
@@ -666,21 +670,21 @@ green_actions_merge_commit_is_not_a_merge_of_main() {
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'github-actions[bot]' 'sneak in a change')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
 }
 
-green_with_update_merges() {
+green_with_update_ready() {
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'github-actions[bot]' "Merge branch 'main' into $BRANCH")]"
   run_step
-  check 'merged' merged
+  check 'ready to merge' ready
 }
 
 green_wrong_author() {
   setup
   pr Nawid3333
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says who opened it' grep -qF 'Nawid3333 opened it' <(last_comment)
 }
 
@@ -688,7 +692,7 @@ green_draft() {
   setup
   pr app/dependabot true
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says draft' grep -qF 'draft' <(last_comment)
 }
 
@@ -696,7 +700,7 @@ green_review_failed() {
   setup
   echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says the review' grep -qF 'dependency review is failure' <(last_comment)
 }
 
@@ -704,7 +708,7 @@ green_review_missing() {
   setup
   echo '{"check_runs":[]}' > "$STATE/checkruns.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says missing' grep -qF 'dependency review is missing' <(last_comment)
 }
 
@@ -712,7 +716,7 @@ green_review_pending_then_success() {
   setup
   echo 3 > "$STATE/review_pending"
   run_step
-  check 'merged after the review finished' merged
+  check 'ready to merge after the review finished' ready
   check 'asked four times' test "$(cat "$STATE/review_calls")" -eq 4
 }
 
@@ -720,14 +724,14 @@ green_review_rerun_success() {
   setup
   echo '{"check_runs":[{"conclusion":"failure"},{"conclusion":"success"}]}' > "$STATE/checkruns.json"
   run_step
-  check 'merged: one review passed' merged
+  check 'ready to merge: one review passed' ready
 }
 
 green_review_unreadable_then_success() {
   setup
   echo 2 > "$STATE/review_errors"
   run_step
-  check 'merged once the review could be read' merged
+  check 'ready to merge once the review could be read' ready
   check 'asked three times' test "$(cat "$STATE/review_calls")" -eq 3
 }
 
@@ -735,7 +739,7 @@ green_review_no_dependabot_commit() {
   setup
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'Nawid3333' 'bump by hand' "$dep_meta")]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says missing' grep -qF "Dependabot's dependency review is missing" <(last_comment)
   check 'asks about no commit' bash -c '! grep -qF check-runs "$0"' "$STATE/gh.log"
 }
@@ -744,7 +748,7 @@ green_conflict() {
   setup
   echo CONFLICTING > "$STATE/mergeable"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says conflict' grep -qF 'conflicts with main' <(last_comment)
 }
 
@@ -752,7 +756,7 @@ green_mergeable_unknown_then_ok() {
   setup
   echo 2 > "$STATE/mergeable_unknown"
   run_step
-  check 'merged once GitHub knew' merged
+  check 'ready to merge once GitHub knew' ready
 }
 
 green_behind() {
@@ -762,7 +766,7 @@ green_behind() {
   check 'exit 0' test "$rc" -eq 0
   check 'updates the branch at the tested commit' has_call "api -X PUT repos/me/fs/pulls/42/update-branch -f expected_head_sha=$sha"
   check 'starts CI on the branch' has_call "workflow run ci.yml --ref $BRANCH"
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'no comment' test "$(comments_n)" -eq 0
 }
 
@@ -782,7 +786,7 @@ green_behind_three_times() {
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'github-actions[bot]' "$m"), $(commit 'github-actions[bot]' "$m x"), $(commit 'github-actions[bot]' "$m y")]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'no fourth update' bash -c '! grep -q update-branch "$0"' "$STATE/gh.log"
   check 'waits for the owner' grep -qF 'main moved on 3 times' <(last_comment)
 }
@@ -799,7 +803,7 @@ green_behind_main_shipped() {
   check 'no comment' test "$(comments_n)" -eq 0
   check 'updates the branch at the tested commit' has_call "api -X PUT repos/me/fs/pulls/42/update-branch -f expected_head_sha=$sha"
   check 'starts CI on the branch' has_call "workflow run ci.yml --ref $BRANCH"
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
 }
 
 green_again_same() {
@@ -808,7 +812,7 @@ green_again_same() {
   run_step
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'one comment, edited' test "$(comments_n)" -eq 1
   check 'edited' has_call 'api -X PATCH repos/me/fs/issues/comments/1000'
 }
@@ -822,17 +826,17 @@ red_then_green() {
   export CONCLUSION=success
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'a second comment for the new verdict' test "$(comments_n)" -eq 2
   check 'label removed' grep -qx 'removed ci-failed' "$STATE/labels"
 }
 
-green_label_removed_then_merged() {
+green_label_removed_then_ready() {
   setup
   pr app/dependabot false '[{"name":"ci-failed"}]'
   run_step
   check 'label removed' grep -qx 'removed ci-failed' "$STATE/labels"
-  check 'merged' merged
+  check 'ready to merge' ready
 }
 
 pnpm_same_major() {
@@ -843,7 +847,7 @@ pnpm_same_major() {
   echo '{"check_runs":[]}' > "$STATE/checkruns.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
+  check 'ready to merge' ready
   check 'no dependency review asked' bash -c '! grep -q check-runs "$0"' "$STATE/gh.log"
   check 'package.json read at the merge base, raw' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=1111111111111111111111111111111111111111'
   check "and the pull request's, raw" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/package.json?ref=$sha"
@@ -859,7 +863,7 @@ pnpm_package_json_more() {
   jq '.packageManager = "pnpm@11.27.1" | .devDependencies = {"evil": "1.0.0"}' "$STATE/main-package.json" > "$STATE/head-package.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says so' grep -qF 'its package.json changes more than packageManager to pnpm@11.27.1' <(last_comment)
 }
 
@@ -872,7 +876,7 @@ pnpm_package_manager_mismatch() {
   jq '.packageManager = "pnpm@11.99.0"' "$STATE/main-package.json" > "$STATE/head-package.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says so' grep -qF 'changes more than packageManager' <(last_comment)
 }
 
@@ -883,19 +887,19 @@ pnpm_lockfile_changed() {
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 11.27.1')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says so' grep -qF 'it changes pnpm-lock.yaml' <(last_comment)
 }
 
-pnpm_major_merges() {
-  # The next major, raised only once nothing blocks it: merged as the same major's are.
+pnpm_major_ready() {
+  # The next major, raised only once nothing blocks it: ready as the same major's are.
   setup
   export BRANCH='toolchain/pnpm-12.6.0'
   pr app/github-actions
   prview '["package.json"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 12.6.0')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
+  check 'ready to merge' ready
 }
 
 pnpm_major_lockfile_waits() {
@@ -906,7 +910,7 @@ pnpm_major_lockfile_waits() {
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'build: pnpm 11.22.0 -> 12.6.0')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says the lockfile' grep -qF 'it changes pnpm-lock.yaml, which a pnpm update does not' <(last_comment)
 }
 
@@ -916,22 +920,22 @@ pnpm_by_dependabot_author() {
   pr app/dependabot
   prview '["package.json"]' "[$(commit 'github-actions[bot]' 'build: pnpm')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
 }
 
-node_merges() {
-  # A new LTS major, CI green on it and the build unchanged: merged, with no one asked.
+node_ready() {
+  # A new LTS major, CI green on it and the build unchanged: ready to merge.
   setup
   export BRANCH='toolchain/node-26'
   pr app/github-actions
   prview '[".nvmrc"]' "[$(commit 'github-actions[bot]' 'build: Node.js 22 -> 26')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
   check 'build compared' has_call 'release download'
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
-  check 'no @mention' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
-  check 'not assigned' test ! -s "$STATE/assignees"
+  check '@mentions the owner' grep -qF '@nawid CI passes' <(last_comment)
+  check 'assigned' grep -qx nawid "$STATE/assignees"
 }
 
 node_other_file_waits() {
@@ -940,18 +944,17 @@ node_other_file_waits() {
   pr app/github-actions
   prview '[".nvmrc","package.json"]' "[$(commit 'github-actions[bot]' 'build: Node.js 22 -> 26')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes package.json, not only .nvmrc' <(last_comment)
 }
 
-docker_merges() {
+docker_ready() {
   setup
   export BRANCH='dependabot/docker/actionlint-1234'
   prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check "with this workflow's token" grep -qx x "$STATE/merge_token"
+  check 'ready to merge' ready
 }
 
 docker_review_failed_waits() {
@@ -960,7 +963,7 @@ docker_review_failed_waits() {
   prview '[".github/actionlint/Dockerfile"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
   echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says the review' grep -qF "Dependabot's dependency review is failure" <(last_comment)
 }
 
@@ -969,7 +972,7 @@ docker_other_file_waits() {
   export BRANCH='dependabot/docker/actionlint-1234'
   prview '[".github/actionlint/Dockerfile",".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump rhysd/actionlint')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes .github/workflows/ci.yml, not only the actionlint and zizmor Dockerfiles' <(last_comment)
 }
 
@@ -986,22 +989,21 @@ upstream_setup() { # [files json]: a sync of one upstream commit, without confli
   echo '[{"filename":"chrome/player/FastStreamClient.mjs","status":"modified"},{"filename":"chrome/player/New.mjs","status":"added"}]' \
     > "$STATE/pr_files.json"
   bundle new 1.3.82.40 'play(); upstreamFix()'
-  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
 }
 
-upstream_merges() {
-  # Clean, reviewed and green: upstream's bug fixes arrive with no one asked. A new file
-  # of upstream's (one main never had) is fine.
+upstream_ready() {
+  # Clean, reviewed and green: upstream's bug fixes are ready to merge. A new file of
+  # upstream's (one main never had) is fine.
   upstream_setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check "a merge commit, keeping upstream's commits" grep -qx -- --merge "$STATE/merge_method"
+  check 'ready to merge' ready
+  check "says to merge it with a merge commit" grep -qF 'Merge it with **Create a merge commit**, not Squash' <(last_comment)
   check 'asked upstream about its commit' has_call 'api repos/Andrews54757/FastStream/commits/'
   check "asked main's history of the added file" has_call 'api -X GET repos/me/fs/commits -f sha=main -f path=chrome/player/New.mjs'
   check 'no build comparison: it ships' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
-  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+  check 'says merging releases' grep -qF 'once you merge it, CI runs on main, and a green run there releases it to Firefox' <(last_comment)
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
 upstream_conflicts_waits() {
@@ -1009,7 +1011,7 @@ upstream_conflicts_waits() {
   prview '["chrome/player/FastStreamClient.mjs"]' "[$(commit 'github-actions[bot]' 'merge upstream/main (CONFLICTS - resolve before merging)')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it conflicts' grep -qF "upstream's commits conflict with main's" <(last_comment)
   check '@mentions' grep -qF '@nawid CI passes' <(last_comment)
 }
@@ -1020,7 +1022,7 @@ upstream_brings_back_waits() {
     > "$STATE/pr_files.json"
   echo 'chrome/youtube/YouTubeHandler.mjs' > "$STATE/deleted_on_main"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the deleted file' grep -qF 'it brings back chrome/youtube/YouTubeHandler.mjs, which this project deleted' <(last_comment)
   check 'not the new one' bash -c '! grep -qF "New.mjs" <<< "$0"' "$(last_comment)"
 }
@@ -1031,7 +1033,7 @@ upstream_added_list_fails_stops() {
   : > "$STATE/pr_files_fail"
   run_step
   check 'fails (the failure step reports it)' test "$rc" -ne 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
 }
 
 upstream_young_package_waits() {
@@ -1040,14 +1042,14 @@ upstream_young_package_waits() {
   lock_adds 'left-pad@9.9.9'
   published left-pad 9.9.9 "$(hours_ago 5)"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF 'left-pad@9.9.9 (published' <(last_comment)
 }
 
 upstream_github_waits() {
   upstream_setup '["chrome/player/FastStreamClient.mjs",".github/workflows/release.yml"]'
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF "it changes .github/workflows/release.yml, which run with this repository's tokens and keys" <(last_comment)
 }
 
@@ -1057,7 +1059,7 @@ upstream_foreign_commit_waits() {
   prview '["chrome/player/FastStreamClient.mjs"]' \
     "[$(commit 'Andrews54757' 'Bug fixes'), $(commit mallory 'sneaky'), $(commit 'github-actions[bot]' "Merge remote-tracking branch 'upstream/main' into sync/upstream")]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names that commit only' grep -qF "commits from someone else ($(commit mallory sneaky | jq -r '.oid[0:8]'))" <(last_comment)
 }
 
@@ -1066,30 +1068,29 @@ other_base() {
   jq '.[0].baseRefName = "release"' "$STATE/prs.json" > "$STATE/p.json" && mv "$STATE/p.json" "$STATE/prs.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says why' grep -qF 'it does not target main' <(last_comment)
 }
 
 actions_waits() {
-  # Without the owner's token: GitHub's own may not merge a workflow file.
+  # Without the owner's token: GitHub's own may not bring a workflow file's branch up to date.
   setup
   export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234'
   prview '[".github/workflows/ci.yml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
-  check 'says how to let it merge' grep -qF 'once the UPDATE_PRS_TOKEN secret is set' <(last_comment)
+  check 'not called ready' not_ready
+  check 'says how to bring it up to date' grep -qF 'set the UPDATE_PRS_TOKEN secret' <(last_comment)
 }
 
-actions_merges_with_token() {
+actions_ready_with_token() {
   setup
   export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
   prview '[".github/workflows/ci.yml",".github/actions/e2e-setup/action.yml"]' \
     "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout'), $(commit nawid "Merge branch 'main' into $BRANCH")]"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check "with the owner's token" grep -qx owner-token "$STATE/merge_token"
+  check 'ready to merge' ready
   check 'build compared: workflows ship nothing' has_call 'release download'
 }
 
@@ -1102,7 +1103,7 @@ actions_behind_updates_with_token() {
   check 'exit 0' test "$rc" -eq 0
   check "updated with the owner's token" grep -qx owner-token "$STATE/update_token"
   check 'starts no CI itself: that push does' bash -c '! grep -qF "workflow run ci.yml" "$0"' "$STATE/gh.log"
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
 }
 
 actions_broken_token_waits() {
@@ -1113,7 +1114,7 @@ actions_broken_token_waits() {
   : > "$STATE/token_broken"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says to renew it' grep -qF 'the UPDATE_PRS_TOKEN secret does not work' <(last_comment)
 }
 
@@ -1123,7 +1124,7 @@ too_many_files_waits() {
   echo '150 1' > "$STATE/pr_counts"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says why' grep -qF 'it has 150 changed files and 1 commits, more than this workflow reads at once' <(last_comment)
 }
 
@@ -1131,7 +1132,7 @@ too_many_commits_waits() {
   setup
   echo '2 101' > "$STATE/pr_counts"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says why' grep -qF '2 changed files and 101 commits' <(last_comment)
 }
 
@@ -1140,7 +1141,7 @@ counts_unreadable_waits() {
   : > "$STATE/pr_counts_fail"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says why' grep -qF 'it has ? changed files and ? commits' <(last_comment)
 }
 
@@ -1149,7 +1150,7 @@ actions_other_file_waits() {
   export BRANCH='dependabot/github_actions/actions-minor-and-patch-1234' MERGE_TOKEN=owner-token
   prview '[".github/workflows/ci.yml","package.json"]' "[$(commit 'dependabot[bot]' 'build(deps): bump actions/checkout')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes package.json, not only workflow and action files' <(last_comment)
 }
 
@@ -1158,13 +1159,13 @@ patched_waits() {
   export BRANCH='patched/hls.js-1.7.4'
   pr app/github-actions
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says main has no such library' grep -qF "patched/hls.js-1.7.4 names no library of main's package.json" <(last_comment)
 }
 
-# --- Updates that ship (D1): Dependabot's shipped group, and patched libraries, minor and
-# patch. They merge on green CI, with no build comparison (they are meant to change the
-# build), and CI is then started on main; watch-main follows that run.
+# --- Updates that ship (D1): Dependabot's shipped group, and patched libraries. Ready on
+# green CI, with no build comparison (they are meant to change the build); the comment says
+# the owner's merge releases them.
 patched_setup() { # <branch version> [main's version]: a clean patch re-cut of hls.js
   setup
   scenario=${FUNCNAME[1]}
@@ -1175,55 +1176,51 @@ patched_setup() { # <branch version> [main's version]: a clean patch re-cut of h
   prview "[\"package.json\",\"pnpm-lock.yaml\",\"pnpm-workspace.yaml\",\"patches/hls.js@$1.patch\",\"tools/sync-vendor.mjs\"]" \
     "[$(commit 'github-actions[bot]' "deps: hls.js 1.7.3 -> $1, patch re-cut by tools/recut-patch.mjs")]"
   bundle new 1.3.82.40 'play(); hls174()'
-  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
 }
 
-patched_patch_merges() {
+patched_patch_ready() {
   patched_setup 1.7.4
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
   check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
-  check 'names the run on main' grep -qF 'https://github.com/me/fs/actions/runs/777' <(last_comment)
-  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
-  check 'with the pull request' grep -qx 'pr-number=42' "$T/output"
+  check 'says merging releases' grep -qF 'once you merge it, CI runs on main' <(last_comment)
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
-patched_minor_merges() {
+patched_minor_ready() {
   patched_setup 1.8.0
   run_step
-  check 'merged' merged
+  check 'ready to merge' ready
 }
 
-patched_major_merges() {
-  # A clean re-cut of a new major: merged, and CI on main decides the release.
+patched_major_ready() {
+  # A clean re-cut of a new major: ready, and CI on main decides the release once merged.
   patched_setup 2.0.0
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged at the tested commit' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
-  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+  check 'ready to merge' ready
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
 patched_same_version_waits() {
   patched_setup 1.7.3
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says main has it' grep -qF 'main has hls.js 1.7.3 already' <(last_comment)
 }
 
 patched_unparseable_waits() {
   patched_setup 1.8 1.7.3
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it cannot tell' grep -qF 'hls.js 1.7.3 -> 1.8 cannot be read as a version step' <(last_comment)
 }
 
 patched_range_on_main_waits() {
   patched_setup 1.7.4 '^1.7.3'
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it cannot tell' grep -qF 'cannot be read as a version step' <(last_comment)
 }
 
@@ -1232,7 +1229,7 @@ patched_extra_file_waits() {
   prview '["package.json","pnpm-lock.yaml","patches/hls.js@1.7.4.patch","tests/e2e/specs/x.e2e.mjs"]' \
     "[$(commit 'github-actions[bot]' 'deps: hls.js 1.7.3 -> 1.7.4')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes tests/e2e/specs/x.e2e.mjs, not only what a patch re-cut changes' <(last_comment)
 }
 
@@ -1241,7 +1238,7 @@ patched_young_package_waits() {
   lock_adds 'hls.js@1.7.4'
   published hls.js 1.7.4 "$(days_ago 2)"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF 'hls.js@1.7.4 (published' <(last_comment)
 }
 
@@ -1249,7 +1246,7 @@ patched_foreign_commit_waits() {
   patched_setup 1.7.4
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'deps: hls.js'),$(commit 'someone' 'tweak')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says someone else' grep -qF 'it has commits from someone else' <(last_comment)
 }
 
@@ -1259,26 +1256,24 @@ shipped_setup() {
   export BRANCH='dependabot/npm_and_yarn/shipped-minor-and-patch-0123abcd'
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps): bump mediabunny' "${1:-$dep_meta}")]"
   bundle new 1.3.82.40 'play(); mediabunny161()'
-  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
 }
 
-shipped_merges() {
+shipped_ready() {
   shipped_setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged, though the build differs' merged
+  check 'ready to merge, though the build differs' ready
   check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
-  check 'says a green run releases' grep -qF 'A green run there releases it' <(last_comment)
-  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+  check 'says a green run releases' grep -qF 'a green run there releases it to Firefox' <(last_comment)
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
-shipped_major_merges() {
+shipped_major_ready() {
   shipped_setup "${dep_meta/semver-minor/semver-major}"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
+  check 'ready to merge' ready
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
 # A shipped library's major, as Dependabot raises it: on a branch of its own.
@@ -1289,18 +1284,16 @@ shipped_own_branch_setup() {
   local meta=$'---\nupdated-dependencies:\n- dependency-name: mediabunny\n  dependency-version: 2.0.0\n  dependency-type: direct:development\n  update-type: version-update:semver-major\n...'
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump mediabunny from 1.61.0 to 2.0.0' "$meta")]"
   bundle new 1.3.82.40 'play(); mediabunny2()'
-  jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
 }
 
-shipped_major_own_branch_merges() {
+shipped_major_own_branch_ready() {
   shipped_own_branch_setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged, though the build differs' merged
+  check 'ready to merge, though the build differs' ready
   check "read the shipped libraries from main's dependabot.yml" has_call 'repos/me/fs/contents/.github/dependabot.yml?ref=main'
   check 'no build comparison' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
-  check 'starts CI on main' has_call 'workflow run ci.yml --ref main'
-  check 'hands it to watch-main' grep -qx 'main-run-id=777' "$T/output"
+  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
 shipped_list_unreadable_waits() {
@@ -1309,7 +1302,7 @@ shipped_list_unreadable_waits() {
   rm "$STATE/dependabot.yml"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says it changes what ships' grep -qF 'changes what the extension ships' <(last_comment)
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
@@ -1328,11 +1321,11 @@ fsa_setup() {
   published express 5.3.0 "$(days_ago 9)"
 }
 
-fsaunpack_merges() {
+fsaunpack_ready() {
   fsa_setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
+  check 'ready to merge' ready
   check "fsaunpack's lockfile read at the merge base" has_call 'contents/fsaunpack/package-lock.json?ref=1111111111111111111111111111111111111111'
   check 'the version it adds checked on the registry' grep -qx 'https://registry.npmjs.org/express' "$STATE/curl.log"
   check 'nothing else looked up' test "$(wc -l < "$STATE/curl.log")" -eq 1
@@ -1346,7 +1339,7 @@ fsaunpack_young_package_waits() {
     mv "$STATE/n.tmp" "$STATE/npmlock.head"
   published qs 6.16.0 "$(hours_ago 5)"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
 }
 
@@ -1356,7 +1349,7 @@ fsaunpack_workspace_entry_ignored() {
   jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
+  check 'ready to merge' ready
   check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
 }
 
@@ -1365,7 +1358,7 @@ fsaunpack_other_file_waits() {
   prview '["fsaunpack/package.json","fsaunpack/package-lock.json","package.json"]' \
     "[$(commit 'dependabot[bot]' 'build(deps): bump express from 5.2.1 to 5.3.0 in /fsaunpack')]"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes package.json, not only fsaunpack/package.json and fsaunpack/package-lock.json' <(last_comment)
 }
 
@@ -1374,34 +1367,17 @@ shipped_young_package_waits() {
   lock_adds 'mediabunny@1.61.0'
   published mediabunny 1.61.0 "$(hours_ago 5)"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF 'mediabunny@1.61.0 (published' <(last_comment)
 }
 
-shipped_main_run_not_found() {
-  shipped_setup
-  echo '[]' > "$STATE/dispatched.json"
-  run_step
-  check 'merged' merged
-  check 'asks the owner to start CI on main' grep -qF '@nawid CI could not be started on main' <(last_comment)
-  check 'nothing for watch-main' test ! -s "$T/output"
-}
-
-shipped_dispatch_refused() {
-  shipped_setup
-  : > "$STATE/dispatch_fails"
-  run_step
-  check 'merged' merged
-  check 'asks the owner to start CI on main' grep -qF '@nawid CI could not be started on main' <(last_comment)
-}
-
-# A tooling update whose build differs still waits: only the shipped group ships.
-# The owner's hold label stops a merge that everything else allows.
+# A tooling update whose build differs is not ready: only the shipped group ships.
+# The owner's hold label keeps a pull request from "ready" that everything else allows.
 held_waits() {
   setup
   pr app/dependabot false '[{"name":"hold"}]'
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says hold' grep -qF 'it is labelled hold' <(last_comment)
 }
 
@@ -1410,7 +1386,7 @@ tooling_that_ships_waits() {
   bundle new 1.3.82.40 'play(); pwn()'
   jq -n '[{databaseId: 777, headSha: "cccccccccccccccccccccccccccccccccccccccc"}]' > "$STATE/dispatched.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
@@ -1428,7 +1404,7 @@ upstream_red() {
 patched_review_passed() {
   patched_setup 1.7.4
   run_step
-  check 'merged' merged
+  check 'ready to merge' ready
   check "asked about the run's commit" has_call "repos/me/fs/commits/$sha/check-runs?check_name=Review%20dependency%20changes"
 }
 
@@ -1436,7 +1412,7 @@ patched_review_failed() {
   patched_setup 1.7.4
   echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says the review' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
 }
 
@@ -1446,7 +1422,7 @@ upstream_review_missing() {
   pr app/github-actions
   echo '{"check_runs":[]}' > "$STATE/checkruns.json"
   run_step
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says missing' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is missing' <(last_comment)
 }
 
@@ -1502,24 +1478,6 @@ toolchain_not_reviewed() {
   check 'no review asked for' bash -c '! grep -qF check-runs "$0"' "$STATE/gh.log"
 }
 
-merge_refused() {
-  setup
-  : > "$STATE/merge_fails"
-  run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
-  check 'no merged comment' test "$(comments_n)" -eq 0
-}
-
-merge_refused_pr_closed() {
-  # Closed (replaced by a newer version, say) while this ran.
-  setup
-  : > "$STATE/merge_fails"
-  echo CLOSED > "$STATE/pr_state"
-  run_step
-  check 'exit 0: no false alarm' test "$rc" -eq 0
-  check 'no comment' test "$(comments_n)" -eq 0
-}
-
 closed_before_verdict() {
   setup
   bundle new 1.3.82.40 'changed()'
@@ -1529,17 +1487,6 @@ closed_before_verdict() {
   check 'no comment on a closed pull request' test "$(comments_n)" -eq 0
   check 'not assigned' test ! -s "$STATE/assignees"
 }
-merge_refused_head_moved() {
-  # Dependabot rebased the branch while this ran: the new commit's CI run decides.
-  setup
-  : > "$STATE/merge_fails"
-  : > "$STATE/head_moved"
-  run_step
-  check 'exit 0: no false alarm' test "$rc" -eq 0
-  check 'no comment' test "$(comments_n)" -eq 0
-  check 'says why' grep -qF 'moved on to ffffffff' "$T/out"
-}
-
 update_refused_head_moved() {
   setup
   echo 2 > "$STATE/behind"
@@ -1559,41 +1506,21 @@ update_refused() {
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
-merged_onto_moved_main() {
-  # Another merge landed between the check and this merge.
-  setup
-  echo 2222222222222222222222222222222222222222 > "$STATE/merge_parent"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'merged' merged
-  check '@mentions the owner' grep -qF '@nawid main moved on between the last check (11111111) and the merge (onto 22222222)' <(last_comment)
-  check 'its own key' grep -qF '<!-- update-prs: merged untested -->' <(last_comment)
-}
-
-merged_parent_unreadable() {
-  setup
-  echo '' > "$STATE/merge_parent"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'says it could not confirm' grep -qF 'could not be read to confirm' <(last_comment)
-  check 'no alarm' bash -c '! grep -qF "@nawid" <<< "$0"' "$(last_comment)"
-}
-
 green_mergeable_stays_unknown() {
   setup
   echo 99 > "$STATE/mergeable_unknown"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'waits for the owner' grep -qF 'GitHub cannot say whether it merges (UNKNOWN)' <(last_comment)
 }
 
 compare_after_bundle() {
-  # The behind-main check is the last call before the merge.
+  # The behind-main check comes after the build comparison, last before the verdict.
   setup
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'compare right before the merge' bash -c 'grep -E "^(api repos/me/fs/compare|pr merge|release download|run download)" "$0" | tail -n 2 | head -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
+  check 'compare last, after the build comparison' bash -c 'grep -E "^(api repos/me/fs/compare|release download|run download)" "$0" | tail -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
 }
 
 # --- Every package version a Dependabot pull request adds to pnpm-lock.yaml must be 7 days
@@ -1606,7 +1533,7 @@ lock_nothing_added() {
   check 'reads the merge base lockfile' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=1111111111111111111111111111111111111111'
   check "and the pull request's" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=$sha"
   check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'merged' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
 }
 
 lock_old_packages() {
@@ -1618,7 +1545,7 @@ lock_old_packages() {
   check 'looks up the added package' grep -qx 'https://registry.npmjs.org/left-pad' "$STATE/curl.log"
   check 'and the scoped one, its / escaped' grep -qx 'https://registry.npmjs.org/@babel%2Fcore' "$STATE/curl.log"
   check 'nothing else' test "$(wc -l < "$STATE/curl.log")" -eq 2
-  check 'merged' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
 }
 
 lock_young_package() {
@@ -1629,7 +1556,7 @@ lock_young_package() {
   published pnpm 11.28.2 "$pub"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published ${pub:0:10})" <(last_comment)
   check 'not the old one' bash -c '! grep -qF left-pad <<< "$0"' "$(last_comment)"
   check 'assigned' grep -qx nawid "$STATE/assignees"
@@ -1641,7 +1568,7 @@ lock_just_under_7_days() {
   published pnpm 11.28.2 "$(hours_ago 167)"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
 }
 
@@ -1651,7 +1578,7 @@ lock_just_over_7_days() {
   published pnpm 11.28.2 "$(hours_ago 169)"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'merged' test "$(cat "$STATE/merged" 2> /dev/null)" = "$sha"
+  check 'ready to merge' ready
 }
 
 lock_changed_version() {
@@ -1661,7 +1588,7 @@ lock_changed_version() {
   published eslint 10.12.0 "$(days_ago 1)"
   run_step
   check 'looks up only eslint' test "$(cat "$STATE/curl.log")" = 'https://registry.npmjs.org/eslint'
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'names it' grep -qF 'eslint@10.12.0 (published' <(last_comment)
 }
 
@@ -1672,7 +1599,7 @@ lock_unknown_age() {
   published left-pad 1.3.0 2018-04-09T00:00:00.000Z
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'the missing package, age unknown' grep -qF 'no-such-pkg-fs-zz9@1.0.0 (age unknown)' <(last_comment)
   check 'the missing version, age unknown' grep -qF 'left-pad@9.9.9 (age unknown)' <(last_comment)
 }
@@ -1683,7 +1610,7 @@ lock_base_unreadable() {
   : > "$STATE/lock_unreadable_1111111111111111111111111111111111111111"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
 }
 
@@ -1692,7 +1619,7 @@ lock_head_unreadable() {
   : > "$STATE/lock_unreadable_$sha"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not merged' bash -c '! test -f "$0/merged"' "$STATE"
+  check 'not called ready' not_ready
   check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
 }
 
@@ -1708,19 +1635,19 @@ red_same_again
 red_different
 cancelled
 timed_out
-green_merge
+green_ready
 green_version_only
 green_ships
 green_manifest_other_field
 green_extra_file
 green_no_release
 green_no_artifact
-green_major_merges
+green_major_ready
 tooling_major_own_branch_that_ships_waits
 green_other_file
 green_foreign_commit
 green_actions_merge_commit_is_not_a_merge_of_main
-green_with_update_merges
+green_with_update_ready
 green_wrong_author
 green_draft
 green_review_failed
@@ -1737,28 +1664,28 @@ green_behind_three_times
 green_behind_main_shipped
 green_again_same
 red_then_green
-green_label_removed_then_merged
+green_label_removed_then_ready
 pnpm_same_major
 pnpm_package_json_more
 pnpm_package_manager_mismatch
 pnpm_lockfile_changed
-pnpm_major_merges
+pnpm_major_ready
 pnpm_major_lockfile_waits
 pnpm_by_dependabot_author
-node_merges
+node_ready
 node_other_file_waits
 actions_waits
-actions_merges_with_token
+actions_ready_with_token
 actions_behind_updates_with_token
 actions_broken_token_waits
 actions_other_file_waits
 too_many_files_waits
 too_many_commits_waits
 counts_unreadable_waits
-docker_merges
+docker_ready
 docker_review_failed_waits
 docker_other_file_waits
-upstream_merges
+upstream_ready
 upstream_conflicts_waits
 upstream_brings_back_waits
 upstream_added_list_fails_stops
@@ -1767,26 +1694,24 @@ upstream_github_waits
 upstream_foreign_commit_waits
 other_base
 patched_waits
-patched_patch_merges
-patched_minor_merges
-patched_major_merges
+patched_patch_ready
+patched_minor_ready
+patched_major_ready
 patched_same_version_waits
 patched_unparseable_waits
 patched_range_on_main_waits
 patched_extra_file_waits
 patched_young_package_waits
 patched_foreign_commit_waits
-shipped_merges
-shipped_major_merges
-shipped_major_own_branch_merges
+shipped_ready
+shipped_major_ready
+shipped_major_own_branch_ready
 shipped_list_unreadable_waits
-fsaunpack_merges
+fsaunpack_ready
 fsaunpack_young_package_waits
 fsaunpack_workspace_entry_ignored
 fsaunpack_other_file_waits
 shipped_young_package_waits
-shipped_main_run_not_found
-shipped_dispatch_refused
 tooling_that_ships_waits
 held_waits
 upstream_red
@@ -1798,14 +1723,9 @@ patched_review_newest_decides
 upstream_review_rerun_pending_then_success
 upstream_review_unreadable
 toolchain_not_reviewed
-merge_refused
-merge_refused_head_moved
-merge_refused_pr_closed
 closed_before_verdict
 update_refused_head_moved
 update_refused
-merged_onto_moved_main
-merged_parent_unreadable
 green_mergeable_stays_unknown
 compare_after_bundle
 lock_nothing_added

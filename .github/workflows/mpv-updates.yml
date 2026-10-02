@@ -13,10 +13,15 @@ name: mpv updates
 #   - Branch mpv/<release> is main with the pin moved, and CI is started on it: a push by
 #     this workflow's token starts no workflow, a dispatch does. When it fails, its failed
 #     jobs run once more, so one flaky test does not count.
-#   - Passed: the pin commit goes onto main, with no pull request. The owner watches this
-#     repository, and a pull request a day would be an email a day. The pin ships nothing,
-#     so auto-release.yml does not release it (and a push by this token starts no CI).
-#     Every mpv/* branch is deleted, and the failure issue, if open, is closed.
+#   - Passed: the commit CI passed goes to branch mpv-update, and ONE pull request from it
+#     offers the build, assigned to the owner. Nothing merges itself (the owner's choice,
+#     2026-10-02): he merges it when he likes. It keeps up: a newer build that passes moves
+#     the same branch and retitles the same pull request, so a build a day is not an email
+#     a day. Closing it skips that build; the next one that passes opens a new pull
+#     request. Merged (GitHub deletes the branch), or main pinned to it or past it by hand
+#     (then it is closed here), it is done. The pin ships nothing, so his merge releases
+#     nothing either (auto-release.yml). Every mpv/* branch is deleted, and the failure
+#     issue, if open, is closed. Until 2026-10-02 the pin commit went onto main directly.
 #   - Failed (an attempt still running after 65 minutes is cancelled, and counts as
 #     failed): the branch stays, to look at and as the record that this build was tried:
 #     it is not tried again. Delete the branch to try it again. The failure goes on ONE
@@ -25,7 +30,8 @@ name: mpv updates
 #     pinned build meanwhile.
 #
 # Every run also checks that the pinned release still exists upstream. Once it is gone,
-# every CI run fails at the mpv install, so that goes on the same issue too. Each thing
+# every CI run fails at the mpv install, so that goes on the same issue too (with the pull
+# request to merge, when one offers a newer build). Each thing
 # is reported once: a report carries a key, and one already on the open issue is not
 # made again. The issue also closes once main pins the latest build, however it got
 # there.
@@ -37,6 +43,8 @@ name: mpv updates
 #
 # A pull request that changes this file runs it as a dry run: everything is read and
 # what a real run would do is printed, but nothing is pushed, started or reported.
+# (The offering pull request is opened by this token, so no workflow runs on it: its
+# checks are the CI run the branch already passed, on the same commit.)
 
 on:
   schedule:
@@ -48,9 +56,10 @@ on:
       - .github/workflows/mpv-updates.yml
 
 permissions:
-  contents: write  # push mpv/<release>, then the pin to main
-  issues: write    # the failure issue
-  actions: write   # start CI on the branch, and rerun its failed jobs
+  contents: write       # push mpv/<release> and mpv-update
+  pull-requests: write  # the pull request that offers a build
+  issues: write         # the failure issue
+  actions: write        # start CI on the branch, and rerun its failed jobs
 
 # One real run at a time, queued. A pull request's dry run has a group of its own: in this
 # one it would wait behind a real run, and could push a waiting scheduled run out of the
@@ -73,7 +82,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Move the pin to the latest build, if CI passes with it
+      - name: Offer the latest build on a pull request, if CI passes with it
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -81,6 +90,8 @@ jobs:
           EVENT: ${{ github.event_name }}
           UPSTREAM: shinchiro/mpv-winbuild-cmake
           PREFIX: 'mpv update failed: '
+          # The branch of the one pull request that offers a build.
+          PR_BRANCH: mpv-update
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -89,7 +100,7 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           if [ "$EVENT" != pull_request ] && [ "$GITHUB_REF" != refs/heads/main ]; then
-            echo "Run this on main: it reads the pin there and moves it there." >&2
+            echo "Run this on main: it reads the pin there." >&2
             exit 1
           fi
 
@@ -139,6 +150,22 @@ jobs:
             esac
           fi
 
+          # --- The pull request that offers a build: its branch's pin (empty: no branch), and
+          # the open pull request from it (empty: none, or the owner closed it).
+          offered=''
+          status=0
+          authgit ls-remote --exit-code --heads origin "refs/heads/$PR_BRANCH" > /dev/null || status=$?
+          case $status in
+            0) offered=$(gh api -H 'Accept: application/vnd.github.raw' \
+                 "repos/$GH_REPO/contents/.github/mpv-build.json?ref=$PR_BRANCH" | jq -r .release) ;;
+            2) ;;
+            *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
+          esac
+          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number --jq '.[0].number // ""')
+          # Waiting there already: the latest build, or a newer one.
+          waiting=0
+          if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi
+
           # --- The open failure issue. The whole list, filtered exactly: the search index can
           # lag behind an issue opened minutes ago.
           issue=$(gh issue list --state open --limit 200 --json number,title \
@@ -148,10 +175,13 @@ jobs:
             echo 'Dry run: nothing is pushed, started or reported.'
             if [ "$latest" -le "$pinned" ]; then
               echo "Would do nothing: the pin is on the latest build, or newer."
+              if [ -n "$pr" ]; then echo "Would close #$pr: main pins its build already."; fi
+            elif [ "$waiting" = 1 ]; then
+              echo "Would do nothing: $PR_BRANCH offers $offered already${pr:+ (#$pr)}, for the owner to merge."
             elif [ "$tried" = 1 ]; then
               echo "Would do nothing: branch $branch exists, so $latest failed before."
             else
-              echo "Would push $branch with the pin on $latest, run CI on it, and move main's pin if it passes."
+              echo "Would push $branch with the pin on $latest, run CI on it, and offer it on a pull request if it passes."
             fi
             if [ "$gone" = 1 ]; then echo "Would report: the pinned $pinned is gone upstream."; fi
             if [ -n "$issue" ]; then echo "Open failure issue: #$issue."; fi
@@ -195,12 +225,18 @@ jobs:
             echo timed_out
           }
 
-          moved=0
           if [ "$latest" -le "$pinned" ]; then
             echo "The pin is on the latest build already, or newer: $pinned."
             if [ -n "$issue" ] && [ "$gone" = 0 ]; then
               gh issue close "$issue" --comment "main pins $pinned, and shinchiro has no newer build. Closing."
             fi
+            # Pinned there by hand meanwhile: the offer has nothing left to merge.
+            if [ -n "$pr" ]; then
+              gh pr close "$pr" --delete-branch --comment "main pins $pinned already, this build or a newer one: nothing left to merge here."
+              pr=''
+            fi
+          elif [ "$waiting" = 1 ]; then
+            echo "$PR_BRANCH offers $offered already${pr:+ (#$pr)}: it waits for the owner's merge."
           elif [ "$tried" = 1 ]; then
             echo "Branch $branch exists: $latest failed before, so it is not tried again."
           else
@@ -249,43 +285,34 @@ jobs:
             fi
 
             if [ "$conclusion" = success ]; then
-              # Onto the newest main. A push can lose to another push, so up to four tries.
-              landed=0
-              for _ in 1 2 3 4; do
-                authgit fetch -q origin main
-                main_pin=$(git show origin/main:.github/mpv-build.json | jq -r .release)
-                # Pinned there meanwhile by hand, to this build or a newer one.
-                if [ "$main_pin" -ge "$latest" ] 2> /dev/null; then
-                  landed=1
-                  break
-                fi
-                git checkout -q -B land origin/main
-                if git cherry-pick "$commit" && authgit push -q origin HEAD:main; then
-                  landed=1
-                  main_pin=$latest
-                  break
-                fi
-                git cherry-pick --abort 2> /dev/null || true
-              done
-              if [ "$landed" = 1 ]; then
-                moved=1
-                echo "main pins $main_pin now."
-                # This build's branch, and the failed builds' ones, kept until a build passed.
-                refs=$(authgit ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
-                if [ -n "$refs" ]; then
-                  # shellcheck disable=SC2086 # one ref per word
-                  authgit push -q origin --delete ${refs//refs\/heads\//}
-                fi
-                if [ -n "$issue" ]; then
-                  gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url), and main pins $main_pin now. Closing."
-                fi
+              # Offered on the one pull request: its branch is the commit CI just passed.
+              authgit push -q -f origin "$commit:refs/heads/$PR_BRANCH"
+              title="ci: mpv $latest (shinchiro)"
+              # shellcheck disable=SC2016 # backticks are Markdown
+              {
+                printf '@%s shinchiro'"'"'s mpv %s passed CI (%s), whose Windows job runs the MPV-mode e2e specs with it. **Ready for you to merge.**\n\n' "$OWNER" "$latest" "$run_url"
+                printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
+                printf -- '- The change: `.github/mpv-build.json` pins %s instead of %s, and nothing else.\n' "$latest" "$pinned"
+                printf -- '- Merging it releases nothing: only CI installs this mpv.\n\n'
+                printf 'This pull request keeps up: a newer build that passes CI moves here, and the title says which. Closing it skips this build; the next one that passes opens a new pull request.\n'
+              } > "$RUNNER_TEMP/pr.md"
+              if [ -n "$pr" ]; then
+                gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/pr.md" > /dev/null
+                echo "#$pr offers $latest now."
               else
-                # shellcheck disable=SC2016 # backticks are Markdown
-                {
-                  printf '@%s mpv %s from shinchiro passed CI, but its pin could not be put on main: the push lost to other pushes, or the pin commit did not apply. It is on branch `%s`.\n\n' "$OWNER" "$latest" "$branch"
-                  printf -- '- CI run: %s\n' "$run_url"
-                } > "$RUNNER_TEMP/body.md"
-                report "land $latest" "$latest passed CI but did not land on main" "$RUNNER_TEMP/body.md"
+                url=$(gh pr create --base main --head "$PR_BRANCH" --title "$title" --body-file "$RUNNER_TEMP/pr.md" --assignee "$OWNER")
+                pr=${url##*/}
+                echo "Opened #$pr for $latest."
+              fi
+              # This build's branch, and the failed builds' ones, kept until a build passed.
+              refs=$(authgit ls-remote --heads origin 'refs/heads/mpv/*' | cut -f2)
+              if [ -n "$refs" ]; then
+                # shellcheck disable=SC2086 # one ref per word
+                authgit push -q origin --delete ${refs//refs\/heads\//}
+              fi
+              # With the pinned build gone upstream, the issue stays: it says to merge #$pr.
+              if [ -n "$issue" ] && [ "$gone" = 0 ]; then
+                gh issue close "$issue" --comment "shinchiro's $latest passed CI ($run_url): #$pr offers it, for you to merge. Closing."
               fi
             else
               main_ci=$(gh run list --workflow ci.yml --branch main --event push --limit 1 --json conclusion,url \
@@ -303,20 +330,24 @@ jobs:
                 printf -- '- Branch: `%s`, which is main with the pin moved and nothing else\n' "$branch"
                 printf -- '- Release: https://github.com/%s/releases/tag/%s\n' "$UPSTREAM" "$latest"
                 printf -- '- The latest CI run on main: %s. If that failed too, the cause may not be mpv.\n\n' "$main_ci"
-                printf 'CI keeps installing the pinned %s meanwhile. Each newer build is tried the day it comes out: one that passes moves the pin and closes this issue. shinchiro keeps only about the 30 newest releases, so a pin left behind for weeks disappears; this issue will say so if it does.\n\n' "$pinned"
+                printf 'CI keeps installing the pinned %s meanwhile. Each newer build is tried the day it comes out: one that passes is offered on a pull request and closes this issue. shinchiro keeps only about the 30 newest releases, so a pin left behind for weeks disappears; this issue will say so if it does.\n\n' "$pinned"
                 printf 'To try %s again: delete the branch, then run the workflow (Actions, mpv updates, Run workflow).\n' "$latest"
               } > "$RUNNER_TEMP/body.md"
               report "failed $latest" "$latest" "$RUNNER_TEMP/body.md"
             fi
           fi
 
-          if [ "$gone" = 1 ] && [ "$moved" = 0 ]; then
+          if [ "$gone" = 1 ]; then
             # shellcheck disable=SC2016 # backticks are Markdown
             {
               printf '@%s The pinned mpv build, %s from shinchiro, is gone upstream: shinchiro keeps only about the 30 newest releases. CI downloads it from there, so every CI run now fails at "Install mpv and the native host", and nothing is released.\n\n' "$OWNER" "$pinned"
-              printf 'The pin moves on its own once a newer build passes CI. To move it by hand: put a release, its `mpv-x86_64-v3-...7z` asset and the SHA-256 of that asset into `.github/mpv-build.json`.\n'
+              if [ -n "$pr" ]; then
+                printf 'Merge #%s, which offers a newer build that passed CI, to fix it.\n' "$pr"
+              else
+                printf 'A newer build is offered on a pull request once one passes CI; merging it fixes this. To move the pin by hand: put a release, its `mpv-x86_64-v3-...7z` asset and the SHA-256 of that asset into `.github/mpv-build.json`.\n'
+              fi
             } > "$RUNNER_TEMP/body.md"
-            report "gone $pinned" "the pinned $pinned is gone upstream" "$RUNNER_TEMP/body.md"
+            report "gone $pinned${pr:+ #$pr}" "the pinned $pinned is gone upstream" "$RUNNER_TEMP/body.md"
           fi
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,

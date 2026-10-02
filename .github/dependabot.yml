@@ -88,9 +88,9 @@ updates:
   # so a moved or hijacked tag cannot change what runs next to the AMO signing
   # keys. Nothing arrives on its own any more; Dependabot updates the SHA and
   # the comment together - minor and patch releases as one grouped PR a week, a
-  # new major on its own. They change workflow files, which a workflow's own token may
-  # not merge: update-prs.yml merges them with the owner's token, UPDATE_PRS_TOKEN
-  # (docs/maintenance.md), and without it they wait. (The actionlint image ci.yml runs is pinned by digest too, in
+  # new major on its own. Like every update they wait for the owner's merge; they change
+  # workflow files, so update-prs.yml brings their branch up to date with the owner's token,
+  # UPDATE_PRS_TOKEN (docs/maintenance.md). (The actionlint image ci.yml runs is pinned by digest too, in
   # .github/actionlint/Dockerfile; the docker entry below updates it.)
   # '/' covers .github/workflows only; the composite actions (.github/actions/<name>,
   # e2e-setup's setup-firefox) need their own directory, or they are never updated.
@@ -113,8 +113,8 @@ updates:
   # actionlint and shellcheck from the first). Their tags and digests are in
   # .github/actionlint/Dockerfile and .github/zizmor/Dockerfile, because Dependabot does not
   # update a docker:// line in a workflow. A new version, or a new digest for the same tag,
-  # merges itself in update-prs.yml once CI, which runs every workflow file through it, is
-  # green.
+  # is "ready to merge" in update-prs.yml once CI, which runs every workflow file through
+  # it, is green.
   - package-ecosystem: 'docker'
     directories:
       - '/.github/actionlint'
