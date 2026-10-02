@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
-import {compareVersions, patchedDependencies} from '../../tools/check-patched-updates.mjs';
+import {compareVersions, githubRepo, patchedDependencies} from '../../tools/check-patched-updates.mjs';
 
 // The patched libraries are left out of Dependabot, and this script is what still notices
 // their updates. Reading the list wrongly, or comparing versions as text, would hide an
@@ -66,5 +66,26 @@ describe('compareVersions', () => {
     expect(compareVersions('v0.25.0', '0.25.0')).toBe(0);
     expect(compareVersions('1.2', '1.2.0')).toBe(0);
     expect(compareVersions('1.2.1', '1.2')).toBeGreaterThan(0);
+  });
+});
+
+describe('githubRepo', () => {
+  it('reads every library package.json installs from GitHub, with its #ref', () => {
+    // Coloris is the one today; read wrongly, the daily check asked npm for it and failed.
+    const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+    const specs = {...pkg.dependencies, ...pkg.devDependencies};
+    expect(githubRepo(specs.Coloris)).toEqual({owner: 'mdbassit', repo: 'Coloris'});
+    for (const [name, spec] of Object.entries(specs)) {
+      if (String(spec).startsWith('github:')) expect(githubRepo(spec), name).not.toBe(null);
+    }
+  });
+
+  it('takes a spec with or without a ref, and nothing else', () => {
+    expect(githubRepo('github:owner/repo')).toEqual({owner: 'owner', repo: 'repo'});
+    expect(githubRepo('github:owner/repo#v1.2.3')).toEqual({owner: 'owner', repo: 'repo'});
+    expect(githubRepo('^1.2.3')).toBe(null);
+    expect(githubRepo(undefined)).toBe(null);
+    expect(githubRepo('github:owner/repo/extra')).toBe(null);
+    expect(() => githubRepo('github:own er/repo')).toThrow('not an owner/repo pair');
   });
 });

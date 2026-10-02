@@ -66,15 +66,29 @@ async function getJson(url) {
  * @param {string} spec - Its specifier in package.json.
  * @return {Promise<{latest: string, url: string}>}
  */
+/**
+ * The repository of a library installed from GitHub.
+ * @param {string} [spec] - Its specifier in package.json, `github:owner/repo#ref`.
+ * @return {{owner: string, repo: string}|null} Null for anything else (an npm range).
+ */
+export function githubRepo(spec) {
+  // The #ref is part of every such spec (Coloris: github:mdbassit/Coloris#v0.25.0); a
+  // pattern that ended at the repo name sent Coloris to the npm registry, which has no
+  // such package (2026-10-02).
+  const github = /^github:([^/#]+)\/([^/#]+)(?:#.*)?$/.exec(spec || '');
+  if (!github) return null;
+  if (!/^[\w.-]+$/.test(github[1]) || !/^[\w.-]+$/.test(github[2])) {
+    throw new Error(`${spec}: not an owner/repo pair`);
+  }
+  return {owner: github[1], repo: github[2]};
+}
+
 async function latestRelease(name, spec) {
   // Both hosts are pinned; the name comes from this repo's package.json
   // (CodeQL js/request-forgery).
-  const github = /^github:([^/#]+)\/([^/#]+)$/.exec(spec || '');
+  const github = githubRepo(spec);
   if (github) {
-    if (!/^[\w.-]+$/.test(github[1]) || !/^[\w.-]+$/.test(github[2])) {
-      throw new Error(`${spec}: not an owner/repo pair`);
-    }
-    const release = await getJson(`https://api.github.com/repos/${github[1]}/${github[2]}/releases/latest`);
+    const release = await getJson(`https://api.github.com/repos/${github.owner}/${github.repo}/releases/latest`);
     return {latest: release.tag_name.replace(/^v/i, ''), url: release.html_url};
   }
   if (!/^[^/]+(\/[^/]+)?$/.test(name)) throw new Error(`${name}: not an npm package name`);
