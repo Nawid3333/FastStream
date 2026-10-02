@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv를 찾았습니다"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv 찾음: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv 찾음: $1 (위에 설정한 경로를 찾을 수 없어 호스트가 이 경로를 사용합니다)"
+    },
     "options_mpv_test_nompv": {
         "message": "호스트에는 연결되지만 mpv를 찾을 수 없음"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "mpv에서 열 수 없습니다. FastStream mpv 호스트가 설치되어 있나요?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "mpv에서 열 수 없습니다: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - 스트림을 열지 못했습니다: $1"
     },
     "player_mpv_content_unset": {
         "message": "이 스트림을 mpv에서 열기(콘텐츠 유형: 자동 — 사이트에 @anime 태그가 없으면 영화, 우클릭하여 이 동영상만 변경)"

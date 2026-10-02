@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv найден"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv найден: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv найден: $1 (путь, указанный выше, не найден, поэтому хост использует этот)"
+    },
     "options_mpv_test_nompv": {
         "message": "Хост доступен, но mpv не найден"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "Не удалось открыть в mpv. Установлен ли mpv-хост FastStream?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "Не удалось открыть в mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - поток не открылся: $1"
     },
     "player_mpv_content_unset": {
         "message": "Открыть этот поток в mpv (тип содержимого: авто — фильм, если только сайт не помечен @anime; щёлкните правой кнопкой, чтобы переопределить для этого видео)"

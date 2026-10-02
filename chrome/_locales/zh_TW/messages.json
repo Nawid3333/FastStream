@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "已找到 mpv"
     },
+    "options_mpv_test_ok_at": {
+        "message": "已找到 mpv：$1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "已找到 mpv：$1（上面設定的路徑不存在，因此主機改用此路徑）"
+    },
     "options_mpv_test_nompv": {
         "message": "主機可連線，但找不到 mpv"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "無法在 mpv 開啟。是否已安裝 FastStream mpv 主機？"
+    },
+    "player_mpv_fail_reason": {
+        "message": "無法在 mpv 中開啟：$1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - 串流未能開啟：$1"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"

@@ -1,33 +1,33 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import {afterEach, beforeEach, describe, expect, it} from 'vitest';
-import {loadIntoExisting, mpvTargetUrl, pageFragmentFor, resumeIdFor, withContentTypeFragment, withIpcLock} from '../../native-host/faststream-mpv-host.mjs';
+import {afterEach, describe, expect, it} from 'vitest';
+import {SubtitleDirPrefix, loadIntoExisting, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
 // function is injected here instead of hitting a real named pipe: it is
 // Windows-only, and this suite runs on Linux CI too (see ci.yml).
 //
-// mpvIpcRequest can resolve {ok: true} on its own 1.5s timeout as soon as
-// *any* reply has arrived -- a live-but-slow pipe still counts as "ours" --
-// which means the loadfile reply specifically can be missing even though
-// result.ok is true. Before the fix, a missing loadReply skipped the error
-// check entirely and fell through to {ok: true, pid: undefined}: success
-// was reported without ever confirming the video loaded, so the caller
-// never started a fresh instance to actually play it.
+// mpvIpcRequest can resolve {ok: true} on its own timeout as soon as *any*
+// reply has arrived -- a live-but-slow pipe still counts as "ours" -- which
+// means the loadfile reply specifically can be missing even though result.ok
+// is true. Before the fix, a missing loadReply skipped the error check
+// entirely and fell through to {ok: true, pid: undefined}: success was
+// reported without ever confirming the video loaded.
 
 const message = {url: 'https://example.com/video.m3u8'};
 const headerFields = ['Referer: https://example.com/'];
 const title = 'example.com';
+
+const loadfileOf = (commands) => commands.find((c) => !Array.isArray(c.command) && c.command.name === 'loadfile').command;
 
 describe('loadIntoExisting', () => {
   it('succeeds when every reply, including loadfile, comes back', async () => {
     const ipcRequest = async (commands) => ({
       ok: true,
       replies: [
-        {request_id: 1},
-        {request_id: 2},
         {request_id: commands.length - 1, error: 'success'},
         {request_id: commands.length, data: 4242},
       ],
@@ -40,9 +40,7 @@ describe('loadIntoExisting', () => {
     const ipcRequest = async (commands) => ({
       ok: true,
       replies: [
-        {request_id: 1},
-        {request_id: 2},
-        {request_id: commands.length - 1, error: 'property unavailable'},
+        {request_id: commands.length - 1, error: 'invalid parameter'},
         {request_id: commands.length, data: 4242},
       ],
     });
@@ -50,20 +48,13 @@ describe('loadIntoExisting', () => {
     expect(result).toEqual({ok: false});
   });
 
-  it('fails, not phantom-succeeds, when the loadfile reply never arrives', async () => {
-    // Simulates mpvIpcRequest's own timeout firing after only the two
-    // set_property replies came back -- ok:true, but no reply for loadfile
-    // or get_property pid yet. This is the regression case: it must not be
-    // reported as success.
-    const ipcRequest = async () => ({
-      ok: true,
-      replies: [
-        {request_id: 1},
-        {request_id: 2},
-      ],
-    });
-    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
-    expect(result).toEqual({ok: false});
+  it('is busy, not phantom-successful, when only the fullscreen reply came back', async () => {
+    // mpvIpcRequest's own timeout fired after the first reply: ok:true, but no
+    // reply for loadfile or get_property pid. Not success; and not "no mpv" either,
+    // since ours answered: a second mpv on the same pipe would get no IPC.
+    const ipcRequest = async () => ({ok: true, replies: [{request_id: 1}]});
+    const result = await loadIntoExisting({...message, fullscreen: true}, headerFields, title, ipcRequest);
+    expect(result).toEqual({ok: false, busy: true});
   });
 
   it('fails when no instance of ours answers at all', async () => {
@@ -72,20 +63,25 @@ describe('loadIntoExisting', () => {
     expect(result).toEqual({ok: false});
   });
 
+  it('passes busy on when ours is connected but silent', async () => {
+    const ipcRequest = async () => ({ok: false, busy: true, error: 'mpv did not answer'});
+    const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
+    expect(result).toEqual({ok: false, busy: true});
+  });
+
   it('keeps request ids aligned when the fullscreen command is inserted', async () => {
     const ipcRequest = async (commands) => {
-      // fullscreen adds a 5th command, shifting loadfile/get_property to
-      // request_id 4 and 5 -- catches an off-by-one if the indices were
+      // fullscreen adds a command first, shifting loadfile/get_property to
+      // request_id 2 and 3 -- catches an off-by-one if the indices were
       // ever hardcoded instead of derived from commands.length.
-      expect(commands).toHaveLength(5);
+      expect(commands).toHaveLength(3);
+      expect(commands[0].command).toEqual(['set_property', 'fullscreen', true]);
       return {
         ok: true,
         replies: [
           {request_id: 1},
-          {request_id: 2},
-          {request_id: 3},
-          {request_id: 4, error: 'success'},
-          {request_id: 5, data: 777},
+          {request_id: 2, error: 'success'},
+          {request_id: 3, data: 777},
         ],
       };
     };
@@ -97,19 +93,114 @@ describe('loadIntoExisting', () => {
   it('appends the fs-content fragment to the loadfile command', async () => {
     let loadfileUrl;
     const ipcRequest = async (commands) => {
-      loadfileUrl = commands.find((c) => c.command[0] === 'loadfile').command[1];
-      return {
-        ok: true,
-        replies: [
-          {request_id: 1},
-          {request_id: 2},
-          {request_id: commands.length - 1, error: 'success'},
-          {request_id: commands.length, data: 1},
-        ],
-      };
+      loadfileUrl = loadfileOf(commands).url;
+      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
     };
     await loadIntoExisting({...message, contentType: 'anime'}, headerFields, title, ipcRequest);
     expect(loadfileUrl).toBe('https://example.com/video.m3u8#fs-content=anime');
+  });
+
+  it('sends the headers and title with the file, in that one command', async () => {
+    // Set for the whole player (set_property), they stayed for the next file in the
+    // window, and two hosts' sends could interleave (set A, set B, load A, load B).
+    let sent;
+    const ipcRequest = async (commands) => {
+      sent = commands;
+      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
+    };
+    await loadIntoExisting(message, ['Referer: https://a.test/x?a=1,b=2', 'User-Agent: UA (x, y)'], 'A title', ipcRequest);
+    expect(sent.some((c) => Array.isArray(c.command) && c.command[0] === 'set_property' &&
+      ['http-header-fields', 'force-media-title'].includes(c.command[1]))).toBe(false);
+    expect(loadfileOf(sent)).toEqual({
+      name: 'loadfile',
+      url: 'https://example.com/video.m3u8',
+      flags: 'replace',
+      index: -1,
+      options: {
+        'http-header-fields': 'Referer: https://a.test/x?a=1\\,b=2,User-Agent: UA (x\\, y)',
+        'force-media-title': 'A title',
+      },
+    });
+  });
+});
+
+describe('perFileOptions', () => {
+  it('joins the headers as mpv\'s string list, escaping commas and backslashes', () => {
+    expect(perFileOptions(['Referer: https://a.test/?q=1,2', 'X-Path: C:\\dir'], 't')).toEqual({
+      'http-header-fields': 'Referer: https://a.test/?q=1\\,2,X-Path: C:\\\\dir',
+      'force-media-title': 't',
+    });
+  });
+
+  it('clears the headers when there are none', () => {
+    expect(perFileOptions([], 't')['http-header-fields']).toBe('');
+  });
+});
+
+describe('streamTitle', () => {
+  it('is the tab\'s title when the extension sent one', () => {
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'Show - Episode 3'})).toBe('Show - Episode 3');
+  });
+
+  it('is one line, trimmed and bounded', () => {
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: '  Show\n\tEpisode\u00073  '})).toBe('Show Episode 3');
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(500)})).toHaveLength(200);
+  });
+
+  it('is the stream\'s host name without a usable title', () => {
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8'})).toBe('cdn.test');
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: ' \n '})).toBe('cdn.test');
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 42})).toBe('cdn.test');
+    expect(streamTitle({url: 'not a url'})).toBe('FastStream');
+  });
+});
+
+// mpvIpcRequest against a pipe of the test's own (never mpv's real one, which a running
+// mpv may hold): no server is "no mpv"; one that accepts but never answers is busy.
+describe('mpvIpcRequest', () => {
+  const servers = [];
+  afterEach(() => {
+    for (const server of servers.splice(0)) server.close();
+  });
+  const pipeName = (tag) => process.platform === 'win32' ?
+    `\\\\.\\pipe\\fs-test-${tag}-${process.pid}-${Date.now()}` :
+    path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-')), 'sock');
+  const listen = async (pipe, onLine) => {
+    const server = net.createServer((socket) => {
+      let buffer = '';
+      socket.on('data', (chunk) => {
+        buffer += chunk;
+        let i;
+        while ((i = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, i);
+          buffer = buffer.slice(i + 1);
+          onLine(socket, JSON.parse(line));
+        }
+      });
+    });
+    servers.push(server);
+    await new Promise((resolve) => server.listen(pipe, resolve));
+  };
+
+  it('is not ok, and not busy, without an instance', async () => {
+    expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipeName('none')))
+        .toEqual({ok: false, error: 'no mpv ipc'});
+  });
+
+  it('is busy when an instance takes the connection and never answers', async () => {
+    const pipe = pipeName('silent');
+    await listen(pipe, () => {});
+    expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipe))
+        .toEqual({ok: false, busy: true, error: 'mpv did not answer'});
+  });
+
+  it('gives a connected instance the reply time, not the connect time', async () => {
+    const pipe = pipeName('slow');
+    await listen(pipe, (socket, request) => {
+      setTimeout(() => socket.write(JSON.stringify({request_id: request.request_id, data: 7, error: 'success'}) + '\n'), 400);
+    });
+    expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 200, 3000, pipe))
+        .toEqual({ok: true, replies: [{request_id: 1, data: 7, error: 'success'}]});
   });
 });
 
@@ -242,93 +333,83 @@ describe('fs-page fragment (source-info.lua reads it)', () => {
   });
 });
 
-// Each "Send to mpv" is its own host process, and loading into the running mpv sets the
-// headers globally before loading the file: two sends milliseconds apart could interleave
-// as set A, set B, load B, load A, so A played with B's headers.
-describe('withIpcLock', () => {
-  let lockDir;
-  let lockFile;
-
-  beforeEach(() => {
-    lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-lock-'));
-    lockFile = path.join(lockDir, 'ipc.lock');
-  });
-
+// The player's mpv button hands over where it was and the subtitles it shows (as SubRip
+// text); the host writes those into a fresh folder and gives mpv the files.
+describe('start and subtitles from the player', () => {
+  const dirs = [];
   afterEach(() => {
-    fs.rmSync(lockDir, {recursive: true, force: true});
+    for (const dir of dirs.splice(0)) fs.rmSync(dir, {recursive: true, force: true});
   });
-
-  const exchange = (events, name, ms) => async () => {
-    events.push(name + ' start');
-    await new Promise((resolve) => setTimeout(resolve, ms));
-    events.push(name + ' end');
-    return name;
+  const scratch = () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-subs-test-'));
+    dirs.push(dir);
+    return dir;
   };
 
-  it('runs two overlapping exchanges one after the other', async () => {
-    const events = [];
-    const results = await Promise.all([
-      withIpcLock(exchange(events, 'A', 80), lockFile),
-      withIpcLock(exchange(events, 'B', 10), lockFile),
-    ]);
-    expect(results).toEqual(['A', 'B']);
-    expect(events).toEqual(['A start', 'A end', 'B start', 'B end']);
-    expect(fs.existsSync(lockFile)).toBe(false);
-  });
-
-  it('releases the lock when the exchange throws', async () => {
-    await expect(withIpcLock(async () => {
-      throw new Error('pipe broke');
-    }, lockFile)).rejects.toThrow('pipe broke');
-    expect(fs.existsSync(lockFile)).toBe(false);
-  });
-
-  it('takes over a lock left by a host that was killed', async () => {
-    fs.writeFileSync(lockFile, '');
-    const old = (Date.now() - 60000) / 1000;
-    fs.utimesSync(lockFile, old, old);
-    const started = Date.now();
-    expect(await withIpcLock(async () => 'ran', lockFile, 5000)).toBe('ran');
-    expect(Date.now() - started).toBeLessThan(1000);
-  });
-
-  it('goes ahead after its wait when another host holds the lock too long', async () => {
-    fs.writeFileSync(lockFile, '');
-    const started = Date.now();
-    expect(await withIpcLock(async () => 'ran', lockFile, 150)).toBe('ran');
-    expect(Date.now() - started).toBeGreaterThanOrEqual(140);
-    // The other host's lock is not ours to remove.
-    expect(fs.existsSync(lockFile)).toBe(true);
-  });
-});
-
-describe('loadIntoExisting from two hosts at once', () => {
-  it('sends one host\'s headers and file before the other\'s', async () => {
-    const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-lock-'));
-    const lockFile = path.join(lockDir, 'ipc.lock');
-    const sent = [];
-    // A pipe that takes a while: each batch's commands arrive over some milliseconds.
-    const slowPipe = async (commands) => {
-      for (const command of commands) {
-        sent.push(command.command);
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-      return {ok: true, replies: commands.map((c, i) => ({request_id: i + 1, error: 'success'}))};
-    };
-    try {
-      await Promise.all([
-        loadIntoExisting({url: 'https://a.test/v.m3u8'}, ['Referer: https://a.test/'], 'a', slowPipe, lockFile),
-        loadIntoExisting({url: 'https://b.test/v.m3u8'}, ['Referer: https://b.test/'], 'b', slowPipe, lockFile),
-      ]);
-    } finally {
-      fs.rmSync(lockDir, {recursive: true, force: true});
+  it('takes a start position of a second or more, to the millisecond', () => {
+    expect(startOf({start: 754.123456})).toBe(754.123);
+    for (const start of [undefined, 0, 0.5, -3, NaN, Infinity, '754', 1e8]) {
+      expect(startOf({start})).toBeUndefined();
     }
-    // Each loadfile follows its own header setting, with nothing of the other between.
-    const order = sent.filter((c) => c[1] === 'http-header-fields' || c[0] === 'loadfile')
-        .map((c) => c[0] === 'loadfile' ? 'load ' + new URL(c[1]).hostname : 'set ' + c[2][0]);
-    expect(order).toEqual([
-      'set Referer: https://a.test/', 'load a.test',
-      'set Referer: https://b.test/', 'load b.test',
-    ]);
+  });
+
+  it('takes at most 8 non-empty SubRip texts', () => {
+    const many = Array.from({length: 10}, (_, i) => ({srt: `1\n00:00:01,000 --> 00:00:02,000\nline ${i}`, label: 'L' + i}));
+    expect(subtitlesOf({subtitles: many})).toHaveLength(8);
+    expect(subtitlesOf({subtitles: [{srt: ' '}, {srt: 5}, null, {srt: 'x', label: 7}]})).toEqual([{srt: 'x', label: ''}]);
+    expect(subtitlesOf({subtitles: 'nope'})).toEqual([]);
+  });
+
+  it('writes each into a fresh folder, named for mpv\'s track list', () => {
+    const base = scratch();
+    const files = writeSubtitleFiles([{srt: 'one', label: 'English <CC>'}, {srt: 'two', label: ''}], base);
+    expect(files.map((f) => path.basename(f))).toEqual(['1 English CC.srt', '2.srt']);
+    expect(path.dirname(files[0]).startsWith(path.join(base, SubtitleDirPrefix))).toBe(true);
+    expect(fs.readFileSync(files[0], 'utf8')).toBe('one');
+    expect(writeSubtitleFiles([], base)).toEqual([]);
+  });
+
+  it('removes its folders older than a day, and only those', () => {
+    const base = scratch();
+    const old = path.join(base, SubtitleDirPrefix + 'old');
+    const recent = path.join(base, SubtitleDirPrefix + 'recent');
+    const foreign = path.join(base, 'someone-else');
+    for (const dir of [old, recent, foreign]) fs.mkdirSync(dir);
+    const twoDaysAgo = (Date.now() - 2 * 24 * 3600 * 1000) / 1000;
+    fs.utimesSync(old, twoDaysAgo, twoDaysAgo);
+    fs.utimesSync(foreign, twoDaysAgo, twoDaysAgo);
+    writeSubtitleFiles([{srt: 'x', label: 'a'}], base);
+    expect(fs.existsSync(old)).toBe(false);
+    expect(fs.existsSync(recent)).toBe(true);
+    expect(fs.existsSync(foreign)).toBe(true);
+  });
+
+  it('gives mpv the start and the files as per-file options', () => {
+    // sub-files is a path list: ';' between the paths on Windows, backslashes as they are
+    // (escaped like a string list, mpv looked for "C:\\Temp\\..." - measured).
+    expect(perFileOptions([], 't', {start: 754.5, subFiles: ['C:\\Temp\\a,b\\1 English.srt', 'C:\\Temp\\2.srt']}, ';')).toEqual({
+      'http-header-fields': '',
+      'force-media-title': 't',
+      'start': '754.5',
+      'sub-files': 'C:\\Temp\\a,b\\1 English.srt;C:\\Temp\\2.srt',
+    });
+    expect(perFileOptions([], 't', {})).toEqual({'http-header-fields': '', 'force-media-title': 't'});
+  });
+
+  it('leaves out a subtitle file whose path holds the list separator', () => {
+    expect(perFileOptions([], 't', {subFiles: ['C:\\a;b\\1.srt', 'C:\\ok\\2.srt']}, ';')['sub-files']).toBe('C:\\ok\\2.srt');
+    expect(perFileOptions([], 't', {subFiles: ['C:\\a;b\\1.srt']}, ';')).not.toHaveProperty('sub-files');
+  });
+
+  it('sends them with the file into a running mpv', async () => {
+    let sent;
+    const ipcRequest = async (commands) => {
+      sent = commands;
+      return {ok: true, replies: [{request_id: 1, error: 'success'}, {request_id: 2, data: 1}]};
+    };
+    // A path with neither ';' nor ':' (the delimiter on Windows and on Linux CI).
+    await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['/subs/1 English.srt']});
+    expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': '/subs/1 English.srt'});
   });
 });
+

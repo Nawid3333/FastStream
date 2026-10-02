@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv gevonden"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv gevonden: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv gevonden: $1 (het pad hierboven is niet gevonden, dus de host gebruikt dit)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host bereikbaar, maar mpv is niet gevonden"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "Kan niet openen in mpv. Is de FastStream-mpv-host geïnstalleerd?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "Kon niet openen in mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - de stream is niet geopend: $1"
     },
     "player_mpv_content_unset": {
         "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"

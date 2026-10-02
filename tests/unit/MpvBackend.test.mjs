@@ -175,6 +175,20 @@ describe('openStream retry bookkeeping', () => {
     await backend.openStream('https://cdn/a.m3u8', tab);
     expect(host.calls()).toBe(2);
   });
+
+  // The player and the toolbar show the host's own reason, and "is the host
+  // installed?" only when the host itself could not be reached.
+  it('says when the host itself could not be reached', async () => {
+    stubNativeHost(undefined, {message: 'no such native application'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+        .toEqual({ok: false, error: 'no such native application', noHost: true});
+  });
+
+  it('passes the host\'s own reason on, without noHost', async () => {
+    stubNativeHost({ok: false, error: 'mpv executable not found'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+        .toEqual({ok: false, error: 'mpv executable not found'});
+  });
 });
 
 // contentType is the MPV allowlist tag or the player's manual anime/movie
@@ -241,5 +255,41 @@ describe('openStream contentType', () => {
 
     await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'about:blank');
     expect(host.message()).not.toHaveProperty('pageUrl');
+  });
+
+  it('relays the tab\'s title for mpv to show, trimmed and bounded', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', '  Show - Episode 3 ');
+    expect(host.message().title).toBe('Show - Episode 3');
+
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', 'x'.repeat(400));
+    expect(host.message().title).toHaveLength(300);
+
+    for (const none of [undefined, '', '   ', 42]) {
+      await backend.openStream('https://cdn/c.m3u8', undefined, undefined, 'anime', 'https://site/ep-3', none);
+      expect(host.message()).not.toHaveProperty('title');
+    }
+  });
+
+  it('relays where the player was and its subtitles (the player\'s button)', async () => {
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 754.5, subtitles: [{label: 'English', srt}, {label: 'empty', srt: '  '}, {srt: 5}]});
+    expect(host.message().start).toBe(754.5);
+    expect(host.message().subtitles).toEqual([{label: 'English', srt}]);
+
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {startTime: 0.4, subtitles: []});
+    expect(host.message()).not.toHaveProperty('start');
+    expect(host.message()).not.toHaveProperty('subtitles');
+
+    await backend.openStream('https://cdn/c.m3u8');
+    expect(host.message()).not.toHaveProperty('start');
+    expect(host.message()).not.toHaveProperty('subtitles');
   });
 });

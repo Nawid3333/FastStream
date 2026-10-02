@@ -57,16 +57,21 @@ export class BackgroundUtils {
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
-      // MPV uses the plain purple icon, so clear any leftover state badge.
+      // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
+      // last hand-off failed, say so: the page plays on in the browser, and nothing else
+      // would tell why. The title still names the mode ("MPV"): the tab is in it.
       chrome.action.setBadgeText({
-        text: '',
+        text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
       });
       // Locales without a translation for this key yet still get sensible
       // English text instead of an empty tooltip (chrome.i18n.getMessage
       // returns '' when a key is missing from a locale's messages.json).
       chrome.action.setTitle({
-        title: chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV',
+        title: tab.mpvError ?
+          chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
+            'FastStream - MPV - the stream did not open: ' + tab.mpvError :
+          chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV',
         tabId: tab.tabId,
       });
       chrome.action.setIcon({

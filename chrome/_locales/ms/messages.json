@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv ditemui"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv ditemui: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv ditemui: $1 (laluan di atas tidak ditemui, jadi hos menggunakan yang ini)"
+    },
     "options_mpv_test_nompv": {
         "message": "Hos boleh dihubungi, tetapi mpv tidak ditemui"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "Tidak dapat dibuka dalam mpv. Adakah hos mpv FastStream dipasang?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "Tidak dapat dibuka dalam mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - strim tidak dibuka: $1"
     },
     "player_mpv_content_unset": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"

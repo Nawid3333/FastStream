@@ -53,9 +53,22 @@ if (-not (Test-Path $MpvPath)) {
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item $HostScript (Join-Path $InstallDir 'faststream-mpv-host.mjs') -Force
 
-Write-Utf8File (Join-Path $InstallDir 'config.json') (@{
-    mpvPath = $MpvPath
-} | ConvertTo-Json)
+# mpvPath is set; anything else config.json already holds stays ("debug": true, README.md):
+# a reinstall (update-local.ps1 runs this one) used to drop it, and the log with it.
+$configPath = Join-Path $InstallDir 'config.json'
+$config = [ordered]@{}
+if (Test-Path -LiteralPath $configPath) {
+    try {
+        $old = Get-Content -Raw -Encoding UTF8 -LiteralPath $configPath | ConvertFrom-Json
+        foreach ($property in $old.PSObject.Properties) {
+            $config[$property.Name] = $property.Value
+        }
+    } catch {
+        Write-Warning "config.json could not be read ($($_.Exception.Message)); writing a new one."
+    }
+}
+$config['mpvPath'] = $MpvPath
+Write-Utf8File $configPath ($config | ConvertTo-Json)
 
 # 2. .bat wrapper - Windows won't start a .mjs as a program, so the manifest
 #    points at this, which runs it with node and hands on Firefox's arguments.

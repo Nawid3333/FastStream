@@ -8,6 +8,7 @@ import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {FastStreamArchiveUtils} from '../utils/FastStreamArchiveUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
+import {SubtitleUtils} from '../utils/SubtitleUtils.mjs';
 import {URLUtils} from '../utils/URLUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
@@ -72,16 +73,30 @@ export class SaveManager {
 
     this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sending'), 'info');
 
+    // mpv carries on where this player is, with the subtitles it shows (as SubRip,
+    // shifts and edits included).
+    const startTime = this.client.currentTime;
+    const subtitles = this.client.interfaceController.subtitlesManager.activeTracks.map((track) => ({
+      label: track.label || track.language || '',
+      srt: SubtitleUtils.cuesToSrt(track.cues),
+    }));
+
     chrome.runtime.sendMessage({
       type: MessageTypes.MPV_OPEN,
       url: source.url,
       headers: headers,
       contentType: this.mpvContentType || undefined,
+      startTime: startTime >= 1 ? startTime : undefined,
+      subtitles: subtitles.length > 0 ? subtitles : undefined,
     }, (response) => {
       if (chrome.runtime.lastError) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
         return;
       }
+      // The host's own reason when it gave one ("mpv executable not found", "mpv is
+      // busy..."); "is the host installed?" only when the host itself was not reached.
+      const reason = response && !response.ok && !response.noHost && typeof response.error === 'string' ?
+        response.error : '';
       if (response && response.ok) {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
@@ -89,6 +104,8 @@ export class SaveManager {
         if (this.client.options.mpvPausePage) {
           this.client.pause().catch(() => {});
         }
+      } else if (reason) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail_reason', [reason]), 'error', 6000);
       } else {
         this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_fail'), 'error', 3000);
       }

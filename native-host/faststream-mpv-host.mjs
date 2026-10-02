@@ -32,10 +32,10 @@
 
 import crypto from 'crypto';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import {execFile, spawn} from 'child_process';
 import net from 'net';
-import os from 'os';
 import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -283,17 +283,22 @@ const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
  * Sends commands to the mpv instance listening on our pipe.
  *
  * @param {Array<Object>} commands - mpv JSON IPC commands, in order.
- * @param {number} [timeoutMs] - How long to wait for the pipe and replies.
- * @return {Promise<{ok: boolean, replies?: Array<Object>, error?: string}>}
- *   ok:false simply means no instance of ours is running.
+ * @param {number} [timeoutMs] - How long to wait for the pipe.
+ * @param {number} [replyTimeoutMs] - How long a connected mpv gets to answer: it answers
+ *   IPC between other work, and opening a slow stream can hold it up for seconds.
+ * @param {string} [pipe] - The pipe; ours by default (tests use their own).
+ * @return {Promise<{ok: boolean, replies?: Array<Object>, error?: string, busy?: boolean}>}
+ *   ok:false without busy means no instance of ours is running; busy:true means one is,
+ *   and did not answer in time (starting a second one on the same pipe would leave that
+ *   one without IPC).
  */
-export function mpvIpcRequest(commands, timeoutMs = 1500) {
+export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000, pipe = IpcPipe) {
   return new Promise((resolve) => {
     let settled = false;
     const replies = [];
     let buffer = '';
 
-    const socket = net.connect(IpcPipe);
+    const socket = net.connect(pipe);
 
     const finish = (value) => {
       if (settled) {
@@ -309,17 +314,26 @@ export function mpvIpcRequest(commands, timeoutMs = 1500) {
       resolve(value);
     };
 
-    const timer = setTimeout(() => {
-      finish(replies.length ?
-        {ok: true, replies} :
-        {ok: false, error: 'mpv ipc timeout'});
-    }, timeoutMs);
+    let connected = false;
+    const giveUp = () => {
+      if (replies.length) {
+        finish({ok: true, replies});
+      } else if (connected) {
+        finish({ok: false, busy: true, error: 'mpv did not answer'});
+      } else {
+        finish({ok: false, error: 'mpv ipc timeout'});
+      }
+    };
+    let timer = setTimeout(giveUp, timeoutMs);
 
     // Any connect error means there is no live instance of ours: a stale pipe
     // after mpv was closed behaves the same way.
     socket.on('error', () => finish({ok: false, error: 'no mpv ipc'}));
 
     socket.on('connect', () => {
+      connected = true;
+      clearTimeout(timer);
+      timer = setTimeout(giveUp, replyTimeoutMs);
       commands.forEach((command, index) => {
         socket.write(JSON.stringify(
             Object.assign({request_id: index + 1}, command)) + String.fromCharCode(10));
@@ -508,60 +522,124 @@ export function mpvTargetUrl(message) {
   return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
 }
 
-// The IPC lock lives in a per-run directory under the user's own temp folder: a fresh
-// mkdtempSync name (random suffix) instead of one fixed, predictable file in the shared
-// temp root that another local process could create first (CodeQL
-// js/insecure-temporary-file). The directory is what the lock opens into; the lock file
-// itself keeps its name inside it.
-const IpcLockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'faststream-mpv-ipc-'));
-const IpcLockFile = path.join(IpcLockDir, 'ipc.lock');
-
-// Longer than any exchange with mpv takes (mpvIpcRequest gives up after 1.5 s): a lock
-// this old was left by a host that was killed.
-const IpcLockStaleMs = 10000;
+// What else a sender may hand over with a stream (the player's mpv button): where to
+// start, and the subtitles it shows, as SubRip text. Checked here again, since anything
+// that talks to the host gets this far.
+const MaxSubtitles = 8;
+const MaxSubtitleChars = 5 * 1024 * 1024;
+// The folders the subtitles are written into, one per send, in the user's temp folder.
+export const SubtitleDirPrefix = 'faststream-mpv-subs-';
+// mpv reads a subtitle file when it loads the stream; older folders are removed.
+const SubtitleDirMaxAgeMs = 24 * 60 * 60 * 1000;
 
 /**
- * Runs fn while holding a lock every host process shares. Each "Send to mpv" is its own
- * host process, and loading into the running mpv sets the headers globally, then loads
- * the file: two sends a few milliseconds apart could run as set A, set B, load B, load A,
- * and A then played with B's headers (a 403 on a CDN that checks them).
- * @param {() => Promise<*>} fn - The exchange with mpv.
- * @param {string} [lockFile] - The lock; a shared one in the temp folder by default.
- * @param {number} [waitMs] - How long to wait for another host before going ahead anyway.
- * @return {Promise<*>} What fn returns.
+ * The position to start the stream at, when the message names a usable one.
+ * @param {{start?: *}} message - The open message.
+ * @return {number|undefined} Seconds (millisecond precision), or undefined.
  */
-export async function withIpcLock(fn, lockFile = IpcLockFile, waitMs = 5000) {
-  const deadline = Date.now() + waitMs;
-  /** @type {?number} */
-  let fd = null;
-  while (fd === null && Date.now() <= deadline) {
-    try {
-      fd = fs.openSync(lockFile, 'wx');
-    } catch (e) {
-      if (e.code !== 'EEXIST') {
-        // No lock to be had here (a read-only temp folder): go ahead without.
-        break;
-      }
-      try {
-        if (Date.now() - fs.statSync(lockFile).mtimeMs > IpcLockStaleMs) {
-          fs.rmSync(lockFile, {force: true});
-          continue;
-        }
-      } catch (e2) {
-        // Gone in between: try again at once.
-        continue;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
+export function startOf(message) {
+  const t = message.start;
+  return typeof t === 'number' && Number.isFinite(t) && t >= 1 && t < 1e7 ?
+    Math.floor(t * 1000) / 1000 : undefined;
+}
+
+/**
+ * The subtitles the message carries that the host takes: SubRip text, at most
+ * MaxSubtitles, each at most MaxSubtitleChars long.
+ * @param {{subtitles?: *}} message - The open message.
+ * @return {Array<{srt: string, label: string}>} The subtitles.
+ */
+export function subtitlesOf(message) {
+  if (!Array.isArray(message.subtitles)) {
+    return [];
+  }
+  return message.subtitles
+      .filter((s) => s && typeof s.srt === 'string' && s.srt.trim().length > 0 && s.srt.length <= MaxSubtitleChars)
+      .slice(0, MaxSubtitles)
+      .map((s) => ({srt: s.srt, label: typeof s.label === 'string' ? s.label : ''}));
+}
+
+/**
+ * Writes subtitles into a fresh folder of their own (mkdtemp: a random name in the
+ * user's temp folder) for mpv to load, after removing such folders older than a day.
+ * The file name is what mpv's track list shows.
+ * @param {Array<{srt: string, label: string}>} subtitles - From subtitlesOf.
+ * @param {string} [base] - The folder to write under; the temp folder by default.
+ * @return {Array<string>} The files, in order.
+ */
+export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
+  if (subtitles.length === 0) {
+    return [];
   }
   try {
-    return await fn();
-  } finally {
-    if (fd !== null) {
-      fs.closeSync(fd);
-      fs.rmSync(lockFile, {force: true});
+    for (const entry of fs.readdirSync(base, {withFileTypes: true})) {
+      if (entry.isDirectory() && entry.name.startsWith(SubtitleDirPrefix)) {
+        const dir = path.join(base, entry.name);
+        if (Date.now() - fs.statSync(dir).mtimeMs > SubtitleDirMaxAgeMs) {
+          fs.rmSync(dir, {recursive: true, force: true});
+        }
+      }
     }
+  } catch (e) {
+    // Cleaning up is a courtesy; writing the new ones is what matters.
   }
+  const dir = fs.mkdtempSync(path.join(base, SubtitleDirPrefix));
+  return subtitles.map((s, i) => {
+    const label = s.label.replace(/[^\p{L}\p{N} ._-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const file = path.join(dir, `${i + 1}${label ? ' ' + label : ''}.srt`);
+    fs.writeFileSync(file, s.srt, 'utf8');
+    return file;
+  });
+}
+
+/**
+ * Escapes one item of an mpv string list option: ',' separates the items, and '\'
+ * escapes ',' and itself.
+ * @param {string} item - The item.
+ * @return {string} The escaped item.
+ */
+function listItem(item) {
+  return item.replace(/\\/g, '\\\\').replace(/,/g, '\\,');
+}
+
+/**
+ * mpv's per-file options for one stream: its headers and title, which come with the file
+ * and go with it. Set for the whole player (set_property, or --http-header-fields on the
+ * command line), they stayed for every later file in that window, so the next file got
+ * this site's Referer and title; and two sends milliseconds apart could interleave as set
+ * A, set B, load A, load B, A then playing with B's headers. A per-file option rides on
+ * the one loadfile command (or the --{ ... --} group of a fresh start), so neither can
+ * happen, and no lock between host processes is needed. Measured on mpv 0.41
+ * (2026-10-02, a local server logging each request's headers): the file got them, commas
+ * inside a value included, and the next file loaded without them; so did start and
+ * sub-files.
+ *
+ * sub-files is a PATH list, not a string list: its items are separated by the system's
+ * path delimiter (';' on Windows) and a backslash is part of the path (escaped as a string
+ * list, mpv looked for "C:\\Users\\...", measured). A file whose path holds the delimiter
+ * is left out.
+ *
+ * @param {Array<string>} headerFields - "Name: value" strings for mpv.
+ * @param {string} title - Media title to display.
+ * @param {{start?: number, subFiles?: Array<string>}} [extras] - Where to start, and
+ *   subtitle files to load with the stream.
+ * @param {string} [delimiter] - The path list separator; the system's by default.
+ * @return {Object<string, string>} loadfile's options.
+ */
+export function perFileOptions(headerFields, title, extras = {}, delimiter = path.delimiter) {
+  /** @type {Object<string, string>} */
+  const options = {
+    'http-header-fields': headerFields.map(listItem).join(','),
+    'force-media-title': title,
+  };
+  if (extras.start !== undefined) {
+    options.start = String(extras.start);
+  }
+  const subFiles = (extras.subFiles || []).filter((file) => !file.includes(delimiter));
+  if (subFiles.length > 0) {
+    options['sub-files'] = subFiles.join(delimiter);
+  }
+  return options;
 }
 
 /**
@@ -572,27 +650,31 @@ export async function withIpcLock(fn, lockFile = IpcLockFile, waitMs = 5000) {
  * @param {string} title - Media title to display.
  * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
  *   to the real named-pipe transport.
- * @param {string} [lockFile] - withIpcLock's lock; the shared one by default.
- * @return {Promise<{ok: boolean, pid?: number}>} ok:false when no instance of
- *   ours answered, in which case the caller should start one.
+ * @param {{start?: number, subFiles?: Array<string>}} [extras] - perFileOptions'.
+ * @return {Promise<{ok: boolean, pid?: number, busy?: boolean}>} ok:false when no
+ *   instance of ours answered, in which case the caller should start one - unless busy:
+ *   one is running and did not answer in time.
  */
-export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, lockFile = IpcLockFile) {
-  /** @type {Array<{command: Array<*>}>} */
-  const commands = [
-    {command: ['set_property', 'http-header-fields', headerFields]},
-    {command: ['set_property', 'force-media-title', title]},
-  ];
+export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, extras = {}) {
+  /** @type {Array<{command: *}>} */
+  const commands = [];
   if (message.fullscreen) {
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
-  commands.push({command: ['loadfile', mpvTargetUrl(message), 'replace']});
+  // The file with its own headers and title: one command (perFileOptions). Named
+  // arguments, since loadfile's options come after its index (mpv 0.38 and later).
+  commands.push({command: {
+    name: 'loadfile',
+    url: mpvTargetUrl(message),
+    flags: 'replace',
+    index: -1,
+    options: perFileOptions(headerFields, title, extras),
+  }});
   commands.push({command: ['get_property', 'pid']});
 
-  // The headers are set for the whole player, then the file loads: another host's
-  // send must not come in between (withIpcLock).
-  const result = await withIpcLock(() => ipcRequest(commands), lockFile);
+  const result = await ipcRequest(commands);
   if (!result.ok) {
-    return {ok: false};
+    return result.busy ? {ok: false, busy: true} : {ok: false};
   }
 
   // The loadfile reply is what decides success. mpvIpcRequest can resolve
@@ -601,13 +683,19 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   // reply specifically might not be in yet. Treat that as unconfirmed, not
   // successful -- otherwise this returns {ok: true} without ever knowing
   // whether the video actually loaded, and the caller skips starting a
-  // fresh instance that would have played it.
-  const loadReply = result.replies.find((r) => r.request_id === commands.length - 1);
-  if (!loadReply || (loadReply.error && loadReply.error !== 'success')) {
+  // fresh instance that would have played it. Nor is it "no instance": ours
+  // answered something, so it runs, and a second mpv on the same pipe would
+  // get no IPC (busy).
+  const replies = result.replies || [];
+  const loadReply = replies.find((r) => r.request_id === commands.length - 1);
+  if (!loadReply) {
+    return {ok: false, busy: true};
+  }
+  if (loadReply.error && loadReply.error !== 'success') {
     return {ok: false};
   }
 
-  const pidReply = result.replies.find((r) => r.request_id === commands.length);
+  const pidReply = replies.find((r) => r.request_id === commands.length);
   return {
     ok: true,
     pid: pidReply && typeof pidReply.data === 'number' ? pidReply.data : undefined,
@@ -641,6 +729,7 @@ function focusApiLines() {
     '  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool f);',
     '  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);',
     '  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);',
+    '  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);',
     '  [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int p);',
     '  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
     '}',
@@ -702,7 +791,8 @@ function focusWindowLines(pidExpr) {
     '        $t = [FSFg]::GetWindowThreadProcessId($fg, [ref]([uint32]0))',
     '        $me = [FSFg]::GetCurrentThreadId()',
     '        $null = [FSFg]::AttachThreadInput($me, $t, $true)',
-    '        $null = [FSFg]::ShowWindow($h, 5)',
+    // SW_SHOW (5) leaves a minimised window in the taskbar; SW_RESTORE (9) brings it back.
+    '        if ([FSFg]::IsIconic($h)) { $null = [FSFg]::ShowWindow($h, 9) } else { $null = [FSFg]::ShowWindow($h, 5) }',
     '        $null = [FSFg]::BringWindowToTop($h)',
     '        $ok = [FSFg]::SetForegroundWindow($h)',
     '        $null = [FSFg]::AttachThreadInput($me, $t, $false)',
@@ -827,30 +917,46 @@ function launchViaWmi(mpvPath, args) {
   });
 }
 
+/**
+ * The title mpv shows for a stream (window, taskbar, uosc's top bar): the browser tab's
+ * title when the extension sent one, else the stream's host name.
+ * @param {{url: string, title?: *}} message - The open message.
+ * @return {string} The title.
+ */
+export function streamTitle(message) {
+  if (typeof message.title === 'string') {
+    // Control characters out (a title is one line), length bounded.
+    const clean = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
+        .join('').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (clean) {
+      return clean;
+    }
+  }
+  try {
+    return new URL(message.url).hostname || 'FastStream';
+  } catch (e) {
+    return 'FastStream';
+  }
+}
+
 async function launchMpv(mpvPath, message, config) {
   const args = [];
   const headerFields = relayHeaderFields(message.headers);
-
-  // One --http-header-fields-append per header. The plain
-  // --http-header-fields form takes a comma-separated list, so a value
-  // containing a comma (legal in a Referer URL) would be split into two
-  // malformed headers.
-  for (const field of headerFields) {
-    args.push(`--http-header-fields-append=${field}`);
-  }
-
-  let title = 'FastStream';
+  const title = streamTitle(message);
+  /** @type {{start?: number, subFiles: Array<string>}} */
+  const extras = {start: startOf(message), subFiles: []};
   try {
-    title = new URL(message.url).hostname || title;
+    extras.subFiles = writeSubtitleFiles(subtitlesOf(message));
   } catch (e) {
-    // Keep the default title for non-URLs.
+    // The stream still plays without them.
+    debugLog(config, 'subtitles-failed', {error: String(e)});
   }
 
   // Reuse the window we already own, rather than stacking up players. Only
   // instances started with our pipe answer, so an mpv the user opened
   // themselves is never loaded into.
   if (message.singleInstance) {
-    const existing = await loadIntoExisting(message, headerFields, title);
+    const existing = await loadIntoExisting(message, headerFields, title, mpvIpcRequest, extras);
     if (existing.ok) {
       let focus;
       if (existing.pid) {
@@ -859,10 +965,15 @@ async function launchMpv(mpvPath, message, config) {
       debugLog(config, 'reused', {pid: existing.pid, focus});
       return {ok: true};
     }
+    if (existing.busy) {
+      // Running, but silent: a second mpv on the same pipe would get no IPC, and every
+      // later send would go to the first one anyway.
+      debugLog(config, 'busy', {});
+      return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+    }
     args.push(`--input-ipc-server=${IpcPipe}`);
   }
 
-  args.push(`--force-media-title=${title}`);
   if (message.fullscreen) {
     args.push('--fullscreen');
   }
@@ -874,8 +985,25 @@ async function launchMpv(mpvPath, message, config) {
   // second or two, and the stream loads visibly inside a focused player.
   args.push('--force-window=immediate');
   args.push('--no-terminal');
-  args.push('--');
+  // The stream with its own headers and title, as a per-file group (--{ ... --}): they
+  // go with this file, not with every later one in the window (perFileOptions). One
+  // --http-header-fields-append per header: the plain --http-header-fields takes a
+  // comma-separated list, and a comma is legal in a Referer URL. No "--" before the URL
+  // (it would end the group's options too): main() lets only http(s) URLs this far, and
+  // those cannot be read as an option.
+  args.push('--{');
+  for (const field of headerFields) {
+    args.push(`--http-header-fields-append=${field}`);
+  }
+  args.push(`--force-media-title=${title}`);
+  if (extras.start !== undefined) {
+    args.push(`--start=${extras.start}`);
+  }
+  for (const file of extras.subFiles) {
+    args.push(`--sub-files-append=${file}`);
+  }
   args.push(mpvTargetUrl(message));
+  args.push('--}');
 
   debugLog(config, 'spawn', {mpvPath, args});
 

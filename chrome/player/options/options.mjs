@@ -463,6 +463,18 @@ mpvSingleInstanceToggle.addEventListener('change', () => {
   optionChanged();
 });
 
+/**
+ * Whether the mpv path typed on this page names the mpv the host found: the same file,
+ * or the folder it is in (the host accepts both), whatever the case and slashes.
+ * @param {string} typed - The path typed above.
+ * @param {string} found - The mpv.exe the host found.
+ * @return {boolean} True when they are the same mpv.
+ */
+function samePath(typed, found) {
+  const norm = (p) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+  return norm(typed) === norm(found) || norm(typed) + '\\mpv.exe' === norm(found);
+}
+
 mpvTestButton.addEventListener('click', () => {
   mpvTestResult.textContent = '...';
   const sendTest = () => {
@@ -471,7 +483,15 @@ mpvTestButton.addEventListener('click', () => {
         mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
         return;
       }
-      if (response.ok && response.mpv) {
+      if (response.ok && response.mpv && typeof response.path === 'string') {
+        // Which mpv the host found: a path set above that does not exist falls back to
+        // the host's config.json and the usual install folders, and "mpv found" alone
+        // hid that.
+        const typed = mpvPathInput.value.trim();
+        mpvTestResult.textContent = !typed || samePath(typed, response.path) ?
+          window.getI18nMessage('options_mpv_test_ok_at', [response.path]) :
+          window.getI18nMessage('options_mpv_test_otherpath', [response.path]);
+      } else if (response.ok && response.mpv) {
         mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_ok');
       } else if (response.ok) {
         mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_nompv');

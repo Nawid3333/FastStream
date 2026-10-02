@@ -127,6 +127,10 @@ export class TabHolder {
     this.mpvOnPlay = false;
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
+    // Why the last hand-off to mpv failed, while MPV mode shows it on the toolbar button
+    // ("!" and the reason in the tooltip); null after one that worked or a new page.
+    /** @type {?string} */
+    this.mpvError = null;
     this.url = '';
     // Popup/popunder guard: set by content.js when focus moves into one of
     // this tab's player iframes (the click that ad sites hook via a

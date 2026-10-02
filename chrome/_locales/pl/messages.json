@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "Znaleziono mpv"
     },
+    "options_mpv_test_ok_at": {
+        "message": "Znaleziono mpv: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "Znaleziono mpv: $1 (nie znaleziono ścieżki podanej wyżej, więc host używa tej)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host osiągalny, ale nie znaleziono mpv"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "Nie udało się otworzyć w mpv. Czy host mpv FastStream jest zainstalowany?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "Nie udało się otworzyć w mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - nie otwarto strumienia: $1"
     },
     "player_mpv_content_unset": {
         "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"

@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv ditemukan"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpv ditemukan: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpv ditemukan: $1 (jalur di atas tidak ditemukan, jadi host memakai yang ini)"
+    },
     "options_mpv_test_nompv": {
         "message": "Host dapat dijangkau, tetapi mpv tidak ditemukan"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "Tidak dapat dibuka di mpv. Apakah host mpv FastStream sudah terpasang?"
+    },
+    "player_mpv_fail_reason": {
+        "message": "Tidak dapat membuka di mpv: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - stream tidak terbuka: $1"
     },
     "player_mpv_content_unset": {
         "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"

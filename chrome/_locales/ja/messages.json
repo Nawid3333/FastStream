@@ -1136,6 +1136,12 @@
     "options_mpv_test_ok": {
         "message": "mpv が見つかりました"
     },
+    "options_mpv_test_ok_at": {
+        "message": "mpvが見つかりました: $1"
+    },
+    "options_mpv_test_otherpath": {
+        "message": "mpvが見つかりました: $1 (上で設定したパスが見つからないため、ホストはこちらを使います)"
+    },
     "options_mpv_test_nompv": {
         "message": "ホストには到達できましたが、mpv が見つかりません"
     },
@@ -1153,6 +1159,12 @@
     },
     "player_mpv_fail": {
         "message": "mpv で開けませんでした。FastStream mpv ホストはインストールされていますか？"
+    },
+    "player_mpv_fail_reason": {
+        "message": "mpvで開けませんでした: $1"
+    },
+    "extension_toggle_label_mpv_failed": {
+        "message": "FastStream - MPV - ストリームを開けませんでした: $1"
     },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
