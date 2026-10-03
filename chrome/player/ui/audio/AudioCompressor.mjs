@@ -4,6 +4,10 @@ import {WebUtils} from '../../utils/WebUtils.mjs';
 import {createKnob} from '../components/Knob.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 
+// The DynamicsCompressorNode's look-ahead in seconds: the pre-delay of Blink's
+// DynamicsCompressor, which Firefox's node is built on.
+const COMPRESSOR_PRE_DELAY = 0.006;
+
 export class AudioCompressor extends AbstractAudioModule {
   constructor(customTitlePrepend, numberOfChannelsGetter) {
     super('AudioCompressor');
@@ -133,8 +137,17 @@ export class AudioCompressor extends AbstractAudioModule {
       this.compressorMerger = audioContext.createChannelMerger(2);
       this.compressorSplitter = audioContext.createChannelSplitter(2);
 
+      // The compressor delays what it compresses by its look-ahead: Firefox's (Blink's
+      // DynamicsCompressor) is 6 ms, in whole frames. The channels that go around it are
+      // delayed as much, or they reached the speakers 6 ms before the front pair.
+      const lookAhead = Math.floor(COMPRESSOR_PRE_DELAY * audioContext.sampleRate) / audioContext.sampleRate;
+      this.bypassDelays = [];
       for (let i = 2; i < numChannels; i++) {
-        this.splitterNode.connect(this.mergerNode, i, i);
+        const delay = audioContext.createDelay(COMPRESSOR_PRE_DELAY * 2);
+        delay.delayTime.value = lookAhead;
+        this.splitterNode.connect(delay, i, 0);
+        delay.connect(this.mergerNode, 0, i);
+        this.bypassDelays.push(delay);
       }
 
       this.splitterNode.connect(this.compressorMerger, 0, 0);
@@ -178,6 +191,7 @@ export class AudioCompressor extends AbstractAudioModule {
 
     this.splitterNode = null;
     this.mergerNode = null;
+    this.bypassDelays = null;
     this.compressorMerger = null;
     this.compressorNode = null;
     this.compressorGain = null;
