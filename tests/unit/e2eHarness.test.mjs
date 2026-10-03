@@ -1,9 +1,10 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {PassThrough} from 'node:stream';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {writeFixture} from '../e2e/mp4Fixture.mjs';
+import {mp4FixtureMismatch, writeFixture} from '../e2e/mp4Fixture.mjs';
 import {byteRange, decodePath, sendFile} from '../e2e/serveFile.mjs';
 import {guardSetup, rootHooks} from '../e2e/setupGuard.mjs';
 
@@ -70,6 +71,29 @@ describe('writeFixture', () => {
       throw new Error('ffmpeg was killed');
     })).rejects.toThrow('ffmpeg was killed');
     expect(fs.readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe('mp4FixtureMismatch', () => {
+  // The MP4 fixture is fetched from a host that may re-encode it; the specs count its
+  // frames. Another file is refused by name instead of tested against (#256).
+  const data = Buffer.from('not really an mp4, but pinned');
+  const pin = {size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex')};
+
+  it('passes the pinned bytes', () => {
+    expect(mp4FixtureMismatch(data, pin)).toBeNull();
+  });
+
+  it('names another size, or other bytes of the same size', () => {
+    expect(mp4FixtureMismatch(Buffer.concat([data, Buffer.from('!')]), pin))
+        .toBe(`${data.length + 1} bytes, expected ${data.length}`);
+    const other = Buffer.from(data);
+    other[0] ^= 1;
+    expect(mp4FixtureMismatch(other, pin)).toMatch(/^SHA-256 [0-9a-f]{64}, expected [0-9a-f]{64}$/);
+  });
+
+  it('is pinned to one file by default', () => {
+    expect(mp4FixtureMismatch(data)).toMatch(/bytes, expected 991017$/);
   });
 });
 
