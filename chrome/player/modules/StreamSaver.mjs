@@ -22,7 +22,6 @@ function createWriteStreamBlob(filename, opts, size) {
   // save never happened. Instead: write chunks progressively into ONE OPFS
   // file (disk-backed, flat memory), then hand the download a disk-backed
   // File. mp4merger.mjs's finalize() does the same via OPFSManager.
-  const blobManager = new FSBlob();
 
   // Which of the two sinks below this uses can only be decided once the blob
   // store's backend has finished setting up. Reading blobManager.opfsManager
@@ -30,9 +29,13 @@ function createWriteStreamBlob(filename, opts, size) {
   // getDirectory() is present and throws - and every write() then rejected
   // instead of falling back, so saving was dead in private windows rather
   // than merely slower.
+  // The blob store itself is made then too: a save that failed before its first
+  // write (a direct download's bad status code) left one, with its OPFS worker
+  // and heartbeat, running until the tab closed.
   let sinkPromise = null;
   const getSink = () => {
     if (!sinkPromise) {
+      const blobManager = new FSBlob();
       sinkPromise = blobManager.ready().then((ready) =>
         ready && blobManager.opfsManager ?
           createOPFSSink(filename, blobManager) :
@@ -49,10 +52,19 @@ function createWriteStreamBlob(filename, opts, size) {
       await (await getSink()).close();
     },
     async abort() {
-      await (await getSink()).abort();
+      // Nothing was written, so there is nothing to undo.
+      if (sinkPromise) {
+        await (await sinkPromise).abort();
+      }
     },
   }, opts.writableStrategy);
 }
+
+// How many chunks the memory sink lets wait for the blob store to move them to
+// disk. Its write() used to return at once, so a fast producer (a direct
+// download read as fast as the network gives it) had the whole file in RAM as
+// Blobs before the Cache backend took them.
+const MEMORY_SINK_PENDING = 8;
 
 /**
  * Progressive, disk-backed sink: every chunk is appended to one OPFS file and
@@ -78,15 +90,22 @@ function createOPFSSink(filename, blobManager) {
       await opfs.saveAppend(identifier, new Uint8Array(copy));
     },
     async close() {
-      await opfsWriterReady;
-      await opfs.saveEnd(identifier);
-      const file = await opfs.getSavedFile(identifier);
-      const url = URL.createObjectURL(file);
+      let url = null;
       let download;
       try {
+        await opfsWriterReady;
+        await opfs.saveEnd(identifier);
+        const file = await opfs.getSavedFile(identifier);
+        url = URL.createObjectURL(file);
         download = await Utils.downloadURL(url, filename);
       } catch (e) {
-        URL.revokeObjectURL(url);
+        // Nothing will read the file: it goes now, with its session, as on
+        // abort(). The worker and its heartbeat ran until the tab closed.
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+        await opfs.saveAbort(identifier).catch(() => {});
+        blobManager.close();
         throw e;
       }
       // chrome.downloads resolves before Firefox has read the blob URL: kept until the
@@ -116,15 +135,29 @@ function createOPFSSink(filename, blobManager) {
  */
 function createMemorySink(filename, blobManager) {
   const blobs = [];
+  const pending = [];
   return {
-    write(chunk) {
-      blobs.push(blobManager.createBlob(chunk));
+    async write(chunk) {
+      const identifier = blobManager.nextIdentifier();
+      blobs.push(identifier);
+      pending.push(blobManager.saveBlobAsync(new Blob([chunk], {type: 'application/octet-stream'}), identifier));
+      if (pending.length >= MEMORY_SINK_PENDING) {
+        await pending.shift();
+      }
     },
     async close() {
       const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
       const blob = new Blob(chunks, {type: 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
-      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, filename));
+      let download;
+      try {
+        download = await Utils.downloadURL(url, filename);
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        blobManager.close();
+        throw e;
+      }
+      Utils.revokeWhenDownloaded(url, download);
 
       setTimeout(() => {
         blobManager.close();
@@ -133,6 +166,7 @@ function createMemorySink(filename, blobManager) {
     async abort() {
       blobs.length = 0;
       await blobManager.clear();
+      blobManager.close();
     },
   };
 }
