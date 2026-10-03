@@ -150,26 +150,31 @@ export class ConvolutionXTC {
     this.convolvers_XTC[other].buffer = this.buffer_XTC;
 
     if (!this.switchTimeout) {
-      this.getInputNode().connect(this.convolvers_XTC[other], 1);
+      // Connected with no output index, as it is disconnected: connected with one (which
+      // meant nothing here), the disconnect below never matched it and threw into an
+      // empty catch, so both convolvers ran for good, at twice the CPU.
+      this.getInputNode().connect(this.convolvers_XTC[other]);
     }
 
     clearTimeout(this.switchTimeout);
     this.switchTimeout = setTimeout(() => {
       this.getOutputNode().connectFrom(this.convolvers_XTC[other]);
-      try {
-        this.getInputNode().disconnect(this.convolvers_XTC[current]);
-      } catch (e) {
-
-      }
-      try {
-        this.getOutputNode().disconnectFrom(this.convolvers_XTC[current]);
-      } catch (e) {
-
-      }
+      this.detachConvolver(this.convolvers_XTC[current]);
 
       this.currentConvolver = other;
       this.switchTimeout = null;
     }, 100);
+  }
+
+  // Takes a convolver off the input and the output where it is on them: the first switch
+  // has no convolver to retire, and while a switch is pending both are on the input.
+  detachConvolver(convolver) {
+    if (this.getInputNode().indexConnectedTo(convolver) !== -1) {
+      this.getInputNode().disconnect(convolver);
+    }
+    if (this.getOutputNode().indexConnectedFrom(convolver) !== -1) {
+      this.getOutputNode().disconnectFrom(convolver);
+    }
   }
 
   async init() {
@@ -208,14 +213,7 @@ export class ConvolutionXTC {
     this.getOutputNode().disconnectFrom(this.convolver_BYPASS);
 
     this.convolvers_XTC.forEach((convolver) => {
-      try {
-        this.getInputNode().disconnect(convolver);
-      } catch (e) {
-      }
-      try {
-        this.getOutputNode().disconnectFrom(convolver);
-      } catch (e) {
-      }
+      this.detachConvolver(convolver);
     });
     this.convolver_BYPASS = null;
     this.convolvers_XTC = null;
