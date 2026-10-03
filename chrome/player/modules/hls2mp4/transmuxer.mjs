@@ -54,10 +54,14 @@ const Logger = {
 };
 export default class Transmuxer {
   constructor(transmuxConfig) {
+    // What the remuxer may produce. The output is an MP4 file, not something this
+    // browser's MSE has to take, so MP3 always goes in as MP3 in MP4: asked of
+    // MediaSource, a browser that takes 'audio/mpeg' got bare MPEG audio, which has no mdat
+    // for HLS2MP4 to place and no sample entry in MP4Generator, and the file was broken.
     this.typeSupported = {
-      mp4: MediaSource.isTypeSupported('video/mp4'),
-      mpeg: MediaSource.isTypeSupported('audio/mpeg'),
-      mp3: MediaSource.isTypeSupported('audio/mp4; codecs="mp3"'),
+      mp4: true,
+      mpeg: false,
+      mp3: true,
     };
 
     this.config = new Proxy({
@@ -129,7 +133,10 @@ export default class Transmuxer {
       this.remuxer = new Remuxer(observer, config, typeSupported, Logger);
     }
     if (!demuxer || !(demuxer instanceof Demuxer)) {
-      this.demuxer = new Demuxer(observer, config, typeSupported);
+      // The logger too: TSDemuxer logs through the one it is given, and without it the
+      // first thing it reported (HEVC found, AC-3 skipped, a damaged packet, a PES with no
+      // timestamp) threw a TypeError that failed the save.
+      this.demuxer = new Demuxer(observer, config, typeSupported, Logger);
       this.probe = Demuxer.probe;
     }
   }

@@ -1,6 +1,9 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {StreamTypes, TS_CLOCK, audioUnits, h264AccessUnit, muxSegment, videoUnits} from './helpers/mpegts.mjs';
-import {readMp4} from './helpers/mp4boxes.mjs';
+import {
+  ParameterSets, StreamTypes, TS_CLOCK, audioUnits, h264AccessUnit, hevcAccessUnit, mp3Frame, muxSegment,
+  videoUnits,
+} from './helpers/mpegts.mjs';
+import {find, readBoxes, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs';
 
 // The HLS save (HLS2MP4) on transport streams, through the real hls.js demuxer and remuxer
 // (the patched npm build: see vitest.config.mjs), with the file it writes read back box by
@@ -27,8 +30,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   },
 }));
 
-// What hls.js asks the browser about: Firefox's MSE takes MP3 in MP4, not bare MPEG audio.
-globalThis.MediaSource = {isTypeSupported: (type) => type !== 'audio/mpeg'};
+// The transmuxer used to ask MSE what to produce. A browser that takes everything, bare MPEG
+// audio included, is the case that broke a save (the MP3 test below).
+globalThis.MediaSource = {isTypeSupported: () => true};
 
 const {HLS2MP4} = await import('../../chrome/player/modules/hls2mp4/hls2mp4.mjs');
 
@@ -211,5 +215,100 @@ describe('HLS2MP4: discontinuities', () => {
       expect(track.editEnd - track.firstShown).toBeCloseTo(track.mediaEnd, 2);
       expect(track.editEnd).toBeLessThan(4.2);
     }
+  });
+});
+
+describe('HLS2MP4: damaged input', () => {
+  it('saves a segment with a damaged packet, as hls.js plays it', async () => {
+    // hls.js reports a packet that does not start with 0x47 through the logger it was
+    // given, and carries on. The transmuxer gave TSDemuxer none, so the report threw a
+    // TypeError and the save failed.
+    const segment = muxSegment({
+      video: {
+        type: StreamTypes.H264,
+        units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+      },
+      audio: {type: StreamTypes.AAC, units: audioUnits({start: ticks(1.4), count: 47, sampleRate: RATE})},
+    });
+    // The last packet, an audio one (the queue is in time order and the audio ends last).
+    segment[segment.length - 188] = 0x00;
+    const {tracks} = await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)]);
+
+    expect(tracks.vide.durations).toHaveLength(25);
+    expect(tracks.soun.durations.length).toBeGreaterThan(40);
+  });
+});
+
+describe('HLS2MP4: sample entries', () => {
+  /**
+   * @param {Uint8Array} haystack
+   * @param {Uint8Array} needle
+   * @return {boolean}
+   */
+  const contains = (haystack, needle) => Buffer.from(haystack).indexOf(Buffer.from(needle)) !== -1;
+
+  it('describes HEVC video as hvc1 with its VPS, SPS and PPS', async () => {
+    // hls.js demuxes HEVC from a transport stream; the save wrote it under an avc1 entry
+    // with an avcC made of HEVC parameter sets, which nothing decodes.
+    const segment = muxSegment({
+      video: {
+        type: StreamTypes.HEVC,
+        units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: hevcAccessUnit}),
+      },
+      audio: {type: StreamTypes.AAC, units: audioUnits({start: ticks(1.4), count: 47, sampleRate: RATE})},
+    });
+    const {tracks} = await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)]);
+
+    const {type, entry} = readSampleEntry(find(tracks.vide.trak.children, 'mdia/minf/stbl/stsd'));
+    expect(type).toBe('hvc1');
+    // The sample entry's 78 bytes, then its boxes.
+    const hvcC = find(readBoxes(entry, 86), 'hvcC');
+    expect(hvcC).toBeDefined();
+    const config = new Uint8Array(hvcC.body.buffer, hvcC.body.byteOffset, hvcC.body.byteLength);
+    expect(config[0]).toBe(1);
+    // Four-byte NAL lengths, as the samples are written.
+    expect(config[21] & 3).toBe(3);
+    for (const parameterSet of [ParameterSets.HEVC.vps, ParameterSets.HEVC.sps, ParameterSets.HEVC.pps]) {
+      expect(contains(config, parameterSet)).toBe(true);
+    }
+    expect(tracks.vide.durations).toHaveLength(25);
+  });
+
+  it('writes MP3 audio as MP3 in MP4, whatever MSE in the browser takes', async () => {
+    // hls.js remuxes MP3 into bare MPEG audio when the browser's MSE takes 'audio/mpeg'.
+    // The transmuxer asked the browser, so in one that does the save got audio with no
+    // mdat around it and an entry that is not MP3's: the file's boxes did not add up.
+    const frames = Array.from({length: 40}, (_, i) => ({
+      pts: ticks(1.4) + Math.round(i * 1152 * TS_CLOCK / 44100),
+      data: mp3Frame(),
+    }));
+    const segment = muxSegment({
+      video: {
+        type: StreamTypes.H264,
+        units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+      },
+      audio: {type: StreamTypes.MP3, units: frames},
+    });
+    const {boxes, tracks} = await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)]);
+
+    expect(readSampleEntry(find(tracks.soun.trak.children, 'mdia/minf/stbl/stsd')).type).toBe('.mp3');
+    expect(tracks.soun.durations).toHaveLength(40);
+    expect(tracks.soun.timescale).toBe(44100);
+    // Each sample where the chunk table says: the first audio chunk starts with a frame.
+    const stco = find(tracks.soun.trak.children, 'mdia/minf/stbl/stco').body;
+    const file = new Uint8Array(boxes.at(-1).body.buffer);
+    expect([...file.subarray(stco.getUint32(8), stco.getUint32(8) + 4)]).toEqual([0xff, 0xfb, 0x90, 0x44]);
+  });
+
+  it('still describes H.264 video as avc1', async () => {
+    const segment = muxSegment({video: {
+      type: StreamTypes.H264,
+      units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+    }});
+    const {tracks} = await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)]);
+
+    const {type, entry} = readSampleEntry(find(tracks.vide.trak.children, 'mdia/minf/stbl/stsd'));
+    expect(type).toBe('avc1');
+    expect(find(readBoxes(entry, 86), 'avcC')).toBeDefined();
   });
 });

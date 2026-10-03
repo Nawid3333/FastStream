@@ -21,6 +21,7 @@ export const StreamTypes = {
   H264: 0x1b,
   HEVC: 0x24,
   AAC: 0x0f,
+  MP3: 0x03,
 };
 
 const hex = (text) => Uint8Array.from(text.match(/../g).map((byte) => parseInt(byte, 16)));
@@ -102,6 +103,17 @@ export function adtsFrame(sampleRate, channels = 2) {
     0xfc,
     ...payload,
   ]);
+}
+
+/**
+ * One MPEG-1 Layer III frame: 1152 samples at 44100 Hz, 128 kbit/s, so 417 bytes. The
+ * payload after the header is not real MP3; hls.js reads only the header.
+ * @return {Uint8Array}
+ */
+export function mp3Frame() {
+  const frame = new Uint8Array(417);
+  frame.set([0xff, 0xfb, 0x90, 0x44]);
+  return frame;
 }
 
 /**
