@@ -56,16 +56,13 @@ function localHls(fixture, kind) {
   };
 }
 
-/** Streams chosen for stability and for exercising one library each. */
+/**
+ * Streams chosen for stability and for exercising one library each. All local: this suite
+ * gates CI and the release, so a third-party host being slow or down must not fail it.
+ * Real streams on public hosts are the live suite's (live-specs/streams.e2e.mjs). This
+ * list once had test-streams.mux.dev's HLS and dash.akamaized.net's DASH too.
+ */
 const STREAMS = [
-  {
-    name: 'HLS (hls.js + hls.worker.js)',
-    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-  },
-  {
-    name: 'DASH (dash.js)',
-    url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
-  },
   localHls('hls-ts', 'MPEG-TS segments'),
   localHls('hls-fmp4', 'fMP4 segments'),
   localHls('hls-audio', 'with a separate audio rendition'),

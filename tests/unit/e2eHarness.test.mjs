@@ -134,3 +134,27 @@ describe('sendFile', () => {
     expect(Buffer.concat(chunks).toString()).toBe('789');
   });
 });
+
+// The suites CI runs, and the release waits for, stream nothing from a public host: a
+// demo host being slow or down failed both CI jobs (#255). Real streams are the live
+// suite's (live-specs/), which is never part of CI.
+describe('the e2e suites CI runs', () => {
+  // Hosts the specs name without fetching: reserved test names, and a subtitle search
+  // result's link, which the stubbed search returns and nothing opens.
+  const named = (host) => host === '127.0.0.1' || host === 'localhost' || host === 'example.com' ||
+    /\.(test|example)$/.test(host) || !host.includes('.') || host === 'www.opensubtitles.com';
+
+  it('stream nothing from a public host', () => {
+    const root = path.resolve(import.meta.dirname, '../e2e');
+    const found = [];
+    for (const dir of ['specs', 'ext-specs', 'classic-specs', 'pbm-specs']) {
+      for (const name of fs.readdirSync(path.join(root, dir))) {
+        const source = fs.readFileSync(path.join(root, dir, name), 'utf8');
+        for (const [, host] of source.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)) {
+          if (!named(host)) found.push(`${dir}/${name}: ${host}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
+  });
+});
