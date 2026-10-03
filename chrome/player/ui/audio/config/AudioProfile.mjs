@@ -25,8 +25,8 @@ export class AudioProfile {
     const profile = new AudioProfile(obj.id);
     profile.label = obj.label;
 
-    if (obj.channels && obj.channels.length <= MAX_AUDIO_CHANNELS) {
-      profile.channels = obj.channels.map((channel) => {
+    if (Array.isArray(obj.channels) && obj.channels.length <= MAX_AUDIO_CHANNELS) {
+      profile.channels = obj.channels.filter((channel) => channel && typeof channel === 'object').map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
     } else if (obj.mixerChannels && obj.mixerChannels.length === 7) { // Legacy
@@ -36,36 +36,26 @@ export class AudioProfile {
       profile.master = profile.channels.pop();
     }
 
-    // Sort channels by ID, increasing
-    profile.channels.sort((a, b) => a.id - b.id);
-
-    // fill remaining with defaults if less than MAX_CHANNELS
-    if (profile.channels.length < MAX_AUDIO_CHANNELS) {
-      const newChannels = [];
-      for (let i = 0; i < MAX_AUDIO_CHANNELS; i++) {
-        const existingChannel = profile.channels.find((ch) => ch.id === i);
-        if (existingChannel) {
-          newChannels.push(existingChannel);
-        } else {
-          newChannels.push(AudioChannelControl.default(i));
-        }
-      }
-      profile.channels = newChannels;
-    }
+    // One channel per ID, 0 to MAX_AUDIO_CHANNELS - 1, in order, the missing ones default:
+    // a full list with an ID out of range (7) or twice had no channel for some ID, and the
+    // mixer threw on it. The first of an ID wins; other IDs are dropped.
+    const channels = profile.channels;
+    profile.channels = Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => {
+      return channels.find((ch) => ch.id === i) || AudioChannelControl.default(i);
+    });
 
     if (obj.master) {
-      const masterChannel = AudioChannelControl.fromObj(obj.master);
-      profile.master = masterChannel;
+      profile.master = AudioChannelControl.fromObj({...obj.master, id: 'master'});
     }
 
     if (!profile.master) {
       profile.master = AudioChannelControl.default('master');
     }
 
-    if (obj.equalizerNodes) {
+    if (Array.isArray(obj.equalizerNodes)) {
       profile.master.equalizerNodes = obj.equalizerNodes.map((node) => {
         return AudioEQNode.fromObj(node);
-      }) || [];
+      }).filter((node) => node);
     }
 
     if (obj.compressor) {

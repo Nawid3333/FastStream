@@ -166,6 +166,26 @@ export class AudioEqualizer extends AbstractAudioModule {
   }
 
   refreshEQNodes() {
+    // The new filters first: a value the browser refuses (NaN) threw after the old ones
+    // were taken out, and the channel stayed silent until the next profile.
+    const equalizerNodes = this.equalizerConfig.map((node) => {
+      if (this.audioContext) {
+        const eqNode = this.audioContext.createBiquadFilter();
+        eqNode.type = node.type;
+        eqNode.frequency.value = node.frequency;
+        eqNode.gain.value = node.gain;
+        eqNode.Q.value = node.q;
+        return eqNode;
+      } else {
+        return {
+          type: node.type,
+          frequency: {value: node.frequency},
+          gain: {value: node.gain},
+          Q: {value: node.q},
+        };
+      }
+    });
+
     try {
       this.getInputNode().disconnect(this.getOutputNode());
     } catch (e) {
@@ -182,26 +202,7 @@ export class AudioEqualizer extends AbstractAudioModule {
       node.disconnect();
     });
 
-    this.equalizerNodes = [];
-
-    this.equalizerConfig.forEach((node) => {
-      if (this.audioContext) {
-        const eqNode = this.audioContext.createBiquadFilter();
-        eqNode.type = node.type;
-        eqNode.frequency.value = node.frequency;
-        eqNode.gain.value = node.gain;
-        eqNode.Q.value = node.q;
-
-        this.equalizerNodes.push(eqNode);
-      } else {
-        this.equalizerNodes.push({
-          type: node.type,
-          frequency: {value: node.frequency},
-          gain: {value: node.gain},
-          Q: {value: node.q},
-        });
-      }
-    });
+    this.equalizerNodes = equalizerNodes;
 
 
     this.equalizerNodes.forEach((node, index) => {

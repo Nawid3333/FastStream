@@ -1,3 +1,5 @@
+import {finiteOr} from './ConfigNumbers.mjs';
+
 export class AudioCrosstalkControl {
   constructor(enabled, decay, colorgain, microdelay, lowbypass, highbypass) {
     this.enabled = !!enabled;
@@ -9,7 +11,16 @@ export class AudioCrosstalkControl {
   }
 
   static fromObj(obj) {
-    return new AudioCrosstalkControl(obj.enabled, obj.decay || obj.decaygain / 1000, obj.colorgain, obj.microdelay, obj.lowbypass, obj.highbypass);
+    // Within the knobs' ranges. The decay and the microdelay may be NaN (stored as null):
+    // that means the value worked out from the distances. The others must be numbers: a
+    // crossover frequency that was not one made the filter throw when it was built.
+    const def = AudioCrosstalkControl.default();
+    return new AudioCrosstalkControl(obj.enabled,
+        finiteOr(obj.decay || obj.decaygain / 1000, NaN, -5, -0.01),
+        finiteOr(obj.colorgain, def.colorgain, 0, 20),
+        finiteOr(obj.microdelay, NaN, 30, 200),
+        finiteOr(obj.lowbypass, def.lowbypass, 20, 2000),
+        finiteOr(obj.highbypass, def.highbypass, 2000, 20000));
   }
 
   static default() {
