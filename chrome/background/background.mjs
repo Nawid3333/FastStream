@@ -677,7 +677,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const frame = tab.getFrameOrCreate(sender.frameId);
 
   if (msg.type === MessageTypes.PLAYER_LOADED) {
-    if (tab.isPlayerOfGoneDocument(frame, msg.parentFrameId, playerOpener(msg.url || sender.url))) {
+    const opener = playerOpener(msg.url || sender.url);
+    if (tab.isPlayerOfGoneDocument(frame, msg.parentFrameId, opener)) {
       // Its page reloaded while it started (TabHolder.isPlayerOfGoneDocument): it goes
       // with that page, and is no player of the one there now.
       if (Logging) console.log('Ignoring a player whose page is gone', frame);
@@ -685,65 +686,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(null);
       return;
     }
-    if (Logging) console.log('Found FastStream window', frame);
-    frame.isPlayer = true;
-
-    if (tab.downloadInfo) {
-      chrome.tabs.sendMessage(frame.tab.tabId, {
-        type: MessageTypes.HANDLE_DOWNLOAD,
-        url: tab.downloadInfo.url,
-        filename: tab.downloadInfo.filename,
-      }, {
-        frameId: frame.frameId,
-      }, (response) => {
-        BackgroundUtils.checkMessageError('download');
-        tab.downloadInfo.resolve(response);
-        tab.downloadInfo = null;
-
-        // Close tab
-        chrome.tabs.remove(frame.tab.tabId);
-      });
-      sendResponse(null);
-      return;
-    }
-
     if (!frame.parent && msg.parentFrameId !== undefined) {
-      const parentFrame = tab.getFrameOrCreate(msg.parentFrameId);
-      frame.setParentFrame(parentFrame);
-    }
-
-    if (frame.playerOpening) {
-      frame.playerOpening = false;
-    } else if (frame.parent) {
-      frame.parent.playerOpening = false;
-    }
-    tab.playerCount++;
-    const isMainPlayer = tab.playerCount === 1;
-
-    getPageFrame(frame).then((pageFrame) => {
-      if (pageFrame) {
-        frame.pageFrame = pageFrame;
-      } else {
-        frame.pageFrame = tab.getFrameOrCreate(0);
-      }
-
-      const response = {
-        mediaInfo: getMediaInfoFromTab(sender?.tab),
-        analyzerData: tab.analyzerData,
-        isMainPlayer,
-      };
-
-      sendResponse(response);
-    }).catch((e) => {
-      // The player waits for this answer before it starts; the top frame stands in.
-      console.error('Finding the page frame of a player failed', e);
-      frame.pageFrame = tab.getFrameOrCreate(0);
-      sendResponse({
-        mediaInfo: getMediaInfoFromTab(sender?.tab),
-        analyzerData: tab.analyzerData,
-        isMainPlayer,
+      // The player names the frame it is in (TabHolder.playerParentProof): taken on trust,
+      // a page framing the player page could make any frame of the tab hold a player.
+      isPlayerParentProven(tab, frame, msg.parentFrameId, opener).then((proven) => {
+        if (!proven) {
+          if (Logging) console.log('Ignoring a player whose page did not open it', frame);
+          tab.forgetFrame(frame);
+          sendResponse(null);
+          return;
+        }
+        frame.setParentFrame(tab.getFrameOrCreate(msg.parentFrameId));
+        acceptPlayer(tab, frame, sender, sendResponse);
+      }).catch((e) => {
+        // The player waits for an answer; without a proof it is no page's player.
+        console.error('Checking the page of a player failed', e);
+        tab.forgetFrame(frame);
+        sendResponse(null);
       });
-    });
+      return true;
+    }
+    acceptPlayer(tab, frame, sender, sendResponse);
     return true;
   } else if (msg.type === MessageTypes.FRAME_ADDED) {
     // Preserve sources key to this frame's new URL
@@ -1761,6 +1724,106 @@ function playerOpener(url) {
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * Whether the frame a player names (PLAYER_LOADED's parentFrameId) holds the page that
+ * opened it (TabHolder.playerParentProof). When this background does not know that page's
+ * name (it started again since the page loaded), the frame's content script is asked.
+ * @param {TabHolder} tab - The tab.
+ * @param {FrameHolder} frame - The player's frame.
+ * @param {*} parentFrameId - The frame it names.
+ * @param {?string} opener - The page its URL names.
+ * @return {Promise<boolean>}
+ */
+async function isPlayerParentProven(tab, frame, parentFrameId, opener) {
+  const proof = tab.playerParentProof(frame, parentFrameId, opener);
+  if (proof !== 'ask') {
+    return proof === 'proven';
+  }
+  const answer = await new Promise((resolve) => {
+    chrome.tabs.sendMessage(tab.tabId, {
+      type: MessageTypes.IS_PLAYER_OPENER,
+      document: opener,
+    }, {
+      frameId: parentFrameId,
+    }, (response) => {
+      BackgroundUtils.checkMessageError('is_player_opener');
+      resolve(response);
+    });
+  });
+  if (answer !== true) {
+    return false;
+  }
+  const parent = tab.getFrameOrCreate(parentFrameId);
+  if (!parent.documentKey) {
+    parent.documentKey = opener;
+  }
+  return true;
+}
+
+/**
+ * Takes a player that said it loaded (PLAYER_LOADED) for one, and answers it.
+ * @param {Object} tab - TabHolder of the player.
+ * @param {Object} frame - FrameHolder of the player, its parent set when it has one.
+ * @param {chrome.runtime.MessageSender} sender - The message's sender.
+ * @param {Function} sendResponse - The answer.
+ */
+function acceptPlayer(tab, frame, sender, sendResponse) {
+  if (Logging) console.log('Found FastStream window', frame);
+  frame.isPlayer = true;
+
+  if (tab.downloadInfo) {
+    chrome.tabs.sendMessage(frame.tab.tabId, {
+      type: MessageTypes.HANDLE_DOWNLOAD,
+      url: tab.downloadInfo.url,
+      filename: tab.downloadInfo.filename,
+    }, {
+      frameId: frame.frameId,
+    }, (response) => {
+      BackgroundUtils.checkMessageError('download');
+      tab.downloadInfo.resolve(response);
+      tab.downloadInfo = null;
+
+      // Close tab
+      chrome.tabs.remove(frame.tab.tabId);
+    });
+    sendResponse(null);
+    return;
+  }
+
+  if (frame.playerOpening) {
+    frame.playerOpening = false;
+  } else if (frame.parent) {
+    frame.parent.playerOpening = false;
+  }
+  tab.playerCount++;
+  const isMainPlayer = tab.playerCount === 1;
+
+  getPageFrame(frame).then((pageFrame) => {
+    if (pageFrame) {
+      frame.pageFrame = pageFrame;
+    } else {
+      frame.pageFrame = tab.getFrameOrCreate(0);
+    }
+
+    const response = {
+      mediaInfo: getMediaInfoFromTab(sender?.tab),
+      analyzerData: tab.analyzerData,
+      isMainPlayer,
+    };
+
+    sendResponse(response);
+  }).catch((e) => {
+    // The player waits for this answer before it starts; the top frame stands in.
+    console.error('Finding the page frame of a player failed', e);
+    frame.pageFrame = tab.getFrameOrCreate(0);
+    sendResponse({
+      mediaInfo: getMediaInfoFromTab(sender?.tab),
+      analyzerData: tab.analyzerData,
+      isMainPlayer,
+    });
+  });
 }
 
 async function openPlayer(frame) {

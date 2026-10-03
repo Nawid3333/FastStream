@@ -144,6 +144,68 @@ describe('isPlayerOfGoneDocument', () => {
   });
 });
 
+// The player page is web-accessible: a page (or an ad's iframe in it) that frames it can
+// put any parent_frame_id in its URL. Taken on trust, the frame it named counted as
+// holding a player, so the background dropped that page's streams and opened no player
+// there until it navigated (#225). The page that opened a player names itself in the
+// player's URL, with a name only its content script knows.
+describe('playerParentProof', () => {
+  /**
+   * A top frame (0) that named itself 'top', and a player frame (5) naming it.
+   * @return {{tab: Object, top: Object, player: Object}}
+   */
+  function topWithPlayer() {
+    const tab = new TabTracker().getTabOrCreate(7);
+    const top = tab.getFrameOrCreate(0);
+    top.documentKey = 'top';
+    const player = tab.getFrameOrCreate(5);
+    return {tab, top, player};
+  }
+
+  it('takes a player the named frame\'s page opened', () => {
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('proven');
+  });
+
+  it('takes a player a page sent its own frame to', () => {
+    // handlePlayerOpen's redirect: the player loads in the page's own frame.
+    const {tab} = topWithPlayer();
+    const embed = tab.getFrameOrCreate(3);
+    embed.documentKey = 'embed';
+    expect(tab.playerParentProof(embed, 0, 'embed')).toBe('proven');
+  });
+
+  it('refuses a player that names no page that opened it', () => {
+    // A page framing the player page itself: nothing in its URL but the frame it names.
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, null)).toBe('refused');
+    expect(tab.playerParentProof(player, 0, '')).toBe('refused');
+  });
+
+  it('refuses a player whose opener is not the named frame\'s page', () => {
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, 'made-up')).toBe('refused');
+  });
+
+  it('refuses a frame id that is no frame id', () => {
+    // parseInt of a made-up parent_frame_id: NaN became a frame of the tab.
+    const {tab, player} = topWithPlayer();
+    for (const id of [NaN, -1, 1.5, '0', null]) {
+      expect(tab.playerParentProof(player, id, 'top'), String(id)).toBe('refused');
+    }
+  });
+
+  it('asks the named frame when its page never named itself here', () => {
+    // The background started again after the page loaded: only the page's content script
+    // knows its name now.
+    const tab = new TabTracker().getTabOrCreate(7);
+    const player = tab.getFrameOrCreate(5);
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('ask');
+    tab.getFrameOrCreate(0);
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('ask');
+  });
+});
+
 /**
  * A tab with a main frame (0) named 'main' holding a frame (1) named 'embed', which
  * detected a stream and a subtitle.

@@ -58,8 +58,23 @@ interface FSPlayerLoaded extends FSMessageBase {
   url: string;
   /** False on faststream.online, true inside the extension. */
   isExt: boolean;
-  /** Absent when the player was not opened from a parent frame. */
+  /**
+   * The frame the player's URL names as its parent (parent_frame_id); absent when the
+   * player was not opened from a parent frame. The URL is the framing page's to write,
+   * so the background takes it only when the page its opener names is that frame's
+   * (TabHolder.playerParentProof, IS_PLAYER_OPENER).
+   */
   parentFrameId?: number;
+}
+
+/**
+ * Background asks a frame whether its page is the one a player names as its opener.
+ * content.js answers `true` or `false`.
+ */
+interface FSIsPlayerOpener extends FSMessageBase {
+  type: 'IS_PLAYER_OPENER';
+  /** The opener the player's URL names. */
+  document: string;
 }
 
 /**
@@ -107,6 +122,7 @@ type FSMessage =
   | FSUpdateOptions
   | FSOpenPlayer
   | FSPlayerLoaded
+  | FSIsPlayerOpener
   | FSSetHeaders
   | FSGetVideoSize
   | FSMpvTest

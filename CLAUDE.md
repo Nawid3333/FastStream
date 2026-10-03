@@ -676,6 +676,16 @@ forgotten. A frame whose page never named itself to this background (it restarte
 since) proves nothing and the player counts. mpv-shortcut's `/late` page pins the
 state the race left.
 
+**A player a page frames itself (2026-10-03, #225).** `player/index.html` is
+web-accessible, so a page, or an ad's iframe in it, can frame it with any
+`parent_frame_id`. The player's own load is a moz-extension request that webRequest never
+sees, so the background took that id on trust: the named frame (the top one) counted as
+holding a player, with the effect above. Now `PLAYER_LOADED` adopts the named parent only
+when the opener is that frame's page or the player frame's own
+(`TabHolder.playerParentProof`); when the background does not know the frame's name (it
+restarted since), it asks the frame's content script (`IS_PLAYER_OPENER`). Otherwise the
+player is answered null and forgotten. mpv-shortcut's `/framed` page pins it.
+
 **Gone pages, and a page Back brings back (2026-09-30).** `TabHolder.goneDocuments`
 keeps the 16 latest pages that left a tab, by name, with what each had detected. A page
 leaves when its `FRAME_REMOVED` is taken, when another page names itself in its frame

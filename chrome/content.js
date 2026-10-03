@@ -30,6 +30,7 @@
     REPORT_LOADED_MEDIA: 'REPORT_LOADED_MEDIA',
     LOADED_MEDIA: 'LOADED_MEDIA',
     PLAYER_OPEN_GONE: 'PLAYER_OPEN_GONE',
+    IS_PLAYER_OPENER: 'IS_PLAYER_OPENER',
   };
 
   const iframeMap = new Map();
@@ -102,6 +103,11 @@
       if (hasPlayerIframe()) {
         sendResponse(true);
       }
+      return;
+    } else if (request.type === MessageTypes.IS_PLAYER_OPENER) {
+      // Whether a player naming this frame as its parent was opened by this page: only
+      // this content script knows the page's name (background.mjs, PLAYER_LOADED).
+      sendResponse(request.document === DocumentKey);
       return;
     } else if (request.type === MessageTypes.PING_TAB) {
       sendResponse(MessageTypes.PONG_TAB);

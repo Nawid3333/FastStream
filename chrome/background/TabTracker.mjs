@@ -261,6 +261,32 @@ export class TabHolder {
   }
 
   /**
+   * Whether a player may be taken for a child of the frame it names (PLAYER_LOADED's
+   * parentFrameId, from the player's own URL). The player page is web-accessible, so any
+   * page can frame it with any parent_frame_id: one naming the top frame made the top
+   * frame count as holding a player (FrameHolder.hasPlayer), and the background dropped
+   * every stream of the page and opened no player there until it navigated. content.js
+   * names its page in each player's URL (opener), a name only its content script knows,
+   * so that name must be the named frame's page, or the player frame's own (a page that
+   * went to the player).
+   * @param {FrameHolder} playerFrame - The player's frame.
+   * @param {*} parentFrameId - The frame it names.
+   * @param {?string} opener - The page its URL names.
+   * @return {'proven'|'refused'|'ask'} 'ask' when the named frame's page never named
+   *   itself to this background (it started again since): its content script can tell.
+   */
+  playerParentProof(playerFrame, parentFrameId, opener) {
+    if (!opener || !Number.isInteger(parentFrameId) || parentFrameId < 0) {
+      return 'refused';
+    }
+    const parent = this.getFrame(parentFrameId);
+    if ([playerFrame, parent].some((frame) => frame && frame.documentKey === opener)) {
+      return 'proven';
+    }
+    return parent && parent.documentKey ? 'refused' : 'ask';
+  }
+
+  /**
    * Marks the page a frame shows gone, with the pages in the frames inside it, and keeps
    * what each had detected under its name. A frame whose page never named itself has
    * nothing to keep.
