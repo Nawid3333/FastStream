@@ -1,7 +1,9 @@
 import {createCipheriv, randomBytes} from 'node:crypto';
-import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {M3U8Parser} from 'hls.js';
+// The worker's text, which vitest includes when it loads this file (?raw): read at run time,
+// the code run below was "user-provided" to CodeQL (js/code-injection).
+import workerSource from '../../chrome/player/modules/decrypter-worker.js?raw';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {HLSFragment} from '../../chrome/player/players/hls/HLSFragment.mjs';
@@ -18,8 +20,6 @@ import {HLSFragmentRequester} from '../../chrome/player/players/hls/HLSFragmentR
 // - SAMPLE-AES, AES-256-CTR and the DRM key formats come with decryptdata too, and were
 //   decrypted as whole AES-CBC segments: garbage or nothing, and a generic load error
 //   instead of the DRM message.
-
-const workerSource = readFileSync(new URL('../../chrome/player/modules/decrypter-worker.js', import.meta.url), 'utf8');
 
 /** decrypter-worker.js, run in a context of its own, as a Worker runs it. */
 class ScriptWorker {
