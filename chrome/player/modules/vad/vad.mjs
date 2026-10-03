@@ -57,6 +57,12 @@ const Message = {
   SpeechEnd: 4,
 };
 
+// Silero v5 and v6 score each 512-sample frame against the last 64 samples of the frame
+// before it, as silero-vad's own OnnxWrapper.__call__ does (ricky0123/vad aa048997, "Give
+// Silero v5 its context window"). Fed the bare frame, the model saw every frame as the first
+// of an utterance: it scored quiet and starting speech too low.
+const CONTEXT_SAMPLES = 64;
+
 class Silero {
   static async new(ort, modelFetcher) {
     const model = new Silero(ort, modelFetcher);
@@ -66,6 +72,7 @@ class Silero {
   constructor(ort, modelFetcher) {
     this.ort = ort;
     this.modelFetcher = modelFetcher;
+    this.context = new Float32Array(CONTEXT_SAMPLES);
     this.init = async () => {
       console.debug('initializing vad');
       const modelArrayBuffer = await this.modelFetcher();
@@ -87,9 +94,15 @@ class Silero {
     this.reset_state = () => {
       const zeroes = Array(2 * 1 * 128).fill(0);
       this.state = new this.ort.Tensor('float32', zeroes, [2, 1, 128]);
+      this.context = new Float32Array(CONTEXT_SAMPLES);
     };
     this.process = async (audioFrame) => {
-      const t = new this.ort.Tensor('float32', audioFrame, [1, audioFrame.length]);
+      const withContext = new Float32Array(CONTEXT_SAMPLES + audioFrame.length);
+      withContext.set(this.context, 0);
+      withContext.set(audioFrame, CONTEXT_SAMPLES);
+      // A copy: the caller may reuse its frame.
+      this.context = audioFrame.slice(-CONTEXT_SAMPLES);
+      const t = new this.ort.Tensor('float32', withContext, [1, withContext.length]);
       const inputs = {
         input: t,
         state: this.state,

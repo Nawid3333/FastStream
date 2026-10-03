@@ -4,8 +4,9 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // in by the build, which CI runs after the unit tests. The session keeps the model in wasm
 // memory until it is released, and every video and every start of the voice detector
 // loads a new one; nothing released it. A failed model download went on to parse the
-// error page as a model. The worklet node took every channel of a 5.1 source and scored
-// the left one only, and a model that did not load left a worklet node running.
+// error page as a model. The model was fed each frame without the previous frame's tail
+// it was trained with; the worklet node took every channel of a 5.1 source and scored
+// the left one only; and a model that did not load left a worklet node running.
 
 const sessions = [];
 const workletNodes = [];
@@ -106,5 +107,23 @@ describe('the voice detector model', () => {
       channelCountMode: 'explicit',
       channelInterpretation: 'speakers',
     });
+  });
+
+  it('scores each frame with the last 64 samples of the frame before it in front', async () => {
+    const model = await VadJS.createModel(ort);
+    const frame = (start) => Float32Array.from({length: 512}, (_, i) => start + i);
+    await model.process(frame(1000));
+    await model.process(frame(2000));
+    model.reset_state();
+    await model.process(frame(3000));
+
+    const inputs = sessions[0].run.mock.calls.map(([feeds]) => feeds.input);
+    expect(inputs.map((input) => input.dims)).toEqual([[1, 576], [1, 576], [1, 576]]);
+    // The first frame and the first after a reset have silence in front of them.
+    expect(Array.from(inputs[0].data.subarray(0, 64))).toEqual(new Array(64).fill(0));
+    expect(Array.from(inputs[0].data.subarray(64))).toEqual(Array.from(frame(1000)));
+    expect(Array.from(inputs[1].data.subarray(0, 64))).toEqual(Array.from(frame(1000).subarray(448)));
+    expect(Array.from(inputs[1].data.subarray(64))).toEqual(Array.from(frame(2000)));
+    expect(Array.from(inputs[2].data.subarray(0, 64))).toEqual(new Array(64).fill(0));
   });
 });
