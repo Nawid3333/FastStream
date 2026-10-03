@@ -114,6 +114,26 @@ export class FakeElement {
     return child;
   }
 
+  insertBefore(child, reference) {
+    if (!reference) return this.appendChild(child);
+    child.remove();
+    child.parentNode = this;
+    this.children.splice(this.children.indexOf(reference), 0, child);
+    return child;
+  }
+
+  removeChild(child) {
+    if (child.parentNode !== this) throw new Error('fakeDom: not a child');
+    child.remove();
+    return child;
+  }
+
+  get firstChild() {
+    return this.children[0] || null;
+  }
+
+  select() {}
+
   replaceChildren(...children) {
     for (const child of [...this.children]) child.remove();
     children.forEach((child) => this.appendChild(child));
