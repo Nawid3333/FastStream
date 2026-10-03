@@ -99,6 +99,7 @@ export async function loadBackground({
     reloaded: [],
     removedTabs: [],
     createdTabs: [],
+    callbackErrors: [],
   };
 
   const onMessage = event();
@@ -121,7 +122,14 @@ export async function loadBackground({
    * @return {Promise<*>} The value.
    */
   const answer = (callback, value) => Promise.resolve(value).then((resolved) => {
-    if (typeof callback === 'function') callback(resolved);
+    if (typeof callback === 'function') {
+      try {
+        callback(resolved);
+      } catch (e) {
+        // The browser reports it on the console; a test can check none was thrown.
+        bg.callbackErrors.push(e);
+      }
+    }
     return resolved;
   });
 

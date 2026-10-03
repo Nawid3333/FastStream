@@ -91,7 +91,12 @@ function ensureOptions() {
     OptionsLoadPromise = Promise.all([
       loadOptions(),
       Tabs.restoreTabStates(),
-    ]).catch(console.error);
+    ]).catch((e) => {
+      console.error('Loading the options failed', e);
+      // The next event tries again. Kept, the failure stood until the event page unloaded,
+      // and every event acted on no options: MPV mode and both URL lists off.
+      OptionsLoadPromise = null;
+    });
   }
   return OptionsLoadPromise;
 }
@@ -689,19 +694,22 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     frame.isPlayer = true;
 
     if (tab.downloadInfo) {
+      // Taken now: the DOWNLOAD's 30 s timeout can end it while the player saves, and the
+      // answer then found no download to give it to (a TypeError, and no answer at all).
+      const info = tab.downloadInfo;
+      tab.downloadInfo = null;
       chrome.tabs.sendMessage(frame.tab.tabId, {
         type: MessageTypes.HANDLE_DOWNLOAD,
-        url: tab.downloadInfo.url,
-        filename: tab.downloadInfo.filename,
+        url: info.url,
+        filename: info.filename,
       }, {
         frameId: frame.frameId,
       }, (response) => {
         BackgroundUtils.checkMessageError('download');
-        tab.downloadInfo.resolve(response);
-        tab.downloadInfo = null;
+        info.resolve(response);
 
         // Close tab
-        chrome.tabs.remove(frame.tab.tabId);
+        chrome.tabs.remove(frame.tab.tabId).catch(() => {});
       });
       sendResponse(null);
       return;
@@ -869,17 +877,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           return;
         }
         const tab2 = Tabs.getTabOrCreate(tabobj2.id);
+        // Answered once: by the player's HANDLE_DOWNLOAD answer, or by the timeout below.
+        let answered = false;
+        const answer = (value) => {
+          if (answered) return false;
+          answered = true;
+          sendResponse(value);
+          return true;
+        };
         tab2.downloadInfo = {
           url: url,
           filename: filename,
-          resolve: sendResponse,
+          resolve: answer,
         };
         // If the player in this hidden tab never sends PLAYER_LOADED (blocked
-        // page, redirect failure, site error before injection), the tab and
-        // the caller's sendResponse would otherwise hang forever.
+        // page, redirect failure, site error before injection), or never answers
+        // HANDLE_DOWNLOAD, the tab and the caller's sendResponse would otherwise
+        // hang forever.
         setTimeout(() => {
-          if (tab2.downloadInfo) {
-            tab2.downloadInfo.resolve(null);
+          if (answer(null)) {
             tab2.downloadInfo = null;
             chrome.tabs.remove(/** @type {number} */ (tabobj2.id)).catch(() => {});
           }
@@ -1348,8 +1364,8 @@ async function setupRedirectRule(ruleID, filetypes) {
     condition: {
       // exclude self
       excludedRequestDomains,
-      // only match m3u8 or mpds
-      regexFilter: '^.+\\.(' + filetypes.join('|') + ')([\\?|#].*)?$',
+      // only match m3u8 or mpds, up to a query or a fragment
+      regexFilter: '^.+\\.(' + filetypes.join('|') + ')([?#].*)?$',
       resourceTypes: ['main_frame'],
     },
   };
@@ -1959,8 +1975,10 @@ async function openPlayersWithSources(tab) {
       return;
     }
 
+    // A frame that did not answer (no content script) has no size: 0, not undefined, whose
+    // NaN made the order arbitrary - and the first player opened is the one that plays.
     framesWithSources.sort((a, b) => {
-      return b.videoSize - a.videoSize;
+      return (b.videoSize || 0) - (a.videoSize || 0);
     });
 
     for (let i = 0; i < framesWithSources.length; i++) {
