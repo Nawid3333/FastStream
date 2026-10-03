@@ -5,8 +5,6 @@
 // called directly by the test (no bubbling), and focus. It is no browser: layout, CSS and
 // events the script does not listen for are not there.
 
-import fs from 'node:fs';
-
 // Elements this HTML writes without a closing tag (an <option> inside a <datalist>).
 const VOID = new Set(['input', 'br', 'meta', 'link', 'img', 'hr', 'source', 'option']);
 
@@ -331,11 +329,20 @@ export class FakeDocument {
   }
 }
 
+// The extension's pages, as their text: each a fixed file, which vitest includes when it
+// loads this module. Read at run time instead, a page's attribute names were "user-provided"
+// to CodeQL, and setAttribute's writes by them js/remote-property-injection.
+const PAGES = import.meta.glob('../../../chrome/**/*.html', {query: '?raw', import: 'default', eager: true});
+
 /**
  * A stand-in document for one of the extension's pages.
  * @param {string} path - The page, from the repository root.
  * @return {FakeDocument}
  */
 export function loadPage(path) {
-  return new FakeDocument(fs.readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8'));
+  const html = PAGES[`../../../${path}`];
+  if (html === undefined) {
+    throw new Error(`fakeDom: no page ${path} (only chrome/**/*.html)`);
+  }
+  return new FakeDocument(html);
 }
