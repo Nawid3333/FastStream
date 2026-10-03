@@ -20,10 +20,3 @@ declare namespace chrome.tabs {
     cookieStoreId?: string;
   }
 }
-
-declare namespace chrome.webRequest {
-  interface OnHeadersReceivedDetails {
-    /** The URL of the document or extension page that made the request. */
-    originUrl?: string;
-  }
-}

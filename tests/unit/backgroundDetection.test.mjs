@@ -29,6 +29,60 @@ async function sourcesForPlayer() {
   return sent[0].message.sources;
 }
 
+// A player opened in a tab of its own lists the streams the other tabs' pages asked for
+// (sendSourcesToMainFramePlayers), with their requests' headers.
+describe('the streams a player tab lists from other tabs', () => {
+  /**
+   * Opens the player page in a tab of its own.
+   * @param {number} tabId - The tab.
+   * @return {Promise<void>}
+   */
+  async function openPlayerTab(tabId) {
+    await bg.navigated(tabId, PLAYER);
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER}, {tabId, frameId: 0});
+    bg.sentToTabs.length = 0;
+  }
+
+  /**
+   * The streams a player tab was sent from elsewhere.
+   * @param {number} tabId - The player's tab.
+   * @return {Array<string>} Their URLs, from the latest list it got.
+   */
+  function listed(tabId) {
+    const lists = bg.sent('SOURCES').filter((m) => m.tabId === tabId && m.message.autoSetSource === false);
+    return lists.length ? lists[lists.length - 1].message.sources.map((s) => s.url) : [];
+  }
+
+  it('include a stream a page in another tab asked for', async () => {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}, {id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/master.m3u8'});
+    expect(listed(2)).toEqual(['https://cdn.test/v/master.m3u8']);
+  });
+
+  it('leave out what was fetched outside any tab', async () => {
+    // A service worker's requests have no tab (-1). Nothing ever reset what was kept for
+    // them, and every player tab got the growing list, from a private window too.
+    bg = await loadBackground({tabs: [{id: 2, url: PLAYER}]});
+    await openPlayerTab(2);
+    await bg.request({tabId: -1, url: 'https://cdn.test/sw/master.m3u8'});
+    expect(listed(2)).toEqual([]);
+  });
+
+  it('stay on their side of private browsing', async () => {
+    bg = await loadBackground({tabs: [
+      {id: 1, url: PAGE, incognito: true},
+      {id: 2, url: PLAYER, incognito: false},
+      {id: 3, url: PLAYER, incognito: true},
+    ]});
+    await openPlayerTab(2);
+    await openPlayerTab(3);
+    await bg.request({tabId: 1, url: 'https://cdn.test/private/master.m3u8'});
+    expect(listed(2)).toEqual([]);
+    expect(listed(3)).toEqual(['https://cdn.test/private/master.m3u8']);
+  });
+});
+
 describe('request headers', () => {
   it('keeps those of a request the page sent before it named itself', async () => {
     // A preload (Link: rel=preload, 103 Early Hints) goes out before the content script

@@ -126,8 +126,6 @@ const SourceLengthWaitMs = 2500;
 // The page answers within milliseconds unless its own scripts keep it busy; then the
 // longest decides, as before the question.
 const PlayedVideoWaitMs = 1000;
-// Where this background's own requests come from.
-const OwnOrigin = chrome.runtime.getURL('');
 
 
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
@@ -1848,9 +1846,17 @@ async function openPlayer(frame) {
 async function sendSourcesToMainFramePlayers(frame) {
   // query all tabs
   const tabs = await BackgroundUtils.queryTabs();
+  // Only to player tabs on the same side of private browsing as the page: a private
+  // window's streams, with the requests' cookies, showed in an ordinary window's player
+  // tab, and the other way round. A tab no longer open says nothing of its side.
+  const from = tabs.find((t) => t.id === frame.tab.tabId);
+  if (!from) {
+    return;
+  }
 
   // for each tab
   for (let i = 0; i < tabs.length; i++) {
+    if (!!tabs[i].incognito !== !!from.incognito) continue;
     const tab = Tabs.getTab(tabs[i].id);
     if (!tab || !tab.isOn) continue;
     // if the tab is a faststream tab
@@ -2466,7 +2472,22 @@ function isHtmlResponse(headers) {
   return type === 'text/html' || type === 'application/xhtml+xml';
 }
 
+/**
+ * Whether a request belongs to no tab: a service worker's, or this background's own
+ * length reads (StreamLengths). No player opens there and nothing goes to mpv from it,
+ * and no tab event ever resets what is kept for it: the holder of tab -1 collected
+ * every stream such requests fetched, for the session, and sent the growing list, with
+ * the requests' headers, to every player tab - from a private window or a container as
+ * well, which it cannot tell.
+ * @param {{tabId: number}} details - webRequest's details.
+ * @return {boolean}
+ */
+function isTablessRequest(details) {
+  return details.tabId === chrome.tabs.TAB_ID_NONE;
+}
+
 chrome.webRequest.onBeforeRequest.addListener((details) => {
+  if (isTablessRequest(details)) return;
   const tab = Tabs.getTabOrCreate(details.tabId);
   const frame = tab.getFrameOrCreate(details.frameId);
   if (!frame.parent && details.parentFrameId !== -1) {
@@ -2478,6 +2499,7 @@ chrome.webRequest.onBeforeRequest.addListener((details) => {
 });
 
 chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
+  if (isTablessRequest(details)) return;
   Tabs.getTabOrCreate(details.tabId).rememberRequestHeaders(details.requestId, details.requestHeaders);
 }, {
   urls: ['<all_urls>'],
@@ -2485,8 +2507,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-      // This background's own reads (StreamLengths) are no page's stream.
-      if (details.tabId === chrome.tabs.TAB_ID_NONE && details.originUrl?.startsWith(OwnOrigin)) {
+      if (isTablessRequest(details)) {
         return;
       }
       const url = details.url;

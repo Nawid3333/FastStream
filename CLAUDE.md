@@ -1556,7 +1556,7 @@ Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
 (`native-host/faststream-mpv-host.mjs`). The types are Chrome's (`@types/chrome`,
 which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
 and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
-(`cookieStoreId`, `originUrl`). background.mjs's own fixes were JSDoc, a few
+(`cookieStoreId`). background.mjs's own fixes were JSDoc, a few
 `undefined` checks that return what the code returned before (through a throw), and
 one guard: a message from a page outside any tab is no longer handled as a tab's. The
 player's files are next; fix what tsc reports only with the playback suites to hand.
