@@ -1424,7 +1424,7 @@ function handleSubtitles(url, frame, headers) {
   if (Logging) console.log('Found subtitle', url);
   const u = (new URL(url)).pathname.split('/').pop() || '';
 
-  subtitles.push({
+  frame.addSubtitle({
     source: url,
     headers: headers,
     label: u.split('.')[0],
@@ -1439,7 +1439,7 @@ function getSourceFromURL(frame, url) {
 }
 
 function addSource(frame, url, mode, headers, time = Date.now()) {
-  frame.getSources().push({
+  frame.addSource({
     url, mode, headers, time,
   });
 }

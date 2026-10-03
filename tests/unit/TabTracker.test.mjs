@@ -435,3 +435,69 @@ describe('request headers', () => {
     expect(tab.requestHeaders.has('r20')).toBe(true);
   });
 });
+
+// A page that is never left kept every stream and subtitle file it asked for: an HLS or
+// DASH player's pieces are detected one by one, thousands in an evening, each with its
+// request's headers, sent again to each player tab, and read for their lengths when a
+// player opened. backgroundDetection.test.mjs checks the background keeps them through
+// these methods.
+describe('what a frame keeps of its streams', () => {
+  const manifest = {url: 'https://cdn.test/v/master.m3u8', mode: 'accelerated_hls'};
+  const piece = (n) => ({url: `https://cdn.test/v/seg-${n}.mp4`, mode: 'accelerated_mp4'});
+
+  it('keeps the manifest, the first piece and the newest of one stream\'s pieces', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    frame.addSource(manifest);
+    for (let n = 1; n <= 300; n++) {
+      frame.addSource(piece(n));
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(21);
+    expect(urls[0]).toBe(manifest.url);
+    expect(urls[1]).toBe(piece(1).url);
+    expect(urls.slice(2)).toEqual(Array.from({length: 19}, (_, i) => piece(282 + i).url));
+  });
+
+  it('keeps every file of a shape up to 20', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 1; n <= 20; n++) {
+      frame.addSource(piece(n));
+    }
+    expect(frame.getSources()).toHaveLength(20);
+  });
+
+  it('keeps 200 in all, dropping files before manifests', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    frame.addSource(manifest);
+    // Names without digits: each its own shape.
+    const name = (n) => n.toString(26).replace(/[0-9]/g, (d) => 'qrstuvwxyz'[d]);
+    for (let n = 0; n < 250; n++) {
+      frame.addSource({url: `https://cdn.test/${name(n)}.mp4`, mode: 'accelerated_mp4'});
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls[0]).toBe(manifest.url);
+    expect(urls[199]).toBe(`https://cdn.test/${name(249)}.mp4`);
+  });
+
+  it('drops the oldest manifest once only manifests are left', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 0; n < 205; n++) {
+      frame.addSource({url: `https://cdn.test/${n}/master.m3u8`, mode: 'accelerated_hls'});
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls[0]).toBe('https://cdn.test/5/master.m3u8');
+  });
+
+  it('keeps the first and the newest of a stream\'s subtitle pieces', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 1; n <= 50; n++) {
+      frame.addSubtitle({source: `https://cdn.test/v/sub-${n}.vtt`});
+    }
+    const urls = frame.getSubtitles().map((s) => s.source);
+    expect(urls).toHaveLength(20);
+    expect(urls[0]).toBe('https://cdn.test/v/sub-1.vtt');
+    expect(urls[19]).toBe('https://cdn.test/v/sub-50.vtt');
+  });
+});

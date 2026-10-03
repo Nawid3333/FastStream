@@ -83,6 +83,31 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 });
 
+describe('a page that is never left', () => {
+  it('keeps its manifest and a bounded number of its stream\'s pieces', async () => {
+    // Shaka Packager names a DASH stream's pieces .mp4 and its subtitle pieces .vtt: each
+    // is a source or a subtitle of its own (source-length.e2e.mjs), thousands in an evening.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/manifest.mpd'});
+    for (let n = 1; n <= 60; n++) {
+      await bg.request({tabId: 1, url: `https://cdn.test/v/video-${n}.mp4`});
+      await bg.request({tabId: 1, url: `https://cdn.test/v/text-${n}.vtt`});
+    }
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER, parentFrameId: 0}, {tabId: 1, frameId: 5});
+    bg.sentToTabs.length = 0;
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
+    await bg.wait(3000);
+    const {sources, subtitles} = bg.sent('SOURCES').find((m) => m.frameId === 5).message;
+    expect(sources.map((s) => s.url)).toEqual([
+      'https://cdn.test/v/manifest.mpd',
+      'https://cdn.test/v/video-1.mp4',
+      ...Array.from({length: 19}, (_, i) => `https://cdn.test/v/video-${42 + i}.mp4`),
+    ]);
+    expect(subtitles).toHaveLength(20);
+  });
+});
+
 describe('request headers', () => {
   it('keeps those of a request the page sent before it named itself', async () => {
     // A preload (Link: rel=preload, 103 Early Hints) goes out before the content script

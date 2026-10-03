@@ -1,5 +1,50 @@
 // @ts-check
+import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
+import {StreamLengths} from './StreamLengths.mjs';
+
+// What a frame keeps of the streams and subtitle files its page asked for (addSource,
+// addSubtitle). A page that is never left grew both lists without end: an HLS or DASH
+// player's pieces (seg-14.mp4, seg-14.vtt) are detected one by one, thousands in an
+// evening, each with its request's headers; every one went again to each player tab
+// (sendSourcesToMainFramePlayers), and a player opened then read the length of each.
+// - At most SameShapeLimit files of one shape (StreamLengths.shape): the first stays, so
+//   the shape is still known as a stream's pieces (StreamLengths.lengthsOf), and the
+//   oldest after it goes.
+// - At most TrackedLimit in all: the oldest file goes first, a manifest only once no file
+//   is left.
+const SameShapeLimit = 20;
+const TrackedLimit = 200;
+
+/**
+ * Brings a list of a frame's streams or subtitles, just added to, back to the limits above.
+ * @param {Array<Object>} list - The list; its last entry is the new one.
+ * @param {(entry: Object) => string} urlOf - An entry's URL.
+ * @param {(entry: Object) => boolean} isFile - Whether an entry is a file (one piece of a
+ *   stream, possibly), not a manifest.
+ */
+function trimTracked(list, urlOf, isFile) {
+  const added = list[list.length - 1];
+  if (added && isFile(added)) {
+    const shape = StreamLengths.shape(urlOf(added));
+    const same = list.filter((entry) => isFile(entry) && StreamLengths.shape(urlOf(entry)) === shape);
+    if (same.length > SameShapeLimit) {
+      list.splice(list.indexOf(same[1]), 1);
+    }
+  }
+  while (list.length > TrackedLimit) {
+    const file = list.findIndex(isFile);
+    list.splice(file === -1 ? 0 : file, 1);
+  }
+}
+
+/**
+ * @param {Object} source - A detected source.
+ * @return {boolean} Whether it is a file (MP4 or a direct one), not a manifest.
+ */
+function isFileSource(source) {
+  return source.mode === PlayerModes.ACCELERATED_MP4 || source.mode === PlayerModes.DIRECT;
+}
 
 export class FrameHolder {
   constructor(tab, frameId) {
@@ -7,6 +52,11 @@ export class FrameHolder {
     this.frameId = frameId;
     this.parent = null;
     this.children = new Set();
+    // Set by reset(), as the rest of a frame's page state.
+    /** @type {Array<Object>} */
+    this.trackedSubtitles = [];
+    /** @type {Array<Object>} */
+    this.trackedSources = [];
     this.reset();
   }
 
@@ -64,6 +114,24 @@ export class FrameHolder {
 
   getSources() {
     return this.trackedSources;
+  }
+
+  /**
+   * Keeps a stream the page asked for, within the limits (trimTracked).
+   * @param {{url: string, mode: string}} source - The source.
+   */
+  addSource(source) {
+    this.trackedSources.push(source);
+    trimTracked(this.trackedSources, (s) => s.url, isFileSource);
+  }
+
+  /**
+   * Keeps a subtitle file the page asked for, within the limits (trimTracked).
+   * @param {{source: string}} subtitle - The subtitle.
+   */
+  addSubtitle(subtitle) {
+    this.trackedSubtitles.push(subtitle);
+    trimTracked(this.trackedSubtitles, (s) => s.source, () => true);
   }
 
   /**
