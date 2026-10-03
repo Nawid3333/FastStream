@@ -290,37 +290,44 @@ export class HLS2MP4 extends EventEmitter {
     });
   }
   async convert(level, levelInitData, audioLevel, audioInitData, zippedFragments) {
-    this.setup(level, levelInitData, audioLevel, audioInitData);
-    // Whether the audio comes from a rendition of its own (fragments of track 1). One
-    // without a URI is the level's own audio, and has none.
-    this.audioRendition = zippedFragments.some((fragment) => fragment.track !== 0);
+    try {
+      this.setup(level, levelInitData, audioLevel, audioInitData);
+      // Whether the audio comes from a rendition of its own (fragments of track 1). One
+      // without a URI is the level's own audio, and has none.
+      this.audioRendition = zippedFragments.some((fragment) => fragment.track !== 0);
 
-    let lastProgress = 0;
-    for (let i = 0; i < zippedFragments.length; i++) {
-      if (this.cancelled) {
-        this.destroy();
-        this.blobManager.close();
-        throw new Error('Cancelled');
+      let lastProgress = 0;
+      for (let i = 0; i < zippedFragments.length; i++) {
+        if (this.cancelled) {
+          throw new Error('Cancelled');
+        }
+        if (zippedFragments[i].track === 0) {
+          await this.pushFragment(zippedFragments[i]);
+        } else {
+          await this.pushFragmentAudio(zippedFragments[i]);
+        }
+        const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
+        if (newProgress !== lastProgress) {
+          lastProgress = newProgress;
+          this.emit('progress', newProgress / 100);
+        }
       }
-      if (zippedFragments[i].track === 0) {
-        await this.pushFragment(zippedFragments[i]);
-      } else {
-        await this.pushFragmentAudio(zippedFragments[i]);
-      }
-      const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
-      if (newProgress !== lastProgress) {
-        lastProgress = newProgress;
-        this.emit('progress', newProgress / 100);
-      }
+
+      const blob = await this.finalize();
+      this.destroy();
+
+      return blob;
+    } catch (e) {
+      // Cancelled, or a fragment that failed to download or demux: nothing will read what
+      // was kept, so the blob store goes now, as MP4Merger's does. Only a cancel closed
+      // it; after a failure its worker and the fragments on disk stayed until the tab
+      // closed.
+      this.destroy(/* immediate */ true);
+      throw e;
     }
-
-    const blob = await this.finalize();
-    this.destroy();
-
-    return blob;
   }
 
-  destroy() {
+  destroy(immediate) {
     if (this.transmuxer) this.transmuxer.destroy();
     if (this.transmuxerAudio) this.transmuxerAudio.destroy();
     this.transmuxerAudio = null;
@@ -331,9 +338,17 @@ export class HLS2MP4 extends EventEmitter {
     this.datas = null;
     this.datasOffset = 0;
 
-    setTimeout(() => {
-      this.blobManager.close();
-      this.blobManager = null;
-    }, 120000);
+    const blobManager = this.blobManager;
+    this.blobManager = null;
+    if (!blobManager) {
+      return;
+    }
+    if (immediate) {
+      blobManager.close();
+    } else {
+      setTimeout(() => {
+        blobManager.close();
+      }, 120000);
+    }
   }
 }

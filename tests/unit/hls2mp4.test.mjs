@@ -9,9 +9,13 @@ import {find, readBoxes, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs'
 // (the patched npm build: see vitest.config.mjs), with the file it writes read back box by
 // box. The streams are made by helpers/mpegts.mjs with the timestamps each test needs.
 
+// Every blob store made, to see which were closed.
+const stores = [];
+
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
     constructor() {
+      stores.push(this);
       this.blobs = new Map();
       this.next = 0;
       this.closed = false;
@@ -236,6 +240,49 @@ describe('HLS2MP4: damaged input', () => {
 
     expect(tracks.vide.durations).toHaveLength(25);
     expect(tracks.soun.durations.length).toBeGreaterThan(40);
+  });
+});
+
+describe('HLS2MP4: a save that does not finish', () => {
+  const segment = () => muxSegment({video: {
+    type: StreamTypes.H264,
+    units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+  }});
+
+  it('closes its blob store when a fragment fails', async () => {
+    // The fragments it kept (on disk, with OPFS) and the store's worker stayed until the tab
+    // closed; only a cancel closed the store.
+    const failed = {
+      track: 0,
+      fragment: {sn: 1, cc: 0, start: 1},
+      getEntry: async () => {
+        throw new Error('Bad status code: 404');
+      },
+    };
+    const converter = new HLS2MP4();
+    await expect(save([fragment(0, {sn: 0, cc: 0, start: 0}, segment()), failed], {converter}))
+        .rejects.toThrow('Bad status code: 404');
+
+    expect(stores.at(-1).closed).toBe(true);
+  });
+
+  it('closes its blob store when it is cancelled', async () => {
+    let cancel;
+    const converter = new HLS2MP4((fn) => {
+      cancel = fn;
+    });
+    const cancelling = {
+      track: 0,
+      fragment: {sn: 1, cc: 0, start: 1},
+      getEntry: async () => {
+        cancel();
+        return {getDataFromBlob: async () => segment().buffer};
+      },
+    };
+    await expect(save([cancelling, fragment(0, {sn: 2, cc: 0, start: 2}, segment())], {converter}))
+        .rejects.toThrow('Cancelled');
+
+    expect(stores.at(-1).closed).toBe(true);
   });
 });
 
