@@ -148,6 +148,10 @@ export class TabHolder {
     // reset() - it's a short-lived timestamp that's harmless to carry across
     // a same-tab navigation and naturally goes stale on its own.
     this.popupGuardArmedUntil = 0;
+    // A start by address waiting for the new page to name itself (background.mjs
+    // startWithTrackedLater); the next address change cancels it.
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    this.urlStartTimer = undefined;
 
     this.reset();
   }

@@ -232,6 +232,70 @@ describe('the allowlist\'s MPV, a play on a page Back gave back', () => {
   });
 });
 
+describe('a same-site link into an allowlisted or auto-enabled path', () => {
+  const HOME = 'https://site.test/';
+  const TRAILER = 'https://cdn.test/home/trailer.mp4';
+
+  /**
+   * The site's home page plays a trailer (a <video src>, detected while the tab is off),
+   * then the user opens an episode, and the address changes before the episode's page
+   * names itself (tabs.onUpdated and FRAME_ADDED come in either order).
+   * @param {Object} options - The saved options.
+   * @return {Promise<void>}
+   */
+  async function homeThenEpisode(options) {
+    bg = await loadBackground({options, tabs: [{id: 1, url: HOME}]});
+    await bg.navigated(1, HOME);
+    await bg.frameAdded(1, 0, HOME, 'home');
+    await bg.request({tabId: 1, url: TRAILER, type: 'media'});
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+  }
+
+  it('does not send the home page\'s trailer to mpv for the episode', async () => {
+    // The allowlist's MPV started at the address change, and handed off the streams the
+    // tab tracked at that moment: the home page's trailer. The episode's stream then found
+    // the page already handed off, and was only tracked.
+    await homeThenEpisode({mpvMode: true, mpvAllowlist: ['https://site.test/watch']});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('does not open the in-page player for the home page\'s trailer', async () => {
+    await homeThenEpisode({autoEnableURLs: ['https://site.test/watch']});
+    await bg.wait(1000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+
+  it('drops the start when the address changes again meanwhile, and comes back', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: HOME}]});
+    await bg.navigated(1, HOME);
+    await bg.request({tabId: 1, url: TRAILER, type: 'media'});
+    await bg.navigated(1, PAGE);
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.navigated(1, PAGE);
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('still hands off a stream a page asked for before it changed its address itself', async () => {
+    // A page that changes its address with history.pushState names no new page: the
+    // streams the tab tracks are that page's.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: HOME}]});
+    await bg.navigated(1, HOME);
+    await bg.frameAdded(1, 0, HOME, 'app');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, PAGE);
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+});
+
 describe('a failed hand-off', () => {
   it('keeps the toolbar\'s "!" after the event page restarted', async () => {
     // The badge is the browser's, but a woken background redraws every tab's button from

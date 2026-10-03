@@ -533,6 +533,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.mpvPlayPendingUntil = 0;
     tab.mpvPlayedVideo = null;
     tab.mpvPlayChecking = null;
+    clearTimeout(tab.urlStartTimer);
 
     chrome.tabs.sendMessage(tabid, {
       type: MessageTypes.REMOVE_PLAYERS,
@@ -564,7 +565,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.isMpv = true;
       // The allowlist's own rule, even if the shortcut armed this tab.
       tab.mpvOnPlay = false;
-      openMpvWithSources(tab);
+      startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened,
+          () => openMpvWithSources(tab));
     } else if (shouldAutoEnable && !tab.regexMatched && !(tab.isMpv && tab.mpvOnPlay)) {
       // Not for a tab armed with the MPV shortcut: the user's own choice for the tab
       // outranks the standing list, so the first video they start here still goes to mpv.
@@ -575,9 +577,10 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.isMpv = mpvSite;
       tab.mpvOnPlay = false;
       if (tab.isMpv) {
-        openMpvWithSources(tab);
+        startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened,
+            () => openMpvWithSources(tab));
       } else {
-        openPlayersWithSources(tab);
+        startWithTrackedLater(tab, changeInfo.url, () => !tab.isMpv, () => openPlayersWithSources(tab));
       }
     } else if (!shouldAutoEnable && !mpvSite && tab.regexMatched) {
       tab.isOn = false;
@@ -591,6 +594,33 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
 
   BackgroundUtils.updateTabIcon(tab, true);
 });
+
+// How long a start by address (the MPV allowlist, the auto-enable list) waits before it
+// acts on the streams the tab already tracks (startWithTrackedLater).
+const UrlStartSettleMs = 500;
+
+/**
+ * Starts MPV or the in-page player for a tab whose address just matched a list, from the
+ * streams it tracks, once the new page had the time to name itself. tabs.onUpdated can come
+ * before the new page's FRAME_ADDED, which drops the page before's streams: the trailer a
+ * site's home page played went to mpv for the episode the user opened from it (an
+ * allowlist entry for its /watch path), the episode's own stream found the page handed off
+ * already, and was only tracked. A stream the new page asks for meanwhile goes by itself
+ * (onSourceRecieved). A page that changes its address itself (pushState) names no new page,
+ * and what the tab tracks is that page's.
+ * @param {TabHolder} tab - The tab.
+ * @param {string} url - The address that matched.
+ * @param {() => boolean} stillWanted - Whether the start still applies then.
+ * @param {() => *} start - The start.
+ */
+function startWithTrackedLater(tab, url, stillWanted, start) {
+  // The tab's next address change cancels it (tabs.onUpdated).
+  tab.urlStartTimer = setTimeout(() => {
+    if (Tabs.getTab(tab.tabId) === tab && tab.url === url && tab.isOn && stillWanted()) {
+      start();
+    }
+  }, UrlStartSettleMs);
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === MessageTypes.PING) {
