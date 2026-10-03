@@ -32,6 +32,9 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     getBlob(id) {
       return this.blobs.get(id);
     }
+    // The memory sink waits on this once the save PR (#222/#297) is in; nothing to wait
+    // for in a store that keeps everything in memory.
+    async whenStored() {}
   },
 }));
 
