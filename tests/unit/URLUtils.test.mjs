@@ -17,8 +17,25 @@ describe('get_url_extension', () => {
     expect(URLUtils.get_url_extension('https://e.com/v.mp4#frag')).toBe('mp4');
   });
 
-  it('survives a URL with no extension', () => {
-    expect(URLUtils.get_url_extension('https://e.com/stream')).toBe('com/stream');
+  it('is empty for a URL with no extension', () => {
+    // It once gave 'com/stream': everything after the host's last dot.
+    expect(URLUtils.get_url_extension('https://e.com/stream')).toBe('');
+    expect(URLUtils.get_url_extension('https://e.com/v1.2/stream')).toBe('');
+    expect(URLUtils.get_url_extension('https://e.com/v.m3u8/')).toBe('');
+  });
+
+  it('reads no extension from the host', () => {
+    expect(URLUtils.get_url_extension('https://example.mp4')).toBe('');
+    expect(URLUtils.get_url_extension('https://example.mp4/')).toBe('');
+    expect(URLUtils.getModeFromURL('https://example.mp4')).toBe(PlayerModes.DIRECT);
+    expect(URLUtils.get_url_extension('https://cdn.e.com:8443/a/v.mp4')).toBe('mp4');
+  });
+
+  it('reads a file name, which has no scheme', () => {
+    // SaveManager reads dropped files' names with it.
+    expect(URLUtils.get_url_extension('Episode 1.SRT')).toBe('srt');
+    expect(URLUtils.get_url_extension('profile.fsprofile.json')).toBe('json');
+    expect(URLUtils.get_url_extension('README')).toBe('');
   });
 });
 

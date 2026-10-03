@@ -78,13 +78,23 @@ describe('strip_queryhash', () => {
 });
 
 describe('get_url_extension', () => {
-  it('gives the lowercase last dotted segment, with no ? or # left in it', () => {
-    // Lines 63-64: strip_queryhash first, then split('.').pop().trim().toLowerCase().
+  it('gives the lowercase extension of the last path segment, with no ? # / or . left in it', () => {
+    // strip_queryhash first, then what follows the last dot of the last path segment,
+    // trimmed and lowercased.
     fc.assert(fc.property(fc.string(), (url) => {
       const ext = URLUtils.get_url_extension(url);
       expect(ext).toBe(ext.toLowerCase());
-      expect(ext.includes('?')).toBe(false);
-      expect(ext.includes('#')).toBe(false);
+      for (const c of ['?', '#', '/', '.']) {
+        expect(ext.includes(c)).toBe(false);
+      }
+    }), {numRuns: 200});
+  });
+
+  it('reads nothing from the host of a web URL, whatever its dots', () => {
+    fc.assert(fc.property(fc.webUrl({withQueryParameters: true, withFragments: true}), (url) => {
+      const {origin} = new URL(url);
+      expect(URLUtils.get_url_extension(origin)).toBe('');
+      expect(URLUtils.get_url_extension(origin + '/')).toBe('');
     }), {numRuns: 200});
   });
 });
