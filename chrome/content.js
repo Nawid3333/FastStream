@@ -220,7 +220,7 @@
       iframeMap.set(request.frameId, newFrameObj);
       checkPendingPlayers();
 
-      updateReplacedPlayers();
+      updateReplacedPlayers(replacedData && replacedData.convertDue ? replacedData : null);
     }
   });
 
@@ -464,6 +464,12 @@
           for (let i = 1; i <= 8; i++) {
             ((i) => {
               setTimeout(() => {
+                // The check for a page element that collapsed (makeSoftIntoHard) sees only
+                // players that linked up. One that has not yet (a slow start) gets it when it
+                // does, in the link handler; it used to get none.
+                if (i == 4 && replacedPlayerQueue.includes(pobj)) {
+                  pobj.convertDue = true;
+                }
                 updateReplacedPlayers(i == 4 ? pobj : null);
               }, i * 250);
             })(i);
@@ -547,10 +553,17 @@
       miniplayerState.closeObserver = null;
     }
 
-    if ((request.force !== undefined && request.force === miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
-      updateMiniPlayer(iframeObj);
-    } else {
-      toggleMiniPlayer(iframeObj);
+    try {
+      if ((request.force !== undefined && request.force === miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
+        updateMiniPlayer(iframeObj);
+      } else {
+        toggleMiniPlayer(iframeObj);
+      }
+    } catch (e) {
+      // Whatever went wrong, the player hears back; a throw here left it unanswered.
+      console.error(e);
+      sendResponse('error');
+      return;
     }
 
     if (miniplayerState.active && request.autoExit) {
@@ -711,6 +724,11 @@
     OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
+      // The iframe's own style too, which only leaving windowed fullscreen gives back: an
+      // embed iframe holding the player stayed fixed over the whole page.
+      if (iframeObj.windowedFullscreenState.active) {
+        windowedFullscreenToggle(iframeObj);
+      }
       if (iframeObj.replacedData) {
         restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
@@ -774,7 +792,12 @@
     if (miniplayerState.active) {
       const placeholder = miniplayerState.placeholder;
       const element = miniplayerState.element;
-      const aspectRatio = placeholder.clientWidth / placeholder.clientHeight;
+      // A placeholder without a size (inside a hidden part of the page) has no shape to
+      // keep: the sizes were NaN, or a miniplayer 0 px high.
+      let aspectRatio = placeholder.clientWidth / placeholder.clientHeight;
+      if (!(aspectRatio > 0 && aspectRatio < Infinity)) {
+        aspectRatio = 16 / 9;
+      }
       const newWidth = Math.min(Math.max(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
       const newHeight = newWidth / aspectRatio;
       element.style.setProperty('width', newWidth + 'px', 'important');
@@ -800,9 +823,18 @@
       return;
     }
 
+    // The page took the player's iframe out (a re-render): there is nothing to shrink, and
+    // the placeholder had no parent to go into.
+    if (!iframeObj.iframe.isConnected) {
+      return;
+    }
+
     miniplayerState.active = true;
 
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe);
+    // Up to the body, not the body itself: a wrapper that came to fill it made the body the
+    // miniplayer, with a second <body> put in before it as its placeholder.
+    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
+        .filter((parent) => parent.tagName !== 'BODY');
     const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
     const placeholder = document.createElement(element.tagName);
 

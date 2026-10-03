@@ -226,3 +226,102 @@ describe('windowed fullscreen', () => {
   }, 60000);
 });
 
+// A player in a site's embed iframe: the top frame links the embed iframe, and windowed
+// fullscreen fixes it over the whole page. REMOVE_PLAYERS (a same-site navigation) gave
+// the rest of the page back, but not the embed's own style, which stayed fixed over the
+// page (#229).
+describe('REMOVE_PLAYERS', () => {
+  it('takes an embed holding the player out of windowed fullscreen', async () => {
+    const page = loadContentScript();
+    const embed = page.document.createElement('iframe');
+    embed.setAttribute('style', 'width: 640px;');
+    page.document.body.appendChild(embed);
+    await linkPlayer(page, embed, 7);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+    expect(embed.style.getPropertyValue('position')).toBe('fixed');
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(embed.getAttribute('style')).toBe('width: 640px;');
+    // And it knows it left: the next toggle enters again.
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+  });
+});
+
+/**
+ * Asks for the miniplayer, as the background does for the player.
+ * @param {Object} page - From loadContentScript.
+ * @return {Promise<*>} content.js's answer.
+ */
+function requestMiniplayer(page) {
+  return page.send({type: 'TOGGLE_MINIPLAYER', frameId: 5, playerFrameId: 5, force: true, size: 0.25, styles: {bottom: '0px', right: '0px'}});
+}
+
+// The miniplayer shrinks the player's iframe, or the outermost wrapper with its box, to a
+// corner, with a placeholder in its place (#229).
+describe('TOGGLE_MINIPLAYER', () => {
+  it('answers, and changes nothing, when the page took the player\'s iframe out', async () => {
+    // insertBefore on the missing parent threw inside the message handler.
+    const {page, iframe} = await pageWithPlayer();
+    iframe.remove();
+    const childrenBefore = page.document.body.children.length;
+    expect(await requestMiniplayer(page)).toBe('exit');
+    expect(page.document.body.children.length).toBe(childrenBefore);
+  });
+
+  it('never makes the body the miniplayer', async () => {
+    // A wrapper that came to fill the body: the body was the element with the player's
+    // box, a second <body> went in before it, and the page's body was fixed to a corner.
+    const {page, iframe} = await pageWithPlayer();
+    iframe.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    expect(await requestMiniplayer(page)).toBe('enter');
+    expect(page.document.documentElement.children.map((el) => el.tagName)).toEqual(['HEAD', 'BODY']);
+    expect(page.document.body.getAttribute('style')).toBeNull();
+    expect(iframe.style.getPropertyValue('position')).toBe('fixed');
+  });
+
+  it('gives the miniplayer a size when its placeholder has none', async () => {
+    // Here the placeholder is laid out at 0x0: the sizes were NaN.
+    const {page, iframe} = await pageWithPlayer();
+    expect(await requestMiniplayer(page)).toBe('enter');
+    expect(iframe.style.getPropertyValue('width')).toMatch(/^[\d.]+px$/);
+    expect(iframe.style.getPropertyValue('height')).toMatch(/^[\d.]+px$/);
+  });
+});
+
+// A soft replace keeps the page's element, at no size, next to the player. When that
+// element collapses once shown (under 100 px square), the replace turns hard a second
+// after opening: the element leaves the page. The check only looked at players that had
+// linked up, and on a slow start the player linked after it: the element stayed (#229).
+describe('the soft replace turning hard', () => {
+  /**
+   * Opens a player on a page whose element collapses once it is replaced, and links the
+   * player up after the given time.
+   * @param {number} linkAfter - When the player links up, in ms after the open.
+   * @return {Promise<Object>} The page's element.
+   */
+  async function collapseAndLinkAfter(linkAfter) {
+    const {page, wrap} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    wrap.rect = {x: 0, y: 0, width: 5, height: 5};
+    page.advance(linkAfter);
+    await linkPlayer(page, iframe, 5);
+    page.advance(3000);
+    return wrap;
+  }
+
+  it('turns hard when the player linked up within the second', async () => {
+    expect((await collapseAndLinkAfter(500)).isConnected).toBe(false);
+  });
+
+  it('turns hard when the player linked up later', async () => {
+    expect((await collapseAndLinkAfter(1500)).isConnected).toBe(false);
+  });
+
+  it('stays soft for an element that keeps its size', async () => {
+    const {page, wrap} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    page.advance(1500);
+    await linkPlayer(page, iframe, 5);
+    page.advance(3000);
+    expect(wrap.isConnected).toBe(true);
+  });
+});
