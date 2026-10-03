@@ -13,6 +13,8 @@
 
 import {browser, expect} from '@wdio/globals';
 
+import {withoutSound} from '../soundCheck.mjs';
+
 // Loud enough to be sure of, quiet enough to leave room: the tone measures about 0.087.
 const AUDIBLE = 0.03;
 const SILENT = 0.001;
@@ -96,11 +98,11 @@ describe('Firefox audio at speed', function() {
     const baseline = await measure(1);
     // A machine that cannot decode the clip, or has no audio output and leaves every level
     // at zero, says nothing about Firefox. Only a baseline that is heard makes the
-    // comparison below mean anything.
+    // comparison below mean anything. Skipped there, but failed on Linux CI, which the e2e
+    // setup gives a sound device (soundCheck.mjs).
     if (baseline.failed || !(baseline.level >= AUDIBLE)) {
-      console.log('      cannot hear the tone at 1x on this machine, skipping:', JSON.stringify(baseline));
       // eslint-disable-next-line no-invalid-this
-      this.skip();
+      withoutSound(this, 'cannot hear the tone at 1x on this machine', baseline);
     }
 
     const fast = await measure(8);

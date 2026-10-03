@@ -252,7 +252,9 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   waited for it, so it never finished, and autoplay's `autoPlayTriggered` was never set.
   `startAudio()` now starts the context once, without waiting, and starts the background
   analyzer when the audio runs (client-setup.e2e.mjs fakes the never-settling resume).
-  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`.
+  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`;
+  without it they skip, except on Linux CI, which has a PulseAudio null sink since
+  2026-10-03 and fails them there (`tests/e2e/soundCheck.mjs`, #265).
 
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
@@ -1073,7 +1075,12 @@ the change went in.
 - **`.github/actions/e2e-setup`** (2026-09-28): ffmpeg, the e2e port reservation and the
   Firefox to test (`firefox-version`, exported as `FIREFOX_BINARY`), for every e2e job - the
   four copies differed already. Each download (Chocolatey, apt, Mozilla) is retried before
-  the job fails. A change to it runs Firefox Beta and the live suite on the PR.
+  the job fails. A change to it runs Firefox Beta and the live suite on the PR. Since
+  2026-10-03 also `sample.mp4` from the Actions cache, keyed on its pinned SHA-256 and
+  checked like a download (`tests/e2e/mp4FixtureCli.mjs`, #256), and on Linux a PulseAudio
+  null sink as Firefox's sound device (`PULSE_SERVER`, `E2E_SOUND_SINK`; #265). The
+  Windows runner has no audio endpoint. Its scripts: `tests/workflows/e2e-setup.test.sh`,
+  `tests/unit/e2eSetupAction.test.mjs`.
 - **Artifacts** (2026-09-28): `faststream-bundles` is kept 7 days (auto-release reads it
   minutes after the run; the 90-day default had piled up 57 copies, 469 MB), failure logs
   30 days.
