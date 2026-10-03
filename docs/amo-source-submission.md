@@ -12,7 +12,7 @@ Everything below was run on the exact commit the submission was built from.
 |---|---|
 | Operating system | Any of Linux, macOS or Windows. CI builds on `ubuntu-latest`. |
 | Node.js | 22 or newer. `localescript.mjs` uses `Set.prototype.difference`, which Node 20 lacks; `engines` in `package.json` says `>=22`. CI uses the major in `.nvmrc`. |
-| Package manager | pnpm 11, the exact version pinned by the `packageManager` field in `package.json` (corepack reads it). |
+| Package manager | pnpm 11, the exact version pinned by the `packageManager` field in `package.json` (installed with npm, or with corepack on Node 24 and older). |
 | Network access | Needed for `pnpm install` only. The build itself is offline. |
 
 No compilers, native toolchains or system libraries are required. The
@@ -24,7 +24,7 @@ this build - see "Prebuilt binaries" below.
 From the root of the source archive:
 
 ```sh
-corepack enable                 # or: npm i -g pnpm@<the version in packageManager>
+npm i -g pnpm@<the version in packageManager>   # or, on Node 24 and older: corepack enable
 pnpm install --frozen-lockfile
 pnpm run build:keep
 ```
