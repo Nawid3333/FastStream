@@ -1,6 +1,8 @@
 // A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
-// milliseconds, short or missing milliseconds, and one-digit minutes and seconds.
-const SRT_TIMESTAMP = /(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
+// milliseconds, short or missing milliseconds, and one-digit minutes and seconds. It is only
+// tried where a run of digits starts: from inside a long line of digits, (\d+): failed again
+// for every digit of it (quadratic), and can match nothing the run's start does not.
+const SRT_TIMESTAMP = /(?<!\d)(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
 // The same at the start of a line, which is where a cue's timestamp is.
 const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
 
@@ -37,9 +39,11 @@ export class SubtitleUtils {
           code = parseInt(reference.substring(2, reference.length - 1), 10);
         }
 
-        // Translate into string according to ISO/IEC 10646
+        // Translate into string according to ISO/IEC 10646. A surrogate code point is no
+        // character: U+FFFD, as in HTML. Left a lone surrogate, it made the WebVTT parser
+        // throw "URI malformed" and the whole track failed.
         if (!isNaN(code) && code >= 0 && code <= 0x10FFFF) {
-          entitySplit[i] = String.fromCodePoint(code);
+          entitySplit[i] = code >= 0xD800 && code <= 0xDFFF ? String.fromCharCode(0xFFFD) : String.fromCodePoint(code);
         }
       } else if (entitiesList.hasOwnProperty(reference)) {
         entitySplit[i] = entitiesList[reference];
@@ -55,10 +59,12 @@ export class SubtitleUtils {
    * @return {string} WebVTT subtitle data.
    */
   static srt2webvtt(data) {
-    // remove dos newlines
-    let srt = data.replace(/\r+/g, '');
-    // trim white space start and end
-    srt = srt.replace(/^\s+|\s+$/g, '');
+    // remove dos newlines; in a file with no line feed at all (a classic Mac one) the
+    // carriage returns are the line ends, and removing them left no cue
+    let srt = data.includes('\n') ? data.replace(/\r+/g, '') : data.replace(/\r/g, '\n');
+    // trim white space start and end (/^\s+|\s+$/g, which trims the same, was quadratic in
+    // a long run of spaces inside the file)
+    srt = srt.trim();
     // get cues: a cue ends at a blank line, however many follow it, and a cue also starts
     // at its own timestamp when no blank line comes before it. So a line of spaces ends
     // the cue before a timestamp, and inside a cue it is text, as ffmpeg and VLC read it:
@@ -240,7 +246,10 @@ export class SubtitleUtils {
     // Everything after the timestamp is the cue text, however many lines it has.
     const cueText = lines.slice(line + 1).join('\n');
     if (cueText) {
-      cue += cueText.replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n');
+      // A <br> tag ends at a '>', so the text after the last '>' holds none. Searching it
+      // too ran [^>]* to the end of the text from every "<br" there: quadratic.
+      const end = cueText.lastIndexOf('>') + 1;
+      cue += cueText.substring(0, end).replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n') + cueText.substring(end);
     }
     return cue + '\n\n';
   }
@@ -263,13 +272,21 @@ export class SubtitleUtils {
       9: 'line:5% position:100% align:end',
     };
 
-    const withAlignment = text.replace(/(\r\n|\n)\{\\?an(\d)\}/gi, (match, _newline, alignment) => {
-      const settings = alignmentSettings[alignment];
-      if (settings) {
-        return ` ${settings}\n`;
+    // An alignment tag at the start of a cue's first line, right after its timing line,
+    // becomes the cue's settings. One on a later line is stripped below: its settings went
+    // onto whatever line came before it, and were shown as text.
+    const lines = text.split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const tag = /^\{\\?an(\d)\}/i.exec(lines[i]);
+      if (!tag || !lines[i - 1].includes('-->')) {
+        continue;
       }
-      return '\n';
-    });
+      const timing = lines[i - 1].replace(/\r$/, '');
+      const settings = alignmentSettings[tag[1]];
+      lines[i - 1] = settings ? `${timing} ${settings}` : timing;
+      lines[i] = lines[i].substring(tag[0].length);
+    }
+    const withAlignment = lines.join('\n');
 
     return withAlignment
         .replace(/\{\\([ibu])1\}/gi, '<$1>') // convert {\b1}, {\i1}, {\u1} to <b>, <i>, <u>

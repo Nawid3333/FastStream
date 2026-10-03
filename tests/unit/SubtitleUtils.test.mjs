@@ -213,4 +213,87 @@ describe('convertSubtitleFormatting', () => {
   it('strips remaining alignment tags it does not translate inline', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('{\\an5}')).toBe('');
   });
+
+  it('turns an alignment tag right after the timing line into cue settings', () => {
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{\\an8}Top'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\nTop');
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\r\n{\\AN1}Low\r\n'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:95% position:0% align:start\nLow\r\n');
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{an0}Text'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nText');
+  });
+
+  it('drops an alignment tag on a later line of a cue instead of showing settings in the line above', () => {
+    // The settings were appended to whatever line came before the tag, and were shown:
+    // "first line line:5% position:50% align:center".
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\nfirst line\n{\\an8}second line'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nfirst line\nsecond line');
+  });
+});
+
+describe('srt2webvtt: line endings', () => {
+  const EXPECTED = 'WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nHello\n\n2\n00:00:03.000 --> 00:00:04.000\nWorld\n\n';
+
+  it('reads a SubRip file whose lines end in a carriage return only (classic Mac)', () => {
+    // Every '\r' was removed, which left the whole file on one line and no cue.
+    const srt = '1\r00:00:01,000 --> 00:00:02,000\rHello\r\r2\r00:00:03,000 --> 00:00:04,000\rWorld\r';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe(EXPECTED);
+  });
+
+  it('still reads two carriage returns and a line feed as one line ending', () => {
+    const srt = '1\r\r\n00:00:01,000 --> 00:00:02,000\r\r\nHello\r\r\n\r\r\n2\r\r\n00:00:03,000 --> 00:00:04,000\r\r\nWorld';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe(EXPECTED);
+  });
+});
+
+describe('translateXMLEntities: surrogates', () => {
+  it('writes a reference to a surrogate code point as U+FFFD, as HTML does', () => {
+    // String.fromCodePoint(0xD800) is a lone surrogate, and the WebVTT parser's decoder
+    // threw "URI malformed" on it: the whole track failed to load.
+    const replacement = String.fromCharCode(0xfffd);
+    for (const reference of ['&#xD800;', '&#55296;', '&#xDFFF;', '&#xdc00;']) {
+      expect(SubtitleUtils.translateXMLEntities('a' + reference + 'b')).toBe('a' + replacement + 'b');
+    }
+    expect(SubtitleUtils.translateXMLEntities('&#x1F600;')).toBe(String.fromCodePoint(0x1f600));
+  });
+});
+
+describe('hostile input: linear time', () => {
+  // Each took seconds with a regex that backtracks quadratically, on the page's main
+  // thread, as soon as a page offered the file. The sizes below took 1-3 s each before.
+  const budget = 250;
+
+  /**
+   * How long a call takes, in milliseconds.
+   * @param {Function} fn - The call.
+   * @return {number}
+   */
+  function elapsed(fn) {
+    const started = performance.now();
+    fn();
+    return performance.now() - started;
+  }
+
+  it('trims a file with a long run of spaces inside it', () => {
+    // /^\s+|\s+$/g retried \s+$ from every space of the run.
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\na' + ' '.repeat(60000) + 'b';
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('looks for a timestamp in a long line of digits', () => {
+    // The unanchored timestamp regex tried (\d+): from every digit of the run.
+    const srt = '1'.repeat(30000) + '\n' + '2'.repeat(30000) + '\nx';
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('looks for <br> tags in text full of unclosed "<br"', () => {
+    // [^>]* ran to the end of the text from every "<br" when no '>' came after it.
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\n' + '<br'.repeat(30000);
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('still turns <br> tags into line breaks', () => {
+    expect(SubtitleUtils.convertSrtCue('1\n00:00:01,000 --> 00:00:02,000\na<br>b< BR />c</br>d<br x="1">e<brx>f<br'))
+        .toBe('1\n00:00:01.000 --> 00:00:02.000\na\nb\nc\nd\ne<brx>f<br\n\n');
+  });
 });
