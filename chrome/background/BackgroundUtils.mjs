@@ -1,4 +1,6 @@
 // @ts-check
+import {URLUtils} from '../player/utils/URLUtils.mjs';
+
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
 export class BackgroundUtils {
@@ -19,6 +21,20 @@ export class BackgroundUtils {
    */
   static isPlayerOpeningResponse(response) {
     return BackgroundUtils.PlayerOpeningResponses.includes(response);
+  }
+
+  /**
+   * The player mode of a source a site script reports (DETECTED_SOURCE, custom/*.js). Its
+   * page can post such a report too (Instagram's): one without an address, or of a type
+   * the player does not play, was recorded as a source of no mode.
+   * @param {*} msg - The message.
+   * @return {?string} The mode, or null for no source.
+   */
+  static detectedSourceMode(msg) {
+    if (!msg || typeof msg.url !== 'string' || !msg.url) {
+      return null;
+    }
+    return URLUtils.getModeFromExtension(msg.ext) || null;
   }
 
   static checkMessageError(message, suppress = false) {
@@ -134,6 +150,25 @@ export class BackgroundUtils {
 
   static isUrlPlayerUrl(url) {
     return url.substring(0, PlayerURL.length) === PlayerURL;
+  }
+
+  /**
+   * Whether a tab's new URL (tabs.onUpdated) is still the same page: only its fragment
+   * changed, to an anchor (#comments) or a time (#t=120), which Firefox reports as it
+   * reports a new page. A hash route (#/episode/2, #!/...) is a page of its own, as is
+   * the same URL again (a reload).
+   * @param {?string|undefined} oldUrl - The tab's URL before.
+   * @param {string} newUrl - Its URL now.
+   * @return {boolean}
+   */
+  static isSamePageUrlChange(oldUrl, newUrl) {
+    if (!oldUrl || !newUrl || oldUrl === newUrl) {
+      return false;
+    }
+    const hash = (url) => (url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');
+    const strip = (url) => url.split('#')[0];
+    const isRoute = (url) => hash(url).startsWith('/') || hash(url).startsWith('!');
+    return strip(oldUrl) === strip(newUrl) && !isRoute(oldUrl) && !isRoute(newUrl);
   }
 
   static getPlayerUrl() {

@@ -8,6 +8,9 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 `
 #       [-MpvPath <path>] [-NodePath <path>]
 #
+# Without -MpvPath a reinstall keeps the mpv path config.json already names; a first
+# install takes C:\Program Files\mpv\mpv.exe.
+#
 # -InstallDir and -NoRegister are for tests: install into a scratch folder and leave the
 # registry alone, so a test never touches the real installation.
 #
@@ -34,7 +37,9 @@ function Write-Utf8File([string]$Path, [string]$Text) {
     [System.IO.File]::WriteAllText($Path, $Text, $Utf8NoBom)
 }
 
-if (-not (Test-Path $HostScript)) {
+# Paths are taken literally (-LiteralPath): with -Path, PowerShell reads [ ] as a wildcard,
+# and a folder named like "mpv [portable]" was not found.
+if (-not (Test-Path -LiteralPath $HostScript)) {
     Write-Error "Host script not found: $HostScript"
     exit 1
 }
@@ -44,14 +49,6 @@ if (-not $nodeCmd) {
     Write-Error "node not found. Install Node.js (22 or newer) or pass -NodePath <path-to-node.exe>."
     exit 1
 }
-
-if (-not (Test-Path $MpvPath)) {
-    Write-Warning "mpv not found at '$MpvPath' - the host will fall back to 'mpv' on PATH."
-}
-
-# 1. Copy the host and write config
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-Copy-Item $HostScript (Join-Path $InstallDir 'faststream-mpv-host.mjs') -Force
 
 # mpvPath is set; anything else config.json already holds stays ("debug": true, README.md):
 # a reinstall (update-local.ps1 runs this one) used to drop it, and the log with it.
@@ -67,18 +64,44 @@ if (Test-Path -LiteralPath $configPath) {
         Write-Warning "config.json could not be read ($($_.Exception.Message)); writing a new one."
     }
 }
+# Without -MpvPath (the host-changed reminder runs it so), a reinstall used to put the
+# default back over an mpv elsewhere, and "Send to mpv" failed until it was run with the path.
+if (-not $PSBoundParameters.ContainsKey('MpvPath') -and $config['mpvPath'] -is [string] -and $config['mpvPath']) {
+    $MpvPath = $config['mpvPath']
+}
 $config['mpvPath'] = $MpvPath
+# The host's pipe to the mpv it starts carries this in its name (ipcPipeFor in the host):
+# pipe names are machine-wide, and another account must not be able to take ours. Random,
+# made once, kept by every reinstall.
+if (-not ($config['ipcToken'] -is [string] -and $config['ipcToken'] -cmatch '^[0-9a-f]{32}$')) {
+    $bytes = New-Object byte[] 16
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $config['ipcToken'] = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+
+if (-not (Test-Path -LiteralPath $MpvPath)) {
+    Write-Warning "mpv not found at '$MpvPath' - the host will fall back to 'mpv' on PATH."
+}
+
+# 1. Copy the host and write config
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+Copy-Item -LiteralPath $HostScript -Destination (Join-Path $InstallDir 'faststream-mpv-host.mjs') -Force
+
 Write-Utf8File $configPath ($config | ConvertTo-Json)
 
 # 2. .bat wrapper - Windows won't start a .mjs as a program, so the manifest
 #    points at this, which runs it with node and hands on Firefox's arguments.
 #    cmd reads a batch file in the console's code page, line by line: chcp 65001
-#    makes it read the paths below as the UTF-8 they are written in.
+#    makes it read the paths below as the UTF-8 they are written in. It also reads
+#    %...% in them as a variable, even inside quotes, and drops a lone %: %% is a %
+#    (a user name may hold one).
 $batPath = Join-Path $InstallDir "$HostName_.bat"
+$batNode = $nodeCmd -replace '%', '%%'
+$batHost = (Join-Path $InstallDir 'faststream-mpv-host.mjs') -replace '%', '%%'
 Write-Utf8File $batPath (@"
 @echo off
 chcp 65001 > nul
-"$nodeCmd" "$(Join-Path $InstallDir 'faststream-mpv-host.mjs')" %*
+"$batNode" "$batHost" %*
 "@ -replace "`r?`n", "`r`n")
 
 # 3. Native messaging manifest

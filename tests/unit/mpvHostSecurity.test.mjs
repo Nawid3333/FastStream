@@ -1,8 +1,9 @@
 import {PassThrough} from 'node:stream';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {
   CommandLineEnv,
   MaxMessageBytes,
+  TooLarge,
   mpvTargetUrl,
   readMessage,
   relayHeaderFields,
@@ -147,10 +148,25 @@ describe('readMessage', () => {
   });
 
   it('refuses a length prefix over the limit instead of allocating it', async () => {
-    const input = new PassThrough();
-    const read = readMessage(input);
-    input.write(frame(Buffer.from('{}'), MaxMessageBytes + 1));
-    expect(await read).toBeNull();
+    // Read past, not kept: TooLarge once the stated bytes have gone by (the host answers
+    // it), null when the input ends first.
+    const huge = frame(Buffer.from('{}'), 0xFFFFFFFF);
+    const big = frame(Buffer.alloc(MaxMessageBytes + 1, 0x20));
+    const alloc = vi.spyOn(Buffer, 'alloc');
+    try {
+      let input = new PassThrough();
+      let read = readMessage(input);
+      input.end(huge);
+      expect(await read).toBeNull();
+
+      input = new PassThrough();
+      read = readMessage(input);
+      input.write(big);
+      expect(await read).toBe(TooLarge);
+      expect(alloc.mock.calls.filter(([size]) => size > MaxMessageBytes)).toEqual([]);
+    } finally {
+      alloc.mockRestore();
+    }
   });
 
   // {"url":"..."}: the URL's length plus 10 bytes of JSON around it.
@@ -167,12 +183,13 @@ describe('readMessage', () => {
   });
 
   it('refuses a message one byte over the limit', async () => {
+    // Read to its end and answered as too large, not parsed (#151).
     const input = new PassThrough();
     const read = readMessage(input);
     const body = Buffer.from(JSON.stringify({url: urlForBody(MaxMessageBytes + 1)}), 'utf8');
     expect(body.length).toBe(MaxMessageBytes + 1);
     input.write(frame(body));
-    expect(await read).toBeNull();
+    expect(await read).toBe(TooLarge);
   });
 
   it('gives null for a stream that ends early or holds no JSON', async () => {

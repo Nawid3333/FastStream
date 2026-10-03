@@ -6,7 +6,7 @@ import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
-import {HLSFragment} from './HLSFragment.mjs';
+import {storeIndex, storeLevel} from './HLSFragmentStore.mjs';
 import {HLSFragmentRequester} from './HLSFragmentRequester.mjs';
 import {HLSLoaderFactory} from './HLSLoader.mjs';
 
@@ -256,6 +256,8 @@ export default class HLSPlayer extends EventEmitter {
         return {
           extension: 'mp4',
           blob: blob,
+          // The file reads from the converter's blob store: closed once nothing reads it.
+          release: () => dash2mp4.release(),
         };
       } else {
         if (levelInitData || audioLevelInitData) {
@@ -274,6 +276,7 @@ export default class HLSPlayer extends EventEmitter {
         return {
           extension: 'mp4',
           blob: blob,
+          release: () => hls2mp4.release(),
         };
       }
     } catch (e) {
@@ -347,42 +350,13 @@ export default class HLSPlayer extends EventEmitter {
 
   trackUpdated(levelDetails, trackID) {
     levelDetails.trackID = trackID;
-    // A live playlist's window moves on: its first fragment starts where hls.js placed
-    // it, not at 0, or each refresh would place its new fragments over the old ones.
-    let time = levelDetails.fragments[0]?.start || 0;
-    levelDetails.fragments.forEach((fragment, i) => {
-      const identifier = this.getIdentifier(levelDetails.trackID, fragment.level);
-      if (fragment.initSegment && i === 0) {
-        fragment.initSegment.trackID = levelDetails.trackID;
-        if (!this.client.getFragment(identifier, -1)) {
-          this.client.makeFragment(identifier, -1, new HLSFragment(fragment.initSegment, 0, 0));
-        }
-      }
-      if (fragment.encrypted) {
-        if (fragment.decryptdata && fragment.levelkeys) {
-          fragment.fs_oldcryptdata = fragment.decryptdata;
-          fragment.fs_oldlevelKeys = fragment.levelkeys;
-        } else {
-          this.emit(DefaultPlayerEvents.NEED_KEY);
-          // console.log(fragment);
-          // console.error('SAMPLE-AES not supported!');
-          // throw new Error('SAMPLE-AES not supported!');
-        }
-
-        fragment.levelkeys = null;
-        fragment._decryptdata = null;
-
-        void fragment.decryptdata;
-      }
-      const start = time;
-      time += fragment.duration;
-      const end = time;
-      fragment.levelIdentifier = identifier;
-      fragment.trackID = levelDetails.trackID;
-      if (!this.client.getFragment(identifier, fragment.sn)) {
-        this.client.makeFragment(identifier, fragment.sn, new HLSFragment(fragment, start, end));
-      }
-    });
+    // FastStream decrypts AES-128 segments itself (HLSFragmentRequester), its init segment
+    // too; other encryption (SAMPLE-AES, DRM) it cannot play.
+    if (!HLSFragmentRequester.takeOverDecryption(levelDetails.fragments)) {
+      this.emit(DefaultPlayerEvents.NEED_KEY);
+    }
+    // Into the store, from the level's first segment (HLSFragmentStore).
+    storeLevel(this.client, levelDetails, (level) => this.getIdentifier(trackID, level));
   }
   getVideo() {
     return this.video;
@@ -508,11 +482,10 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   getCurrentVideoLevelID() {
-    let level = this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel;
-    if (level === -1) {
-      level = null;
-    }
-    return this.getIdentifier(0, level);
+    const level = this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel;
+    // No level before the manifest is parsed. This was "0:null", which FastStreamClient took
+    // for a level and wrote over the level an archive had asked for.
+    return level === -1 ? null : this.getIdentifier(0, level);
   }
 
   setCurrentVideoLevelID(value) {
@@ -524,9 +497,22 @@ export default class HLSPlayer extends EventEmitter {
     return this.video.duration;
   }
 
+  /**
+   * Whether the stream is live. Its duration does not say so: with liveDurationInfinity off,
+   * hls.js makes it the end of the live window, not Infinity.
+   * @return {boolean}
+   */
+  get isLive() {
+    const level = this.hls.levels[this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel];
+    return !!level?.details?.live;
+  }
+
   get currentFragment() {
-    if (!this.hls.streamController.currentFrag) return null;
-    return this.client.getFragment(this.getIdentifier(0, this.hls.streamController.currentFrag.level), this.hls.streamController.currentFrag.sn);
+    const frag = this.hls.streamController.currentFrag;
+    if (!frag) return null;
+    const identifier = this.getIdentifier(0, frag.level);
+    const index = storeIndex(this.client.getFragments(identifier), frag.sn);
+    return index === null ? null : this.client.getFragment(identifier, index);
   }
 
   getCurrentAudioLevelID() {

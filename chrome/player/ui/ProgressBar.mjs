@@ -6,6 +6,31 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
+// What updateElement last wrote to each element's inline style.
+const writtenStyles = new WeakMap();
+
+/**
+ * Sets an element's class and inline styles, writing only what changed. The skip segments
+ * and chapters are redrawn on every time update (each frame for a short video), and
+ * rewriting the same class and positions restyled every one of them each time.
+ * @param {HTMLElement} element - The element.
+ * @param {string} className - Its whole class attribute.
+ * @param {Object<string, string>} style - The inline style properties to set.
+ */
+function updateElement(element, className, style) {
+  if (element.className !== className) {
+    element.className = className;
+  }
+  const written = writtenStyles.get(element) || {};
+  for (const [property, value] of Object.entries(style)) {
+    if (written[property] !== value) {
+      element.style[property] = value;
+      written[property] = value;
+    }
+  }
+  writtenStyles.set(element, written);
+}
+
 export class ProgressBar extends EventEmitter {
   constructor(client) {
     super();
@@ -362,18 +387,18 @@ export class ProgressBar extends EventEmitter {
 
     skipSegments.forEach((segment, i) => {
       const segmentElement = this.skipSegmentsCache[i];
-      segmentElement.className = 'skip_segment ' + segment.class;
-      segmentElement.style.left = segment.startTime / duration * 100 + '%';
-      segmentElement.style.width = (segment.endTime - segment.startTime) / duration * 100 + '%';
-
-      if (segment.color) {
-        segmentElement.style.backgroundColor = segment.color;
-      }
-
+      let active = false;
       if (!currentSegment && time >= segment.startTime && time < segment.endTime) {
         currentSegment = segment;
-        segmentElement.classList.add('active');
+        active = true;
       }
+      // A segment with no colour of its own no longer keeps the colour of the segment
+      // whose element it took over.
+      updateElement(segmentElement, 'skip_segment ' + segment.class + (active ? ' active' : ''), {
+        left: segment.startTime / duration * 100 + '%',
+        width: (segment.endTime - segment.startTime) / duration * 100 + '%',
+        backgroundColor: segment.color || '',
+      });
     });
 
     this.skipSegments = skipSegments;
@@ -438,9 +463,7 @@ export class ProgressBar extends EventEmitter {
     }
 
     chapters.forEach((chapter, i) => {
-      const chapterElement = this.chapterCache[i];
-      chapterElement.classList.add('chapter');
-      chapterElement.style.left = chapter.startTime / duration * 100 + '%';
+      updateElement(this.chapterCache[i], 'chapter', {left: chapter.startTime / duration * 100 + '%'});
     });
   }
 

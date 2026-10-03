@@ -126,3 +126,37 @@ describe('flags and empty patterns', () => {
     expect(() => new MultiRegexMatcher().addRegex('', '', 'hls')).toThrow(/Empty regex/);
   });
 });
+
+// A pattern that is valid on its own has to work the same once joined with the others. Two
+// ways it did not: a group of its own named like the joined form's (o0) made compile() throw,
+// so the background kept the patterns from before with no word; and a named group in
+// patterns of two outputs gave no output at all. A backreference meant another group.
+describe('patterns with groups of their own', () => {
+  it('compiles a pattern whose group is named like the matcher\'s own', () => {
+    const m = build([
+      ['\\/live\\/(?<o0>\\d+)', '', 'hls'],
+      ['\\.mpd', '', 'dash'],
+    ]);
+    expect(m.match('https://e.com/live/12')).toBe('hls');
+    expect(m.match('https://e.com/a.mpd')).toBe('dash');
+  });
+
+  it('routes a named group used by patterns of two outputs to each one\'s output', () => {
+    const m = build([
+      ['\\/a\\/(?<id>\\d+)', '', 'hls'],
+      ['\\/b\\/(?<id>\\d+)', '', 'dash'],
+    ]);
+    expect(m.match('https://e.com/a/1')).toBe('hls');
+    expect(m.match('https://e.com/b/2')).toBe('dash');
+  });
+
+  it('matches a pattern with a backreference as it does on its own', () => {
+    const m = build([
+      ['\\.mpd', '', 'dash'],
+      ['\\/(x+)-\\1\\.m3u8', '', 'hls'],
+    ]);
+    expect(m.match('https://e.com/xx-xx.m3u8')).toBe('hls');
+    expect(m.match('https://e.com/x-xx.m3u8')).toBeNull();
+    expect(m.match('https://e.com/a.mpd')).toBe('dash');
+  });
+});

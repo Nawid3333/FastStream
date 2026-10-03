@@ -15,10 +15,27 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
+/**
+ * Revokes a save's URL once its download is over, then closes the blob store its file
+ * reads from (when it has one).
+ * @param {string} url
+ * @param {*} download - What Utils.downloadURL resolved with.
+ * @param {?function(): void} release
+ * @return {Promise<void>} Not awaited: the save is done before its download is.
+ */
+async function releaseWhenDownloaded(url, download, release) {
+  await Utils.revokeWhenDownloaded(url, download);
+  release?.();
+}
+
 export class SaveManager {
   constructor(client) {
     this.client = client;
     this.downloadURL = null;
+    // What Utils.downloadURL answered for the last download of downloadURL.
+    this.downloadURLDownload = undefined;
+    // Closes the blob store the file behind downloadURL reads from, if it has one.
+    this.downloadURLRelease = null;
     this.reuseDownloadURL = false;
     this.makingDownload = false;
     this.downloadCancel = null;
@@ -303,6 +320,9 @@ export class SaveManager {
         console.log('Save took ' + (end - start) / 1000 + 's');
       } catch (e) {
         console.error(e);
+        // A stream the player never wrote to (a direct download whose server said no) is
+        // ended here; one it wrote to, it aborted itself, and this does nothing.
+        filestream?.abort(e).catch(() => {});
         this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_fail'), 'error', 2000);
         this.makingDownload = false;
         this.downloadCancel = null;
@@ -336,10 +356,14 @@ export class SaveManager {
         url = URL.createObjectURL(result.blob);
       }
 
-      // Any still-referenced previous url stays alive: the 10s sweep below
-      // reaps replaced urls, and revoking here would kill the backing store
-      // of an in-flight download from a re-save on the same source.
+      // The url this one replaces goes once its download is over (revoking it
+      // at once would kill a download still reading it). A sweep 10 s after
+      // each save used to reap it, and left it alone when it was still the
+      // current one then: a save made later than that kept the previous file
+      // in memory, or its OPFS file pinned, for the rest of the session.
+      this.releaseDownloadURL();
       this.downloadURL = url;
+      this.downloadURLRelease = result.release || null;
     }
 
     if (!canStream) {
@@ -347,27 +371,32 @@ export class SaveManager {
         name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
       }
       if (!name) {
-        URL.revokeObjectURL(this.downloadURL);
-        this.downloadURL = null;
+        this.releaseDownloadURL();
         this.reuseDownloadURL = false;
         return;
       }
 
-      // The old sweep revoked this.downloadURL unconditionally 10s after
-      // the save finished - mid-transfer for anything whose download takes
-      // longer than that, which killed the backing blob and made the save
-      // fail silently. It now only reaps a url once it has been REPLACED
-      // by a newer save (or nulled on a cancel/name-less exit).
-      setTimeout(() => {
-        if (this.downloadURL === url) return;
-
-        if (url) {
-          URL.revokeObjectURL(url);
-          this.reuseDownloadURL = false;
-        }
-      }, 10000);
-      await Utils.downloadURL(url, name + '.' + saveExtension);
+      this.downloadURLDownload = await Utils.downloadURL(url, name + '.' + saveExtension);
     }
+  }
+
+  /**
+   * Lets go of this.downloadURL: it is revoked once its last download is over, and the
+   * blob store its file reads from (a merged save's OPFS session) is closed then. The
+   * store used to close two minutes after the save, and a closed session is deleted by the
+   * next player or save that starts: a longer download, or the same file saved again (a
+   * complete save's URL is reused), lost its file.
+   */
+  releaseDownloadURL() {
+    const release = this.downloadURLRelease;
+    if (this.downloadURL) {
+      releaseWhenDownloaded(this.downloadURL, this.downloadURLDownload, release);
+    } else {
+      release?.();
+    }
+    this.downloadURL = null;
+    this.downloadURLDownload = undefined;
+    this.downloadURLRelease = null;
   }
 
   async dumpBuffer(name) {
@@ -515,10 +544,7 @@ export class SaveManager {
 
   reset() {
     this.reuseDownloadURL = false;
-    if (this.downloadURL) {
-      URL.revokeObjectURL(this.downloadURL);
-    }
-    this.downloadURL = null;
+    this.releaseDownloadURL();
 
     // Second line of defense: the caller (FastStreamClient.resetPlayer)
     // should already have canceled and awaited any in-flight save before
@@ -530,10 +556,7 @@ export class SaveManager {
   }
 
   destroy() {
-    if (this.downloadURL) {
-      URL.revokeObjectURL(this.downloadURL);
-      this.downloadURL = null;
-    }
+    this.releaseDownloadURL();
     this.makingDownload = false;
     this.downloadCancel = null;
     this.pendingSave = null;

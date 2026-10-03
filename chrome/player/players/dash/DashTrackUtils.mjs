@@ -7,6 +7,21 @@ export class DashTrackUtils {
     return `${type}-${id}`;
   }
 
+  /**
+   * The level dash.js plays for a type, or null while it has none: no stream yet, or a
+   * stream processor before its first representation (at the start, or a period change).
+   * The players' "no level" was -1 for the one, which FastStreamClient took for a level
+   * and wrote over the level an archive had asked for; the other threw.
+   * @param {Object} dash - dash.js's MediaPlayer.
+   * @param {string} type - 'video' or 'audio'.
+   * @return {?string}
+   */
+  static getCurrentLevel(dash, type) {
+    const processor = dash?.getStreamController()?.getActiveStream()?.getStreamProcessors()?.find((o) => o.getType() === type);
+    const rep = processor?.getRepresentationController().getCurrentRepresentation();
+    return rep ? this.getLevelFromRepresentation(rep) : null;
+  }
+
   static deconstructLevel(levelId) {
     const parts = levelId.split('-');
     if (parts.length < 2) {

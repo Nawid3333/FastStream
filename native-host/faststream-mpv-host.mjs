@@ -7,8 +7,13 @@
 // launches mpv on the user's machine.
 //
 // Messages:
-//   {type: 'ping'}                -> {ok, mpv, path}
-//   {type: 'open', url, headers?, mpvPath?, fullscreen?, contentType?, pageUrl?} -> {ok, error?}
+//   {type: 'ping', mpvPath?}      -> {ok, mpv, path}
+//   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?,
+//    pageUrl?, title?, start?, subtitles?} -> {ok, error?}
+//
+// title is the tab's title for mpv's window, start the position to start at, subtitles
+// the player's tracks as SubRip text ([{label, srt}]), and singleInstance loads the
+// stream into the mpv this host started before, if it still runs (see launchMpv).
 //
 // contentType ('anime'|'movie', optional) is appended to the URL handed to
 // mpv as a #fs-content= fragment marker -- never sent to the CDN, but
@@ -24,11 +29,12 @@
 // sent to the CDN.
 //
 // Configuration (optional): config.json next to this script:
-//   {"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": false}
+//   {"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": false, "ipcToken": "<32 hex>"}
 // A path sent by the extension (options page "mpv path") takes precedence.
 // With "debug": true (or FASTSTREAM_MPV_DEBUG=1) every message, the mpv
 // command line and the launch result are appended to faststream-mpv-host.log
-// next to this script.
+// next to this script. ipcToken (install.ps1 writes one) makes the name of the
+// pipe this host talks to mpv over its own (see ipcPipeFor).
 
 import crypto from 'crypto';
 import fs from 'fs';
@@ -47,6 +53,11 @@ const DefaultMpvPaths = [
   'mpv',
 ].filter(Boolean);
 
+// "debug": true is easily left on after a troubleshooting session, and the log was never
+// cut: past this size it is moved to faststream-mpv-host.log.1 (replacing the one before)
+// and started anew.
+export const MaxLogBytes = 5 * 1024 * 1024;
+
 /**
  * Appends one line to the debug log, when debugging is switched on with
  * `{"debug": true}` in config.json or FASTSTREAM_MPV_DEBUG=1.
@@ -57,9 +68,10 @@ const DefaultMpvPaths = [
  * @param {Object} config - The parsed config.json.
  * @param {string} label - Short tag for the entry.
  * @param {*} [detail] - Optional JSON-serializable payload.
+ * @param {string} [file] - The log; faststream-mpv-host.log next to this script by default.
  * @return {void}
  */
-function debugLog(config, label, detail) {
+export function debugLog(config, label, detail, file = path.join(__dirname, 'faststream-mpv-host.log')) {
   if (!config.debug && !process.env.FASTSTREAM_MPV_DEBUG) {
     return;
   }
@@ -69,11 +81,31 @@ function debugLog(config, label, detail) {
       label,
       detail,
     });
-    fs.appendFileSync(path.join(__dirname, 'faststream-mpv-host.log'),
-        line + '\n');
+    try {
+      if (fs.statSync(file).size > MaxLogBytes) {
+        fs.renameSync(file, file + '.1');
+      }
+    } catch (e) {
+      // No log yet.
+    }
+    fs.appendFileSync(file, line + '\n');
   } catch (e) {
     // Logging must never take the host down.
   }
+}
+
+/**
+ * A message as the debug log records it: the subtitles as their number and size, not
+ * their text, which put up to a megabyte of dialogue into the log on every send.
+ * @param {*} message - The message read.
+ * @return {*} The message to log.
+ */
+export function loggedMessage(message) {
+  if (!message || typeof message !== 'object' || !Array.isArray(message.subtitles)) {
+    return message;
+  }
+  const chars = message.subtitles.reduce((sum, s) => sum + (s && typeof s.srt === 'string' ? s.srt.length : 0), 0);
+  return {...message, subtitles: {count: message.subtitles.length, chars}};
 }
 
 function readConfig() {
@@ -108,7 +140,8 @@ export function findMpvOnPath(env = process.env, platform = process.platform) {
     try {
       if (fs.statSync(file).isFile()) {
         fs.accessSync(file, fs.constants.X_OK);
-        return file;
+        // A relative PATH entry: WMI would look for it in its own working directory.
+        return path.resolve(file);
       }
     } catch (e) {
       // Not in this directory.
@@ -121,11 +154,26 @@ export function findMpvOnPath(env = process.env, platform = process.platform) {
 // UNC host with the user's credentials on a mere stat.
 const NetworkOrDevicePath = /^[\\/]{2}/;
 
-// The executable's own name: mpv, mpv.exe, mpv.com, or a build named after it
-// (mpv-x86_64.exe). The path comes from the options page, and the host starts whatever
-// it names, so a settings change must not turn this into "run any program".
-const MpvExecutableName = /^mpv[\w.-]*$/i;
+/**
+ * Whether a file name is an mpv the host may start: mpv, mpv.exe, mpv.com, or a build
+ * named after it (mpv-x86_64.exe). The path comes from the options page, and the host
+ * starts whatever it names, so a settings change must not turn this into "run any
+ * program". On Windows only a .exe or .com: Windows runs a .bat or .cmd through cmd.exe,
+ * which reads the arguments again (& | %VAR% inside a header value or a title).
+ * @param {string} name - The file name.
+ * @param {string} [platform] - process.platform, or a stand-in.
+ * @return {boolean}
+ */
+export function isMpvExecutableName(name, platform = process.platform) {
+  return platform === 'win32' ? /^mpv[\w.-]*\.(exe|com)$/i.test(name) : /^mpv[\w.-]*$/i.test(name);
+}
 
+/**
+ * The mpv to start: the first usable candidate, as an absolute path (WMI resolves a
+ * relative one against its own working directory, where it is not).
+ * @param {string} [messagePath] - The options page's mpv path.
+ * @return {string|null} The executable, or null when there is none.
+ */
 export function resolveMpvPath(messagePath) {
   const config = readConfig();
   const candidates = [
@@ -152,13 +200,13 @@ export function resolveMpvPath(messagePath) {
       if (stat.isDirectory()) {
         const exe = path.join(candidate, 'mpv.exe');
         fs.accessSync(exe, fs.constants.X_OK);
-        return exe;
+        return path.resolve(exe);
       }
-      if (!MpvExecutableName.test(path.basename(candidate))) {
+      if (!isMpvExecutableName(path.basename(candidate))) {
         continue;
       }
       fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
+      return path.resolve(candidate);
     } catch (e) {
       // Try the next candidate.
     }
@@ -184,16 +232,25 @@ function sendMessage(message) {
   });
 }
 
-// An open message is a URL, a page URL and three headers: a few KB. The length prefix
-// is trusted for the allocation, so a bigger one is refused rather than allocated
-// (up to 4 GB).
+// An open message is a URL, a page URL and three headers: a few KB, plus the subtitles
+// the player's mpv button sends along (MpvBackend keeps the whole message under this).
+// The length prefix is trusted for the allocation, so a bigger one is refused rather
+// than allocated (up to 4 GB).
 export const MaxMessageBytes = 1024 * 1024;
+
+// What readMessage resolves to for a message over MaxMessageBytes: the host answers it
+// with an error. Exiting without a word made the extension say "is the host installed?".
+export const TooLarge = Symbol('message too large');
 
 /**
  * Reads one native-messaging frame.
+ *
+ * A frame over MaxMessageBytes is read to its end without being kept, so the browser
+ * finishes writing it before the host answers and exits.
+ *
  * @param {import('stream').Readable} [input] - The stream to read; stdin by default.
- * @return {Promise<?Object>} The message, or null for none, a malformed one or one
- *   over MaxMessageBytes.
+ * @return {Promise<?Object|typeof TooLarge>} The message; TooLarge for one over
+ *   MaxMessageBytes; null for none, a malformed one, or one cut short.
  */
 export function readMessage(input = process.stdin) {
   return new Promise((resolve) => {
@@ -203,6 +260,8 @@ export function readMessage(input = process.stdin) {
     /** @type {?Buffer} */
     let body = null;
     let bodyRead = 0;
+    // The bytes of an over-size frame still to be read past.
+    let skipping = 0;
 
     const finish = (result) => {
       input.removeListener('data', onData);
@@ -214,7 +273,15 @@ export function readMessage(input = process.stdin) {
     const onData = (chunk) => {
       let offset = 0;
       while (offset < chunk.length) {
-        if (body === null) {
+        if (skipping > 0) {
+          const skipped = Math.min(chunk.length - offset, skipping);
+          skipping -= skipped;
+          offset += skipped;
+          if (skipping === 0) {
+            finish(TooLarge);
+            return;
+          }
+        } else if (body === null) {
           // Keep filling the header until all 4 bytes are in: a short first
           // chunk would otherwise fall through to the body branch below
           // while body is still null.
@@ -227,9 +294,13 @@ export function readMessage(input = process.stdin) {
           offset += toCopy;
           if (headerRead === 4) {
             const length = header.readUInt32LE(0);
-            if (length === 0 || length > MaxMessageBytes) {
+            if (length === 0) {
               finish(null);
               return;
+            }
+            if (length > MaxMessageBytes) {
+              skipping = length;
+              continue;
             }
             body = Buffer.alloc(length);
           }
@@ -260,11 +331,36 @@ export function readMessage(input = process.stdin) {
   });
 }
 
-// Named pipe for mpv's JSON IPC. Only instances this host starts are given
-// it, which is what keeps "reuse the open window" from ever reaching an mpv
-// the user launched themselves -- that one has no such pipe, so it is
-// invisible here and can never be loaded into or closed by us.
-const IpcPipe = '\\\\.\\pipe\\faststream-mpv';
+/**
+ * Where mpv's JSON IPC server listens: a named pipe on Windows, a Unix socket elsewhere.
+ * Only instances this host starts are given it, which is what keeps "reuse the open
+ * window" from ever reaching an mpv the user launched themselves -- that one has no such
+ * pipe, so it is invisible here and can never be loaded into or closed by us.
+ *
+ * Windows has one pipe namespace for the whole machine: another account that created
+ * the pipe first would receive every stream URL, page address and header sent to it, and
+ * could answer "success" so that nothing plays. So the name carries ipcToken, a random
+ * value install.ps1 writes into config.json, in the user's own folder; a config.json
+ * without one (a manual install) keeps the old fixed name. Elsewhere the socket goes in
+ * the user's own runtime folder ($XDG_RUNTIME_DIR; the temp folder, which macOS keeps per
+ * user, without one). The Windows name used to be passed there as well, where it is a
+ * relative path: mpv made a file of that name in its working directory, and reuse only
+ * worked when mpv and the host happened to share one.
+ *
+ * @param {Object} config - The parsed config.json.
+ * @param {string} [platform] - process.platform, or a stand-in.
+ * @param {Object<string, string|undefined>} [env] - The environment.
+ * @return {string} The pipe or socket.
+ */
+export function ipcPipeFor(config, platform = process.platform, env = process.env) {
+  if (platform === 'win32') {
+    const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
+      '-' + config.ipcToken : '';
+    return '\\\\.\\pipe\\faststream-mpv' + token;
+  }
+  const user = typeof process.getuid === 'function' ? process.getuid() : 0;
+  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}.sock`);
+}
 
 // How long to wait for mpv's window to exist before giving up on focusing it.
 // mpv only creates its window once the stream has opened (unless it is started
@@ -292,7 +388,7 @@ const PowerShellTimeoutMs = (WindowWaitSeconds + 15) * 1000;
  *   and did not answer in time (starting a second one on the same pipe would leave that
  *   one without IPC).
  */
-export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000, pipe = IpcPipe) {
+export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000, pipe = ipcPipeFor(readConfig())) {
   return new Promise((resolve) => {
     let settled = false;
     const replies = [];
@@ -508,11 +604,17 @@ export function pageFragmentFor(pageUrl) {
  * The URL to hand mpv for an open message: the stream URL plus its
  * fs-content=, fs-id= and fs-page= fragment tags.
  *
- * @param {Object} message - The open message from the extension.
+ * The stream URL as the URL parser writes it, the form a browser requests: the parser
+ * drops tabs and newlines that isStreamUrl's check never saw, and percent-encodes spaces
+ * and other characters a request line cannot carry. (mpv 0.41 cleans those up itself,
+ * measured; the host does not count on every mpv doing so.)
+ *
+ * @param {Object} message - The open message from the extension; its url passed
+ *   isStreamUrl.
  * @return {string} The URL for mpv.
  */
 export function mpvTargetUrl(message) {
-  const target = withContentTypeFragment(withoutFsTags(message.url), message.contentType);
+  const target = withContentTypeFragment(withoutFsTags(new URL(message.url).href), message.contentType);
   const resumeId = resumeIdFor(message.pageUrl);
   const withId = resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
   // The page URL itself, percent-encoded, for source-info.lua's
@@ -526,7 +628,8 @@ export function mpvTargetUrl(message) {
 // start, and the subtitles it shows, as SubRip text. Checked here again, since anything
 // that talks to the host gets this far.
 const MaxSubtitles = 8;
-const MaxSubtitleChars = 5 * 1024 * 1024;
+// No more than a whole message can carry.
+const MaxSubtitleChars = MaxMessageBytes;
 // The folders the subtitles are written into, one per send, in the user's temp folder.
 export const SubtitleDirPrefix = 'faststream-mpv-subs-';
 // mpv reads a subtitle file when it loads the stream; older folders are removed.
@@ -593,13 +696,16 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 }
 
 /**
- * Escapes one item of an mpv string list option: ',' separates the items, and '\'
- * escapes ',' and itself.
+ * Escapes one item of an mpv string list option: ',' separates the items, and a '\'
+ * right before a ',' makes it part of the item. mpv removes no other backslash: escaped
+ * as well, a '\' reached the server doubled (mpv 0.41, measured 2026-10-03). Written as
+ * split/join: CodeQL's js/incomplete-sanitization reads a replace() that inserts '\' as
+ * backslash escaping that forgot the backslash, which mpv's list syntax is not.
  * @param {string} item - The item.
  * @return {string} The escaped item.
  */
 function listItem(item) {
-  return item.replace(/\\/g, '\\\\').replace(/,/g, '\\,');
+  return item.split(',').join('\\,');
 }
 
 /**
@@ -613,6 +719,11 @@ function listItem(item) {
  * (2026-10-02, a local server logging each request's headers): the file got them, commas
  * inside a value included, and the next file loaded without them; so did start and
  * sub-files.
+ *
+ * A header field that ends in a backslash is left out: in the list, mpv reads that
+ * backslash and the separator after it as an escaped comma and joins the next field to it
+ * (measured: the Referer swallowed the User-Agent, and mpv sent its own). No real
+ * Referer, Origin or User-Agent ends in one.
  *
  * sub-files is a PATH list, not a string list: its items are separated by the system's
  * path delimiter (';' on Windows) and a backslash is part of the path (escaped as a string
@@ -629,7 +740,7 @@ function listItem(item) {
 export function perFileOptions(headerFields, title, extras = {}, delimiter = path.delimiter) {
   /** @type {Object<string, string>} */
   const options = {
-    'http-header-fields': headerFields.map(listItem).join(','),
+    'http-header-fields': headerFields.filter((field) => !field.endsWith('\\')).map(listItem).join(','),
     'force-media-title': title,
   };
   if (extras.start !== undefined) {
@@ -651,9 +762,10 @@ export function perFileOptions(headerFields, title, extras = {}, delimiter = pat
  * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests; defaults
  *   to the real named-pipe transport.
  * @param {{start?: number, subFiles?: Array<string>}} [extras] - perFileOptions'.
- * @return {Promise<{ok: boolean, pid?: number, busy?: boolean}>} ok:false when no
- *   instance of ours answered, in which case the caller should start one - unless busy:
- *   one is running and did not answer in time.
+ * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, refused?: boolean, error?: string}>}
+ *   ok:false when no instance of ours answered, in which case the caller should start
+ *   one - unless busy: one is running and did not answer in time; or refused: one is
+ *   running and refused the command (error is mpv's reason).
  */
 export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, extras = {}) {
   /** @type {Array<{command: *}>} */
@@ -692,7 +804,12 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
     return {ok: false, busy: true};
   }
   if (loadReply.error && loadReply.error !== 'success') {
-    return {ok: false};
+    // Ours runs (it answered), so a fresh start would be a second mpv on a pipe the first
+    // one holds: it plays without IPC (measured: "Couldn't create first pipe instance"),
+    // and every later send goes to the first one again. mpv 0.41 answers success even to
+    // an unknown option or a bad value (it checks them when it opens the file), so an
+    // error is about the command itself, as from an mpv that does not know its form.
+    return {ok: false, refused: true, error: String(loadReply.error)};
   }
 
   const pidReply = replies.find((r) => r.request_id === commands.length);
@@ -939,7 +1056,23 @@ export function streamTitle(message) {
   }
 }
 
-async function launchMpv(mpvPath, message, config) {
+/**
+ * Plays an open message's stream in mpv: in the instance this host started before, when
+ * the message asks for that and one runs, else in a new one.
+ * @param {string} mpvPath - The mpv executable (resolveMpvPath).
+ * @param {Object} message - The open message; its url passed isStreamUrl.
+ * @param {Object} config - The parsed config.json.
+ * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
+ *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string}>,
+ *   platform?: string}} [io] - Stand-ins for tests: the IPC transport, the window focus,
+ *   the launch of a new mpv, and process.platform. The real ones by default.
+ * @return {Promise<{ok: boolean, error?: string}>} The reply for the extension.
+ */
+export async function launchMpv(mpvPath, message, config, io = {}) {
+  const platform = io.platform || process.platform;
+  const ipcRequest = io.ipcRequest || mpvIpcRequest;
+  const focus = io.focus || focusPid;
+  const pipe = ipcPipeFor(config, platform);
   const args = [];
   const headerFields = relayHeaderFields(message.headers);
   const title = streamTitle(message);
@@ -956,22 +1089,28 @@ async function launchMpv(mpvPath, message, config) {
   // instances started with our pipe answer, so an mpv the user opened
   // themselves is never loaded into.
   if (message.singleInstance) {
-    const existing = await loadIntoExisting(message, headerFields, title, mpvIpcRequest, extras);
+    const existing = await loadIntoExisting(message, headerFields, title,
+        (commands) => ipcRequest(commands, undefined, undefined, pipe), extras);
     if (existing.ok) {
-      let focus;
-      if (existing.pid) {
-        focus = await focusPid(existing.pid);
+      let focused;
+      // The window is raised through PowerShell, which only Windows has.
+      if (existing.pid && platform === 'win32') {
+        focused = await focus(existing.pid);
       }
-      debugLog(config, 'reused', {pid: existing.pid, focus});
+      debugLog(config, 'reused', {pid: existing.pid, focus: focused});
       return {ok: true};
     }
+    // Running, but silent or refusing: a second mpv on the same pipe would get no IPC,
+    // and every later send would go to the first one anyway.
+    if (existing.refused) {
+      debugLog(config, 'refused', {error: existing.error});
+      return {ok: false, error: `the open mpv refused the stream (${existing.error}): close it and send again`};
+    }
     if (existing.busy) {
-      // Running, but silent: a second mpv on the same pipe would get no IPC, and every
-      // later send would go to the first one anyway.
       debugLog(config, 'busy', {});
       return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
     }
-    args.push(`--input-ipc-server=${IpcPipe}`);
+    args.push(`--input-ipc-server=${pipe}`);
   }
 
   if (message.fullscreen) {
@@ -1007,10 +1146,13 @@ async function launchMpv(mpvPath, message, config) {
 
   debugLog(config, 'spawn', {mpvPath, args});
 
+  if (io.start) {
+    return io.start(mpvPath, args);
+  }
   // On Windows mpv has to be started by someone outside this process's job
   // object, or the browser kills it the moment this host exits. See
   // launchViaWmi.
-  if (process.platform === 'win32') {
+  if (platform === 'win32') {
     return launchViaWmi(mpvPath, args).then((result) => {
       if (result.ok) {
         debugLog(config, 'wmi-created',
@@ -1036,7 +1178,7 @@ async function launchMpv(mpvPath, message, config) {
  * @param {Array<string>} args - Arguments to pass to mpv.
  * @return {Promise<{ok: boolean, error?: string}>} Result.
  */
-function launchDirect(mpvPath, args) {
+export function launchDirect(mpvPath, args) {
   return new Promise((resolve) => {
     try {
       // No windowsHide: mpv.exe is a GUI binary, and windowsHide puts
@@ -1050,11 +1192,17 @@ function launchDirect(mpvPath, args) {
       child.unref();
 
       // Give mpv a moment to fail on a bad path/exec so the extension can
-      // surface the error, but do not wait for full playback start.
+      // surface the error, but do not wait for full playback start. An mpv that
+      // quits within it (an option it refuses, a broken install) played nothing,
+      // as the WMI path's FOCUS=gone.
       const timer = setTimeout(() => resolve({ok: true}), 500);
       child.once('error', (err) => {
         clearTimeout(timer);
         resolve({ok: false, error: String(err.message || err)});
+      });
+      child.once('exit', (code, signal) => {
+        clearTimeout(timer);
+        resolve({ok: false, error: `mpv quit right after it started (${signal || 'exit code ' + code}): check the mpv path, and mpv.conf for an option mpv refuses`});
       });
     } catch (e) {
       resolve({ok: false, error: String(e.message || e)});
@@ -1065,7 +1213,13 @@ function launchDirect(mpvPath, args) {
 async function main() {
   const config = readConfig();
   const message = await readMessage();
-  debugLog(config, 'received', message);
+  if (message === TooLarge) {
+    debugLog(config, 'too-large', {});
+    await sendMessage({ok: false, error: 'the message was too large for the mpv host'});
+    process.exit(0);
+    return;
+  }
+  debugLog(config, 'received', loggedMessage(message));
   if (!message || typeof message !== 'object') {
     process.exit(0);
     return;

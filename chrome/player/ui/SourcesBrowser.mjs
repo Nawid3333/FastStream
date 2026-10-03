@@ -121,13 +121,8 @@ export class SourcesBrowser {
     sourceCopyBtn.addEventListener('click', (e) => {
       let copyURL = '';
       try {
-        const url = new URL(source.url);
-        if (source.countHeaders() > 0) {
-          const headers = JSON.stringify(source.headers);
-          url.searchParams.set('faststream-headers', headers);
-        }
-        url.searchParams.set('faststream-mode', source.mode);
-        copyURL = url.toString();
+        // With its headers, but not its login ones (VideoSource.toCopyURL).
+        copyURL = source.toCopyURL().toString();
       } catch (e) {
       }
 

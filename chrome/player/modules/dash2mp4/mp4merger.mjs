@@ -392,8 +392,12 @@ export class MP4Merger extends EventEmitter {
         // init segment first...
         await this.opfs.saveAppend(this.saveIdentifier,
             new Uint8Array(toStandaloneBuffer(initSeg)));
-        // ...then every mdat chunk, in fragment order.
+        // ...then every mdat chunk, in fragment order. This runs after the progress has
+        // reached 100 %, and for a large video takes a while: a cancel still ends it.
         for (const slice of this.datas) {
+          if (this.cancelled) {
+            throw new Error('Cancelled');
+          }
           const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
           await this.opfs.saveAppend(this.saveIdentifier,
               new Uint8Array(toStandaloneBuffer(buf)));
@@ -403,8 +407,11 @@ export class MP4Merger extends EventEmitter {
         this.datas.length = 0;
         return file;
       } catch (e) {
-        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
         await this.opfs.saveAbort(this.saveIdentifier).catch(() => {});
+        if (this.cancelled) {
+          throw e;
+        }
+        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
         this.opfs = null;
       }
     }
@@ -469,15 +476,23 @@ export class MP4Merger extends EventEmitter {
     this.datas = null;
     this.datasOffset = 0;
 
+    // After a save that worked, the file convert() returned reads from the blob store:
+    // it stays until release().
+    if (immediate) {
+      this.release();
+    }
+  }
+
+  /**
+   * Closes the blob store the saved file reads from, once nothing will read the file
+   * again (SaveManager: its URL dropped and the download of it over). It was closed two
+   * minutes after the save, and a closed OPFS session is deleted by the next player or
+   * save that starts: a longer download, or the same file saved again, lost it.
+   */
+  release() {
     const blobManager = this.blobManager;
     this.blobManager = null;
-    if (blobManager) {
-      if (immediate) {
-        blobManager.close();
-      } else {
-        setTimeout(() => blobManager.close(), 120000);
-      }
-    }
+    blobManager?.close();
   }
 }
 

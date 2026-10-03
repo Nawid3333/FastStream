@@ -4,9 +4,14 @@ import https from 'https';
 import * as url from 'url';
 
 // Simple CLI usage:
-// node generate-locales.mjs --lang fr [--source en] [--model gpt-4o-mini] [--input combined-locales.json] [--output combined-locales.json] [--overwrite] [--dry-run] [--batch 25] [--threads 5]
+// node generate-locales.mjs --lang fr [--source en] [--model gpt-5-mini] [--input combined-locales.json] [--output combined-locales.json] [--overwrite] [--dry-run] [--batch 25] [--threads 10] [--timeout 300]
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
+
+// A language code is 2-3 letters or 2-3 letters, a script tag of 4 and a region of 2-4, as
+// chrome/_locales names them (fr, pt_BR, zh_CN): anything else (a key like __proto__, or one
+// with a path) never writes into the locales (CodeQL js/remote-property-injection).
+const LANG_SHAPE = /^[a-z]{2,3}(?:[-_][A-Za-z]{4})?(?:[-_](?:[A-Z]{2}|\d{3}))?$/;
 
 function parseArgs(argv) {
   const opts = {
@@ -19,6 +24,7 @@ function parseArgs(argv) {
     dryRun: false,
     batch: 25,
     threads: 10,
+    timeout: 300,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -32,6 +38,7 @@ function parseArgs(argv) {
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--batch') opts.batch = parseInt(argv[++i], 10) || opts.batch;
     else if (a === '--threads') opts.threads = Math.max(1, parseInt(argv[++i], 10) || opts.threads);
+    else if (a === '--timeout') opts.timeout = Math.max(1, parseInt(argv[++i], 10) || opts.timeout);
     else if (a === '--help' || a === '-h') {
       printHelpAndExit();
     } else {
@@ -44,6 +51,12 @@ function parseArgs(argv) {
     console.error('Missing required --lang <code>');
     printHelpAndExit(1);
   }
+  // Checked here, before any request: it used to be checked only when the translations were
+  // applied, after every batch had been paid for, and then none was (#246).
+  if (!LANG_SHAPE.test(opts.lang)) {
+    console.error(`--lang ${opts.lang}: not a locale code as chrome/_locales names them (fr, pt_BR, zh_CN)`);
+    printHelpAndExit(1);
+  }
   return opts;
 }
 
@@ -51,17 +64,18 @@ function printHelpAndExit(code = 0) {
   console.log(`Usage: node generate-locales.mjs --lang <code> [options]
 
 Required:
-  --lang <code>          Target language code (e.g., fr, zh-cn)
+  --lang <code>          Target language code, as chrome/_locales names it (e.g., fr, pt_BR, zh_CN)
 
 Options:
   --source <code>        Source language code to translate from (default: en)
-  --model <name>         OpenAI model (default: OPENAI_MODEL or gpt-4o-mini). Pass your preferred model, e.g. chatgpt-5 if available in your org
+  --model <name>         OpenAI model (default: OPENAI_MODEL or gpt-5-mini). Pass your preferred model, e.g. chatgpt-5 if available in your org
   --input <file>         Input combined locales JSON (default: combined-locales.json)
   --output <file>        Output combined locales JSON (in-place by default)
   --overwrite            Also refresh existing translations for the target language
   --dry-run              Do not write files; print proposed changes
   --batch <n>            Number of keys per request (default: 25)
-  --threads <n>          Number of concurrent batches (default: 5)
+  --threads <n>          Number of concurrent batches (default: 10)
+  --timeout <seconds>    Give up on a request with no answer after this long, and retry (default: 300)
 
 Environment:
   OPENAI_API_KEY         Your OpenAI API key
@@ -104,7 +118,7 @@ function chunk(arr, size) {
   return out;
 }
 
-function callOpenAI({model, messages}) {
+function callOpenAI({model, messages, timeoutSeconds}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY is not set');
@@ -147,6 +161,10 @@ function callOpenAI({model, messages}) {
       });
     });
     req.on('error', reject);
+    // A request that never got an answer used to wait forever (#246).
+    req.setTimeout(timeoutSeconds * 1000, () => {
+      req.destroy(new Error(`no answer from ${urlObj.origin} in ${timeoutSeconds} s`));
+    });
     req.write(payload);
     req.end();
   });
@@ -188,7 +206,7 @@ async function translateBatch(opts, batch, feedback = null) {
     pairs: batch,
     feedback,
   });
-  const content = await callOpenAI({model: opts.model, messages});
+  const content = await callOpenAI({model: opts.model, messages, timeoutSeconds: opts.timeout});
   let obj;
   try {
     obj = JSON.parse(content);
@@ -354,15 +372,12 @@ async function run() {
 
   // Apply results
   let changed = 0;
-  // A language code is 2-3 letters or 2-3 letters, a script tag of 4 and a region of
-  // 2-4: anything else (a key like __proto__, or one with a path) never writes into
-  // items (CodeQL js/remote-property-injection).
-  const langShape = /^[a-z]{2,3}(?:[-_][A-Za-z]{4})?(?:[-_](?:[A-Z]{2}|\d{3}))?$/;
+  // parseArgs refused any other --lang; checked again where it is written (LANG_SHAPE).
   for (const [key, translation] of Object.entries(results)) {
     if (!Object.hasOwn(items, key)) continue; // safety (own-property only)
     if (typeof translation !== 'string') continue;
     if (typeof items[key] !== 'object' || items[key] === null) continue;
-    if (!langShape.test(opts.lang)) continue;
+    if (!LANG_SHAPE.test(opts.lang)) continue;
     if (!opts.overwrite && items[key][opts.lang]) continue;
     items[key][opts.lang] = translation;
     changed++;

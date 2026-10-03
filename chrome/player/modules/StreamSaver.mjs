@@ -22,7 +22,6 @@ function createWriteStreamBlob(filename, opts, size) {
   // save never happened. Instead: write chunks progressively into ONE OPFS
   // file (disk-backed, flat memory), then hand the download a disk-backed
   // File. mp4merger.mjs's finalize() does the same via OPFSManager.
-  const blobManager = new FSBlob();
 
   // Which of the two sinks below this uses can only be decided once the blob
   // store's backend has finished setting up. Reading blobManager.opfsManager
@@ -30,9 +29,13 @@ function createWriteStreamBlob(filename, opts, size) {
   // getDirectory() is present and throws - and every write() then rejected
   // instead of falling back, so saving was dead in private windows rather
   // than merely slower.
+  // The blob store itself is made then too: a save that failed before its first
+  // write (a direct download's bad status code) left one, with its OPFS worker
+  // and heartbeat, running until the tab closed.
   let sinkPromise = null;
   const getSink = () => {
     if (!sinkPromise) {
+      const blobManager = new FSBlob();
       sinkPromise = blobManager.ready().then((ready) =>
         ready && blobManager.opfsManager ?
           createOPFSSink(filename, blobManager) :
@@ -49,9 +52,32 @@ function createWriteStreamBlob(filename, opts, size) {
       await (await getSink()).close();
     },
     async abort() {
-      await (await getSink()).abort();
+      // Nothing was written, so there is nothing to undo.
+      if (sinkPromise) {
+        await (await sinkPromise).abort();
+      }
     },
   }, opts.writableStrategy);
+}
+
+/**
+ * Revokes a save's URL and closes its blob store once its download is over. Firefox reads
+ * the file from the store's OPFS session as it downloads it, and a closed session is
+ * deleted by the next prune (any player or save starting, 10 s after its last heartbeat):
+ * closed on a fixed two-minute timer, a longer download (a big video to a slow disk) lost
+ * its file midway, with no message. Never sooner than those two minutes, which is all a
+ * download without an id to follow (a link click) has.
+ * @param {FSBlob} blobManager
+ * @param {string} url - The blob: URL being downloaded.
+ * @param {*} download - What Utils.downloadURL resolved with.
+ * @return {Promise<void>} Not awaited: the save is done before its download is.
+ */
+async function closeWhenDownloaded(blobManager, url, download) {
+  await Promise.all([
+    Utils.revokeWhenDownloaded(url, download),
+    Utils.asyncTimeout(120000),
+  ]);
+  blobManager.close();
 }
 
 /**
@@ -78,25 +104,27 @@ function createOPFSSink(filename, blobManager) {
       await opfs.saveAppend(identifier, new Uint8Array(copy));
     },
     async close() {
-      await opfsWriterReady;
-      await opfs.saveEnd(identifier);
-      const file = await opfs.getSavedFile(identifier);
-      const url = URL.createObjectURL(file);
+      let url = null;
       let download;
       try {
+        await opfsWriterReady;
+        await opfs.saveEnd(identifier);
+        const file = await opfs.getSavedFile(identifier);
+        url = URL.createObjectURL(file);
         download = await Utils.downloadURL(url, filename);
       } catch (e) {
-        URL.revokeObjectURL(url);
+        // Nothing will read the file: it goes now, with its session, as on
+        // abort(). The worker and its heartbeat ran until the tab closed.
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+        await opfs.saveAbort(identifier).catch(() => {});
+        blobManager.close();
         throw e;
       }
       // chrome.downloads resolves before Firefox has read the blob URL: kept until the
-      // download is over (revokeWhenDownloaded). Defer closing the worker the same way
-      // mp4merger.mjs's destroy() does, so a slow transfer still has time to finish
-      // reading from the OPFS-backed file before its session is torn down.
-      Utils.revokeWhenDownloaded(url, download);
-      setTimeout(() => {
-        blobManager.close();
-      }, 120000);
+      // download is over (revokeWhenDownloaded), and the OPFS file behind it too.
+      closeWhenDownloaded(blobManager, url, download);
     },
     async abort() {
       await opfsWriterReady.catch(() => {});
@@ -105,6 +133,8 @@ function createOPFSSink(filename, blobManager) {
     },
   };
 }
+
+const MEMORY_SINK_PENDING = 8;
 
 /**
  * Memory-fallback sink, for environments without OPFS (a Firefox private
@@ -116,23 +146,30 @@ function createOPFSSink(filename, blobManager) {
  */
 function createMemorySink(filename, blobManager) {
   const blobs = [];
+  // Chunks the blob store is still moving to disk. write() used to return at
+  // once, so a fast producer (a direct download read as fast as the network
+  // gives it) had the whole file in RAM as Blobs before the Cache backend took
+  // them; it now waits once MEMORY_SINK_PENDING are on their way.
+  const pending = [];
   return {
-    write(chunk) {
-      blobs.push(blobManager.createBlob(chunk));
+    async write(chunk) {
+      const identifier = blobManager.createBlob(chunk);
+      blobs.push(identifier);
+      pending.push(blobManager.whenStored(identifier));
+      if (pending.length >= MEMORY_SINK_PENDING) {
+        await pending.shift();
+      }
     },
     async close() {
       const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
       const blob = new Blob(chunks, {type: 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
-      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, filename));
-
-      setTimeout(() => {
-        blobManager.close();
-      }, 120000);
+      closeWhenDownloaded(blobManager, url, await Utils.downloadURL(url, filename));
     },
     async abort() {
       blobs.length = 0;
       await blobManager.clear();
+      blobManager.close();
     },
   };
 }

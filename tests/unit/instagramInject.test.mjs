@@ -13,10 +13,11 @@ const source = fs.readFileSync(
 
 /**
  * Runs the script against a stand-in XMLHttpRequest.
- * @return {{posted: Array<Object>, respond: function(string): void}}
+ * @return {{posted: Array<Object>, errors: Array<Array<*>>, respond: function(string): void}}
  */
 function load() {
   const posted = [];
+  const errors = [];
   class FakeXHR {
     constructor() {
       this.listeners = [];
@@ -32,11 +33,12 @@ function load() {
   const context = {
     XMLHttpRequest: FakeXHR,
     window: {postMessage: (data) => posted.push(data)},
-    console: {error() {}, log() {}},
+    console: {error: (...args) => errors.push(args), log() {}},
   };
   vm.runInNewContext(source, context);
   return {
     posted,
+    errors,
     respond(text) {
       const xhr = new context.XMLHttpRequest();
       xhr.open('GET', '/graphql');
@@ -74,5 +76,12 @@ describe('instagram_inject.js', () => {
     expect(() => page.respond('{"data": {"user": 1}}')).not.toThrow();
     expect(() => page.respond('<html>')).not.toThrow();
     expect(page.posted).toEqual([]);
+  });
+
+  it('logs no error for a response that has nothing to do with video', () => {
+    // Every JSON response of the page put "No video_dash_manifest found" in its console.
+    const page = load();
+    page.respond('{"data": {"user": 1}}');
+    expect(page.errors).toEqual([]);
   });
 });

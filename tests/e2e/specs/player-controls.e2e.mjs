@@ -232,6 +232,74 @@ describe('Player controls', function() {
     expect(await chapterAt(7, 'Closing')).toBe('Closing');
   });
 
+  it('can be used from the keyboard: the skip button, the big play button, the volume slider', async function() {
+    // Tab reached "Skip intro" but Enter did nothing, Tab skipped the big play button, and
+    // the volume slider had no value for a screen reader (#270).
+    await openEmptyPlayer();
+    const big = await browser.execute(() => {
+      const circle = document.querySelector('.mainplayer .fluid_control_playpause_big_circle');
+      return {tabIndex: circle.tabIndex, role: circle.getAttribute('role')};
+    });
+    expect(big).toEqual({tabIndex: 0, role: 'button'});
+
+    await addSource(mp4Url());
+    await waitForPicture();
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.videoAnalyzer.getIntro = () => ({startTime: 0, endTime: 5});
+      client.volume = 1.5;
+      client.currentTime = 1;
+    });
+    await settle(() => browser.execute(() => document.querySelector('.mainplayer .skip_button').style.display),
+        (display) => display === '');
+    await browser.execute(() => {
+      const button = document.querySelector('.mainplayer .skip_button');
+      button.focus();
+      button.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', bubbles: true, cancelable: true}));
+    });
+    const time = await settle(() => browser.execute(() => window.fastStream.currentTime), (t) => t >= 4.9);
+    expect(time).toBeGreaterThanOrEqual(4.9);
+
+    const slider = await browser.execute(() => {
+      const block = document.querySelector('.mainplayer .volume_block');
+      return ['role', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'].map((name) => block.getAttribute(name));
+    });
+    expect(slider).toEqual(['slider', '0', '300', '150', '150%']);
+  });
+
+  it('copies a link from the time readout without the login headers', async function() {
+    // The copied link held the page's Cookie and Authorization in its query (#185).
+    await openEmptyPlayer();
+    const error = await browser.executeAsync((url, done) => {
+      Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
+          .then(([{VideoSource}, {URLUtils}]) => {
+            const headers = {Cookie: 'session=secret', Authorization: 'Bearer secret', Referer: 'https://site.example/'};
+            window.fastStream.addSource(new VideoSource(url, headers, URLUtils.getModeFromURL(url)), true);
+            done(null);
+          }).catch((e) => done(String(e)));
+    }, mp4Url());
+    expect(error).toBe(null);
+    await waitForPicture();
+    const copied = await browser.execute(() => {
+      let text = null;
+      const execCommand = document.execCommand;
+      document.execCommand = (command) => {
+        text = document.activeElement.value;
+        return command === 'copy';
+      };
+      try {
+        document.querySelector('.mainplayer .fluid_control_duration').click();
+      } finally {
+        document.execCommand = execCommand;
+      }
+      return text;
+    });
+    console.log('      copied:', copied);
+    const headers = JSON.parse(new URL(copied).searchParams.get('faststream-headers'));
+    expect(headers).toEqual({referer: 'https://site.example/'});
+    expect(copied).not.toContain('secret');
+  });
+
   it('does not carry the previous video\'s skip markers and button over', async function() {
     // They were redrawn only once the next video had a duration.
     await openEmptyPlayer();

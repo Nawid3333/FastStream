@@ -142,6 +142,22 @@ describe('SecureMemory.getSalt', () => {
   });
 });
 
+describe('SecureMemory.hash', () => {
+  it('derives from the salt as the decimal list of its bytes, as every saved position was', async () => {
+    // TextEncoder turns the Uint8Array salt into "1,2,3,...". Passing the bytes themselves
+    // would derive other keys and make every saved position unreadable, so a change here
+    // needs a new record format, not a quiet fix.
+    const salt = Uint8Array.from({length: 128}, (_, i) => (i * 37) % 256);
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('video-id'), {name: 'PBKDF2'}, false, ['deriveBits']);
+    const derive = async (saltBytes) => new Uint8Array(await crypto.subtle.deriveBits(
+        {name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 600000}, key, 256));
+
+    const hashed = new Uint8Array(await SecureMemory.hash('video-id', salt));
+    expect(hashed).toEqual(await derive(new TextEncoder().encode(salt.join(','))));
+    expect(hashed).not.toEqual(await derive(salt));
+  });
+});
+
 describe('SecureMemory.getFile', () => {
   const hashesFor = async (identifier) => ({
     identifierHash: 'id',
@@ -182,5 +198,28 @@ describe('SecureMemory.getFile', () => {
     const memory = new SecureMemory('test');
     memory.indexedDbManager = {getFile: async () => undefined};
     expect(await memory.getFile(await hashesFor('video'))).toBeNull();
+  });
+});
+
+describe('SecureMemory.getHashes', () => {
+  it('derives the two hashes side by side, not one after the other', async () => {
+    // Each is 600,000 rounds of PBKDF2, and the video's start waits for both.
+    const started = [];
+    const finish = [];
+    const hash = vi.spyOn(SecureMemory, 'hash').mockImplementation((message, salt) => {
+      started.push(salt);
+      return new Promise((resolve) => finish.push(resolve));
+    });
+    const memory = new SecureMemory('test');
+    memory.identifierSalt = 'identifier salt';
+    memory.keySalt = 'key salt';
+
+    const hashes = memory.getHashes('video');
+    await Promise.resolve();
+    expect(started).toEqual(['identifier salt', 'key salt']);
+
+    finish.forEach((resolve, i) => resolve('hash ' + i));
+    expect(await hashes).toEqual({identifierHash: 'hash 0', keyHash: 'hash 1'});
+    hash.mockRestore();
   });
 });

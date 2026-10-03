@@ -1,3 +1,14 @@
+// btoa takes Latin-1 only: a manifest with any other character (a title, an address)
+// threw. This is the manifest's UTF-8, in base64.
+function base64Utf8(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x2000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x2000));
+  }
+  return btoa(binary);
+}
+
 // Listen for messages
 window.addEventListener('message', (event) => {
   if (event.origin !== window.location.origin) {
@@ -12,8 +23,13 @@ window.addEventListener('message', (event) => {
   if (event.data?.type === 'fs_source_detected') {
     const value = (event.data?.value || '').toString();
     const ext = (event.data?.ext || '').toString();
+    // What instagram_inject.js posts. Any script in the page can post this too, and a
+    // type other than a DASH manifest was passed on as a source of no type.
+    if (!value || ext !== 'mpd') {
+      return;
+    }
     const mpd = value;
-    const url = `data:application/dash+xml;base64,${btoa(mpd)}`;
+    const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
     chrome.runtime.sendMessage({
       type: 'DETECTED_SOURCE',
       url,

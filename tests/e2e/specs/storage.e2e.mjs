@@ -56,46 +56,55 @@ describe('FSBlob storage backends', function() {
 
       const blobStore = new FSBlob();
       const payload = new Uint8Array([10, 20, 30, 40, 50]);
-      const identifier = await blobStore.saveBlobAsync(new Blob([payload]));
+      // A name FSBlob makes up, and the identifier DownloadManager gives a downloaded
+      // fragment: its URL and range. OPFS refuses a name with a '/', and the second kind
+      // was never stored at all - every fragment stayed in RAM.
+      const identifiers = [
+        await blobStore.saveBlobAsync(new Blob([payload])),
+        await blobStore.saveBlobAsync(new Blob([payload]), 'https://cdn.example/v/seg-1.ts::0-100::arraybuffer'),
+      ];
 
       // FSBlob does not choose OPFS wherever the API merely exists: a
       // private window claims it and then refuses. Check what it actually
       // picked rather than OPFSManager.isSupported(), or this looks for a
       // fsblob/ OPFS directory that was never created.
       const usedOPFS = !!blobStore.opfsManager;
+      const matches = (bytes) => bytes.length === payload.length && bytes.every((b, i) => b === payload[i]);
 
-      // Verify independently of FSBlob's own bookkeeping: look directly at
-      // OPFS for a fsblob/<session>/<identifier> file with the right bytes.
-      let sawOnDisk = false;
-      // In this store's own session directory: another session's file of the same name
-      // (an earlier test's, or another tab's) proves nothing about this one.
-      if (usedOPFS) {
-        try {
-          const root = await navigator.storage.getDirectory();
-          const fsblobRoot = await root.getDirectoryHandle('fsblob');
-          const sessionDir = await fsblobRoot.getDirectoryHandle(blobStore.opfsManager.sessionName);
-          const fileHandle = await sessionDir.getFileHandle(identifier);
-          const file = await fileHandle.getFile();
-          const bytes = new Uint8Array(await file.arrayBuffer());
-          sawOnDisk = bytes.length === payload.length && bytes.every((b, i) => b === payload[i]);
-        } catch (e) {
-          // Not there.
+      const results = [];
+      for (const identifier of identifiers) {
+        // Verify independently of FSBlob's own bookkeeping: look directly at
+        // OPFS for a fsblob/<session>/<file name> file with the right bytes.
+        let sawOnDisk = false;
+        // In this store's own session directory: another session's file of the same name
+        // (an earlier test's, or another tab's) proves nothing about this one.
+        const name = usedOPFS ? blobStore.opfsManager.fileName(identifier) : null;
+        if (name) {
+          try {
+            const root = await navigator.storage.getDirectory();
+            const fsblobRoot = await root.getDirectoryHandle('fsblob');
+            const sessionDir = await fsblobRoot.getDirectoryHandle(blobStore.opfsManager.sessionName);
+            const fileHandle = await sessionDir.getFileHandle(name);
+            const file = await fileHandle.getFile();
+            sawOnDisk = matches(new Uint8Array(await file.arrayBuffer()));
+          } catch (e) {
+            // Not there.
+          }
         }
-      }
 
-      // What the store hands back is the file on disk (a File named after its
-      // identifier), not a copy in RAM: reading each fragment back through the worker
-      // into a new Blob kept every "offloaded" fragment in memory too.
-      const stored = blobStore.getBlob(identifier);
-      const readBack = new Uint8Array(await stored.arrayBuffer());
+        // What the store hands back is the file on disk (a File with that name), not a
+        // copy in RAM: reading each fragment back through the worker into a new Blob kept
+        // every "offloaded" fragment in memory too.
+        const stored = blobStore.getBlob(identifier);
+        results.push({
+          sawOnDisk,
+          diskBacked: stored instanceof File && !!name && stored.name === name,
+          readBackMatches: matches(new Uint8Array(await stored.arrayBuffer())),
+        });
+      }
       blobStore.close();
 
-      return {
-        usedOPFS,
-        sawOnDisk,
-        diskBacked: stored instanceof File && stored.name === identifier,
-        readBackMatches: readBack.length === payload.length && readBack.every((b, i) => b === payload[i]),
-      };
+      return {usedOPFS, results};
     });
 
     console.log('      opfs backend:', JSON.stringify(result));
@@ -103,9 +112,11 @@ describe('FSBlob storage backends', function() {
     // a browser where FSBlob chose Cache/IndexedDB instead, it correctly
     // stays false rather than being checked against a directory that was
     // never supposed to exist.
-    expect(result.sawOnDisk).toBe(result.usedOPFS);
-    expect(result.diskBacked).toBe(result.usedOPFS);
-    expect(result.readBackMatches).toBe(true);
+    for (const stored of result.results) {
+      expect(stored.sawOnDisk).toBe(result.usedOPFS);
+      expect(stored.diskBacked).toBe(result.usedOPFS);
+      expect(stored.readBackMatches).toBe(true);
+    }
     // This suite's window is an ordinary one, where FSBlob picks OPFS (both CI jobs log
     // usedOPFS true, 2026-10-02); a private window is the pbm suite's. Without this, a
     // build that never chose OPFS passed here, and the fall-through case below passed
@@ -154,6 +165,7 @@ describe('FSBlob storage backends', function() {
       const {FastStreamClient} = await import('/player/FastStreamClient.mjs');
       const load = async (failure) => {
         const client = {
+          readProgressData: FastStreamClient.prototype.readProgressData,
           options: {storeProgress: true},
           player: {getSource: () => ({identifier: 'video'})},
           disableProgressSave: false,

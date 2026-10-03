@@ -228,7 +228,7 @@ export class SubtitlesManager extends EventEmitter {
         // the URL and OpenSubtitles paths say so.
         try {
           const track = new SubtitleTrack(name, null);
-          track.loadText(reader.result);
+          track.loadText(SubtitleUtils.decodeSubtitleBytes(reader.result));
           track.checkHasCues();
 
           this.addTrack(track);
@@ -236,7 +236,7 @@ export class SubtitlesManager extends EventEmitter {
           AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
         }
       };
-      reader.readAsText(file);
+      reader.readAsArrayBuffer(file);
       // Picking the file the input still holds fires no change, so the same file could not
       // be added again (after removing it, say).
       filechooser.value = '';
@@ -262,11 +262,11 @@ export class SubtitlesManager extends EventEmitter {
 
       if (url) {
         AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
-        RequestUtils.requestSimple(url, (err, req, body) => {
+        RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (err, req, body) => {
           if (!err && body) {
             try {
               const track = new SubtitleTrack('URL Track', null);
-              track.loadText(body);
+              track.loadText(SubtitleUtils.decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')));
               // A web page (a login, an error page) added an empty track, and said "added".
               track.checkHasCues();
 
@@ -561,10 +561,16 @@ export class SubtitlesManager extends EventEmitter {
     const mouseup = (e) => {
       DOMElements.playerContainer.removeEventListener('mousemove', mousemove);
       DOMElements.playerContainer.removeEventListener('mouseup', mouseup);
+      document.removeEventListener('mouseup', mouseup);
       e.stopPropagation();
     };
 
     const mousemove = (e) => {
+      // No button held: it was let go where this drag never heard of it.
+      if (e.buttons === 0) {
+        mouseup(e);
+        return;
+      }
       // drag by adjusting margin-bottom
       const oldDiff = yStart - e.clientY;
       let diff = oldDiff;
@@ -592,10 +598,17 @@ export class SubtitlesManager extends EventEmitter {
     };
 
     wrapper.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      // Only the left button drags. A right-click's context menu takes the mouseup, and the
+      // subtitles then followed the mouse until the next click.
+      if (e.button !== 0) {
+        return;
+      }
       yStart = e.clientY;
       DOMElements.playerContainer.addEventListener('mousemove', mousemove);
       DOMElements.playerContainer.addEventListener('mouseup', mouseup);
-      e.stopPropagation();
+      // Let go outside the player: only the document hears that mouseup.
+      document.addEventListener('mouseup', mouseup);
     });
 
 
@@ -608,6 +621,11 @@ export class SubtitlesManager extends EventEmitter {
   // Make sure subtitles are not outside of the video
   checkTrackBounds() {
     const trackElements = this.subtitleTrackDisplayElements;
+    // Nothing to keep in bounds. This runs on every time update (each frame for a short
+    // video), and the style read below makes the browser lay the page out each time.
+    if (trackElements.length === 0) {
+      return;
+    }
     const playerHeight = DOMElements.playerContainer.offsetHeight - parseInt(window.getComputedStyle(DOMElements.subtitlesContainer).bottom);
 
     let totalTrackHeight = 0;
@@ -671,28 +689,9 @@ export class SubtitlesManager extends EventEmitter {
     for (let i = 0; i < tracks.length; i++) {
       const trackContainer = cachedElements[i];
       // trackContainer.replaceChildren();
-      const cues = tracks[i].cues;
-
-      let cueIndex = Utils.binarySearch(cues, this.client.state.currentTime, (time, cue) => {
-        if (cue.startTime > time) {
-          return -1;
-        } else if (cue.startTime < time) {
-          return 1;
-        }
-        return 0;
-      });
-
       const toAdd = [];
-      if (cueIndex < -1) {
-        cueIndex = -cueIndex - 2;
-      }
-
-      while (cueIndex > 0 && cues[cueIndex - 1].endTime >= currentTime && cues[cueIndex - 1].startTime <= currentTime) {
-        cueIndex--;
-      }
-
-      while (cueIndex >= 0 &&cueIndex < cues.length && cues[cueIndex].endTime >= currentTime && cues[cueIndex].startTime <= currentTime) {
-        const cue = cues[cueIndex];
+      // Every cue on screen now, a long one behind shorter, later ones included.
+      for (const cue of SubtitleUtils.cuesAt(tracks[i].cues, currentTime)) {
         if (!cue.dom) {
           cue.dom = WebVTT.convertCueToDOMTree(window, cue.text);
         }
@@ -702,7 +701,6 @@ export class SubtitlesManager extends EventEmitter {
         if (cue.dom) {
           toAdd.push(cue.dom);
         }
-        cueIndex++;
       }
 
       if (!toAdd.length) {

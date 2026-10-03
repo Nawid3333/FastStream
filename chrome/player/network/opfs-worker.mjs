@@ -6,7 +6,8 @@ import {OpQueue} from './OpQueue.mjs';
 // filesystem operation, including the heartbeat write, goes through a single
 // OpQueue: opening two FileSystemSyncAccessHandles on the same file throws,
 // and every identifier here is always a one-shot whole-blob get/set, so
-// serializing is simpler and cheaper than per-identifier locking.
+// serializing is simpler and cheaper than per-identifier locking. The
+// identifiers it gets are file names OPFSManager.fileName() chose.
 
 const STALE_MS = 10000; // matches IndexedDBManager's own staleness window
 const HEARTBEAT_MS = 1000;
@@ -97,13 +98,29 @@ async function prune(ownName) {
   }));
 }
 
+/**
+ * Writes all of `data` at `at`. A sync access handle's write() answers with the bytes it
+ * wrote, and Firefox reports a write that failed part-way (the disk or the quota full) only
+ * through that count, never with an error: a fragment was stored cut short, or a save went
+ * on with a hole in it, and nothing said so.
+ * @param {FileSystemSyncAccessHandle} accessHandle
+ * @param {ArrayBuffer|ArrayBufferView} data
+ * @param {number} at
+ */
+function writeAll(accessHandle, data, at) {
+  const written = accessHandle.write(data, {at});
+  if (written !== data.byteLength) {
+    throw new Error(`OPFS wrote ${written} of ${data.byteLength} bytes`);
+  }
+}
+
 /** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
   const handle = await sessionDir.getFileHandle(META_FILE, {create: true});
   const accessHandle = await handle.createSyncAccessHandle();
   try {
     const bytes = new TextEncoder().encode(JSON.stringify({updated_time: Date.now()}));
-    accessHandle.write(bytes, {at: 0});
+    writeAll(accessHandle, bytes, 0);
     accessHandle.truncate(bytes.byteLength);
     accessHandle.flush();
   } finally {
@@ -143,12 +160,16 @@ async function setFile(identifier, data) {
   const fileHandle = await sessionDir.getFileHandle(identifier, {create: true});
   const accessHandle = await fileHandle.createSyncAccessHandle();
   try {
-    accessHandle.write(data, {at: 0});
+    writeAll(accessHandle, data, 0);
     accessHandle.truncate(data.byteLength);
     accessHandle.flush();
-  } finally {
+  } catch (e) {
     accessHandle.close();
+    // What was written of it only takes up the space that ran out.
+    await sessionDir.removeEntry(identifier).catch(() => {});
+    throw e;
   }
+  accessHandle.close();
 }
 
 async function getFile(identifier) {
@@ -217,7 +238,7 @@ async function saveAppend(identifier, data) {
   if (!stream) {
     throw new Error('No open save stream: ' + identifier);
   }
-  stream.handle.write(data, {at: stream.offset});
+  writeAll(stream.handle, data, stream.offset);
   stream.offset += data.byteLength;
 }
 

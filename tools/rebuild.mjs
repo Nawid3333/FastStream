@@ -1,4 +1,4 @@
-// Shared rebuild step for the dev launchers.
+// Shared rebuild step for the dev launchers, and how they start web-ext (webExtSpawn).
 //
 // This exists because the launchers must run the *same* steps as
 // `pnpm run build:keep`, and it is easy for them to drift out of sync. They
@@ -33,6 +33,29 @@ export function resolveTarget(argv = process.argv.slice(2)) {
   const wantsAmo = argv.some((a) => a === 'amo' || a === '--amo');
   const name = wantsAmo ? 'firefox-amo' : 'firefox-github';
   return {name, dir: path.join(root, `build_${name.replace('-', '_')}`)};
+}
+
+/**
+ * How a launcher spawns `pnpm exec web-ext <args>`.
+ *
+ * Windows runs pnpm through its .cmd shim, which needs a shell, and through a shell the
+ * arguments go as one string, quoted where they have spaces. Everywhere else pnpm is spawned
+ * directly with the arguments as they are: that joined string with `shell: false` was taken
+ * as the name of a program, so `start:ff` rebuilt everything and then died with spawn ENOENT
+ * on Linux and macOS (#165).
+ *
+ * @param {string[]} args web-ext's arguments, unquoted
+ * @param {string} [platform] defaults to process.platform
+ * @return {{command: string, args: string[], shell: boolean}} spawn's first two arguments,
+ *   and its `shell` option
+ */
+export function webExtSpawn(args, platform = process.platform) {
+  const pnpmArgs = ['exec', 'web-ext', ...args];
+  if (platform === 'win32') {
+    const quote = (s) => s.includes(' ') ? `"${s}"` : s;
+    return {command: ['pnpm', ...pnpmArgs].map(quote).join(' '), args: [], shell: true};
+  }
+  return {command: 'pnpm', args: pnpmArgs, shell: false};
 }
 
 /**

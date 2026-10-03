@@ -66,7 +66,7 @@ describe('DashLoader, a segment that keeps failing', () => {
       activeRequests: [],
       loadedManifests: new Set(),
       emit: vi.fn(),
-      client: {getFragment: () => ({}), getFragments: () => []},
+      client: {getFragment: () => ({request: {url: 'http://127.0.0.1/seg7.m4s'}}), getFragments: () => []},
       fragmentRequester: {requestFragment},
       getClient: () => ({downloadManager: {getFile: vi.fn(() => ({abort() {}}))}}),
     };
@@ -84,7 +84,7 @@ describe('DashLoader, a segment that keeps failing', () => {
       headers: {},
       customData: {
         request: {type: 'MediaSegment', index: 7, startTime: 14, responseType: 'arraybuffer',
-          representation: {id: 'v1', adaptation: {type: 'video'}}},
+          url: 'http://127.0.0.1/seg7.m4s', representation: {id: 'v1', adaptation: {type: 'video'}}},
         onSuccess: vi.fn(),
         onFail: vi.fn(),
         onAbort: vi.fn(),
@@ -133,5 +133,85 @@ describe('DashLoader, a segment that keeps failing', () => {
     const request = segmentRequest();
     dashLoaderFactory(player)().load(request);
     expect(request.customData.onFail).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DashLoader, a manifest of several periods', () => {
+  // dash.js numbers a representation's segments from 0 in each period, and a
+  // representation's id need only be unique within its period, so period 2's first segment
+  // has the same store key (video-1, 0) as period 1's. dash.js loads the next period while
+  // the current one plays: its request found period 1's stored segment, and got period 1's
+  // media at every period change.
+
+  /**
+   * A request dash.js makes for segment 0 of representation 1 of a period.
+   * @param {string} url - The segment's address in that period.
+   * @param {string} [range] - Its byte range, for a SegmentBase representation.
+   * @return {Object}
+   */
+  function firstSegment(url, range) {
+    return {
+      url,
+      method: 'GET',
+      headers: {},
+      customData: {
+        request: {type: 'MediaSegment', index: 0, startTime: 600, responseType: 'arraybuffer',
+          url, range, representation: {id: '1', adaptation: {type: 'video'}}},
+        onSuccess: vi.fn(),
+        onFail: vi.fn(),
+        onAbort: vi.fn(),
+      },
+    };
+  }
+
+  /**
+   * A player whose store holds period 1's segment 0 of representation 1.
+   * @param {Object} stored - The stored fragment's request.
+   * @return {Object}
+   */
+  function makePlayer(stored) {
+    const requestFragment = vi.fn(() => ({abort() {}}));
+    const getFile = vi.fn(() => ({abort() {}}));
+    const getFragment = vi.fn(() => ({request: stored}));
+    const player = {
+      source: {headers: {}},
+      activeRequests: [],
+      loadedManifests: new Set(),
+      emit: vi.fn(),
+      client: {getFragment, getFragments: () => []},
+      fragmentRequester: {requestFragment},
+      getClient: () => ({downloadManager: {getFile}}),
+    };
+    return {player, requestFragment, getFile, getFragment};
+  }
+
+  it('downloads the next period\'s segment, not the stored one of this period', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const {player, requestFragment, getFile, getFragment} = makePlayer({url: 'http://127.0.0.1/p1/v1-0.m4s'});
+    dashLoaderFactory(player)().load(firstSegment('http://127.0.0.1/p2/v1-0.m4s'));
+    warn.mockRestore();
+
+    expect(getFragment).toHaveBeenCalledWith('video-1', 0);
+    expect(requestFragment).not.toHaveBeenCalled();
+    expect(getFile).toHaveBeenCalledTimes(1);
+    expect(getFile.mock.calls[0][0].url).toBe('http://127.0.0.1/p2/v1-0.m4s');
+  });
+
+  it('tells segments of one file apart by their byte range', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const {player, requestFragment, getFile} = makePlayer({url: 'http://127.0.0.1/v1.mp4', range: '900-1899'});
+    dashLoaderFactory(player)().load(firstSegment('http://127.0.0.1/v1.mp4', '52000-60999'));
+    warn.mockRestore();
+
+    expect(requestFragment).not.toHaveBeenCalled();
+    expect(getFile.mock.calls[0][0].rangeStart).toBe(52000);
+  });
+
+  it('serves the stored segment for a request for its own bytes', () => {
+    const {player, requestFragment, getFile} = makePlayer({url: 'http://127.0.0.1/v1.mp4', range: '900-1899'});
+    dashLoaderFactory(player)().load(firstSegment('http://127.0.0.1/v1.mp4', '900-1899'));
+
+    expect(requestFragment).toHaveBeenCalledTimes(1);
+    expect(getFile).not.toHaveBeenCalled();
   });
 });

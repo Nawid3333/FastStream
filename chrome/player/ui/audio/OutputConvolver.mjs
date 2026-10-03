@@ -108,7 +108,7 @@ export class OutputConvolver extends AbstractAudioModule {
     const arrayBuffer = await file.arrayBuffer();
     const audioData = await this.audioContext.decodeAudioData(arrayBuffer).catch((e) => null);
     if (!audioData) {
-      throw new Error('Could not decode impulse response: ' + name);
+      throw new Error('Could not decode impulse response: ' + file.name);
     }
 
     // audiobuffer, get first channel
@@ -284,8 +284,12 @@ export class OutputConvolver extends AbstractAudioModule {
           ch.convolverNode.connect(this.mergerNode, 0, idx);
         }
 
-        ch.convolverNode.normalize = channelConfig.normalize;
-        ch.convolverNode.buffer = ch.impulseBuffer;
+        // Only when they change: a buffer given again restarts the convolution (its tail cut
+        // off, a click), and this runs at every quality switch and every checkbox.
+        if (ch.convolverNode.buffer !== ch.impulseBuffer || ch.convolverNode.normalize !== channelConfig.normalize) {
+          ch.convolverNode.normalize = channelConfig.normalize;
+          ch.convolverNode.buffer = ch.impulseBuffer;
+        }
       });
     }
   }

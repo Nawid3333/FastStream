@@ -15,6 +15,9 @@ import {OutputConvolver} from './OutputConvolver.mjs';
 import {OutputMeter} from './OutputMeter.mjs';
 import {AudioProfile} from './config/AudioProfile.mjs';
 
+// The count a recount replaced ends with this; it is not a failure.
+const RECOUNTED = 'Channel counter node changed';
+
 export class AudioConfigManager extends AbstractAudioModule {
   constructor(client) {
     super('AudioConfigManager');
@@ -508,8 +511,13 @@ export class AudioConfigManager extends AbstractAudioModule {
 
       this.audioUpmixer.updateChannelCount(count, this.audioContext.destination.channelCount);
       this.audioChannelMixer.updateChannelCount();
-      this.outputConvolver.updateChannelCount();
+      // There is none where IndexedDB is not available.
+      this.outputConvolver?.updateChannelCount();
     }).catch((e) => {
+      // Anything but a recount that replaced this one used to vanish here.
+      if (e?.message !== RECOUNTED) {
+        console.warn('The audio channels were not updated', e);
+      }
     });
   }
 
@@ -542,12 +550,27 @@ export class AudioConfigManager extends AbstractAudioModule {
       try {
         await node.init();
       } catch (e) {
-        resolve(2); // Fallback to 2 channels if init fails for ppl who have older browsers
+        // Fallback to 2 channels if init fails for ppl who have older browsers. Kept, or
+        // the next caller waited on this settled promise and got null.
+        if (this.channelCounterNode === node) {
+          this.cachedChannelCount = 2;
+          this.channelCounterPromise = null;
+          this.channelCounterNode = null;
+        }
+        resolve(2);
+        return;
+      }
+      // A recount while its worklet loaded (each video and each level switch asks for
+      // one) discarded it: it must not run. It used to connect itself anyway and stayed
+      // connected and counting for the life of the audio context.
+      if (this.channelCounterNode !== node) {
+        node.destroy();
+        reject(new Error(RECOUNTED));
         return;
       }
       node.once('channelcount', (count) => {
         if (this.channelCounterNode !== node) {
-          reject(new Error('Channel counter node changed'));
+          reject(new Error(RECOUNTED));
           return;
         }
         this.cachedChannelCount = count;

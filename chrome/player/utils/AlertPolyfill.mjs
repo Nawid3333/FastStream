@@ -75,7 +75,7 @@ export class AlertPolyfill {
   static async toast(icon, message, submessage = undefined) {
     return await Dialog.fire({
       icon: icon,
-      title: message,
+      titleText: message,
       text: submessage,
       toast: true,
       position: 'top-end',
@@ -107,8 +107,10 @@ export class AlertPolyfill {
     errorHtml.appendChild(bodyText);
     errorHtml.appendChild(stackText);
 
+    // titleText, not title: SweetAlert2 parses a title as HTML, and an error's message can
+    // quote a URL or a file it failed on, markup and all (an <img> would load).
     return await Dialog.fire({
-      title: Localize.getMessage('error_popup', [error?.message]),
+      titleText: Localize.getMessage('error_popup', [error?.message]),
       html: errorHtml,
       icon: 'error',
       showCancelButton: true,

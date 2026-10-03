@@ -128,13 +128,21 @@ export class VideoAnalyzer extends EventEmitter {
         console.log('[VideoAnalyzer] Running intro finder in background', introStart, introEnd);
         this.introStatus = AnalyzerStatus.RUNNING;
         const reserved = this.referenceFragments(introStart, introEnd);
-        this.introPlayer = await this.loadPlayer(this.introAligner, introStart, introEnd, (completed) => {
-          this.introStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+        try {
+          this.introPlayer = await this.loadPlayer(this.introAligner, introStart, introEnd, (completed) => {
+            this.introStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+            this.introPlayer = null;
+            console.log('[VideoAnalyzer] Intro finder completed', completed);
+            this.dereferenceFragments(reserved);
+            this.client.interfaceController.updateMarkers();
+          });
+        } catch (e) {
+          // Thrown on, it left the finder "running" (never run again) and the fragments it
+          // had pinned unfreeable for the rest of the video.
+          console.warn('[VideoAnalyzer] Intro finder could not load', e);
           this.introPlayer = null;
-          console.log('[VideoAnalyzer] Intro finder completed', completed);
           this.dereferenceFragments(reserved);
-          this.client.interfaceController.updateMarkers();
-        });
+        }
 
         if (!this.introPlayer) {
           this.introStatus = AnalyzerStatus.FAILED;
@@ -149,13 +157,19 @@ export class VideoAnalyzer extends EventEmitter {
         console.log('[VideoAnalyzer] Running outro finder in background', outroStart, outroEnd);
         this.outroStatus = AnalyzerStatus.RUNNING;
         const reserved = this.referenceFragments(outroStart, outroEnd);
-        this.outroPlayer = await this.loadPlayer(this.outroAligner, outroStart, outroEnd, (completed) => {
-          this.outroStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+        try {
+          this.outroPlayer = await this.loadPlayer(this.outroAligner, outroStart, outroEnd, (completed) => {
+            this.outroStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+            this.outroPlayer = null;
+            console.log('[VideoAnalyzer] Outro finder completed', completed);
+            this.dereferenceFragments(reserved);
+            this.client.interfaceController.updateMarkers();
+          });
+        } catch (e) {
+          console.warn('[VideoAnalyzer] Outro finder could not load', e);
           this.outroPlayer = null;
-          console.log('[VideoAnalyzer] Outro finder completed', completed);
           this.dereferenceFragments(reserved);
-          this.client.interfaceController.updateMarkers();
-        });
+        }
 
         if (!this.outroPlayer) {
           this.outroStatus = AnalyzerStatus.FAILED;
@@ -227,6 +241,8 @@ export class VideoAnalyzer extends EventEmitter {
     start = fragments.indexOf(start);
     const reserved = [];
     for (let i = start; i < fragments.length; i++) {
+      // A live stream's store has holes where it forgot what its window left (HLSFragmentStore).
+      if (!fragments[i]) continue;
       if (fragments[i].end > timeEnd) {
         break;
       }
@@ -241,21 +257,31 @@ export class VideoAnalyzer extends EventEmitter {
       isAnalyzer: true,
     });
 
-    await player.setup();
+    try {
+      await player.setup();
 
-    player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
-      player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
-      player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
-    });
+      player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
+        player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
+        player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
+      });
 
-    const onLoadMeta = () => {
-      player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
-      this.runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone);
-    };
+      const onLoadMeta = () => {
+        player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+        this.runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone);
+      };
 
-    player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+      player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
 
-    await player.setSource(this.source);
+      await player.setSource(this.source);
+    } catch (e) {
+      // Not left half built, downloading on its own.
+      try {
+        player.destroy();
+      } catch (destroyError) {
+        console.error(destroyError);
+      }
+      throw e;
+    }
     return player;
   }
 

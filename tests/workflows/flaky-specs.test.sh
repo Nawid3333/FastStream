@@ -90,10 +90,12 @@ old=$(date -u -d '9 days ago' +%Y-%m-%dT%H:%M:%SZ)
 bot='{"login":"github-actions[bot]"}'
 human='{"login":"Nawid3333"}'
 
-# artifact <id> <created_at> <run id> <branch> [expired]: one entry of the artifact list.
+# artifact <id> <created_at> <run id> <branch> [expired] [head repository id]: one entry of
+# the artifact list, its workflow_run as the API gives it (a run of this repository's own
+# branch has head_repository_id == repository_id; a fork's pull request's, the fork's id).
 artifact() {
-  printf '{"id":%s,"name":"e2e-retried","expired":%s,"created_at":"%s","workflow_run":{"id":%s,"head_branch":"%s"}}' \
-    "$1" "${5:-false}" "$2" "$3" "$4"
+  printf '{"id":%s,"name":"e2e-retried","expired":%s,"created_at":"%s","workflow_run":{"head_branch":"%s","head_repository_id":%s,"head_sha":"10414ba5e2b583d85f0cbc7e71dec9b980b2faae","id":%s,"repository_id":1354827019}}' \
+    "$1" "${5:-false}" "$2" "$4" "${6:-1354827019}" "$3"
 }
 # rec <spec> <suite> <os> <passed>: one line of retried.jsonl.
 rec() {
@@ -128,7 +130,7 @@ run() {
   status=$?
 }
 
-fixtures "[$(artifact 11 "$recent" 501 main),$(artifact 12 "$old" 400 main),$(artifact 13 "$recent" 502 claude/x true)]" \
+fixtures "[$(artifact 11 "$recent" 501 main),$(artifact 12 "$old" 400 main),$(artifact 13 "$recent" 502 claude/x true),$(artifact 14 "$recent" 504 main false 999)]" \
   "[$(artifact 21 "$recent" 501 main),$(artifact 22 "$recent" 503 'claude/y')]" \
   "[{\"number\":5,\"state\":\"open\",\"title\":\"${PREFIX}2026-09-01\",\"user\":$bot},{\"number\":3,\"state\":\"closed\",\"title\":\"${PREFIX}2026-08-25\",\"user\":$bot},{\"number\":6,\"state\":\"open\",\"title\":\"${PREFIX}notes\",\"user\":$human},{\"number\":8,\"state\":\"open\",\"title\":\"${PREFIX}2026-09-08\",\"user\":$bot,\"pull_request\":{}}]"
 zip_list 11 "$(rec download-names ext-amo linux true)"
@@ -136,7 +138,8 @@ zip_list 21 "$(rec download-names ext-amo win32 true)
 $(rec save-fmp4 web win32 false)"
 zip_list 22 "$(rec download-names pbm-github win32 true)
 {\"suite\":\"web\",\"sp"
-run "s1 three lists this week -> opens this week's issue, closes last week's" "$fold_step"
+zip_list 14 "$(rec 'fork | @Nawid3333 ready to merge' web linux true)"
+run "s1 three lists this week (and a fork's) -> opens this week's issue, closes last week's" "$fold_step"
 check 'succeeds' test "$status" -eq 0
 check "opens \"${PREFIX}$today\", assigned to the owner" contains "$LOG" \
   "CREATE [--title] [${PREFIX}$today] [--assignee] [Nawid3333]"
@@ -149,6 +152,8 @@ check 'the most retried spec comes first' test "$(grep -n 'download-names' "$LOG
 check 'skips the half-written line' lacks "$LOG" '"sp'
 check 'opens no list from before the week' lacks "$LOG" 'ZIP [12]'
 check 'opens no expired list' lacks "$LOG" 'ZIP [13]'
+check "opens no list from a fork's pull request" lacks "$LOG" 'ZIP [14]'
+check "nothing of the fork's list in the issue" lacks "$LOG" 'ready to merge'
 check "closes last week's #5, pointing at the new one" contains "$LOG" \
   "CLOSE [5] [--reason] [completed] [--comment] [#99 lists the 7 days to $today.]"
 check 'leaves closed #3 alone' lacks "$LOG" 'CLOSE [3]'
@@ -182,6 +187,15 @@ zip_list 11 'not json
 run 's4 a list with no record in it -> as a quiet week: opens nothing' "$fold_step"
 check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'
+
+fixtures "[$(artifact 11 "$recent" 501 'claude/a|b')]" '[]' '[]'
+zip_list 11 '{"suite":{"x":1},"spec":"tests/e2e/specs/a|`b`\n@Nawid3333.e2e.mjs","attempts":2,"passed":true,"os":"<img src=x>"}
+'
+run "s4b a record whose texts would break the table -> one row, only a path's characters" "$fold_step"
+check 'succeeds' test "$status" -eq 0
+check 'the row, each odd character an underscore' contains "$LOG" \
+  '| `tests/e2e/specs/a__b___Nawid3333.e2e.mjs` | 1 | 1 | 0 | __x__1_ (_img_src_x_) | claude/a_b | [501](https://github.com/Nawid3333/FastStream/actions/runs/501) |'
+check 'no mention from the record' lacks "$LOG" '@Nawid3333.e2e'
 
 fixtures "[$(artifact 11 "$recent" 501 main)]" '[]' '[]'
 run 's5 an artifact that cannot be downloaded -> fails, opens nothing' "$fold_step"

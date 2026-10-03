@@ -57,11 +57,11 @@
       }
 
       // video_dash_manifest
-      // Nothing for a response that is not an object (a JSON number or string).
+      // Nothing for a response that is not an object (a JSON number or string). Most
+      // responses have none, so that is no error: it filled the page's console.
       const objs = findPropertyRecursive(data, 'video_dash_manifest');
 
       if (!objs || objs.length === 0) {
-        console.error('No video_dash_manifest found');
         return;
       }
 

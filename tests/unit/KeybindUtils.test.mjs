@@ -185,6 +185,16 @@ describe('actionsForKey', () => {
   it('survives a value that is not a string', () => {
     expect(actionsForKey('KeyA', {SaveVideo: 5, B: null})).toEqual([]);
   });
+
+  it('matches nothing for a press with no key code, even a binding recorded from one', () => {
+    // WebUtils.getKeyString gives '' (or 'Shift+') for a keydown whose code is empty. The
+    // options page saved that as the binding, and every such press fired it.
+    const keybinds = {SaveVideo: '', Screenshot: 'Shift+', PlayPause: 'Space'};
+    expect(actionsForKey('', keybinds)).toEqual([]);
+    expect(actionsForKey('Shift+', keybinds)).toEqual([]);
+    expect(actionsForKey('Control+Shift+', keybinds)).toEqual([]);
+    expect(actionsForKey('Space', keybinds)).toEqual(['PlayPause']);
+  });
 });
 
 describe('findKeybindConflicts and conflictPartners', () => {

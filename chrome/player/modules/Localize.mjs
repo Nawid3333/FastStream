@@ -21,14 +21,25 @@ export class Localize {
       return key;
     }
 
-    // Replace $1, $2, etc. with substitutions
-    let result = TranslationMap[key][index];
-    substitutions = substitutions || [];
-    for (let i = 0; i < substitutions.length; i++) {
-      result = result.replace(`$${i + 1}`, substitutions[i]);
-    }
+    return Localize.substitute(TranslationMap[key][index], substitutions);
+  }
 
-    return result;
+  /**
+   * Puts substitutions in for $1, $2, ... in one pass.
+   *
+   * A pass per substitution with String.replace read `$&`, `$'` or `$1` inside a
+   * substitution (an error message, say) as a replacement pattern, let a later pass
+   * replace a `$2` the earlier one had put in, and found `$10` with the `$1` pass.
+   * @param {string} message
+   * @param {Array<*>} [substitutions]
+   * @return {string}
+   */
+  static substitute(message, substitutions) {
+    substitutions = substitutions || [];
+    return message.replace(/\$(\d+)/g, (match, number) => {
+      const substitution = substitutions[number - 1];
+      return substitution === undefined ? match : String(substitution);
+    });
   }
 
   static getLanguage() {

@@ -33,6 +33,10 @@ const CORS = {
 };
 
 let siteServer;
+// What the site was asked for, in order.
+const requested = [];
+// A 1x1 GIF, for the busy page's images.
+const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
 /**
  * Runs an async function in Firefox's chrome context.
@@ -120,6 +124,7 @@ describe('Switching FastStream on after the page loaded its video', function() {
     const segmentDir = path.join(FIXTURES, 'hls-ts');
     siteServer = http.createServer((req, res) => {
       const {pathname} = new URL(req.url, SITE);
+      requested.push(req.url);
       if (req.method === 'OPTIONS') {
         res.writeHead(204, CORS);
         res.end();
@@ -129,6 +134,26 @@ describe('Switching FastStream on after the page loaded its video', function() {
         res.end(`<!doctype html><title>watching</title>
           <video muted preload="auto" style="width: 640px; height: 360px"></video>
           <script>fetch('/hls/clip.m3u8' + location.search);</script>`);
+      } else if (pathname === '/busy') {
+        // A page laden with ads: 300 images, more than its Resource Timing buffer keeps
+        // (250), before its player fetches the stream.
+        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
+        res.end(`<!doctype html><title>watching, among ads</title>
+          <video muted preload="auto" style="width: 640px; height: 360px"></video>
+          <script>
+            const loads = [];
+            for (let i = 0; i < 300; i++) {
+              const img = new Image();
+              loads.push(new Promise((resolve) => {
+                img.onload = img.onerror = resolve;
+              }));
+              img.src = '/px.gif?i=' + i + '&' + location.search.slice(1);
+            }
+            Promise.all(loads).then(() => fetch('/hls/clip.m3u8' + location.search));
+          </script>`);
+      } else if (pathname === '/px.gif') {
+        res.writeHead(200, {'Content-Type': 'image/gif', 'Content-Length': PIXEL.length});
+        res.end(PIXEL);
       } else if (pathname === '/hls/clip.m3u8') {
         res.writeHead(200, {...CORS, 'Content-Type': 'application/vnd.apple.mpegurl'});
         res.end(loopedPlaylist(270, '/hls-ts/'));
@@ -178,4 +203,31 @@ describe('Switching FastStream on after the page loaded its video', function() {
           {timeout: 10000, timeoutMsg: 'the player stayed after FastStream was switched off'});
     });
   }
+
+  // The page's Resource Timing entries keep its first 250 requests, and a page laden with
+  // ads makes that many before its player asks for the stream: the stream was never among
+  // them, and a suspended background found nothing to open (#231). content.js's observer
+  // is told of every request.
+  it('opens the player on the stream of a page that made 300 requests before it, the background suspended since', async function() {
+    const c = Date.now();
+    await browser.url(`${SITE}/busy?c=${c}`);
+    await browser.waitUntil(async () => requested.includes(`/hls/clip.m3u8?c=${c}`),
+        {timeout: 20000, timeoutMsg: 'the page never fetched its stream'});
+    await browser.pause(1500);
+    // The premise: the page's own timeline has no room left for the stream.
+    expect(await browser.execute(() => performance.getEntriesByType('resource')
+        .some((entry) => entry.name.includes('/hls/clip.m3u8')))).toBe(false);
+    expect(await browser.$(PLAYER).isExisting()).toBe(false);
+
+    await suspendBackground();
+    await browser.pause(1000);
+
+    await clickToolbar();
+    const state = await playerSource();
+    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
+
+    await clickToolbar();
+    await browser.waitUntil(async () => !(await browser.$(PLAYER).isExisting()),
+        {timeout: 10000, timeoutMsg: 'the player stayed after FastStream was switched off'});
+  });
 });

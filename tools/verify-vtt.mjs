@@ -8,7 +8,7 @@
 // package either (it ships only the minified vtt.min.js).
 //
 // So instead of generating the file, this verifies it: fetch the upstream
-// bundle, apply the four changes FastStream makes, and assert the result
+// bundle, apply the changes FastStream makes, and assert the result
 // parses to the same program as the file in the tree. That turns "trust this
 // vendored blob" into a claim anyone can re-run, which is the thing AMO's
 // review of vendored code is actually asking for.
@@ -39,7 +39,9 @@ const UPSTREAM =
  * Two are *removals* of dash.js's own additions, which is the useful detail:
  * FastStream's copy is closer to videojs/vtt.js than dash.js's is. One is a
  * real product change - subtitles are rendered at a fifth of the default size
- * relative to the container. The last answers a CodeQL alert (2026-09-22).
+ * relative to the container. The fourth answers a CodeQL alert (2026-09-22), and
+ * the last four keep a hostile cue from throwing, freezing the page or borrowing
+ * the player's own classes (2026-10-03).
  *
  * A change to vtt.mjs has to be added here in the same commit, or this check
  * fails - which is how it is meant to work, and why CI runs it.
@@ -64,6 +66,26 @@ const CHANGES = [
     what: 'closing-tag token: replace every ">", not the first (CodeQL alert #8)',
     from: 'tagStack[tagStack.length - 1] === t.substr(2).replace(">", "")',
     to: 'tagStack[tagStack.length - 1] === t.substr(2).replace(/>/g, "")',
+  },
+  {
+    what: 'cue text: U+2029 becomes a line break, not the five letters "u2029" (#295)',
+    from: String.raw`.replace(/u2029/g, '\n');`,
+    to: String.raw`.replace(/\u2029/g, '\n');`,
+  },
+  {
+    what: 'cue tags: only TAG_NAME\'s own names; <constructor> found Object, which threw (#291)',
+    from: 'var tagName = TAG_NAME[type];',
+    to: 'var tagName = Object.prototype.hasOwnProperty.call(TAG_NAME, type) ? TAG_NAME[type] : null;',
+  },
+  {
+    what: 'cue tags: a lookahead that accepts the same tags in linear time, not quadratic (#294)',
+    from: String.raw`var m = t.match(/^<(`,
+    to: String.raw`var m = t.match(/^(?=<[^.\s/0-9>]+(?:[.\s/0-9][^>\\]*)?\\?>?$)<(`,
+  },
+  {
+    what: 'cue classes: not set on the element, where the player\'s own CSS matched them (#292)',
+    from: 'node.className = classes.join(\' \');',
+    to: '',
   },
 ];
 

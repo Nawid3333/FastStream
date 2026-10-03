@@ -16,9 +16,38 @@ class SilentWorker {
   terminate() {}
 }
 
+/** A Worker the test answers for: what decrypter-worker.js posts back, or an error event. */
+class AnsweringWorker {
+  constructor() {
+    this.listeners = {};
+    this.posted = [];
+    this.terminated = false;
+    AnsweringWorker.made.push(this);
+  }
+  addEventListener(type, listener) {
+    (this.listeners[type] ||= []).push(listener);
+  }
+  postMessage(message) {
+    this.posted.push(message);
+  }
+  terminate() {
+    this.terminated = true;
+  }
+  /**
+   * Sends an event to the decrypter.
+   * @param {string} type - 'message', 'error' or 'messageerror'.
+   * @param {Object} event
+   */
+  fire(type, event) {
+    (this.listeners[type] || []).forEach((listener) => listener(event));
+  }
+}
+AnsweringWorker.made = [];
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  AnsweringWorker.made = [];
 });
 
 describe('HLSDecrypter', () => {
@@ -37,6 +66,67 @@ describe('HLSDecrypter', () => {
     const decrypting = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
     decrypter.destroy();
     await expect(decrypting).rejects.toThrow(/destroyed/);
+  });
+
+  it('fails a decrypt the worker could not do, rather than giving its empty answer as the segment', async () => {
+    // decrypter-worker.js answers a failure (a wrong key, a bad IV, a cut-off download)
+    // with 0 bytes and an error, and the 0 bytes were stored as the segment, complete.
+    vi.stubGlobal('Worker', AnsweringWorker);
+    const decrypter = new HLSDecrypter();
+    const decrypting = decrypter.decryptAES(new ArrayBuffer(32), new ArrayBuffer(16), new ArrayBuffer(16));
+    const [worker] = AnsweringWorker.made;
+    worker.fire('message', {data: {decrypted: new ArrayBuffer(0), id: worker.posted[0].id, error: 'The operation failed for an operation-specific reason'}});
+    await expect(decrypting).rejects.toThrow(/operation-specific/);
+  });
+
+  it('fails a decrypt that gave no data even without an error', async () => {
+    vi.stubGlobal('Worker', AnsweringWorker);
+    const decrypter = new HLSDecrypter();
+    const decrypting = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    const [worker] = AnsweringWorker.made;
+    worker.fire('message', {data: {decrypted: new ArrayBuffer(0), id: worker.posted[0].id}});
+    await expect(decrypting).rejects.toThrow(/not decrypted/);
+  });
+
+  it('still gives a decrypted segment as it is', async () => {
+    vi.stubGlobal('Worker', AnsweringWorker);
+    const decrypter = new HLSDecrypter();
+    const decrypting = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    const [worker] = AnsweringWorker.made;
+    const decrypted = new Uint8Array([1, 2, 3]).buffer;
+    worker.fire('message', {data: {decrypted, id: worker.posted[0].id}});
+    await expect(decrypting).resolves.toBe(decrypted);
+  });
+
+  it('fails what was waiting on a worker that crashed, and starts a new one for the next', async () => {
+    // A worker that fails to load or throws answers nothing: the segment waited forever,
+    // and so did a save holding it.
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('Worker', AnsweringWorker);
+    const decrypter = new HLSDecrypter();
+    const first = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    const second = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    const [crashed] = AnsweringWorker.made;
+    crashed.fire('error', {message: 'NetworkError: failed to load worker script'});
+    await expect(first).rejects.toThrow(/failed to load worker script/);
+    await expect(second).rejects.toThrow(/failed to load worker script/);
+    expect(crashed.terminated).toBe(true);
+
+    const third = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    expect(AnsweringWorker.made).toHaveLength(2);
+    const [, fresh] = AnsweringWorker.made;
+    const decrypted = new Uint8Array([4]).buffer;
+    fresh.fire('message', {data: {decrypted, id: fresh.posted[0].id}});
+    await expect(third).resolves.toBe(decrypted);
+  });
+
+  it('fails what was waiting when an answer could not be read', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('Worker', AnsweringWorker);
+    const decrypter = new HLSDecrypter();
+    const decrypting = decrypter.decryptAES(new ArrayBuffer(16), new ArrayBuffer(16), new ArrayBuffer(16));
+    AnsweringWorker.made[0].fire('messageerror', {});
+    await expect(decrypting).rejects.toThrow(/not decrypted/);
   });
 });
 

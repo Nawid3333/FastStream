@@ -1,6 +1,8 @@
 // A SubRip timestamp line: `00:00:01,000 --> 00:00:02,000`, also with '.' before the
-// milliseconds, short or missing milliseconds, and one-digit minutes and seconds.
-const SRT_TIMESTAMP = /(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
+// milliseconds, short or missing milliseconds, and one-digit minutes and seconds. It is only
+// tried where a run of digits starts: from inside a long line of digits, (\d+): failed again
+// for every digit of it (quadratic), and can match nothing the run's start does not.
+const SRT_TIMESTAMP = /(?<!\d)(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?\s*--?>\s*(\d+):(\d{1,2}):(\d{1,2})(?:[,.](\d+))?/;
 // The same at the start of a line, which is where a cue's timestamp is.
 const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
 
@@ -8,6 +10,49 @@ const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
  * Utility functions for subtitle parsing and conversion.
  */
 export class SubtitleUtils {
+  /**
+   * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
+   * a charset the server declared), except that bytes that are no UTF-8 are read as
+   * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every
+   * accented letter in them showed as U+FFFD. Every place that reads a subtitle file's bytes
+   * uses this; content.js, which cannot import it, carries a copy a test keeps the same.
+   * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
+   * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
+   * @return {string} The file's text.
+   */
+  static decodeSubtitleBytes(data, contentType) {
+    const bytes = ArrayBuffer.isView(data) ?
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data || 0);
+    // A byte order mark says what the file is, before anything a server says.
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return new TextDecoder('utf-16le').decode(bytes);
+    }
+    if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return new TextDecoder('utf-16be').decode(bytes);
+    }
+    // A charset the server declared, unless it is UTF-8: a file a server calls UTF-8 often
+    // is not, and is then read like one that came with no charset.
+    const charset = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType || '');
+    if (charset) {
+      try {
+        const decoder = new TextDecoder(charset[1]);
+        if (decoder.encoding !== 'utf-8') {
+          return decoder.decode(bytes);
+        }
+      } catch (e) {
+        // A charset no browser knows: as if none was given.
+      }
+    }
+    try {
+      return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('windows-1252').decode(bytes);
+    }
+  }
+
   /**
    * Translates XML entities in a string to their corresponding characters.
    * @param {string} str - The input string.
@@ -37,9 +82,11 @@ export class SubtitleUtils {
           code = parseInt(reference.substring(2, reference.length - 1), 10);
         }
 
-        // Translate into string according to ISO/IEC 10646
+        // Translate into string according to ISO/IEC 10646. A surrogate code point is no
+        // character: U+FFFD, as in HTML. Left a lone surrogate, it made the WebVTT parser
+        // throw "URI malformed" and the whole track failed.
         if (!isNaN(code) && code >= 0 && code <= 0x10FFFF) {
-          entitySplit[i] = String.fromCodePoint(code);
+          entitySplit[i] = code >= 0xD800 && code <= 0xDFFF ? String.fromCharCode(0xFFFD) : String.fromCodePoint(code);
         }
       } else if (entitiesList.hasOwnProperty(reference)) {
         entitySplit[i] = entitiesList[reference];
@@ -55,10 +102,12 @@ export class SubtitleUtils {
    * @return {string} WebVTT subtitle data.
    */
   static srt2webvtt(data) {
-    // remove dos newlines
-    let srt = data.replace(/\r+/g, '');
-    // trim white space start and end
-    srt = srt.replace(/^\s+|\s+$/g, '');
+    // remove dos newlines; in a file with no line feed at all (a classic Mac one) the
+    // carriage returns are the line ends, and removing them left no cue
+    let srt = data.includes('\n') ? data.replace(/\r+/g, '') : data.replace(/\r/g, '\n');
+    // trim white space start and end (/^\s+|\s+$/g, which trims the same, was quadratic in
+    // a long run of spaces inside the file)
+    srt = srt.trim();
     // get cues: a cue ends at a blank line, however many follow it, and a cue also starts
     // at its own timestamp when no blank line comes before it. So a line of spaces ends
     // the cue before a timestamp, and inside a cue it is text, as ffmpeg and VLC read it:
@@ -144,6 +193,46 @@ export class SubtitleUtils {
       result.push((i + 1) + '\n' + start + ' --> ' + end + '\n' + text);
     }
     return result.join('\n\n');
+  }
+
+  /**
+   * The cues on screen at a time. A track's cues are sorted by start time only, so a long
+   * cue (a sign, a song) stays on screen behind later, shorter ones; looking back from the
+   * last cue that started only as far as the first one already over lost it. Every cue is
+   * checked, which also holds when an edit or shift left the track out of order. It runs
+   * on each time update (a few times a second); measured in Node, 1,500 cues (a film) take
+   * about 0.002 ms, 10,000 about 0.01 ms.
+   * @param {Array<{startTime: number, endTime: number}>} cues - The track's cues.
+   * @param {number} time - The time, in seconds.
+   * @return {Array} The cues that start at or before the time and end at or after it, in
+   *   the track's order.
+   */
+  static cuesAt(cues, time) {
+    const onScreen = [];
+    for (let i = 0; i < cues.length; i++) {
+      if (cues[i].startTime <= time && cues[i].endTime >= time) {
+        onScreen.push(cues[i]);
+      }
+    }
+    return onScreen;
+  }
+
+  /**
+   * Whether a download link from the OpenSubtitles API may be fetched. The player fetches
+   * it with the extension's host permissions, so only an https link on OpenSubtitles' own
+   * hosts is (they look like https://www.opensubtitles.com/download/.../subfile/name.srt),
+   * not whatever a hostile or intercepted answer names.
+   * @param {*} link - The link from the API's answer.
+   * @return {boolean}
+   */
+  static isOpenSubtitlesDownloadLink(link) {
+    let url;
+    try {
+      url = new URL(link);
+    } catch (e) {
+      return false;
+    }
+    return url.protocol === 'https:' && /(^|\.)opensubtitles\.(com|org)$/.test(url.hostname);
   }
 
   /**
@@ -240,7 +329,10 @@ export class SubtitleUtils {
     // Everything after the timestamp is the cue text, however many lines it has.
     const cueText = lines.slice(line + 1).join('\n');
     if (cueText) {
-      cue += cueText.replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n');
+      // A <br> tag ends at a '>', so the text after the last '>' holds none. Searching it
+      // too ran [^>]* to the end of the text from every "<br" there: quadratic.
+      const end = cueText.lastIndexOf('>') + 1;
+      cue += cueText.substring(0, end).replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n') + cueText.substring(end);
     }
     return cue + '\n\n';
   }
@@ -263,13 +355,21 @@ export class SubtitleUtils {
       9: 'line:5% position:100% align:end',
     };
 
-    const withAlignment = text.replace(/(\r\n|\n)\{\\?an(\d)\}/gi, (match, _newline, alignment) => {
-      const settings = alignmentSettings[alignment];
-      if (settings) {
-        return ` ${settings}\n`;
+    // An alignment tag at the start of a cue's first line, right after its timing line,
+    // becomes the cue's settings. One on a later line is stripped below: its settings went
+    // onto whatever line came before it, and were shown as text.
+    const lines = text.split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      const tag = /^\{\\?an(\d)\}/i.exec(lines[i]);
+      if (!tag || !lines[i - 1].includes('-->')) {
+        continue;
       }
-      return '\n';
-    });
+      const timing = lines[i - 1].replace(/\r$/, '');
+      const settings = alignmentSettings[tag[1]];
+      lines[i - 1] = settings ? `${timing} ${settings}` : timing;
+      lines[i] = lines[i].substring(tag[0].length);
+    }
+    const withAlignment = lines.join('\n');
 
     return withAlignment
         .replace(/\{\\([ibu])1\}/gi, '<$1>') // convert {\b1}, {\i1}, {\u1} to <b>, <i>, <u>

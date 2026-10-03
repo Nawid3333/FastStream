@@ -93,13 +93,20 @@ export class WebUtils {
    * @param {Array<HTMLElement>} children - The new children to append.
    */
   static replaceChildrenPerformant(parent, children) {
-    const currentChildrenSet = new Set(parent.children);
     const newChildrenSet = new Set(children);
+    Array.from(parent.children).forEach((child) => {
+      if (!newChildrenSet.has(child)) {
+        parent.removeChild(child);
+      }
+    });
 
-    const toRemove = currentChildrenSet.difference(newChildrenSet);
-    const toAdd = newChildrenSet.difference(currentChildrenSet);
-
-    toRemove.forEach((child) => parent.removeChild(child));
-    toAdd.forEach((child) => parent.appendChild(child));
+    // In the order given, moving only what is out of place. Appending just the new ones put
+    // a subtitle cue that came back (a seek back into overlapping cues) below one that
+    // started after it.
+    children.forEach((child, i) => {
+      if (parent.children[i] !== child) {
+        parent.insertBefore(child, parent.children[i] || null);
+      }
+    });
   }
 }

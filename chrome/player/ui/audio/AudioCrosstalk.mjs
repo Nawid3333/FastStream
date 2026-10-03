@@ -79,7 +79,10 @@ export class AudioCrosstalk extends AbstractAudioModule {
     return {
       microdelay: isNaN(this.crosstalkConfig.microdelay) ? predicted.microdelay : this.crosstalkConfig.microdelay,
       decay: AudioUtils.dbToGain(isNaN(this.crosstalkConfig.decay) ? predicted.decay : this.crosstalkConfig.decay),
-      colorgain: this.crosstalkConfig.colorgain === 20 ? Infinity : AudioUtils.dbToGain(this.crosstalkConfig.colorgain),
+      // The knob's top is 20 dB, as it says. It used to mean no limit at all: with the decay
+      // near 0 dB the filter then boosted some frequencies by over 50 dB (clipping), with
+      // an impulse response far longer than the 1024 samples kept of it (ringing).
+      colorgain: AudioUtils.dbToGain(this.crosstalkConfig.colorgain),
       highbypass: this.crosstalkConfig.highbypass,
       lowbypass: this.crosstalkConfig.lowbypass,
     };

@@ -17,11 +17,34 @@ export class FastStreamArchiveUtils {
    * @param {Object} player - The player instance.
    * @param {Array<DownloadEntry>} entries - The download entries.
    * @param {Function} [progressCallback] - Optional progress callback.
-   * @return {Promise<void>} Resolves when writing is complete.
-   * @throws {Error} If an entry is not complete.
+   * @return {Promise<void>} Resolves once the stream has finished the file.
+   * @throws {Error} If an entry is not complete, or the stream fails.
    */
   static async writeFSAToStream(filestream, player, entries, progressCallback) {
     const writer = filestream.getWriter();
+    try {
+      await this.writeFSA(writer, player, entries, progressCallback);
+      // Awaited: the save is over only once the stream has finished it (a streamed save
+      // hands its file to the download here), and a failure there is the save's. It was
+      // reported as saved before that, and such a failure was an unhandled rejection.
+      await writer.close();
+    } catch (e) {
+      // Ends the stream's save (its open file and blob store) rather than leaving it
+      // open until the tab closes.
+      await writer.abort(e).catch(() => {});
+      throw e;
+    }
+  }
+
+  /**
+   * Writes the archive: the header, then each entry's header and data.
+   * @param {WritableStreamDefaultWriter} writer
+   * @param {Object} player
+   * @param {Array<DownloadEntry>} entries
+   * @param {Function} [progressCallback]
+   * @return {Promise<void>}
+   */
+  static async writeFSA(writer, player, entries, progressCallback) {
     const sourceObj = {};
     if (player) {
       const source = player.getSource();
@@ -96,8 +119,6 @@ export class FastStreamArchiveUtils {
         progressCallback(i / entries.length);
       }
     }
-
-    writer.close();
   }
 
   /**

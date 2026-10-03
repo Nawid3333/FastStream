@@ -521,12 +521,15 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
           </script>`);
         return;
       }
-      if (req.url.startsWith('/late')) {
+      if (req.url.startsWith('/late') || req.url.startsWith('/framed')) {
         // A player of a page that is gone: its URL names another page as its opener, as a
-        // player still starting when its page reloaded does. The page's own video loads
-        // only when the test says so, once the player has said it loaded.
+        // player still starting when its page reloaded does. Or (/framed) the player page
+        // framed by the page itself, naming the top frame as its parent and no opener. The
+        // page's own video loads only when the test says so, once the player has said it
+        // loaded.
+        const query = req.url.startsWith('/late') ? 'parent_frame_id=0&opener=gone' : 'parent_frame_id=0';
         res.end(`<!doctype html><title>mpv shortcut test, a late player</title>
-          <iframe id="late" src="${ORIGIN}/player/index.html?parent_frame_id=0&opener=gone"
+          <iframe id="late" src="${ORIGIN}/player/index.html?${query}"
             onload="this.dataset.loaded = 'yes'"></iframe>
           <video id="main" preload="auto" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
           <button id="load">Load</button>
@@ -1139,14 +1142,14 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     await expectMode('off', 'pressing Ctrl+Shift+U again');
   });
 
-  // Ctrl+Shift+U with the player just opened reloads the page (startMpv). On Windows CI a
-  // player still starting then said it loaded after the new page had, and counted as the
-  // new page's: the page's streams were dropped as the player's own, and no player opened
-  // on it - mpv got nothing on a play, and Ctrl+Shift+F showed nothing. Here the late
-  // player is one that names a page never in this tab, the state that race left.
-  it('takes a player whose page is gone for no player of the page there now', async function() {
+  /**
+   * Loads a page that frames a player FastStream did not open there (#late), waits until
+   * that player has started, and checks that the page's own video still opens a player.
+   * @param {string} pathname - The page: /late or /framed.
+   */
+  async function expectPagePlayerBesidePlanted(pathname) {
     await browser.switchToWindow(siteHandle);
-    await browser.url(`${SITE}/late`);
+    await browser.url(`${SITE}${pathname}`);
     await expectMode('off', 'the start of this test');
 
     // The late player has said it loaded: it marks its options applied just before.
@@ -1177,11 +1180,27 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
     await browser.waitUntil(async () => {
       await browser.switchToWindow(siteHandle);
       return await browser.execute(() => Array.from(document.querySelectorAll('iframe'))
-          .some((f) => f.src.includes('player/index.html') && !f.src.includes('opener=gone')));
+          .some((f) => f.src.includes('player/index.html') && f.id !== 'late'));
     }, {timeout: 15000, timeoutMsg: 'no player opened for the page\'s video'});
 
     await clickToolbar();
     await expectMode('off', 'clicking the toolbar button again');
+  }
+
+  // Ctrl+Shift+U with the player just opened reloads the page (startMpv). On Windows CI a
+  // player still starting then said it loaded after the new page had, and counted as the
+  // new page's: the page's streams were dropped as the player's own, and no player opened
+  // on it - mpv got nothing on a play, and Ctrl+Shift+F showed nothing. Here the late
+  // player is one that names a page never in this tab, the state that race left.
+  it('takes a player whose page is gone for no player of the page there now', async function() {
+    await expectPagePlayerBesidePlanted('/late');
+  });
+
+  // The player page is web-accessible, so a page (or an ad's iframe in it) can frame it
+  // and name any frame of the tab as its parent. Taken on trust, the top frame counted as
+  // holding a player: its streams were dropped, and no player opened on it (#225).
+  it('takes the player page a page framed itself for no player of the page', async function() {
+    await expectPagePlayerBesidePlanted('/framed');
   });
 
   // Back brings a page out of Firefox's back-forward cache without loading its video

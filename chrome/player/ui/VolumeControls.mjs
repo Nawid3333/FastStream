@@ -88,6 +88,12 @@ export class VolumeControls extends EventEmitter {
   }
 
   onVolumeBarMouseDown(event) {
+    // Only the left button drags. A right-click's context menu takes the mouseup, and the
+    // volume then followed the mouse until the next click.
+    if (event.button !== 0) {
+      return;
+    }
+
     const shiftVolume = (volumeBarX) => {
       const totalWidth = DOMElements.volumeControlBar.clientWidth;
 
@@ -107,15 +113,25 @@ export class VolumeControls extends EventEmitter {
     };
 
     const onVolumeBarMouseMove = (event) => {
+      // No button held: it was let go where this drag never heard of it.
+      if (event.type === 'mousemove' && event.buttons === 0) {
+        stopDrag();
+        return;
+      }
       const currentX = event.clientX - WebUtils.getOffsetLeft(DOMElements.volumeContainer) - 10;
       shiftVolume(currentX);
     };
 
-    const onVolumeBarMouseUp = (event) => {
+    const stopDrag = () => {
       DOMElements.playerContainer.removeEventListener('mousemove', onVolumeBarMouseMove);
       DOMElements.playerContainer.removeEventListener('touchmove', onVolumeBarMouseMove);
       DOMElements.playerContainer.removeEventListener('mouseup', onVolumeBarMouseUp);
       DOMElements.playerContainer.removeEventListener('touchend', onVolumeBarMouseUp);
+      document.removeEventListener('mouseup', onVolumeBarMouseUp);
+    };
+
+    const onVolumeBarMouseUp = (event) => {
+      stopDrag();
 
       const currentX = event.clientX - WebUtils.getOffsetLeft(DOMElements.volumeContainer) - 10;
 
@@ -128,6 +144,9 @@ export class VolumeControls extends EventEmitter {
     DOMElements.playerContainer.addEventListener('touchend', onVolumeBarMouseUp, {passive: true});
     DOMElements.playerContainer.addEventListener('mousemove', onVolumeBarMouseMove);
     DOMElements.playerContainer.addEventListener('touchmove', onVolumeBarMouseMove, {passive: true});
+    // Let go outside the player: a drag keeps the mouse events in the document it started
+    // in, and only the document hears that mouseup.
+    document.addEventListener('mouseup', onVolumeBarMouseUp);
 
     event.stopPropagation();
   }
@@ -153,6 +172,12 @@ export class VolumeControls extends EventEmitter {
     }
 
     WebUtils.setLabels(DOMElements.volumeBlock, Localize.getMessage('player_volume_label', [Math.round(volume * 100)]));
+    // The block is a slider (role="slider"), and a screen reader reads a slider's value
+    // from these; it had none.
+    DOMElements.volumeBlock.setAttribute('aria-valuemin', 0);
+    DOMElements.volumeBlock.setAttribute('aria-valuemax', Math.round(MAX_VOLUME * 100));
+    DOMElements.volumeBlock.setAttribute('aria-valuenow', Math.round(volume * 100));
+    DOMElements.volumeBlock.setAttribute('aria-valuetext', Math.round(volume * 100) + '%');
   }
 
   async loadVolumeState() {

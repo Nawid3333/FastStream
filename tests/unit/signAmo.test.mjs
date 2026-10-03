@@ -79,6 +79,13 @@ describe('signOrCollect', () => {
     expect(await run([new TypeError('fetch failed')], ['rejected'])).toMatchObject({signed: false, state: 'rejected'});
   });
 
+  it('is not signed when web-ext finishes without a file (#172)', async () => {
+    // release.yml's update manifest step needs the xpi: a "signed" with nothing downloaded
+    // passed the sign step and failed the release there, instead of publishing the zip.
+    expect(await run([{id: 'thanatus@Nawid'}], ['pending'])).toMatchObject({signed: false, files: [], state: 'not downloaded'});
+    expect(await run([{id: 'thanatus@Nawid', downloadedFiles: []}], ['pending'])).toMatchObject({signed: false, state: 'not downloaded'});
+  });
+
   it('does not wait on an error that is AMO\'s answer, not the network\'s', async () => {
     const refused = new Error('Version 1.3.82.38 already exists.');
     await expect(run([refused], ['signed'])).rejects.toBe(refused);

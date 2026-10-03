@@ -1,6 +1,5 @@
 import {DefaultPlayerEvents} from '../enums/DefaultPlayerEvents.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
-import {Localize} from '../modules/Localize.mjs';
 import {Utils} from '../utils/Utils.mjs';
 
 export class SyncedAudioPlayer extends EventEmitter {
@@ -20,6 +19,8 @@ export class SyncedAudioPlayer extends EventEmitter {
     // went on after the video changed, adding players that kept downloading, showing their
     // errors on the new video, and muting it.
     this.destroyed = false;
+    // Counts dropPlayers(): a build still on its way when its players were dropped stops.
+    this.playersDropped = 0;
   }
 
   async setup(audioContext, audioSource, audioOutputNode) {
@@ -91,18 +92,20 @@ export class SyncedAudioPlayer extends EventEmitter {
 
   async makePlayers(source) {
     this.source = source;
+    const dropped = this.playersDropped;
+    const gone = () => this.destroyed || this.playersDropped !== dropped;
 
     for (let i = 0; i < 2; i++) {
       const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
         isAudioOnly: true,
       });
-      if (this.destroyed) {
+      if (gone()) {
         player.destroy();
         return;
       }
 
       await player.setup();
-      if (this.destroyed) {
+      if (gone()) {
         player.destroy();
         return;
       }
@@ -122,17 +125,35 @@ export class SyncedAudioPlayer extends EventEmitter {
         player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
       });
 
+      // Its error is not the video's: a segment its own loader gave up on failed the whole
+      // player, with the error banner over a video that went on playing. The video keeps its
+      // own sound instead, without the delay.
       player.on(DefaultPlayerEvents.ERROR, (msg) => {
-        this.client.failedToLoad(msg || Localize.getMessage('player_error_load'));
+        console.warn('A separate audio player failed; the video plays with its own sound', msg);
+        this.dropPlayers();
       });
 
       await player.setSource(source);
-      if (this.destroyed) {
+      if (gone()) {
         player.destroy();
         return;
       }
 
       this.audioPlayers.push(player);
+    }
+  }
+
+  /**
+   * Gives the separate audio players up: the video plays with its own sound. The next change
+   * of the delay builds them again.
+   */
+  dropPlayers() {
+    this.playersDropped++;
+    this.audioPlayers.forEach((player) => player.destroy());
+    this.audioPlayers = [];
+    this.madePlayers = false;
+    if (this.client.player) {
+      this.client.player.volume = this.volume;
     }
   }
 

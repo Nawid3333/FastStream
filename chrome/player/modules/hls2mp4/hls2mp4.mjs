@@ -1,7 +1,11 @@
 import {EventEmitter} from '../eventemitter.mjs';
 import {FSBlob} from '../FSBlob.mjs';
 import {MP4} from './MP4Generator.mjs';
+import {normalizePts} from './ptsNormalize.mjs';
 import Transmuxer from './transmuxer.mjs';
+
+// The clock MPEG-TS timestamps count in.
+const TS_CLOCK = 90000;
 
 
 export class HLS2MP4 extends EventEmitter {
@@ -47,18 +51,10 @@ export class HLS2MP4 extends EventEmitter {
     }
     this.prevFrag = fragData;
     const result = this.transmuxer.pushData(new Uint8Array(data), isDiscontinuity);
-    const headerLen = 8;
 
     if (result.video) {
       if (!this.videoTrack) {
-        this.videoTrack = {
-          ...result.videoTrack,
-          samples: [],
-          chunks: [],
-          use64Offsets: false,
-          nextChunkId: 1,
-          elst: [],
-        };
+        this.videoTrack = this.makeTrack(result.videoTrack);
       }
 
       result.videoTrack.pps.forEach((pps) => {
@@ -77,50 +73,17 @@ export class HLS2MP4 extends EventEmitter {
         }
       });
 
-      this.videoTrack.chunks.push({
-        id: this.videoTrack.nextChunkId++,
-        samples: result.video.outputSamples,
-        offset: this.datasOffset + headerLen,
-        originalOffset: this.datasOffset + headerLen,
-        startDTS: result.video.startDTS,
-        endDTS: result.video.endDTS,
-        startPTS: result.video.startPTS,
-        endPTS: result.video.endPTS,
-      });
-      const blob = new Blob([result.video.data2], {
-        type: 'video/mp4',
-      });
-      this.datas.push(this.blobManager.saveBlob(blob));
-      this.datasOffset += result.video.data2.byteLength;
+      this.pushChunk(this.videoTrack, result.video, result.initPTS);
     }
 
-    if (result.audio) {
+    // With an audio rendition selected, hls.js plays that and drops whatever audio the
+    // level carries itself; the save takes the same audio. It took both, one after the
+    // other in a single track.
+    if (result.audio && !this.audioRendition) {
       if (!this.audioTrack) {
-        this.audioTrack = {
-          ...result.audioTrack,
-          samples: [],
-          chunks: [],
-          use64Offsets: false,
-          nextChunkId: 1,
-          elst: [],
-        };
+        this.audioTrack = this.makeTrack(result.audioTrack);
       }
-
-      this.audioTrack.chunks.push({
-        id: this.audioTrack.nextChunkId++,
-        samples: result.audio.outputSamples,
-        offset: this.datasOffset + headerLen,
-        originalOffset: this.datasOffset + headerLen,
-        startDTS: result.audio.startDTS,
-        endDTS: result.audio.endDTS,
-        startPTS: result.audio.startPTS,
-        endPTS: result.audio.endPTS,
-      });
-      const blob = new Blob([result.audio.data2], {
-        type: 'video/mp4',
-      });
-      this.datas.push(this.blobManager.saveBlob(blob));
-      this.datasOffset += result.audio.data2.byteLength;
+      this.pushChunk(this.audioTrack, result.audio, result.initPTS);
     }
   }
 
@@ -135,35 +98,55 @@ export class HLS2MP4 extends EventEmitter {
     }
     this.prevFragAudio = fragData;
     const result = this.transmuxerAudio.pushData(new Uint8Array(data), isDiscontinuity);
-    const headerLen = 8;
     if (result.audio) {
       if (!this.audioTrack) {
-        this.audioTrack = {
-          ...result.audioTrack,
-          samples: [],
-          chunks: [],
-          use64Offsets: false,
-          nextChunkId: 1,
-          elst: [],
-        };
+        this.audioTrack = this.makeTrack(result.audioTrack);
       }
-
-      this.audioTrack.chunks.push({
-        id: this.audioTrack.nextChunkId++,
-        samples: result.audio.outputSamples,
-        offset: this.datasOffset + headerLen,
-        originalOffset: this.datasOffset + headerLen,
-        startDTS: result.audio.startDTS,
-        endDTS: result.audio.endDTS,
-        startPTS: result.audio.startPTS,
-        endPTS: result.audio.endPTS,
-      });
-      const blob = new Blob([result.audio.data2], {
-        type: 'video/mp4',
-      });
-      this.datas.push(this.blobManager.saveBlob(blob));
-      this.datasOffset += result.audio.data2.byteLength;
+      this.pushChunk(this.audioTrack, result.audio, result.initPTS);
     }
+  }
+
+  /**
+   * @param {Object} demuxedTrack the track hls.js's demuxer describes
+   * @return {Object} the track the file is written from
+   */
+  makeTrack(demuxedTrack) {
+    return {
+      ...demuxedTrack,
+      samples: [],
+      chunks: [],
+      use64Offsets: false,
+      nextChunkId: 1,
+      elst: [],
+    };
+  }
+
+  /**
+   * Adds what hls.js remuxed from one fragment to a track, and keeps its data.
+   * @param {Object} track
+   * @param {Object} remuxed hls.js's result for the track: its samples, times and mdat
+   * @param {number} initPTS where the stream's clock was at the transmuxer's time 0, in
+   *     seconds. The level and the audio rendition each have a transmuxer, which counts
+   *     from its own stream's first timestamp: the chunks keep the stream's clock instead,
+   *     the one both renditions share, so the tracks start as far apart as they played.
+   */
+  pushChunk(track, remuxed, initPTS) {
+    const headerLen = 8;
+    track.chunks.push({
+      id: track.nextChunkId++,
+      samples: remuxed.outputSamples,
+      offset: this.datasOffset + headerLen,
+      originalOffset: this.datasOffset + headerLen,
+      startDTS: remuxed.startDTS + initPTS,
+      endDTS: remuxed.endDTS + initPTS,
+      startPTS: remuxed.startPTS + initPTS,
+      endPTS: remuxed.endPTS + initPTS,
+    });
+    const blob = new Blob([remuxed.data2], {
+      type: 'video/mp4',
+    });
+    this.datas.push(this.blobManager.saveBlob(blob));
+    this.datasOffset += remuxed.data2.byteLength;
   }
 
   setup(level, levelInitData, audioLevel, audioInitData) {
@@ -209,8 +192,11 @@ export class HLS2MP4 extends EventEmitter {
     }
 
     const len = tracks[0].chunks.length;
-    // The chunks' times are in seconds. The movie starts with the first frame shown by either
-    // track, as MP4Merger's does.
+    // The chunks' times are in seconds, on the stream's clock (pushChunk). The movie starts
+    // with the first frame shown by either track, as MP4Merger's does.
+    // The clock is 33 bits of 90 kHz and wraps every 26.5 hours: a track that starts across
+    // the wrap from the first one is brought to the same side of it.
+    const startOf = (track) => normalizePts(track.chunks[0].startPTS * TS_CLOCK, tracks[0].chunks[0].startPTS * TS_CLOCK) / TS_CLOCK;
     let minStart = Infinity;
 
     for (let i = 0; i < tracks.length; i++) {
@@ -218,7 +204,7 @@ export class HLS2MP4 extends EventEmitter {
         console.log('WARNING: chunk length is not equal', tracks[i].chunks.length, len);
       }
 
-      minStart = Math.min(minStart, tracks[i].chunks[0].startPTS);
+      minStart = Math.min(minStart, startOf(tracks[i]));
     }
 
     const movieTimescale = tracks[0].timescale;
@@ -229,7 +215,7 @@ export class HLS2MP4 extends EventEmitter {
       // An empty edit holds back the track that starts later, and is counted in the movie's
       // timescale. It was counted in the track's own and from the first decode time, so a
       // 44100 Hz audio track started 44 ms later against the video than in the stream.
-      const delay = Math.round((first.startPTS - minStart) * movieTimescale);
+      const delay = Math.round((startOf(track) - minStart) * movieTimescale);
       if (delay > 0) {
         track.elst.push({
           media_time: -1,
@@ -237,16 +223,28 @@ export class HLS2MP4 extends EventEmitter {
         });
       }
 
-      const decoded = track.chunks[track.chunks.length - 1].endDTS - first.startDTS;
-      // A chunk's endPTS is where its last shown frame ends. A stream cut in decode order
-      // (a recording that stopped inside a group of pictures) shows a frame after the decode
-      // timeline ends: the edit stopped short of it, and players left the frame out.
-      const presented = Math.max(...track.chunks.map((chunk) => chunk.endPTS)) - first.startPTS;
-      // The edit lasts as long as the track's media. It was shortened by the empty edit
-      // before it, which cut the last audio frame off a transport stream's save.
+      // Measured on the samples as they are written, one after the other: across an
+      // EXT-X-DISCONTINUITY the stream's timestamps start over (or jump past a fragment a
+      // partial save lacks), and an edit worked out from them showed only the first piece
+      // of a stream with ad breaks in players that follow edit lists (mpv, VLC, ffmpeg).
+      const mediaTime = Math.round((first.startPTS - first.startDTS) * track.timescale);
+      let decoded = 0;
+      let presentedEnd = 0;
+      track.chunks.forEach((chunk) => {
+        chunk.samples.forEach((sample) => {
+          presentedEnd = Math.max(presentedEnd, decoded + (sample.cts || 0) + sample.duration);
+          decoded += sample.duration;
+        });
+      });
+      // The last presented end counts too: a stream cut in decode order (a recording that
+      // stopped inside a group of pictures) shows a frame after the decode timeline ends:
+      // the edit stopped short of it, and players left the frame out. The edit lasts as
+      // long as the track's media. It was shortened by the empty edit before it, which cut
+      // the last audio frame off a transport stream's save.
+      const presented = Math.max(decoded, presentedEnd - mediaTime);
       track.elst.push({
-        media_time: Math.round((first.startPTS - first.startDTS) * track.timescale),
-        segment_duration: Math.round(Math.max(decoded, presented) * movieTimescale),
+        media_time: mediaTime,
+        segment_duration: Math.round(presented / track.timescale * movieTimescale),
       });
 
       track.samples = [];
@@ -292,34 +290,44 @@ export class HLS2MP4 extends EventEmitter {
     });
   }
   async convert(level, levelInitData, audioLevel, audioInitData, zippedFragments) {
-    this.setup(level, levelInitData, audioLevel, audioInitData);
+    try {
+      this.setup(level, levelInitData, audioLevel, audioInitData);
+      // Whether the audio comes from a rendition of its own (fragments of track 1). One
+      // without a URI is the level's own audio, and has none.
+      this.audioRendition = zippedFragments.some((fragment) => fragment.track !== 0);
 
-    let lastProgress = 0;
-    for (let i = 0; i < zippedFragments.length; i++) {
-      if (this.cancelled) {
-        this.destroy();
-        this.blobManager.close();
-        throw new Error('Cancelled');
+      let lastProgress = 0;
+      for (let i = 0; i < zippedFragments.length; i++) {
+        if (this.cancelled) {
+          throw new Error('Cancelled');
+        }
+        if (zippedFragments[i].track === 0) {
+          await this.pushFragment(zippedFragments[i]);
+        } else {
+          await this.pushFragmentAudio(zippedFragments[i]);
+        }
+        const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
+        if (newProgress !== lastProgress) {
+          lastProgress = newProgress;
+          this.emit('progress', newProgress / 100);
+        }
       }
-      if (zippedFragments[i].track === 0) {
-        await this.pushFragment(zippedFragments[i]);
-      } else {
-        await this.pushFragmentAudio(zippedFragments[i]);
-      }
-      const newProgress = Math.floor((i + 1) / zippedFragments.length * 100);
-      if (newProgress !== lastProgress) {
-        lastProgress = newProgress;
-        this.emit('progress', newProgress / 100);
-      }
+
+      const blob = await this.finalize();
+      this.destroy();
+
+      return blob;
+    } catch (e) {
+      // Cancelled, or a fragment that failed to download or demux: nothing will read what
+      // was kept, so the blob store goes now, as MP4Merger's does. Only a cancel closed
+      // it; after a failure its worker and the fragments on disk stayed until the tab
+      // closed.
+      this.destroy(/* immediate */ true);
+      throw e;
     }
-
-    const blob = await this.finalize();
-    this.destroy();
-
-    return blob;
   }
 
-  destroy() {
+  destroy(immediate) {
     if (this.transmuxer) this.transmuxer.destroy();
     if (this.transmuxerAudio) this.transmuxerAudio.destroy();
     this.transmuxerAudio = null;
@@ -330,9 +338,20 @@ export class HLS2MP4 extends EventEmitter {
     this.datas = null;
     this.datasOffset = 0;
 
-    setTimeout(() => {
-      this.blobManager.close();
-      this.blobManager = null;
-    }, 120000);
+    // After a save that worked, the file convert() returned is made of what the blob
+    // store keeps: it stays until release().
+    if (immediate) {
+      this.release();
+    }
+  }
+
+  /**
+   * Closes the blob store the saved file is made of, once nothing will read the file
+   * again (SaveManager: its URL dropped and the download of it over). See MP4Merger's.
+   */
+  release() {
+    const blobManager = this.blobManager;
+    this.blobManager = null;
+    blobManager?.close();
   }
 }
