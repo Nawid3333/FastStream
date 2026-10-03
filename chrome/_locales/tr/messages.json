@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tuşlar - 60 saniye ileri/geri sarma"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Oynat/duraklat"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Sesi kapat/aç"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "tuşlar - bir kare geri/ileri (videoyu duraklatır)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Geri alınan sarmayı yinele"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "yön tuşları - daha hızlı/yavaş oynat"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Altyazıları aç/kapat"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Resim içinde resim"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Pencereli tam ekran"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Sonraki/önceki video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Sonraki bölüm"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Videoyu kaydet"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Ekran görüntüsü al"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- İndirmeyi duraklat/sürdür"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Videoyu çevir/döndür"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Video filtrelerini (parlaklık, kontrast, renkler) aç/kapat"
+    },
     "perms_page_title": {
         "message": "FastStream İzinleri"
     },

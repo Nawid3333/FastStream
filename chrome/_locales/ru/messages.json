@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "клавиша - перемотка на 60 секунд вперёд/назад"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- воспроизведение/пауза"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- выключить/включить звук"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "клавиши - на один кадр назад/вперёд (ставит видео на паузу)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- вернуть отменённую перемотку"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "клавиши со стрелками - быстрее/медленнее"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- включить/выключить субтитры"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- картинка в картинке"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- во весь экран в оконном режиме"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- следующее/предыдущее видео"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- следующая глава"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- сохранить видео"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- сделать скриншот"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- приостановить/возобновить загрузку"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- отразить/повернуть видео"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- включить/выключить видеофильтры (яркость, контраст, цвета)"
+    },
     "perms_page_title": {
         "message": "Разрешения FastStream"
     },

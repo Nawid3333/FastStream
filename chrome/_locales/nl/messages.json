@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "toetsen - 60 seconden vooruit/achteruit springen"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Afspelen/pauzeren"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Dempen/dempen opheffen"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "toetsen - één beeld terug/vooruit (pauzeert de video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Ongedaan gemaakte sprong opnieuw uitvoeren"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "pijltjestoetsen - sneller/langzamer afspelen"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Ondertitels aan/uit"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Beeld-in-beeld"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Volledig scherm in venster"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Volgende/vorige video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Volgend hoofdstuk"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Video opslaan"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Schermafbeelding maken"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Downloaden pauzeren/hervatten"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Video spiegelen/draaien"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Videofilters (helderheid, contrast, kleuren) aan/uit"
+    },
     "perms_page_title": {
         "message": "FastStream-machtigingen"
     },

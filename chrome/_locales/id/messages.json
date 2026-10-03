@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tombol - lompat 60 detik maju/mundur"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Putar/jeda"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Bisukan/bunyikan"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "tombol - mundur/maju satu bingkai (menjeda video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Ulangi lompatan yang dibatalkan"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "tombol panah - putar lebih cepat/lambat"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Nyalakan/matikan subtitle"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Gambar-dalam-gambar"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Layar penuh dalam jendela"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Video berikutnya/sebelumnya"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Bab berikutnya"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Simpan video"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Ambil tangkapan layar"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Jeda/lanjutkan pengunduhan"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Balik/putar video"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Nyalakan/matikan filter video (kecerahan, kontras, warna)"
+    },
     "perms_page_title": {
         "message": "Izin FastStream"
     },

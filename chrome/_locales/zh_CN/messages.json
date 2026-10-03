@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "键 - 前进/后退 60 秒"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 播放/暂停"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- 静音/取消静音"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "键 - 后退/前进一帧（暂停视频）"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 重做已撤销的跳转"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "方向键 - 加快/减慢播放"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 开启/关闭字幕"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- 画中画"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- 窗口化全屏"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 下一个/上一个视频"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 下一章节"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 保存视频"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- 截图"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- 暂停/继续下载"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 翻转/旋转视频"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 开启/关闭视频滤镜（亮度、对比度、颜色）"
+    },
     "perms_page_title": {
         "message": "FastStream 权限"
     },

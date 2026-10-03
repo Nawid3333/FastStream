@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "keys - 60 second seek forward/back"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Play/pause"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Mute/unmute"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "keys - Step one frame back/forward (pauses the video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Redo the undone seek"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "arrow keys - Play faster/slower"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Subtitles on/off"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Picture-in-picture"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Windowed fullscreen"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Next/previous video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Next chapter"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Save video"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Take a screenshot"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Pause/resume downloading"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Flip/rotate the video"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Video filters (brightness, contrast, colors) on/off"
+    },
     "perms_page_title": {
         "message": "FastStream Permissions"
     },

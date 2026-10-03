@@ -82,6 +82,38 @@ describe('welcome page', () => {
     expect(html).toContain(`<code>${DefaultKeybinds.UndoSeek}</code>`);
   });
 
+  it('names the key of every action that has a default', () => {
+    // The list showed half the defaults (no Space, m, c, p, d, Shift+S, the frame step,
+    // ...) and two keys under names they do not have: "+" is Equal, the unshifted "=" key,
+    // and "~" is Backquote. A key is written as the welcome page writes it: a letter in
+    // lower case, or in upper case after "Shift+"; the arrows without "Arrow".
+    const names = {Space: 'Space', Equal: '=', Minus: '-', Backquote: '`', BracketLeft: '[', Comma: ',', Period: '.'};
+    const shown = (key) => {
+      const [shift, code] = key.startsWith('Shift+') ? ['Shift+', key.slice(6)] : ['', key];
+      if (code === 'AltRight') return 'Right Alt';
+      if (/^Digit\d$/.test(code)) return code.slice(5);
+      if (/^Key[A-Z]$/.test(code)) return shift ? shift + code.slice(3) : code.slice(3).toLowerCase();
+      if (code.startsWith('Arrow')) return shift + code.slice(5);
+      return shift + (names[code] ?? code);
+    };
+    const listed = new Set();
+    for (const [, keys] of html.matchAll(/<li><code>([^<]+)<\/code>/g)) {
+      // "Left/Right", "Shift+Up/Down" (both shifted), "0-9", "=/-", ",/.".
+      const [first, ...rest] = keys === '=/-' || keys === ',/.' ? [keys[0], keys[2]] : keys.split('/');
+      const shift = first.startsWith('Shift+') && first.slice(6).length > 1 ? 'Shift+' : '';
+      listed.add(first);
+      for (const key of rest) listed.add(shift && !key.startsWith('Shift+') ? shift + key : key);
+      if (keys === '0-9') for (let digit = 0; digit <= 9; digit++) listed.add(String(digit));
+    }
+    const missing = Object.entries(DefaultKeybinds).filter(([, key]) => key !== 'None')
+        .map(([action, key]) => [action, shown(key)]).filter(([, key]) => !listed.has(key))
+        .map(([action, key]) => `${action} (${key})`);
+    expect(missing).toEqual([]);
+    // And nothing it lists is no default's key.
+    const keys = new Set(Object.values(DefaultKeybinds).filter((key) => key !== 'None').map(shown));
+    expect([...listed].filter((key) => key !== '0-9' && !keys.has(key))).toEqual([]);
+  });
+
   it('has text for every keybind line in every language', () => {
     const used = [...html.matchAll(/data-i18n="(welcome_page_keybinds_content\d+)"/g)].map((match) => match[1]);
     expect(used.length).toBeGreaterThan(10);

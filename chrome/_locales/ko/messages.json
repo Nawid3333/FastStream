@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "키 - 앞/뒤로 60초 이동"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 재생/일시정지"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- 음소거/음소거 해제"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "키 - 한 프레임 뒤로/앞으로 (영상 일시정지)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 취소한 탐색 다시 실행"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "화살표 키 - 재생 속도 빠르게/느리게"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 자막 켜기/끄기"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- 픽처인픽처"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- 창 모드 전체화면"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 다음/이전 영상"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 다음 챕터"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 비디오 저장"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- 스크린샷 찍기"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- 다운로드 일시 중지/재개"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 영상 뒤집기/회전"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 영상 필터(밝기, 대비, 색상) 켜기/끄기"
+    },
     "perms_page_title": {
         "message": "FastStream 권한"
     },

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "キー - 前後の 60 秒間隔のシーク"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 再生/一時停止"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- ミュート/ミュート解除"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "キー - 1 フレーム戻る/進む (動画を一時停止)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 戻したシークをやり直す"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "矢印キー - 再生速度を上げる/下げる"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 字幕のオン/オフ"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- ピクチャー イン ピクチャー"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- ウィンドウド フルスクリーン"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 次/前のビデオ"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 次のチャプター"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 動画を保存"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- スクリーンショットを撮る"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- ダウンロードを一時停止/再開"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 動画を反転/回転"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 動画フィルター (明るさ、コントラスト、色) のオン/オフ"
+    },
     "perms_page_title": {
         "message": "FastStream の権限"
     },

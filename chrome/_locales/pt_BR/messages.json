@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "Tecla - 60 segundo de busca para frente/trás"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Reproduzir/pausar"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Silenciar/reativar o som"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "Teclas - voltar/avançar um quadro (pausa o vídeo)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Refazer a busca desfeita"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "Setas do teclado - reproduzir mais rápido/devagar"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Ativar/desativar as legendas"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Imagem em imagem"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Tela cheia em janela"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Próximo vídeo/vídeo anterior"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Próximo capítulo"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Salvar o vídeo"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Tirar uma captura de tela"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Pausar/retomar o download"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Espelhar/girar o vídeo"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Ativar/desativar os filtros de vídeo (brilho, contraste, cores)"
+    },
     "perms_page_title": {
         "message": "Permissões do FastStream"
     },

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "klawisze - przewijaj o 60 sekund do przodu/tyłu"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Odtwórz/wstrzymaj"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Wycisz/włącz dźwięk"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "klawisze - jedna klatka do tyłu/do przodu (wstrzymuje wideo)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Ponów cofnięte przewinięcie"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "klawisze strzałek - szybciej/wolniej"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Włącz/wyłącz napisy"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Obraz w obrazie"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Pełny ekran w oknie"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Następne/poprzednie wideo"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Następny rozdział"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Zapisz wideo"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Zrób zrzut ekranu"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Wstrzymaj/wznów pobieranie"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Odbij/obróć wideo"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Włącz/wyłącz filtry wideo (jasność, kontrast, kolory)"
+    },
     "perms_page_title": {
         "message": "Uprawnienia FastStream"
     },

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tasten - 60 sekunden vor-/zurückspulen"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Abspielen/Pause"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Stummschalten an/aus"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "Tasten - ein Einzelbild zurück/vor (pausiert das Video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Rückgängig gemachtes Spulen wiederholen"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "Pfeiltasten - schneller/langsamer abspielen"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Untertitel an/aus"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Bild-in-Bild"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Fenster-Vollbild"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Nächstes/vorheriges Video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Nächstes Kapitel"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Video speichern"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Bildschirmfoto machen"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Herunterladen pausieren/fortsetzen"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Video spiegeln/drehen"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Videofilter (Helligkeit, Kontrast, Farben) an/aus"
+    },
     "perms_page_title": {
         "message": "FastStream Berechtigungen"
     },
