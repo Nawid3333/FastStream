@@ -9,8 +9,8 @@ import {readMp4} from './helpers/mp4boxes.mjs';
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
     constructor() {
-      // No OPFS: finalize() builds the file as a Blob.
-      this.opfsManager = null;
+      // Without OPFS finalize() builds the file as a Blob.
+      this.opfsManager = globalThis.mergerOpfs ?? null;
     }
     close() {}
   },
@@ -30,6 +30,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  delete globalThis.mergerOpfs;
 });
 
 /**
@@ -100,5 +101,36 @@ describe('MP4Merger: what it writes', () => {
 
     expect(tracks.vide.elst.version).toBe(0);
     expect(tracks.vide.editEnd).toBeCloseTo(6000 / 90000, 6);
+  });
+});
+
+describe('MP4Merger: cancelling', () => {
+  it('stops while it copies the finished file to OPFS', async () => {
+    // With OPFS, finalize() copies every fragment's media into one file after the progress
+    // has reached 100 %; for a large video that takes a while. It did not look at the
+    // cancel, so a cancelled save still finished and downloaded.
+    let cancel;
+    const opfs = {
+      saveBegin: vi.fn(async () => {}),
+      saveAppend: vi.fn(async () => {
+        // The user cancels while the copy runs.
+        if (opfs.saveAppend.mock.calls.length === 2) cancel();
+      }),
+      saveEnd: vi.fn(async () => {}),
+      getSavedFile: vi.fn(async () => new Blob(['file'])),
+      saveAbort: vi.fn(async () => {}),
+    };
+    globalThis.mergerOpfs = opfs;
+    const track = videoTrack({timescale: 90000});
+    const fragments = [0, 1, 2, 3].map((i) => fragment(track, i + 1, i * 6000,
+        [{duration: 3000, cts: 0, key: true}, {duration: 3000, cts: 0}]));
+    const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data})}));
+    const merger = new MP4Merger((fn) => {
+      cancel = fn;
+    });
+
+    await expect(merger.convert(24000 / 90000, initSegment(track), 0, null, zipped)).rejects.toThrow('Cancelled');
+    expect(opfs.saveAbort).toHaveBeenCalledTimes(1);
+    expect(opfs.getSavedFile).not.toHaveBeenCalled();
   });
 });

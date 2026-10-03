@@ -392,8 +392,12 @@ export class MP4Merger extends EventEmitter {
         // init segment first...
         await this.opfs.saveAppend(this.saveIdentifier,
             new Uint8Array(toStandaloneBuffer(initSeg)));
-        // ...then every mdat chunk, in fragment order.
+        // ...then every mdat chunk, in fragment order. This runs after the progress has
+        // reached 100 %, and for a large video takes a while: a cancel still ends it.
         for (const slice of this.datas) {
+          if (this.cancelled) {
+            throw new Error('Cancelled');
+          }
           const buf = await BlobManager.getDataFromBlob(slice, 'arraybuffer');
           await this.opfs.saveAppend(this.saveIdentifier,
               new Uint8Array(toStandaloneBuffer(buf)));
@@ -403,8 +407,11 @@ export class MP4Merger extends EventEmitter {
         this.datas.length = 0;
         return file;
       } catch (e) {
-        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
         await this.opfs.saveAbort(this.saveIdentifier).catch(() => {});
+        if (this.cancelled) {
+          throw e;
+        }
+        console.warn('OPFS merge failed, falling back to an in-memory Blob', e);
         this.opfs = null;
       }
     }
