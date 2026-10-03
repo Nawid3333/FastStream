@@ -5,6 +5,7 @@ import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {EnvUtils} from '../../utils/EnvUtils.mjs';
 import {InterfaceUtils} from '../../utils/InterfaceUtils.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
+import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {createDropdown} from '../components/Dropdown.mjs';
@@ -466,6 +467,12 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
             if (!data.link) {
               throw new Error('No link');
+            }
+
+            // Fetched below with the extension's host permissions: any scheme and host the
+            // answer named was.
+            if (!SubtitleUtils.isOpenSubtitlesDownloadLink(data.link)) {
+              throw new Error('Not an OpenSubtitles download link');
             }
 
             item.cached_download_link = data.link;

@@ -175,6 +175,24 @@ export class SubtitleUtils {
   }
 
   /**
+   * Whether a download link from the OpenSubtitles API may be fetched. The player fetches
+   * it with the extension's host permissions, so only an https link on OpenSubtitles' own
+   * hosts is (they look like https://www.opensubtitles.com/download/.../subfile/name.srt),
+   * not whatever a hostile or intercepted answer names.
+   * @param {*} link - The link from the API's answer.
+   * @return {boolean}
+   */
+  static isOpenSubtitlesDownloadLink(link) {
+    let url;
+    try {
+      url = new URL(link);
+    } catch (e) {
+      return false;
+    }
+    return url.protocol === 'https:' && /(^|\.)opensubtitles\.(com|org)$/.test(url.hostname);
+  }
+
+  /**
    * Converts one SubRip timestamp to WebVTT's HH:MM:SS.mmm, which is all the WebVTT parser
    * accepts. SubRip files write the milliseconds after a comma or a full stop, sometimes
    * with fewer than three digits (read as a number of milliseconds, as ffmpeg and VLC read

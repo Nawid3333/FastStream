@@ -257,6 +257,44 @@ describe('cuesAt', () => {
   });
 });
 
+describe('isOpenSubtitlesDownloadLink', () => {
+  it('takes an https link on OpenSubtitles\' hosts, as the API gives them', () => {
+    for (const link of [
+      'https://www.opensubtitles.com/download/D35F5069516828D0/subfile/Titanic.1997.srt',
+      'https://opensubtitles.com/download/x/subfile/a.webvtt',
+      'https://dl.opensubtitles.org/en/download/sub/1',
+      'https://WWW.OpenSubtitles.COM/download/x',
+    ]) {
+      expect(SubtitleUtils.isOpenSubtitlesDownloadLink(link), link).toBe(true);
+    }
+  });
+
+  it('refuses any other scheme or host, which the extension would fetch with its permissions', () => {
+    for (const link of [
+      'http://www.opensubtitles.com/download/x',
+      'https://dl.example/sub.vtt',
+      'https://opensubtitles.com.evil.example/download/x',
+      'https://evilopensubtitles.com/download/x',
+      'https://evil.example/#.opensubtitles.com',
+      'https://evil.example/?www.opensubtitles.com',
+      'https://www.opensubtitles.com@evil.example/x',
+      'http://127.0.0.1:8080/admin',
+      'file:///C:/Users/x/secret.txt',
+      'moz-extension://abc/player/index.html',
+      'javascript:alert(1)',
+      'data:text/vtt,WEBVTT',
+      '/download/x',
+      '',
+      null,
+      undefined,
+      42,
+      {},
+    ]) {
+      expect(SubtitleUtils.isOpenSubtitlesDownloadLink(link), String(link)).toBe(false);
+    }
+  });
+});
+
 describe('srt2webvtt: line endings', () => {
   const EXPECTED = 'WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nHello\n\n2\n00:00:03.000 --> 00:00:04.000\nWorld\n\n';
 
