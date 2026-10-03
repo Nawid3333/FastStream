@@ -148,11 +148,21 @@ export default class Transmuxer {
       this.resetInitSegment(initSegmentData, audioCodec, videoCodec, duration);
       this.resetInitialTimestamp(defaultInitPts);
       this.resetContiguity();
+      this.initPTS = null;
     }
     const result = this.demux(uintData);
     const remuxed = this.remux(result.videoTrack, result.audioTrack, result.minPTS || 0);
+    // The times hls.js gives back count from an initPTS it picks from the first timestamps
+    // after each reset, separately in every transmuxer. It reports the one it picked with
+    // the init segment it makes then.
+    const initSegment = remuxed.initSegment;
+    if (initSegment && Number.isFinite(initSegment.initPTS) && initSegment.timescale) {
+      this.initPTS = initSegment.initPTS / initSegment.timescale;
+    }
     remuxed.videoTrack = result.videoTrack;
     remuxed.audioTrack = result.audioTrack;
+    // Where the stream's own clock was at this transmuxer's time 0, in seconds.
+    remuxed.initPTS = this.initPTS ?? 0;
     return remuxed;
   }
 

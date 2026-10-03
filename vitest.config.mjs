@@ -1,6 +1,25 @@
+import path from 'node:path';
 import {defineConfig} from 'vitest/config';
 
+// Libraries tools/sync-vendor.mjs copies out of node_modules unchanged (patched by pnpm at
+// install). The copies are generated, and CI runs the unit tests before it makes them, so a
+// test of code that imports one (the save's MP4 writers) gets the npm build itself.
+const root = import.meta.dirname;
+const VENDORED = new Map([
+  ['chrome/player/modules/hls.mjs', 'node_modules/hls.js/dist/hls.mjs'],
+  ['chrome/player/modules/mp4box/mp4box.all.mjs', 'node_modules/mp4box/dist/mp4box.all.mjs'],
+].map(([copy, build]) => [path.resolve(root, copy), path.resolve(root, build)]));
+
 export default defineConfig({
+  plugins: [{
+    name: 'vendored-libraries',
+    resolveId(source, importer) {
+      if (!importer || !source.startsWith('.')) {
+        return null;
+      }
+      return VENDORED.get(path.resolve(path.dirname(importer), source)) ?? null;
+    },
+  }],
   test: {
     // These suites cover pure logic only, so no DOM is needed. Anything that
     // touches window/navigator at module scope (FSBlob, most of player/ui)
