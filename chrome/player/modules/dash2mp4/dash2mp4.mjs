@@ -45,4 +45,11 @@ export class DASH2MP4 extends EventEmitter {
       return await this.converter.convert(videoMimeType, videoDuration, videoInitSegment, audioMimeType, audioDuration, audioInitSegment, zippedFragments);
     }
   }
+
+  /**
+   * Closes the blob store the saved file reads from: see MP4Merger.release().
+   */
+  release() {
+    this.converter?.release();
+  }
 }

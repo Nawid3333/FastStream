@@ -8,6 +8,8 @@ const root = import.meta.dirname;
 const VENDORED = new Map([
   ['chrome/player/modules/hls.mjs', 'node_modules/hls.js/dist/hls.mjs'],
   ['chrome/player/modules/mp4box/mp4box.all.mjs', 'node_modules/mp4box/dist/mp4box.all.mjs'],
+  // Line endings aside (normaliseText).
+  ['chrome/player/modules/remux/mediabunny.mjs', 'node_modules/mediabunny/dist/bundles/mediabunny.mjs'],
 ].map(([copy, build]) => [path.resolve(root, copy), path.resolve(root, build)]));
 
 export default defineConfig({

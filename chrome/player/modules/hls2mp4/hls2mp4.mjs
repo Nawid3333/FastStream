@@ -338,17 +338,20 @@ export class HLS2MP4 extends EventEmitter {
     this.datas = null;
     this.datasOffset = 0;
 
+    // After a save that worked, the file convert() returned is made of what the blob
+    // store keeps: it stays until release().
+    if (immediate) {
+      this.release();
+    }
+  }
+
+  /**
+   * Closes the blob store the saved file is made of, once nothing will read the file
+   * again (SaveManager: its URL dropped and the download of it over). See MP4Merger's.
+   */
+  release() {
     const blobManager = this.blobManager;
     this.blobManager = null;
-    if (!blobManager) {
-      return;
-    }
-    if (immediate) {
-      blobManager.close();
-    } else {
-      setTimeout(() => {
-        blobManager.close();
-      }, 120000);
-    }
+    blobManager?.close();
   }
 }

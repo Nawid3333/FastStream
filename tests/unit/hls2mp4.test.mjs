@@ -243,6 +243,30 @@ describe('HLS2MP4: damaged input', () => {
   });
 });
 
+describe('HLS2MP4: the blob store of a save', () => {
+  it('keeps the store the saved file is made of until release()', async () => {
+    // It closed two minutes after the save, and a closed OPFS session is deleted by the
+    // next player or save that starts. SaveManager releases it once nothing reads the file.
+    vi.useFakeTimers();
+    try {
+      const segment = muxSegment({video: {
+        type: StreamTypes.H264,
+        units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+      }});
+      const converter = new HLS2MP4();
+      await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)], {converter});
+      const store = stores.at(-1);
+
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+      expect(store.closed).toBe(false);
+      converter.release();
+      expect(store.closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('HLS2MP4: a save that does not finish', () => {
   const segment = () => muxSegment({video: {
     type: StreamTypes.H264,

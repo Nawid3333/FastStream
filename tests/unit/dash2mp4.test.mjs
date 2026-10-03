@@ -24,6 +24,9 @@ vi.mock('../../chrome/player/modules/remux/remuxer.mjs', async () => {
         for (const progress of [0, 0.5, 1]) this.emit('progress', progress);
         return new Blob(['remuxed']);
       }
+      release() {
+        this.released = true;
+      }
     },
   };
 });
@@ -40,5 +43,15 @@ describe('DASH2MP4', () => {
 
     expect(await blob.text()).toBe('remuxed');
     expect(shown.map((progress) => Math.round(progress * 100))).toEqual([33, 66, 66, 83, 100]);
+  });
+});
+
+describe('DASH2MP4.release', () => {
+  it('lets go of the store of the converter that made the file', async () => {
+    const converter = new DASH2MP4();
+    await converter.convert('', 10, new ArrayBuffer(0), '', 0, null, []);
+    converter.release();
+
+    expect(converter.converter.released).toBe(true);
   });
 });

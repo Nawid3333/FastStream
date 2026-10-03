@@ -476,15 +476,23 @@ export class MP4Merger extends EventEmitter {
     this.datas = null;
     this.datasOffset = 0;
 
+    // After a save that worked, the file convert() returned reads from the blob store:
+    // it stays until release().
+    if (immediate) {
+      this.release();
+    }
+  }
+
+  /**
+   * Closes the blob store the saved file reads from, once nothing will read the file
+   * again (SaveManager: its URL dropped and the download of it over). It was closed two
+   * minutes after the save, and a closed OPFS session is deleted by the next player or
+   * save that starts: a longer download, or the same file saved again, lost it.
+   */
+  release() {
     const blobManager = this.blobManager;
     this.blobManager = null;
-    if (blobManager) {
-      if (immediate) {
-        blobManager.close();
-      } else {
-        setTimeout(() => blobManager.close(), 120000);
-      }
-    }
+    blobManager?.close();
   }
 }
 

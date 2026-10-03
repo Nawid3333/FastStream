@@ -256,6 +256,8 @@ export default class HLSPlayer extends EventEmitter {
         return {
           extension: 'mp4',
           blob: blob,
+          // The file reads from the converter's blob store: closed once nothing reads it.
+          release: () => dash2mp4.release(),
         };
       } else {
         if (levelInitData || audioLevelInitData) {
@@ -274,6 +276,7 @@ export default class HLSPlayer extends EventEmitter {
         return {
           extension: 'mp4',
           blob: blob,
+          release: () => hls2mp4.release(),
         };
       }
     } catch (e) {

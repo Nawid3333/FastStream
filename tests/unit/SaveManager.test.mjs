@@ -96,6 +96,30 @@ describe('SaveManager: the URL of a finished save', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save-1');
   });
 
+  it('lets go of the file\'s blob store only once the URL is dropped and its download is over', async () => {
+    // A merged save's file reads from the converter's blob store (an OPFS session). The
+    // converter closed it two minutes after the save; a closed session is deleted by the
+    // next player or save that starts, so a longer download, or the same complete file
+    // saved again (its URL is reused), lost it.
+    const release = vi.fn();
+    const player = {
+      canSave: () => ({canSave: true, isComplete: true, canStream: false}),
+      saveVideo: async () => ({blob: new Blob(['video']), release}),
+    };
+    const manager = new SaveManager(makeClient(player));
+    await manager.saveVideo({});
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    await manager.saveVideo({});
+    expect(release).not.toHaveBeenCalled();
+
+    manager.reset();
+    await vi.advanceTimersByTimeAsync(59000);
+    expect(release).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:save-1');
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
   it('reuses the URL of a complete save', async () => {
     const player = {
       canSave: () => ({canSave: true, isComplete: true, canStream: false}),

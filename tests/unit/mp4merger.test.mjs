@@ -6,13 +6,20 @@ import {readMp4} from './helpers/mp4boxes.mjs';
 // with mp4box (the patched npm build: see vitest.config.mjs), and the file it writes read
 // back box by box.
 
+// Every blob store made, to see which were closed.
+const stores = [];
+
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
     constructor() {
+      stores.push(this);
+      this.closed = false;
       // Without OPFS finalize() builds the file as a Blob.
       this.opfsManager = globalThis.mergerOpfs ?? null;
     }
-    close() {}
+    close() {
+      this.closed = true;
+    }
   },
 }));
 
@@ -29,6 +36,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   delete globalThis.mergerOpfs;
 });
@@ -132,5 +140,34 @@ describe('MP4Merger: cancelling', () => {
     await expect(merger.convert(24000 / 90000, initSegment(track), 0, null, zipped)).rejects.toThrow('Cancelled');
     expect(opfs.saveAbort).toHaveBeenCalledTimes(1);
     expect(opfs.getSavedFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('MP4Merger: the blob store of a save', () => {
+  it('keeps the store the saved file reads from until release()', async () => {
+    // It closed two minutes after the save, and a closed OPFS session is deleted by the
+    // next player or save that starts: a longer download, or the same file saved again,
+    // lost it. SaveManager releases it once nothing will read the file.
+    vi.useFakeTimers();
+    const track = videoTrack({timescale: 90000});
+    const data = fragment(track, 1, 0, [{duration: 3000, cts: 0, key: true}]);
+    const merger = new MP4Merger();
+    await merger.convert(3000 / 90000, initSegment(track), 0, null,
+        [{track: 0, getEntry: async () => ({getData: async () => data})}]);
+    const store = stores.at(-1);
+
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    expect(store.closed).toBe(false);
+    merger.release();
+    expect(store.closed).toBe(true);
+  });
+
+  it('closes the store at once when the save fails', async () => {
+    const merger = new MP4Merger();
+    const broken = {track: 0, getEntry: async () => ({getData: async () => new Blob(['not an mp4'])})};
+    const track = videoTrack({timescale: 90000});
+    await expect(merger.convert(1, initSegment(track), 0, null, [broken])).rejects.toThrow();
+
+    expect(stores.at(-1).closed).toBe(true);
   });
 });

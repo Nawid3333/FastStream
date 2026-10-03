@@ -488,6 +488,8 @@ export default class DashPlayer extends EventEmitter {
       return {
         extension: 'mp4',
         blob: blob,
+        // The file reads from the converter's blob store: closed once nothing reads it.
+        release: () => dash2mp4.release(),
       };
     } catch (e) {
       zippedFragments.forEach((data) => {

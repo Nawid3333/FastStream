@@ -15,12 +15,27 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {StatusTypes} from './StatusManager.mjs';
 
+/**
+ * Revokes a save's URL once its download is over, then closes the blob store its file
+ * reads from (when it has one).
+ * @param {string} url
+ * @param {*} download - What Utils.downloadURL resolved with.
+ * @param {?function(): void} release
+ * @return {Promise<void>} Not awaited: the save is done before its download is.
+ */
+async function releaseWhenDownloaded(url, download, release) {
+  await Utils.revokeWhenDownloaded(url, download);
+  release?.();
+}
+
 export class SaveManager {
   constructor(client) {
     this.client = client;
     this.downloadURL = null;
     // What Utils.downloadURL answered for the last download of downloadURL.
     this.downloadURLDownload = undefined;
+    // Closes the blob store the file behind downloadURL reads from, if it has one.
+    this.downloadURLRelease = null;
     this.reuseDownloadURL = false;
     this.makingDownload = false;
     this.downloadCancel = null;
@@ -348,6 +363,7 @@ export class SaveManager {
       // in memory, or its OPFS file pinned, for the rest of the session.
       this.releaseDownloadURL();
       this.downloadURL = url;
+      this.downloadURLRelease = result.release || null;
     }
 
     if (!canStream) {
@@ -365,14 +381,22 @@ export class SaveManager {
   }
 
   /**
-   * Lets go of this.downloadURL: it is revoked once its last download is over.
+   * Lets go of this.downloadURL: it is revoked once its last download is over, and the
+   * blob store its file reads from (a merged save's OPFS session) is closed then. The
+   * store used to close two minutes after the save, and a closed session is deleted by the
+   * next player or save that starts: a longer download, or the same file saved again (a
+   * complete save's URL is reused), lost its file.
    */
   releaseDownloadURL() {
+    const release = this.downloadURLRelease;
     if (this.downloadURL) {
-      Utils.revokeWhenDownloaded(this.downloadURL, this.downloadURLDownload);
+      releaseWhenDownloaded(this.downloadURL, this.downloadURLDownload, release);
+    } else {
+      release?.();
     }
     this.downloadURL = null;
     this.downloadURLDownload = undefined;
+    this.downloadURLRelease = null;
   }
 
   async dumpBuffer(name) {
