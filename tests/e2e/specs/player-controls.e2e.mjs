@@ -267,6 +267,39 @@ describe('Player controls', function() {
     expect(slider).toEqual(['slider', '0', '300', '150', '150%']);
   });
 
+  it('copies a link from the time readout without the login headers', async function() {
+    // The copied link held the page's Cookie and Authorization in its query (#185).
+    await openEmptyPlayer();
+    const error = await browser.executeAsync((url, done) => {
+      Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
+          .then(([{VideoSource}, {URLUtils}]) => {
+            const headers = {Cookie: 'session=secret', Authorization: 'Bearer secret', Referer: 'https://site.example/'};
+            window.fastStream.addSource(new VideoSource(url, headers, URLUtils.getModeFromURL(url)), true);
+            done(null);
+          }).catch((e) => done(String(e)));
+    }, mp4Url());
+    expect(error).toBe(null);
+    await waitForPicture();
+    const copied = await browser.execute(() => {
+      let text = null;
+      const execCommand = document.execCommand;
+      document.execCommand = (command) => {
+        text = document.activeElement.value;
+        return command === 'copy';
+      };
+      try {
+        document.querySelector('.mainplayer .fluid_control_duration').click();
+      } finally {
+        document.execCommand = execCommand;
+      }
+      return text;
+    });
+    console.log('      copied:', copied);
+    const headers = JSON.parse(new URL(copied).searchParams.get('faststream-headers'));
+    expect(headers).toEqual({referer: 'https://site.example/'});
+    expect(copied).not.toContain('secret');
+  });
+
   it('does not carry the previous video\'s skip markers and button over', async function() {
     // They were redrawn only once the next video had a duration.
     await openEmptyPlayer();
