@@ -416,4 +416,92 @@ describe('XHRLoader', () => {
     const init = fetchMock.mock.calls[0][1];
     expect(init.headers['Range']).toBe('bytes=100-199');
   });
+
+  it('fails at once, without retrying, for a header fetch() cannot send', async () => {
+    // A name with a space (a custom header) made a real fetch() reject with a TypeError,
+    // which was retried like a network error, six times over a minute (#150).
+    const fetchMock = vi.fn(async (url, init) => {
+      new Headers(init.headers);
+      return new Response(new ArrayBuffer(0), {status: 200});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest({headers: {'x-bad name': 'value'}}), makeConfig());
+    await vi.runAllTimersAsync();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(loader.stats.retry).toBe(0);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+  });
+
+  describe('a server that ignores Range and sends the whole file (200)', () => {
+    // It was taken for the range asked for: the file's first bytes, labelled as a range
+    // further in (#139).
+    const file = Uint8Array.from({length: 100}, (_, i) => i);
+
+    /** The data a range of `file` came back as. */
+    async function loadRange(rangeStart, rangeEnd, body = file, headers = {}) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 200, headers})));
+      const loader = new XHRLoader();
+      const recorder = makeCallbackRecorder();
+      loader.addCallbacks(recorder);
+      loader.load(makeRequest({rangeStart, rangeEnd}), makeConfig());
+      await vi.runAllTimersAsync();
+      return {recorder, loader};
+    }
+
+    it('gives the range asked for, cut out of the file', async () => {
+      const {recorder, loader} = await loadRange(10, 20);
+      const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+      expect([...new Uint8Array(response.data)]).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+      expect(loader.stats.loaded).toBe(10);
+    });
+
+    it('stops reading the file once the range is in', async () => {
+      // A body that would go on for ever after its first 30 bytes.
+      let cancelled = false;
+      let sent = 0;
+      const endless = new ReadableStream({
+        pull(controller) {
+          if (sent < 30) {
+            controller.enqueue(file.slice(sent, sent + 10));
+            sent += 10;
+            return;
+          }
+          return new Promise(() => {});
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      const {recorder} = await loadRange(5, 15, endless);
+      const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+      expect([...new Uint8Array(response.data)]).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+      expect(cancelled).toBe(true);
+    });
+
+    it('fails a range that starts past the end of the file', async () => {
+      const {recorder, loader} = await loadRange(200, 300);
+      expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+      expect(loader.stats.error.code).toBe(416);
+    });
+
+    it('takes a 200 that says it is the range as the range, as before', async () => {
+      const range = file.slice(10, 20);
+      for (const headers of [{'content-range': 'bytes 10-19/100'}, {'content-length': '10'}]) {
+        const {recorder} = await loadRange(10, 20, range, headers);
+        const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+        expect(new Uint8Array(response.data)).toEqual(range);
+      }
+    });
+
+    it('leaves a whole-file request alone', async () => {
+      const {recorder} = await loadRange(undefined, undefined);
+      const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+      expect(new Uint8Array(response.data)).toEqual(file);
+    });
+  });
 });

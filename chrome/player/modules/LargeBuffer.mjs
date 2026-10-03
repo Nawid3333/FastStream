@@ -26,6 +26,11 @@ export class LargeBuffer {
   }
 
   async getParts(length) {
+    // Lengths come from the file itself (an archive's headers): a negative one, or one
+    // that is no number, read nothing, and the next read started in the wrong place.
+    if (!Number.isSafeInteger(length) || length < 0) {
+      throw new Error('Invalid length ' + length);
+    }
     const parts = [];
     this.offset += length;
     if (this.offset > this.byteLength) {
@@ -51,8 +56,10 @@ export class LargeBuffer {
   }
 
   async read(length) {
-    const uint8 = new Uint8Array(length);
+    // Checked first: a length from a damaged or crafted archive asked for up to 4 GB of
+    // memory before it was found out of range.
     const parts = await this.getParts(length);
+    const uint8 = new Uint8Array(length);
     let offset = 0;
 
     for (let i = 0; i < parts.length; i++) {
@@ -74,6 +81,7 @@ export class LargeBuffer {
 
   async uint32() {
     const arr = await this.read(4);
-    return (arr[0] << 24) | (arr[1] << 16) | (arr[2] << 8) | arr[3];
+    // >>> 0: `<< 24` is signed, and a size from 2 GB up came out negative.
+    return ((arr[0] << 24) | (arr[1] << 16) | (arr[2] << 8) | arr[3]) >>> 0;
   }
 }

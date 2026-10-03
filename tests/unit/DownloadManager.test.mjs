@@ -33,6 +33,63 @@ describe('DownloadManager', () => {
     expect(() => vi.advanceTimersByTime(2000)).not.toThrow();
   });
 
+  /** A downloader that takes one download and keeps it. */
+  function idleDownloader() {
+    const downloader = {
+      entry: null,
+      canHandle: () => !downloader.entry,
+      run: (entry) => {
+        downloader.entry = entry;
+      },
+    };
+    return downloader;
+  }
+
+  it('starts a queued download on every free downloader once a failure\'s wait is over', () => {
+    // The wait after a failure ends in one queueNext, which started one download: with
+    // three free downloaders and five queued downloads, one ran at a time (#133).
+    const manager = new DownloadManager(null);
+    manager.downloaders = [idleDownloader(), idleDownloader(), idleDownloader()];
+    for (let i = 0; i < 5; i++) manager.queue.push({status: DownloadStatus.ENQUEUED, details: {}});
+    manager.lastFailed = Date.now();
+    manager.queueNext();
+    expect(manager.downloaders.filter((downloader) => downloader.entry)).toHaveLength(0);
+
+    vi.advanceTimersByTime(1100);
+    expect(manager.downloaders.filter((downloader) => downloader.entry)).toHaveLength(3);
+    expect(manager.queue).toHaveLength(2);
+  });
+
+  it('gives a downloader dropped for a failed download back once downloads succeed again', () => {
+    // A failure takes one away; it never came back, so a few failures in a long video
+    // left half the downloaders for the rest of it (#133).
+    vi.stubGlobal('navigator', {onLine: true});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = {resetFailed: vi.fn(), predownloadFragments: vi.fn()};
+    const manager = new DownloadManager(client);
+    manager.testing = false;
+    const [failed, other] = [idleDownloader(), idleDownloader()];
+    manager.downloaders = [failed, other];
+    const succeed = () => manager.onDownloaderFinished(other, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+
+    manager.onDownloaderFinished(failed, {status: DownloadStatus.DOWNLOAD_FAILED});
+    expect(manager.downloaders).toEqual([other]);
+
+    // Not while failures are recent.
+    vi.advanceTimersByTime(DownloadManager.FailureRecoveryMs / 2);
+    succeed();
+    expect(manager.downloaders).toHaveLength(1);
+
+    vi.advanceTimersByTime(DownloadManager.FailureRecoveryMs);
+    succeed();
+    expect(manager.downloaders).toHaveLength(2);
+    // And no more than were taken away.
+    succeed();
+    expect(manager.downloaders).toHaveLength(2);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();

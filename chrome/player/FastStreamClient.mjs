@@ -644,20 +644,7 @@ export class FastStreamClient extends EventEmitter {
       let bitrate = level.bitrate;
       const fragments = this.fragments;
       if (fragments) {
-        let count = 0;
-        let size = 0;
-        let totalDuration = 0;
-        fragments.forEach((fragment) => {
-          if (fragment && fragment.dataSize !== null) {
-            count++;
-            size += fragment.dataSize;
-            totalDuration += fragment.duration;
-          }
-        });
-
-        if (count > 4) {
-          bitrate = size / totalDuration * 8;
-        }
+        bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
       }
       if (bitrate && this.duration) {
         let storageAvailable = (this.storageAvailable * 8) * 0.6;

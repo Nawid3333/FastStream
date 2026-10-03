@@ -35,6 +35,10 @@ export class SpeedTracker {
 
     const now = performance.now();
     const dt = (now - this.buffer[0].start) / 1000;
+    // A response that came within the clock's tick (a cache hit) gave Infinity: the shown
+    // speed, which smooths over what it is given, said Infinity for the rest of the
+    // session, and the speed limit held predownloading back meanwhile.
+    if (dt <= 0) return 0;
     return totalData / dt;
   }
 }

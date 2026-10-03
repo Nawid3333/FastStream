@@ -11,6 +11,10 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // - Two players starting together: one's prune deleted the other's brand-new session
 //   directory (made before its first heartbeat).
 // - clear() while an offload ran: the blob came back after the clear, and stayed.
+// - A fragment's identifier is its URL, and OPFS refuses a name with a '/': no fragment
+//   was ever stored, every one stayed in RAM.
+// - A backlog of writes longer than the call timeout counted as a crashed worker.
+// - A write the disk took only part of was taken for a whole one.
 
 vi.mock('../../chrome/player/network/IndexedDBManager.mjs', () => ({
   IndexedDBManager: class {
@@ -25,20 +29,49 @@ vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessag
 const {OPFSManager} = await import('../../chrome/player/network/OPFSManager.mjs');
 const {FSBlob} = await import('../../chrome/player/modules/FSBlob.mjs');
 
+/** How many more bytes the stand-in disk takes; a write past it is cut short. */
+let diskRoom = Infinity;
+
+/**
+ * Firefox's rule for a file or directory name (IsValidName in
+ * dom/fs/shared/FileSystemHelpers.cpp, as built for Windows): anything else is a TypeError.
+ * @param {string} name
+ */
+function checkName(name) {
+  if (typeof name !== 'string' || name === '' || name === '.' || name === '..' ||
+      name.includes('/') || name.includes('\\')) {
+    throw new TypeError('Invalid name: ' + name);
+  }
+}
+
 /** A file in the stand-in OPFS. */
 class FakeFile {
-  constructor(text = '') {
+  constructor(text = '', name = '') {
     this.bytes = new TextEncoder().encode(text);
     this.unreadable = false;
+    // The heartbeat is left out of diskRoom: it is written every second, whenever.
+    this.isHeartbeat = name === '_meta.json';
   }
   async createSyncAccessHandle() {
     return {
-      write: (data) => {
-        this.bytes = new Uint8Array(data.buffer ? data.buffer.slice(0) : data);
-        return this.bytes.byteLength;
+      // As Firefox's: what the disk did not take is left out of the count, not thrown.
+      write: (data, {at = 0} = {}) => {
+        const source = data instanceof ArrayBuffer ? new Uint8Array(data) :
+          new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+        const count = this.isHeartbeat ? source.byteLength : Math.min(source.byteLength, diskRoom);
+        if (!this.isHeartbeat) diskRoom -= count;
+        if (at + count > this.bytes.byteLength) {
+          const grown = new Uint8Array(at + count);
+          grown.set(this.bytes);
+          this.bytes = grown;
+        }
+        this.bytes.set(source.subarray(0, count), at);
+        return count;
       },
       truncate: (n) => {
-        this.bytes = this.bytes.subarray(0, n);
+        const cut = new Uint8Array(n);
+        cut.set(this.bytes.subarray(0, n));
+        this.bytes = cut;
       },
       flush: () => {},
       close: () => {},
@@ -56,6 +89,7 @@ class FakeDir {
     this.children = new Map();
   }
   async getDirectoryHandle(name, {create = false} = {}) {
+    checkName(name);
     if (!this.children.has(name)) {
       if (!create) throw new Error('NotFoundError: ' + name);
       this.children.set(name, new FakeDir());
@@ -65,13 +99,15 @@ class FakeDir {
     return child;
   }
   async getFileHandle(name, {create = false} = {}) {
+    checkName(name);
     if (!this.children.has(name)) {
       if (!create) throw new Error('NotFoundError: ' + name);
-      this.children.set(name, new FakeFile());
+      this.children.set(name, new FakeFile('', name));
     }
     return this.children.get(name);
   }
   async removeEntry(name) {
+    checkName(name);
     if (!this.children.delete(name)) throw new Error('NotFoundError: ' + name);
   }
   async* keys() {
@@ -79,7 +115,57 @@ class FakeDir {
   }
 }
 
+/**
+ * A fresh copy of the real opfs-worker.mjs on the stand-in OPFS, run in this thread: what
+ * is posted to the returned worker reaches it, and its answers go to `answer`.
+ * @param {FakeDir} root
+ * @return {Promise<Object>} the worker, as OPFSManager uses one
+ */
+async function startWorker(root) {
+  let onMessage;
+  const worker = {
+    answer: () => {},
+    postMessage: (message) => queueMicrotask(() => onMessage({data: message})),
+    terminate: vi.fn(),
+  };
+  vi.stubGlobal('self', {
+    addEventListener: (type, listener) => {
+      onMessage = listener;
+    },
+    postMessage: (message) => worker.answer(message),
+  });
+  vi.stubGlobal('navigator', {storage: {getDirectory: async () => root}});
+  vi.resetModules();
+  await import('../../chrome/player/network/opfs-worker.mjs');
+  return worker;
+}
+
+/**
+ * An OPFSManager whose worker is the real one on the stand-in OPFS, set up as setup() does.
+ * @param {FakeDir} root
+ * @return {Promise<OPFSManager>}
+ */
+async function startManager(root) {
+  const worker = await startWorker(root);
+  const manager = new OPFSManager();
+  manager.worker = worker;
+  worker.answer = (message) => manager.handleMessage(message);
+  manager.sessionName = (await manager.call('init')).sessionName;
+  return manager;
+}
+
+/**
+ * The session directory a manager writes to.
+ * @param {FakeDir} root
+ * @param {OPFSManager} manager
+ * @return {FakeDir}
+ */
+function sessionOf(root, manager) {
+  return root.children.get('fsblob').children.get(manager.sessionName);
+}
+
 afterEach(() => {
+  diskRoom = Infinity;
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -89,15 +175,16 @@ describe('OPFSManager', () => {
   it('gives a stored fragment back as the file on disk, not a copy in RAM', async () => {
     const root = new FakeDir();
     const session = await (await root.getDirectoryHandle('fsblob', {create: true})).getDirectoryHandle('fsblob-1-1', {create: true});
-    session.children.set('blob0', new FakeFile('fragment bytes'));
+    session.children.set('f0', new FakeFile('fragment bytes'));
     vi.stubGlobal('navigator', {storage: {getDirectory: async () => root}});
 
     const manager = new OPFSManager();
     manager.sessionName = 'fsblob-1-1';
     manager.worker = {postMessage: vi.fn()};
+    manager.fileNames.set('blob0', 'f0');
 
     const file = await manager.getFile('blob0');
-    expect(file.disk).toBe(session.children.get('blob0'));
+    expect(file.disk).toBe(session.children.get('f0'));
     expect(manager.worker.postMessage).not.toHaveBeenCalled();
   });
 
@@ -127,6 +214,45 @@ describe('OPFSManager', () => {
     expect(await manager.call('set', {identifier: 'blob0'})).toBe('done');
     await vi.advanceTimersByTimeAsync(OPFSManager.CallTimeoutMs * 2);
     expect(manager.worker).not.toBeNull();
+    // And no timer is left behind for it.
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps a worker that is working through a backlog longer than the timeout', async () => {
+    // It answers one call at a time, in order, each well within the limit; the last one
+    // waits three times the limit in all, behind the others.
+    vi.useFakeTimers();
+    const manager = new OPFSManager();
+    const posted = [];
+    manager.worker = {postMessage: (message) => posted.push(message), terminate: vi.fn()};
+    const step = OPFSManager.CallTimeoutMs * 0.75;
+    const calls = Array.from({length: 4}, (_, i) => manager.call('set', {identifier: 'f' + i}));
+
+    for (const message of posted) {
+      await vi.advanceTimersByTimeAsync(step);
+      manager.handleMessage({id: message.id, ok: true});
+    }
+
+    await expect(Promise.all(calls)).resolves.toHaveLength(4);
+    expect(manager.worker.terminate).not.toHaveBeenCalled();
+    expect(manager.worker).not.toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('still gives up when the worker stops answering in the middle of a backlog', async () => {
+    vi.useFakeTimers();
+    const manager = new OPFSManager();
+    const posted = [];
+    const worker = {postMessage: (message) => posted.push(message), terminate: vi.fn()};
+    manager.worker = worker;
+    const calls = [0, 1, 2].map((i) => manager.call('set', {identifier: 'f' + i}).then(() => 'answered', (e) => e.message));
+
+    await vi.advanceTimersByTimeAsync(1000);
+    manager.handleMessage({id: posted[0].id, ok: true});
+    await vi.advanceTimersByTimeAsync(OPFSManager.CallTimeoutMs);
+
+    expect(await Promise.all(calls)).toEqual(['answered', expect.stringMatching(/did not answer set/), expect.stringMatching(/did not answer set/)]);
+    expect(worker.terminate).toHaveBeenCalled();
   });
 });
 
@@ -155,29 +281,62 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
     // A live one.
     session(`fsblob-${now - 60000}-5`, heartbeat(now - 2000));
 
-    let onMessage;
-    const replies = [];
-    vi.stubGlobal('self', {
-      addEventListener: (type, listener) => {
-        onMessage = listener;
-      },
-      postMessage: (message) => replies.push(message),
-    });
-    vi.stubGlobal('navigator', {storage: {getDirectory: async () => root}});
-    await import('../../chrome/player/network/opfs-worker.mjs');
-
-    await onMessage({data: {id: 1, op: 'init'}});
+    const manager = await startManager(root);
     try {
-      expect(replies[0]).toMatchObject({id: 1, ok: true});
       const left = [...fsblob.children.keys()].sort();
       expect(left).toEqual([
         `fsblob-${now - 50}-1`,
         `fsblob-${now - 60000}-4`,
         `fsblob-${now - 60000}-5`,
-        replies[0].result.sessionName,
+        manager.sessionName,
       ].sort());
     } finally {
-      await onMessage({data: {id: 2, op: 'destroy'}});
+      await manager.close();
+    }
+  });
+});
+
+describe('opfs-worker: writes', () => {
+  it('fails a fragment the disk took only part of, and leaves nothing of it behind', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      diskRoom = 3;
+      const blob = new Blob([new Uint8Array([1, 2, 3, 4, 5])]);
+      await expect(manager.setFile('blob0', blob)).rejects.toThrow(/wrote 3 of 5 bytes/);
+      expect([...sessionOf(root, manager).children.keys()]).toEqual(['_meta.json']);
+    } finally {
+      diskRoom = Infinity;
+      await manager.close();
+    }
+  });
+
+  it('fails a save whose chunk the disk took only part of', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await manager.saveBegin('save-1');
+      await manager.saveAppend('save-1', new Uint8Array([1, 2, 3]));
+      diskRoom = 1;
+      await expect(manager.saveAppend('save-1', new Uint8Array([4, 5, 6]))).rejects.toThrow(/wrote 1 of 3 bytes/);
+    } finally {
+      diskRoom = Infinity;
+      await manager.close();
+    }
+  });
+
+  it('writes a whole save, chunk after chunk, into one file', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await manager.saveBegin('save-1');
+      await manager.saveAppend('save-1', new Uint8Array([1, 2, 3]));
+      await manager.saveAppend('save-1', new Uint8Array([4, 5]));
+      await manager.saveEnd('save-1');
+      const file = await manager.getSavedFile('save-1');
+      expect([...file.disk.bytes]).toEqual([1, 2, 3, 4, 5]);
+    } finally {
+      await manager.close();
     }
   });
 });
@@ -200,14 +359,54 @@ describe('FSBlob', () => {
       delete: async (url) => cached.delete(url),
     };
     vi.stubGlobal('window', {caches: {open: async () => cache, delete: async () => true}});
+    const storage = globalThis.navigator?.storage;
     vi.stubGlobal('navigator', {});
     const fsblob = new FSBlob();
+    // The OPFS manager reads the directory from here.
+    vi.stubGlobal('navigator', storage ? {storage} : {});
     fsblob.remainingBackends = ['cache'];
     fsblob.opfsManager = opfsManager;
     fsblob.cache = null;
     fsblob.setupPromise = Promise.resolve();
     return {fsblob, cached};
   }
+
+  it('stores a downloaded fragment, named by its URL, on disk and deletes it again', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    const {fsblob} = withOpfs(manager);
+    try {
+      const identifier = 'https://cdn.example/video/720p/seg-1.ts::0-1000000::arraybuffer';
+      await fsblob.saveBlobAsync(new Blob([new Uint8Array([7, 8, 9])]), identifier);
+
+      // The file on disk, not the Blob in RAM it was given.
+      const stored = fsblob.getBlob(identifier);
+      expect(stored.disk).toBeDefined();
+      expect([...stored.disk.bytes]).toEqual([7, 8, 9]);
+      expect(console.warn).not.toHaveBeenCalled();
+
+      await fsblob.deleteBlob(identifier);
+      expect([...sessionOf(root, manager).children.keys()]).toEqual(['_meta.json']);
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it('keeps a fragment in RAM that the disk took only part of', async () => {
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    const {fsblob} = withOpfs(manager);
+    try {
+      diskRoom = 2;
+      const blob = new Blob([new Uint8Array([7, 8, 9])]);
+      await fsblob.saveBlobAsync(blob, 'blob0');
+      expect(fsblob.getBlob('blob0')).toBe(blob);
+      expect(fsblob.opfsManager).toBe(manager);
+    } finally {
+      diskRoom = Infinity;
+      await manager.close();
+    }
+  });
 
   it('moves on to the next backend once the OPFS worker is gone', async () => {
     const dead = {

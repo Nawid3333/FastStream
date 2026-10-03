@@ -55,6 +55,26 @@ function createWriteStreamBlob(filename, opts, size) {
 }
 
 /**
+ * Revokes a save's URL and closes its blob store once its download is over. Firefox reads
+ * the file from the store's OPFS session as it downloads it, and a closed session is
+ * deleted by the next prune (any player or save starting, 10 s after its last heartbeat):
+ * closed on a fixed two-minute timer, a longer download (a big video to a slow disk) lost
+ * its file midway, with no message. Never sooner than those two minutes, which is all a
+ * download without an id to follow (a link click) has.
+ * @param {FSBlob} blobManager
+ * @param {string} url - The blob: URL being downloaded.
+ * @param {*} download - What Utils.downloadURL resolved with.
+ * @return {Promise<void>} Not awaited: the save is done before its download is.
+ */
+async function closeWhenDownloaded(blobManager, url, download) {
+  await Promise.all([
+    Utils.revokeWhenDownloaded(url, download),
+    Utils.asyncTimeout(120000),
+  ]);
+  blobManager.close();
+}
+
+/**
  * Progressive, disk-backed sink: every chunk is appended to one OPFS file and
  * the finished file goes to the download as a File, so RAM stays flat no
  * matter the video size.
@@ -90,13 +110,8 @@ function createOPFSSink(filename, blobManager) {
         throw e;
       }
       // chrome.downloads resolves before Firefox has read the blob URL: kept until the
-      // download is over (revokeWhenDownloaded). Defer closing the worker the same way
-      // mp4merger.mjs's destroy() does, so a slow transfer still has time to finish
-      // reading from the OPFS-backed file before its session is torn down.
-      Utils.revokeWhenDownloaded(url, download);
-      setTimeout(() => {
-        blobManager.close();
-      }, 120000);
+      // download is over (revokeWhenDownloaded), and the OPFS file behind it too.
+      closeWhenDownloaded(blobManager, url, download);
     },
     async abort() {
       await opfsWriterReady.catch(() => {});
@@ -124,11 +139,7 @@ function createMemorySink(filename, blobManager) {
       const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
       const blob = new Blob(chunks, {type: 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
-      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, filename));
-
-      setTimeout(() => {
-        blobManager.close();
-      }, 120000);
+      closeWhenDownloaded(blobManager, url, await Utils.downloadURL(url, filename));
     },
     async abort() {
       blobs.length = 0;

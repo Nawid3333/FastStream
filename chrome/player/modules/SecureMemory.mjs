@@ -124,8 +124,12 @@ export class SecureMemory {
   }
 
   async getHashes(identifier) {
-    const identifierHash = await SecureMemory.hash(identifier, this.identifierSalt);
-    const keyHash= await SecureMemory.hash(identifier, this.keySalt);
+    // Side by side: each is 600,000 rounds of PBKDF2, and the video's start (autoplay, the
+    // seek to the time in its URL) waits for both.
+    const [identifierHash, keyHash] = await Promise.all([
+      SecureMemory.hash(identifier, this.identifierSalt),
+      SecureMemory.hash(identifier, this.keySalt),
+    ]);
     return {identifierHash, keyHash};
   }
 

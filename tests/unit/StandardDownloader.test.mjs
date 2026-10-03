@@ -24,4 +24,49 @@ describe('StandardDownloader', () => {
     expect(downloader.canHandle({})).toBe(true);
     expect(manager.onDownloaderFinished).toHaveBeenCalledTimes(1);
   });
+
+  // An entry whose request is still being made (a DASH segment's preprocessor) can be
+  // aborted, by a seek; the request failing after that failed whatever entry the
+  // downloader had by then, or threw on none (#148).
+  describe('a request that fails after its download was aborted', () => {
+    /** An entry whose request fails when the test says. */
+    function pendingEntry() {
+      const entry = {onAbort: vi.fn(), onFail: vi.fn()};
+      entry.request = new Promise((resolve, reject) => {
+        entry.failRequest = reject;
+      });
+      entry.getRequest = () => entry.request;
+      return entry;
+    }
+
+    it('leaves the download the downloader has moved on to alone', async () => {
+      const downloader = new StandardDownloader({onDownloaderFinished: vi.fn()});
+      const aborted = pendingEntry();
+      downloader.run(aborted);
+      downloader.abort();
+      const next = pendingEntry();
+      downloader.run(next);
+
+      aborted.failRequest(new Error('the preprocessor failed'));
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(next.onFail).not.toHaveBeenCalled();
+      expect(downloader.entry).toBe(next);
+    });
+
+    it('is not an error when the downloader has nothing else', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const downloader = new StandardDownloader({onDownloaderFinished: vi.fn()});
+      const aborted = pendingEntry();
+      downloader.run(aborted);
+      downloader.abort();
+
+      aborted.failRequest(new Error('the preprocessor failed'));
+      await new Promise((resolve) => setTimeout(resolve));
+
+      expect(error).not.toHaveBeenCalled();
+      expect(aborted.onFail).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
+  });
 });

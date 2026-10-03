@@ -113,6 +113,9 @@ export class XHRLoader {
           if (!Object.hasOwn(regularHeaders, header)) continue;
           fetchHeaders[header] = regularHeaders[header];
         }
+        // A header fetch() cannot send (a name with a space, a value with a line break)
+        // fails here, for good: from fetch() it was a network error, retried six times.
+        new Headers(fetchHeaders);
 
         if (customHeaderCommands.length) {
           if (EnvUtils.isExtension()) {
@@ -192,10 +195,17 @@ export class XHRLoader {
 
     this.response = response;
     const isArrayBuffer = request.responseType === 'arraybuffer';
+    // A server that ignores Range answers 200 with the whole file, from its first byte. That
+    // was taken for the range asked for (the file's start, labelled as a range further in);
+    // the range is cut out of it now (readBody). A 200 that says it is the range (a
+    // Content-Range, or exactly the range's length) is taken as one, as before.
+    const length = parseInt(response.headers.get('content-length'), 10);
+    const wholeFile = status === 200 && !!request.rangeEnd && !response.headers.has('content-range') &&
+        !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
 
     let data;
     try {
-      data = await this.readBody(response, isArrayBuffer, isStale);
+      data = await this.readBody(response, isArrayBuffer, isStale, wholeFile ? request : null);
     } catch (e) {
       if (isStale()) {
         return;
@@ -205,6 +215,12 @@ export class XHRLoader {
     }
 
     if (isStale()) {
+      return;
+    }
+
+    if (wholeFile && !(isArrayBuffer ? data.byteLength : data.length)) {
+      // The file ends before the range starts.
+      this.handleLoadFailure(416, 'Range Not Satisfiable');
       return;
     }
 
@@ -253,9 +269,12 @@ export class XHRLoader {
    * @param {boolean} isArrayBuffer - true to return an ArrayBuffer, false for text.
    * @param {function(): boolean} [isStale] - true once this attempt has been torn down;
    *   a chunk still delivered then must not re-arm the next attempt's stall timer.
+   * @param {?{rangeStart: number, rangeEnd: number}} [range] - for a body that is the whole
+   *   file although a range was asked for: only that range is returned, and reading stops
+   *   once it is in.
    * @return {Promise<ArrayBuffer|string>} the concatenated response body.
    */
-  async readBody(response, isArrayBuffer, isStale = () => false) {
+  async readBody(response, isArrayBuffer, isStale = () => false, range = null) {
     const stats = this.stats;
     const contentLength = response.headers.get('content-length');
     if (contentLength) {
@@ -269,8 +288,9 @@ export class XHRLoader {
     const reader = response.body.getReader();
     const chunks = [];
     let receivedLength = 0;
+    const limit = range ? range.rangeEnd : Infinity;
 
-    while (true) {
+    while (receivedLength < limit) {
       const {done, value} = await reader.read();
       if (done) break;
       if (isStale()) {
@@ -283,12 +303,19 @@ export class XHRLoader {
 
       this.rearmTimeout();
     }
+    if (receivedLength >= limit) {
+      // The rest of the file is not needed.
+      reader.cancel().catch(() => {});
+    }
 
-    const merged = new Uint8Array(receivedLength);
+    let merged = new Uint8Array(receivedLength);
     let offset = 0;
     for (const chunk of chunks) {
       merged.set(chunk, offset);
       offset += chunk.byteLength;
+    }
+    if (range) {
+      merged = merged.slice(range.rangeStart || 0, range.rangeEnd);
     }
 
     return isArrayBuffer ? merged.buffer : new TextDecoder('utf-8').decode(merged);
