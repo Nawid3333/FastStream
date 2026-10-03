@@ -347,6 +347,11 @@ export default class HLSPlayer extends EventEmitter {
 
   trackUpdated(levelDetails, trackID) {
     levelDetails.trackID = trackID;
+    // FastStream decrypts AES-128 segments itself (HLSFragmentRequester), its init segment
+    // too; other encryption (SAMPLE-AES, DRM) it cannot play.
+    if (!HLSFragmentRequester.takeOverDecryption(levelDetails.fragments)) {
+      this.emit(DefaultPlayerEvents.NEED_KEY);
+    }
     // A live playlist's window moves on: its first fragment starts where hls.js placed
     // it, not at 0, or each refresh would place its new fragments over the old ones.
     let time = levelDetails.fragments[0]?.start || 0;
@@ -357,22 +362,6 @@ export default class HLSPlayer extends EventEmitter {
         if (!this.client.getFragment(identifier, -1)) {
           this.client.makeFragment(identifier, -1, new HLSFragment(fragment.initSegment, 0, 0));
         }
-      }
-      if (fragment.encrypted) {
-        if (fragment.decryptdata && fragment.levelkeys) {
-          fragment.fs_oldcryptdata = fragment.decryptdata;
-          fragment.fs_oldlevelKeys = fragment.levelkeys;
-        } else {
-          this.emit(DefaultPlayerEvents.NEED_KEY);
-          // console.log(fragment);
-          // console.error('SAMPLE-AES not supported!');
-          // throw new Error('SAMPLE-AES not supported!');
-        }
-
-        fragment.levelkeys = null;
-        fragment._decryptdata = null;
-
-        void fragment.decryptdata;
       }
       const start = time;
       time += fragment.duration;

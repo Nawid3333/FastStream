@@ -181,6 +181,24 @@ describe('HLSLoader, init segments', () => {
     expect(getFile.mock.calls[0][0].url).toBe(other.url);
   });
 
+  it('fails a load it could not start, rather than leaving hls.js waiting for it', () => {
+    // requestFragment refused an init segment still under hls.js's key (HLSEncryptedPlaylists
+    // test): the throw was logged, hls.js heard nothing, and the stream span forever.
+    const {player, requestFragment} = makePlayer(storedInit(INIT));
+    requestFragment.mockImplementation(() => {
+      throw new Error('unexpected decryptdata');
+    });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const callbacks = fragmentCallbacks();
+    const context = {url: INIT.url, frag: {...INIT}};
+    new (hlsLoaderFactory(player))().load(context, {}, callbacks);
+    error.mockRestore();
+
+    expect(callbacks.onError).toHaveBeenCalledTimes(1);
+    expect(callbacks.onError.mock.calls[0][0].text).toMatch(/unexpected decryptdata/);
+    expect(callbacks.onError.mock.calls[0][1]).toBe(context);
+  });
+
   it('tells init segments in one file apart by their byte range', () => {
     const inFile = {...INIT, byteRangeStartOffset: 0, byteRangeEndOffset: 720};
     const {player, getFile, requestFragment} = makePlayer(storedInit(inFile));
