@@ -578,7 +578,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
         startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened,
             () => openMpvWithSources(tab));
       } else {
-        startWithTrackedLater(tab, changeInfo.url, () => !tab.isMpv, () => openPlayersWithSources(tab));
+        startWithTrackedLater(tab, changeInfo.url, () => !tab.isMpv,
+            (foundBefore) => openPlayersWithSources(tab, foundBefore));
       }
     } else if (!shouldAutoEnable && !mpvSite && tab.regexMatched) {
       tab.isOn = false;
@@ -604,18 +605,20 @@ const UrlStartSettleMs = 500;
  * site's home page played went to mpv for the episode the user opened from it (an
  * allowlist entry for its /watch path), the episode's own stream found the page handed off
  * already, and was only tracked. A stream the new page asks for meanwhile goes by itself
- * (onSourceRecieved). A page that changes its address itself (pushState) names no new page,
- * and what the tab tracks is that page's.
+ * (onSourceRecieved), and the start leaves it to that: it acts only on streams found before
+ * the address changed (start gets that time). A page that changes its address itself
+ * (pushState) names no new page, and what the tab tracked then is that page's.
  * @param {TabHolder} tab - The tab.
  * @param {string} url - The address that matched.
  * @param {() => boolean} stillWanted - Whether the start still applies then.
- * @param {() => *} start - The start.
+ * @param {(foundBefore: number) => *} start - The start, given the address change's time.
  */
 function startWithTrackedLater(tab, url, stillWanted, start) {
   // The tab's next address change cancels it (tabs.onUpdated).
+  const changedAt = Date.now();
   tab.urlStartTimer = setTimeout(() => {
     if (Tabs.getTab(tab.tabId) === tab && tab.url === url && tab.isOn && stillWanted()) {
-      start();
+      start(changedAt);
     }
   }, UrlStartSettleMs);
 }
@@ -1948,7 +1951,15 @@ async function onSourceRecieved(details, frame, mode) {
   return;
 }
 
-async function openPlayersWithSources(tab) {
+/**
+ * Opens the in-page player in each frame whose page has a video stream.
+ * @param {TabHolder} tab - The tab.
+ * @param {number} [foundBefore] - Only streams found before this time count (a start by
+ *   address, startWithTrackedLater): a later one opens the player by itself, after the
+ *   page's <track> captions are read (onSourceRecieved), and opened here as well it
+ *   beat them and opened a second player.
+ */
+async function openPlayersWithSources(tab, foundBefore = Infinity) {
   if (!tabHasSources(tab)) {
     // Streams the page asked for before this background knew of it (recoverSources). Each
     // one found opens the player as a stream detected now does (onSourceRecieved): opened
@@ -1960,7 +1971,7 @@ async function openPlayersWithSources(tab) {
 
   let framesWithSources = [];
   for (const frame of tab.getFrames()) {
-    if (!frame.isPlayer && frame.getSources().length > 0) {
+    if (!frame.isPlayer && frame.getSources().some((source) => !(source.time >= foundBefore))) {
       framesWithSources.push(frame);
     }
   }
