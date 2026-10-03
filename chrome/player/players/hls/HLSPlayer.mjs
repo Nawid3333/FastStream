@@ -497,11 +497,10 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   getCurrentVideoLevelID() {
-    let level = this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel;
-    if (level === -1) {
-      level = null;
-    }
-    return this.getIdentifier(0, level);
+    const level = this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel;
+    // No level before the manifest is parsed. This was "0:null", which FastStreamClient took
+    // for a level and wrote over the level an archive had asked for.
+    return level === -1 ? null : this.getIdentifier(0, level);
   }
 
   setCurrentVideoLevelID(value) {

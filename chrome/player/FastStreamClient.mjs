@@ -892,8 +892,10 @@ export class FastStreamClient extends EventEmitter {
         this.getLevelManager().setCurrentVideoLevelID(source.defaultLevelInfo.level);
       }
 
-      if (source.defaultLevelInfo?.audio !== undefined) {
-        this.getLevelManager().setCurrentAudioLevelID(source.defaultLevelInfo.audio);
+      // audioLevel, as an archive's source has it (SaveManager): this read `audio`, and an
+      // archive's audio track was never restored.
+      if (source.defaultLevelInfo?.audioLevel !== undefined) {
+        this.getLevelManager().setCurrentAudioLevelID(source.defaultLevelInfo.audioLevel);
       }
 
       this.storageAvailable = await EnvUtils.getAvailableStorage();
