@@ -140,7 +140,8 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
   for (const [path, what] of Object.entries(CALL_SITES)) {
     it(`${path} (${what}) decodes with decodeSubtitleBytes`, () => {
       const source = read(path);
-      expect(source).toMatch(/decodeSubtitleBytes\(/);
+      // A call, not content.js's own copy of the function.
+      expect(source).toMatch(/(?<!function )decodeSubtitleBytes\(/);
       expect(source).not.toMatch(/\.responseText\b|readAsText\(|response\.text\(\)/);
     });
   }

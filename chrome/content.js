@@ -673,10 +673,9 @@
         const source = track.src;
         httpRequest(source, (err, req, body) => {
           done++;
-          const text = body ? decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')) : '';
-          if (text) {
+          if (body) {
             tracks.push({
-              data: text,
+              data: body,
               source: source,
               label: track.label,
               language: track.srclang,
@@ -1290,8 +1289,8 @@
     }
   }
 
-  // Answers with the response's bytes: its one use is the page's subtitle files, which
-  // decodeSubtitleBytes reads.
+  // Answers with the response's text, read as a subtitle file (decodeSubtitleBytes): its one
+  // use is the page's subtitle files, which can be Windows-1252.
   function httpRequest(...args) {
     const url = args[0];
     let post = undefined;
@@ -1325,7 +1324,7 @@
         }
         clearTimeout(stallTimer);
         if (xhr.status === 200) {
-          callback(undefined, xhr, xhr.response);
+          callback(undefined, xhr, decodeSubtitleBytes(xhr.response, xhr.getResponseHeader('Content-Type')));
         } else {
           callback(true, xhr, false);
         }
