@@ -128,6 +128,30 @@ export class Utils {
   }
 
   /**
+   * The bitrate the downloaded fragments show, or null while it cannot be told: fewer than
+   * five downloaded, or no time between them. An MP4's ranges start on whole seconds, so
+   * on a high-bitrate one the first few share a second and last 0 s; that gave Infinity, a
+   * false "not enough storage" warning, and every downloaded fragment kept for the session.
+   * @param {Array<Object>} fragments - Fragments with dataSize (null until downloaded)
+   *     and duration.
+   * @return {?number} Bits per second.
+   */
+  static measuredBitrate(fragments) {
+    let count = 0;
+    let size = 0;
+    let totalDuration = 0;
+    fragments.forEach((fragment) => {
+      if (fragment && fragment.dataSize !== null) {
+        count++;
+        size += fragment.dataSize;
+        totalDuration += fragment.duration;
+      }
+    });
+    if (count <= 4 || !(totalDuration > 0)) return null;
+    return size / totalDuration * 8;
+  }
+
+  /**
    * Loads and parses options from storage, merging with defaults.
    * @param {string} key - Storage key.
    * @param {Object} defaultOptions - Default options object.
