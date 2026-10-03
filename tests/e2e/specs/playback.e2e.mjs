@@ -160,7 +160,8 @@ async function expectEveryHlsSegmentListed(fixture) {
   const {levels} = JSON.parse(fs.readFileSync(path.join(fixturesDir, fixture, 'expected.json'), 'utf8'));
   for (const [level, want] of Object.entries(levels)) {
     let got = [];
-    // An audio rendition's playlist is loaded after the video's, so its list can lag.
+    // An audio rendition's playlist is loaded after the video's, so its list can lag. On a
+    // timeout the comparison below fails with both lists; this says why.
     await browser.waitUntil(async () => {
       got = await browser.execute((level) => {
         return (window.fastStream.getFragments(level) || []).filter(Boolean).map((frag) => ({
@@ -171,7 +172,10 @@ async function expectEveryHlsSegmentListed(fixture) {
         }));
       }, level);
       return got.length >= want.media.length;
-    }, {timeout: 15000, interval: 250}).catch(() => {});
+    }, {timeout: 15000, interval: 250}).catch(() => {
+      console.log(`      ${level}: ${got.length} of ${want.media.length} fragments listed after 15 s ` +
+        '(its playlist never arrived, or arrived short)');
+    });
     console.log(`      ${level}: ${got.length} fragments`);
 
     expect(got.map((frag) => frag.sn)).toEqual([...Array(want.media.length).keys()]);
