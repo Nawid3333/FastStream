@@ -7,9 +7,9 @@
 // whose sample table points at the wrong bytes still loads and reports a
 // duration; only decoding shows the offsets and edit lists are right.
 //
-// save-video.e2e.mjs covers HLS only through a transport-stream stream and DASH
-// only through one with separate audio and video tracks, so nothing there
-// touches the two shapes this file does:
+// save-video.e2e.mjs checks that a saved HLS or WebM file loads, not what it decodes to,
+// and saves no DASH. This file decodes what it saves: DASH with separate audio and video
+// tracks, and these HLS shapes:
 //
 // - fMP4 whose level carries its own audio. Each fragment is one moof holding a
 //   traf per track. HLSPlayer.saveVideo used to send this to HLS2MP4, a

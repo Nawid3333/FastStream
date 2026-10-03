@@ -1,7 +1,8 @@
 name: e2e setup
 description: >-
-  What every e2e job needs besides the checkout and its dependencies: ffmpeg, the e2e
-  ports kept out of Linux's ephemeral range, and the Firefox to test, exported as
+  What every e2e job needs besides the checkout and its dependencies: ffmpeg, the MP4
+  fixture (kept in the Actions cache), a sound device on Linux (a PulseAudio null sink),
+  the e2e ports kept out of Linux's ephemeral range, and the Firefox to test, exported as
   FIREFOX_BINARY for the wdio configs. Used by ci.yml (Linux and Windows),
   firefox-beta.yml, firefox-stable.yml and live-streams.yml, which each carried their own
   copy before. The downloads come from Chocolatey, apt and Mozilla; each is tried again
@@ -41,6 +42,88 @@ runs:
         done
         # sed, not head: head would close the pipe early, and pipefail fail the step.
         ffmpeg -hide_banner -version | sed -n 1p
+
+    # sample.mp4, which every e2e fixture is made from, comes from test-videos.co.uk, which
+    # CI cannot count on (#256). It is kept in the Actions cache under the SHA-256 it is
+    # pinned to (tests/e2e/mp4Fixture.mjs, MP4_FIXTURE_PIN), so a job fetches it only when
+    # no cache has it. A restored file is checked against the pin like a fetched one, and
+    # fetched again when it is another file; only a checked file is saved.
+    - name: Read the MP4 fixture's pin
+      id: mp4-pin
+      shell: bash
+      run: |
+        sha256=$(node tests/e2e/mp4FixtureCli.mjs pin)
+        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+        echo "sample.mp4 is pinned to SHA-256 $sha256"
+
+    - name: Restore the MP4 fixture from the cache
+      id: mp4-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: tests/e2e/fixtures/sample.mp4
+        key: e2e-sample-mp4-${{ steps.mp4-pin.outputs.sha256 }}
+
+    - name: Check the MP4 fixture, or fetch it
+      shell: bash
+      run: node tests/e2e/mp4FixtureCli.mjs ensure
+
+    - name: Save the MP4 fixture to the cache
+      if: steps.mp4-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: tests/e2e/fixtures/sample.mp4
+        key: e2e-sample-mp4-${{ steps.mp4-pin.outputs.sha256 }}
+
+    # Firefox needs an audio device for the specs that listen to the player (firefox.e2e's
+    # 8x pin, audio-tools): without one its AudioContext never starts and they could only
+    # skip, as they did on every CI job (#265). GitHub's Ubuntu images have no sound server,
+    # so the job starts PulseAudio with a null sink, a device that plays into nothing, and
+    # those specs fail on Linux CI without sound (tests/e2e/soundCheck.mjs). The daemon is
+    # the job's: the runner ends it with the job's other processes. Windows' runner has no
+    # audio endpoint (its AudioContext stays "suspended") and keeps skipping.
+    - name: Give Firefox a sound device
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -uo pipefail
+        sink=faststream_e2e
+        if pactl info > /dev/null 2>&1; then
+          echo 'A sound server is running already; using it.'
+        else
+          if ! command -v pulseaudio > /dev/null || ! command -v pactl > /dev/null; then
+            for attempt in 1 2 3; do
+              sudo apt-get update && sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils && break
+              echo "::warning::Installing PulseAudio failed (attempt $attempt of 3); trying again in 30 s."
+              sleep 30
+            done
+          fi
+          # No idle exit: nothing plays until the specs start, minutes from now.
+          if ! pulseaudio --start --exit-idle-time=-1; then
+            echo '::error::PulseAudio did not start. Without a sound device the specs that listen to the player fail on Linux CI (tests/e2e/soundCheck.mjs).'
+            exit 1
+          fi
+        fi
+        if ! pactl load-module module-null-sink "sink_name=$sink" 'sink_properties=device.description=FastStream-e2e' > /dev/null; then
+          echo "::error::PulseAudio would not load the null sink $sink."
+          pactl info || true
+          exit 1
+        fi
+        pactl set-default-sink "$sink"
+        # Firefox, which geckodriver starts from the wdio worker, finds the server by this.
+        server=$(pactl info | sed -n 's/^Server String: //p')
+        if [ -z "$server" ]; then
+          echo '::error::pactl info names no server.'
+          pactl info || true
+          exit 1
+        fi
+        case "$server" in
+          /*) server="unix:$server" ;;
+        esac
+        echo "PULSE_SERVER=$server" >> "$GITHUB_ENV"
+        echo "E2E_SOUND_SINK=$sink" >> "$GITHUB_ENV"
+        echo "Firefox plays into the null sink $sink, on $server:"
+        pactl info
+        pactl list short sinks
 
     # The e2e servers listen on fixed ports from 41800 to 41999 (tests/unit/e2ePorts keeps
     # them there), inside the range Linux hands out to outgoing connections, 32768 to 60999.

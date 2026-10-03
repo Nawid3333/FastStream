@@ -89,4 +89,35 @@ describe('mozLogHooks', () => {
     expect(fs.existsSync(retryLog)).toBe(false);
     expect(fs.existsSync(kept)).toBe(true);
   });
+
+  it('keeps the log of an attempt whose hook failed, which reaches no afterTest', () => {
+    const env = {E2E_MOZ_LOG: '1'};
+    const hooks = mozLogHooks(root, env);
+    hooks.beforeSession({}, caps(), spec(listed));
+    const kept = env.MOZ_LOG_FILE + '.moz_log';
+    fs.writeFileSync(kept, 'log');
+    // A test passed, then a hook failed (an afterEach, or the next describe's before).
+    hooks.afterTest({}, {}, {passed: true});
+    hooks.afterHook({}, {}, {error: new Error('listen EADDRINUSE'), passed: false});
+    hooks.afterSession();
+    expect(fs.existsSync(kept)).toBe(true);
+  });
+
+  it('keeps the log of an attempt in which no test ran, and deletes one after a passing hook', () => {
+    const env = {E2E_MOZ_LOG: '1'};
+    const hooks = mozLogHooks(root, env);
+    hooks.beforeSession({}, caps(), spec(listed));
+    const kept = env.MOZ_LOG_FILE + '.moz_log';
+    fs.writeFileSync(kept, 'log');
+    hooks.afterSession();
+    expect(fs.existsSync(kept)).toBe(true);
+
+    hooks.beforeSession({}, caps(), spec(listed));
+    const passing = env.MOZ_LOG_FILE + '.moz_log';
+    fs.writeFileSync(passing, 'log');
+    hooks.afterHook({}, {}, {passed: true});
+    hooks.afterTest({}, {}, {passed: true});
+    hooks.afterSession();
+    expect(fs.existsSync(passing)).toBe(false);
+  });
 });

@@ -166,15 +166,34 @@ describe('streamTitle', () => {
 
 // mpvIpcRequest against a pipe of the test's own (never mpv's real one, which a running
 // mpv may hold): no server is "no mpv"; one that accepts but never answers is busy.
+// The pipe is real; its two budgets run on fake timers, moved on by the test once the
+// request has reached the server. With real 200-400 ms budgets a loaded machine could
+// take longer than the connect budget to connect.
 describe('mpvIpcRequest', () => {
   const servers = [];
+  const dirs = [];
   afterEach(() => {
+    vi.useRealTimers();
     for (const server of servers.splice(0)) server.close();
+    for (const dir of dirs.splice(0)) fs.rmSync(dir, {recursive: true, force: true});
   });
-  const pipeName = (tag) => process.platform === 'win32' ?
-    `\\\\.\\pipe\\fs-test-${tag}-${process.pid}-${Date.now()}` :
-    path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-')), 'sock');
-  const listen = async (pipe, onLine) => {
+  const pipeName = (tag) => {
+    if (process.platform === 'win32') {
+      return `\\\\.\\pipe\\fs-test-${tag}-${process.pid}-${Date.now()}`;
+    }
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-ipc-'));
+    dirs.push(dir);
+    return path.join(dir, 'sock');
+  };
+  /**
+   * Serves a pipe that hands each request it reads to the test.
+   * @param {string} pipe - The pipe.
+   * @return {Promise<function(): Promise<{socket: net.Socket, request: Object}>>} The
+   *   next request, once it has arrived.
+   */
+  const listen = async (pipe) => {
+    const arrived = [];
+    const waiting = [];
     const server = net.createServer((socket) => {
       let buffer = '';
       socket.on('data', (chunk) => {
@@ -183,33 +202,45 @@ describe('mpvIpcRequest', () => {
         while ((i = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, i);
           buffer = buffer.slice(i + 1);
-          onLine(socket, JSON.parse(line));
+          const request = {socket, request: JSON.parse(line)};
+          if (waiting.length) waiting.shift()(request);
+          else arrived.push(request);
         }
       });
     });
     servers.push(server);
     await new Promise((resolve) => server.listen(pipe, resolve));
+    return () => arrived.length ? Promise.resolve(arrived.shift()) : new Promise((resolve) => waiting.push(resolve));
   };
+  const fakeBudgets = () => vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout']});
 
   it('is not ok, and not busy, without an instance', async () => {
+    // No budget runs out: the connect error alone settles it.
+    fakeBudgets();
     expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipeName('none')))
         .toEqual({ok: false, error: 'no mpv ipc'});
   });
 
   it('is busy when an instance takes the connection and never answers', async () => {
     const pipe = pipeName('silent');
-    await listen(pipe, () => {});
-    expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipe))
-        .toEqual({ok: false, busy: true, error: 'mpv did not answer'});
+    const nextRequest = await listen(pipe);
+    fakeBudgets();
+    const result = mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipe);
+    await nextRequest();
+    vi.advanceTimersByTime(300);
+    expect(await result).toEqual({ok: false, busy: true, error: 'mpv did not answer'});
   });
 
   it('gives a connected instance the reply time, not the connect time', async () => {
     const pipe = pipeName('slow');
-    await listen(pipe, (socket, request) => {
-      setTimeout(() => socket.write(JSON.stringify({request_id: request.request_id, data: 7, error: 'success'}) + '\n'), 400);
-    });
-    expect(await mpvIpcRequest([{command: ['get_property', 'pid']}], 200, 3000, pipe))
-        .toEqual({ok: true, replies: [{request_id: 1, data: 7, error: 'success'}]});
+    const nextRequest = await listen(pipe);
+    fakeBudgets();
+    const result = mpvIpcRequest([{command: ['get_property', 'pid']}], 200, 3000, pipe);
+    const {socket, request} = await nextRequest();
+    // Past the connect budget, well inside the reply budget.
+    vi.advanceTimersByTime(400);
+    socket.write(JSON.stringify({request_id: request.request_id, data: 7, error: 'success'}) + '\n');
+    expect(await result).toEqual({ok: true, replies: [{request_id: 1, data: 7, error: 'success'}]});
   });
 });
 

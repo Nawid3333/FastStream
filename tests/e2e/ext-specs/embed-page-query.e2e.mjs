@@ -15,6 +15,12 @@
 // Driven on the installed extension: a page with the fixture MP4 in its query string and a
 // <video> that plays it, the site on the auto-enable list, and the sources the player ends
 // up with.
+//
+// The same page also checks the sources browser's Clear button. The player's list is a
+// mirror of the background's per-frame store, which pushes its copy to the player again,
+// so the button also sends CLEAR_SOURCES and the background empties its store. Only the
+// extension has a background: the web suite's spec of the button could not check this,
+// and nothing failed with the message or its handler gone (#258).
 
 import http from 'node:http';
 
@@ -82,12 +88,16 @@ describe('A stream named in the page\'s own query string', function() {
           res.end();
           return;
         }
-        http.get(globalThis.__EXT_FIXTURE_MP4__, (upstream) => {
-          res.writeHead(200, {
+        // The player's Range goes on to the harness, and its answer comes back as it is
+        // (206 and Content-Range included), as a proxy passes them.
+        const forward = req.headers.range ? {headers: {range: req.headers.range}} : {};
+        http.get(globalThis.__EXT_FIXTURE_MP4__, forward, (upstream) => {
+          res.writeHead(upstream.statusCode, {
             ...cors,
             'Content-Type': 'video/mp4',
             'Content-Length': upstream.headers['content-length'],
-            'Accept-Ranges': 'none',
+            ...(upstream.headers['content-range'] ? {'Content-Range': upstream.headers['content-range']} : {}),
+            'Accept-Ranges': 'bytes',
           });
           upstream.pipe(res);
         }).on('error', () => res.destroy());
@@ -151,6 +161,52 @@ describe('A stream named in the page\'s own query string', function() {
     const state = await playerSources();
     expect(state.source).toBe(link);
     expect(state.readyState).toBeGreaterThanOrEqual(2);
+  });
+
+  it('forgets the page\'s sources in the background too when the player\'s list is cleared', async function() {
+    const file = `${globalThis.__EXT_FIXTURE_MP4__}?t=${Date.now()}`;
+    pageFile = file;
+    await browser.url(`${SITE}/embed?file=${encodeURIComponent(file)}`);
+    const state = await playerSources();
+    expect(state.sources).toContain(file);
+
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+    try {
+      const cleared = await browser.execute(() => {
+        // Every list of sources the background sends this player from now on, by length.
+        window.__sourcesSent = [];
+        chrome.runtime.onMessage.addListener((message) => {
+          if (message && message.type === 'SOURCES') window.__sourcesSent.push(message.sources.length);
+        });
+        document.querySelector('.linkui-clear-button').click();
+        return window.fastStream.sourcesBrowser.sources.length;
+      });
+      expect(cleared).toBe(0);
+
+      // Ask the background for the page's sources, as the player does when it loads, and
+      // wait for its answer. Asked again until it is empty: the clear is a message of its
+      // own, and a request overtaking it would get the old list once.
+      let sent = [];
+      await browser.waitUntil(async () => {
+        sent = await browser.executeAsync((done) => {
+          const before = window.__sourcesSent.length;
+          chrome.runtime.sendMessage({type: 'REQUEST_SOURCES'}).catch(() => {});
+          const started = Date.now();
+          const poll = setInterval(() => {
+            if (window.__sourcesSent.length > before || Date.now() - started > 3000) {
+              clearInterval(poll);
+              done(window.__sourcesSent.slice());
+            }
+          }, 50);
+        });
+        return sent.length > 0 && sent[sent.length - 1] === 0;
+      }, {timeout: 15000, interval: 500}).catch(() => {});
+      console.log('      sources the background sent after the clear:', JSON.stringify(sent));
+      expect(sent.length).toBeGreaterThan(0);
+      expect(sent[sent.length - 1]).toBe(0);
+    } finally {
+      await browser.switchFrame(null);
+    }
   });
 
   it('opens the player on the page\'s stream, not on the page, when the page asks for it late', async function() {

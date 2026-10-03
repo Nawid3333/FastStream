@@ -37,8 +37,7 @@ describe('pickRelayHeaders', () => {
       {name: 'Referer', value: 'https://example.com/page'},
       {name: 'Origin', value: 'https://example.com'},
     ];
-    const picked = MpvBackend.pickRelayHeaders(headers);
-    expect(picked).toHaveLength(2);
+    expect(MpvBackend.pickRelayHeaders(headers)).toEqual(headers);
   });
 
   it('keeps lowercase variants', () => {
@@ -46,7 +45,7 @@ describe('pickRelayHeaders', () => {
       {name: 'referer', value: 'https://example.com/page'},
       {name: 'origin', value: 'https://example.com'},
     ];
-    expect(MpvBackend.pickRelayHeaders(headers)).toHaveLength(2);
+    expect(MpvBackend.pickRelayHeaders(headers)).toEqual(headers);
   });
 
   it('keeps User-Agent so CDNs do not see libmpv', () => {
@@ -322,5 +321,63 @@ describe('openStream contentType', () => {
         {subtitles: [{label: 'huge', srt: srtOf(25000)}]});
     expect(host.message().url).toBe('https://cdn/b.m3u8');
     expect(host.message()).not.toHaveProperty('subtitles');
+  });
+});
+
+// The options page's "Test mpv connection" button: a ping that asks the host to find mpv.
+
+describe('testConnection', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+  });
+
+  /**
+   * Installs a fake native host that answers a ping.
+   * @param {function(Object): *} answer - The reply to a message, or a throw.
+   * @return {{sent: () => Array<{name: string, message: Object}>}} What it was sent.
+   */
+  function pingHost(answer) {
+    const sent = [];
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          sent.push({name, message});
+          callback(answer(message));
+        },
+      },
+    };
+    return {sent: () => sent};
+  }
+
+  it('pings the host with the mpv path set in the options, and reports where mpv is', async () => {
+    const host = pingHost(() => ({ok: true, mpv: true, path: 'D:/tools/mpv.exe'}));
+    const backend = new MpvBackend();
+    backend.mpvPath = 'D:/tools/mpv.exe';
+    expect(await backend.testConnection()).toEqual({ok: true, mpv: true, path: 'D:/tools/mpv.exe'});
+    expect(host.sent()).toEqual([{name: 'com.faststream.mpv', message: {type: 'ping', mpvPath: 'D:/tools/mpv.exe'}}]);
+  });
+
+  it('sends no path when none is set, and says so when the host finds no mpv', async () => {
+    const host = pingHost(() => ({ok: true, mpv: false}));
+    expect(await new MpvBackend().testConnection()).toEqual({ok: true, mpv: false, path: undefined});
+    expect(host.sent()[0].message).toEqual({type: 'ping'});
+  });
+
+  it('reports the host as unreachable when the browser could not start it', async () => {
+    stubNativeHost(undefined, {message: 'no such native application'});
+    expect(await new MpvBackend().testConnection()).toEqual({ok: false, error: 'no such native application'});
+  });
+
+  it('reports a throw from the browser instead of rejecting', async () => {
+    globalThis.chrome = {
+      runtime: {
+        sendNativeMessage() {
+          throw new Error('nativeMessaging permission missing');
+        },
+      },
+    };
+    expect(await new MpvBackend().testConnection())
+        .toEqual({ok: false, error: 'Error: nativeMessaging permission missing'});
   });
 });

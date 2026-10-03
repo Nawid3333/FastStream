@@ -18,45 +18,8 @@
 import {spawnSync} from 'node:child_process';
 import {browser, expect} from '@wdio/globals';
 import {createFile} from 'mp4box';
+import {runInPage} from '../runInPage.mjs';
 import {withTempFile} from '../tempFile.mjs';
-
-/**
- * Runs an async snippet in the page and waits for it to settle.
- *
- * `browser.execute` returns as soon as the synchronous part of the script is
- * done, so a promise-returning body would report success before the work it
- * started had finished - or failed. This parks the outcome on `window` and
- * polls for it, which reports the page-side error text instead of a bare
- * timeout when something goes wrong.
- *
- * @param {Function} fn async function to run in the page
- * @param {number} [timeout] how long to allow, in ms
- * @return {Promise<any>} whatever fn resolved with
- */
-async function runInPage(fn, timeout = 60000) {
-  await browser.execute((body) => {
-    window.__out = undefined;
-    window.__err = undefined;
-    (0, eval)(`(${body})()`)
-        .then((v) => {
-          window.__out = v;
-        })
-        .catch((e) => {
-          window.__err = ((e && e.message) ? e.message + '\n' : '') + ((e && e.stack) || String(e));
-        });
-  }, fn.toString());
-
-  await browser.waitUntil(
-      async () => browser.execute(
-          () => window.__out !== undefined || window.__err !== undefined),
-      {timeout, interval: 250, timeoutMsg: 'the page never settled'},
-  );
-
-  const {out, err} = await browser.execute(
-      () => ({out: window.__out, err: window.__err}));
-  if (err) throw new Error('page-side failure: ' + err);
-  return out;
-}
 
 // How far a sample's time in a written MP4 may be from its chunk's: well under a frame
 // (33 ms here) and under the gaps these tests look for, while allowing for the file's

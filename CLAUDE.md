@@ -208,7 +208,7 @@ against real streams: Shaka Player's demo assets on storage.googleapis.com (HLS 
 angel-one: 5 qualities, 5 audio languages; DASH Sintel, 888 s, seeked 10 minutes in; a
 live DASH stream) and a progressive MP4 on raw.githubusercontent.com. The pages are local
 and embed them the way sites do: the site's own hls.js/dash.js (the official releases of
-the versions `package.json` pins, from the npm registry, cached in the OS temp dir), a
+the versions `package.json` pins, from the npm registry, cached in the gitignored `tests/e2e/fixtures/live-libs`), a
 plain `<video src>`, a cross-origin iframe that may go fullscreen (player laid over it)
 and one that may not (the frame is sent to the player page), plus a manifest opened
 directly (`playStreamURLs`). Not in `verify` or CI: a third-party outage must not block a
@@ -255,7 +255,9 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
   waited for it, so it never finished, and autoplay's `autoPlayTriggered` was never set.
   `startAudio()` now starts the context once, without waiting, and starts the background
   analyzer when the audio runs (client-setup.e2e.mjs fakes the never-settling resume).
-  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`.
+  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`;
+  without it they skip, except on Linux CI, which has a PulseAudio null sink since
+  2026-10-03 and fails them there (`tests/e2e/soundCheck.mjs`, #265).
 
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
@@ -1117,7 +1119,12 @@ the change went in.
 - **`.github/actions/e2e-setup`** (2026-09-28): ffmpeg, the e2e port reservation and the
   Firefox to test (`firefox-version`, exported as `FIREFOX_BINARY`), for every e2e job - the
   four copies differed already. Each download (Chocolatey, apt, Mozilla) is retried before
-  the job fails. A change to it runs Firefox Beta and the live suite on the PR.
+  the job fails. A change to it runs Firefox Beta and the live suite on the PR. Since
+  2026-10-03 also `sample.mp4` from the Actions cache, keyed on its pinned SHA-256 and
+  checked like a download (`tests/e2e/mp4FixtureCli.mjs`, #256), and on Linux a PulseAudio
+  null sink as Firefox's sound device (`PULSE_SERVER`, `E2E_SOUND_SINK`; #265). The
+  Windows runner has no audio endpoint. Its scripts: `tests/workflows/e2e-setup.test.sh`,
+  `tests/unit/e2eSetupAction.test.mjs`.
 - **Artifacts** (2026-09-28): `faststream-bundles` is kept 7 days (auto-release reads it
   minutes after the run; the 90-day default had piled up 57 copies, 469 MB), failure logs
   30 days.
@@ -1318,8 +1325,10 @@ the change went in.
   `name(1).png` and the spec read the first attempt's file). download-names keeps its
   extension page open until Firefox reports the download `complete`: closed at once, the
   page took its blob with it before Firefox read it, the CI flake. Single-file fixtures are
-  written under `.partial` and renamed (`writeFixture`); the extension config fetches
-  `sample.mp4` itself (`mp4Fixture.mjs`), so `pnpm run test:ext` works on a fresh clone.
+  written under `.partial` and renamed (`writeFixture`); `sample.mp4` is pinned by size and
+  SHA-256 (`mp4Fixture.mjs`), and the fixtures made from it (`buildFixtures.mjs`) keep the
+  recipe they were built by and are built again when it changes (2026-10-03, #256/#263);
+  the extension config makes them too, so `pnpm run test:ext` works on a fresh clone.
   Both test servers answer a bad `%` escape with 400, end a response whose read fails, and
   read `bytes=-N` as the last N bytes (`serveFile.mjs`). A retried test's screenshot is
   numbered, not written over the first attempt's.
@@ -1486,8 +1495,8 @@ the change went in.
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
 - **`mutation-tests.yml`** (Mondays 06:40 UTC), 2026-10-01, T4: Stryker
-  (`stryker.config.mjs`, `pnpm run test:mutation`) over the 15 pure-logic modules with unit
-  tests. A report, not a gate: the run summary gets a table per file
+  (`stryker.config.mjs`, `pnpm run test:mutation`) over 25 pure-logic modules with unit
+  tests (10 small ones added 2026-10-03, #253; the config says which wait, and why). A report, not a gate: the run summary gets a table per file
   (`tools/mutation-report.mjs`), the HTML report is the `mutation-reports` artifact, and when
   the unit tests missed mutants (survived, or no test reaches them), one issue "Mutation
   testing: week to <date>" lists them, assigned + @mention; next week's replaces it, a week

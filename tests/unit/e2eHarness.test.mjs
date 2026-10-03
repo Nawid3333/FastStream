@@ -1,10 +1,11 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {PassThrough} from 'node:stream';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {writeFixture} from '../e2e/mp4Fixture.mjs';
-import {byteRange, decodePath, sendFile} from '../e2e/serveFile.mjs';
+import {mp4FixtureMismatch, writeFixture} from '../e2e/mp4Fixture.mjs';
+import {byteRange, decodePath, resolveInside, sendFile} from '../e2e/serveFile.mjs';
 import {guardSetup, rootHooks} from '../e2e/setupGuard.mjs';
 
 // The e2e harness's own gaps (F4-F6): a setup failure that let the specs run without the
@@ -73,6 +74,29 @@ describe('writeFixture', () => {
   });
 });
 
+describe('mp4FixtureMismatch', () => {
+  // The MP4 fixture is fetched from a host that may re-encode it; the specs count its
+  // frames. Another file is refused by name instead of tested against (#256).
+  const data = Buffer.from('not really an mp4, but pinned');
+  const pin = {size: data.length, sha256: crypto.createHash('sha256').update(data).digest('hex')};
+
+  it('passes the pinned bytes', () => {
+    expect(mp4FixtureMismatch(data, pin)).toBeNull();
+  });
+
+  it('names another size, or other bytes of the same size', () => {
+    expect(mp4FixtureMismatch(Buffer.concat([data, Buffer.from('!')]), pin))
+        .toBe(`${data.length + 1} bytes, expected ${data.length}`);
+    const other = Buffer.from(data);
+    other[0] ^= 1;
+    expect(mp4FixtureMismatch(other, pin)).toMatch(/^SHA-256 [0-9a-f]{64}, expected [0-9a-f]{64}$/);
+  });
+
+  it('is pinned to one file by default', () => {
+    expect(mp4FixtureMismatch(data)).toMatch(/bytes, expected 991017$/);
+  });
+});
+
 describe('byteRange', () => {
   it.each([
     [undefined, null],
@@ -102,7 +126,31 @@ describe('decodePath', () => {
   });
 });
 
+describe('resolveInside', () => {
+  const base = path.resolve(os.tmpdir(), 'fixtures');
+
+  it('finds a file below the directory served', () => {
+    expect(resolveInside(base, '/a.mp4')).toBe(path.join(base, 'a.mp4'));
+    expect(resolveInside(base, '/hls-ts/seg-000.ts')).toBe(path.join(base, 'hls-ts', 'seg-000.ts'));
+    expect(resolveInside(base, '/hls-ts/../a.mp4')).toBe(path.join(base, 'a.mp4'));
+  });
+
+  it('refuses a path out of it, also into a sibling whose name starts the same', () => {
+    expect(resolveInside(base, '/../secret.txt')).toBeNull();
+    expect(resolveInside(base, '/../fixtures-other/x.mp4')).toBeNull();
+    expect(resolveInside(base, '/../../etc/passwd')).toBeNull();
+  });
+});
+
 describe('sendFile', () => {
+  // Also after a failed test: a spy or a folder left behind.
+  let dir;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (dir) fs.rmSync(dir, {recursive: true, force: true});
+    dir = null;
+  });
+
   it('ends the response, not the process, when the file cannot be read', async () => {
     const res = new PassThrough();
     const destroyed = new Promise((resolve) => res.on('close', resolve));
@@ -111,11 +159,11 @@ describe('sendFile', () => {
     await destroyed;
     expect(res.destroyed).toBe(true);
     expect(error).toHaveBeenCalledWith(expect.stringContaining('could not read'));
-    error.mockRestore();
   });
 
   it('sends the range asked for', async () => {
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'send-')), 'f.bin');
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'send-'));
+    const file = path.join(dir, 'f.bin');
     fs.writeFileSync(file, '0123456789');
     const res = new PassThrough();
     const chunks = [];
@@ -124,6 +172,29 @@ describe('sendFile', () => {
     sendFile(res, file, {start: 7, end: 9});
     await ended;
     expect(Buffer.concat(chunks).toString()).toBe('789');
-    fs.rmSync(path.dirname(file), {recursive: true, force: true});
+  });
+});
+
+// The suites CI runs, and the release waits for, stream nothing from a public host: a
+// demo host being slow or down failed both CI jobs (#255). Real streams are the live
+// suite's (live-specs/), which is never part of CI.
+describe('the e2e suites CI runs', () => {
+  // Hosts the specs name without fetching: reserved test names, and a subtitle search
+  // result's link, which the stubbed search returns and nothing opens.
+  const named = (host) => host === '127.0.0.1' || host === 'localhost' || host === 'example.com' ||
+    /\.(test|example)$/.test(host) || !host.includes('.') || host === 'www.opensubtitles.com';
+
+  it('stream nothing from a public host', () => {
+    const root = path.resolve(import.meta.dirname, '../e2e');
+    const found = [];
+    for (const dir of ['specs', 'ext-specs', 'classic-specs', 'pbm-specs']) {
+      for (const name of fs.readdirSync(path.join(root, dir))) {
+        const source = fs.readFileSync(path.join(root, dir, name), 'utf8');
+        for (const [, host] of source.matchAll(/https?:\/\/([A-Za-z0-9.-]+)/g)) {
+          if (!named(host)) found.push(`${dir}/${name}: ${host}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
   });
 });

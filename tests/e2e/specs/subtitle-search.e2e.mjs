@@ -197,9 +197,11 @@ describe('Subtitle search', function() {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2));
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2),
+        {timeout: 15000, timeoutMsg: 'choosing a result asked for no download link'});
     await browser.execute((link) => window.__requests[1].resolve({response: {link}}), DOWNLOAD_LINK);
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 3));
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 3),
+        {timeout: 15000, timeoutMsg: 'the subtitle file was never fetched from its link'});
   }
 
   const trackLabels = () => browser.execute(() =>

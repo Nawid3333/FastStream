@@ -11,6 +11,7 @@
 // sure it is there: `pnpm run test:ext` alone never runs the web config, and on a fresh
 // clone the extension specs' /fixtures/sample.mp4 was a 404.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -18,6 +19,30 @@ const MP4_FIXTURE_URL =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
 export const fixturesDir = path.join(import.meta.dirname, 'fixtures');
 export const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
+
+// The exact file the suites are written against: H.264 High, 640x360, 300 frames at
+// 30 fps, 250 of them B-frames, no audio (ffprobe, 2026-10-03). The specs count its
+// frames, and every fixture made from it inherits them; a host that re-encodes it would
+// move them all at once. A file that is not this one is refused, by name, rather than
+// tested against (#256).
+export const MP4_FIXTURE_PIN = {
+  size: 991017,
+  sha256: '77145c94c11f3754207499158df22406e1fe7635553c1c86dc5e881dfeb32016',
+};
+
+/**
+ * Checks that bytes are the pinned MP4 fixture.
+ * @param {Buffer} data - The bytes.
+ * @param {{size: number, sha256: string}} [pin] - What they must be.
+ * @return {?string} Why they are not, or null when they are.
+ */
+export function mp4FixtureMismatch(data, pin = MP4_FIXTURE_PIN) {
+  if (data.length !== pin.size) {
+    return `${data.length} bytes, expected ${pin.size}`;
+  }
+  const sha256 = crypto.createHash('sha256').update(data).digest('hex');
+  return sha256 === pin.sha256 ? null : `SHA-256 ${sha256}, expected ${pin.sha256}`;
+}
 
 /**
  * Moves a finished file into place. A fixture is trusted once its file exists, so it is
@@ -40,14 +65,20 @@ export async function writeFixture(file, write) {
 }
 
 /**
- * Downloads the MP4 fixture if it is not already there.
- * @return {Promise<void>}
+ * Downloads the MP4 fixture unless the pinned one is already there. One that is another
+ * file (fetched before the pin, cut short, or a bad cache entry on CI) is fetched again,
+ * and the fixtures made from it are removed, for the suites to make again from the right
+ * one.
+ * @return {Promise<{action: string, reason?: string}>} 'kept' (the pinned file was there),
+ *   'fetched' (none was), or 'replaced' (another file was, and reason says how it differed).
  */
 export async function ensureMp4Fixture() {
-  // Read (size included) without a preceding existsSync: no gap between the two
-  // calls (CodeQL js/file-system-race).
+  // Read without a preceding existsSync: no gap between the two calls (CodeQL
+  // js/file-system-race).
+  let stale = null;
   try {
-    if (fs.statSync(MP4_FIXTURE).size > 0) return;
+    stale = mp4FixtureMismatch(fs.readFileSync(MP4_FIXTURE));
+    if (stale === null) return {action: 'kept'};
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
@@ -68,5 +99,22 @@ export async function ensureMp4Fixture() {
   if (data.length < 12 || data.toString('latin1', 4, 8) !== 'ftyp') {
     throw new Error('the fetched MP4 fixture is not an MP4 (no ftyp box)');
   }
+  const mismatch = mp4FixtureMismatch(data);
+  if (mismatch) {
+    throw new Error(
+        `the MP4 fixture changed upstream (${MP4_FIXTURE_URL}): ${mismatch}. The e2e suites ` +
+        'count its frames; check the new file (ffprobe) against them before moving ' +
+        'MP4_FIXTURE_PIN in tests/e2e/mp4Fixture.mjs.',
+    );
+  }
+  if (stale) {
+    // Made from the other file. live-libs is the live suite's npm cache, made from nothing here.
+    for (const name of fs.readdirSync(fixturesDir)) {
+      if (name !== path.basename(MP4_FIXTURE) && name !== 'live-libs') {
+        fs.rmSync(path.join(fixturesDir, name), {recursive: true, force: true});
+      }
+    }
+  }
   await writeFixture(MP4_FIXTURE, (partial) => fs.writeFileSync(partial, data));
+  return stale ? {action: 'replaced', reason: stale} : {action: 'fetched'};
 }

@@ -152,9 +152,13 @@ describe('HLSFragmentRequester, an encrypted segment', () => {
     return {postProcessor: getFile.mock.calls[1][0].postProcessor, player, requester};
   }
 
-  it('fails the segment when its key or IV is missing, not stores it still encrypted', async () => {
+  it.each([
+    ['key', () => requestEncrypted(null)],
+    ['IV', () => requestEncrypted(new ArrayBuffer(16), {uri: 'http://127.0.0.1/key'})],
+  ])('fails the segment when its %s is missing, not stores it still encrypted', async (missing, request) => {
+    vi.stubGlobal('Worker', SilentWorker);
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    const {postProcessor, player} = await requestEncrypted(null);
+    const {postProcessor, player} = await request();
     await expect(postProcessor({}, {data: new ArrayBuffer(16)})).rejects.toThrow(/key or IV/);
     // The player still hears that a key is needed.
     expect(player.emit).toHaveBeenCalledWith(DefaultPlayerEvents.NEED_KEY);

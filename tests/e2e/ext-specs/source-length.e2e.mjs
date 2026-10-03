@@ -41,6 +41,7 @@ import {browser, expect} from '@wdio/globals';
 
 import {inExtensionPage} from '../extension-page.mjs';
 import {loopedPlaylist} from '../loopedPlaylist.mjs';
+import {byteRange, sendFile} from '../serveFile.mjs';
 
 const SITE_PORT = 41980;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
@@ -101,22 +102,22 @@ function thumbnails(seconds, imagesOnly, c) {
  */
 function serveFile(req, res, file, type) {
   const size = fs.statSync(file).size;
-  const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
+  // The harness's own range reading and sending (serveFile.mjs): a range like bytes=5-2
+  // made createReadStream throw here, in the request listener, which took the worker down.
+  const range = byteRange(req.headers.range, size);
+  if (range === 'unsatisfiable') {
+    res.writeHead(416, {...CORS, 'Content-Range': `bytes */${size}`});
+    res.end();
+    return;
+  }
   if (range) {
-    const start = Number(range[1]);
-    const end = Math.min(size - 1, range[2] ? Number(range[2]) : size - 1);
-    if (start >= size) {
-      res.writeHead(416, {...CORS, 'Content-Range': `bytes */${size}`});
-      res.end();
-      return;
-    }
     res.writeHead(206, {...CORS, 'Content-Type': type, 'Accept-Ranges': 'bytes',
-      'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1});
-    fs.createReadStream(file, {start, end}).pipe(res);
+      'Content-Range': `bytes ${range.start}-${range.end}/${size}`, 'Content-Length': range.end - range.start + 1});
+    sendFile(res, file, range);
     return;
   }
   res.writeHead(200, {...CORS, 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Content-Length': size});
-  fs.createReadStream(file).pipe(res);
+  sendFile(res, file);
 }
 
 /**

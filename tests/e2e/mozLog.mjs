@@ -43,15 +43,17 @@ function specName(specs) {
  * @param {string} logRoot - Where each attempt's log directory goes.
  * @param {Object<string, string|undefined>} [env] - The worker's environment: where
  *     E2E_MOZ_LOG is read and MOZ_LOG/MOZ_LOG_FILE are set.
- * @return {{beforeSession: Function, afterTest: Function, afterSession: Function}}
+ * @return {{beforeSession: Function, afterHook: Function, afterTest: Function, afterSession: Function}}
  */
 export function mozLogHooks(logRoot, env = process.env) {
   let dir = null;
   let failed = false;
+  let testsRun = 0;
   return {
     beforeSession(config, capabilities, specs) {
       dir = null;
       failed = false;
+      testsRun = 0;
       if (env.E2E_MOZ_LOG !== '1') return;
       const name = specName(specs);
       const modules = MozLogSpecs.get(name);
@@ -62,14 +64,21 @@ export function mozLogHooks(logRoot, env = process.env) {
       env.MOZ_LOG = modules;
       env.MOZ_LOG_FILE = path.join(dir, 'moz.log');
     },
+    // A failed hook (a server that did not start in `before`, the case the log is for)
+    // reaches no afterTest: WebdriverIO reports it here, and its tests do not run.
+    afterHook(test, context, {error, passed}) {
+      if (error || passed === false) failed = true;
+    },
     afterTest(test, context, {passed}) {
+      testsRun++;
       if (!passed) failed = true;
     },
     afterSession() {
       if (!dir) return;
       delete env.MOZ_LOG;
       delete env.MOZ_LOG_FILE;
-      if (failed) return;
+      // Kept too when no test ran: nothing passed.
+      if (failed || testsRun === 0) return;
       try {
         // Firefox has exited by now, but on Windows a child process can hold its log
         // file for a moment longer.

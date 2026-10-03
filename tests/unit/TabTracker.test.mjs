@@ -491,6 +491,12 @@ describe('handedTo', () => {
     page.resetSelfAndChildren();
     expect(page.handedTo(2)).toBeNull();
   });
+
+  it('forgets it when told to (the sources browser\'s Clear)', () => {
+    const {page} = pageThatHanded();
+    page.forgetHandedToPlayer();
+    expect(page.handedTo(2)).toBeNull();
+  });
 });
 
 // A request's headers wait for its response by request id, which is unique in the session:
@@ -594,5 +600,80 @@ describe('what a frame keeps of its streams', () => {
     expect(urls).toHaveLength(20);
     expect(urls[0]).toBe('https://cdn.test/v/sub-1.vtt');
     expect(urls[19]).toBe('https://cdn.test/v/sub-50.vtt');
+  });
+});
+
+// The plain bookkeeping the message handlers build on: which frame holds a player, the
+// player a FastStream tab shows, and the tabs and frames themselves.
+describe('frames and players', () => {
+  it('a frame has a player when it is one, or a frame directly inside it is', () => {
+    const {page, player, inner} = tabWithFrames();
+    expect(player.hasPlayer()).toBe(true);
+    expect(page.hasPlayer()).toBe(true);
+    expect(inner.hasPlayer()).toBe(false);
+    // Only the frames directly inside count, not their own children.
+    player.isPlayer = false;
+    inner.isPlayer = true;
+    expect(page.hasPlayer()).toBe(false);
+    expect(player.hasPlayer()).toBe(true);
+  });
+
+  it('adds and removes a child frame on both sides', () => {
+    const {tab, page} = tabWithFrames();
+    const child = tab.getFrameOrCreate(4);
+    page.addChildFrame(child);
+    expect(child.parent).toBe(page);
+    expect(page.children.has(child)).toBe(true);
+    page.removeChildFrame(child);
+    expect(child.parent).toBeNull();
+    expect(page.children.has(child)).toBe(false);
+  });
+
+  it('the main player is the player in frame 0 of a tab showing the player page', () => {
+    const tab = new TabTracker().getTabOrCreate(8);
+    tab.url = 'moz-extension://test/player/index.html#https://cdn.test/v.m3u8';
+    expect(tab.getMainPlayer()).toBeNull();
+    const main = tab.getFrameOrCreate(0);
+    expect(tab.getMainPlayer()).toBeNull();
+    main.isPlayer = true;
+    expect(tab.getMainPlayer()).toBe(main);
+    // A player iframe in a site's page is no main player.
+    tab.url = 'https://site.test/watch';
+    expect(tab.getMainPlayer()).toBeNull();
+  });
+
+  it('lists, creates, finds and removes frames', () => {
+    const {tab, page, player, inner} = tabWithFrames();
+    expect([...tab.getFrames()]).toEqual([page, player, inner]);
+    expect(tab.getFrameOrCreate(2)).toBe(player);
+    const fresh = tab.createFrame(2);
+    expect(fresh).not.toBe(player);
+    expect(tab.getFrame(2)).toBe(fresh);
+    expect(fresh.tab).toBe(tab);
+    expect(fresh.frameId).toBe(2);
+    tab.removeFrame(2);
+    expect(tab.getFrame(2)).toBeUndefined();
+  });
+
+  it('creates, finds and removes tabs, and forgets a removed tab\'s saved state', () => {
+    const removed = [];
+    globalThis.chrome.storage = {session: {remove: async (key) => removed.push(key)}};
+    try {
+      const tracker = new TabTracker();
+      expect(tracker.getTab(5)).toBeUndefined();
+      expect(tracker.getFrame(5, 0)).toBeUndefined();
+      const tab = tracker.getTabOrCreate(5);
+      expect(tracker.getTab(5)).toBe(tab);
+      expect(tracker.getTabOrCreate(5)).toBe(tab);
+      expect(tab.tabId).toBe(5);
+      const frame = tracker.getFrameOrCreate(5, 3);
+      expect(tracker.getFrame(5, 3)).toBe(frame);
+      expect(tracker.createTab(5)).not.toBe(tab);
+      tracker.removeTab(5);
+      expect(tracker.getTab(5)).toBeUndefined();
+      expect(removed).toEqual(['tabState:5']);
+    } finally {
+      delete globalThis.chrome.storage;
+    }
   });
 });

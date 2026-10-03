@@ -61,7 +61,17 @@ export class URLUtils {
   }
 
   static get_url_extension(url) {
-    return this.strip_queryhash(url).split('.').pop().trim().toLowerCase();
+    // The last path segment's extension only: a dot in the host or in a folder is none.
+    // https://e.com/stream has no extension (it gave 'com/stream'), and a bare host
+    // https://example.mp4 is no MP4. Also given file names, which have no scheme.
+    let path = this.strip_queryhash(url).trim();
+    const authority = /^[a-z][a-z0-9+.-]*:\/\/[^/]*/i.exec(path);
+    if (authority) {
+      path = path.substring(authority[0].length);
+    }
+    const name = path.substring(path.lastIndexOf('/') + 1);
+    const dot = name.lastIndexOf('.');
+    return dot === -1 ? '' : name.substring(dot + 1).trim().toLowerCase();
   }
 
   static getModeFromExtension(ext) {

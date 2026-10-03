@@ -9,6 +9,8 @@
 import fs from 'node:fs';
 import {browser, expect} from '@wdio/globals';
 
+import {withoutSound} from '../soundCheck.mjs';
+
 const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 const avUrl = (query = '') => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/long-av.mp4${query}`;
 
@@ -46,7 +48,9 @@ async function loadVideo(url, play) {
 /**
  * When the video did not play with sound: skips the case if this machine can't run any
  * AudioContext (the cases that need the channel count can't run there, as in
- * firefox.e2e.mjs), and fails it otherwise, since then the player is what failed.
+ * firefox.e2e.mjs), and fails it otherwise, since then the player is what failed. On
+ * Linux CI, which the e2e setup gives a sound device, no AudioContext fails it too
+ * (soundCheck.mjs).
  * @param {Mocha.Context} test - The running case.
  * @param {boolean} played - What openAudioTools() gave.
  * @return {Promise<void>}
@@ -72,8 +76,7 @@ async function skipWithoutSound(test, played) {
   if (state.machine === 'running') {
     throw new Error('the video did not play with sound, on a machine that has sound: ' + JSON.stringify(state));
   }
-  console.log('      no sound on this machine, skipping:', JSON.stringify(state));
-  test.skip();
+  withoutSound(test, 'no sound on this machine', state);
 }
 
 /**

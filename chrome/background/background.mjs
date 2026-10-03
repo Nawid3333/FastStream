@@ -809,8 +809,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // was visibly undone within seconds on any page still loading media.
     // Clear every frame's store (sources arrive on page frames, while this
     // message comes from the player's frame), so the clear sticks.
+    // What a page frame handed its player goes too (handedTo), or the player's next
+    // REQUEST_SOURCES got the cleared list back.
     for (const f of tab.getFrames()) {
       f.getSources().length = 0;
+      f.forgetHandedToPlayer();
     }
     sendResponse('cleared');
     return;

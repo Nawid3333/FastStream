@@ -171,7 +171,8 @@ describe('MP4Player loading', function() {
 
   it('resets the player a few times at most while opening a long file at 30 s', async function() {
     await browser.url(`/player/index.html?t=${Date.now()}`);
-    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.optionsApplied), {timeout: 30000});
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.optionsApplied),
+        {timeout: 30000, timeoutMsg: 'the player options never loaded'});
     await browser.executeAsync((url, done) => {
       Promise.all([
         import('/player/players/mp4/MP4Player.mjs'),

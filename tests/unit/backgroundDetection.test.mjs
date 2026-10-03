@@ -86,6 +86,47 @@ describe('the streams a player tab lists from other tabs', () => {
   });
 });
 
+// A player that loads again in its frame ("Reload Frame") gets what it was handed (#288),
+// but not after the sources browser's Clear: embed-page-query.e2e.mjs saw the cleared
+// stream sent again on every REQUEST_SOURCES.
+describe('what a player was handed', () => {
+  /**
+   * A page that detected one stream, with a player in frame 5 that was handed it.
+   * @return {Promise<void>}
+   */
+  async function playerHandedAStream() {
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/master.m3u8'});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual(['https://cdn.test/v/master.m3u8']);
+  }
+
+  /**
+   * The player in frame 5 asks for its sources again.
+   * @return {Promise<Array<string>>} The URLs it was sent.
+   */
+  async function askAgain() {
+    bg.sentToTabs.length = 0;
+    await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
+    await bg.wait(3000);
+    const sent = bg.sent('SOURCES').filter((m) => m.frameId === 5);
+    expect(sent).toHaveLength(1);
+    return sent[0].message.sources.map((s) => s.url);
+  }
+
+  it('is sent again when the player asks again', async () => {
+    await playerHandedAStream();
+    expect(await askAgain()).toEqual(['https://cdn.test/v/master.m3u8']);
+  });
+
+  it('is not sent again after the player\'s list was cleared', async () => {
+    await playerHandedAStream();
+    await bg.message({type: 'CLEAR_SOURCES'}, {tabId: 1, frameId: 5});
+    expect(await askAgain()).toEqual([]);
+  });
+});
+
 describe('a page that is never left', () => {
   it('keeps its manifest and a bounded number of its stream\'s pieces', async () => {
     // Shaka Packager names a DASH stream's pieces .mp4 and its subtitle pieces .vtt: each

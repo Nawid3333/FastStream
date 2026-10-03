@@ -18,8 +18,11 @@
 //
 // This only affects HLS saves that go through transmuxer.mjs. DASH
 // (dash2mp4/mp4merger.mjs) and plain MP4 do not import it and were
-// unaffected -- kept here as one quick confirming case, not because either
-// was ever suspected.
+// unaffected; save-fmp4.e2e.mjs saves local DASH streams and decodes them.
+//
+// Every stream here is local (wdio.conf.mjs's fixtures): this suite gates CI and the
+// release, and the HLS and DASH cases once streamed from test-streams.mux.dev and
+// dash.akamaized.net, so either host being slow or down failed both CI jobs.
 
 import {browser, expect} from '@wdio/globals';
 import {pageState, phaseTimer} from './diagnostics.mjs';
@@ -202,26 +205,12 @@ async function saveAndValidateStreamed() {
 }
 
 describe('Save video (download)', function() {
-  it('mux + saves an HLS clip into a file that actually decodes', async function() {
-    await openPlayer('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8');
-    const result = await saveAndValidate();
-
-    console.log('      result:', JSON.stringify(result));
-    // Before the fix: saveError carried hls.js's own stack --
-    // "TypeError: chunkMeta is undefined" thrown from demux(), reached via
-    // transmuxer.mjs's resetInitSegment() the moment the first discontinuity
-    // with an init segment was processed. Confirmed by reverting the fix and
-    // observing exactly that stack here.
-    expect(result.saveError).toBe(null);
-    expect(result.decodeOk).toBe(true);
-    expect(result.duration).toBeGreaterThan(0);
-    expect(result.blobSize).toBeGreaterThan(0);
-  });
-
-  // The same, on local streams: the remote one above is a muxed MPEG-TS stream and needs
-  // test-streams.mux.dev. fMP4 segments with an out-of-band init segment are what put
-  // transmuxer.mjs on the resetInitSegment() path the chunkMeta fix above is about, and a
-  // separate audio rendition makes it mux two tracks.
+  // Before the fix, saveError carried hls.js's own stack -- "TypeError: chunkMeta is
+  // undefined" thrown from demux(), reached via transmuxer.mjs's resetInitSegment() the
+  // moment the first discontinuity with an init segment was processed (confirmed by
+  // reverting the fix and observing exactly that stack). fMP4 segments with an
+  // out-of-band init segment are what put transmuxer.mjs on that path; a separate audio
+  // rendition makes it mux two tracks; MPEG-TS is the muxed transport-stream case.
   for (const [fixture, playlist, kind] of [
     ['hls-ts', 'index.m3u8', 'MPEG-TS'],
     ['hls-fmp4', 'index.m3u8', 'fMP4'],
@@ -238,27 +227,6 @@ describe('Save video (download)', function() {
       expect(result.blobSize).toBeGreaterThan(0);
     });
   }
-
-  it('mux + saves a DASH clip into a file that actually decodes', async function() {
-    // Confirms the unrelated format still works -- dash2mp4/mp4merger.mjs
-    // does not import transmuxer.mjs and was never suspected, but this is
-    // cheap insurance against a future dash.js upgrade breaking the same way.
-    await openPlayer('https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd');
-    const result = await saveAndValidate();
-
-    console.log('      result:', JSON.stringify(result));
-    expect(result.saveError).toBe(null);
-    expect(result.decodeOk).toBe(true);
-    expect(result.duration).toBeGreaterThan(0);
-    // decodeOk and duration both come out of the moov, so they are happy with
-    // a file that has a valid header and no media in it. mp4merger's non-OPFS
-    // finalize path did exactly that for a while -- it mapped its mdat Blob
-    // slices through FSBlob.getBlob(), which wants an identifier, so every
-    // chunk came back undefined and this "passed" on a 13 KB file whose
-    // payload was the string "undefined" repeated. A real save of this clip
-    // is tens of MB.
-    expect(result.blobSize).toBeGreaterThan(1024 * 1024);
-  });
 
   it('saves a DIRECT/webm source into a file that actually decodes', async function() {
     // .webm has no fragment-based acceleration and used to be hard-routed

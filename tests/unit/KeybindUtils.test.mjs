@@ -1,10 +1,12 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybinds.mjs';
+import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
 import {
   ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
   MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
   keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
+import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
 // Pure keybind logic. Nothing here can be seen in a browser until someone presses the
 // key, and a wrong answer is silent: a jump to the wrong place, a speed that does not
@@ -305,16 +307,9 @@ describe('migrateKeybinds', () => {
     vi.restoreAllMocks();
   });
 
-  const mergedOver = (saved) => {
-    // What Utils.mergeOptions does with the keybinds: the defaults, overwritten by whatever
-    // was saved for an action that still exists.
-    const keybinds = {...DefaultKeybinds};
-    const own = saved.keybinds && typeof saved.keybinds === 'object' ? saved.keybinds : {};
-    for (const action of Object.keys(keybinds)) {
-      if (Object.hasOwn(own, action) && typeof own[action] === 'string') keybinds[action] = own[action];
-    }
-    return {keybinds, keybindsVersion: KEYBINDS_VERSION};
-  };
+  // The saved options merged over the defaults, as Utils.getOptionsFromStorage hands them
+  // to the migration: the real merge, so a change to it shows here too.
+  const mergedOver = (saved) => Utils.mergeOptions(DefaultOptions, saved);
   const legacy = {
     WindowedFullscreen: 'KeyW', NextChapter: 'KeyA', PreviousVideo: 'KeyB',
     FlipVideo: 'KeyE', RotateVideo: 'KeyR', ToggleVisualFilters: 'KeyQ',

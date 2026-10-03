@@ -150,7 +150,8 @@ describe('A live HLS stream that skips a segment', function() {
 
   it('goes on past a gap in a live window, and draws the fragments on both sides of it', async function() {
     await browser.url(`/player/index.html?t=${Date.now()}#${JUMP_ORIGIN}/jump.m3u8`);
-    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream), {timeout: 30000});
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
+        {timeout: 30000, timeoutMsg: 'the player never started'});
     // The page's uncaught errors, from the start.
     await browser.execute(() => {
       window.__errors = [];

@@ -56,16 +56,13 @@ function localHls(fixture, kind) {
   };
 }
 
-/** Streams chosen for stability and for exercising one library each. */
+/**
+ * Streams chosen for stability and for exercising one library each. All local: this suite
+ * gates CI and the release, so a third-party host being slow or down must not fail it.
+ * Real streams on public hosts are the live suite's (live-specs/streams.e2e.mjs). This
+ * list once had test-streams.mux.dev's HLS and dash.akamaized.net's DASH too.
+ */
 const STREAMS = [
-  {
-    name: 'HLS (hls.js + hls.worker.js)',
-    url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-  },
-  {
-    name: 'DASH (dash.js)',
-    url: 'https://dash.akamaized.net/akamai/bbb_30fps/bbb_30fps.mpd',
-  },
   localHls('hls-ts', 'MPEG-TS segments'),
   localHls('hls-fmp4', 'fMP4 segments'),
   localHls('hls-audio', 'with a separate audio rendition'),
@@ -163,7 +160,8 @@ async function expectEveryHlsSegmentListed(fixture) {
   const {levels} = JSON.parse(fs.readFileSync(path.join(fixturesDir, fixture, 'expected.json'), 'utf8'));
   for (const [level, want] of Object.entries(levels)) {
     let got = [];
-    // An audio rendition's playlist is loaded after the video's, so its list can lag.
+    // An audio rendition's playlist is loaded after the video's, so its list can lag. On a
+    // timeout the comparison below fails with both lists; this says why.
     await browser.waitUntil(async () => {
       got = await browser.execute((level) => {
         return (window.fastStream.getFragments(level) || []).filter(Boolean).map((frag) => ({
@@ -174,7 +172,10 @@ async function expectEveryHlsSegmentListed(fixture) {
         }));
       }, level);
       return got.length >= want.media.length;
-    }, {timeout: 15000, interval: 250}).catch(() => {});
+    }, {timeout: 15000, interval: 250}).catch(() => {
+      console.log(`      ${level}: ${got.length} of ${want.media.length} fragments listed after 15 s ` +
+        '(its playlist never arrived, or arrived short)');
+    });
     console.log(`      ${level}: ${got.length} fragments`);
 
     expect(got.map((frag) => frag.sn)).toEqual([...Array(want.media.length).keys()]);

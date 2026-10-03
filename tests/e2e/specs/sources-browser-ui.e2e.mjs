@@ -20,9 +20,9 @@
 //    the extension the list visibly refilled within seconds of clearing,
 //    reading as "nothing happened". Fixed by adding a CLEAR_SOURCES message
 //    the button sends so the background clears its authoritative stores too.
-//    (The web build has no background script, so this spec only pins the
-//    mirror-side behaviour; the extension-side clearing is checked by
-//    loading the build in Firefox.)
+//    The web build has no background script, so this spec only pins the
+//    mirror-side behaviour; ext-specs/embed-page-query.e2e.mjs checks that the
+//    background's store is empty after the click.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -68,40 +68,6 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     const sourcesLen = await browser.execute(
         () => window.fastStream.sourcesBrowser.sources.length);
     expect(sourcesLen).toBe(0);
-  });
-
-  it('clear button sends CLEAR_SOURCES to the background in extension builds and nothing in web builds', async function() {
-    await openPlayer();
-
-    // Instrument chrome.runtime.sendMessage (extension) / noop (web) before
-    // clicking, so the assertion observes the real dispatch path.
-    await browser.execute(() => {
-      window.__clearSent = [];
-      if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
-        const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
-        chrome.runtime.sendMessage = (msg, ...rest) => {
-          if (msg && msg.type === 'CLEAR_SOURCES') window.__clearSent.push(msg);
-          return orig(msg, ...rest);
-        };
-      }
-    });
-
-    const linkButton = await browser.$('.mainplayer .fluid_button_link');
-    await linkButton.click();
-    const clearBtn = await browser.$('.linkui-clear-button');
-    await clearBtn.waitForDisplayed();
-    await clearBtn.click();
-
-    const isExt = await browser.execute(
-        () => !!(window.chrome && chrome.runtime && chrome.runtime.id));
-    const sent = await browser.execute(() => window.__clearSent.length);
-    if (isExt) {
-      expect(sent).toBe(1);
-    } else {
-      // The web build has no background page to clear; the mirror-only
-      // clear is the entire correct behaviour there.
-      expect(sent).toBe(0);
-    }
   });
 
   it('keeps the popwindow still (close button reachable) while it is open, even once the control bar would auto-hide', async function() {

@@ -8,8 +8,10 @@
 // buffered, and the video stopped early. Whether a range ends there is chance - about one
 // range in two hundred for 2 s fragments - so this builds the case: the fixture's second
 // fragment is moved, with a `free` box in front of it, to start 8 bytes before the end of
-// MP4Player's first range. The server holds that second range back for a while, the moment
-// in which the stream was wrongly ended.
+// MP4Player's first range. The server holds that second range back, the moment in which the
+// stream was wrongly ended, until the test has watched the stream for a while. (It held it
+// for a fixed 6 s from the request once: on a slow runner the player's start used that up,
+// and the test found the range already answered and nothing to watch.)
 //
 // Knowing where the file ends needs its length, and MP4Player took that from the samples
 // mp4box knew once the first range was parsed, not from the server's Content-Range. For a
@@ -27,9 +29,8 @@ const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 // MP4Player.mjs's FRAGMENT_SIZE: the first range is bytes [0, RANGE).
 const RANGE = 1000000;
-const HOLD_MS = 6000;
 
-const PORT = 41887;
+const PORT = 41889;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 let server;
 
@@ -93,7 +94,14 @@ async function playerState() {
 }
 
 describe('A fragmented MP4 whose first range ends between two fragments', function() {
-  let secondRangeAnswered = 0;
+  // The answers to requests for the second range, held until release().
+  const held = [];
+  let secondRangeAsked = false;
+  let released = false;
+  const release = () => {
+    released = true;
+    held.splice(0).forEach((answer) => answer());
+  };
 
   before(async function() {
     const bytes = gapFixture();
@@ -115,11 +123,9 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
           'Content-Range': `bytes ${start}-${end}/${bytes.length}`, 'Content-Length': end - start + 1});
         res.end(bytes.subarray(start, end + 1));
       };
-      if (start >= RANGE) {
-        setTimeout(() => {
-          secondRangeAnswered = Date.now();
-          answer();
-        }, HOLD_MS);
+      if (start >= RANGE && !released) {
+        secondRangeAsked = true;
+        held.push(answer);
       } else {
         answer();
       }
@@ -131,32 +137,36 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
   });
 
   after(async function() {
+    // A failed test may still hold a response open, which would keep close() waiting.
+    release();
     if (server) await new Promise((resolve) => server.close(resolve));
   });
 
   it('keeps the stream open until the last range is in, and plays to the end', async function() {
     await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}/fragmented-gap.mp4`);
 
-    // The first range is in: everything before the second fragment is buffered.
+    // The first range is in: everything before the second fragment is buffered, and the
+    // player has asked for the rest.
     let state = {};
     await browser.waitUntil(async () => {
       state = await playerState();
       return state.buffered > 7;
     }, {timeout: 30000, interval: 200, timeoutMsg: 'the first range never played'});
+    await browser.waitUntil(async () => secondRangeAsked,
+        {timeout: 30000, interval: 200, timeoutMsg: 'the player never asked for the second range'});
 
     // While the second range is held back, the stream is not over. (The duration is what
     // has been parsed so far: an empty_moov file, as ffmpeg writes it, has no mehd box to
     // give it up front. It grows as the rest comes in - unless the stream was ended.)
     const seen = [];
-    const until = Date.now() + 2500;
-    while (Date.now() < until && !secondRangeAnswered) {
+    for (let i = 0; i < 10; i++) {
       state = await playerState();
       seen.push(`${state.mediaSource} ${Number(state.duration).toFixed(2)}`);
       expect(state.mediaSource).toBe('open');
       await browser.pause(250);
     }
     console.log('      while the second range was held:', [...new Set(seen)].join(', '));
-    expect(seen.length).toBeGreaterThan(3);
+    release();
 
     // And the video plays on through the second fragment to its end.
     await browser.waitUntil(async () => {

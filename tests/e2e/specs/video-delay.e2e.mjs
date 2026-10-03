@@ -12,35 +12,11 @@
 // The source has to carry audio. sample.mp4 does not, and an audio-only player
 // fed a source with no audio track fails in SourceBufferWrapper on every frame,
 // which would bury what this checks. That is a separate matter, so the video
-// gets a generated tone, the way save-hls-fmp4.e2e.mjs does.
+// gets a generated tone: fixtures/sample-av.mp4, made by buildFixtures.mjs.
 
-import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
-const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
-const AV_FIXTURE = path.join(fixturesDir, 'sample-av.mp4');
-
 describe('Video delay', function() {
-  before(function() {
-    if (fs.existsSync(AV_FIXTURE)) return;
-    const args = [
-      '-y', '-v', 'error', '-i', path.join(fixturesDir, 'sample.mp4'),
-      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10', '-map', '0:v', '-map', '1:a',
-      '-c:v', 'copy', '-c:a', 'aac', '-shortest', '-movflags', '+faststart', AV_FIXTURE,
-    ];
-    const {status, error, stderr} = spawnSync('ffmpeg', args, {encoding: 'utf8'});
-    if (status !== 0) {
-      throw new Error(
-          `could not build the audio fixture with ffmpeg` +
-          `${error ? ` (${error.message})` : ''}. CI installs ffmpeg; ` +
-          `locally it must be on PATH.\n${stderr || ''}`,
-      );
-    }
-  });
-
   it('builds the separate audio players a positive delay needs, without an error', async function() {
     await browser.url('/player/index.html?t=' + Date.now() + '#' +
       globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample-av.mp4');

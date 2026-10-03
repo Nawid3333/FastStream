@@ -76,7 +76,9 @@ describe('the voice detector model', () => {
     }));
     const running = model.process(new Float32Array(512));
     const releasing = model.release();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // A turn of the event loop: every promise step release() could take without the run
+    // is done by then.
+    await new Promise((resolve) => setImmediate(resolve));
     expect(sessions[0].release).not.toHaveBeenCalled();
     finish();
     await running;
