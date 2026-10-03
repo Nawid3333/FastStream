@@ -270,6 +270,22 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
     expect(bg.sent('OPEN_PLAYER')).toEqual([]);
   });
 
+  it('leaves a stream the new page asks for during the wait to its own start, captions first', async () => {
+    // A stream found during the wait opens the player as any detected stream does
+    // (onSourceRecieved): the page's <track> captions are read first, then the player opens
+    // after replaceDelay. The start by address, half a second after the address changed,
+    // opened it straight away from that same stream, and the player got the stream's
+    // detected subtitle files without the page's labels (page-subtitles.e2e).
+    await homeThenEpisode({autoEnableURLs: ['https://site.test/watch']});
+    await bg.wait(100);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(5000);
+    const types = bg.sentToTabs.map((m) => m.message.type);
+    expect(types.filter((type) => type === 'OPEN_PLAYER')).toHaveLength(1);
+    expect(types.indexOf('SCRAPE_CAPTIONS')).toBeGreaterThan(-1);
+    expect(types.indexOf('SCRAPE_CAPTIONS')).toBeLessThan(types.indexOf('OPEN_PLAYER'));
+  });
+
   it('drops the start when the address changes again meanwhile, and comes back', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
       tabs: [{id: 1, url: HOME}]});
