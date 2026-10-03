@@ -1267,8 +1267,10 @@ the change went in.
   `name(1).png` and the spec read the first attempt's file). download-names keeps its
   extension page open until Firefox reports the download `complete`: closed at once, the
   page took its blob with it before Firefox read it, the CI flake. Single-file fixtures are
-  written under `.partial` and renamed (`writeFixture`); the extension config fetches
-  `sample.mp4` itself (`mp4Fixture.mjs`), so `pnpm run test:ext` works on a fresh clone.
+  written under `.partial` and renamed (`writeFixture`); `sample.mp4` is pinned by size and
+  SHA-256 (`mp4Fixture.mjs`), and the fixtures made from it (`buildFixtures.mjs`) keep the
+  recipe they were built by and are built again when it changes (2026-10-03, #256/#263);
+  the extension config makes them too, so `pnpm run test:ext` works on a fresh clone.
   Both test servers answer a bad `%` escape with 400, end a response whose read fails, and
   read `bytes=-N` as the last N bytes (`serveFile.mjs`). A retried test's screenshot is
   numbered, not written over the first attempt's.

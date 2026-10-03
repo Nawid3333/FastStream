@@ -6,32 +6,11 @@
 // moment it started. tests/unit/EnvUtils.test.mjs now checks every call statically; this
 // starts it for real.
 
-import {spawnSync} from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
-const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
-const AV_FIXTURE = path.join(fixturesDir, 'sample-av.mp4');
+// fixtures/sample-av.mp4, the MP4 fixture with a tone: buildFixtures.mjs.
 
 describe('Background audio analyzer', function() {
-  before(function() {
-    if (fs.existsSync(AV_FIXTURE)) return;
-    const args = [
-      '-y', '-v', 'error', '-i', path.join(fixturesDir, 'sample.mp4'),
-      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=10', '-map', '0:v', '-map', '1:a',
-      '-c:v', 'copy', '-c:a', 'aac', '-shortest', '-movflags', '+faststart', AV_FIXTURE,
-    ];
-    const {status, error, stderr} = spawnSync('ffmpeg', args, {encoding: 'utf8'});
-    if (status !== 0) {
-      throw new Error(
-          `could not build the audio fixture with ffmpeg${error ? ` (${error.message})` : ''}. ` +
-          `CI installs ffmpeg; locally it must be on PATH.\n${stderr || ''}`,
-      );
-    }
-  });
-
   it('starts, and plays its copy at the fastest rate Firefox still gives sound at', async function() {
     await browser.setTimeout({script: 60000});
     await browser.url('/player/index.html?t=' + Date.now() + '#' +

@@ -36,6 +36,7 @@ import {testTimeout} from './testTimeout.mjs';
 import {ensureBidi} from './bidi.mjs';
 import {guardSetup, rootHooks} from './setupGuard.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
+import {ensureFixtures} from './buildFixtures.mjs';
 import {decodePath, sendFile} from './serveFile.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -173,9 +174,11 @@ export const config = {
 
   onPrepare: async function() {
     resetDownloadDir();
-    // The specs' /fixtures/sample.mp4: `pnpm run test:ext` alone, on a fresh clone, has
-    // no web suite run before it to fetch it.
+    // The specs' fixtures (sample.mp4, and long-av.mp4 and hls-ts for source-length):
+    // `pnpm run test:ext` alone, on a fresh clone, has no web suite run before it to make
+    // them. Made already, they cost a check of their recipes.
     await ensureMp4Fixture();
+    await ensureFixtures();
     return new Promise((resolve) => {
       server = http.createServer((req, res) => {
         const pathname = decodePath((req.url || '/').split('?')[0]);
