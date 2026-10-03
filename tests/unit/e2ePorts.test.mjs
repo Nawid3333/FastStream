@@ -43,17 +43,35 @@ function workflowJobs() {
   });
 }
 
+/**
+ * Every port an e2e server is given (a constant named *PORT).
+ * @return {Array<{file: string, port: number}>}
+ */
+function e2ePorts() {
+  return moduleFiles(path.join(root, 'tests/e2e')).flatMap((file) => {
+    const source = fs.readFileSync(file, 'utf8');
+    return Array.from(source.matchAll(/\b[A-Z_]*PORT\s*=\s*(\d+)\b/g),
+        (match) => ({file: path.relative(root, file).replaceAll(path.sep, '/'), port: Number(match[1])}));
+  });
+}
+
 describe('e2e ports', () => {
   it('are all in the range the Linux CI jobs reserve', () => {
-    const ports = moduleFiles(path.join(root, 'tests/e2e')).flatMap((file) => {
-      const source = fs.readFileSync(file, 'utf8');
-      return Array.from(source.matchAll(/\b[A-Z_]*PORT\s*=\s*(\d+)\b/g),
-          (match) => ({file: path.relative(root, file), port: Number(match[1])}));
-    });
+    const ports = e2ePorts();
     // The harness servers and the specs' own: a pattern that stopped matching would make
     // this pass on nothing.
     expect(ports.length).toBeGreaterThanOrEqual(10);
     expect(ports.filter(({port}) => port < LOW || port > HIGH)).toEqual([]);
+  });
+
+  it('are each given to one server only', () => {
+    // Two specs on one port pass only while they never run at once (maxInstances: 1) and
+    // each closes its server: a worker killed at the mocha cap leaves it open (#261).
+    const users = new Map();
+    for (const {file, port} of e2ePorts()) {
+      users.set(port, [...(users.get(port) || []), file]);
+    }
+    expect([...users].filter(([, files]) => files.length > 1)).toEqual([]);
   });
 
   it('are reserved by the shared e2e setup and by verify:linux', () => {
