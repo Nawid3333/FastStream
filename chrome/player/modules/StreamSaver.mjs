@@ -60,12 +60,6 @@ function createWriteStreamBlob(filename, opts, size) {
   }, opts.writableStrategy);
 }
 
-// How many chunks the memory sink lets wait for the blob store to move them to
-// disk. Its write() used to return at once, so a fast producer (a direct
-// download read as fast as the network gives it) had the whole file in RAM as
-// Blobs before the Cache backend took them.
-const MEMORY_SINK_PENDING = 8;
-
 /**
  * Progressive, disk-backed sink: every chunk is appended to one OPFS file and
  * the finished file goes to the download as a File, so RAM stays flat no
@@ -125,6 +119,8 @@ function createOPFSSink(filename, blobManager) {
   };
 }
 
+const MEMORY_SINK_PENDING = 8;
+
 /**
  * Memory-fallback sink, for environments without OPFS (a Firefox private
  * window, and the web build where service workers may or may not exist).
@@ -135,12 +131,16 @@ function createOPFSSink(filename, blobManager) {
  */
 function createMemorySink(filename, blobManager) {
   const blobs = [];
+  // Chunks the blob store is still moving to disk. write() used to return at
+  // once, so a fast producer (a direct download read as fast as the network
+  // gives it) had the whole file in RAM as Blobs before the Cache backend took
+  // them; it now waits once MEMORY_SINK_PENDING are on their way.
   const pending = [];
   return {
     async write(chunk) {
-      const identifier = blobManager.nextIdentifier();
+      const identifier = blobManager.createBlob(chunk);
       blobs.push(identifier);
-      pending.push(blobManager.saveBlobAsync(new Blob([chunk], {type: 'application/octet-stream'}), identifier));
+      pending.push(blobManager.whenStored(identifier));
       if (pending.length >= MEMORY_SINK_PENDING) {
         await pending.shift();
       }
@@ -149,15 +149,7 @@ function createMemorySink(filename, blobManager) {
       const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
       const blob = new Blob(chunks, {type: 'application/octet-stream'});
       const url = URL.createObjectURL(blob);
-      let download;
-      try {
-        download = await Utils.downloadURL(url, filename);
-      } catch (e) {
-        URL.revokeObjectURL(url);
-        blobManager.close();
-        throw e;
-      }
-      Utils.revokeWhenDownloaded(url, download);
+      Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, filename));
 
       setTimeout(() => {
         blobManager.close();

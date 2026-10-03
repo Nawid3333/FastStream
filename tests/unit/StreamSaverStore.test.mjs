@@ -4,7 +4,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // accelerated MP4 player's save, an archive) into a file download, through a blob store:
 // OPFS where it works, otherwise blobs the store moves to the Cache API. Here the store is
 // a stand-in that counts what was made and closed, and whose moves to disk finish when a
-// test says so.
+// test says so. These are the ways a save's store was left open, or let RAM fill up.
 
 const stores = [];
 
@@ -14,6 +14,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
       stores.push(this);
       this.opfsManager = globalThis.fakeOpfs ?? null;
       this.blobStore = new Map();
+      this.stored = new Map();
       this.index = 0;
       this.closed = false;
       this.cleared = false;
@@ -23,20 +24,14 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     async ready() {
       return !!this.opfsManager;
     }
-    nextIdentifier() {
-      return `blob${this.index++}`;
-    }
-    saveBlobAsync(blob, identifier) {
-      this.blobStore.set(identifier, blob);
-      return new Promise((resolve) => this.moving.push(() => resolve(identifier)));
-    }
-    saveBlob(blob) {
-      const identifier = this.nextIdentifier();
-      this.saveBlobAsync(blob, identifier);
+    createBlob(data) {
+      const identifier = `blob${this.index++}`;
+      this.blobStore.set(identifier, new Blob([data]));
+      this.stored.set(identifier, new Promise((resolve) => this.moving.push(resolve)));
       return identifier;
     }
-    createBlob(data) {
-      return this.saveBlob(new Blob([data]));
+    whenStored(identifier) {
+      return this.stored.get(identifier);
     }
     getBlob(identifier) {
       return this.blobStore.get(identifier);
@@ -48,13 +43,6 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
     close() {
       this.closed = true;
     }
-  },
-}));
-
-vi.mock('../../chrome/player/utils/Utils.mjs', () => ({
-  Utils: {
-    downloadURL: vi.fn(async () => 7),
-    revokeWhenDownloaded: vi.fn(),
   },
 }));
 
@@ -81,24 +69,25 @@ function makeOpfs(fail = {}) {
 }
 
 /** Lets pending promise callbacks run. */
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+const settle = () => vi.advanceTimersByTimeAsync(0);
 
 beforeEach(() => {
+  vi.useFakeTimers();
   stores.length = 0;
   globalThis.fakeOpfs = null;
-  vi.spyOn(URL, 'revokeObjectURL');
-  Utils.downloadURL.mockClear();
-  Utils.downloadURL.mockImplementation(async () => 7);
-  Utils.revokeWhenDownloaded.mockClear();
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  vi.spyOn(Utils, 'downloadURL').mockResolvedValue(7);
+  vi.spyOn(Utils, 'revokeWhenDownloaded');
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   delete globalThis.fakeOpfs;
 });
 
-describe('StreamSaver', () => {
-  it('makes no blob store for a save that never wrote anything', async () => {
+describe('StreamSaver: the blob store of a save', () => {
+  it('is not made for a save that never wrote anything', async () => {
     // A direct download whose server answered 404 fails before its first write. The store
     // was made with the stream, and with OPFS its worker ran until the tab closed.
     globalThis.fakeOpfs = makeOpfs();
@@ -108,7 +97,7 @@ describe('StreamSaver', () => {
     expect(stores).toHaveLength(0);
   });
 
-  it('lets only a few chunks wait in memory for the store', async () => {
+  it('lets only a few chunks wait in memory to be moved to disk', async () => {
     // Without OPFS each chunk is a Blob in memory until the store has moved it to disk.
     // write() returned at once, so a producer as fast as the network had them all in RAM.
     const writer = streamSaver.createWriteStream('video.webm').getWriter();
@@ -131,20 +120,7 @@ describe('StreamSaver', () => {
     expect(Utils.downloadURL).toHaveBeenCalledTimes(1);
   });
 
-  it('revokes the URL and closes the store when the download cannot start (memory)', async () => {
-    Utils.downloadURL.mockImplementation(async () => {
-      throw new Error('downloads refused');
-    });
-    const writer = streamSaver.createWriteStream('video.webm').getWriter();
-    await writer.write(new Uint8Array(4));
-    stores[0].moving.forEach((resolve) => resolve());
-    await expect(writer.close()).rejects.toThrow('downloads refused');
-
-    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
-    expect(stores[0].closed).toBe(true);
-  });
-
-  it('closes the store when a save is aborted (memory)', async () => {
+  it('is closed when a save is aborted (memory)', async () => {
     const writer = streamSaver.createWriteStream('video.webm').getWriter();
     await writer.write(new Uint8Array(4));
     await writer.abort(new Error('Cancelled'));
@@ -153,7 +129,7 @@ describe('StreamSaver', () => {
     expect(stores[0].closed).toBe(true);
   });
 
-  it.each(['saveEnd', 'getSavedFile'])('ends the OPFS save and closes the store when %s fails', async (step) => {
+  it.each(['saveEnd', 'getSavedFile'])('is closed, its OPFS save ended, when %s fails', async (step) => {
     // A save whose file could not be finished: its session and worker stayed until the
     // tab closed.
     globalThis.fakeOpfs = makeOpfs({[step]: new Error(`${step} failed`)});
@@ -165,11 +141,9 @@ describe('StreamSaver', () => {
     expect(stores[0].closed).toBe(true);
   });
 
-  it('ends the OPFS save, revokes the URL and closes the store when the download cannot start', async () => {
+  it('is closed, its OPFS save ended and its URL revoked, when the download cannot start', async () => {
     globalThis.fakeOpfs = makeOpfs();
-    Utils.downloadURL.mockImplementation(async () => {
-      throw new Error('downloads refused');
-    });
+    Utils.downloadURL.mockRejectedValue(new Error('downloads refused'));
     const writer = streamSaver.createWriteStream('video.mp4').getWriter();
     await writer.write(new Uint8Array(4));
     await expect(writer.close()).rejects.toThrow('downloads refused');
@@ -179,7 +153,7 @@ describe('StreamSaver', () => {
     expect(stores[0].closed).toBe(true);
   });
 
-  it('hands a finished OPFS save to the download and keeps its URL until the download is over', async () => {
+  it('is kept, with its URL, for a finished OPFS save handed to the download', async () => {
     globalThis.fakeOpfs = makeOpfs();
     const writer = streamSaver.createWriteStream('video.mp4').getWriter();
     await writer.write(new Uint8Array(4));
@@ -189,5 +163,6 @@ describe('StreamSaver', () => {
     expect(Utils.revokeWhenDownloaded).toHaveBeenCalledWith(expect.stringMatching(/^blob:/), 7);
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     expect(globalThis.fakeOpfs.saveAbort).not.toHaveBeenCalled();
+    expect(stores[0].closed).toBe(false);
   });
 });

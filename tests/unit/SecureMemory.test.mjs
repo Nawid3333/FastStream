@@ -142,6 +142,22 @@ describe('SecureMemory.getSalt', () => {
   });
 });
 
+describe('SecureMemory.hash', () => {
+  it('derives from the salt as the decimal list of its bytes, as every saved position was', async () => {
+    // TextEncoder turns the Uint8Array salt into "1,2,3,...". Passing the bytes themselves
+    // would derive other keys and make every saved position unreadable, so a change here
+    // needs a new record format, not a quiet fix.
+    const salt = Uint8Array.from({length: 128}, (_, i) => (i * 37) % 256);
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('video-id'), {name: 'PBKDF2'}, false, ['deriveBits']);
+    const derive = async (saltBytes) => new Uint8Array(await crypto.subtle.deriveBits(
+        {name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 600000}, key, 256));
+
+    const hashed = new Uint8Array(await SecureMemory.hash('video-id', salt));
+    expect(hashed).toEqual(await derive(new TextEncoder().encode(salt.join(','))));
+    expect(hashed).not.toEqual(await derive(salt));
+  });
+});
+
 describe('SecureMemory.getFile', () => {
   const hashesFor = async (identifier) => ({
     identifierHash: 'id',
@@ -182,21 +198,5 @@ describe('SecureMemory.getFile', () => {
     const memory = new SecureMemory('test');
     memory.indexedDbManager = {getFile: async () => undefined};
     expect(await memory.getFile(await hashesFor('video'))).toBeNull();
-  });
-});
-
-describe('SecureMemory.hash', () => {
-  it('derives from the salt as the decimal list of its bytes, as every saved position was', async () => {
-    // TextEncoder turns the Uint8Array salt into "1,2,3,...". Passing the bytes themselves
-    // would derive other keys and make every saved position unreadable, so a change here
-    // needs a new record format, not a quiet fix.
-    const salt = Uint8Array.from({length: 128}, (_, i) => (i * 37) % 256);
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('video-id'), {name: 'PBKDF2'}, false, ['deriveBits']);
-    const derive = async (saltBytes) => new Uint8Array(await crypto.subtle.deriveBits(
-        {name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 600000}, key, 256));
-
-    const hashed = new Uint8Array(await SecureMemory.hash('video-id', salt));
-    expect(hashed).toEqual(await derive(new TextEncoder().encode(salt.join(','))));
-    expect(hashed).not.toEqual(await derive(salt));
   });
 });
