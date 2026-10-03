@@ -1,17 +1,18 @@
 # Privacy Policy
 
 **FastStream Video Player (Firefox)**
-Last updated: 2026-09-29
+Last updated: 2026-10-03
 
 ## Summary
 
-This add-on collects nothing, sends nothing, and has no server of its own.
-The one exception is a subtitle search you start yourself (see "Subtitle
-search" below).
+This add-on collects nothing and has no server of its own. Apart from the
+sites whose videos you play, it contacts only OpenSubtitles, when you search
+for subtitles yourself (see "Subtitle search" below), and GitHub, for updates
+(see "Network requests").
 
 Everything it stores stays in your browser profile on your own machine. There
-is no account, no analytics, no crash reporting, no usage counter, and no
-"phone home" of any kind - not even a version check.
+is no account, no analytics, no crash reporting, no usage counter, and nothing
+is sent about you or what you watch.
 
 The add-on's manifest declares this to Firefox as
 `data_collection_permissions: {"required": ["none"]}`.
@@ -32,8 +33,13 @@ What lives there is your own configuration: playback preferences, subtitle
 and audio settings, keybindings, and similar options you set yourself. You
 can erase all of it by removing the add-on.
 
+While Firefox runs, the add-on also keeps each tab's address and on/off
+state in `browser.storage.session`, so that its background page, which Firefox
+unloads when idle, finds them again. Firefox holds that in memory only and
+clears it when it closes.
+
 No browsing history, no page contents, no video URLs, and no personal
-information are recorded or transmitted anywhere.
+information are kept beyond that or transmitted anywhere.
 
 ## Network requests
 
@@ -64,8 +70,11 @@ that file from it. Nothing is sent to OpenSubtitles unless you search.
 
 If you install the mpv helper and turn MPV mode on, the add-on hands a
 stream to that helper on your own computer: the stream URL, its `Referer`,
-`Origin` and `User-Agent` headers, and the address of the page you were on.
+`Origin` and `User-Agent` headers, the address and title of the page you were
+on, and, when you send it from the player, where you were in the video and the
+subtitles it shows.
 The helper passes them to mpv. None of it leaves your computer on the way.
+The helper writes nothing to disk unless you turn its log on (`README-MPV.md`).
 
 ## Permissions, and why each is needed
 
@@ -77,6 +86,7 @@ The helper passes them to mpv. None of it leaves your computer on the way.
 | `downloads` | Saves a video or subtitle file when *you* click download. Nothing is downloaded without your action. |
 | `nativeMessaging` | Only for the optional mpv mode: talks to the mpv helper on your own computer (see "The mpv helper" above). Unused unless you install the helper and turn MPV mode on. |
 | `cookies` | Only to read the container ID (`cookieStoreId`) of the tab you started from, so that a download opened from a Firefox Container tab stays in that same container. The add-on never reads, writes, or transmits cookie values. |
+| `contextualIdentities` | Only in the unsigned development zip, not in the signed release. Nothing uses it today: upstream added it for container downloads, waiting for a Firefox API that does not exist yet (Mozilla bug 1917842). |
 | `<all_urls>` | FastStream is a general-purpose video player - it cannot know in advance which site you will play a video on. It activates on a page only when you invoke it or when a supported video is detected. |
 
 ## What this build does not include
