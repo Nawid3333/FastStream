@@ -23,6 +23,8 @@ export class MP4 {
       'moov': [],
       'mp4a': [],
       '.mp3': [],
+      'ac-3': [],
+      'dac3': [],
       'mvex': [],
       'mvhd': [],
       'pasp': [],
@@ -730,6 +732,30 @@ export class MP4 {
       //
       0x00, 0x00]));
   }
+  // FastStream: hls.js 1.7.3's MP4.ac3 (src/remux/mp4-generator.ts, with its audioStsd), as
+  // it writes the sample entry for the AC-3 it demuxes from a transport stream. track.config
+  // is the dac3 payload hls.js's AC-3 parser (src/demux/audio/ac3-demuxer.ts, appendFrame)
+  // built from the first frame header: fscod, bsid, bsmod, acmod, lfeon, bit_rate_code.
+  static ac3(track) {
+    const samplerate = track.samplerate || 0;
+    return MP4.box(MP4.types['ac-3'], new Uint8Array([0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x01,
+      // data_reference_index
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      // reserved
+      0x00, track.channelCount || 0,
+      // channelcount
+      0x00, 0x10,
+      // sampleSize:16bits
+      0x00, 0x00, 0x00, 0x00,
+      // reserved2
+      samplerate >> 8 & 0xff, samplerate & 0xff,
+      //
+      0x00, 0x00]), MP4.box(MP4.types.dac3, track.config));
+  }
   static stsd(track) {
     if (track.codecBuffer) {
       return MP4.box(MP4.types.stsd, MP4.STSD, new Uint8Array(track.codecBuffer));
@@ -737,6 +763,10 @@ export class MP4 {
     if (track.type === 'audio') {
       if (track.segmentCodec === 'mp3' && track.codec === 'mp3') {
         return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp3(track));
+      }
+      // FastStream: AC-3 from a transport stream, which the save's transmuxer takes.
+      if (track.segmentCodec === 'ac3' && track.config) {
+        return MP4.box(MP4.types.stsd, MP4.STSD, MP4.ac3(track));
       }
       return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp4a(track));
     } else {

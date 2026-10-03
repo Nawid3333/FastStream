@@ -58,10 +58,13 @@ export default class Transmuxer {
     // browser's MSE has to take, so MP3 always goes in as MP3 in MP4: asked of
     // MediaSource, a browser that takes 'audio/mpeg' got bare MPEG audio, which has no mdat
     // for HLS2MP4 to place and no sample entry in MP4Generator, and the file was broken.
+    // AC-3 too: hls.js drops an AC-3 track unless told the output takes it, and an MP4
+    // file does (MP4Generator writes it as ac-3 with its dac3).
     this.typeSupported = {
       mp4: true,
       mpeg: false,
       mp3: true,
+      ac3: true,
     };
 
     this.config = new Proxy({

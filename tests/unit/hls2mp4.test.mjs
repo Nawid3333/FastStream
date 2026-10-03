@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
-  ParameterSets, StreamTypes, TS_CLOCK, audioUnits, h264AccessUnit, hevcAccessUnit, mp3Frame, muxSegment,
-  videoUnits,
+  ParameterSets, StreamTypes, TS_CLOCK, ac3Frame, audioUnits, h264AccessUnit, hevcAccessUnit, mp3Frame,
+  muxSegment, videoUnits,
 } from './helpers/mpegts.mjs';
 import {find, readBoxes, readMp4, readSampleEntry} from './helpers/mp4boxes.mjs';
 
@@ -369,6 +369,59 @@ describe('HLS2MP4: sample entries', () => {
     const stco = find(tracks.soun.trak.children, 'mdia/minf/stbl/stco').body;
     const file = new Uint8Array(boxes.at(-1).body.buffer);
     expect([...file.subarray(stco.getUint32(8), stco.getUint32(8) + 4)]).toEqual([0xff, 0xfb, 0x90, 0x44]);
+  });
+
+  /**
+   * Saves a second of H.264 with AC-3 audio and reads the audio track back.
+   * @param {Object} header the AC-3 frame header, as ac3Frame() takes it
+   * @param {number} sampleRate what fscod says
+   * @return {Promise<Object>} the audio track and its sample entry's bytes
+   */
+  const saveAc3 = async (header, sampleRate) => {
+    const frames = Array.from({length: 20}, (_, i) => ({
+      pts: ticks(1.4) + Math.round(i * 1536 * TS_CLOCK / sampleRate),
+      data: ac3Frame(header),
+    }));
+    const segment = muxSegment({
+      video: {
+        type: StreamTypes.H264,
+        units: videoUnits({start: ticks(1.4), count: 25, frame: FRAME, picture: h264AccessUnit}),
+      },
+      audio: {type: StreamTypes.AC3, units: frames},
+    });
+    const {tracks} = await save([fragment(0, {sn: 0, cc: 0, start: 0}, segment)]);
+    expect(tracks.soun).toBeDefined();
+    const {type, entry} = readSampleEntry(find(tracks.soun.trak.children, 'mdia/minf/stbl/stsd'));
+    return {track: tracks.soun, type, entry};
+  };
+
+  it.each([
+    // dac3 is fscod(2) bsid(5) bsmod(3) acmod(3) lfeon(1) bit_rate_code(5) reserved(5), where
+    // bit_rate_code is frmsizecod >> 1 (ETSI TS 102 366, F.4).
+    // 0b00 01000 000 111 1 01010 00000
+    ['5.1 at 48 kHz, 192 kbit/s', {fscod: 0, frmsizecod: 20, bsid: 8, bsmod: 0, acmod: 7, lfeon: 1}, 48000, [0x10, 0x3d, 0x40]],
+    // 0b01 00110 001 010 0 01110 00000
+    ['stereo at 44.1 kHz, 384 kbit/s', {fscod: 1, frmsizecod: 28, bsid: 6, bsmod: 1, acmod: 2, lfeon: 0}, 44100, [0x4c, 0x51, 0xc0]],
+  ])('writes the dac3 of an AC-3 frame header (%s)', async (name, header, sampleRate, dac3) => {
+    // hls.js left AC-3 out of a transport stream unless told the output takes it, so the
+    // save had no sound; with it and no ac-3 entry, the audio was written as mp4a.
+    const {type, entry} = await saveAc3(header, sampleRate);
+
+    expect(type).toBe('ac-3');
+    // The audio sample entry's 28 bytes, then its boxes.
+    const box = find(readBoxes(entry, 36), 'dac3');
+    expect([...new Uint8Array(box.body.buffer, box.body.byteOffset, box.body.byteLength)]).toEqual(dac3);
+  });
+
+  it('writes AC-3 audio as an ac-3 track: its channels, its rate, a sample per 1536', async () => {
+    const {track, entry} = await saveAc3({fscod: 0, frmsizecod: 20, bsid: 8, bsmod: 0, acmod: 7, lfeon: 1}, 48000);
+    const view = new DataView(entry.buffer, entry.byteOffset, entry.byteLength);
+
+    // channelcount, then the sample rate as 16.16 fixed point.
+    expect(view.getUint16(24)).toBe(6);
+    expect(view.getUint16(32)).toBe(48000);
+    expect(track.timescale).toBe(48000);
+    expect(track.durations).toEqual(new Array(20).fill(1536));
   });
 
   it('still describes H.264 video as avc1', async () => {

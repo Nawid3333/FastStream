@@ -22,6 +22,7 @@ export const StreamTypes = {
   HEVC: 0x24,
   AAC: 0x0f,
   MP3: 0x03,
+  AC3: 0x81,
 };
 
 const hex = (text) => Uint8Array.from(text.match(/../g).map((byte) => parseInt(byte, 16)));
@@ -113,6 +114,40 @@ export function adtsFrame(sampleRate, channels = 2) {
 export function mp3Frame() {
   const frame = new Uint8Array(417);
   frame.set([0xff, 0xfb, 0x90, 0x44]);
+  return frame;
+}
+
+// AC-3 frame sizes in 16-bit words, by frmsizecod and then fscod (48, 44.1, 32 kHz): ATSC
+// A/52 table 5.18, for the codes the tests use.
+const AC3_FRAME_WORDS = {
+  20: [384, 417, 576], // 192 kbit/s
+  28: [768, 835, 1152], // 384 kbit/s
+};
+
+/**
+ * One AC-3 sync frame (1536 samples): its header as ATSC A/52 lays it out, up to lfeon,
+ * and zeros after. hls.js reads only the header.
+ * @param {Object} header
+ * @param {number} header.fscod 0, 1 or 2: 48, 44.1 or 32 kHz
+ * @param {number} header.frmsizecod a key of AC3_FRAME_WORDS
+ * @param {number} header.bsid
+ * @param {number} header.bsmod
+ * @param {number} header.acmod the channel layout: 2 is stereo, 7 is 3/2
+ * @param {number} header.lfeon 1 with a low-frequency channel
+ * @return {Uint8Array}
+ */
+export function ac3Frame({fscod, frmsizecod, bsid, bsmod, acmod, lfeon}) {
+  const frame = new Uint8Array(AC3_FRAME_WORDS[frmsizecod][fscod] * 2);
+  frame.set([0x0b, 0x77, 0x00, 0x00, (fscod << 6) | frmsizecod, (bsid << 3) | bsmod]);
+  // After acmod: cmixlev when there are three front channels, surmixlev with surround
+  // channels, dsurmod for stereo; each 2 bits, written as 0. Then lfeon.
+  let bits = 3;
+  if ((acmod & 1) && acmod !== 1) bits += 2;
+  if (acmod & 4) bits += 2;
+  if (acmod === 2) bits += 2;
+  const word = (acmod << 13) | (lfeon << (15 - bits));
+  frame[6] = word >> 8;
+  frame[7] = word & 0xff;
   return frame;
 }
 
