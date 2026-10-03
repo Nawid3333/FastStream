@@ -66,17 +66,19 @@ export async function writeFixture(file, write) {
 
 /**
  * Downloads the MP4 fixture unless the pinned one is already there. One that is another
- * file (fetched before the pin, or cut short) is fetched again, and the fixtures made
- * from it are removed, for the suites to make again from the right one.
- * @return {Promise<void>}
+ * file (fetched before the pin, cut short, or a bad cache entry on CI) is fetched again,
+ * and the fixtures made from it are removed, for the suites to make again from the right
+ * one.
+ * @return {Promise<{action: string, reason?: string}>} 'kept' (the pinned file was there),
+ *   'fetched' (none was), or 'replaced' (another file was, and reason says how it differed).
  */
 export async function ensureMp4Fixture() {
   // Read without a preceding existsSync: no gap between the two calls (CodeQL
   // js/file-system-race).
-  let stale = false;
+  let stale = null;
   try {
-    if (mp4FixtureMismatch(fs.readFileSync(MP4_FIXTURE)) === null) return;
-    stale = true;
+    stale = mp4FixtureMismatch(fs.readFileSync(MP4_FIXTURE));
+    if (stale === null) return {action: 'kept'};
   } catch (e) {
     if (e.code !== 'ENOENT') throw e;
   }
@@ -114,4 +116,5 @@ export async function ensureMp4Fixture() {
     }
   }
   await writeFixture(MP4_FIXTURE, (partial) => fs.writeFileSync(partial, data));
+  return stale ? {action: 'replaced', reason: stale} : {action: 'fetched'};
 }
