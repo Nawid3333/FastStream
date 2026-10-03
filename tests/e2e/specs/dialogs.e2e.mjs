@@ -87,4 +87,35 @@ describe('Dialogs', function() {
     expect(dialog.playerAfter).toBe(dialog.playerBefore);
     expect(toast.width).toBeLessThan(toast.em32);
   });
+
+  it('shows markup in an error\'s message and a toast as text', async function() {
+    // SweetAlert2 parses a `title` as HTML. The error dialog's title holds the caught
+    // error's message, which can quote a URL or a file the code failed on (#186).
+    await browser.url('/player/index.html?t=' + Date.now());
+    await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
+        {timeout: 15000, timeoutMsg: 'window.fastStream never appeared'});
+
+    const shown = await browser.executeAsync((done) => {
+      import('/player/utils/AlertPolyfill.mjs').then(async ({AlertPolyfill}) => {
+        const markup = 'Invalid URL: <b id="fs-injected">x</b>';
+        const read = () => {
+          const title = document.querySelector('.swal2-title');
+          return {text: title?.textContent, injected: !!document.getElementById('fs-injected')};
+        };
+        AlertPolyfill.errorSendToDeveloper(new Error(markup));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const error = read();
+        document.querySelector('.swal2-container')?.remove();
+        AlertPolyfill.toast('error', markup);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const toast = read();
+        document.querySelector('.swal2-container')?.remove();
+        done({error, toast});
+      });
+    });
+    expect(shown.error.injected).toBe(false);
+    expect(shown.error.text).toContain('<b id="fs-injected">x</b>');
+    expect(shown.toast.injected).toBe(false);
+    expect(shown.toast.text).toContain('<b id="fs-injected">x</b>');
+  });
 });
