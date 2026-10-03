@@ -137,4 +137,26 @@ describe('Options page search box', function() {
     expect(state.shown).toBeGreaterThan(0);
     expect(state.shown).toBeLessThan(state.all);
   });
+
+  it('hides every section the search does not match, and finds a section by its heading', async function() {
+    // Five sections were never hidden: "zoom" showed the zoom row, then the MPV, URL
+    // list, pattern, import/export and help sections in full (#278).
+    const shownSections = (query) => browser.execute((query) => {
+      const bar = document.getElementById('searchbar');
+      bar.value = query;
+      bar.dispatchEvent(new InputEvent('input', {bubbles: true}));
+      return Array.from(document.querySelectorAll('section.options-section'))
+          .filter((section) => section.getClientRects().length > 0)
+          .map((section) => section.dataset.searchSection);
+    }, query);
+    const zoom = await shownSections('zoom');
+    console.log('      sections shown for "zoom":', JSON.stringify(zoom));
+    expect(zoom).toContain('video');
+    for (const section of ['keybinds', 'autourl', 'patterns', 'mpv', 'export', 'help']) {
+      expect(zoom).not.toContain(section);
+    }
+    const help = await browser.execute(() => document.querySelector('[data-search-section="help"] h1').textContent);
+    expect(await shownSections(help)).toContain('help');
+    expect(await shownSections('')).toHaveLength(8);
+  });
 });
