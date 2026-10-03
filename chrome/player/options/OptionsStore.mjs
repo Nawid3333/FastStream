@@ -94,6 +94,10 @@ export class OptionsStore {
     } else {
       window.addEventListener('message', (e) => {
         if (e.origin !== window.location.origin) return;
+        // Ignore our own echo: a page with no opener or parent (the options page opened on
+        // its own) posts its saves to itself, and reloading them redrew the whole page after
+        // each change, the keybind box a key was just set in included.
+        if (e.source === window) return;
         if (e.data?.type === 'options') {
           this.#reloadFromStorage();
         }

@@ -341,6 +341,8 @@ export class InterfaceController {
       this.playPauseToggle();
       e.stopPropagation();
     });
+    // Tab skipped it: a role="button" with no tabindex.
+    WebUtils.setupTabIndex(DOMElements.playPauseButtonBigCircle);
 
     DOMElements.fullscreen.addEventListener('click', (e)=>{
       if (e.shiftKey) {
@@ -506,6 +508,8 @@ export class InterfaceController {
     WebUtils.setupTabIndex(DOMElements.resetFailed);
 
     DOMElements.skipButton.addEventListener('click', this.skipSegment.bind(this));
+    // Tab reached "Skip intro", but Enter did nothing.
+    WebUtils.setupTabIndex(DOMElements.skipButton);
 
     DOMElements.pip.addEventListener('click', (e) => {
       this.pipToggle();
@@ -577,31 +581,7 @@ export class InterfaceController {
     WebUtils.setupTabIndex(DOMElements.moreButton);
 
     DOMElements.duration.addEventListener('click', (e) => {
-      let copyURL = '';
-      if (this.client.source) {
-        const source = this.client.source;
-        try {
-          const url = new URL(source.url);
-          if (source.countHeaders() > 0) {
-            const headers = JSON.stringify(source.headers);
-            url.searchParams.set('faststream-headers', headers);
-          }
-          url.searchParams.set('faststream-mode', source.mode);
-          url.searchParams.set('faststream-timestamp', Math.floor(this.client.currentTime).toString());
-          copyURL = url.toString();
-        } catch (e) {
-        }
-      }
-
-      const input = document.createElement('input');
-      input.value = copyURL;
-      DOMElements.playerContainer.appendChild(input);
-      input.focus();
-      input.select();
-      document.execCommand('copy');
-      DOMElements.playerContainer.removeChild(input);
-
-      this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);
+      this.copySourceLink();
     });
     WebUtils.setupTabIndex(DOMElements.duration);
 
@@ -1054,6 +1034,32 @@ export class InterfaceController {
   showControlBarTemporarily(timeout = 1000) {
     this.showControlBar();
     this.queueControlsHide(timeout);
+  }
+
+  /**
+   * Copies a link to the source at the current time (a click on the time readout), with
+   * its headers but not its login ones (VideoSource.toCopyURL).
+   */
+  copySourceLink() {
+    let copyURL = '';
+    if (this.client.source) {
+      try {
+        const url = this.client.source.toCopyURL();
+        url.searchParams.set('faststream-timestamp', Math.floor(this.client.currentTime).toString());
+        copyURL = url.toString();
+      } catch (e) {
+      }
+    }
+
+    const input = document.createElement('input');
+    input.value = copyURL;
+    DOMElements.playerContainer.appendChild(input);
+    input.focus();
+    input.select();
+    document.execCommand('copy');
+    DOMElements.playerContainer.removeChild(input);
+
+    this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);
   }
 
   updatePlaybackRate() {

@@ -621,6 +621,15 @@ body {
     opacity: 1;
 }
 
+/* Where the keyboard is. */
+.fluid_button:focus-visible,
+.skip_button:focus-visible,
+.next_video_button:focus-visible,
+.fluid_control_playpause_big_circle:focus-visible {
+    outline: 2px solid var(--menu-text-color);
+    outline-offset: 1px;
+}
+
 .fluid_control_mute .speaker-muted {
     display: none;
 }
@@ -2680,6 +2689,12 @@ input.crosstalk_calculator_input {
     left: 50%;
     transform: translate(-50%, -50%);
     opacity: 0.9;
+    border-radius: 50%;
+}
+
+.knob_knob_container:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
 }
 
 .knob_knob {
@@ -2813,6 +2828,17 @@ input.crosstalk_calculator_input {
 .reordering>div.volume_block.sortable-chosen>div>svg,
 .reordering>.fluid_control_duration.sortable-chosen {
     animation: none;
+}
+
+/* Less motion for those who asked their system for it: the controls and menus appear and
+   disappear at once, and the buttons being rearranged do not shake. The controls bar
+   needs its own selector to outrank its `transition: all 0.5s !important`. */
+@media (prefers-reduced-motion: reduce) {
+    .fluid_video_wrapper.fluid_player_layout_default *,
+    .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+    }
 }
 
 @keyframes tilt-shaking {

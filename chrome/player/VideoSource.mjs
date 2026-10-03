@@ -25,6 +25,28 @@ const headerBlacklist = [
   'access-control-request-headers',
 ];
 
+// Login headers a link must not carry (#185). A copied stream link (the time readout,
+// the Sources browser) put the session's Cookie or Authorization in the clipboard, for
+// whoever the link was pasted to; and a crafted link (a page can open the player on one)
+// could have the player send credentials of its choosing. The player still sends the ones
+// it captured from the page, and ones typed into the Sources browser's header box.
+const credentialHeaders = ['cookie', 'authorization', 'proxy-authorization'];
+
+/**
+ * The headers without the login ones, whatever their case.
+ * @param {Object<string, string>} headers - Header name to value.
+ * @return {Object<string, string>} A new object.
+ */
+function withoutCredentials(headers) {
+  const kept = {};
+  for (const key in headers) {
+    if (Object.hasOwn(headers, key) && !credentialHeaders.includes(key.toLowerCase())) {
+      kept[key] = headers[key];
+    }
+  }
+  return kept;
+}
+
 
 export class VideoSource {
   constructor(source, headers, mode) {
@@ -60,7 +82,7 @@ export class VideoSource {
       const url = new URL(this.url);
       const headers = url.searchParams.get('faststream-headers');
       if (headers) {
-        const parsedHeaders = JSON.parse(headers);
+        const parsedHeaders = withoutCredentials(JSON.parse(headers));
         for (const key in parsedHeaders) {
           if (Object.hasOwn(parsedHeaders, key)) {
             this.headers[key] = parsedHeaders[key];
@@ -85,6 +107,22 @@ export class VideoSource {
 
   countHeaders() {
     return Object.keys(this.headers).length;
+  }
+
+  /**
+   * The source as a link to copy: its URL with its headers, minus the login ones, and its
+   * mode in the query, which parseHeadersParam reads back when the link is pasted into
+   * the Sources browser or opened.
+   * @return {URL} Throws when the source's URL does not parse.
+   */
+  toCopyURL() {
+    const url = new URL(this.url);
+    const headers = withoutCredentials(this.headers);
+    if (Object.keys(headers).length > 0) {
+      url.searchParams.set('faststream-headers', JSON.stringify(headers));
+    }
+    url.searchParams.set('faststream-mode', this.mode);
+    return url;
   }
 
   fromFile(file) {

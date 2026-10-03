@@ -2305,9 +2305,13 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets the playback rate and updates the UI.
+   * Within [0.1, options.maxPlaybackRate], whoever asks: only the speed menu clamped, so
+   * holding the video at 5x ran it at 10x (silent in Firefox above 8x) while the menu
+   * showed 8x, and a saved rate from a build with a higher cap was applied as it was.
    * @param {number} value
    */
   set playbackRate(value) {
+    value = Utils.clamp(value, 0.1, this.options.maxPlaybackRate);
     this.state.playbackRate = value;
     if (this.player) {
       this.player.playbackRate = value;

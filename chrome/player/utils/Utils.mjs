@@ -47,7 +47,13 @@ export class Utils {
     for (const prop in defaultOptions) {
       if (Object.hasOwn(defaultOptions, prop)) {
         const opt = defaultOptions[prop];
-        if (typeof opt === 'object' && !Array.isArray(opt)) {
+        if (Array.isArray(opt)) {
+          // A list takes only a list, of text lines (autoEnableURLs and mpvAllowlist are the
+          // lists in the defaults). typeof null and of {} is 'object' too: an imported
+          // `"autoEnableURLs": null` was kept, saved, and broke the options page for good.
+          options[prop] = Object.hasOwn(newOptions, prop) && Array.isArray(newOptions[prop]) ?
+            newOptions[prop].filter((item) => typeof item === 'string') : opt;
+        } else if (typeof opt === 'object') {
           options[prop] = this.mergeOptions(opt, newOptions[prop] || {});
         } else {
           options[prop] = (Object.hasOwn(newOptions, prop) && typeof newOptions[prop] === typeof opt) ? newOptions[prop] : opt;

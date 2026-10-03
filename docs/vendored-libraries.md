@@ -346,7 +346,7 @@ what can actually change behaviour.
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 8 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
-| knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
+| knob | `jherrm/knobs@b8a39650` | **verified** - `pnpm run verify:knob` | **verified** |
 | googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
@@ -1161,9 +1161,16 @@ Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
 ### knob — 28 KB, verified on demand
 
-Base pinned: **jherrm/knobs `Knob.js` at `cf2db70f`** (2012-05-16), found with
-`tools/find-base.mjs --commits`. Not the repository's head: the 2022 commit is
-a third larger and matches far worse.
+Base pinned: **jherrm/knobs `Knob.js` at `b8a39650`** (2022-11-08, "Modernize the
+vintage javascript"), the repository's head. Until 2026-10-03 the pin was `cf2db70f`
+(2012-05-16), which `tools/find-base.mjs --commits` picked by line count: the head is
+a third larger, but only because its constructor reads options from an `<input>`'s
+attributes, which the copy leaves out. Compared by parsed declarations, the copy is
+the 2022 head: it has the scroll gesture, `angleScrollRatio`, `gestureScrollEnabled`,
+the `change` event and const/let, all upstream commits made after 2012. Against
+`cf2db70f` those upstream commits read as ten FastStream changes, and
+`vendored-updates.yml` raised them as 16 upstream changes to port (#126): there was
+nothing to port.
 
 It cannot be generated - the repository has **no `package.json`**, so no
 package manager can install it, and there is no npm release to pin. So it is
@@ -1171,48 +1178,37 @@ verified instead, the same way vtt.js is. `pnpm run verify:knob` fetches
 `Knob.js` at that commit and compares parsed declarations:
 
 ```
-top-level identical    10 of 11
+top-level identical    10 of 13
 top-level ours only    Knob            (upstream keeps it inside an IIFE)
+top-level theirs only  parseBool, parseDirection   (the <input> attribute parsing)
 top-level differing    members
-members identical      33 of 39
-members changed        val, doMouseScroll, __validateAndPublishAngle,
-                       __angleFromValue, __publish
-members added          __validateAndPublishValue, __validateValue,
-                       __valueFromAngles
-members removed        __determineValue  (renamed to __valueFromAngles)
+members identical      39 of 41
+members changed        val, __angleFromValue
 ```
 
 Every one of those differences is in the list below, and the script fails if a
 single one appears that is not - it does not check a count, it checks the
-exact sets. Mutation tested: injecting one statement into `setDimensions`
-moves it into `members changed` and exits 1.
-
-That is a stronger claim than a patch would give. A patch says "here is what we
-changed"; this says "here is what we changed, and nothing else changed", and
-re-checks it against upstream on demand.
+exact sets.
 
 The npm package named `knob` is `mmckegg/knob`, an unrelated canvas widget,
 and jherrm/knobs is not published to npm at all.
 
-Almost all of the 278-line diff is this project's eslint autofix. The real
-changes are ten, and they make it an adapted, maintained fork rather than a
-transformed copy:
+Almost all of the text diff is this project's eslint autofix. The real changes:
 
 - the IIFE wrapper is removed and `Knob` is exported
-- the constructor takes `(inputEl, callback)` instead of `(callback, options)`,
-  stores the element, and throws without one; the options-merge loop and the
-  `valueMin < valueMax` check are dropped with it
-- a scroll gesture is added: `gestureScrollEnabled`, `angleScrollRatio`, and
-  `doMouseScroll` honouring both
-- HTML-slider defaults: `valueMin: 0`, `valueMax: 100`, a new `value: 0`, and
-  `angleSlideRatio` 1 → 2
-- `val(value)` sets by value rather than by angle, and accepts `0`
-- `__determineValue` becomes `__valueFromAngles`, with a new `__validateValue`
-- `__publish` writes `element.value` and dispatches a `change` event, and the
-  callback loses its `angle, value` arguments
-- `__angleFromValue` is a genuine **upstream bug fix**: the original tested
-  `isFinite` on the angle bounds while mapping the value bounds, and
-  referenced an undefined `valueMax`
+- the constructor takes the element and the callback and keeps the default options:
+  the `<input>` attribute parsing (`parseBool`, `parseDirection`), the options loop,
+  the `valueMin < valueMax` check and the initial `val()` are dropped with it, since
+  FastStream passes a `<div>` and sets the options afterwards
+- `val(value)` accepts `0` (upstream's `if (value)` ignored it)
+- `__angleFromValue` maps `valueMax` to `angleStart`, the inverse of
+  `__valueFromAngles`; upstream maps `valueMin` there, so a value set by `val()`
+  came back as its mirror image
+
+FastStream's own behaviour around it lives in `ui/components/Knob.mjs`, not in the
+copy: since 2026-10-03 (#296) the wheel passes the knob's left edge to
+`doMouseScroll`, so wheel up always turns the value up instead of following the
+side of the knob the pointer is on.
 
 Upstream: https://github.com/jherrm/knobs
 

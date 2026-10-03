@@ -33,6 +33,13 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
 
   const knobKnobContainer = WebUtils.create('div', null, 'knob_knob_container');
   knobContainer.appendChild(knobKnobContainer);
+  // The knob is a slider to the keyboard and to a screen reader. Only the value box was in
+  // the tab order, and typing a number was the only way to turn it without a mouse.
+  knobKnobContainer.tabIndex = 0;
+  knobKnobContainer.role = 'slider';
+  knobKnobContainer.ariaLabel = name;
+  knobKnobContainer.setAttribute('aria-valuemin', minValue);
+  knobKnobContainer.setAttribute('aria-valuemax', maxValue);
 
   const knobKnob = WebUtils.create('div', null, 'knob_knob');
   const knobBump = WebUtils.create('div', null, 'knob_bump');
@@ -52,6 +59,8 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
   let shouldCall = false;
   const knob = new Knob(knobKnob, (knob, indicator)=>{
     knobKnob.style.transform = `rotate(-${indicator.angle}deg)`;
+    knobKnobContainer.setAttribute('aria-valuenow', knob.val());
+    knobKnobContainer.setAttribute('aria-valuetext', (knob.val().toFixed(decimals) + ' ' + units).trim());
     // dont update the value if the user is editing it
     if (knobValue !== document.activeElement) {
       knobValue.textContent = knob.val().toFixed(decimals) + ' ' + units;
@@ -124,6 +133,11 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
   knob.setDimensions(50, 50);
 
   const mouseMove = (e) => {
+    // No button held: it was let go where this drag never heard of it.
+    if (e.buttons === 0) {
+      mouseUp(e);
+      return;
+    }
     knob.doTouchMove([{
       pageX: e.pageX,
       pageY: e.pageY,
@@ -135,9 +149,15 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
     knob.doTouchEnd(e.timeStamp);
     DOMElements.playerContainer.removeEventListener('mousemove', mouseMove);
     DOMElements.playerContainer.removeEventListener('mouseup', mouseUp);
+    document.removeEventListener('mouseup', mouseUp);
   };
 
   container.addEventListener('mousedown', (e) =>{
+    // Only the left button turns the knob. A right-click's context menu takes the mouseup,
+    // and the knob then followed the mouse until the next click.
+    if (e.button !== 0) {
+      return;
+    }
     const rect = container.getBoundingClientRect();
     knob.setPosition(rect.left, rect.top);
 
@@ -148,17 +168,43 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
 
     DOMElements.playerContainer.addEventListener('mousemove', mouseMove);
     DOMElements.playerContainer.addEventListener('mouseup', mouseUp);
+    // Let go outside the player: only the document hears that mouseup.
+    document.addEventListener('mouseup', mouseUp);
   });
 
   // Handle scroll
   container.addEventListener('wheel', function(e) {
-    // reset the position in case knob moved
-    knob.setPosition(container.offsetLeft, container.offsetTop);
+    // Wheel up turns the value up, wherever the pointer is on the knob. knob.mjs turns it
+    // the other way on the knob's right half, and the centre it compared the pointer with
+    // came from offsetLeft/offsetTop, relative to the knob's strip, while the pointer is in
+    // page coordinates: the pointer was always "right", and wheel up turned the value down.
+    // The knob's left edge stands for a pointer left of its centre.
+    const rect = container.getBoundingClientRect();
+    knob.setPosition(rect.left, rect.top);
 
     const delta = -Utils.clamp(e.wheelDelta, -1, 1);
-    knob.doMouseScroll(delta, e.timeStamp, e.pageX, e.pageY);
+    knob.doMouseScroll(delta, e.timeStamp, rect.left, rect.top);
 
     e.preventDefault();
+  });
+
+  // The slider keys. A step is a fortieth of the range: a suggested value takes over within
+  // 2% of it (checkValueIsSuggested), and a smaller step could never leave it again.
+  container.addEventListener('keydown', (e) => {
+    const step = (maxValue - minValue) / 40;
+    const steps = {ArrowUp: step, ArrowRight: step, ArrowDown: -step, ArrowLeft: -step, PageUp: step * 10, PageDown: -step * 10};
+    if (Object.hasOwn(steps, e.key)) {
+      knob.val(knob.val() + steps[e.key]);
+    } else if (e.key === 'Home') {
+      knob.val(minValue);
+    } else if (e.key === 'End') {
+      knob.val(maxValue);
+    } else {
+      return;
+    }
+    // The arrows also seek the video.
+    e.preventDefault();
+    e.stopPropagation();
   });
 
 
