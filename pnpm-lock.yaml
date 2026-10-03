@@ -92,7 +92,7 @@ importers:
         specifier: ^17.12.0
         version: 17.12.0
       hls.js:
-        specifier: ^1.7.3
+        specifier: 1.7.3
         version: 1.7.3(patch_hash=7bf3c8187174dcdd9951f64f89092432f2c76698ca18dc4b55b45b62c78c9b5a)
       js-yaml:
         specifier: ^5.4.2
