@@ -56,8 +56,8 @@ interface FSOpenPlayer extends FSMessageBase {
 interface FSPlayerLoaded extends FSMessageBase {
   type: 'PLAYER_LOADED';
   url: string;
-  /** False on faststream.online, true inside the extension. */
-  isExt: boolean;
+  /** Always true: only the extension's player sends this (main.mjs); the web build has no background. */
+  isExt: true;
   /** Absent when the player was not opened from a parent frame. */
   parentFrameId?: number;
 }
@@ -129,6 +129,12 @@ interface FSMpvOpen extends FSMessageBase {
   url: string;
   /** Optional Referer/Origin headers for CDN-protected streams. */
   headers?: Array<{name: string; value: string}>;
+  /** The stream's MIME type when the player knows it; the background works it out otherwise. */
+  contentType?: string;
+  /** Where mpv starts, in seconds; left out below 1 s. */
+  startTime?: number;
+  /** The subtitle tracks the player shows, as SubRip text (shifts and edits included). */
+  subtitles?: Array<{label: string; srt: string}>;
 }
 
 /**

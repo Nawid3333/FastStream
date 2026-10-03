@@ -638,10 +638,11 @@ through v5.1.0.
 | `FONT_SIZE_PERCENT` 0.25 -> 0.05 | subtitles rendered at a fifth of dash.js's default size relative to the container |
 | `processCues(window, cues, overlay, parentId)` loses `parentId` | dash.js added that parameter for its own container; FastStream did not take it |
 | `if (parentId) { paddedOverlay.id = parentId; }` removed | the body of the same dash.js addition |
+| the closing-tag check's `.replace(">", "")` -> `.replace(/>/g, "")` | CodeQL alert #8 (2026-09-22): replace every `>`, not only the first |
 
 plus `export const WebVTT = window.WebVTT;` appended so a bundle that assigns
-to a global can be imported. Note that two of the three are *removals* of
-dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
+to a global can be imported. The list is `CHANGES` in `tools/verify-vtt.mjs`. Note
+that two of the four are *removals* of dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
 dash.js's own is.
 
 Apply those to the upstream file and the result parses to the **same program**
@@ -663,11 +664,14 @@ is only what can change behaviour.
 
 **Its one `UNSAFE_VAR_ASSIGNMENT`** is `TEXTAREA_ELEMENT.innerHTML = s;`
 inside `unescape(s)`, decoding HTML entities in cue text by writing to a
-detached `<textarea>` and reading `.textContent` back. This is not a
-sanitizer that might be wrong, it is safe by construction: the HTML spec
-gives `<textarea>` an RCDATA content model, so assigning to its `innerHTML`
-can never create an element or run a script no matter what the string
-contains - the entire value always becomes exactly one text node. Confirmed
+detached `<textarea>` and reading `.textContent` back. It is safe here for a
+reason in the caller first: `unescape` is only ever given a text token, and
+`nextToken`'s `/^([^<]*)(<[^>]*>?)?/` ends a text token at the first `<`, so the
+string cannot hold a tag at all. The textarea is the second line of defence: its
+`innerHTML` is parsed as RCDATA text (character references decoded, no element
+created). Do not reuse `unescape` on raw text that may contain `<` on the strength
+of the textarea alone; that guarantee rests on fragment-parsing details, the
+tokenizer's does not. Confirmed
 that addons-linter cannot be told this either: an inline
 `// eslint-disable-next-line no-unsanitized/property` on this exact line was
 tested and made no difference to the warning count, so whatever runs this
