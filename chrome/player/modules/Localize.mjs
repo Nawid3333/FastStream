@@ -64,7 +64,9 @@ export class Localize {
     });
 
     if (matches.length === 0) {
-      return -1;
+      // A language without a locale (Swedish, Arabic) reads English, as chrome.i18n's
+      // default_locale gives the extension, not the raw keys.
+      return languages.indexOf('en');
     }
 
     // Sort by match level descending
