@@ -1,5 +1,6 @@
 // express
 import express from 'express';
+import {rateLimit} from 'express-rate-limit';
 import fs from 'fs';
 
 const fileDir = './output';
@@ -27,6 +28,11 @@ for (let i = 0; i < numberOfEntries; i++) {
   // The first entry for a path wins, as the first route registered for it did.
   if (!files.has(entryURLPath)) files.set(entryURLPath, dataLocation);
 }
+
+// Every request reads a file. 1,000 a second is far more than a player replaying the
+// archive asks for, and stops a page that loops on the server from tying up the disk
+// (CodeQL's js/missing-rate-limiting).
+app.use(rateLimit({windowMs: 1000, limit: 1000, standardHeaders: 'draft-8', legacyHeaders: false}));
 
 // GET (and HEAD, which express answers for a GET route)
 app.use((req, res, next) => {

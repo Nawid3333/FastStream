@@ -60,6 +60,23 @@ export class URLUtils {
     }
   }
 
+  // The protocols a <video> or <audio> may load a source from: the web, a file the user
+  // picked or dropped (blob:), an inline one (data:) and a local file opened in the tab.
+  static PlayableProtocols = ['http:', 'https:', 'blob:', 'data:', 'file:'];
+
+  // The source as an absolute URL when it has one of those protocols, else null. A source
+  // can come from the player's address or the sources browser's text field, so a
+  // `javascript:` one must not reach `video.src`.
+  static playableUrl(url, base) {
+    let parsed;
+    try {
+      parsed = new URL(url, base);
+    } catch (e) {
+      return null;
+    }
+    return URLUtils.PlayableProtocols.includes(parsed.protocol) ? parsed.href : null;
+  }
+
   static get_url_extension(url) {
     // The last path segment's extension only: a dot in the host or in a folder is none.
     // https://e.com/stream has no extension (it gave 'com/stream'), and a bare host

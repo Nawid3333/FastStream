@@ -1426,6 +1426,20 @@ the change went in.
   it; the real gh uses gojq, built in, and the filters avoid the one difference found
   (jq 1.7 splits `""` into `[]`, gojq into `[""]`). The test passed with gojq 0.12.19
   swapped in too.
+- **The Security tab's count also holds CodeQL code scanning** (2026-10-03). GitHub's
+  default setup runs it on every push to `main` (Actions shows it as "CodeQL",
+  `dynamic/github-code-scanning/codeql`; there is no workflow file), JavaScript and
+  Actions, and security-alerts.yml does not see its alerts. The 7 open on 2026-10-03 were
+  2 Dependabot (node-forge, braces: dev-only, no fixed release) and 5 CodeQL: the direct
+  player's `video.src` (js/xss, js/xss-through-dom, js/client-side-unvalidated-url-redirection;
+  now `URLUtils.playableUrl`), the fsaunpack test server (js/missing-rate-limiting; now
+  express-rate-limit) and firefox.e2e.mjs's `includes('addons.mozilla.org')`
+  (js/incomplete-url-substring-sanitization). The API is not reachable from a session
+  without `gh`, so find them by running the same scan: the CodeQL bundle from
+  github/codeql-action's releases (`codeql database create --language=javascript-typescript`
+  on `git archive origin/main`, then `database analyze` with
+  `codeql/javascript-queries:codeql-suites/javascript-code-scanning.qls`; the same for
+  `actions`). Found exactly the 5, and 0 after the fixes.
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
   other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
   half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the

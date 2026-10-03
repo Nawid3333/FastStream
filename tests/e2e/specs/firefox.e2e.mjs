@@ -46,7 +46,7 @@ describe('Options page', function() {
     const found = await browser.execute(() => ({
       rateBox: !!document.getElementById('ratebox'),
       feedbackBox: !!document.getElementById('feedbackbox'),
-      reviewText: document.body.innerHTML.includes('addons.mozilla.org'),
+      reviewText: /addons\.mozilla\.org/.test(document.body.innerHTML),
     }));
     expect(found).toEqual({rateBox: false, feedbackBox: false, reviewText: false});
   });

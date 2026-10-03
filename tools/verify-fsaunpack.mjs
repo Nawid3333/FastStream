@@ -96,7 +96,7 @@ try {
   const get = async (pathname) => {
     const response = await fetch(`http://127.0.0.1:${port}${pathname}`);
     return {status: response.status, cors: response.headers.get('access-control-allow-origin'),
-      body: Buffer.from(await response.arrayBuffer())};
+      rateLimit: response.headers.get('ratelimit-policy'), body: Buffer.from(await response.arrayBuffer())};
   };
   const expect = async (pathname, status, body) => {
     const got = await get(pathname);
@@ -108,6 +108,10 @@ try {
   await expect('/v/master.m3u8', 200, entries[0].data);
   await expect('/seg(1)*:2.ts', 200, entries[1].data);
   await expect('/not-recorded.ts', 404);
+
+  // Every request goes through the rate limiter (CodeQL's js/missing-rate-limiting).
+  const limited = await get('/v/master.m3u8');
+  if (!limited.rateLimit) failures.push('/v/master.m3u8: no RateLimit-Policy header, so no rate limiter');
 
   // Only this machine reaches it: an archive's manifests can hold a CDN's tokens.
   const outside = notLoopbackAddress();

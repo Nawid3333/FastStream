@@ -107,3 +107,39 @@ describe('hostnameMatches', () => {
     expect(URLUtils.hostnameMatches('not a url', 'vimeo.com')).toBe(false);
   });
 });
+
+describe('playableUrl', () => {
+  const base = 'moz-extension://abc/player/index.html';
+
+  it('keeps the protocols a media element plays from', () => {
+    expect(URLUtils.playableUrl('https://cdn.test/v.webm?t=1#x', base)).toBe('https://cdn.test/v.webm?t=1#x');
+    expect(URLUtils.playableUrl('http://127.0.0.1:41800/v.webm', base)).toBe('http://127.0.0.1:41800/v.webm');
+    expect(URLUtils.playableUrl('blob:moz-extension://abc/1234', base)).toBe('blob:moz-extension://abc/1234');
+    expect(URLUtils.playableUrl('data:video/webm;base64,AAAA', base)).toBe('data:video/webm;base64,AAAA');
+    expect(URLUtils.playableUrl('file:///C:/Videos/a.webm', base)).toBe('file:///C:/Videos/a.webm');
+  });
+
+  it('refuses a javascript: URL, however it is written', () => {
+    // CodeQL's js/xss and js/client-side-unvalidated-url-redirection: a source from the
+    // player's address or the sources browser reached video.src unchecked.
+    expect(URLUtils.playableUrl('javascript:alert(1)', base)).toBe(null);
+    expect(URLUtils.playableUrl('JavaScript:alert(1)', base)).toBe(null);
+    expect(URLUtils.playableUrl(' \tjavascript:alert(1)', base)).toBe(null);
+    expect(URLUtils.playableUrl('java\nscript:alert(1)', base)).toBe(null);
+  });
+
+  it('refuses the other protocols', () => {
+    expect(URLUtils.playableUrl('moz-extension://abc/player/index.html', base)).toBe(null);
+    expect(URLUtils.playableUrl('about:blank', base)).toBe(null);
+    expect(URLUtils.playableUrl('ftp://host/v.webm', base)).toBe(null);
+    expect(URLUtils.playableUrl('vbscript:x', base)).toBe(null);
+  });
+
+  it('reads a relative source against the base, and refuses one with nothing to read it against', () => {
+    expect(URLUtils.playableUrl('v.webm', 'https://faststream.online/player/index.html'))
+        .toBe('https://faststream.online/player/v.webm');
+    expect(URLUtils.playableUrl('v.webm', base)).toBe(null);
+    expect(URLUtils.playableUrl('v.webm')).toBe(null);
+    expect(URLUtils.playableUrl('', undefined)).toBe(null);
+  });
+});
