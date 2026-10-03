@@ -129,7 +129,7 @@ unexpected_file() {
   echo x > "$T/work/stray.txt"
   plan "[$(pnpm_update 11.27.1)]" '[]'
   run_step
-  check 'fails' test "$rc" -ne 0
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
   check 'says why' grep -qF 'Unexpected change for pnpm 11.27.1: stray.txt' "$T/out"
   check 'nothing pushed' test "$(origin for-each-ref --format=x refs/heads | wc -l)" = 1
 }
@@ -204,7 +204,7 @@ nothing_changes() {
   setup
   plan "[$(pnpm_update 11.22.0)]" '[]'
   run_step
-  check 'fails: a red scheduled run is emailed' test "$rc" -ne 0
+  check 'fails: a red scheduled run is emailed (not stopped by the timeout)' test "$rc" -eq 1
   check 'no pull request' bash -c '! grep -q "^pr create" "$0"' "$STATE/gh.log"
   check 'says why' grep -qF 'changes nothing here' "$T/out"
 }
@@ -224,7 +224,7 @@ dispatch_fails() {
   echo 2 > "$STATE/dispatch_fails"
   plan "[$(pnpm_update 11.27.1)]" '[]'
   run_step
-  check 'fails' test "$rc" -ne 0
+  check 'fails, not stopped by the timeout' test "$rc" -eq 1
 }
 
 label_exists() {

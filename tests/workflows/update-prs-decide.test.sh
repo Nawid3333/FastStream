@@ -902,7 +902,7 @@ green_behind_stuck() {
   echo 2 > "$STATE/behind"
   : > "$STATE/head_stuck"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
@@ -1159,7 +1159,7 @@ upstream_added_list_fails_stops() {
   upstream_setup
   : > "$STATE/pr_files_fail"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'not called ready' not_ready
 }
 
@@ -1629,7 +1629,7 @@ update_refused() {
   echo 2 > "$STATE/behind"
   : > "$STATE/update_fails"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
