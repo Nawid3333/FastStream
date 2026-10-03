@@ -59,9 +59,16 @@ if (dirty) {
 // 2. Refuse to reuse a version. AMO refuses the same version+channel
 //    twice and a duplicate git tag push is simply rejected, but both of
 //    those failures happen deep inside CI - much cheaper to catch here.
+//    The remote's tags too: one pushed from elsewhere (auto-release.yml tags
+//    on GitHub) is not in this clone until a fetch.
 const existingTags = git(['tag', '--list', `v${newVersion}`, `V${newVersion}`]);
 if (existingTags) {
   console.error(`Version ${newVersion} is already tagged:\n${existingTags}`);
+  process.exit(1);
+}
+const remoteTags = git(['ls-remote', '--tags', 'origin', `refs/tags/v${newVersion}`, `refs/tags/V${newVersion}`]);
+if (remoteTags) {
+  console.error(`Version ${newVersion} is already tagged on origin:\n${remoteTags}\nRun git fetch --tags.`);
   process.exit(1);
 }
 
@@ -86,10 +93,20 @@ console.log('Committed version bump.');
 
 // 4. Tag and push both. The tag is what release.yml's `on: push: tags:`
 //    trigger is watching for - pushing it is what starts the build.
+//    In one atomic push, as auto-release.yml does: pushed one after the
+//    other, a refused tag left `chore: release X` on the branch with no tag,
+//    a version committed and never built, which auto-release then skipped
+//    as a release bump and moved past.
 const tag = `v${newVersion}`;
 git(['tag', '-a', tag, '-m', `FastStream ${newVersion}`]);
-git(['push', 'origin', branch]);
-git(['push', 'origin', tag]);
+try {
+  git(['push', '--atomic', 'origin', branch, `refs/tags/${tag}`]);
+} catch {
+  console.error(`\nThe push was refused, so neither ${branch} nor ${tag} reached origin.`);
+  console.error(`The commit and the tag are local only: fix the cause and run git push --atomic origin ${branch} ${tag},`);
+  console.error(`or undo them with git tag -d ${tag} and git reset --hard HEAD~1.`);
+  process.exit(1);
+}
 
 console.log(`\nPushed ${branch} and tag ${tag}.`);
 console.log('release.yml is now building and will publish the GitHub Release ' +

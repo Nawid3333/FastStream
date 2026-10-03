@@ -102,6 +102,13 @@ jobs:
         startsWith(github.event.workflow_run.head_branch, 'patched/') ||
         github.event.workflow_run.head_branch == 'sync/upstream'))
     runs-on: ubuntu-latest
+    # UPDATE_PRS_TOKEN is a secret of the "update-prs" environment, which only main may use
+    # (Settings, Environments): a workflow file on any other branch cannot read it (#163).
+    # This job always runs main's file (workflow_run, and ci.yml's dispatch with --ref main).
+    # The environment only guards the secret, so no deployment is recorded.
+    environment:
+      name: update-prs
+      deployment: false
     # The wait (7 minutes) and the decision (16), with room to spare.
     timeout-minutes: 28
     env:
@@ -171,10 +178,12 @@ jobs:
           LABEL=ci-failed
 
           # --- The open pull request CI ran for: this branch, at exactly this commit. A newer
-          # commit has a run of its own, which decides.
+          # commit has a run of its own, which decides. gh's --head matches the branch name in
+          # any repository: a fork's pull request from a branch of the same name, even at the
+          # same commit, is never the one (#169).
           gh pr list --state open --head "$BRANCH" --limit 20 \
-            --json number,headRefOid,baseRefName,author,title,isDraft,labels > "$RUNNER_TEMP/prs.json"
-          pr=$(jq -c --arg sha "$SHA" '[.[] | select(.headRefOid == $sha)][0] // empty' "$RUNNER_TEMP/prs.json")
+            --json number,headRefOid,baseRefName,author,title,isDraft,labels,isCrossRepository > "$RUNNER_TEMP/prs.json"
+          pr=$(jq -c --arg sha "$SHA" '[.[] | select(.headRefOid == $sha and (.isCrossRepository | not))][0] // empty' "$RUNNER_TEMP/prs.json")
           if [ -z "$pr" ]; then
             echo "No open pull request on $BRANCH at ${SHA:0:8}: merged, closed, or moved on. Nothing to do."
             exit 0
@@ -430,17 +439,28 @@ jobs:
               reasons+=("it has ${all_files:-?} changed files and ${all_commits:-?} commits, more than this workflow reads at once (100 of each): a person checks it")
             fi
             # Its own commits, and the merges of main that "Update branch" makes here (the
-            # owner's, when made with their token).
-            others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" '.commits[] | select(
-                ([.authors[].login] | all(. == $bot)) or
-                (([.authors[].login] | all(. == "github-actions[bot]" or . == $owner)) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+            # owner's, when made with their token). A commit's author login is GitHub's mapping
+            # of its e-mail, which anyone who can push may write into a commit (#170). Where
+            # GitHub signs the commit, the signature is checked as well: Dependabot's commits
+            # and the merges GitHub makes for "Update branch" (committer web-flow) are
+            # verified, a commit pushed with git under their e-mail is not. Commits this
+            # repository's workflows push (toolchain, patched, sync) are not signed, so for
+            # those the login is all there is.
+            gh api --paginate "repos/$GH_REPO/pulls/$number/commits?per_page=100" \
+              --jq '.[] | select(.commit.verification.verified == true) | .sha' > "$RUNNER_TEMP/verified.txt"
+            others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" --rawfile verified "$RUNNER_TEMP/verified.txt" '
+              ($verified | split("\n")) as $signed | .commits[] | select(
+                (([.authors[].login] | all(. == $bot)) and ($bot != "dependabot[bot]" or (.oid | IN($signed[])))) or
+                (([.authors[].login] | all(. == "github-actions[bot]" or . == $owner)) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")) and (.oid | IN($signed[])))
                 | not) | .oid' "$RUNNER_TEMP/pr.json")
             # An upstream sync brings upstream's commits, whoever wrote them there: each must be
-            # one of upstream's own, which GitHub finds in that repository.
+            # in the history of upstream's main. (Not "GitHub finds the commit in upstream's
+            # repository": the API finds any commit of the fork network there, this
+            # repository's own included.)
             if [ "$kind" = upstream ] && [ -n "$others" ]; then
               foreign=''
               while IFS= read -r oid; do
-                if ! gh api "repos/$UPSTREAM_REPO/commits/$oid" --jq .sha > /dev/null 2>&1; then foreign+="$oid"$'\n'; fi
+                if [ "$(gh api "repos/$UPSTREAM_REPO/compare/$oid...main" --jq .behind_by 2> /dev/null)" != 0 ]; then foreign+="$oid"$'\n'; fi
               done <<< "$others"
               others=${foreign%$'\n'}
             fi
@@ -591,8 +611,10 @@ jobs:
             fi
           fi
 
-          # What must not ship: CI's build against the latest release's, as auto-release.yml
-          # compares them, with manifest.json's version left out; nothing else may differ. An
+          # What must not ship: CI's builds against the latest release's, as auto-release.yml
+          # compares them (the firefox-github zip with its zip, the AMO build with the signed
+          # xpi minus Mozilla's META-INF/: a change to the AMO build alone ships too, #164),
+          # with manifest.json's version left out; nothing else may differ. An
           # update that ships is meant to differ, and the comment below says so.
           # Only a branch that holds main is compared: one behind it lacks what main shipped
           # since, and that would count as its own change (#95 waited on 2026-09-30 for 33
@@ -603,15 +625,20 @@ jobs:
             tag=$(gh release view --json tagName --jq .tagName 2> /dev/null || true)
             new=$RUNNER_TEMP/new
             old=$RUNNER_TEMP/old
+            # unpack <zip> <dir>: a build's files, without a signature and its manifest's version.
+            # (unzip -d makes only the last folder of its path, so files/ is made first.)
+            unpack() {
+              unzip -q "$1" -d "$2" && rm -rf "$2/META-INF" &&
+                jq 'del(.version)' "$2/manifest.json" > "$2.manifest" && mv "$2.manifest" "$2/manifest.json"
+            }
             if [ -n "$tag" ] &&
                gh run download "$RUN_ID" --name faststream-bundles --dir "$new/zip" &&
-               gh release download "$tag" --pattern 'firefox-github-*.zip' --dir "$old/zip" &&
-               unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files" &&
-               unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files" &&
-               jq 'del(.version)' "$new/files/manifest.json" > "$new/manifest" &&
-               jq 'del(.version)' "$old/files/manifest.json" > "$old/manifest"; then
-              mv "$new/manifest" "$new/files/manifest.json"
-              mv "$old/manifest" "$old/files/manifest.json"
+               gh release download "$tag" --pattern 'firefox-github-*.zip' --pattern '*.xpi' --dir "$old/zip" &&
+               mkdir -p "$new/files" "$old/files" &&
+               unpack "$new"/zip/firefox-github-*.zip "$new/files/github" &&
+               unpack "$old"/zip/firefox-github-*.zip "$old/files/github" &&
+               unpack "$new"/zip/firefox-amo-*.zip "$new/files/amo" &&
+               unpack "$old"/zip/*.xpi "$old/files/amo"; then
               if ! diff -rq "$old/files" "$new/files" > "$RUNNER_TEMP/changes.txt"; then
                 cat "$RUNNER_TEMP/changes.txt"
                 count=$(wc -l < "$RUNNER_TEMP/changes.txt")

@@ -142,17 +142,23 @@ case "$1 $2" in
     fi
     ;;
   'run download')
+    # faststream-bundles: CI's two zips.
     d=$(opt --dir "$@"); mkdir -p "$d"
     if [ ! -f "$STATE/new.zip" ]; then echo 'stub gh: no artifact' >&2; exit 1; fi
     cp "$STATE/new.zip" "$d/firefox-github-1.3.82.40.zip"
+    cp "$STATE/amo-new.zip" "$d/firefox-amo-1.3.82.40.zip"
     ;;
   'release view')
     [ -f "$STATE/tag" ] || { echo 'release not found' >&2; exit 1; }
     cat "$STATE/tag"
     ;;
   'release download')
+    # The release's assets that match a --pattern: its github zip, and its signed xpi
+    # (named by AMO's file hash) unless the scenario has none.
     d=$(opt --dir "$@"); mkdir -p "$d"
-    cp "$STATE/old.zip" "$d/firefox-github-1.3.82.40.zip"
+    pats=$(for ((i = 1; i < $#; i++)); do if [ "${!i}" = --pattern ]; then j=$((i + 1)); printf '%s\n' "${!j}"; fi; done)
+    if grep -qxF 'firefox-github-*.zip' <<< "$pats"; then cp "$STATE/old.zip" "$d/firefox-github-1.3.82.40.zip"; fi
+    if grep -qxF '*.xpi' <<< "$pats" && [ -f "$STATE/old.xpi" ]; then cp "$STATE/old.xpi" "$d/99f1b8e844554f46b28a-1.3.82.40.xpi"; fi
     ;;
   'label create') ;;
   'workflow run')
@@ -224,10 +230,33 @@ case "$1 $2" in
         if [ "$ref" = "$SHA" ] && [ -f "$STATE/npmlock.head" ]; then cat "$STATE/npmlock.head"; else cat "$STATE/npmlock.base"; fi
         ;;
       "GET repos/Andrews54757/FastStream/commits/"*)
-        # Upstream's own commits: those in upstream_commits; any other is not found there.
+        # As GitHub answers: any commit of the fork network is found in upstream's repository,
+        # this repository's own and every commit on the sync branch included (checked with
+        # this repository's release commit ac70bb40, 2026-10-03).
         oid=${path##*/}
-        grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null || { echo 'stub gh: HTTP 404 No commit found' >&2; exit 1; }
         jq -n --arg s "$oid" '{sha: $s}' > "$STATE/uc.json"; jqout "$STATE/uc.json"
+        ;;
+      "GET repos/Andrews54757/FastStream/compare/"*...main)
+        # How far a commit is from upstream's main: behind_by 0 for one in its history (those
+        # in upstream_commits), more for any other (ac70bb40...main: behind_by 436).
+        oid=${path#*/compare/}; oid=${oid%...main}
+        b=436; if grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null; then b=0; fi
+        jq -n --argjson b "$b" '{status: (if $b == 0 then "ahead" else "behind" end), ahead_by: 150, behind_by: $b}' > "$STATE/ucmp.json"
+        jqout "$STATE/ucmp.json"
+        ;;
+      "GET repos/me/fs/pulls/"*/commits*)
+        # The pull request's commits with GitHub's signature check: Dependabot's commits and the
+        # merges GitHub makes for "Update branch" (committer web-flow) are verified, unless
+        # unsigned lists them (a commit pushed with git under that e-mail); any other is not.
+        printf '%s\n' "$(cat "$STATE/unsigned" 2> /dev/null)" > "$STATE/unsigned.txt"
+        jq --rawfile u "$STATE/unsigned.txt" '($u | split("\n")) as $unsigned | [.commits[] |
+            ((([.authors[].login] | all(. == "dependabot[bot]")) or (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+              and (.oid | IN($unsigned[]) | not)) as $v |
+            {sha: .oid, author: {login: .authors[0].login},
+             committer: {login: (if $v then "web-flow" else .authors[0].login end)},
+             commit: {message: .messageHeadline, verification: {verified: $v, reason: (if $v then "valid" else "unsigned" end)}}}]' \
+          "$STATE/prview.json" > "$STATE/prcommits.json"
+        jqout "$STATE/prcommits.json"
         ;;
       "GET repos/me/fs/pulls/"*/files)
         if [ -f "$STATE/pr_files_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
@@ -278,8 +307,10 @@ cat "$f"
 EOF
   cat > "$BIN/unzip" <<'EOF'
 #!/usr/bin/env bash
-# unzip -q <zip> -d <dir>
+# unzip -q <zip> -d <dir>. Like Info-ZIP's unzip, it makes only the last folder of <dir>
+# (python3 makes them all, which hid a step unzipping into files/github on 2026-10-03).
 zip=$2 dir=$4
+[ -d "$(dirname "$dir")" ] || { echo "checkdir:  cannot create extraction directory: $dir" >&2; exit 3; }
 exec python3 -m zipfile -e "$zip" "$dir"
 EOF
   chmod +x "$BIN/gh" "$BIN/sleep" "$BIN/unzip" "$BIN/curl"
@@ -298,7 +329,7 @@ updated-dependencies:
 
 pr() { # <author> [draft] [labels json]
   jq -n --arg sha "$sha" --arg author "$1" --argjson draft "${2:-false}" --argjson labels "${3:-[]}" \
-    '[{number: 42, headRefOid: $sha, baseRefName: "main", author: {login: $author}, title: "build(deps-dev): bump eslint", isDraft: $draft, labels: $labels}]' \
+    '[{number: 42, headRefOid: $sha, baseRefName: "main", author: {login: $author}, title: "build(deps-dev): bump eslint", isDraft: $draft, labels: $labels, isCrossRepository: false}]' \
     > "$STATE/prs.json"
 }
 prview() { # <files json> <commits json>
@@ -358,6 +389,19 @@ bundle() { # <dir name> <version> <player.js content>: a firefox-github zip
   printf '%s\n' "$3" > "$d/player.js"
   (cd "$d" && python3 -m zipfile -c "$STATE/$1.zip" manifest.json player.js)
 }
+amo_bundle() { # <dir name> <version> <update_url>: a firefox-amo zip
+  local d=$STATE/$1
+  mkdir -p "$d"
+  printf '{"name":"FastStream","version":"%s","manifest_version":3,"update_url":"%s"}\n' "$2" "$3" > "$d/manifest.json"
+  printf 'play()\n' > "$d/player.js"
+  (cd "$d" && rm -f "$STATE/$1.zip" && python3 -m zipfile -c "$STATE/$1.zip" manifest.json player.js)
+}
+signed_xpi() { # <dir name>: the release's xpi of that AMO build: its files and Mozilla's META-INF/
+  local d=$STATE/$1
+  mkdir -p "$d/META-INF"
+  printf 'signature\n' > "$d/META-INF/mozilla.rsa"
+  (cd "$d" && rm -f "$STATE/old.xpi" && python3 -m zipfile -c "$STATE/old.xpi" manifest.json player.js META-INF)
+}
 
 setup() {
   scenario=${FUNCNAME[1]}
@@ -405,6 +449,9 @@ EOF
   : > "$STATE/curl.log"
   bundle old 1.3.82.40 'play()'
   bundle new 1.3.82.40 'play()'
+  amo_bundle amo-old 1.3.82.40 https://example.com/updates.json
+  amo_bundle amo-new 1.3.82.40 https://example.com/updates.json
+  signed_xpi amo-old
   pr app/dependabot
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump eslint' "$dep_meta")]"
   printf 'Lint, test and build\tUnit tests\n' > "$STATE/failed.tsv.want"
@@ -421,6 +468,43 @@ EOF
 no_pr() {
   setup
   jq '.[0].headRefOid = "bbbb"' "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no mutations' test "$(n_mut)" -eq 0
+}
+
+fork_pr() { # [number]: a fork's open pull request from a branch of the same name, at the same commit, listed first
+  jq --argjson n "${1:-43}" '[.[0] + {number: $n, isCrossRepository: true, author: {login: "mallory"}}] + .' \
+    "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
+}
+untouched_43() { ! grep -qE '^pr [a-z]+ 43( |$)|/(issues|pulls)/43(/|$)' "$STATE/gh.log"; }
+
+fork_pr_same_branch_and_sha() {
+  # gh's --head lists a fork's pull request from a branch of the same name too (#169).
+  setup
+  fork_pr
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reports on #42' has_call 'pr edit 42 --add-assignee nawid'
+  check 'ready to merge' ready
+  check "the fork's #43 untouched" untouched_43
+}
+
+fork_pr_red() {
+  # Red, and the fork's pull request first in the list: no label, assignee or comment on it.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  fork_pr
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'labels #42' has_call 'pr edit 42 --add-assignee nawid --add-label ci-failed'
+  check "the fork's #43 untouched" untouched_43
+}
+
+fork_pr_only() {
+  # Only a fork's pull request on this branch at this commit: nothing to report on.
+  setup
+  jq '.[0] += {isCrossRepository: true, author: {login: "mallory"}}' "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'no mutations' test "$(n_mut)" -eq 0
@@ -627,6 +711,26 @@ green_no_artifact() {
   check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
 }
 
+green_amo_only_differs() {
+  # The AMO build changes (its update_url) and the github zip does not: it ships (#164).
+  setup
+  amo_bundle amo-new 1.3.82.40 https://example.com/moved/updates.json
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check "names the AMO build's manifest" grep -qF 'e.g. Files old/files/amo/manifest.json and new/files/amo/manifest.json differ' <(last_comment)
+}
+
+green_no_xpi() {
+  # The latest release has no signed xpi yet: the AMO build cannot be compared.
+  setup
+  rm "$STATE/old.xpi"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
+}
+
 green_major_ready() {
   # A tooling major is ready as a minor is: CI green, the build unchanged.
   setup
@@ -678,6 +782,31 @@ green_with_update_ready() {
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $(commit 'github-actions[bot]' "Merge branch 'main' into $BRANCH")]"
   run_step
   check 'ready to merge' ready
+}
+
+green_forged_dependabot_commit_waits() {
+  # A commit under Dependabot's e-mail that GitHub did not sign: pushed by someone else (#170).
+  setup
+  local forged
+  forged=$(commit 'dependabot[bot]' 'bump eslint again' "$dep_meta")
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump eslint' "$dep_meta"), $forged]"
+  jq -r .oid <<< "$forged" > "$STATE/unsigned"
+  run_step
+  check 'not called ready' not_ready
+  check 'names that commit only' grep -qF "commits from someone else ($(jq -r '.oid[0:8]' <<< "$forged"))" <(last_comment)
+  check "asked for the commits' signatures" has_call 'api --paginate repos/me/fs/pulls/42/commits?per_page=100'
+}
+
+green_forged_merge_of_main_waits() {
+  # A "Merge branch 'main' into" commit GitHub did not make (unsigned): someone else's (#170).
+  setup
+  local forged
+  forged=$(commit 'github-actions[bot]' "Merge branch 'main' into $BRANCH")
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $forged]"
+  jq -r .oid <<< "$forged" > "$STATE/unsigned"
+  run_step
+  check 'not called ready' not_ready
+  check 'names it' grep -qF "commits from someone else ($(jq -r '.oid[0:8]' <<< "$forged"))" <(last_comment)
 }
 
 green_wrong_author() {
@@ -775,7 +904,7 @@ green_behind_stuck() {
   echo 2 > "$STATE/behind"
   : > "$STATE/head_stuck"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
@@ -999,7 +1128,7 @@ upstream_ready() {
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
   check "says to merge it with a merge commit" grep -qF 'Merge it with **Create a merge commit**, not Squash' <(last_comment)
-  check 'asked upstream about its commit' has_call 'api repos/Andrews54757/FastStream/commits/'
+  check "asked whether its commit is in upstream's main" has_call 'api repos/Andrews54757/FastStream/compare/'
   check "asked main's history of the added file" has_call 'api -X GET repos/me/fs/commits -f sha=main -f path=chrome/player/New.mjs'
   check 'no build comparison: it ships' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
   check 'says merging releases' grep -qF 'once you merge it, CI runs on main, and a green run there releases it to Firefox' <(last_comment)
@@ -1032,7 +1161,7 @@ upstream_added_list_fails_stops() {
   upstream_setup
   : > "$STATE/pr_files_fail"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'not called ready' not_ready
 }
 
@@ -1502,7 +1631,7 @@ update_refused() {
   echo 2 > "$STATE/behind"
   : > "$STATE/update_fails"
   run_step
-  check 'fails (the failure step reports it)' test "$rc" -ne 0
+  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
@@ -1624,6 +1753,9 @@ lock_head_unreadable() {
 }
 
 no_pr
+fork_pr_same_branch_and_sha
+fork_pr_red
+fork_pr_only
 other_branch_name
 red_first
 red_dispatch_refused
@@ -1642,12 +1774,16 @@ green_manifest_other_field
 green_extra_file
 green_no_release
 green_no_artifact
+green_amo_only_differs
+green_no_xpi
 green_major_ready
 tooling_major_own_branch_that_ships_waits
 green_other_file
 green_foreign_commit
 green_actions_merge_commit_is_not_a_merge_of_main
 green_with_update_ready
+green_forged_dependabot_commit_waits
+green_forged_merge_of_main_waits
 green_wrong_author
 green_draft
 green_review_failed

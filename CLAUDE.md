@@ -933,8 +933,12 @@ releases itself.
 
 **Only when something shipped changed** (2026-09-25). Before bumping,
 auto-release downloads CI's build of the commit (the `faststream-bundles`
-artifact) and the latest release's `firefox-github-*.zip`, unzips both and
-runs `diff -rq`. Identical means the push touched only tools, tests,
+artifact) and the latest release's `firefox-github-*.zip` and signed xpi, unzips them and
+runs `diff -rq`: the github zip against its zip, the AMO build against the xpi minus
+`META-INF/` (Mozilla's signature; otherwise the xpi is that build, checked on 1.3.82.52).
+Until #164 (2026-10-03) only the github zip was compared, so a change to the AMO build
+alone (its `update_url`) released nothing. A release still waiting for its xpi cannot be
+compared, so a push then releases. Identical means the push touched only tools, tests,
 workflows, docs or dev dependencies, and the release would differ from the
 last one only in its version number (v1.3.82.33 after PR #21 was exactly
 that), so it stops with a notice and nothing is released. Any doubt - no
@@ -1123,7 +1127,10 @@ the change went in.
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
   tries) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-  `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
+  `sync/upstream` branches, and never checks out PR code. `gh pr list --head` lists a fork's
+  pull request from a branch of the same name too: it, `sync-upstream.yml` and
+  `mpv-updates.yml` drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
+  fails for a `--head` list that does not ask). CI red: CI is started once more
   on the same commit, and that run decides (a new run, not a re-run: a re-run by this
   workflow's token would reach no workflow when it ends); not when CI already failed on
   that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
@@ -1136,8 +1143,11 @@ the change went in.
   patched libraries, the upstream sync) when it is not labelled `hold`, and only when its
   bot opened it (not a draft,
   against `main`) and its commits are the bot's or this workflow's merges of `main` (the
-  owner's, made with their token; an upstream sync's: upstream's own, checked with
-  `gh api repos/Andrews54757/FastStream/commits/<sha>`), it changes only what its kind
+  owner's, made with their token; Dependabot's and those merges also signed by GitHub, as
+  an author login is only the commit's e-mail, #170; an upstream sync's: in the history of
+  upstream's `main`, `compare/<sha>...main` with `behind_by` 0 - not
+  `repos/Andrews54757/FastStream/commits/<sha>`, which finds any commit of the fork network,
+  this repository's own included), it changes only what its kind
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`;
@@ -1148,13 +1158,14 @@ the change went in.
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped libraries, patched
   libraries and the upstream sync), CI's build of the extension (the `faststream-bundles`
-  artifact, firefox-github zip) is file-for-file identical to the latest release's zip
+  artifact, both zips) is file-for-file identical to the latest release's zip and xpi
   apart from `manifest.json`'s version - `auto-release.yml`'s own test, so such a merge
   releases nothing. A shipped library's major comes on its own branch: it ships when one of
   its `dependency-name`s is in the `shipped-minor-and-patch` patterns of main's
   `.github/dependabot.yml` (unreadable: treated as tooling, whose build must not differ).
   GitHub Actions updates change workflow files, which `GITHUB_TOKEN` may not merge or
-  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN`
+  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN` of the
+  `update-prs` environment
   (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
   updates"), used only to bring such a branch up to date. The comment tells the owner to
   merge an upstream sync with a merge commit, keeping upstream's commits. His merge is his
@@ -1340,7 +1351,9 @@ the change went in.
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
 - **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
-  (`e2e-retried` and `e2e-retried-windows` artifacts, all branches, the last 7 days) in one
+  (`e2e-retried` and `e2e-retried-windows` artifacts, all of this repository's branches, the
+  last 7 days; never a fork's pull request, whose CI run writes the list with its own code,
+  and the texts are cut down to a path's characters, #166) in one
   issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was
   run again, how often its retry passed, suites, branches and runs. It finds the artifacts
   through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
@@ -1404,9 +1417,19 @@ the change went in.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
-  `update-prs.yml` merges the PR (`--merge`) once CI is green when it is clean (no
-  conflict, nothing under `.github/`, no deleted file back, only upstream's commits);
-  otherwise it waits for the owner (2026-10-01).
+  `update-prs.yml` calls the PR ready to merge (with a merge commit) once CI is green when
+  it is clean (no conflict, nothing under `.github/`, no deleted file back, only upstream's
+  commits); otherwise it says what to look at. **A merge that changes anything under
+  `.github/` gets no CI and no dependency review** (#163, 2026-10-03): a dispatched run
+  takes its workflow file from the branch, so upstream's workflow would run with this
+  repository's token and secrets; the PR says so, and the owner starts both after reading
+  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`). And the secrets
+  that can do harm are no repository secrets any more: the AMO keys are the `release`
+  environment's (main and tags `v*` only), `UPDATE_PRS_TOKEN` the `update-prs` one's (main
+  only), so no other branch's workflow can read them; the jobs that use them name the
+  environment with `deployment: false` (no deployment records), and
+  `tests/unit/workflowSecrets.test.mjs` fails for a job that reads one without it
+  (docs/maintenance.md, "Secrets in environments").
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
   (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.

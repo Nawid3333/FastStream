@@ -243,7 +243,7 @@ setup_api_fails() {
   setup api_fails
   : > "$STATE/api_fails"
   run_step
-  check 'exit code non-zero' [ "$rc" -ne 0 ]
+  check 'exit code 1, not stopped by the timeout' [ "$rc" -eq 1 ]
   check 'at once: one gh call' [ "$(gh_calls)" -eq 1 ]
   check 'no sleep' [ ! -s "$STATE/sleeps" ]
   check 'GITHUB_OUTPUT empty' [ ! -s "$GITHUB_OUTPUT" ]
