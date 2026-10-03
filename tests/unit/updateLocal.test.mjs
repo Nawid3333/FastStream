@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {newestNode, newestPackage} from '../../tools/newest-release.mjs';
+import {isPinnedUrl, newestNode, newestPackage} from '../../tools/newest-release.mjs';
 
 // tools/update-local.ps1 brings this PC to the versions CI's rule allows: the newest release
 // at least 5 days old (tools/check-toolchain.mjs). tools/newest-release.mjs picks them.
@@ -29,6 +29,35 @@ describe('newestNode', () => {
 
   it('gives nothing when no release of that major is old enough', () => {
     expect(newestNode([{version: 'v28.0.0', date: daysAgo(1).slice(0, 10)}], 28, now)).toBe(null);
+  });
+
+  // update-local.ps1 builds a URL and a file name from it (#243): an index that names
+  // anything else is skipped, as if that release did not exist.
+  it('skips a version of any other shape', () => {
+    const odd = [
+      {version: 'v26.11.0&calc', date: daysAgo(9).slice(0, 10)},
+      {version: 'v26.11.0/../../x', date: daysAgo(9).slice(0, 10)},
+      {version: 'v26.10.1-rc.1', date: daysAgo(9).slice(0, 10)},
+      ...index,
+    ];
+    expect(newestNode(odd, 26, now)).toBe('26.9.0');
+  });
+});
+
+describe('isPinnedUrl', () => {
+  // getJson's guard (#167: a precedence slip made it pass every URL).
+  it.each([
+    ['https://nodejs.org/dist/index.json', true],
+    ['https://registry.npmjs.org/pnpm', true],
+    ['https://registry.npmjs.org/%40types%2Fnode', true],
+    ['https://evil.example/', false],
+    ['https://evil.example/https://registry.npmjs.org/', false],
+    ['https://registry.npmjs.org.evil.example/pnpm', false],
+    ['http://registry.npmjs.org/pnpm', false],
+    ['https://nodejs.org/dist/index.json.evil', false],
+    ['https://nodejs.org/dist/v26.10.0/', false],
+  ])('%s -> %s', (url, allowed) => {
+    expect(isPinnedUrl(new URL(url))).toBe(allowed);
   });
 });
 
@@ -110,6 +139,27 @@ describe('update-local.ps1', () => {
       expect(fs.readFileSync(log, 'utf8').trim().split(/\r?\n/)).toEqual(calls);
     } finally {
       fs.rmSync(dir, {recursive: true, force: true});
+    }
+  }, 30000);
+
+  // The Node.js step's download folder goes however the step ends (#244): a declined admin
+  // prompt makes Start-Process throw, like the throw here.
+  it.runIf(process.platform === 'win32').each([
+    ['succeeds', '', 'done'],
+    ['throws', 'throw \'declined\'', 'threw: declined'],
+  ])('Invoke-InPrivateDirectory removes the folder when the body %s', (name, tail, outcome) => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-private-run-'));
+    const dir = path.join(parent, 'staging');
+    try {
+      const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `$ErrorActionPreference = 'Stop'; . '${helper}'; ` +
+        `try { Invoke-InPrivateDirectory '${dir}' { Set-Content -LiteralPath (Join-Path '${dir}' 'node.msi') 'x'; ${tail} }; 'done' } ` +
+        `catch { 'threw: ' + $_.Exception.Message }`],
+      {encoding: 'utf8', windowsHide: true});
+      expect(r.stdout.trim()).toBe(outcome);
+      expect(fs.existsSync(dir)).toBe(false);
+    } finally {
+      fs.rmSync(parent, {recursive: true, force: true});
     }
   }, 30000);
 

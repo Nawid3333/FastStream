@@ -122,6 +122,8 @@ Invoke-Step 'Node.js' {
     $major = (ConvertTo-Version (Get-Content -Raw -LiteralPath (Join-Path $repo '.nvmrc'))).Major
     $have = Get-ToolVersion 'node'
     $want = Get-NewestRelease 'node' "$major"
+    # It becomes part of a URL and a file name: the exact shape, or nothing (issue #243).
+    if ($want -and $want -notmatch '^\d+\.\d+\.\d+$') { throw "not a Node.js version: '$want'" }
     if ((ConvertTo-Version $have).Major -gt $major) {
         Note "Node.js ${have}: kept, newer than the $major.x .nvmrc names"
     }
@@ -143,26 +145,26 @@ Invoke-Step 'Node.js' {
         $msi = Join-Path $work $file
         Invoke-Change "Node.js $have -> $want (nodejs.org installer; Windows asks for admin rights)" {
             # Only this user (writes and hashes the file), Administrators and SYSTEM
-            # (msiexec runs as one of them) may write there.
-            New-PrivateDirectory $work
-            $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
-            $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
-            $line = ($sums -split "`n") | Where-Object { $_ -match ('\s' + [regex]::Escape($file) + '\s*$') } | Select-Object -First 1
-            if (-not $line) { throw "SHASUMS256.txt names no $file" }
-            $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
-            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $msi).Hash.ToLowerInvariant()
-            if ($expected -ne $actual) { throw "$file does not match SHASUMS256.txt ($actual, expected $expected)" }
-            # A hash from the same host proves nothing against whoever serves both: the installer
-            # must also carry the OpenJS Foundation's valid code signature.
-            $signature = Get-AuthenticodeSignature -LiteralPath $msi
-            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
-                throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
+            # (msiexec runs as one of them) may write there; it goes again however this ends.
+            Invoke-InPrivateDirectory $work {
+                $ProgressPreference = 'SilentlyContinue'
+                Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
+                $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
+                $line = ($sums -split "`n") | Where-Object { $_ -match ('\s' + [regex]::Escape($file) + '\s*$') } | Select-Object -First 1
+                if (-not $line) { throw "SHASUMS256.txt names no $file" }
+                $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
+                $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $msi).Hash.ToLowerInvariant()
+                if ($expected -ne $actual) { throw "$file does not match SHASUMS256.txt ($actual, expected $expected)" }
+                # A hash from the same host proves nothing against whoever serves both: the installer
+                # must also carry the OpenJS Foundation's valid code signature.
+                $signature = Get-AuthenticodeSignature -LiteralPath $msi
+                if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
+                    throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
+                }
+                $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
+                # 3010: installed, a restart completes it.
+                if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
             }
-            $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
-            # 3010: installed, a restart completes it.
-            if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
-            Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }

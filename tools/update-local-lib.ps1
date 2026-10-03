@@ -1,4 +1,5 @@
-# Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory, Test-ChangedSince.
+# Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory,
+# Invoke-InPrivateDirectory, Test-ChangedSince.
 
 # True when $File was written after $Marker, or $Marker does not exist (nothing installed yet).
 function Test-ChangedSince([string]$File, [string]$Marker) {
@@ -29,4 +30,17 @@ function New-PrivateDirectory([string]$Path) {
         $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
     }
     Set-Acl -LiteralPath $Path -AclObject $acl
+}
+
+# Runs $Body with a fresh private directory at $Path and removes the directory afterwards,
+# however $Body ends: a thrown check, a declined admin prompt or a failed install left the
+# ~30 MB Node.js installer behind in %ProgramData% (issue #244).
+function Invoke-InPrivateDirectory([string]$Path, [scriptblock]$Body) {
+    New-PrivateDirectory $Path
+    try {
+        & $Body
+    }
+    finally {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
