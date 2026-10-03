@@ -232,6 +232,41 @@ describe('Player controls', function() {
     expect(await chapterAt(7, 'Closing')).toBe('Closing');
   });
 
+  it('can be used from the keyboard: the skip button, the big play button, the volume slider', async function() {
+    // Tab reached "Skip intro" but Enter did nothing, Tab skipped the big play button, and
+    // the volume slider had no value for a screen reader (#270).
+    await openEmptyPlayer();
+    const big = await browser.execute(() => {
+      const circle = document.querySelector('.mainplayer .fluid_control_playpause_big_circle');
+      return {tabIndex: circle.tabIndex, role: circle.getAttribute('role')};
+    });
+    expect(big).toEqual({tabIndex: 0, role: 'button'});
+
+    await addSource(mp4Url());
+    await waitForPicture();
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.videoAnalyzer.getIntro = () => ({startTime: 0, endTime: 5});
+      client.volume = 1.5;
+      client.currentTime = 1;
+    });
+    await settle(() => browser.execute(() => document.querySelector('.mainplayer .skip_button').style.display),
+        (display) => display === '');
+    await browser.execute(() => {
+      const button = document.querySelector('.mainplayer .skip_button');
+      button.focus();
+      button.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', bubbles: true, cancelable: true}));
+    });
+    const time = await settle(() => browser.execute(() => window.fastStream.currentTime), (t) => t >= 4.9);
+    expect(time).toBeGreaterThanOrEqual(4.9);
+
+    const slider = await browser.execute(() => {
+      const block = document.querySelector('.mainplayer .volume_block');
+      return ['role', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext'].map((name) => block.getAttribute(name));
+    });
+    expect(slider).toEqual(['slider', '0', '300', '150', '150%']);
+  });
+
   it('does not carry the previous video\'s skip markers and button over', async function() {
     // They were redrawn only once the next video had a duration.
     await openEmptyPlayer();

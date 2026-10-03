@@ -172,6 +172,12 @@ export class VolumeControls extends EventEmitter {
     }
 
     WebUtils.setLabels(DOMElements.volumeBlock, Localize.getMessage('player_volume_label', [Math.round(volume * 100)]));
+    // The block is a slider (role="slider"), and a screen reader reads a slider's value
+    // from these; it had none.
+    DOMElements.volumeBlock.setAttribute('aria-valuemin', 0);
+    DOMElements.volumeBlock.setAttribute('aria-valuemax', Math.round(MAX_VOLUME * 100));
+    DOMElements.volumeBlock.setAttribute('aria-valuenow', Math.round(volume * 100));
+    DOMElements.volumeBlock.setAttribute('aria-valuetext', Math.round(volume * 100) + '%');
   }
 
   async loadVolumeState() {

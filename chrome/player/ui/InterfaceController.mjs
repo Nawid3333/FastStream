@@ -341,6 +341,8 @@ export class InterfaceController {
       this.playPauseToggle();
       e.stopPropagation();
     });
+    // Tab skipped it: a role="button" with no tabindex.
+    WebUtils.setupTabIndex(DOMElements.playPauseButtonBigCircle);
 
     DOMElements.fullscreen.addEventListener('click', (e)=>{
       if (e.shiftKey) {
@@ -506,6 +508,8 @@ export class InterfaceController {
     WebUtils.setupTabIndex(DOMElements.resetFailed);
 
     DOMElements.skipButton.addEventListener('click', this.skipSegment.bind(this));
+    // Tab reached "Skip intro", but Enter did nothing.
+    WebUtils.setupTabIndex(DOMElements.skipButton);
 
     DOMElements.pip.addEventListener('click', (e) => {
       this.pipToggle();

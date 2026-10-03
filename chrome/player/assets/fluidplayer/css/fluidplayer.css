@@ -621,6 +621,15 @@ body {
     opacity: 1;
 }
 
+/* Where the keyboard is. */
+.fluid_button:focus-visible,
+.skip_button:focus-visible,
+.next_video_button:focus-visible,
+.fluid_control_playpause_big_circle:focus-visible {
+    outline: 2px solid var(--menu-text-color);
+    outline-offset: 1px;
+}
+
 .fluid_control_mute .speaker-muted {
     display: none;
 }
