@@ -12,18 +12,48 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const chromeSourceDir = path.resolve(__dirname, '..', 'chrome');
 const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'));
 
+/** The targets build.mjs builds with. A new one goes here too, or its build throws. */
+export const TARGETS = ['EXTENSION', 'FIREFOX', 'WEB', 'NO_UPDATE_CHECKER'];
+const COMMANDS = ['REMOVE_FILE', 'REMOVE_LINE', 'REMOVE_START', 'REMOVE_END', 'INSERT_LOCALE', 'INSERT_VERSION'];
+
+/**
+ * Reads a line's directive: a `//` comment that is exactly SPLICER:<TARGET>:<COMMAND>, on a
+ * line of its own or after code. The same text anywhere else (a string, a template literal,
+ * a block comment) is not one; it used to be obeyed wherever it stood (#168).
+ *
+ * @param {string} line one line of a script
+ * @param {string} where file and line number, for the error
+ * @return {{target: string, command: string}|null} null when the line has no directive
+ * @throws when a `// SPLICER:` comment names a target or a command this build does not know:
+ *   it used to be kept as an ordinary line, so a misspelt REMOVE_LINE shipped the line.
+ */
+function readDirective(line, where) {
+  const comment = /\/\/\s*SPLICER:(.*)$/.exec(line);
+  if (!comment) {
+    return null;
+  }
+  const directive = /^([A-Z_]+):([A-Z_]+)\s*$/.exec(comment[1]);
+  if (!directive || !TARGETS.includes(directive[1]) || !COMMANDS.includes(directive[2])) {
+    throw new Error(`${where}: not a SPLICER directive: ${line.trim()}\n` +
+      `  expected // SPLICER:<${TARGETS.join('|')}>:<${COMMANDS.join('|')}>`);
+  }
+  return {target: directive[1], command: directive[2]};
+}
+
 export function splice(fileText, target, relativePath) {
+  if (!TARGETS.includes(target)) {
+    throw new Error(`Unknown SPLICER target ${target}: add it to TARGETS in tools/splicer.mjs`);
+  }
   const lines = fileText.split('\n');
   let newLines = [];
   let inSplicerRemove = false;
   let removedLines = 0;
 
-  const initiatorStr = `SPLICER:${target}:`;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const index = line.indexOf(initiatorStr);
-    if (index >= 0) {
-      const command = line.substring(index + initiatorStr.length).trim();
+    const directive = readDirective(line, `${relativePath}:${i + 1}`);
+    if (directive && directive.target === target) {
+      const command = directive.command;
       if (command === 'REMOVE_FILE') {
         console.log(`[Splicer-${target}] Removing file`, relativePath);
         return '';
