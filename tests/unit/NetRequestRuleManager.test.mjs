@@ -115,3 +115,76 @@ describe('RuleManager.getInsertionIndex', () => {
     expect(insertionIndex([10], 10)).toBe(-1);
   });
 });
+
+// Both of RuleManager's background promises went unhandled: the clearing of old rules at
+// start, and the removal of expired ones each second. A refused removal also took the rule
+// out of the list, so its id went to the next rule while the browser still held the old
+// one, and that rule was refused as a duplicate.
+describe('RuleManager when the browser refuses', () => {
+  let warn;
+  let refuseRemovals;
+  let removed;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    refuseRemovals = 0;
+    removed = [];
+    globalThis.chrome = {
+      runtime: {getURL: (path) => 'moz-extension://test-uuid' + path},
+      declarativeNetRequest: {
+        getSessionRules: async () => [],
+        updateSessionRules: async (update) => {
+          const ids = update.removeRuleIds || [];
+          if (ids.length > 0) {
+            if (refuseRemovals > 0) {
+              refuseRemovals--;
+              throw new Error('refused');
+            }
+            removed.push(...ids);
+          }
+        },
+      },
+    };
+  });
+
+  afterEach(() => {
+    warn.mockRestore();
+    vi.useRealTimers();
+    delete globalThis.chrome;
+  });
+
+  it('says so when the rules left from before cannot be cleared', async () => {
+    globalThis.chrome.declarativeNetRequest.getSessionRules = async () => {
+      throw new Error('not now');
+    };
+    new RuleManager();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(warn).toHaveBeenCalledWith('Could not clear the header rules left from before', expect.any(Error));
+  });
+
+  it('keeps an expired rule it could not remove, and removes it on the next round', async () => {
+    const manager = new RuleManager();
+    const rule = await manager.addHeaderRule('https://cdn.test/a.m3u8', 7, [{operation: 'set', header: 'referer', value: 'https://site.test/'}]);
+    refuseRemovals = 1;
+    // It expires after 5 s; the round after that is refused.
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(removed).toEqual([]);
+    expect(warn).toHaveBeenCalledWith('Could not remove expired header rules', expect.any(Error));
+    expect(manager.getNextID()).not.toBe(rule.id);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(removed).toEqual([rule.id]);
+    expect(manager.rules).toEqual([]);
+  });
+
+  it('gives a rule up after three refused removals', async () => {
+    const manager = new RuleManager();
+    const rule = await manager.addHeaderRule('https://cdn.test/a.m3u8', 7, [{operation: 'set', header: 'referer', value: 'https://site.test/'}]);
+    refuseRemovals = 100;
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(manager.rules).toEqual([]);
+    expect(manager.isLoopRunning).toBe(false);
+    expect(manager.getNextID()).toBe(rule.id);
+  });
+});

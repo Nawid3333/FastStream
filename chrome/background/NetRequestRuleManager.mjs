@@ -33,7 +33,7 @@ export class RuleManager {
     this.idStart = 10 + Math.floor(Math.random() * 1000) * 1000;
     this.rules = [];
     this.isLoopRunning = false;
-    this.dumpRules();
+    this.dumpRules().catch((e) => console.warn('Could not clear the header rules left from before', e));
   }
 
   getInsertionIndex(id) {
@@ -66,7 +66,7 @@ export class RuleManager {
       return;
     }
     setTimeout(() => this.mainLoop(), 1000);
-    this.filterRules();
+    this.filterRules().catch((e) => console.warn('Could not remove expired header rules', e));
   }
 
   async filterRules() {
@@ -80,9 +80,24 @@ export class RuleManager {
       return true;
     });
 
-    return chrome.declarativeNetRequest.updateSessionRules({
-      removeRuleIds: removed.map((rule) => rule.id),
-    });
+    try {
+      await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: removed.map((rule) => rule.id),
+      });
+    } catch (e) {
+      // The browser may still hold them. Back in the list, their ids are not handed out
+      // again (getNextID), which a new rule would be refused for, and the next round tries
+      // again - three times, then they are given up.
+      for (const rule of removed) {
+        rule.removeAttempts = (rule.removeAttempts || 0) + 1;
+        const index = this.getInsertionIndex(rule.id);
+        if (rule.removeAttempts < 3 && index !== -1) {
+          this.rules.splice(index, 0, rule);
+        }
+      }
+      this.startLoop();
+      throw e;
+    }
   }
 
   async addHeaderRule(url, tabId, requestHeaderCommands) {

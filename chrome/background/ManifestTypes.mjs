@@ -30,3 +30,26 @@ export function contentTypeOf(headers) {
 export function modeFromContentType(headers) {
   return MANIFEST_TYPES.get(contentTypeOf(headers));
 }
+
+// Files a media element plays that the player's MP4 mode cannot read (it reads MP4 only):
+// played as they are, as a .webm URL already is (URLUtils).
+const DIRECT_TYPES = ['video/webm', 'video/ogg'];
+
+/**
+ * The player mode for a file a <video> or <audio> element loaded, whose URL names no type:
+ * by its Content-Type. Every such file used to be taken for an MP4 video: a site's
+ * notification sound or a podcast's MP3 too, which on the MPV allowlist went to mpv as the
+ * page's first stream, and on a tab that is on opened the player.
+ * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
+ * @return {string|null} The mode, or null for audio, which is no video.
+ */
+export function modeFromMediaType(headers) {
+  const type = contentTypeOf(headers);
+  if (type.startsWith('audio/')) {
+    return null;
+  }
+  if (DIRECT_TYPES.includes(type)) {
+    return PlayerModes.DIRECT;
+  }
+  return PlayerModes.ACCELERATED_MP4;
+}

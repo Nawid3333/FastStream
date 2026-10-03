@@ -623,9 +623,11 @@ then woke a fresh background with no record of the user's toolbar choice, so an
 allowlisted site auto-started MPV again even after the user had picked the
 in-page player or Off. The same loss dropped the one-hand-off-per-page latch,
 so the page's next stream request after a wake opened a second mpv window.
-`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `regexMatched`,
+`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `mpvOnPlay`, `regexMatched`,
 `mpvMatched` and `mpvAutoOpened` per tab to `chrome.storage.session` whenever
 one of them changes (toolbar click, URL change, mpv hand-off and its failure),
+and since 2026-10-03 (#158) the failure shown as "!" (`mpvError`) and the shortcut's
+waiting play (`mpvPlayPendingUntil`, `mpvPlayedVideo`, `mpvLastPlaySend`),
 and `restoreTabStates` puts them back inside `ensureOptions()`, which every
 state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one
@@ -1588,7 +1590,7 @@ Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
 (`native-host/faststream-mpv-host.mjs`). The types are Chrome's (`@types/chrome`,
 which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
 and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
-(`cookieStoreId`, `originUrl`). background.mjs's own fixes were JSDoc, a few
+(`cookieStoreId`). background.mjs's own fixes were JSDoc, a few
 `undefined` checks that return what the code returned before (through a throw), and
 one guard: a message from a page outside any tab is no longer handled as a tab's. The
 player's files are next; fix what tsc reports only with the playback suites to hand.

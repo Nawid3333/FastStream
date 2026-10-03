@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {contentTypeOf, modeFromContentType} from '../../chrome/background/ManifestTypes.mjs';
+import {contentTypeOf, modeFromContentType, modeFromMediaType} from '../../chrome/background/ManifestTypes.mjs';
 import {PlayerModes} from '../../chrome/player/enums/PlayerModes.mjs';
 
 const typed = (value) => [{name: 'Server', value: 'nginx'}, {name: 'Content-Type', value}];
@@ -30,5 +30,28 @@ describe('ManifestTypes', () => {
       expect(modeFromContentType(typed(type)), type).toBeUndefined();
     }
     expect(modeFromContentType(undefined)).toBeUndefined();
+  });
+});
+
+// A file a <video> or <audio> element loaded, with no type in its URL. All of them were
+// taken for MP4 videos: a notification sound went to mpv as an allowlisted page's first
+// stream, and a WebM went to the player's MP4 mode, which reads MP4 only.
+describe('modeFromMediaType', () => {
+  it('takes no audio file for a video', () => {
+    for (const type of ['audio/mpeg', 'audio/ogg', 'audio/mp4', 'Audio/WAV; codecs=1']) {
+      expect(modeFromMediaType(typed(type)), type).toBeNull();
+    }
+  });
+
+  it('plays a WebM or Ogg video as it is', () => {
+    expect(modeFromMediaType(typed('video/webm'))).toBe(PlayerModes.DIRECT);
+    expect(modeFromMediaType(typed('video/ogg'))).toBe(PlayerModes.DIRECT);
+  });
+
+  it('takes anything else for an MP4, as before', () => {
+    for (const type of ['video/mp4', 'application/octet-stream', 'binary/octet-stream', '']) {
+      expect(modeFromMediaType(typed(type)), type).toBe(PlayerModes.ACCELERATED_MP4);
+    }
+    expect(modeFromMediaType(undefined)).toBe(PlayerModes.ACCELERATED_MP4);
   });
 });

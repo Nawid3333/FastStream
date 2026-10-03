@@ -53,42 +53,76 @@ export class MultiRegexMatcher {
     this.compiledRegexes.length = 0;
 
     regexesByFlags.forEach((regexes, flags) => {
-      const regexesByOutput = new Map();
-      for (const {regex, output} of regexes) {
-        if (!regexesByOutput.has(output)) {
-          regexesByOutput.set(output, []);
+      // A backreference counts groups by position, and the groups the joined form adds
+      // move them: \1 came to mean the group wrapped around the pattern. Such a pattern
+      // is compiled on its own.
+      const alone = regexes.filter(({regex}) => /\\(?:[1-9]|k<)/.test(regex));
+      const joinable = regexes.filter((entry) => !alone.includes(entry));
+      if (joinable.length > 0) {
+        try {
+          this.compiledRegexes.push(MultiRegexMatcher.join(joinable, flags));
+        } catch (e) {
+          // A pattern valid on its own that the joined form refuses - a group of its own
+          // named like the ones added (o0) - left all of them out, and the matcher before
+          // stayed in use. Each on its own instead.
+          alone.push(...joinable);
         }
-        regexesByOutput.get(output).push(regex);
       }
-
-      const joinedRegexes = [];
-      const outputByGroupName = new Map();
-      let groupIndex = 0;
-      regexesByOutput.forEach((regexes, output) => {
-        // Named group, not a plain wrapping group: a raw regex with its own
-        // capturing group(s) would otherwise shift every later output's
-        // positional group index, silently misrouting the match to the
-        // wrong (or a nonexistent) output.
-        const groupName = 'o' + groupIndex++;
-        outputByGroupName.set(groupName, output);
-        joinedRegexes.push(`(?<${groupName}>${regexes.join('|')})`);
-      });
-
-      this.compiledRegexes.push({
-        regex: new RegExp(joinedRegexes.join('|'), flags),
-        outputByGroupName,
-      });
+      for (const {regex, output} of alone) {
+        this.compiledRegexes.push({regex: new RegExp(regex, flags), output});
+      }
     });
   }
 
+  /**
+   * One regex for many patterns: each output's patterns in a named group of its own.
+   * @param {Array<{regex: string, output: *}>} regexes - The patterns, all with one set
+   *   of flags.
+   * @param {string} flags - Those flags.
+   * @return {{regex: RegExp, outputByGroupName: Map<string, *>}}
+   */
+  static join(regexes, flags) {
+    const regexesByOutput = new Map();
+    for (const {regex, output} of regexes) {
+      if (!regexesByOutput.has(output)) {
+        regexesByOutput.set(output, []);
+      }
+      regexesByOutput.get(output).push(regex);
+    }
+
+    const joinedRegexes = [];
+    const outputByGroupName = new Map();
+    let groupIndex = 0;
+    regexesByOutput.forEach((regexes, output) => {
+      // Named group, not a plain wrapping group: a raw regex with its own
+      // capturing group(s) would otherwise shift every later output's
+      // positional group index, silently misrouting the match to the
+      // wrong (or a nonexistent) output.
+      const groupName = 'o' + groupIndex++;
+      outputByGroupName.set(groupName, output);
+      joinedRegexes.push(`(?<${groupName}>${regexes.join('|')})`);
+    });
+
+    return {
+      regex: new RegExp(joinedRegexes.join('|'), flags),
+      outputByGroupName,
+    };
+  }
+
   match(str) {
-    for (const {regex, outputByGroupName} of this.compiledRegexes) {
+    for (const {regex, output, outputByGroupName} of this.compiledRegexes) {
       const match = str.match(regex);
-      if (match?.groups) {
-        for (const groupName in match.groups) {
-          if (match.groups[groupName] !== undefined) {
-            return outputByGroupName.get(groupName);
-          }
+      if (!match) {
+        continue;
+      }
+      if (!outputByGroupName) {
+        return output;
+      }
+      // By the groups this matcher added, not every group the match has: a pattern's own
+      // named group came first in a match of a later output, and gave no output at all.
+      for (const [groupName, groupOutput] of outputByGroupName) {
+        if (match.groups?.[groupName] !== undefined) {
+          return groupOutput;
         }
       }
     }
