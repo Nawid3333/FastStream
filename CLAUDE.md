@@ -930,8 +930,12 @@ releases itself.
 
 **Only when something shipped changed** (2026-09-25). Before bumping,
 auto-release downloads CI's build of the commit (the `faststream-bundles`
-artifact) and the latest release's `firefox-github-*.zip`, unzips both and
-runs `diff -rq`. Identical means the push touched only tools, tests,
+artifact) and the latest release's `firefox-github-*.zip` and signed xpi, unzips them and
+runs `diff -rq`: the github zip against its zip, the AMO build against the xpi minus
+`META-INF/` (Mozilla's signature; otherwise the xpi is that build, checked on 1.3.82.52).
+Until #164 (2026-10-03) only the github zip was compared, so a change to the AMO build
+alone (its `update_url`) released nothing. A release still waiting for its xpi cannot be
+compared, so a push then releases. Identical means the push touched only tools, tests,
 workflows, docs or dev dependencies, and the release would differ from the
 last one only in its version number (v1.3.82.33 after PR #21 was exactly
 that), so it stops with a notice and nothing is released. Any doubt - no
@@ -1151,7 +1155,7 @@ the change went in.
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped libraries, patched
   libraries and the upstream sync), CI's build of the extension (the `faststream-bundles`
-  artifact, firefox-github zip) is file-for-file identical to the latest release's zip
+  artifact, both zips) is file-for-file identical to the latest release's zip and xpi
   apart from `manifest.json`'s version - `auto-release.yml`'s own test, so such a merge
   releases nothing. A shipped library's major comes on its own branch: it ships when one of
   its `dependency-name`s is in the `shipped-minor-and-patch` patterns of main's

@@ -188,12 +188,16 @@ jobs:
           persist-credentials: false
 
       # CI uploads its build of this commit (faststream-bundles); compare it file by
-      # file with the latest release's firefox-github zip. Identical means nothing the
+      # file with the latest release: the firefox-github zip with its zip, and the AMO
+      # build with the release's signed xpi, which is that build plus Mozilla's signature
+      # under META-INF/ (checked on 1.3.82.52). The AMO build alone can change (its
+      # update_url, say) with the github zip as it was, and was then never released
+      # (#164). Identical means nothing the
       # extension ships changed - a push of tools, tests, workflows, docs or dev
       # dependencies - and a release would differ from the last one only in its
       # version number, so there is none. Anything short of a clean "identical"
-      # releases as before: a missing release or artifact, a failed download or
-      # unzip, any difference at all.
+      # releases as before: a missing release, artifact or xpi (AMO has not signed the
+      # latest release yet), a failed download or unzip, any difference at all.
       - name: Did anything shipped change since the last release?
         id: shipped
         if: steps.run.outputs.ok == 'yes'
@@ -209,9 +213,12 @@ jobs:
           # An empty run id would make gh pick some other run's artifact.
           if [ -n "$RUN_ID" ] && [ -n "$latest" ] &&
              gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name faststream-bundles --dir "$new/zip" &&
-             gh release download "$latest" --repo "$GITHUB_REPOSITORY" --pattern 'firefox-github-*.zip' --dir "$old/zip" &&
-             unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files" &&
-             unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files"; then
+             gh release download "$latest" --repo "$GITHUB_REPOSITORY" --pattern 'firefox-github-*.zip' --pattern '*.xpi' --dir "$old/zip" &&
+             unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files/github" &&
+             unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files/github" &&
+             unzip -q "$new"/zip/firefox-amo-*.zip -d "$new/files/amo" &&
+             unzip -q "$old"/zip/*.xpi -d "$old/files/amo" &&
+             rm -rf "$old/files/amo/META-INF"; then
             if diff -rq "$old/files" "$new/files" > "$RUNNER_TEMP/changes.txt"; then
               release=no
               echo "::notice::Nothing the extension ships changed since $latest: CI's build of this commit is file-for-file identical to it. No release."

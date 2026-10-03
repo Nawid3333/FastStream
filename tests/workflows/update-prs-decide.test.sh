@@ -142,17 +142,23 @@ case "$1 $2" in
     fi
     ;;
   'run download')
+    # faststream-bundles: CI's two zips.
     d=$(opt --dir "$@"); mkdir -p "$d"
     if [ ! -f "$STATE/new.zip" ]; then echo 'stub gh: no artifact' >&2; exit 1; fi
     cp "$STATE/new.zip" "$d/firefox-github-1.3.82.40.zip"
+    cp "$STATE/amo-new.zip" "$d/firefox-amo-1.3.82.40.zip"
     ;;
   'release view')
     [ -f "$STATE/tag" ] || { echo 'release not found' >&2; exit 1; }
     cat "$STATE/tag"
     ;;
   'release download')
+    # The release's assets that match a --pattern: its github zip, and its signed xpi
+    # (named by AMO's file hash) unless the scenario has none.
     d=$(opt --dir "$@"); mkdir -p "$d"
-    cp "$STATE/old.zip" "$d/firefox-github-1.3.82.40.zip"
+    pats=$(for ((i = 1; i < $#; i++)); do if [ "${!i}" = --pattern ]; then j=$((i + 1)); printf '%s\n' "${!j}"; fi; done)
+    if grep -qxF 'firefox-github-*.zip' <<< "$pats"; then cp "$STATE/old.zip" "$d/firefox-github-1.3.82.40.zip"; fi
+    if grep -qxF '*.xpi' <<< "$pats" && [ -f "$STATE/old.xpi" ]; then cp "$STATE/old.xpi" "$d/99f1b8e844554f46b28a-1.3.82.40.xpi"; fi
     ;;
   'label create') ;;
   'workflow run')
@@ -381,6 +387,19 @@ bundle() { # <dir name> <version> <player.js content>: a firefox-github zip
   printf '%s\n' "$3" > "$d/player.js"
   (cd "$d" && python3 -m zipfile -c "$STATE/$1.zip" manifest.json player.js)
 }
+amo_bundle() { # <dir name> <version> <update_url>: a firefox-amo zip
+  local d=$STATE/$1
+  mkdir -p "$d"
+  printf '{"name":"FastStream","version":"%s","manifest_version":3,"update_url":"%s"}\n' "$2" "$3" > "$d/manifest.json"
+  printf 'play()\n' > "$d/player.js"
+  (cd "$d" && rm -f "$STATE/$1.zip" && python3 -m zipfile -c "$STATE/$1.zip" manifest.json player.js)
+}
+signed_xpi() { # <dir name>: the release's xpi of that AMO build: its files and Mozilla's META-INF/
+  local d=$STATE/$1
+  mkdir -p "$d/META-INF"
+  printf 'signature\n' > "$d/META-INF/mozilla.rsa"
+  (cd "$d" && rm -f "$STATE/old.xpi" && python3 -m zipfile -c "$STATE/old.xpi" manifest.json player.js META-INF)
+}
 
 setup() {
   scenario=${FUNCNAME[1]}
@@ -428,6 +447,9 @@ EOF
   : > "$STATE/curl.log"
   bundle old 1.3.82.40 'play()'
   bundle new 1.3.82.40 'play()'
+  amo_bundle amo-old 1.3.82.40 https://example.com/updates.json
+  amo_bundle amo-new 1.3.82.40 https://example.com/updates.json
+  signed_xpi amo-old
   pr app/dependabot
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump eslint' "$dep_meta")]"
   printf 'Lint, test and build\tUnit tests\n' > "$STATE/failed.tsv.want"
@@ -681,6 +703,26 @@ green_no_release() {
 green_no_artifact() {
   setup
   rm "$STATE/new.zip"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check 'says it could not compare' grep -qF 'could not be compared' <(last_comment)
+}
+
+green_amo_only_differs() {
+  # The AMO build changes (its update_url) and the github zip does not: it ships (#164).
+  setup
+  amo_bundle amo-new 1.3.82.40 https://example.com/moved/updates.json
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'not called ready' not_ready
+  check "names the AMO build's manifest" grep -qF 'e.g. Files old/files/amo/manifest.json and new/files/amo/manifest.json differ' <(last_comment)
+}
+
+green_no_xpi() {
+  # The latest release has no signed xpi yet: the AMO build cannot be compared.
+  setup
+  rm "$STATE/old.xpi"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'not called ready' not_ready
@@ -1730,6 +1772,8 @@ green_manifest_other_field
 green_extra_file
 green_no_release
 green_no_artifact
+green_amo_only_differs
+green_no_xpi
 green_major_ready
 tooling_major_own_branch_that_ships_waits
 green_other_file

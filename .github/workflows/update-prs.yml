@@ -604,8 +604,10 @@ jobs:
             fi
           fi
 
-          # What must not ship: CI's build against the latest release's, as auto-release.yml
-          # compares them, with manifest.json's version left out; nothing else may differ. An
+          # What must not ship: CI's builds against the latest release's, as auto-release.yml
+          # compares them (the firefox-github zip with its zip, the AMO build with the signed
+          # xpi minus Mozilla's META-INF/: a change to the AMO build alone ships too, #164),
+          # with manifest.json's version left out; nothing else may differ. An
           # update that ships is meant to differ, and the comment below says so.
           # Only a branch that holds main is compared: one behind it lacks what main shipped
           # since, and that would count as its own change (#95 waited on 2026-09-30 for 33
@@ -616,15 +618,18 @@ jobs:
             tag=$(gh release view --json tagName --jq .tagName 2> /dev/null || true)
             new=$RUNNER_TEMP/new
             old=$RUNNER_TEMP/old
+            # unpack <zip> <dir>: a build's files, without a signature and its manifest's version.
+            unpack() {
+              unzip -q "$1" -d "$2" && rm -rf "$2/META-INF" &&
+                jq 'del(.version)' "$2/manifest.json" > "$2.manifest" && mv "$2.manifest" "$2/manifest.json"
+            }
             if [ -n "$tag" ] &&
                gh run download "$RUN_ID" --name faststream-bundles --dir "$new/zip" &&
-               gh release download "$tag" --pattern 'firefox-github-*.zip' --dir "$old/zip" &&
-               unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files" &&
-               unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files" &&
-               jq 'del(.version)' "$new/files/manifest.json" > "$new/manifest" &&
-               jq 'del(.version)' "$old/files/manifest.json" > "$old/manifest"; then
-              mv "$new/manifest" "$new/files/manifest.json"
-              mv "$old/manifest" "$old/files/manifest.json"
+               gh release download "$tag" --pattern 'firefox-github-*.zip' --pattern '*.xpi' --dir "$old/zip" &&
+               unpack "$new"/zip/firefox-github-*.zip "$new/files/github" &&
+               unpack "$old"/zip/firefox-github-*.zip "$old/files/github" &&
+               unpack "$new"/zip/firefox-amo-*.zip "$new/files/amo" &&
+               unpack "$old"/zip/*.xpi "$old/files/amo"; then
               if ! diff -rq "$old/files" "$new/files" > "$RUNNER_TEMP/changes.txt"; then
                 cat "$RUNNER_TEMP/changes.txt"
                 count=$(wc -l < "$RUNNER_TEMP/changes.txt")
