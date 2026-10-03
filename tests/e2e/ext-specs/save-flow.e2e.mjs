@@ -172,6 +172,9 @@ describe('faithful save flow (UI + embedded iframe)', function() {
 // 160 s) needs many, and a seek 100 s in starts far past the first.
 describe('an accelerated MP4 of many ranges (embedded iframe)', function() {
   it('plays on after a seek far past its first range', async function() {
+    // The test before ends inside the player's frame, and browser.url() navigates the frame
+    // the driver is in.
+    await browser.switchFrame(null);
     await openEmbeddedPlayer(globalThis.__EXT_OPENER_URL__ + 'fixtures/long-av.mp4');
     expect(await browser.execute(() => window.fastStream.player?.constructor?.name)).toBe('MP4Player');
 
