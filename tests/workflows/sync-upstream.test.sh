@@ -199,6 +199,35 @@ check 'succeeds' test "$status" -eq 0
 check 'pushes nothing' bash -c '! git -C "$0" rev-parse -q --verify refs/heads/sync/upstream' "$FIX/origin.git"
 check 'starts nothing' test "$(dispatched)" -eq 0
 
+# Upstream's changes under .github/ would run with this repository's token and secrets in a
+# CI run on the branch (#163): a person reads them first, and nothing is started.
+fixtures
+up_commit chrome/b.txt b 'Bug fixes'
+up_commit .github/ISSUE_TEMPLATE/bug.md 'a template' 'Update bug template'
+sync 's13 upstream changes .github/ (a clean merge) -> the PR, saying why CI was not started; nothing started'
+check 'succeeds' test "$status" -eq 0
+check 'opens the PR' grep -qF 'PR_CREATE [--base] [main] [--head] [sync/upstream] [--title] [Sync upstream (2 commits)]' "$LOG"
+check 'says CI and the review were not started' contains "$LOG" '**CI and the dependency review were not started.** Upstream changes .github/ISSUE_TEMPLATE/bug.md, under `.github/`'
+check 'starts nothing' test "$(dispatched)" -eq 0
+check 'the summary says so' contains "$GITHUB_STEP_SUMMARY" 'Upstream changes .github/ISSUE_TEMPLATE/bug.md: CI and the dependency review were not started'
+
+fixtures
+up_commit .github/workflows/ci.yml 'name: upstream CI, changed' 'Fix CI'
+sync "s14 upstream changes a workflow this project rewrote (a conflict) -> the PR with the markers; nothing started"
+check 'succeeds' test "$status" -eq 0
+check 'opens the conflict PR' grep -qF '[Sync upstream (1 commits) - CONFLICTS]' "$LOG"
+check 'names the workflow' contains "$LOG" 'Upstream changes .github/workflows/ci.yml, under `.github/`'
+check 'starts nothing' test "$(dispatched)" -eq 0
+
+fixtures
+up_commit chrome/b.txt b 'Bug fixes'
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\n\"}]"
+up_commit .github/workflows/release.yml 'name: upstream release' 'Release workflow'
+sync 's15 upstream moved past the open PR with a .github/ change -> the comment says CI was not started; nothing started'
+check 'succeeds' test "$status" -eq 0
+check 'the comment says so' contains "$LOG" 'this PR carries 2 commits. It changes files under .github/, so CI was not started: see the description.]'
+check 'starts nothing' test "$(dispatched)" -eq 0
+
 fixtures
 printf '[{"number":12,"title":"%s"},{"number":3,"title":"Other"}]' "$TITLE" > "$FIX/issues.json"
 echo "s10 a failure while the failure issue is open (newer than the search index) -> a comment on it"

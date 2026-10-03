@@ -1401,9 +1401,13 @@ the change went in.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
-  `update-prs.yml` merges the PR (`--merge`) once CI is green when it is clean (no
-  conflict, nothing under `.github/`, no deleted file back, only upstream's commits);
-  otherwise it waits for the owner (2026-10-01).
+  `update-prs.yml` calls the PR ready to merge (with a merge commit) once CI is green when
+  it is clean (no conflict, nothing under `.github/`, no deleted file back, only upstream's
+  commits); otherwise it says what to look at. **A merge that changes anything under
+  `.github/` gets no CI and no dependency review** (#163, 2026-10-03): a dispatched run
+  takes its workflow file from the branch, so upstream's workflow would run with this
+  repository's token and secrets; the PR says so, and the owner starts both after reading
+  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`).
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
   (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.

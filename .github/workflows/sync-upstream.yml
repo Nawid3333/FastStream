@@ -5,7 +5,10 @@ name: Sync upstream
 #
 # main IS the project. Upstream is not mirrored anywhere: this job fetches it and
 # merges it into one throwaway branch (sync/upstream), so the change arrives as a
-# single PR with CI in front of it. Nothing merges it but the owner (since 2026-10-02):
+# single PR with CI in front of it (not when upstream changes anything under .github/:
+# a CI run on the branch would run upstream's workflow files with this repository's
+# token and secrets, so the PR says so and a person starts CI after reading them).
+# Nothing merges it but the owner (since 2026-10-02):
 # update-prs.yml calls it "ready to merge" once CI is green, when the merge has no
 # conflict, changes nothing under .github/, brings back no file this project deleted and
 # holds only upstream's commits. Any other sync PR needs a closer look: an upstream
@@ -229,9 +232,21 @@ jobs:
           else
             NOTE="Clean merge of upstream/main into ${WORK_BRANCH}."
           fi
+          # What the merge changes under .github/ (upstream's changes there, or conflict markers).
+          # A workflow_dispatch run takes its workflow file from the branch it runs on, with this
+          # repository's token and secrets (the AMO keys, the owner's UPDATE_PRS_TOKEN); so does
+          # an approved run of this pull request. CI and the dependency review are then not
+          # started here: a person reads those changes first.
+          GITHUB_CHANGES=$(git diff --no-renames --name-only "$WORK_BRANCH" HEAD -- .github/ | paste -sd' ' -)
 
           {
             printf '@%s %s\n\n' "$OWNER" "$NOTE"
+            if [ -n "$GITHUB_CHANGES" ]; then
+              # The backticks are Markdown for the PR, not command substitution.
+              # shellcheck disable=SC2016
+              printf -- '**CI and the dependency review were not started.** Upstream changes %s, under `.github/`: run on this branch, those files would run with this repository'"'"'s token and secrets. Read the changes first. Then start both on `%s` from the Actions tab (CI, and Review dependency changes: Run workflow), or close this PR. Do not approve the runs this pull request waits with before that: they would run the same files.\n\n' \
+                "$GITHUB_CHANGES" "$SYNC_BRANCH"
+            fi
             if [ -n "$RELEASES" ]; then
               printf '### Upstream releases in this sync\n\n'
               for tag in $RELEASES; do
@@ -248,7 +263,7 @@ jobs:
           - **Take it.** Resolve any conflicts on this branch, keep only what this project wants, and merge. The merge commit records every commit below as handled, kept or not, so the next sync shows only newer ones.
           - **Skip it.** Close this PR without merging. It is not reopened for the same upstream commit, and comes back once upstream moves again.
           - What was taken and skipped before, and why, is in `docs/upstream-sync-log.md`. Add to it when you decide.
-          - CI runs the full suite on this branch, playback in Firefox on Linux and Windows included: this workflow starts it, and a comment here gives the result. It starts "Review dependency changes" too, which fails when upstream's lockfile brings a package version with a high-severity advisory; the comment names it when it did not pass. (The pull request's own runs wait for an approval they do not need.) For a change to the player, the loaders or a media library, also run `pnpm run test:live` (real streams and sites) before merging.
+          - CI runs the full suite on this branch, playback in Firefox on Linux and Windows included: this workflow starts it (unless upstream changes `.github/`, see above), and a comment here gives the result. It starts "Review dependency changes" too, which fails when upstream's lockfile brings a package version with a high-severity advisory; the comment names it when it did not pass. (The pull request's own runs wait for an approval they do not need.) For a change to the player, the loaders or a media library, also run `pnpm run test:live` (real streams and sites) before merging.
 
           ### Upstream commits not yet in this project (merge commits are not listed)
 
@@ -270,11 +285,15 @@ jobs:
             # when upstream itself moved: main moving also rebuilds the PR, and
             # that is no news.
             if [ "$PREV_UP" != "$UP_SHA" ]; then
-              gh pr comment "$EXISTING" --body "@${OWNER} upstream moved (now ${UP_SHA}): this PR carries ${BEHIND} commits${RELEASES:+, including release ${RELEASES// /, }}."
+              gh pr comment "$EXISTING" --body "@${OWNER} upstream moved (now ${UP_SHA}): this PR carries ${BEHIND} commits${RELEASES:+, including release ${RELEASES// /, }}.${GITHUB_CHANGES:+ It changes files under .github/, so CI was not started: see the description.}"
             fi
           else
             gh pr create --base "$WORK_BRANCH" --head "$SYNC_BRANCH" \
               --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md" --assignee "$OWNER"
+          fi
+          if [ -n "$GITHUB_CHANGES" ]; then
+            echo "Upstream changes ${GITHUB_CHANGES}: CI and the dependency review were not started; the owner reads those first." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           # This repository's token opened the pull request, so its pull_request runs wait for
           # the owner's approval. CI is started on the branch instead, as toolchain-updates.yml
