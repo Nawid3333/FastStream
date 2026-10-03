@@ -339,9 +339,11 @@ export class FakeDocument {
  * @param {string} [options.hostname] - The page's host.
  * @param {Array<Object>} [options.entries] - Its Resource Timing entries.
  * @param {Object<string, string>} [options.responses] - What its requests get, by URL.
+ * @param {boolean} [options.observer] - Whether it has PerformanceObserver, which is told
+ *   of every entry, where the timeline (getEntriesByType) keeps the first 250.
  * @return {Object} The page: its document, what content.js sent, and how to talk to it.
  */
-export function loadContentScript({hostname = 'site.example', entries = [], responses = {}} = {}) {
+export function loadContentScript({hostname = 'site.example', entries = [], responses = {}, observer = false} = {}) {
   const document = new FakeDocument();
   const sent = [];
   let onMessage = null;
@@ -461,6 +463,16 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
       },
     },
   };
+  if (observer) {
+    context.PerformanceObserver = class {
+      constructor(callback) {
+        this.callback = callback;
+      }
+      observe() {
+        queueMicrotask(() => this.callback({getEntries: () => entries}, this));
+      }
+    };
+  }
   context.window = context;
   vm.createContext(context);
   for (const file of ['chrome/overlay-guard.js', 'chrome/content.js']) {

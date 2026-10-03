@@ -1811,12 +1811,39 @@
   // The requests a page's player makes for its stream, as Resource Timing names them.
   const LoadedMediaInitiators = ['xmlhttprequest', 'fetch', 'video', 'audio', 'other'];
 
+  // The page's Resource Timing buffer keeps its first 250 requests, and a streaming page has
+  // made that many (ads, trackers) before its video asks for its manifest: the manifest was
+  // never in it. An observer is told of every request, buffer full or not (Firefox's
+  // Performance::InsertResourceEntry queues each entry to observers first), from this
+  // script's start at document_start. The ones loadedMedia reports are kept here, the
+  // first ObservedMediaLimit of them (a URL once), past the buffer. Nothing the page can
+  // see changes, as it would with setResourceTimingBufferSize.
+  const ObservedMediaLimit = 1000;
+  const observedMedia = new Map();
+  try {
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (observedMedia.size >= ObservedMediaLimit) break;
+        if (!LoadedMediaInitiators.includes(entry.initiatorType) || observedMedia.has(entry.name)) continue;
+        observedMedia.set(entry.name, {
+          name: entry.name,
+          initiatorType: entry.initiatorType,
+          responseStatus: entry.responseStatus,
+          startTime: entry.startTime,
+        });
+      }
+    }).observe({type: 'resource', buffered: true});
+  } catch (e) {
+    // No observer: the timeline's own buffer is all there is.
+  }
+
   /**
    * What this page loaded that may be a stream, for a background that did not see it load:
    * Firefox unloads the background after ~30 idle seconds, and the streams it detected with
    * it, while a page asks for its manifest once, when its video starts. The page's own
    * Resource Timing entries keep those requests for as long as it lives (the first 250 of
-   * them), and its videos tell the files they play.
+   * them, and what the observer above kept past those), and its videos tell the files
+   * they play.
    * @return {Array<{url: string, media: boolean, time: number}>} Each URL, whether a media
    *   element loaded it, and when the request started (ms since the epoch).
    */
@@ -1824,10 +1851,14 @@
     const found = [];
     let entries = [];
     try {
-      entries = performance.getEntriesByType('resource');
+      entries = Array.from(performance.getEntriesByType('resource'));
     } catch (e) {
       // No timeline: the videos still tell theirs.
     }
+    const inTimeline = new Set(entries.map((entry) => entry.name));
+    observedMedia.forEach((entry, url) => {
+      if (!inTimeline.has(url)) entries.push(entry);
+    });
     for (const entry of entries) {
       if (!LoadedMediaInitiators.includes(entry.initiatorType)) continue;
       // An error answer is no stream. The status is 0 when the server did not share it.

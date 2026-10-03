@@ -340,3 +340,48 @@ describe('a player that loads again in its frame', () => {
     expect(video.listeners.filter((l) => l.type === 'play')).toEqual([]);
   });
 });
+
+// When the background was suspended and knows no stream of the tab, each frame reports
+// what its page loaded (REPORT_LOADED_MEDIA), from its Resource Timing entries. The page's
+// timeline keeps its first 250 requests, and a streaming page made that many (ads,
+// trackers) before its video asked for the manifest: the manifest was never reported (#231).
+describe('REPORT_LOADED_MEDIA', () => {
+  /**
+   * A page's requests: images, then its manifest last.
+   * @param {number} images - How many images before the manifest.
+   * @return {Array<Object>} Resource Timing entries.
+   */
+  function requests(images) {
+    const entries = [];
+    for (let i = 0; i < images; i++) {
+      entries.push({name: `https://ads.example/px${i}.gif`, initiatorType: 'img', responseStatus: 200, startTime: i});
+    }
+    entries.push({name: 'https://cdn.example/film.m3u8', initiatorType: 'fetch', responseStatus: 200, startTime: images});
+    return entries;
+  }
+
+  /**
+   * @param {Object} page - From loadContentScript.
+   * @return {Promise<Array<string>>} The URLs content.js reports.
+   */
+  async function reported(page) {
+    await Promise.resolve();
+    await page.send({type: 'REPORT_LOADED_MEDIA'});
+    return page.sent.find((message) => message.type === 'LOADED_MEDIA').resources.map((r) => r.url);
+  }
+
+  it('reports a manifest the page asked for after 300 other requests', async () => {
+    const page = loadContentScript({entries: requests(300), observer: true});
+    expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+
+  it('reports it once when the timeline has it too', async () => {
+    const page = loadContentScript({entries: requests(10), observer: true});
+    expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+
+  it('reports what the timeline has where there is no observer', async () => {
+    const page = loadContentScript({entries: requests(10)});
+    expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
+  });
+});
