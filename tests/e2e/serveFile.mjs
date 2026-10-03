@@ -30,7 +30,12 @@ export function decodePath(rawPath) {
  */
 export function resolveInside(base, sub) {
   const abs = path.resolve(base, '.' + sub);
-  return abs === base || abs.startsWith(base + path.sep) ? abs : null;
+  // The startsWith test alone guards what is returned: CodeQL (js/path-injection) takes
+  // it as the check, and not `abs === base || ...`, whose first half is no check at all.
+  if (abs.startsWith(base + path.sep)) {
+    return abs;
+  }
+  return abs === base ? base : null;
 }
 
 /**
