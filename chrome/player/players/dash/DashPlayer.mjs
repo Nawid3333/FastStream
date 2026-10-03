@@ -9,6 +9,7 @@ import {DashFragment} from './DashFragment.mjs';
 import {DashFragmentRequester} from './DashFragmentRequester.mjs';
 import {DASHLoaderFactory} from './DashLoader.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
+import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
 
 export default class DashPlayer extends EventEmitter {
   constructor(client, config) {
@@ -408,10 +409,12 @@ export default class DashPlayer extends EventEmitter {
       });
     }
 
-    let cancelled = false;
+    // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
+    const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
+        this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
       options.registerCancel(() => {
-        cancelled = true;
+        fetcher.cancel();
       });
     }
 
@@ -451,24 +454,10 @@ export default class DashPlayer extends EventEmitter {
 
     // Pinned last: a pinned fragment is unpinned only by its getEntry or by the catch
     // below, so nothing between the two may throw (an init download above can).
-    zippedFragments.forEach((data) => {
+    zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
-        if (data.fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
-          while (true) {
-            if (cancelled) {
-              throw new Error('Cancelled');
-            }
-            try {
-              await this.downloadFragment(data.fragment, -1);
-              break;
-            } catch (e) {
-              if (e.message !== 'Aborted download') {
-                throw e;
-              }
-            }
-          }
-        }
+        await fetcher.get(index);
         data.fragment.removeReference(ReferenceTypes.SAVER);
         return this.client.downloadManager.getEntry(data.fragment.getContext());
       };
@@ -484,6 +473,7 @@ export default class DashPlayer extends EventEmitter {
         release: () => dash2mp4.release(),
       };
     } catch (e) {
+      fetcher.cancel();
       zippedFragments.forEach((data) => {
         data.fragment.removeReference(ReferenceTypes.SAVER);
       });

@@ -344,6 +344,9 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   fragmented MP4 still stops after about 3 s in `MP4Player` (not fixed).
 - **A save pins its fragments (`ReferenceTypes.SAVER`) last**, just before the `try` whose
   `catch` unpins them. Anything that throws in between leaves them pinned for the session.
+  It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
+  downloader limit) while the converter reads the current one, in order; the `catch` calls
+  its `cancel()`, which aborts what is still downloading for the save.
 - **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
   nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
   downloader stays busy for good.
@@ -1521,8 +1524,8 @@ the change went in.
   copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
   a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
   CI runs the unit tests before the build makes those copies, so `vitest.config.mjs` points
-  the ones copied unchanged (hls.mjs, mp4box, Mediabunny) at their npm builds: a unit test
-  can run the save's real demuxer and MP4 writers (`tests/unit/hls2mp4.test.mjs`).
+  the ones copied unchanged (hls.mjs, dash.mjs, mp4box, Mediabunny) at their npm builds: a
+  unit test can run the save's real demuxer and MP4 writers (`tests/unit/hls2mp4.test.mjs`).
 - **Property tests for what a page feeds in** (2026-10-01, T8): `tests/unit/*.property.test.mjs`
   run fast-check against SubtitleUtils (SRT/VTT/XML), StreamLength (m3u8/mpd), URLUtils,
   DownloadFilename and the host's `readMessage`: no throw on arbitrary text, round trips,
