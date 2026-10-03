@@ -896,6 +896,12 @@ kill-on-close job object: check that by hand after a change to the launch.
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
 
+The code is `tools/splicer.mjs` (tests: `tests/unit/splicer.test.mjs`). A directive is
+a `//` comment that is exactly `SPLICER:<TARGET>:<COMMAND>`; any other `// SPLICER:`
+comment, unknown target or unknown command fails the build, and the text in a string or
+block comment is not a directive (#168). Everything else ships as written, blank lines
+included: until 2026-10-03 every blank line was dropped, inside template literals too.
+
 Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_UPDATE_CHECKER`; no code carries a
 `FIREFOX` block any more, but both Firefox builds still pass it.
 (`CENSORYT` and `NO_YOUTUBE` existed before YouTube support was removed
@@ -1032,7 +1038,7 @@ the change went in.
   fixtures no longer depend on that (the DASH and HLS ones are encoded with `-bf 0
   -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
-  which runs CI's Linux verify job and its workflows job (actionlint, and the `run:`
+  which runs CI's Linux verify job and its workflows job (actionlint, zizmor, and the `run:`
   scripts' tests in `tests/workflows`) in WSL, once on each Ubuntu
   release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
   26.04 until `ubuntu-latest` has moved, rolled out Oct 19 - Nov 19 2026), read from the runner image table
@@ -1040,9 +1046,13 @@ the change went in.
   installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
   full-upgrade, installs the newest release of the Node major `.nvmrc` names
-  (so it moves with CI) and the current stable Firefox, apt ffmpeg
+  (so it moves with CI) with the `packageManager` pnpm through its npm (not corepack, which
+  Node 25+ lacks; Node 26 also needs apt's libatomic1, #238), and the current stable Firefox
+  (its SHA-512 from the SHA512SUMS Mozilla's release key signs, the key pinned by fingerprint
+  in setup.sh, #248; Node's sum is still only from nodejs.org itself), apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
-  `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
+  `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0),
+  and zizmor's out of the one `.github/zizmor/Dockerfile` pins (#239). Then
   `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe
   writes stdout and stderr to a redirected file at separate offsets, one over the other,
   so both scripts merge them. The Windows build of actionlint hangs driving shellcheck on

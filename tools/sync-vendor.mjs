@@ -16,6 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
+import {unappliedPatches} from './check-patched-updates.mjs';
+
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 
@@ -25,7 +27,9 @@ const root = path.resolve(__dirname, '..');
  * `patched` records whether a patch in patches/ applies on install. Any
  * entry marked true must have a corresponding patchedDependencies line in
  * pnpm-workspace.yaml, or the copied file silently loses FastStream's
- * changes and playback breaks in ways that look like a network fault.
+ * changes and playback breaks in ways that look like a network fault. The
+ * sync fails when one has none, or when its version is not the installed one
+ * (unappliedPatches, #176).
  */
 /** The chunks mp4box's dist/mp4box.all.mjs imports; checked by checkMp4boxImports. */
 const MP4BOX_CHUNKS = ['styp-9TIZZDLN.mjs', 'rolldown-runtime-w6R9maHv.mjs'];
@@ -640,6 +644,21 @@ function toColorisModule(src) {
       .replace(tail, '')
       .replace('window.Coloris = function () {', 'export const Coloris = function () {') +
     '\nColoris.bindElement = bindElement;\n';
+}
+
+// The libraries marked patched must have their patch applied, at the version it is cut
+// against: otherwise the copies below are the stock libraries, and nothing else says so
+// (#176). Checked before anything is copied over the tree's files.
+const unapplied = unappliedPatches(VENDOR, fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'), (name) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', name, 'package.json'), 'utf8')).version;
+  } catch (e) {
+    return null; // not installed: the copy reports it MISSING
+  }
+});
+if (unapplied.length) {
+  unapplied.forEach((problem) => console.error(`UNPATCHED ${problem}`));
+  process.exit(1);
 }
 
 let failed = false;
