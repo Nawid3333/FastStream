@@ -19,8 +19,8 @@ upgraded 2026-09-06 from 1.6.9). The 1.7.2→1.7.3 bump changed nothing the
 patch touches: `git apply --check` against a pristine 1.7.3 tarball took the
 1.7.2 patch unmodified (same hunk content, only the surrounding line numbers
 shifted by a couple of lines), confirmed by `pnpm patch`/`patch-commit`
-rebasing it clean. Still **4 hunks, 62 lines** — down from the original 22
-hunks / 466 lines against 1.6.9. The reduction plan below (originally
+rebasing it clean. Still **6 hunks (4 in `dist/hls.mjs`, 2 in the UMD `dist/hls.js`), a
+62-line patch** — down from the original 22 hunks / 466 lines against 1.6.9. The reduction plan below (originally
 written against a 1.7.1 target) was carried out one version further at the
 1.7.2 step, re-verifying every claim against the actual 1.7.2 npm release
 rather than trusting the old table; nothing in it changed at 1.7.3.
@@ -341,13 +341,13 @@ what can actually change behaviour.
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
-| coloris | 0.25.0, git tag (not on npm) | 9 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
+| coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
+| coloris (CSS) | 0.25.0 | none - `dist/coloris.css` as published; only `normaliseText` | **generated since 2026-10-03** (was upstream's re-minified 0.21.x copy) |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
-| googlevideo | ? | `LuanRT/googlevideo` | pending |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
 code and should stay in git.
@@ -688,7 +688,7 @@ the re-encoder's WebM demuxer. The remuxer reads WebM with Mediabunny, so jswebm
 took `@babel/preset-env` and `lodash` out of the lockfile, which jswebm listed as
 dependencies.
 
-### coloris: generated from a pinned commit, with an 11 KB patch
+### coloris: generated from a pinned commit, with a 14 KB patch
 
 Two earlier claims here were wrong, and both came from searching the wrong
 thing rather than from ranking the results wrongly.
@@ -744,6 +744,14 @@ They are three features:
 The module shape - unwrapping the UMD and exporting `Coloris` and
 `bindElement` - is in `sync-vendor.mjs`, not the patch, so the package in
 `node_modules` stays a valid script.
+
+**The stylesheet** (`chrome/player/assets/coloris/css/coloris.css`) is the same commit's
+`dist/coloris.css`, copied unchanged by `sync-vendor.mjs` and gitignored (2026-10-03).
+Before, it was a committed, re-minified copy from upstream FastStream (2023, "Minified to
+reduce loading time") that nothing regenerated. Compared rule by rule (both through
+lightningcss, merged rules expanded), it was 0.21.0-0.22.0's stylesheet; 0.25.0's
+differs only in the slider inputs' selector (`.clr-hue input` became
+`.clr-hue input[type=range]` in 0.23.0, the same declarations).
 
 Applying all of it reproduces the vendored file exactly: **43 of 43
 declarations identical, and the whole file parses to the same program.**
@@ -808,7 +816,7 @@ before layering the new change on top, then confirming both `bindElement` and
 rerunning the exact tests that had failed.
 
 What the migration changes is the thing that actually got the add-on
-refused: a reviewer can now fetch a pinned commit, hash it, and read a 9 KB
+refused: a reviewer can now fetch a pinned commit, hash it, and read a 14 KB
 diff, instead of being asked to trust 40 KB of unattributed JavaScript.
 
 **Note (2026-09-11):** the swatch-list paragraph above ("left as they are

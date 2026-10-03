@@ -184,6 +184,16 @@ const VENDOR = [
     patched: true,
     transform: toColorisModule,
   },
+  {
+    // The picker's stylesheet, from the same commit as the script above, unminified so a
+    // reviewer can read it. Until 2026-10-03 the copy here was upstream FastStream's
+    // re-minified 0.21.x stylesheet (2023), which nothing regenerated; rule by rule it
+    // matched 0.25.0's but for the slider inputs' selector (input -> input[type=range]).
+    name: 'Coloris',
+    from: 'node_modules/Coloris/dist/coloris.css',
+    to: 'chrome/player/assets/coloris/css/coloris.css',
+    transform: normaliseText,
+  },
 ];
 
 /**
@@ -621,7 +631,7 @@ function toClassicWorker(src) {
  *
  * The behavioural changes - the container rebinding, `bindElement`, and the
  * slider keyboard handlers - are not here. They are in
- * patches/Coloris@0.21.1.patch, so a reviewer reads them as a diff against a
+ * patches/Coloris@0.25.0.patch, so a reviewer reads them as a diff against a
  * commit the lockfile pins by hash.
  *
  * @param {string} src Coloris's dist/coloris.js
