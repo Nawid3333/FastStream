@@ -72,9 +72,15 @@ export async function signOrCollect({sign, check, deadline, now = Date.now, wait
     try {
       const result = await sign(deadline - now());
       // web-ext 10.x resolves with the downloaded files; `success` is not
-      // populated, so treat a downloaded .xpi as the success signal.
+      // populated, so treat a downloaded .xpi as the success signal. It resolves
+      // with none when it did not wait for the signed file (an approval timeout of
+      // 0; a later web-ext might on the timeout): that is not signed, or the step
+      // would pass and release.yml fail at the update manifest with no xpi (#172).
       const files = result.downloadedFiles || [];
-      return {signed: files.length > 0, files, state: 'signed'};
+      if (files.length === 0) {
+        return {signed: false, files, state: 'not downloaded'};
+      }
+      return {signed: true, files, state: 'signed'};
     } catch (error) {
       if (!isNetworkError(error)) {
         throw error;
@@ -139,11 +145,15 @@ async function main() {
     deadline: Date.now() + APPROVAL_TIMEOUT,
   });
 
-  if (result.state !== 'signed') {
-    console.error(`\nSigning failed: AMO's answer for ${version} is "${result.state}".`);
+  // Not signed fails the step (continue-on-error in release.yml), which then publishes the
+  // zip without the xpi for amo-signing-failsafe.yml to complete.
+  if (!result.signed) {
+    console.error(result.state === 'not downloaded' ?
+        `\nSigning failed: web-ext finished without downloading a signed xpi of ${version}.` :
+        `\nSigning failed: AMO's answer for ${version} is "${result.state}".`);
     process.exit(1);
   }
-  console.log(`\nSigned: ${result.signed ? 'yes' : 'no'}`);
+  console.log('\nSigned: yes');
   result.files.forEach((f) => console.log(`  ${f}`));
 }
 
