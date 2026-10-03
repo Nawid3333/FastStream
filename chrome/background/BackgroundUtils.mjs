@@ -1,4 +1,6 @@
 // @ts-check
+import {URLUtils} from '../player/utils/URLUtils.mjs';
+
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
 export class BackgroundUtils {
@@ -19,6 +21,20 @@ export class BackgroundUtils {
    */
   static isPlayerOpeningResponse(response) {
     return BackgroundUtils.PlayerOpeningResponses.includes(response);
+  }
+
+  /**
+   * The player mode of a source a site script reports (DETECTED_SOURCE, custom/*.js). Its
+   * page can post such a report too (Instagram's): one without an address, or of a type
+   * the player does not play, was recorded as a source of no mode.
+   * @param {*} msg - The message.
+   * @return {?string} The mode, or null for no source.
+   */
+  static detectedSourceMode(msg) {
+    if (!msg || typeof msg.url !== 'string' || !msg.url) {
+      return null;
+    }
+    return URLUtils.getModeFromExtension(msg.ext) || null;
   }
 
   static checkMessageError(message, suppress = false) {

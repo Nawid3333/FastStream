@@ -808,13 +808,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
     }
   } else if (msg.type === MessageTypes.DETECTED_SOURCE) {
-    const mode = URLUtils.getModeFromExtension(msg.ext);
-    const headers = msg.headers || {};
-    onSourceRecieved({
-      url: msg.url,
-      requestId: -1,
-      customHeaders: headers,
-    }, frame, mode);
+    const mode = BackgroundUtils.detectedSourceMode(msg);
+    if (mode) {
+      const headers = msg.headers || {};
+      onSourceRecieved({
+        url: msg.url,
+        requestId: -1,
+        customHeaders: headers,
+      }, frame, mode);
+    }
   } else if (msg.type === MessageTypes.DOWNLOAD) {
     const url = msg.url;
     // Firefox refuses a name with a colon and some other characters, and the download then
