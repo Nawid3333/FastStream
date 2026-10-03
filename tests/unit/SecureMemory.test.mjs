@@ -184,3 +184,26 @@ describe('SecureMemory.getFile', () => {
     expect(await memory.getFile(await hashesFor('video'))).toBeNull();
   });
 });
+
+describe('SecureMemory.getHashes', () => {
+  it('derives the two hashes side by side, not one after the other', async () => {
+    // Each is 600,000 rounds of PBKDF2, and the video's start waits for both.
+    const started = [];
+    const finish = [];
+    const hash = vi.spyOn(SecureMemory, 'hash').mockImplementation((message, salt) => {
+      started.push(salt);
+      return new Promise((resolve) => finish.push(resolve));
+    });
+    const memory = new SecureMemory('test');
+    memory.identifierSalt = 'identifier salt';
+    memory.keySalt = 'key salt';
+
+    const hashes = memory.getHashes('video');
+    await Promise.resolve();
+    expect(started).toEqual(['identifier salt', 'key salt']);
+
+    finish.forEach((resolve, i) => resolve('hash ' + i));
+    expect(await hashes).toEqual({identifierHash: 'hash 0', keyHash: 'hash 1'});
+    hash.mockRestore();
+  });
+});
