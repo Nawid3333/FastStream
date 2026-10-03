@@ -224,10 +224,33 @@ case "$1 $2" in
         if [ "$ref" = "$SHA" ] && [ -f "$STATE/npmlock.head" ]; then cat "$STATE/npmlock.head"; else cat "$STATE/npmlock.base"; fi
         ;;
       "GET repos/Andrews54757/FastStream/commits/"*)
-        # Upstream's own commits: those in upstream_commits; any other is not found there.
+        # As GitHub answers: any commit of the fork network is found in upstream's repository,
+        # this repository's own and every commit on the sync branch included (checked with
+        # this repository's release commit ac70bb40, 2026-10-03).
         oid=${path##*/}
-        grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null || { echo 'stub gh: HTTP 404 No commit found' >&2; exit 1; }
         jq -n --arg s "$oid" '{sha: $s}' > "$STATE/uc.json"; jqout "$STATE/uc.json"
+        ;;
+      "GET repos/Andrews54757/FastStream/compare/"*...main)
+        # How far a commit is from upstream's main: behind_by 0 for one in its history (those
+        # in upstream_commits), more for any other (ac70bb40...main: behind_by 436).
+        oid=${path#*/compare/}; oid=${oid%...main}
+        b=436; if grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null; then b=0; fi
+        jq -n --argjson b "$b" '{status: (if $b == 0 then "ahead" else "behind" end), ahead_by: 150, behind_by: $b}' > "$STATE/ucmp.json"
+        jqout "$STATE/ucmp.json"
+        ;;
+      "GET repos/me/fs/pulls/"*/commits*)
+        # The pull request's commits with GitHub's signature check: Dependabot's commits and the
+        # merges GitHub makes for "Update branch" (committer web-flow) are verified, unless
+        # unsigned lists them (a commit pushed with git under that e-mail); any other is not.
+        printf '%s\n' "$(cat "$STATE/unsigned" 2> /dev/null)" > "$STATE/unsigned.txt"
+        jq --rawfile u "$STATE/unsigned.txt" '($u | split("\n")) as $unsigned | [.commits[] |
+            ((([.authors[].login] | all(. == "dependabot[bot]")) or (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+              and (.oid | IN($unsigned[]) | not)) as $v |
+            {sha: .oid, author: {login: .authors[0].login},
+             committer: {login: (if $v then "web-flow" else .authors[0].login end)},
+             commit: {message: .messageHeadline, verification: {verified: $v, reason: (if $v then "valid" else "unsigned" end)}}}]' \
+          "$STATE/prview.json" > "$STATE/prcommits.json"
+        jqout "$STATE/prcommits.json"
         ;;
       "GET repos/me/fs/pulls/"*/files)
         if [ -f "$STATE/pr_files_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
@@ -717,6 +740,31 @@ green_with_update_ready() {
   check 'ready to merge' ready
 }
 
+green_forged_dependabot_commit_waits() {
+  # A commit under Dependabot's e-mail that GitHub did not sign: pushed by someone else (#170).
+  setup
+  local forged
+  forged=$(commit 'dependabot[bot]' 'bump eslint again' "$dep_meta")
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'build(deps-dev): bump eslint' "$dep_meta"), $forged]"
+  jq -r .oid <<< "$forged" > "$STATE/unsigned"
+  run_step
+  check 'not called ready' not_ready
+  check 'names that commit only' grep -qF "commits from someone else ($(jq -r '.oid[0:8]' <<< "$forged"))" <(last_comment)
+  check "asked for the commits' signatures" has_call 'api --paginate repos/me/fs/pulls/42/commits?per_page=100'
+}
+
+green_forged_merge_of_main_waits() {
+  # A "Merge branch 'main' into" commit GitHub did not make (unsigned): someone else's (#170).
+  setup
+  local forged
+  forged=$(commit 'github-actions[bot]' "Merge branch 'main' into $BRANCH")
+  prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'dependabot[bot]' 'bump' "$dep_meta"), $forged]"
+  jq -r .oid <<< "$forged" > "$STATE/unsigned"
+  run_step
+  check 'not called ready' not_ready
+  check 'names it' grep -qF "commits from someone else ($(jq -r '.oid[0:8]' <<< "$forged"))" <(last_comment)
+}
+
 green_wrong_author() {
   setup
   pr Nawid3333
@@ -1036,7 +1084,7 @@ upstream_ready() {
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
   check "says to merge it with a merge commit" grep -qF 'Merge it with **Create a merge commit**, not Squash' <(last_comment)
-  check 'asked upstream about its commit' has_call 'api repos/Andrews54757/FastStream/commits/'
+  check "asked whether its commit is in upstream's main" has_call 'api repos/Andrews54757/FastStream/compare/'
   check "asked main's history of the added file" has_call 'api -X GET repos/me/fs/commits -f sha=main -f path=chrome/player/New.mjs'
   check 'no build comparison: it ships' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
   check 'says merging releases' grep -qF 'once you merge it, CI runs on main, and a green run there releases it to Firefox' <(last_comment)
@@ -1688,6 +1736,8 @@ green_other_file
 green_foreign_commit
 green_actions_merge_commit_is_not_a_merge_of_main
 green_with_update_ready
+green_forged_dependabot_commit_waits
+green_forged_merge_of_main_waits
 green_wrong_author
 green_draft
 green_review_failed

@@ -432,17 +432,28 @@ jobs:
               reasons+=("it has ${all_files:-?} changed files and ${all_commits:-?} commits, more than this workflow reads at once (100 of each): a person checks it")
             fi
             # Its own commits, and the merges of main that "Update branch" makes here (the
-            # owner's, when made with their token).
-            others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" '.commits[] | select(
-                ([.authors[].login] | all(. == $bot)) or
-                (([.authors[].login] | all(. == "github-actions[bot]" or . == $owner)) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")))
+            # owner's, when made with their token). A commit's author login is GitHub's mapping
+            # of its e-mail, which anyone who can push may write into a commit (#170). Where
+            # GitHub signs the commit, the signature is checked as well: Dependabot's commits
+            # and the merges GitHub makes for "Update branch" (committer web-flow) are
+            # verified, a commit pushed with git under their e-mail is not. Commits this
+            # repository's workflows push (toolchain, patched, sync) are not signed, so for
+            # those the login is all there is.
+            gh api --paginate "repos/$GH_REPO/pulls/$number/commits?per_page=100" \
+              --jq '.[] | select(.commit.verification.verified == true) | .sha' > "$RUNNER_TEMP/verified.txt"
+            others=$(jq -r --arg bot "$bot" --arg owner "$OWNER" --rawfile verified "$RUNNER_TEMP/verified.txt" '
+              ($verified | split("\n")) as $signed | .commits[] | select(
+                (([.authors[].login] | all(. == $bot)) and ($bot != "dependabot[bot]" or (.oid | IN($signed[])))) or
+                (([.authors[].login] | all(. == "github-actions[bot]" or . == $owner)) and (.messageHeadline | startswith("Merge branch '"'"'main'"'"' into ")) and (.oid | IN($signed[])))
                 | not) | .oid' "$RUNNER_TEMP/pr.json")
             # An upstream sync brings upstream's commits, whoever wrote them there: each must be
-            # one of upstream's own, which GitHub finds in that repository.
+            # in the history of upstream's main. (Not "GitHub finds the commit in upstream's
+            # repository": the API finds any commit of the fork network there, this
+            # repository's own included.)
             if [ "$kind" = upstream ] && [ -n "$others" ]; then
               foreign=''
               while IFS= read -r oid; do
-                if ! gh api "repos/$UPSTREAM_REPO/commits/$oid" --jq .sha > /dev/null 2>&1; then foreign+="$oid"$'\n'; fi
+                if [ "$(gh api "repos/$UPSTREAM_REPO/compare/$oid...main" --jq .behind_by 2> /dev/null)" != 0 ]; then foreign+="$oid"$'\n'; fi
               done <<< "$others"
               others=${foreign%$'\n'}
             fi

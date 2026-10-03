@@ -1136,8 +1136,11 @@ the change went in.
   patched libraries, the upstream sync) when it is not labelled `hold`, and only when its
   bot opened it (not a draft,
   against `main`) and its commits are the bot's or this workflow's merges of `main` (the
-  owner's, made with their token; an upstream sync's: upstream's own, checked with
-  `gh api repos/Andrews54757/FastStream/commits/<sha>`), it changes only what its kind
+  owner's, made with their token; Dependabot's and those merges also signed by GitHub, as
+  an author login is only the commit's e-mail, #170; an upstream sync's: in the history of
+  upstream's `main`, `compare/<sha>...main` with `behind_by` 0 - not
+  `repos/Andrews54757/FastStream/commits/<sha>`, which finds any commit of the fork network,
+  this repository's own included), it changes only what its kind
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`;
