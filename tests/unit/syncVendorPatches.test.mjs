@@ -45,7 +45,7 @@ describe('unappliedPatches', () => {
     const root = path.resolve(import.meta.dirname, '..', '..');
     const source = fs.readFileSync(path.join(root, 'tools/sync-vendor.mjs'), 'utf8');
     // Each entry's text up to its patched key, ${...} included (mp4box's chunk entries).
-    const marked = [...source.matchAll(/name: '([^']+)',(?:[^}]|\$\{[^}]*\})*?\bpatched: (?!false\b)/g)]
+    const marked = [...source.matchAll(/name: '([^']+)',(?:[^}$]|\$(?!\{)|\$\{[^}]*\})*?\bpatched: (?!false\b)/g)]
         .map((m) => ({name: m[1], patched: true}));
     expect(new Set(marked.map((lib) => lib.name))).toEqual(new Set(['hls.js', 'dashjs', 'sweetalert2', 'mp4box', 'gif.js', 'Coloris']));
     const version = (name) => {
