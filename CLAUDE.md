@@ -1437,9 +1437,12 @@ the change went in.
   (js/incomplete-url-substring-sanitization). The API is not reachable from a session
   without `gh`, so find them by running the same scan: the CodeQL bundle from
   github/codeql-action's releases (`codeql database create --language=javascript-typescript`
-  on `git archive origin/main`, then `database analyze` with
-  `codeql/javascript-queries:codeql-suites/javascript-code-scanning.qls`; the same for
-  `actions`). Found exactly the 5, and 0 after the fixes.
+  on `git archive origin/main`, then `database analyze`; the same for `actions`). Run the
+  105 queries GitHub runs, read off a CodeQL job log's `Loaded .../javascript-queries/...`
+  lines: `javascript-code-scanning.qls` has only 89 and misses e.g.
+  js/regex/missing-regexp-anchor, which flagged #320's first try. With all 105, `main`
+  gives 19 results: the 5 open ones and 14 in tests and tools that are not open on the
+  Security tab (dismissed before); compare a branch against `main`, not against zero.
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
   other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
   half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the

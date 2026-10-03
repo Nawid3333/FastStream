@@ -46,9 +46,12 @@ describe('Options page', function() {
     const found = await browser.execute(() => ({
       rateBox: !!document.getElementById('ratebox'),
       feedbackBox: !!document.getElementById('feedbackbox'),
-      reviewText: /addons\.mozilla\.org/.test(document.body.innerHTML),
+      // By the link's own hostname: a text search for the domain is what CodeQL flags as an
+      // incomplete URL check (js/incomplete-url-substring-sanitization, and an unanchored
+      // regex as js/regex/missing-regexp-anchor).
+      storeLink: [...document.querySelectorAll('a[href]')].some((link) => link.hostname === 'addons.mozilla.org'),
     }));
-    expect(found).toEqual({rateBox: false, feedbackBox: false, reviewText: false});
+    expect(found).toEqual({rateBox: false, feedbackBox: false, storeLink: false});
   });
 });
 
