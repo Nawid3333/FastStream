@@ -1,6 +1,17 @@
 # Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory,
 # Invoke-InPrivateDirectory, Test-ChangedSince.
 
+# Windows PowerShell started under PowerShell 7 - by cmd.exe or node in a PowerShell 7
+# terminal, as VS Code's is - inherits 7's module folders ahead of its own, and then fails to
+# load Microsoft.PowerShell.Security ("found in module ... but the module could not be
+# loaded"): no Get-Acl, so the Node.js step failed. PowerShell 7 cleans the path only for a
+# powershell.exe it starts itself. Its folders are dropped here, before any module loads.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    $env:PSModulePath = (($env:PSModulePath -split ';') | Where-Object {
+        $_ -and $_ -notmatch '\\PowerShell\\(\d+\\)?Modules\\?$' -and $_ -notmatch '\\WindowsApps\\Microsoft\.PowerShell_'
+    }) -join ';'
+}
+
 # True when $File was written after $Marker, or $Marker does not exist (nothing installed yet).
 function Test-ChangedSince([string]$File, [string]$Marker) {
     if (-not (Test-Path -LiteralPath $Marker)) { return $true }
