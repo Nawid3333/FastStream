@@ -229,14 +229,42 @@ function stripInlineSourceMap(src) {
  * - and it triggers on the user's language, not on anything they asked for.
  *
  * The block is located by its distinctive host test and removed by brace
- * matching rather than by a line range, so it survives reformatting. If the
- * marker is ever absent - upstream removing it would be the happy case - this
- * returns the source unchanged rather than failing the build.
+ * matching rather than by a line range, so it survives reformatting. The
+ * releases since 11.26 no longer have it, so today nothing is removed. What is
+ * left is then checked for what the block does (LOCALE_BLOCK_SIGNS): a block
+ * reworded past the marker fails the sync instead of shipping unnoticed.
  *
  * @param {string} text sweetalert2 source
  * @return {string} the same source with the block removed
  */
 function stripLocaleMessageBlock(text) {
+  const stripped = removeLocaleMessageBlock(text);
+  const sign = LOCALE_BLOCK_SIGNS.find((pattern) => pattern.test(stripped));
+  if (sign) {
+    throw new Error(
+        `sweetalert2 still contains ${sign} after the locale-message block was removed - ` +
+        'a reworded block, or new code to read before shipping. Re-check this transform.',
+    );
+  }
+  return stripped;
+}
+
+/**
+ * What the locale-message block does, however it is worded: it blocks the page's
+ * pointer events and plays remote audio from a .ru host.
+ */
+const LOCALE_BLOCK_SIGNS = [
+  /\.pointerEvents\s*=\s*['"]none['"]/,
+  /createElement\(\s*['"]audio['"]\s*\)/,
+  /new Audio\(/,
+  /flag-gimn|xn--p1ai/,
+];
+
+/**
+ * @param {string} text sweetalert2 source
+ * @return {string} the source without the block that starts at its host test, if any
+ */
+function removeLocaleMessageBlock(text) {
   const marker = text.indexOf('if (typeof window !== \'undefined\' && /^ru\\b/');
   if (marker < 0) {
     return text;
@@ -652,55 +680,67 @@ function toColorisModule(src) {
     '\nColoris.bindElement = bindElement;\n';
 }
 
-let failed = false;
+/**
+ * Writes every VENDOR entry's output; exits 1 if a source is missing.
+ */
+function main() {
+  let failed = false;
 
-for (const lib of VENDOR) {
-  // `from` may be a list, for a vendored file made by concatenating several published
-  // sources rather than copying one. The order is load-bearing, so it is recorded in the
-  // entry rather than inferred here.
-  const sources = Array.isArray(lib.from) ? lib.from : [lib.from];
-  const src = path.join(root, sources[0]);
-  const dst = path.join(root, lib.to);
+  for (const lib of VENDOR) {
+    // `from` may be a list, for a vendored file made by concatenating several published
+    // sources rather than copying one. The order is load-bearing, so it is recorded in the
+    // entry rather than inferred here.
+    const sources = Array.isArray(lib.from) ? lib.from : [lib.from];
+    const src = path.join(root, sources[0]);
+    const dst = path.join(root, lib.to);
 
-  const missing = sources.filter((f) => !fs.existsSync(path.join(root, f)));
-  if (missing.length) {
-    console.error(`MISSING ${lib.name}: ${missing.join(', ')}\n  run: pnpm install`);
-    failed = true;
-    continue;
+    const missing = sources.filter((f) => !fs.existsSync(path.join(root, f)));
+    if (missing.length) {
+      console.error(`MISSING ${lib.name}: ${missing.join(', ')}\n  run: pnpm install`);
+      failed = true;
+      continue;
+    }
+
+    const pkgPath = path.join(root, 'node_modules', lib.name, 'package.json');
+    const version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
+
+    const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
+    const data = lib.transform ?
+      Buffer.from(
+          lib.transform(Array.isArray(lib.from) ? sources.map(read) : read(
+              sources[0])),
+          'utf8') :
+      fs.readFileSync(src);
+    // Bytes may be large; a string read of them would mangle binary content. Read the
+    // existing copy without a preceding existsSync: gone-in-between means "updated"
+    // either way, which a failed read then reports (CodeQL js/file-system-race).
+    const unchanged = (() => {
+      try {
+        return Buffer.compare(fs.readFileSync(dst), data) === 0;
+      } catch (e) {
+        if (e.code === 'ENOENT') return false;
+        throw e;
+      }
+    })();
+
+    fs.mkdirSync(path.dirname(dst), {recursive: true});
+    fs.writeFileSync(dst, data);
+
+    const kind = [lib.patched && '+ patch', lib.transform && 'generated']
+        .filter(Boolean).join(', ');
+    const state = unchanged ? 'unchanged' : 'updated';
+    console.log(
+        `${lib.name}@${version}${kind ? ' ' + kind : ''} -> ${lib.to} (${state}, ` +
+        `${(data.length / 1024).toFixed(0)} KB)`,
+    );
   }
 
-  const pkgPath = path.join(root, 'node_modules', lib.name, 'package.json');
-  const version = JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version;
-
-  const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
-  const data = lib.transform ?
-    Buffer.from(
-        lib.transform(Array.isArray(lib.from) ? sources.map(read) : read(
-            sources[0])),
-        'utf8') :
-    fs.readFileSync(src);
-  // Bytes may be large; a string read of them would mangle binary content. Read the
-  // existing copy without a preceding existsSync: gone-in-between means "updated"
-  // either way, which a failed read then reports (CodeQL js/file-system-race).
-  const unchanged = (() => {
-    try {
-      return Buffer.compare(fs.readFileSync(dst), data) === 0;
-    } catch (e) {
-      if (e.code === 'ENOENT') return false;
-      throw e;
-    }
-  })();
-
-  fs.mkdirSync(path.dirname(dst), {recursive: true});
-  fs.writeFileSync(dst, data);
-
-  const kind = [lib.patched && '+ patch', lib.transform && 'generated']
-      .filter(Boolean).join(', ');
-  const state = unchanged ? 'unchanged' : 'updated';
-  console.log(
-      `${lib.name}@${version}${kind ? ' ' + kind : ''} -> ${lib.to} (${state}, ` +
-      `${(data.length / 1024).toFixed(0)} KB)`,
-  );
+  if (failed) process.exit(1);
 }
 
-if (failed) process.exit(1);
+export {stripLocaleMessageBlock};
+
+// Run as a script (pnpm run build, vendor:sync, tools/rebuild.mjs), not when a test imports it.
+if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {
+  main();
+}
