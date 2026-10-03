@@ -149,6 +149,7 @@ describe('FSBlob storage backends', function() {
       const {FastStreamClient} = await import('/player/FastStreamClient.mjs');
       const load = async (failure) => {
         const client = {
+          readProgressData: FastStreamClient.prototype.readProgressData,
           options: {storeProgress: true},
           player: {getSource: () => ({identifier: 'video'})},
           disableProgressSave: false,
