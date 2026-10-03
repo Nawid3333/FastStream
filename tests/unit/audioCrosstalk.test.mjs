@@ -6,7 +6,8 @@ import {FakeAudioContext} from './fakeWebAudio.mjs';
 // Audio graph. Each change of its settings builds a new impulse response into the idle one
 // of two convolvers and switches to it; the retired convolver was never taken off the
 // input, so both ran from the second change on. The colour gain knob's top (20 dB) meant
-// no limit at all, over 50 dB of boost with the decay near 0 dB.
+// no limit at all, over 50 dB of boost with the decay near 0 dB; and the microdelay was
+// rounded to whole samples, so most of its range changed nothing.
 
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
@@ -17,6 +18,24 @@ const {ConvolutionXTC} = await import('../../chrome/player/modules/crosstalk/con
 const {AudioCrosstalk} = await import('../../chrome/player/ui/audio/AudioCrosstalk.mjs');
 
 const N = 4096; // the filter's frequency grid
+const SHIFT = 256; // how far the impulse response is delayed to make it causal
+
+/**
+ * The response of a filter's impulse response at one frequency bin, the shift taken off.
+ * @param {Float32Array} h - The impulse response (N samples).
+ * @param {number} k - The bin.
+ * @return {number[]} re, im
+ */
+function dft(h, k) {
+  let re = 0;
+  let im = 0;
+  for (let i = 0; i < N; i++) {
+    const x = h[(i + SHIFT) % N];
+    re += x * Math.cos(2 * Math.PI * k * i / N);
+    im -= x * Math.sin(2 * Math.PI * k * i / N);
+  }
+  return [re, im];
+}
 
 /**
  * The largest gain of a filter's cis and cross responses, in dB.
@@ -32,6 +51,36 @@ function peakDb(xtc) {
   }
   return 20 * Math.log10(peak);
 }
+
+describe('ConvolutionXTC: the filter', () => {
+  const ctx = {sampleRate: 48000};
+  const g = Math.pow(10, -3 / 20);
+
+  it('has the response asked for with a delay that is not a whole number of samples', () => {
+    const tc = 4.5;
+    const xtc = new ConvolutionXTC(ctx, {g, tc, y: Infinity});
+    for (const k of [10, 85, 170, 341, 500, 1023]) {
+      const [a, b, c, d] = xtc.calculateH(g, 2 * Math.PI * k / N * tc, 0);
+      const [re, im] = dft(xtc.h_CIS, k);
+      const [reX, imX] = dft(xtc.h_CROSS, k);
+      expect(Math.hypot(re - a, im - b)).toBeLessThan(1e-3 * Math.hypot(a, b) + 1e-4);
+      expect(Math.hypot(reX - c, imX - d)).toBeLessThan(1e-3 * Math.hypot(c, d) + 1e-4);
+    }
+  });
+
+  it('keeps the filter it had for a delay of whole samples', () => {
+    const tc = 6;
+    const xtc = new ConvolutionXTC(ctx, {g, tc, y: Infinity});
+    // What the formula gave over the whole grid before.
+    for (let k = 0; k < N; k += 7) {
+      const [a, b, c, d] = xtc.calculateH(g, 2 * Math.PI * k / N * tc, 0);
+      expect(xtc.H_CIS[2 * k]).toBeCloseTo(a, 5);
+      expect(xtc.H_CIS[2 * k + 1]).toBeCloseTo(b, 5);
+      expect(xtc.H_CROSS[2 * k]).toBeCloseTo(c, 5);
+      expect(xtc.H_CROSS[2 * k + 1]).toBeCloseTo(d, 5);
+    }
+  });
+});
 
 describe('AudioCrosstalk: the settings the filter gets', () => {
   it('boosts no frequency by more than the colour gain knob\'s top, 20 dB', () => {
