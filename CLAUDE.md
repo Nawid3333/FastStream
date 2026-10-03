@@ -569,12 +569,14 @@ PowerShell (`tests/unit/mpvHostSecurity.test.mjs`) and the Firefox half in
   (`extension-page.mjs`'s `openExtensionPage`).
 - **The host starts only an mpv**: a file named `mpv*` (or `mpv.exe` in a named folder),
   never a UNC or device path, which it does not even `stat`.
-- Also in the host: a 1 MB cap on a message's length prefix, a page's own `fs-*`
-  fragment tags dropped before the host's are added, no direct-spawn fallback when WMI
-  fails on Windows (Firefox kills that mpv as the host exits, so it reported success for
-  nothing), "mpv quit right after it started" after ~2 s instead of a 30 s wait, and a
-  lock file around loading into the running mpv, so two sends milliseconds apart cannot
-  swap headers.
+- Also in the host: a 1 MB cap on a message's length prefix (an over-size message is read
+  past and answered with an error; `MpvBackend` leaves out subtitles that would not fit),
+  a page's own `fs-*` fragment tags dropped before the host's are added, no direct-spawn
+  fallback when WMI fails on Windows (Firefox kills that mpv as the host exits, so it
+  reported success for nothing), "mpv quit right after it started" after ~2 s instead of
+  a 30 s wait, and the headers and title as per-file options of the one `loadfile`
+  command (no lock file since 2026-10-02), so two sends milliseconds apart cannot swap
+  headers.
 
 Four things here are counter-intuitive enough that each shipped broken once:
 
@@ -783,7 +785,11 @@ and dropping `isTrusted` (a page fakes the key).
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
 stops it ever loading into — or closing — an mpv the user opened themselves.
-A stale pipe simply fails to connect and a fresh instance starts.
+A stale pipe simply fails to connect and a fresh instance starts. The pipe's
+name carries `config.json`'s `ipcToken` (random, written by `install.ps1`):
+pipe names are machine-wide, so another account must not be able to guess it
+(`ipcPipeFor`; a Unix socket in `$XDG_RUNTIME_DIR` off Windows). A running mpv
+that answers `loadfile` with an error is not replaced by a second one.
 
 **Anime/movie content-type hint (2026-09-12).** `open` messages always
 carry `contentType: 'anime'|'movie'` — never omitted — resolved by
@@ -816,7 +822,9 @@ only) and the host's `mpvTargetUrl` appends `fs-id=<first 16 hex of
 sha256(pageUrl)>` after the `fs-content=` tag. The mpv config's
 `stream-resume.lua` saves the playback position under that key. The stream
 URL cannot be the key: CDN tokens change it on every visit. Hashed so the
-page address never appears in mpv's path or state file. A host without this
+key is short and the same on every visit; the page address itself is in mpv's
+`path` too, percent-encoded as `fs-page=` (source-info.lua's "Site page"),
+and so wherever mpv or a script records the path. A host without this
 change simply sends no `fs-id`, and mpv then does not resume.
 
 **Debugging.** Add `"debug": true` to

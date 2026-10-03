@@ -1,8 +1,9 @@
 import {PassThrough} from 'node:stream';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {
   CommandLineEnv,
   MaxMessageBytes,
+  TooLarge,
   mpvTargetUrl,
   readMessage,
   relayHeaderFields,
@@ -147,10 +148,25 @@ describe('readMessage', () => {
   });
 
   it('refuses a length prefix over the limit instead of allocating it', async () => {
-    const input = new PassThrough();
-    const read = readMessage(input);
-    input.write(frame(Buffer.from('{}'), MaxMessageBytes + 1));
-    expect(await read).toBeNull();
+    // Read past, not kept: TooLarge once the stated bytes have gone by (the host answers
+    // it), null when the input ends first.
+    const huge = frame(Buffer.from('{}'), 0xFFFFFFFF);
+    const big = frame(Buffer.alloc(MaxMessageBytes + 1, 0x20));
+    const alloc = vi.spyOn(Buffer, 'alloc');
+    try {
+      let input = new PassThrough();
+      let read = readMessage(input);
+      input.end(huge);
+      expect(await read).toBeNull();
+
+      input = new PassThrough();
+      read = readMessage(input);
+      input.write(big);
+      expect(await read).toBe(TooLarge);
+      expect(alloc.mock.calls.filter(([size]) => size > MaxMessageBytes)).toEqual([]);
+    } finally {
+      alloc.mockRestore();
+    }
   });
 
   it('reads a message right at the limit', async () => {

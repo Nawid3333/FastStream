@@ -7,8 +7,9 @@
  *
  * The host is registered under the name com.faststream.mpv. It receives
  * small JSON messages and launches mpv on the user's machine:
- *   {type: 'ping'}                                -> {ok, mpv, path}
- *   {type: 'open', url, headers?, contentType?, pageUrl?, title?}  -> {ok, error?}
+ *   {type: 'ping', mpvPath?}                      -> {ok, mpv, path}
+ *   {type: 'open', url, headers?, contentType?, pageUrl?, title?, start?, subtitles?,
+ *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?}
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
@@ -29,6 +30,20 @@
  */
 
 const NativeHostName = 'com.faststream.mpv';
+
+// The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
+// as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
+// without a word, and the hand-off failed with "is the host installed?".
+export const HostMaxMessageBytes = 1024 * 1024;
+
+/**
+ * The size of a message as it reaches the host.
+ * @param {Object} message - The message.
+ * @return {number} Bytes.
+ */
+function messageBytes(message) {
+  return new TextEncoder().encode(JSON.stringify(message)).length;
+}
 
 export class MpvBackend {
   constructor() {
@@ -154,16 +169,6 @@ export class MpvBackend {
       message.start = extras.startTime;
     }
 
-    if (Array.isArray(extras.subtitles)) {
-      const subtitles = extras.subtitles
-          .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
-          .slice(0, 8)
-          .map((s) => ({label: typeof s.label === 'string' ? s.label.slice(0, 100) : '', srt: s.srt}));
-      if (subtitles.length > 0) {
-        message.subtitles = subtitles;
-      }
-    }
-
     // Relay the user's mpv path preference (options page) so the host does
     // not have to guess where mpv is installed.
     if (this.mpvPath) {
@@ -181,6 +186,27 @@ export class MpvBackend {
     const relayHeaders = MpvBackend.pickRelayHeaders(headers);
     if (relayHeaders) {
       message.headers = relayHeaders;
+    }
+
+    // Last, so the rest of the message counts: the subtitles that fit under the host's
+    // limit, in order. One that does not fit is left out and the stream still goes.
+    if (Array.isArray(extras.subtitles)) {
+      const candidates = extras.subtitles
+          .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
+          .slice(0, 8)
+          .map((s) => ({label: typeof s.label === 'string' ? s.label.slice(0, 100) : '', srt: s.srt}));
+      const subtitles = [];
+      message.subtitles = subtitles;
+      for (const subtitle of candidates) {
+        subtitles.push(subtitle);
+        if (messageBytes(message) > HostMaxMessageBytes) {
+          subtitles.pop();
+          console.warn(`A subtitle track (${subtitle.label || 'no label'}) is too large to send to mpv, left out`);
+        }
+      }
+      if (subtitles.length === 0) {
+        delete message.subtitles;
+      }
     }
 
     return new Promise((resolve) => {

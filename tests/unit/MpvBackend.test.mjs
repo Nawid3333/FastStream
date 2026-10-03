@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+import {HostMaxMessageBytes, MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+import {MaxMessageBytes} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
 // Deliberately narrow: only Referer/Origin (CDN checks use those) and
@@ -290,6 +291,36 @@ describe('openStream contentType', () => {
 
     await backend.openStream('https://cdn/c.m3u8');
     expect(host.message()).not.toHaveProperty('start');
+    expect(host.message()).not.toHaveProperty('subtitles');
+  });
+
+  // The host reads no message over MaxMessageBytes: it quit without a word, and the
+  // hand-off failed with "is the host installed?" (#151). Firefox sends the JSON as UTF-8.
+  it('keeps the message under the host\'s limit, leaving out subtitles that do not fit', async () => {
+    expect(HostMaxMessageBytes).toBe(MaxMessageBytes);
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // About 55 bytes per cue once in JSON, one of them past ASCII.
+    const srtOf = (cues) => Array.from({length: cues}, (_, i) =>
+      `${i + 1}\n00:00:01,000 --> 00:00:02,000\nLine ${i} ${String.fromCodePoint(0xFC)}\n\n`).join('');
+    const bytes = (message) => new TextEncoder().encode(JSON.stringify(message)).length;
+
+    // Each of the first three fits alone, the third no longer does after two; the small
+    // fourth still does.
+    const big = srtOf(7000);
+    await backend.openStream('https://cdn/a.m3u8', undefined, [{name: 'Referer', value: 'https://site.test/'}],
+        'anime', 'https://site.test/ep-1', 'Title', {subtitles: [
+          {label: 'one', srt: big}, {label: 'two', srt: big}, {label: 'three', srt: big}, {label: 'four', srt: srtOf(10)},
+        ]});
+    expect(host.message().subtitles.map((s) => s.label)).toEqual(['one', 'two', 'four']);
+    expect(bytes(host.message())).toBeLessThanOrEqual(HostMaxMessageBytes);
+    expect(host.message().headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
+
+    // One that never fits: the stream goes without it.
+    await backend.openStream('https://cdn/b.m3u8', undefined, undefined, 'anime', undefined, undefined,
+        {subtitles: [{label: 'huge', srt: srtOf(25000)}]});
+    expect(host.message().url).toBe('https://cdn/b.m3u8');
     expect(host.message()).not.toHaveProperty('subtitles');
   });
 });

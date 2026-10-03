@@ -93,7 +93,7 @@ over the allowlist tag for that one video.
 | mpv path | empty | Only needed when mpv is not found automatically. |
 | Open mpv in fullscreen | **off** | Starts fullscreen. |
 | Pause the video in the browser | **on** | Stops the page playing once mpv has the stream, so it is not streaming twice. |
-| Reuse one mpv window | **on** | A second video replaces the first in the same window instead of opening another. Only ever reuses a window FastStream started — an mpv you opened yourself is never touched. |
+| Reuse one mpv window | **on** | A second video replaces the first in the same window instead of opening another. Only ever reuses a window FastStream started — an mpv you opened yourself is never touched. Two videos sent within the same second, before any FastStream mpv is open, can still open two windows. |
 
 ## When something does not work
 

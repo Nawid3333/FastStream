@@ -45,15 +45,16 @@ function stopTree(child) {
 /**
  * Runs install.ps1 with the given arguments.
  * @param {string[]} args - Script arguments.
- * @return {Promise<string>} Its output.
+ * @param {string} [script] - The script; the repository's by default.
+ * @return {Promise<string>} Its output, warnings included.
  */
-function install(args) {
+function install(args, script = path.join(root, 'native-host', 'install.ps1')) {
   return new Promise((resolve, reject) => {
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-      '-File', path.join(root, 'native-host', 'install.ps1'), ...args],
+      '-File', script, ...args],
     {windowsHide: true}, (error, stdout, stderr) => {
       if (error) reject(new Error(`install.ps1 failed: ${error.message}\n${stdout}\n${stderr}`));
-      else resolve(stdout);
+      else resolve(stdout + stderr);
     });
   });
 }
@@ -132,8 +133,47 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
     await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
 
     const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
-    expect(config).toEqual({mpvPath: mpv, debug: true});
+    expect(config).toEqual({mpvPath: mpv, debug: true, ipcToken: expect.stringMatching(/^[0-9a-f]{32}$/)});
   }, 60000);
+
+  // mpv-host-changed.yml's reminder says to run it without -MpvPath: the default came back
+  // over an mpv elsewhere, and "Send to mpv" failed (#241).
+  it('keeps the configured mpv path when run without -MpvPath', async () => {
+    const installDir = path.join(dir, 'FastStreamMpvHost');
+    fs.mkdirSync(installDir, {recursive: true});
+    const mpv = path.join(dir, 'portable', 'mpv.exe');
+    fs.mkdirSync(path.dirname(mpv));
+    fs.writeFileSync(mpv, '');
+    fs.writeFileSync(path.join(installDir, 'config.json'), JSON.stringify({mpvPath: mpv, debug: true}));
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-NodePath', process.execPath]);
+
+    const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
+    expect(config).toMatchObject({mpvPath: mpv, debug: true});
+  }, 60000);
+
+  // The host names its pipe to mpv with it; pipe names are machine-wide (#156).
+  it('gives the host a random pipe token once, and keeps it', async () => {
+    const installDir = path.join(dir, 'FastStreamMpvHost');
+    const mpv = path.join(dir, 'mpv.exe');
+    fs.writeFileSync(mpv, '');
+    const args = ['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath];
+
+    await install(args);
+    const first = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).ipcToken;
+    expect(first).toMatch(/^[0-9a-f]{32}$/);
+    await install(args);
+    expect(JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).ipcToken).toBe(first);
+
+    // Another install gets its own; one the host would not take (upper case) is replaced.
+    const other = path.join(dir, 'Other');
+    fs.mkdirSync(other);
+    fs.writeFileSync(path.join(other, 'config.json'), JSON.stringify({ipcToken: 'ABCDEF0123456789ABCDEF0123456789'}));
+    await install(['-InstallDir', other, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
+    const otherToken = JSON.parse(fs.readFileSync(path.join(other, 'config.json'), 'utf8')).ipcToken;
+    expect(otherToken).toMatch(/^[0-9a-f]{32}$/);
+    expect(otherToken).not.toBe(first);
+  }, 90000);
 
   it('writes a new config.json over one it cannot read', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
@@ -145,6 +185,43 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
     await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
 
     const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
-    expect(config).toEqual({mpvPath: mpv});
+    expect(config).toEqual({mpvPath: mpv, ipcToken: expect.stringMatching(/^[0-9a-f]{32}$/)});
+  }, 60000);
+});
+
+describe.runIf(process.platform === 'win32')('install.ps1 under unusual folder names (#242)', () => {
+  // cmd reads %...% in a batch file as a variable, even inside quotes, and drops a lone %:
+  // under a user name with a % in it, the wrapper ran node on a path that does not exist.
+  it('writes a wrapper that works under a folder with a % in its name', async () => {
+    const installDir = path.join(dir, 'Rabatt 100%', 'FastStreamMpvHost');
+    const mpv = path.join(dir, 'mpv.exe');
+    fs.writeFileSync(mpv, '');
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'com.faststream.mpv.json'), 'utf8'));
+    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv});
+  }, 60000);
+
+  // With -Path, PowerShell reads [ ] as a wildcard: the host script was "not found" in a
+  // checkout under such a folder, and an mpv there was reported missing.
+  it('finds its files and mpv under folders with [ ] in their names', async () => {
+    const source = path.join(dir, 'repo [copy]', 'native-host');
+    fs.mkdirSync(source, {recursive: true});
+    for (const file of ['install.ps1', 'faststream-mpv-host.mjs']) {
+      fs.copyFileSync(path.join(root, 'native-host', file), path.join(source, file));
+    }
+    const installDir = path.join(dir, 'host [1]', 'FastStreamMpvHost');
+    const mpv = path.join(dir, 'mpv [portable]', 'mpv.exe');
+    fs.mkdirSync(path.dirname(mpv));
+    fs.writeFileSync(mpv, '');
+
+    const output = await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath],
+        path.join(source, 'install.ps1'));
+
+    expect(output).not.toContain('mpv not found');
+    expect(fs.existsSync(path.join(installDir, 'faststream-mpv-host.mjs'))).toBe(true);
+    const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'com.faststream.mpv.json'), 'utf8'));
+    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv});
   }, 60000);
 });
