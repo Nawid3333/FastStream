@@ -53,6 +53,9 @@ export class StandardDownloader {
       this.loader.addCallbacks(this);
       this.loader.load(request, defaultConfig);
     }).catch((err) => {
+      // Aborted while its request was being made: that entry is over (cleanup ran), and
+      // this downloader may be running the next one, which failing `this.entry` failed.
+      if (!shouldContinue) return;
       console.error('Failed to get request for entry:', err);
       this.entry.onFail(this.loader.stats, this.entry, null);
       this.cleanup();
