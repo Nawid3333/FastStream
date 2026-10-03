@@ -174,8 +174,6 @@ describe('the extension in a private window', function() {
   });
 
   it('builds a player and decodes an MP4', async function() {
-    // eslint-disable-next-line no-invalid-this
-    this.timeout(120000);
     await openEmbeddedPlayer(globalThis.__EXT_FIXTURE_MP4__);
 
     await browser.waitUntil(
@@ -198,8 +196,6 @@ describe('the extension in a private window', function() {
   });
 
   it('asks for a filename before saving', async function() {
-    // eslint-disable-next-line no-invalid-this
-    this.timeout(120000);
     await openEmbeddedPlayer(globalThis.__EXT_FIXTURE_MP4__);
     await browser.waitUntil(
         async () => browser.execute(() => {
@@ -237,8 +233,6 @@ describe('the extension in a private window', function() {
   });
 
   it('asks for a filename before saving a subtitle track', async function() {
-    // eslint-disable-next-line no-invalid-this
-    this.timeout(120000);
     await openEmbeddedPlayer(globalThis.__EXT_FIXTURE_MP4__);
     // The same private-window prompt as the video's: SubtitlesManager skipped it in any
     // incognito context and saved the track straight under its name. Only the prompt is

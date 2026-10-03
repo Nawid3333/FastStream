@@ -375,7 +375,9 @@
     <script>
         // Point this at wherever the web build is served from. On a real site that is
         // https://faststream.online/player/; here it is the player in this repository, so the example
-        // runs against whatever you have checked out.
+        // runs against whatever you have checked out - served over http (any static server at the
+        // repository's root). Opened as a file:// page, the player's origin is "null", which
+        // postMessage cannot address: every command would fail.
         const PLAYER_URL = '../chrome/player/index.html';
 
         const player = document.getElementById('player');
@@ -487,6 +489,9 @@
         document.getElementById('rate').onchange = (e) => call('setPlaybackRate', {rate: Number(e.target.value)});
         document.getElementById('level').onchange = (e) => call('setVideoLevel', {id: e.target.value});
 
+        if (location.protocol === 'file:') {
+            log('This page was opened as a file. Serve the repository over http and open it from there.', true);
+        }
         player.src = PLAYER_URL;
     </script>
 </body>

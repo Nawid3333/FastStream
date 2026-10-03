@@ -41,7 +41,7 @@ import {ensureBidi} from './bidi.mjs';
 import {guardSetup, rootHooks} from './setupGuard.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
 import {ensureFixtures, readFileOrNothing} from './buildFixtures.mjs';
-import {byteRange, decodePath, sendFile} from './serveFile.mjs';
+import {byteRange, decodePath, resolveInside, sendFile} from './serveFile.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -168,6 +168,7 @@ export const config = {
 
   // Firefox's network log for the specs listed in mozLog.mjs (the const above).
   beforeSession: mozLog.beforeSession,
+  afterHook: mozLog.afterHook,
   afterSession: mozLog.afterSession,
 
   // The specs need to reference the local server's origin for same-origin
@@ -202,8 +203,8 @@ export const config = {
           rel.slice('/fixtures'.length) : rel;
         // Contain path traversal: resolve, then require the result to stay
         // inside the directory we meant to serve.
-        const abs = path.resolve(base, '.' + sub);
-        if (!abs.startsWith(base) || !fs.existsSync(abs) ||
+        const abs = resolveInside(base, sub);
+        if (abs === null || !fs.existsSync(abs) ||
             fs.statSync(abs).isDirectory()) {
           res.writeHead(404);
           return res.end('not found');

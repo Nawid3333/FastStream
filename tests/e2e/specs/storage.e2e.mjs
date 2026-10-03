@@ -106,6 +106,11 @@ describe('FSBlob storage backends', function() {
     expect(result.sawOnDisk).toBe(result.usedOPFS);
     expect(result.diskBacked).toBe(result.usedOPFS);
     expect(result.readBackMatches).toBe(true);
+    // This suite's window is an ordinary one, where FSBlob picks OPFS (both CI jobs log
+    // usedOPFS true, 2026-10-02); a private window is the pbm suite's. Without this, a
+    // build that never chose OPFS passed here, and the fall-through case below passed
+    // without checking anything.
+    expect(result.usedOPFS).toBe(true);
   });
 
   it('gives two players starting together on a fresh profile the same salts', async function() {
@@ -345,7 +350,11 @@ describe('FSBlob storage backends', function() {
     });
 
     console.log('      opfs fall-through:', JSON.stringify(result));
-    if (result.skipped) return;
+    if (result.skipped) {
+      // Reported as skipped, not as a pass with nothing checked.
+      // eslint-disable-next-line no-invalid-this
+      this.skip();
+    }
     expect(result.teardownError).toBe(null);
     expect(result.roundTrips).toBe(true);
     expect(result.backend).not.toBe('opfs');

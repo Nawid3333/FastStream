@@ -4,6 +4,7 @@
 // whole test run.
 
 import fs from 'node:fs';
+import path from 'node:path';
 
 /**
  * The request path, %-escapes decoded.
@@ -17,6 +18,19 @@ export function decodePath(rawPath) {
   } catch (e) {
     return null;
   }
+}
+
+/**
+ * A request path's file under the directory served, or null when the path would leave
+ * that directory. A plain startsWith(base) let '/../fixtures-other/x' through to any
+ * sibling whose name starts with the directory's.
+ * @param {string} base - The directory served, absolute.
+ * @param {string} sub - The decoded request path below it, starting with '/'.
+ * @return {?string} The absolute path, or null.
+ */
+export function resolveInside(base, sub) {
+  const abs = path.resolve(base, '.' + sub);
+  return abs === base || abs.startsWith(base + path.sep) ? abs : null;
 }
 
 /**

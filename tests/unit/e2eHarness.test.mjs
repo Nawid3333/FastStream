@@ -5,7 +5,7 @@ import path from 'node:path';
 import {PassThrough} from 'node:stream';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {mp4FixtureMismatch, writeFixture} from '../e2e/mp4Fixture.mjs';
-import {byteRange, decodePath, sendFile} from '../e2e/serveFile.mjs';
+import {byteRange, decodePath, resolveInside, sendFile} from '../e2e/serveFile.mjs';
 import {guardSetup, rootHooks} from '../e2e/setupGuard.mjs';
 
 // The e2e harness's own gaps (F4-F6): a setup failure that let the specs run without the
@@ -123,6 +123,22 @@ describe('decodePath', () => {
   it('decodes escapes, and turns a malformed one into null instead of a throw', () => {
     expect(decodePath('/fixtures/a%20b.mp4')).toBe('/fixtures/a b.mp4');
     expect(decodePath('/fixtures/%zz')).toBe(null);
+  });
+});
+
+describe('resolveInside', () => {
+  const base = path.resolve(os.tmpdir(), 'fixtures');
+
+  it('finds a file below the directory served', () => {
+    expect(resolveInside(base, '/a.mp4')).toBe(path.join(base, 'a.mp4'));
+    expect(resolveInside(base, '/hls-ts/seg-000.ts')).toBe(path.join(base, 'hls-ts', 'seg-000.ts'));
+    expect(resolveInside(base, '/hls-ts/../a.mp4')).toBe(path.join(base, 'a.mp4'));
+  });
+
+  it('refuses a path out of it, also into a sibling whose name starts the same', () => {
+    expect(resolveInside(base, '/../secret.txt')).toBeNull();
+    expect(resolveInside(base, '/../fixtures-other/x.mp4')).toBeNull();
+    expect(resolveInside(base, '/../../etc/passwd')).toBeNull();
   });
 });
 

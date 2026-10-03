@@ -10,9 +10,10 @@
 // save path - which is the only one the Save button ever uses.
 //
 // This spec drives exactly that: embed -> wait for playable video -> click
-// #download -> accept the prompt -> wait for the save to settle, raced
-// against a generous timeout so a hang becomes a result instead of a
-// suite-wide stall.
+// #download -> accept the prompt -> wait for the save to settle, for at most
+// 75 s: inside mocha's 120 s cap on the test (testTimeout.mjs; a test's own
+// this.timeout() does not lift it under WebdriverIO), so a hang fails with the
+// page's state in the log instead of a bare timeout.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -109,8 +110,6 @@ describe('faithful save flow (UI + embedded iframe)', function() {
   const mp4 = () => globalThis.__EXT_FIXTURE_MP4__;
 
   it('saves an accelerated MP4 through the real UI in the embedded iframe', async function() {
-    // eslint-disable-next-line no-invalid-this
-    this.timeout(180000);
     await openEmbeddedPlayer(mp4());
 
     await browser.execute(() => document.querySelector('video').play().catch(() => {}));
@@ -135,29 +134,32 @@ describe('faithful save flow (UI + embedded iframe)', function() {
       confirm.click();
     });
 
-    // Now the save runs. Race it: watch for either the completion status or
-    // the banner disappearing, with progress polling as a liveness signal.
-    const outcome = await browser.executeAsync((done) => {
-      const started = performance.now();
-      const banner = document.querySelector('#save_notif_banner');
-      const poll = setInterval(() => {
-        const elapsed = performance.now() - started;
-        const bannerVisible = banner && banner.style.display !== 'none';
-        // SaveManager hides the banner when the save settles (success or
-        // failure) and sets a status message either way.
-        if (!bannerVisible && elapsed > 3000) {
-          clearInterval(poll);
-          done({settled: true, elapsedMs: elapsed,
-            status: document.querySelector('.status_text')?.textContent ?? null});
-        }
-        if (elapsed > 120000) {
-          clearInterval(poll);
-          done({settled: false, timedOut: true, elapsedMs: elapsed,
-            bannerVisible: bannerVisible,
-            status: document.querySelector('.status_text')?.textContent ?? null});
-        }
-      }, 1000);
-    });
+    // Now the save runs. SaveManager hides the banner when the save settles
+    // (success or failure) and sets a status message either way. Polled from
+    // here, once a second: a single executeAsync that waited in the page ran
+    // into WebDriver's 30 s script timeout, and its own 120 s budget into
+    // mocha's cap, so neither outcome below was ever logged.
+    const started = Date.now();
+    let outcome;
+    for (;;) {
+      const page = await browser.execute(() => {
+        const banner = document.querySelector('#save_notif_banner');
+        return {
+          bannerVisible: !!banner && banner.style.display !== 'none',
+          status: document.querySelector('.status_text')?.textContent ?? null,
+        };
+      });
+      const elapsedMs = Date.now() - started;
+      if (!page.bannerVisible && elapsedMs > 3000) {
+        outcome = {settled: true, elapsedMs, status: page.status};
+        break;
+      }
+      if (elapsedMs > 75000) {
+        outcome = {settled: false, timedOut: true, elapsedMs, ...page};
+        break;
+      }
+      await browser.pause(1000);
+    }
 
     console.log('      mp4 UI save outcome:', JSON.stringify(outcome));
     expect(outcome.settled).toBe(true);
