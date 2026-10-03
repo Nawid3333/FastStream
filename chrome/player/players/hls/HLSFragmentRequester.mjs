@@ -2,10 +2,48 @@ import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {HLSDecrypter} from './HLSDecrypter.mjs';
 
+// The encryption FastStream decrypts itself (decrypter-worker.js: AES-CBC, the key's own
+// bytes): whole segments under an AES-128 or AES-256 key the playlist names. hls.js also
+// hands out decryptdata for SAMPLE-AES, where only the samples are encrypted, for
+// AES-256-CTR, and for the DRM key formats (Widevine, PlayReady, FairPlay); decrypting
+// those as whole AES-CBC segments gave garbage or nothing, and a generic load error
+// instead of the DRM message.
+const DECRYPTABLE_METHODS = ['AES-128', 'AES-256'];
+
 export class HLSFragmentRequester {
   constructor(player) {
     this.player = player;
     this.decrypter = new HLSDecrypter();
+  }
+
+  /**
+   * Takes the decryption of a playlist's encrypted segments over from hls.js: each one's
+   * key is kept as fs_oldcryptdata for requestFragment, and hls.js's own is removed, so
+   * hls.js neither loads the key nor decrypts what requestFragment hands it. The same for
+   * the first segment's init segment, which HLSPlayer stores as the level's fragment -1: an
+   * EXT-X-KEY before the EXT-X-MAP encrypts it too (RFC 8216, 4.3.2.5), and requestFragment
+   * refused it, so hls.js waited for it forever. Other init segments are not stored; HLSLoader
+   * downloads them as they are, and hls.js decrypts them itself.
+   * @param {Object[]} fragments - The playlist's hls.js fragments.
+   * @return {boolean} False when some of them are encrypted in a way this cannot decrypt.
+   */
+  static takeOverDecryption(fragments) {
+    let decryptable = true;
+    const takeOver = (frag) => {
+      if (!frag?.encrypted) return;
+      const decryptdata = frag.decryptdata;
+      if (decryptdata?.keyFormat === 'identity' && DECRYPTABLE_METHODS.includes(decryptdata.method)) {
+        frag.fs_oldcryptdata = decryptdata;
+        frag.fs_oldlevelKeys = frag.levelkeys;
+      } else {
+        decryptable = false;
+      }
+      frag.levelkeys = null;
+      frag._decryptdata = null;
+    };
+    takeOver(fragments[0]?.initSegment);
+    fragments.forEach(takeOver);
+    return decryptable;
   }
 
   destroy() {
@@ -16,16 +54,19 @@ export class HLSFragmentRequester {
     const context = fragment.getContext();
     config = config || {};
 
+    const frag = fragment.getFrag();
+
+    // Before the fragment is marked as downloading: it stayed marked for good, and was
+    // never asked for again.
+    if (frag.decryptdata) {
+      throw new Error('unexpected decryptdata');
+    }
+
     if (fragment.status === DownloadStatus.WAITING) {
       fragment.status = DownloadStatus.DOWNLOAD_INITIATED;
       this.player.emit(DefaultPlayerEvents.FRAGMENT_UPDATE, fragment);
     }
 
-    const frag = fragment.getFrag();
-
-    if (frag.decryptdata) {
-      throw new Error('unexpected decryptdata');
-    }
     let keyPromise;
 
     if (frag.fs_oldcryptdata) {

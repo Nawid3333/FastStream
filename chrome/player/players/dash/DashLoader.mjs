@@ -22,6 +22,16 @@ function decodeUrl(url) {
   }
 }
 
+/**
+ * Whether two of dash.js's requests name the same bytes.
+ * @param {Object} a - A FragmentRequest.
+ * @param {Object} b - Another.
+ * @return {boolean}
+ */
+function isSameRequest(a, b) {
+  return a?.url === b.url && a?.range === b.range;
+}
+
 
 export function DASHLoaderFactory(player) {
   // Failures in a row, per segment, for this player; a success forgets them.
@@ -58,7 +68,14 @@ export function DASHLoaderFactory(player) {
         }
 
         const level = DashTrackUtils.getLevelFromRepresentation(representation);
-        const frag = player.client.getFragment(level, segmentIndex);
+        let frag = player.client.getFragment(level, segmentIndex);
+        // The store is keyed by representation id and segment index, and in a manifest of
+        // several periods neither is unique: ids need only differ within a period, and the
+        // indexes start again in each. The next period's segment 0 got the stored one of
+        // this period, and played its media. A stored fragment answers only for its own bytes.
+        if (frag && !isSameRequest(frag.request, requestObj)) {
+          frag = null;
+        }
         if (!frag) {
           console.warn('Fragment not found', requestObj, level, player.client.getFragments(level));
           // throw new Error("Fragment not found");

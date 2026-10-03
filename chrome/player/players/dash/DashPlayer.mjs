@@ -314,11 +314,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   getCurrentVideoLevelID() {
-    const processor = this.dash.getStreamController()?.getActiveStream()?.getStreamProcessors()?.find((o) => o.getType() === 'video');
-    if (!processor) {
-      return -1;
-    }
-    return DashTrackUtils.getLevelFromRepresentation(processor.getRepresentationController().getCurrentRepresentation());
+    return DashTrackUtils.getCurrentLevel(this.dash, 'video');
   }
 
   setCurrentVideoLevelID(id) {
@@ -331,11 +327,7 @@ export default class DashPlayer extends EventEmitter {
   }
 
   getCurrentAudioLevelID() {
-    const processor = this.dash.getStreamController()?.getActiveStream()?.getStreamProcessors()?.find((o) => o.getType() === 'audio');
-    if (!processor) {
-      return -1;
-    }
-    return DashTrackUtils.getLevelFromRepresentation(processor.getRepresentationController().getCurrentRepresentation());
+    return DashTrackUtils.getCurrentLevel(this.dash, 'audio');
   }
 
   setCurrentAudioLevelID(id) {
