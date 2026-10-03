@@ -82,12 +82,16 @@ describe('A stream named in the page\'s own query string', function() {
           res.end();
           return;
         }
-        http.get(globalThis.__EXT_FIXTURE_MP4__, (upstream) => {
-          res.writeHead(200, {
+        // The player's Range goes on to the harness, and its answer comes back as it is
+        // (206 and Content-Range included), as a proxy passes them.
+        const forward = req.headers.range ? {headers: {range: req.headers.range}} : {};
+        http.get(globalThis.__EXT_FIXTURE_MP4__, forward, (upstream) => {
+          res.writeHead(upstream.statusCode, {
             ...cors,
             'Content-Type': 'video/mp4',
             'Content-Length': upstream.headers['content-length'],
-            'Accept-Ranges': 'none',
+            ...(upstream.headers['content-range'] ? {'Content-Range': upstream.headers['content-range']} : {}),
+            'Accept-Ranges': 'bytes',
           });
           upstream.pipe(res);
         }).on('error', () => res.destroy());

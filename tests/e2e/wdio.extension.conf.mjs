@@ -37,7 +37,7 @@ import {ensureBidi} from './bidi.mjs';
 import {guardSetup, rootHooks} from './setupGuard.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
 import {ensureFixtures} from './buildFixtures.mjs';
-import {decodePath, sendFile} from './serveFile.mjs';
+import {byteRange, decodePath, sendFile} from './serveFile.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -213,13 +213,33 @@ export const config = {
             res.end('not found');
             return;
           }
-          res.writeHead(200, {
+          const size = fs.statSync(filePath).size;
+          const headers = {
             'Content-Type': FIXTURE_MIME[path.extname(name)] || 'application/octet-stream',
-            'Content-Length': fs.statSync(filePath).size,
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Expose-Headers': 'Content-Length, Content-Range',
-            'Accept-Ranges': 'none',
-          });
+            'Accept-Ranges': 'bytes',
+          };
+          // Byte ranges, as wdio.conf.mjs's server and any video host answer them. This
+          // sent the whole file with 200 for every Range: on the 1 MB sample.mp4, which
+          // fits MP4Player's first range, nothing showed that a second range would have
+          // got the file's start instead (#257).
+          const range = byteRange(req.headers.range, size);
+          if (range === 'unsatisfiable') {
+            res.writeHead(416, {...headers, 'Content-Range': `bytes */${size}`});
+            res.end();
+            return;
+          }
+          if (range) {
+            res.writeHead(206, {
+              ...headers,
+              'Content-Range': `bytes ${range.start}-${range.end}/${size}`,
+              'Content-Length': range.end - range.start + 1,
+            });
+            sendFile(res, filePath, range);
+            return;
+          }
+          res.writeHead(200, {...headers, 'Content-Length': size});
           sendFile(res, filePath);
           return;
         }

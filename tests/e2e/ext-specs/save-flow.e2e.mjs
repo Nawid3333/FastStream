@@ -165,3 +165,33 @@ describe('faithful save flow (UI + embedded iframe)', function() {
     expect(outcome.settled).toBe(true);
   });
 });
+
+// The harness served every fixture whole, with 200, whatever range was asked for (#257).
+// sample.mp4 fits MP4Player's first 1 MB range, so the save above never asks for a second
+// one: a range answered with the file's start would have gone unseen. long-av.mp4 (17 MB,
+// 160 s) needs many, and a seek 100 s in starts far past the first.
+describe('an accelerated MP4 of many ranges (embedded iframe)', function() {
+  it('plays on after a seek far past its first range', async function() {
+    await openEmbeddedPlayer(globalThis.__EXT_OPENER_URL__ + 'fixtures/long-av.mp4');
+    expect(await browser.execute(() => window.fastStream.player?.constructor?.name)).toBe('MP4Player');
+
+    await browser.execute(() => {
+      window.fastStream.currentTime = 100;
+    });
+    let state = {};
+    await browser.waitUntil(async () => {
+      state = await browser.execute(() => {
+        const video = window.fastStream?.currentVideo;
+        if (!video) return {};
+        if (video.paused) video.play().catch(() => {});
+        return {currentTime: video.currentTime, readyState: video.readyState,
+          error: video.error?.message || null, failed: !!window.fastStream.interfaceController?.failed};
+      });
+      return (state.currentTime > 101 && state.readyState >= 2) || state.failed || !!state.error;
+    }, {timeout: 45000, interval: 500}).catch(() => {});
+    console.log('      after the seek to 100 s:', JSON.stringify(state));
+    expect(state.error).toBe(null);
+    expect(state.failed).toBe(false);
+    expect(state.currentTime).toBeGreaterThan(101);
+  });
+});
