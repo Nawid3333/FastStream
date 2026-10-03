@@ -31,6 +31,12 @@ export class SecureMemory {
     const params = {
       name: 'PBKDF2',
       hash: 'SHA-256',
+      // The salt is the 128 random bytes getSalt() stores, and TextEncoder takes a string:
+      // what PBKDF2 gets is the UTF-8 of their decimal list ("12,200,7,..."). Still the
+      // stored random value, so the derivation is sound; but every saved position was
+      // derived this way, and passing the bytes themselves would make every one of them
+      // unreadable (unusableRecord), so changing it needs a new record format.
+      // tests/unit/SecureMemory.test.mjs pins it.
       salt: encoder.encode(salt),
       iterations: 600000,
     };
@@ -124,8 +130,12 @@ export class SecureMemory {
   }
 
   async getHashes(identifier) {
-    const identifierHash = await SecureMemory.hash(identifier, this.identifierSalt);
-    const keyHash= await SecureMemory.hash(identifier, this.keySalt);
+    // Side by side: each is 600,000 rounds of PBKDF2, and the video's start (autoplay, the
+    // seek to the time in its URL) waits for both.
+    const [identifierHash, keyHash] = await Promise.all([
+      SecureMemory.hash(identifier, this.identifierSalt),
+      SecureMemory.hash(identifier, this.keySalt),
+    ]);
     return {identifierHash, keyHash};
   }
 

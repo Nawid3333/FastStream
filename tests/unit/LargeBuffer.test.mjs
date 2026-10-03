@@ -59,6 +59,17 @@ describe('read', () => {
     const buf = await makeBuffer(2);
     await expect(buf.read(9)).rejects.toThrow(/out of range/);
   });
+
+  it('throws rather than reading the last chunk again when the chunks run out early', async () => {
+    // A server that answers a range short: the chunks hold fewer bytes than the declared
+    // length. Past the last one the reader used to start that chunk over, and an archive
+    // read duplicated bytes instead of failing.
+    const buf = new LargeBuffer(10, 2);
+    const chunks = [new Uint8Array([0, 1, 2, 3]), new Uint8Array([4, 5, 6])];
+    await buf.initialize(async (i) => chunks[i]);
+    expect([...await buf.read(7)]).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    await expect(buf.read(1)).rejects.toThrow(/not found/);
+  });
 });
 
 describe('integer readers', () => {
@@ -81,6 +92,37 @@ describe('integer readers', () => {
     expect(await buf.uint32()).toBe(0x00010203);
     // 0x04..0x07 begins in chunk 1 - proves the stitch feeds the shift math
     expect(await buf.uint32()).toBe(0x04050607);
+  });
+
+  it('reads a uint32 from 2^31 up as unsigned', async () => {
+    // `<< 24` is signed: 0x80000000 came out as -2147483648.
+    const buf = await bufferOf([0x80, 0, 0, 0, 0xff, 0xff, 0xff, 0xf0]);
+    expect(await buf.uint32()).toBe(0x80000000);
+    expect(await buf.uint32()).toBe(0xfffffff0);
+  });
+});
+
+/** A LargeBuffer over the given bytes, in one chunk. */
+async function bufferOf(bytes) {
+  const buf = new LargeBuffer(bytes.length, 1);
+  await buf.initialize(async () => new Uint8Array(bytes));
+  return buf;
+}
+
+describe('lengths read from a file', () => {
+  // An archive's sizes come from the file, so a damaged or crafted one can ask for anything.
+  it('checks a length against what is left before making room for it', async () => {
+    const buf = await makeBuffer(2);
+    // Larger than any typed array: it threw a RangeError of its own before the check.
+    await expect(buf.read(Number.MAX_SAFE_INTEGER)).rejects.toThrow(/out of range/);
+  });
+
+  it('refuses a negative length instead of reading nothing', async () => {
+    const buf = await makeBuffer(2);
+    await expect(buf.getParts(-3)).rejects.toThrow(/Invalid length/);
+    await expect(buf.read(Number.NaN)).rejects.toThrow(/Invalid length/);
+    // Nothing was read: the next read is where it was.
+    expect([...await buf.read(2)]).toEqual([0, 1]);
   });
 });
 

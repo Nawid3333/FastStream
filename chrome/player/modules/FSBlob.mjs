@@ -310,6 +310,17 @@ export class FSBlob {
     return this.blobStore.get(identifier);
   }
 
+  /**
+   * Settles once a blob saveBlob() or createBlob() took has reached the backend, or has
+   * stayed in memory because it could not. A writer that waits for it keeps no more in RAM
+   * than it chooses to (StreamSaver's memory sink).
+   * @param {string} identifier
+   * @return {Promise<*>}
+   */
+  whenStored(identifier) {
+    return this.blobStorePromises.get(identifier) ?? Promise.resolve();
+  }
+
   async clear() {
     this.blobStore.clear();
     this.blobStorePromises.clear();

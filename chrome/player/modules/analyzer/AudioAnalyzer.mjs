@@ -26,6 +26,8 @@ export class AudioAnalyzer extends EventEmitter {
     this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
     this.backgroundDoneRanges = [];
     this.backgroundAnalyzerEnabled = true;
+    // Counts startBackgroundAnalyzer's loads (see there).
+    this.backgroundStarts = 0;
   }
 
   onVadFrameProcessed(time, isSpeechProb) {
@@ -184,27 +186,34 @@ export class AudioAnalyzer extends EventEmitter {
 
     console.log('[AudioAnalyzer] Starting background analyzer');
 
+    // A stop and a new start while this one loads (the tool closed and opened again, or a
+    // new video) make this start stale: only the latest one may keep its player. Two
+    // starts for the same source used to both keep theirs, and the first ran on for good.
+    const start = ++this.backgroundStarts;
     let backgroundAnalyzerPlayer;
     try {
       backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
-        if (this.backgroundAnalyzerPlayer === backgroundAnalyzerPlayer) {
-          console.log('[AudioAnalyzer] Background analyzer finished', completed ? 'successfully' : 'with errors');
-          this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-          this.client.interfaceController.updateMarkers();
+        // Only the running player's end counts: a stale player, destroyed below, cleared
+        // the running one's place, and nothing could stop that one any more.
+        if (this.backgroundAnalyzerPlayer !== backgroundAnalyzerPlayer) {
+          return;
         }
+        console.log('[AudioAnalyzer] Background analyzer finished', completed ? 'successfully' : 'with errors');
+        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+        this.client.interfaceController.updateMarkers();
         this.backgroundAnalyzerPlayer = null;
       });
     } catch (e) {
       console.warn('[AudioAnalyzer] The background analyzer did not start', e);
       // Forget the source, or the check above refuses every later start for it: the
       // next play tries again.
-      if (this.backgroundAnalyzerSource === newSource) {
+      if (start === this.backgroundStarts && this.backgroundAnalyzerSource === newSource) {
         this.backgroundAnalyzerSource = null;
       }
       return;
     }
 
-    if (newSource !== this.backgroundAnalyzerSource) {
+    if (start !== this.backgroundStarts || newSource !== this.backgroundAnalyzerSource) {
       backgroundAnalyzerPlayer.destroy();
       return;
     }

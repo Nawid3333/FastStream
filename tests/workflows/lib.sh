@@ -8,9 +8,17 @@
 # checks what the step decided: which comment, issue or merge it asked for, and its exit
 # status. Nothing reaches GitHub.
 #
-# Needs bash, awk, jq and git (and node and python3, for two of them), as GitHub's Ubuntu
+# Needs bash, awk, jq and git (and node and python3, for some of them), as GitHub's Ubuntu
 # runners have them: CI runs these in its workflows job, and on Windows they run in WSL
-# (`bash tests/workflows/run.sh`).
+# (`bash tests/workflows/run.sh`). GNU userland as well: `date -u -d`, `timeout`,
+# `sha1sum`/`sha256sum`, `base64 -w0` (macOS and BSD have none of them as such), and
+# `python3 -m zipfile` where unzip is missing.
+#
+# The stubs apply a step's `gh --jq` filter with jq 1.7, whose regexes are Oniguruma's;
+# the real gh runs gojq, whose regexes are Go's RE2: no lookahead or lookbehind, no
+# backreferences, no atomic groups. Such a filter passes here and fails on GitHub, so
+# tests/unit/workflowGh.test.mjs fails for one in a workflow. (The one other difference
+# met so far: jq splits "" into [], gojq into [""].)
 
 set -uo pipefail
 

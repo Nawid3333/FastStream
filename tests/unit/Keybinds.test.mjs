@@ -285,6 +285,25 @@ describe('Utils.getOptionsFromStorage', () => {
     }
   });
 
+  it('keeps the URL lists lists of text, whatever was saved or imported', async () => {
+    // typeof null and typeof {} are 'object', as the default [] is: a settings file with
+    // "autoEnableURLs": null was kept, and the options page threw on .join from then on.
+    for (const bad of [null, {}, {0: 'https://example.com'}, 'https://example.com', 5, true]) {
+      store({autoEnableURLs: bad, mpvAllowlist: bad});
+      const options = await Utils.getOptionsFromStorage();
+      expect(options.autoEnableURLs).toEqual([]);
+      expect(options.mpvAllowlist).toEqual([]);
+      const imported = Utils.mergeOptions(DefaultOptions, {autoEnableURLs: bad});
+      expect(imported.autoEnableURLs).toEqual([]);
+    }
+
+    store({autoEnableURLs: ['https://a.example', 5, null, {}, ['x'], '~^https://b'], mpvAllowlist: ['@anime']});
+    const options = await Utils.getOptionsFromStorage();
+    expect(options.autoEnableURLs).toEqual(['https://a.example', '~^https://b']);
+    expect(options.mpvAllowlist).toEqual(['@anime']);
+    expect(options.autoEnableURLs.join('\n')).toBe('https://a.example\n~^https://b');
+  });
+
   it('cannot be poisoned through the saved keybinds', async () => {
     store('{"keybinds": {"__proto__": {"polluted": true}, "constructor": {"prototype": {"polluted": true}}}}');
     const {keybinds} = await Utils.getOptionsFromStorage();

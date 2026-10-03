@@ -47,7 +47,13 @@ export class Utils {
     for (const prop in defaultOptions) {
       if (Object.hasOwn(defaultOptions, prop)) {
         const opt = defaultOptions[prop];
-        if (typeof opt === 'object' && !Array.isArray(opt)) {
+        if (Array.isArray(opt)) {
+          // A list takes only a list, of text lines (autoEnableURLs and mpvAllowlist are the
+          // lists in the defaults). typeof null and of {} is 'object' too: an imported
+          // `"autoEnableURLs": null` was kept, saved, and broke the options page for good.
+          options[prop] = Object.hasOwn(newOptions, prop) && Array.isArray(newOptions[prop]) ?
+            newOptions[prop].filter((item) => typeof item === 'string') : opt;
+        } else if (typeof opt === 'object') {
           options[prop] = this.mergeOptions(opt, newOptions[prop] || {});
         } else {
           options[prop] = (Object.hasOwn(newOptions, prop) && typeof newOptions[prop] === typeof opt) ? newOptions[prop] : opt;
@@ -125,6 +131,30 @@ export class Utils {
     });
 
     return zippedFragments;
+  }
+
+  /**
+   * The bitrate the downloaded fragments show, or null while it cannot be told: fewer than
+   * five downloaded, or no time between them. An MP4's ranges start on whole seconds, so
+   * on a high-bitrate one the first few share a second and last 0 s; that gave Infinity, a
+   * false "not enough storage" warning, and every downloaded fragment kept for the session.
+   * @param {Array<Object>} fragments - Fragments with dataSize (null until downloaded)
+   *     and duration.
+   * @return {?number} Bits per second.
+   */
+  static measuredBitrate(fragments) {
+    let count = 0;
+    let size = 0;
+    let totalDuration = 0;
+    fragments.forEach((fragment) => {
+      if (fragment && fragment.dataSize !== null) {
+        count++;
+        size += fragment.dataSize;
+        totalDuration += fragment.duration;
+      }
+    });
+    if (count <= 4 || !(totalDuration > 0)) return null;
+    return size / totalDuration * 8;
   }
 
   /**
@@ -260,13 +290,20 @@ export class Utils {
    * stays a minute.
    * @param {string} url - The blob: URL.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
+   * @return {Promise<void>} Settles once the URL is revoked: whatever else the download
+   *     reads from (a save's OPFS session) can be let go then too.
    */
   static revokeWhenDownloaded(url, download) {
-    const revoke = () => URL.revokeObjectURL(url);
+    let revoked;
+    const over = new Promise((resolve) => (revoked = resolve));
+    const revoke = () => {
+      URL.revokeObjectURL(url);
+      revoked();
+    };
     const downloads = globalThis.chrome?.downloads;
     if (typeof download !== 'number' || !downloads?.onChanged || !downloads.search) {
       setTimeout(revoke, 60000);
-      return;
+      return over;
     }
     let done = false;
     const finish = () => {
@@ -288,6 +325,7 @@ export class Utils {
     downloads.search({id: download}).then(([item]) => {
       if (!item || item.state !== 'in_progress') finish();
     }).catch(finish);
+    return over;
   }
 
   /**

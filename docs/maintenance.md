@@ -28,7 +28,7 @@ merged themselves.
 | WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
 | patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | "ready to merge"; your merge releases as for the shipped libraries | the PR |
 | patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | as for minor/patch | the PR |
-| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it | "ready to merge" when it has no conflict, changes nothing under `.github/`, brings back no file this project deleted, and every commit on it is upstream's own; merge it with **Create a merge commit** (keeping upstream's commits), and it releases as for the shipped libraries | the PR |
+| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it, except when it changes anything under `.github/`: then the PR says so, and you start CI after reading those files (they would run with this repository's secrets) | "ready to merge" when it has no conflict, changes nothing under `.github/`, brings back no file this project deleted, and every commit on it is upstream's own; merge it with **Create a merge commit** (keeping upstream's commits), and it releases as for the shipped libraries | the PR |
 | mpv build | one PR from `mpv-updates.yml` on branch `mpv-update`, which moves to each newer build of shinchiro's that passes CI | "ready to merge"; your merge releases nothing (only CI installs this mpv) | the PR (one, not one a day); an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
@@ -69,18 +69,18 @@ last one is edited in place, so a repeat sends no second email.
 
 GitHub can't update your PC, so one double-click checks it: `update-local.cmd` in the
 repository's root. It compares your tools with what CI uses, by CI's rule (a release counts
-once it is 5 days old), and changes nothing:
+once it is 5 days old), and changes nothing without asking:
 
 - Node.js of the major `.nvmrc` names: whether a newer eligible release is on nodejs.org.
 - npm's newest release, and the pnpm version `package.json` pins (inside the repository
   pnpm switches to that one by itself).
 - On `main` with nothing uncommitted: how many commits it is behind origin, and whether the
   locked dependencies (`pnpm install --frozen-lockfile`, fsaunpack's `npm ci`, scripts off)
-  would need a run.
+  need a run: only when a lockfile changed after the last install.
 - The mpv helper: whether the repository's differs from the installed one.
 
-Whatever it reports as out of date, one run applies: `tools/update-local.ps1 -Apply`. The
-same rule as the check: Node comes as nodejs.org's installer, checked against its
+When it finds something out of date it asks "Update these now?", and Y applies all of it
+(the same as `tools/update-local.ps1 -Apply`), by the same rule as the check: Node comes as nodejs.org's installer, checked against its
 `SHASUMS256.txt` (Windows asks for admin rights; say yes), npm and pnpm install with
 scripts off, the pull is `--ff-only` on a clean `main`, and the mpv helper keeps your mpv
 and Node paths.
@@ -271,8 +271,42 @@ code. Without it the comment asks you to use **Update branch** on such a PR your
 4. **Permissions**, Repository permissions: **Contents**, **Pull requests** and **Workflows**,
    each Read and write. (Metadata: read-only is added by itself.)
 5. **Generate token**, and copy it.
-6. In the repository: **Settings**, **Secrets and variables**, **Actions**,
-   **New repository secret**. Name `UPDATE_PRS_TOKEN`, paste the token, **Add secret**.
+6. In the repository: **Settings**, **Environments**, **update-prs**, under
+   **Environment secrets** **Add Secret**. Name `UPDATE_PRS_TOKEN`, paste the token,
+   **Add secret**. (Not a repository secret: see "Secrets in environments" below.)
 
 An Actions update changes nothing the extension ships, so your merge of one releases
 nothing.
+
+## Secrets in environments
+
+The three secrets that can do harm live in GitHub Environments, not as repository secrets
+(#163, 2026-10-03): `AMO_API_KEY` and `AMO_API_SECRET` (they sign and publish the add-on) in
+**release**, which only `main` and tags `v*` may use, and `UPDATE_PRS_TOKEN` in
+**update-prs**, which only `main` may use. A workflow file on any other branch - an upstream
+sync's, a pull request's - runs with this repository's token but cannot read them: GitHub
+hands a job an environment's secrets only when the job names that environment and its
+branch or tag is allowed there. `release.yml`, the release failsafe and `update-prs.yml` name
+them (`environment:` with `deployment: false`, so no deployment is recorded);
+`tests/unit/workflowSecrets.test.mjs` fails for a job that reads one of these secrets
+without its environment.
+
+To set them up (or check them): **Settings**, **Environments**. (A workflow run that names
+an environment that does not exist creates it, with no rules and no secrets: if `release`
+or `update-prs` is listed already, click it instead of **New environment**.)
+
+1. **New environment**, name `release`, **Configure environment**. In the **Deployment
+   branches** dropdown pick **Selected branches and tags**. **Add deployment branch or tag
+   rule**: Ref type **Branch**, name pattern `main`, **Add rule**. Again: Ref type **Tag**,
+   name pattern `v*`, **Add rule**. Leave reviewers and wait timer off.
+2. Under **Environment secrets**, **Add Secret** twice: `AMO_API_KEY` (AMO's "JWT issuer")
+   and `AMO_API_SECRET` (its "JWT secret"), with the same values as before. GitHub never
+   shows a secret again: if you no longer have them, make new credentials on AMO's API key
+   page, https://addons.mozilla.org/developers/addon/api/key/ (the old ones stop working).
+3. **New environment**, name `update-prs`, **Configure environment**. **Selected branches
+   and tags**, one rule: Ref type **Branch**, `main`. Under **Environment secrets** add
+   `UPDATE_PRS_TOKEN`: a new token, made as in "A token for workflow updates" above, or the
+   old one's **Regenerate token** on GitHub's token page.
+4. Then **Settings**, **Secrets and variables**, **Actions**, **Repository secrets**: delete
+   `AMO_API_KEY`, `AMO_API_SECRET` and `UPDATE_PRS_TOKEN` there. Until they are deleted, any
+   branch's workflow can still read those copies.

@@ -217,6 +217,16 @@ describe('Keybinds', function() {
     expect(await rate()).toBe(8);
   });
 
+  it('never runs the video faster than options.maxPlaybackRate, whoever sets the rate', async function() {
+    // Holding the mouse on the video doubles the rate: at 5x that asked for 10x, which only
+    // the speed menu clamped, and the video played it, silent (#184).
+    const rates = await browser.execute(() => {
+      window.fastStream.playbackRate = 5 * 2;
+      return [window.fastStream.playbackRate, window.fastStream.player.getVideo().playbackRate];
+    });
+    expect(rates).toEqual([8, 8]);
+  });
+
   it('a preset is not left dead when the rate is put back to it by hand', async function() {
     await pressKey('KeyQ');
     await pressKey('KeyQ');

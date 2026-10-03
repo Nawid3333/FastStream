@@ -4,6 +4,9 @@ import {DownloadEntry} from './DownloadEntry.mjs';
 import {StandardDownloader} from './StandardDownloader.mjs';
 
 export class DownloadManager {
+  /** How long no download may fail before a downloader dropped for a failure comes back. */
+  static FailureRecoveryMs = 10000;
+
   constructor(client) {
     this.client = client;
     this.queue = [];
@@ -18,6 +21,8 @@ export class DownloadManager {
     this.testing = true;
     this.lastSpeed = 0;
     this.lastFailed = 0;
+    // Downloaders taken away after failed downloads, and not back yet.
+    this.droppedDownloaders = 0;
 
     this.failed = 0;
 
@@ -208,6 +213,7 @@ export class DownloadManager {
 
   addDownloader() {
     this.testing = false;
+    this.droppedDownloaders = 0;
     this.downloaders.push(new StandardDownloader(this));
     this.client.predownloadFragments();
     this.queueNext();
@@ -215,6 +221,7 @@ export class DownloadManager {
 
   removeDownloader() {
     this.testing = false;
+    this.droppedDownloaders = 0;
     const downloader = this.downloaders.pop();
 
     downloader.abort();
@@ -239,6 +246,7 @@ export class DownloadManager {
 
   removeAllDownloaders() {
     this.testing = false;
+    this.droppedDownloaders = 0;
     this.downloaders.forEach((downloader) => {
       downloader.abort();
     });
@@ -255,10 +263,18 @@ export class DownloadManager {
         const ind = this.downloaders.indexOf(downloader);
         if (ind !== -1) {
           this.downloaders.splice(ind, 1);
+          this.droppedDownloaders++;
           this.client.resetFailed();
           console.log('Downloader failed, removing downloader and trying again');
         }
       }
+    } else if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.droppedDownloaders > 0 &&
+        Date.now() - this.lastFailed > DownloadManager.FailureRecoveryMs) {
+      // A failure takes a downloader away, easing off a server that is struggling, and it
+      // never came back: three failures in a long video left three downloaders of six for
+      // the rest of it. Once downloads succeed again, each success brings one back.
+      this.droppedDownloaders--;
+      this.downloaders.push(new StandardDownloader(this));
     }
 
     if (this.testing) {
@@ -312,30 +328,32 @@ export class DownloadManager {
     this.queueNext();
   }
 
+  /**
+   * Starts as many queued downloads as there are free downloaders. It started one per call,
+   * so after a failure's cooldown, which calls it once, one download ran at a time until
+   * something else called it.
+   */
   queueNext() {
-    if (this.paused) return;
-    if (this.queue.length === 0) return;
+    while (!this.paused && this.queue.length > 0) {
+      if (this.queue[0].status !== DownloadStatus.ENQUEUED) {
+        this.queue.shift();
+        continue;
+      }
 
-    if (this.queue[0].status !== DownloadStatus.ENQUEUED) {
-      this.queue.shift();
-      this.queueNext();
-      return;
-    }
+      const failCooldown = 1000;
+      if (this.lastFailed + failCooldown > Date.now()) {
+        if (this.failCooldown) clearTimeout(this.failCooldown);
+        this.failCooldown = setTimeout(() => {
+          this.queueNext();
+        }, failCooldown + 100);
+        return;
+      }
 
-    const failCooldown = 1000;
-    if (this.lastFailed + failCooldown > Date.now()) {
-      if (this.failCooldown) clearTimeout(this.failCooldown);
-      this.failCooldown = setTimeout(() => {
-        this.queueNext();
-      }, failCooldown + 100);
-      return;
-    }
+      const downloader = this.downloaders.find((downloader) => {
+        return downloader.canHandle(this.queue[0].details);
+      });
+      if (!downloader) return;
 
-    const downloader = this.downloaders.find((downloader) => {
-      return downloader.canHandle(this.queue[0].details);
-    });
-
-    if (downloader) {
       const entry = this.queue.shift();
       downloader.run(entry);
     }
@@ -355,6 +373,7 @@ export class DownloadManager {
 
     this.testing = true;
     this.downloaders = [];
+    this.droppedDownloaders = 0;
     this.speedTestBuffer = [];
     this.speedTestSeen = [];
     this.speedTestCount = 0;

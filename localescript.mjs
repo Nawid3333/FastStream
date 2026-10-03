@@ -46,8 +46,10 @@ function getLocalesFromMultiPath() {
 }
 
 function getLocalesFromCombinedFile() {
+  // No file (deleted to regenerate it, say): no combined locales. This returned undefined,
+  // and the key check below threw on it, failing every build (#178).
   if (!fs.existsSync(combinedLocalesFile)) {
-    return;
+    return new Map();
   }
 
   const locales = new Map();
@@ -121,6 +123,9 @@ function saveLocalesToCombinedFile(locales, whiteList) {
 }
 
 function checkLocaleKeys(locales) {
+  if (locales.size === 0) {
+    return;
+  }
   const defaultLocale = locales.get(defaultLanguage);
   const defaultLocaleKeys = new Set(defaultLocale.keys());
   for (const [locale, translations] of locales.entries()) {
@@ -140,58 +145,76 @@ function checkLocaleKeys(locales) {
   }
 }
 
-// Get arguments
+// Get arguments. The first bad one is reported and ends the run with status 1 through
+// process.exitCode, so nothing below runs: CodeQL takes a process.exit() that an argument
+// leads to for a security decision (js/user-controlled-bypass).
 const args = process.argv.slice(2);
 let combine = false;
 let split = false;
 let whiteList = null;
-if (args.length > 0) {
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--whitelist') {
+let argError = null;
+for (let i = 0; i < args.length && !argError; i++) {
+  if (args[i] === '--whitelist') {
+    if (!args[i + 1] || args[i + 1].startsWith('--')) {
+      argError = ['--whitelist needs a comma-separated list of locales, e.g. --whitelist en,de'];
+    } else {
       whiteList = args[i + 1].split(',');
       i++;
-    } else if (args[i] === '--split') {
-      split = true;
-    } else if (args[i] === '--combine') {
-      combine = true;
-    } else {
-      console.log('Invalid argument:', args[i]);
-      process.exit(1);
     }
+  } else if (args[i] === '--split') {
+    split = true;
+  } else if (args[i] === '--combine') {
+    combine = true;
+  } else {
+    argError = ['Invalid argument:', args[i]];
   }
 }
 
-if (combine && split) {
-  console.log('Cannot combine and split at the same time');
-  process.exit(1);
+if (argError) {
+  console.log(...argError);
+  process.exitCode = 1;
+} else {
+  main();
 }
 
-
-const localesCombined = getLocalesFromCombinedFile();
-const localesMulti = getLocalesFromMultiPath();
-
-console.log('Checking locale keys');
-checkLocaleKeys(localesMulti);
-checkLocaleKeys(localesCombined);
-
-if (combine) {
-  console.log('Combining locales');
-  localesMulti.forEach((translations, locale) => {
-    localesCombined.set(locale, translations);
-  });
-  // delete locales not found in multi
-  for (const locale of localesCombined.keys()) {
-    if (!localesMulti.has(locale)) {
-      localesCombined.delete(locale);
-    }
+function main() {
+  if (combine && split) {
+    console.log('Cannot combine and split at the same time');
+    process.exit(1);
   }
-  saveLocalesToCombinedFile(localesCombined, whiteList);
-}
 
-if (split) {
-  console.log('Splitting locales');
-  localesCombined.forEach((translations, locale) => {
-    localesMulti.set(locale, translations);
-  });
-  saveLocalesToMultiPath(localesMulti, whiteList);
+
+  const localesCombined = getLocalesFromCombinedFile();
+  const localesMulti = getLocalesFromMultiPath();
+
+  if (split && localesCombined.size === 0) {
+    console.log(`Nothing to split: ${path.basename(combinedLocalesFile)} is missing or empty`);
+    process.exit(1);
+  }
+
+  console.log('Checking locale keys');
+  checkLocaleKeys(localesMulti);
+  checkLocaleKeys(localesCombined);
+
+  if (combine) {
+    console.log('Combining locales');
+    localesMulti.forEach((translations, locale) => {
+      localesCombined.set(locale, translations);
+    });
+    // delete locales not found in multi
+    for (const locale of localesCombined.keys()) {
+      if (!localesMulti.has(locale)) {
+        localesCombined.delete(locale);
+      }
+    }
+    saveLocalesToCombinedFile(localesCombined, whiteList);
+  }
+
+  if (split) {
+    console.log('Splitting locales');
+    localesCombined.forEach((translations, locale) => {
+      localesMulti.set(locale, translations);
+    });
+    saveLocalesToMultiPath(localesMulti, whiteList);
+  }
 }

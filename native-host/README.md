@@ -50,6 +50,12 @@ CDN (a fragment is not sent over HTTP):
 | `fs-page=<page address, percent-encoded>` | the page is `http(s)` | the "Site page" entry in mpv's menu (`source-info.lua`) |
 | `fs-id=<16 hex digits>` | the page is `http(s)` | the key `stream-resume.lua` saves the position under: a hash of the page's address, since the stream URL's token changes on every visit |
 
+A stream URL can come from a page, so it can carry text that looks like a tag.
+The host drops the `fs-*` items the URL's own fragment had and appends its tags
+after the rest. So a script on the mpv side reads a tag from the fragment only
+(the text after the first `#`), as a whole `&`-separated item, and takes the
+last one: anywhere else (`?x=fs-id=...`, `#a=1;fs-id=...`) it is the page's.
+
 ## Why mpv is started through WMI on Windows
 
 Firefox runs a native messaging host inside a Windows **job
@@ -77,7 +83,9 @@ the direct detached spawn is used.
 
 - Node.js 22 or newer, as for building this repository. CI tests the host with
   the version in the repository's `.nvmrc`.
-- mpv on your machine (e.g. `C:\Program Files\mpv\mpv.exe`)
+- mpv 0.38 or newer on your machine (e.g. `C:\Program Files\mpv\mpv.exe`): a
+  stream sent to an open mpv window goes in with `loadfile`'s named options. An
+  older one refuses it, and the host says so instead of opening a second window.
 
 ## Setup
 
@@ -94,7 +102,8 @@ The extension is allowed by its fixed build ID `thanatus@Nawid`.
 Options:
 
 - `-MpvPath "D:\tools\mpv\mpv.exe"` - where mpv lives
-  (default `C:\Program Files\mpv\mpv.exe`; the host also looks where
+  (default: the path `config.json` already holds, on a first install
+  `C:\Program Files\mpv\mpv.exe`; the host also looks where
   [Configuration](#configuration) lists)
 - `-NodePath` - path to `node.exe` if it is not on `PATH`
 
@@ -107,7 +116,7 @@ perform the same steps by hand instead of running the script.
 | # | Action | Manual equivalent |
 |---|---|---|
 | 1 | Creates `%LOCALAPPDATA%\FastStreamMpvHost\` and copies `faststream-mpv-host.mjs` into it | `New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\FastStreamMpvHost"` then copy the file |
-| 2 | Writes `mpvPath` into `config.json` there — the mpv location the host should launch; anything else the file holds (`"debug": true`) stays | create the same file by hand |
+| 2 | Writes `mpvPath` into `config.json` there — the mpv location the host should launch — and, once, `ipcToken`: a random value the host puts in the name of its pipe to mpv, since pipe names are shared by every account on the PC; anything else the file holds (`"debug": true`) stays | create the same file by hand |
 | 3 | Writes `com.faststream.mpv.bat` — a two-line wrapper that runs `node faststream-mpv-host.mjs`. Needed because Windows won't start a `.mjs` as a program. Firefox passes the manifest's path and the add-on's id as arguments; the wrapper hands them on, and the host ignores them | create the same file by hand |
 | 4 | Writes `com.faststream.mpv.json` — the native-messaging manifest: host name, path to the `.bat`, `type: "stdio"`, and which extension may talk to it (`allowed_extensions` = `thanatus@Nawid`) | create the same file by hand |
 | 5 | Creates registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv` (default value = path to the manifest JSON) so **Firefox** can find the host | `New-Item` + `Set-ItemProperty`, see the key paths in the script |
@@ -115,7 +124,7 @@ perform the same steps by hand instead of running the script.
 The script does **not**: run anything as admin, modify `PATH`, install
 software, start any background process, make network connections, or touch
 anything outside `%LOCALAPPDATA%\FastStreamMpvHost` and the one
-`NativeMessagingHosts` registry key listed above. Read it — it is about 110
+`NativeMessagingHosts` registry key listed above. Read it — it is about 130
 lines, commented, one action per block.
 
 ### Option B — manual setup (any OS, no script)
@@ -150,7 +159,9 @@ them.
    value = full path to the JSON file.
 5. Put your mpv path into `config.json` next to the host script
    (`{"mpvPath": "C:\\Program Files\\mpv\\mpv.exe"}`), or rely on the
-   lookups in [Configuration](#configuration).
+   lookups in [Configuration](#configuration). On a PC with other accounts,
+   add `"ipcToken"` with 32 random hex digits (see step 2 above); without it
+   the pipe has a fixed name.
 
 On **Linux and macOS**:
 
@@ -192,9 +203,9 @@ command line and the result to `faststream-mpv-host.log` next to itself.
 3. Fill the **MPV Allowlist** with the sites whose streams should open in
    mpv (same syntax as Auto-enable URLs: one URL per line, `~regex`, `!` to
    exclude).
-4. Click the toolbar button on an allowlisted page: its state cycles
-   Off → On → **MPV** (violet icon, `MPV` badge). Detected streams are then
-   handed to mpv instead of the in-page player.
+4. Open an allowlisted page: the toolbar button starts in **MPV** (violet
+   icon, `MPV` badge), and detected streams are handed to mpv instead of the
+   in-page player. A click cycles MPV → Off → On → MPV.
 
 ## Testing the host by hand
 

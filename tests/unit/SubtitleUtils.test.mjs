@@ -213,4 +213,151 @@ describe('convertSubtitleFormatting', () => {
   it('strips remaining alignment tags it does not translate inline', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('{\\an5}')).toBe('');
   });
+
+  it('turns an alignment tag right after the timing line into cue settings', () => {
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{\\an8}Top'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\nTop');
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\r\n{\\AN1}Low\r\n'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:95% position:0% align:start\nLow\r\n');
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{an0}Text'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nText');
+  });
+
+  it('drops an alignment tag on a later line of a cue instead of showing settings in the line above', () => {
+    // The settings were appended to whatever line came before the tag, and were shown:
+    // "first line line:5% position:50% align:center".
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\nfirst line\n{\\an8}second line'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nfirst line\nsecond line');
+  });
+});
+
+describe('cuesAt', () => {
+  const cue = (startTime, endTime, text) => ({startTime, endTime, text});
+  const textsAt = (cues, time) => SubtitleUtils.cuesAt(cues, time).map((c) => c.text);
+
+  it('keeps a long cue on screen while shorter, later cues start and end over it', () => {
+    // A sign or song spanning dialogue went off when a dialogue cue ended: at 12.5 only
+    // l2 showed, and at 20 nothing did.
+    const cues = [cue(0, 100, 'SIGN'), cue(10, 12, 'l1'), cue(11, 13, 'l2')];
+    expect(textsAt(cues, 5)).toEqual(['SIGN']);
+    expect(textsAt(cues, 11.5)).toEqual(['SIGN', 'l1', 'l2']);
+    expect(textsAt(cues, 12.5)).toEqual(['SIGN', 'l2']);
+    expect(textsAt(cues, 20)).toEqual(['SIGN']);
+    expect(textsAt(cues, 100)).toEqual(['SIGN']);
+    expect(textsAt(cues, 100.001)).toEqual([]);
+  });
+
+  it('gives the cues whose start and end include the time, in start order', () => {
+    const cues = [cue(1, 2, 'a'), cue(2, 3, 'b'), cue(2, 2.5, 'c'), cue(4, 5, 'd')];
+    expect(textsAt(cues, 0)).toEqual([]);
+    expect(textsAt(cues, 2)).toEqual(['a', 'b', 'c']);
+    expect(textsAt(cues, 2.7)).toEqual(['b']);
+    expect(textsAt(cues, 3.5)).toEqual([]);
+    expect(textsAt([], 1)).toEqual([]);
+  });
+});
+
+describe('isOpenSubtitlesDownloadLink', () => {
+  it('takes an https link on OpenSubtitles\' hosts, as the API gives them', () => {
+    for (const link of [
+      'https://www.opensubtitles.com/download/D35F5069516828D0/subfile/Titanic.1997.srt',
+      'https://opensubtitles.com/download/x/subfile/a.webvtt',
+      'https://dl.opensubtitles.org/en/download/sub/1',
+      'https://WWW.OpenSubtitles.COM/download/x',
+    ]) {
+      expect(SubtitleUtils.isOpenSubtitlesDownloadLink(link), link).toBe(true);
+    }
+  });
+
+  it('refuses any other scheme or host, which the extension would fetch with its permissions', () => {
+    for (const link of [
+      'http://www.opensubtitles.com/download/x',
+      'https://dl.example/sub.vtt',
+      'https://opensubtitles.com.evil.example/download/x',
+      'https://evilopensubtitles.com/download/x',
+      'https://evil.example/#.opensubtitles.com',
+      'https://evil.example/?www.opensubtitles.com',
+      'https://www.opensubtitles.com@evil.example/x',
+      'http://127.0.0.1:8080/admin',
+      'file:///C:/Users/x/secret.txt',
+      'moz-extension://abc/player/index.html',
+      'javascript:alert(1)',
+      'data:text/vtt,WEBVTT',
+      '/download/x',
+      '',
+      null,
+      undefined,
+      42,
+      {},
+    ]) {
+      expect(SubtitleUtils.isOpenSubtitlesDownloadLink(link), String(link)).toBe(false);
+    }
+  });
+});
+
+describe('srt2webvtt: line endings', () => {
+  const EXPECTED = 'WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nHello\n\n2\n00:00:03.000 --> 00:00:04.000\nWorld\n\n';
+
+  it('reads a SubRip file whose lines end in a carriage return only (classic Mac)', () => {
+    // Every '\r' was removed, which left the whole file on one line and no cue.
+    const srt = '1\r00:00:01,000 --> 00:00:02,000\rHello\r\r2\r00:00:03,000 --> 00:00:04,000\rWorld\r';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe(EXPECTED);
+  });
+
+  it('still reads two carriage returns and a line feed as one line ending', () => {
+    const srt = '1\r\r\n00:00:01,000 --> 00:00:02,000\r\r\nHello\r\r\n\r\r\n2\r\r\n00:00:03,000 --> 00:00:04,000\r\r\nWorld';
+    expect(SubtitleUtils.srt2webvtt(srt)).toBe(EXPECTED);
+  });
+});
+
+describe('translateXMLEntities: surrogates', () => {
+  it('writes a reference to a surrogate code point as U+FFFD, as HTML does', () => {
+    // String.fromCodePoint(0xD800) is a lone surrogate, and the WebVTT parser's decoder
+    // threw "URI malformed" on it: the whole track failed to load.
+    const replacement = String.fromCharCode(0xfffd);
+    for (const reference of ['&#xD800;', '&#55296;', '&#xDFFF;', '&#xdc00;']) {
+      expect(SubtitleUtils.translateXMLEntities('a' + reference + 'b')).toBe('a' + replacement + 'b');
+    }
+    expect(SubtitleUtils.translateXMLEntities('&#x1F600;')).toBe(String.fromCodePoint(0x1f600));
+  });
+});
+
+describe('hostile input: linear time', () => {
+  // Each took seconds with a regex that backtracks quadratically, on the page's main
+  // thread, as soon as a page offered the file. The sizes below took 1-3 s each before.
+  const budget = 250;
+
+  /**
+   * How long a call takes, in milliseconds.
+   * @param {Function} fn - The call.
+   * @return {number}
+   */
+  function elapsed(fn) {
+    const started = performance.now();
+    fn();
+    return performance.now() - started;
+  }
+
+  it('trims a file with a long run of spaces inside it', () => {
+    // /^\s+|\s+$/g retried \s+$ from every space of the run.
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\na' + ' '.repeat(60000) + 'b';
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('looks for a timestamp in a long line of digits', () => {
+    // The unanchored timestamp regex tried (\d+): from every digit of the run.
+    const srt = '1'.repeat(30000) + '\n' + '2'.repeat(30000) + '\nx';
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('looks for <br> tags in text full of unclosed "<br"', () => {
+    // [^>]* ran to the end of the text from every "<br" when no '>' came after it.
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\n' + '<br'.repeat(30000);
+    expect(elapsed(() => SubtitleUtils.srt2webvtt(srt))).toBeLessThan(budget);
+  });
+
+  it('still turns <br> tags into line breaks', () => {
+    expect(SubtitleUtils.convertSrtCue('1\n00:00:01,000 --> 00:00:02,000\na<br>b< BR />c</br>d<br x="1">e<brx>f<br'))
+        .toBe('1\n00:00:01.000 --> 00:00:02.000\na\nb\nc\nd\ne<brx>f<br\n\n');
+  });
 });

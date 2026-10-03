@@ -9,6 +9,7 @@ import {EnvUtils} from './utils/EnvUtils.mjs';
 import {RequestUtils} from './utils/RequestUtils.mjs';
 import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
 import {StreamPick} from './utils/StreamPick.mjs';
+import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
@@ -220,10 +221,12 @@ async function loadSubtitles(subs) {
         url: sub.source,
         commands: customHeaderCommands,
       });
-      const xhr = await RequestUtils.requestSimple(sub.source);
-      const body = xhr.responseText;
-      if ((xhr.status === 200 || xhr.status === 206) && body) {
-        sub.data = body;
+      const xhr = await RequestUtils.requestSimple({url: sub.source, responseType: 'arraybuffer'});
+      if (xhr.status === 200 || xhr.status === 206) {
+        const body = SubtitleUtils.decodeSubtitleBytes(xhr.response, xhr.getResponseHeader('Content-Type'));
+        if (body) {
+          sub.data = body;
+        }
       }
     }
   }));

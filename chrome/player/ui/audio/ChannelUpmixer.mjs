@@ -30,7 +30,14 @@ export class ChannelUpmixer extends AbstractAudioModule {
     }
 
     if (this.outputChannelCount !== outputChannelCount) {
-      this.mixerNode.channelCount = outputChannelCount;
+      // Kept, as enable() keeps it: it was never updated, so each call set the count
+      // again, and a count the node refused threw out of the whole channel update.
+      this.outputChannelCount = outputChannelCount;
+      try {
+        this.mixerNode.channelCount = outputChannelCount;
+      } catch (e) {
+        console.warn('Could not set channel count on upmixer', e);
+      }
     }
   }
 

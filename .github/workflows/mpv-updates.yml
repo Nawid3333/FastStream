@@ -161,7 +161,9 @@ jobs:
             2) ;;
             *) echo "git ls-remote failed with $status." >&2; exit 1 ;;
           esac
-          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number --jq '.[0].number // ""')
+          # gh's --head matches the branch name in any repository: never a fork's pull request.
+          pr=$(gh pr list --state open --head "$PR_BRANCH" --base main --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // ""')
           # Waiting there already: the latest build, or a newer one.
           waiting=0
           if [[ $offered =~ ^[0-9]{8}$ ]] && [ "$offered" -ge "$latest" ]; then waiting=1; fi

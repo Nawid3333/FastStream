@@ -95,6 +95,32 @@ const veilPage = (t) => `<!doctype html><title>veil</title>
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
+// A site's own dialog, opened while the player is up: a backdrop over the whole page with
+// the dialog in it, the geometry of an ad layer. It stays (#226). The ad that opens with
+// it, over the player and above the dialog's layer, goes: that shows the guard looked
+// again after the dialog opened.
+const dialogPage = (t) => `<!doctype html><title>dialog</title>
+<style>
+  body { margin: 0; }
+  .stage, .stage video { width: 640px; height: 360px; display: block; }
+  #promo { position: absolute; left: 220px; top: 200px; width: 200px; height: 100px; z-index: 5; background: #c00; }
+  #modal { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 100; display: none; }
+  #backdrop { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); }
+  #dialog { position: absolute; left: 200px; top: 100px; width: 400px; height: 200px; background: #fff; }
+  #lateAd { position: absolute; left: 20px; top: 20px; width: 120px; height: 60px; z-index: 200; background: #c00; display: none; }
+</style>
+<div class="stage"><video id="main" muted preload="auto" src="/clip.mp4?dialog=${t}"></video></div>
+<div id="promo"></div>
+<div id="modal"><div id="backdrop"></div><div id="dialog" role="dialog" aria-modal="true"><input id="email"></div></div>
+<div id="lateAd"></div>
+<script>
+  window.openDialog = () => {
+    document.getElementById('modal').style.display = 'block';
+    document.getElementById('lateAd').style.display = 'block';
+  };
+  window.leave = () => history.pushState({}, '', location.pathname + '/next');
+</script>`;
+
 // The embedding page: the player's iframe fills it, and its bar lies on top.
 const embeddingPage = (t) => `<!doctype html><title>embedding</title>
 <style>
@@ -270,7 +296,7 @@ describe('A site\'s overlays around an in-page player', function() {
       server.listen(port, '127.0.0.1', () => resolve(server));
     });
     servers = [
-      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/veil': veilPage, '/embedding': embeddingPage}),
+      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/veil': veilPage, '/dialog': dialogPage, '/embedding': embeddingPage}),
       await serve(EMBED_PORT, {'/embed': embedPage}),
     ];
 
@@ -360,6 +386,21 @@ describe('A site\'s overlays around an in-page player', function() {
     await browser.waitUntil(async () => (await visibilities(['veil'])).veil === 'visible',
         {timeout: 15000, timeoutMsg: 'the veil was not given back'}).catch(() => {});
     expect(await visibilities(ids)).toEqual({veil: 'visible', promo: 'visible', nav: 'visible'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('leaves a dialog the site opens over the player alone', async function() {
+    await openPage('/dialog');
+    await clickToolbar();
+    await browser.waitUntil(async () => (await visibilities(['promo'])).promo === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the ad stayed over the player'});
+    await inPage(() => window.openDialog());
+    await browser.waitUntil(async () => (await visibilities(['lateAd'])).lateAd === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the guard never looked again after the dialog opened'});
+    // The whole page's layer with a dialog in it, hidden like an ad layer, left the user
+    // no dialog to see while clicks went through its backdrop.
+    expect(await visibilities(['modal', 'backdrop', 'dialog', 'promo'])).toEqual(
+        {modal: 'visible', backdrop: 'visible', dialog: 'visible', promo: 'hidden'});
     expect(await takeContentErrors()).toEqual([]);
   });
 

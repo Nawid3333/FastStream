@@ -12,10 +12,10 @@
 // this project's eslint, which rewrites thousands of lines without changing
 // behaviour - it compares parsed declarations.
 //
-// The claim it establishes: 10 of 11 top-level declarations and 33 of the 39
+// The claim it establishes: 10 of 11 top-level declarations and 39 of the 41
 // `members` entries are structurally identical to upstream, and every single
-// difference is one of the ten changes recorded in
-// docs/vendored-libraries.md. Anything else, and this fails.
+// difference is one of the changes recorded in docs/vendored-libraries.md.
+// Anything else, and this fails.
 //
 // Run with: pnpm run verify:knob   (needs network)
 
@@ -29,30 +29,27 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
 const vendored = path.join(root, 'chrome/player/modules/knob.mjs');
 
-// Pinned by commit, not branch. The 2022 head of this repository is a third
-// larger and matches far worse; this is the revision tools/find-base.mjs
-// identified.
-const COMMIT = 'cf2db70f';
+// Pinned by commit, not branch. b8a39650 (2022-11-08) is the repository's head and
+// the revision the copy was taken from: it has everything the copy has (the scroll
+// gesture, angleScrollRatio, the change event, const/let). The pin used to be
+// cf2db70f (2012), which find-base.mjs picked by line count: the head is a third
+// larger only because of the <input> attribute parsing the copy leaves out, and
+// against cf2db70f every 2012-2022 upstream commit read as a FastStream change.
+const COMMIT = 'b8a39650a3cd8f47a833fe369fc97699c940e546';
 const UPSTREAM =
   `https://raw.githubusercontent.com/jherrm/knobs/${COMMIT}/Knob.js`;
 
-// The ten changes from docs/vendored-libraries.md, as they appear structurally.
+// The changes from docs/vendored-libraries.md, as they appear structurally.
 // `Knob` itself is expected to be ours alone: upstream keeps it inside an IIFE
-// that this copy unwraps in order to export it.
+// that this copy unwraps in order to export it, and its constructor reads options
+// from an <input>'s attributes with two helpers the copy does not need.
 const EXPECTED = {
   extraTopLevel: ['Knob'],
-  // Rewritten: the value-based API, the scroll gesture, the element write,
-  // and the __angleFromValue bug fix.
-  changedMembers: [
-    'val', 'doMouseScroll', '__validateAndPublishAngle', '__angleFromValue',
-    '__publish',
-  ],
-  // Added by the fork.
-  addedMembers: [
-    '__validateAndPublishValue', '__validateValue', '__valueFromAngles',
-  ],
-  // Renamed to __valueFromAngles.
-  removedMembers: ['__determineValue'],
+  theirsOnlyTopLevel: ['parseBool', 'parseDirection'],
+  // val() accepts 0; __angleFromValue maps the value the way __valueFromAngles does.
+  changedMembers: ['val', '__angleFromValue'],
+  addedMembers: [],
+  removedMembers: [],
 };
 
 /**
@@ -106,12 +103,12 @@ const same = (what, got, want) => {
 };
 
 const top = compareDeclarations(ours, upstream);
-console.log(`jherrm/knobs @ ${COMMIT}\n`);
+console.log(`jherrm/knobs @ ${COMMIT.slice(0, 8)}\n`);
 console.log(`  ${'ok  '} ${'top-level identical'.padEnd(22)} ` +
   `${top.same.length} of ${top.same.length + top.differs.length + top.onlyB.length}`);
 same('top-level ours only', top.onlyA, EXPECTED.extraTopLevel);
 same('top-level differing', top.differs, ['members']);
-same('top-level theirs only', top.onlyB, []);
+same('top-level theirs only', top.onlyB, EXPECTED.theirsOnlyTopLevel);
 
 const a = members(ours);
 const b = members(upstream);
@@ -143,7 +140,7 @@ if (problems.length) {
 }
 
 console.log(
-    `\nknob.mjs is jherrm/knobs Knob.js @ ${COMMIT} plus the ten changes in ` +
+    `\nknob.mjs is jherrm/knobs Knob.js @ ${COMMIT.slice(0, 8)} plus the changes in ` +
     `docs/vendored-libraries.md.\nVerified: ${top.same.length} of ` +
     `${top.same.length + 1} top-level declarations and ${identical.length} of ` +
     `${b.size} members\nare structurally identical, and every difference is ` +

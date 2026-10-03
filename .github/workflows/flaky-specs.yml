@@ -46,23 +46,30 @@ jobs:
           runs_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs"
 
           # Both jobs' artifacts from the last 7 days: id, run and branch. The list is newest
-          # first; ci.yml keeps them 14 days, so a week's are all still there.
+          # first; ci.yml keeps them 14 days, so a week's are all still there. Only runs of
+          # this repository's own branches: a fork's pull request runs CI with its own code,
+          # which writes the list, and anyone can open one.
           : > "$RUNNER_TEMP/artifacts.tsv"
           for name in e2e-retried e2e-retried-windows; do
             gh api --paginate "repos/$GH_REPO/actions/artifacts?name=$name&per_page=100" \
-              --jq '.artifacts[] | select((.expired | not) and .created_at >= env.SINCE and .workflow_run.id != null) | [.id, .workflow_run.id, .workflow_run.head_branch] | @tsv' \
+              --jq '.artifacts[] | select((.expired | not) and .created_at >= env.SINCE and .workflow_run.id != null and .workflow_run.head_repository_id == .workflow_run.repository_id) | [.id, .workflow_run.id, .workflow_run.head_branch] | @tsv' \
               >> "$RUNNER_TEMP/artifacts.tsv"
           done
           echo "$(wc -l < "$RUNNER_TEMP/artifacts.tsv") list(s) of retried specs since $SINCE"
 
           # Each list's records with their run and branch. A line that is not a record (a
-          # killed worker's half line) is skipped.
+          # killed worker's half line) is skipped. The texts go into a Markdown table: only the
+          # characters a spec path, suite, OS or branch name needs are kept, the rest become _
+          # (no |, backtick, newline, @mention or link reaches the issue).
           : > "$RUNNER_TEMP/retried.jsonl"
           while IFS=$'\t' read -r id run branch; do
             gh api "repos/$GH_REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/list.zip"
             unzip -p "$RUNNER_TEMP/list.zip" retried.jsonl \
-              | jq -cR --argjson run "$run" --arg branch "$branch" \
-                'fromjson? | select(type == "object" and (.spec | type) == "string") | . + {run: $run, branch: $branch}' \
+              | jq -cR --argjson run "$run" --arg branch "$branch" '
+                def clean: tostring | gsub("[^A-Za-z0-9._/+-]"; "_");
+                fromjson? | select(type == "object" and (.spec | type) == "string")
+                | {spec: (.spec | clean), suite: (.suite | clean), os: (.os | clean), passed: (.passed == true),
+                   run: $run, branch: ($branch | clean)}' \
               >> "$RUNNER_TEMP/retried.jsonl"
           done < "$RUNNER_TEMP/artifacts.tsv"
 

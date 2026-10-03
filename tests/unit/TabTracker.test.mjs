@@ -1,10 +1,8 @@
 import {beforeAll, describe, expect, it} from 'vitest';
 
 // FRAME_REMOVED: the page took a frame out. The background forgets it and the frames
-// inside it, gives back their player count, and answers whatever waited for one of them
-// to load - WAIT_UNTIL_MAIN_LOADED - with null, or that caller hangs for good. After
-// Firefox unloaded the idle background, the frame could be one it never knew, and the
-// message handler threw on it.
+// inside it, and gives back their player count. After Firefox unloaded the idle
+// background, the frame could be one it never knew, and the message handler threw on it.
 
 let TabTracker;
 
@@ -50,34 +48,6 @@ describe('forgetFrame', () => {
     const {tab, player} = tabWithFrames();
     tab.forgetFrame(player);
     expect(tab.playerCount).toBe(0);
-  });
-
-  it('answers everything waiting for those frames to load with null', () => {
-    const {tab, player, inner} = tabWithFrames();
-    const answers = [];
-    player.loadedCallbacks.add((value) => answers.push(['player', value]));
-    inner.loadedCallbacks.add((value) => answers.push(['inner', value]));
-    tab.forgetFrame(player);
-    expect(answers).toEqual([['player', null], ['inner', null]]);
-    expect(player.loadedCallbacks.size).toBe(0);
-    expect(inner.loadedCallbacks.size).toBe(0);
-  });
-
-  it('answers the rest when one waiting caller throws', () => {
-    const {tab, player} = tabWithFrames();
-    const answers = [];
-    player.loadedCallbacks.add(() => {
-      throw new Error('a closed port');
-    });
-    player.loadedCallbacks.add((value) => answers.push(value));
-    const error = console.error;
-    console.error = () => {};
-    try {
-      tab.forgetFrame(player);
-    } finally {
-      console.error = error;
-    }
-    expect(answers).toEqual([null]);
   });
 });
 
@@ -141,6 +111,68 @@ describe('isPlayerOfGoneDocument', () => {
     const {page} = pageWithPlayer();
     page.resetSelfAndChildren();
     expect(page.documentKey).toBeNull();
+  });
+});
+
+// The player page is web-accessible: a page (or an ad's iframe in it) that frames it can
+// put any parent_frame_id in its URL. Taken on trust, the frame it named counted as
+// holding a player, so the background dropped that page's streams and opened no player
+// there until it navigated (#225). The page that opened a player names itself in the
+// player's URL, with a name only its content script knows.
+describe('playerParentProof', () => {
+  /**
+   * A top frame (0) that named itself 'top', and a player frame (5) naming it.
+   * @return {{tab: Object, top: Object, player: Object}}
+   */
+  function topWithPlayer() {
+    const tab = new TabTracker().getTabOrCreate(7);
+    const top = tab.getFrameOrCreate(0);
+    top.documentKey = 'top';
+    const player = tab.getFrameOrCreate(5);
+    return {tab, top, player};
+  }
+
+  it('takes a player the named frame\'s page opened', () => {
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('proven');
+  });
+
+  it('takes a player a page sent its own frame to', () => {
+    // handlePlayerOpen's redirect: the player loads in the page's own frame.
+    const {tab} = topWithPlayer();
+    const embed = tab.getFrameOrCreate(3);
+    embed.documentKey = 'embed';
+    expect(tab.playerParentProof(embed, 0, 'embed')).toBe('proven');
+  });
+
+  it('refuses a player that names no page that opened it', () => {
+    // A page framing the player page itself: nothing in its URL but the frame it names.
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, null)).toBe('refused');
+    expect(tab.playerParentProof(player, 0, '')).toBe('refused');
+  });
+
+  it('refuses a player whose opener is not the named frame\'s page', () => {
+    const {tab, player} = topWithPlayer();
+    expect(tab.playerParentProof(player, 0, 'made-up')).toBe('refused');
+  });
+
+  it('refuses a frame id that is no frame id', () => {
+    // parseInt of a made-up parent_frame_id: NaN became a frame of the tab.
+    const {tab, player} = topWithPlayer();
+    for (const id of [NaN, -1, 1.5, '0', null]) {
+      expect(tab.playerParentProof(player, id, 'top'), String(id)).toBe('refused');
+    }
+  });
+
+  it('asks the named frame when its page never named itself here', () => {
+    // The background started again after the page loaded: only the page's content script
+    // knows its name now.
+    const tab = new TabTracker().getTabOrCreate(7);
+    const player = tab.getFrameOrCreate(5);
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('ask');
+    tab.getFrameOrCreate(0);
+    expect(tab.playerParentProof(player, 0, 'top')).toBe('ask');
   });
 });
 
@@ -425,5 +457,142 @@ describe('restoredFromCache', () => {
     const {tab, main} = tabWithEmbed();
     tab.restoreGoneDocument(main);
     expect(main.restoredFromCache).toBe(false);
+  });
+});
+
+// "Reload Frame" on the player loads it again in the same frame, and it asks for its
+// sources again; sendSources had taken them out of the page's frames, so it got none and
+// sat on the welcome screen (#288). The page's frame keeps what it handed the player.
+describe('handedTo', () => {
+  /**
+   * A page frame (1) whose player (frame 2) was handed a stream.
+   * @return {{tab: Object, page: Object}}
+   */
+  function pageThatHanded() {
+    const tab = new TabTracker().getTabOrCreate(7);
+    const page = tab.getFrameOrCreate(1);
+    page.noteHandedToPlayer(2, {subtitles: [], sources: [{url: 'https://cdn.example.com/a.m3u8'}], video: null});
+    return {tab, page};
+  }
+
+  it('gives a player in the same frame what the last one there was handed', () => {
+    const {page} = pageThatHanded();
+    expect(page.handedTo(2).sources).toEqual([{url: 'https://cdn.example.com/a.m3u8'}]);
+  });
+
+  it('gives a player in another frame nothing', () => {
+    // A new player is a new iframe, so a new frame: it gets what the page has now.
+    const {page} = pageThatHanded();
+    expect(page.handedTo(3)).toBeNull();
+  });
+
+  it('forgets it when another page comes in the frame', () => {
+    const {page} = pageThatHanded();
+    page.resetSelfAndChildren();
+    expect(page.handedTo(2)).toBeNull();
+  });
+});
+
+// A request's headers wait for its response by request id, which is unique in the session:
+// on the tab, so the page's reset (FRAME_ADDED, a new site) does not lose those of a request
+// still in flight (backgroundDetection.test.mjs drives that through the background).
+describe('request headers', () => {
+  it('outlive the tab\'s resets', () => {
+    const tab = new TabTracker().getTabOrCreate(7);
+    tab.rememberRequestHeaders('r1', [{name: 'Referer', value: 'https://a.test/'}]);
+    tab.getFrameOrCreate(0).resetSelfAndChildren();
+    tab.resetForReload();
+    tab.resetForNewSite('https://b.test/');
+    expect(tab.requestHeaders.get('r1')).toEqual([{name: 'Referer', value: 'https://a.test/'}]);
+  });
+
+  it('go when their response comes', () => {
+    const tracker = new TabTracker();
+    tracker.getTabOrCreate(7).rememberRequestHeaders('r1', []);
+    tracker.forgetRequestHeaders(7, 'r1');
+    expect(tracker.getTab(7).requestHeaders.size).toBe(0);
+  });
+
+  it('do not bring back a closed tab', () => {
+    // A closing tab's requests are cancelled, and the errors can come after tabs.onRemoved.
+    const tracker = new TabTracker();
+    tracker.forgetRequestHeaders(7, 'r1');
+    expect(tracker.getTab(7)).toBeUndefined();
+  });
+
+  it('are kept for the latest 500 requests at most', () => {
+    const tab = new TabTracker().getTabOrCreate(7);
+    for (let i = 0; i < 520; i++) {
+      tab.rememberRequestHeaders('r' + i, []);
+    }
+    expect(tab.requestHeaders.size).toBe(500);
+    expect(tab.requestHeaders.has('r19')).toBe(false);
+    expect(tab.requestHeaders.has('r20')).toBe(true);
+  });
+});
+
+// A page that is never left kept every stream and subtitle file it asked for: an HLS or
+// DASH player's pieces are detected one by one, thousands in an evening, each with its
+// request's headers, sent again to each player tab, and read for their lengths when a
+// player opened. backgroundDetection.test.mjs checks the background keeps them through
+// these methods.
+describe('what a frame keeps of its streams', () => {
+  const manifest = {url: 'https://cdn.test/v/master.m3u8', mode: 'accelerated_hls'};
+  const piece = (n) => ({url: `https://cdn.test/v/seg-${n}.mp4`, mode: 'accelerated_mp4'});
+
+  it('keeps the manifest, the first piece and the newest of one stream\'s pieces', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    frame.addSource(manifest);
+    for (let n = 1; n <= 300; n++) {
+      frame.addSource(piece(n));
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(21);
+    expect(urls[0]).toBe(manifest.url);
+    expect(urls[1]).toBe(piece(1).url);
+    expect(urls.slice(2)).toEqual(Array.from({length: 19}, (_, i) => piece(282 + i).url));
+  });
+
+  it('keeps every file of a shape up to 20', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 1; n <= 20; n++) {
+      frame.addSource(piece(n));
+    }
+    expect(frame.getSources()).toHaveLength(20);
+  });
+
+  it('keeps 200 in all, dropping files before manifests', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    frame.addSource(manifest);
+    // Names without digits: each its own shape.
+    const name = (n) => n.toString(26).replace(/[0-9]/g, (d) => 'qrstuvwxyz'[d]);
+    for (let n = 0; n < 250; n++) {
+      frame.addSource({url: `https://cdn.test/${name(n)}.mp4`, mode: 'accelerated_mp4'});
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls[0]).toBe(manifest.url);
+    expect(urls[199]).toBe(`https://cdn.test/${name(249)}.mp4`);
+  });
+
+  it('drops the oldest manifest once only manifests are left', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 0; n < 205; n++) {
+      frame.addSource({url: `https://cdn.test/${n}/master.m3u8`, mode: 'accelerated_hls'});
+    }
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls[0]).toBe('https://cdn.test/5/master.m3u8');
+  });
+
+  it('keeps the first and the newest of a stream\'s subtitle pieces', () => {
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 1; n <= 50; n++) {
+      frame.addSubtitle({source: `https://cdn.test/v/sub-${n}.vtt`});
+    }
+    const urls = frame.getSubtitles().map((s) => s.source);
+    expect(urls).toHaveLength(20);
+    expect(urls[0]).toBe('https://cdn.test/v/sub-1.vtt');
+    expect(urls[19]).toBe('https://cdn.test/v/sub-50.vtt');
   });
 });

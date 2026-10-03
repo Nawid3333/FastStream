@@ -9,6 +9,10 @@ out of date, run:
 
   powershell -NoProfile -ExecutionPolicy Bypass -File tools\update-local.ps1 -Apply
 
+update-local.cmd asks "Update these now?" after a check that found something, and Y runs
+exactly that. Exit codes: 0 nothing to do (or all applied), 1 a step failed, 2 the check
+found something to update.
+
 What it checks, and what -Apply does about it:
   - Node.js: the newest release of the major .nvmrc names, the one CI builds with, once it
     is 5 days old (CI's rule). -Apply fetches the installer from nodejs.org, checked against
@@ -22,7 +26,8 @@ What it checks, and what -Apply does about it:
   - The repository: on main with nothing uncommitted, how many commits main is behind origin
     (the check reports against what git already knows; -Apply fetches, then runs
     git pull --ff-only), then pnpm install --frozen-lockfile into the store node_modules was
-    installed from, and fsaunpack's npm ci (scripts off) when it is installed.
+    installed from, and fsaunpack's npm ci (scripts off) when it is installed: each only when
+    its lockfile changed after its last install.
   - The mpv helper: whether %LOCALAPPDATA%\FastStreamMpvHost's copy is the repository's;
     -Apply runs native-host\install.ps1 again, with the mpv and Node paths it was installed
     with.
@@ -35,6 +40,7 @@ checkout than the one this script is in.
 param([switch]$Apply, [switch]$DryRun, [string]$Repo = (Split-Path -Parent $PSScriptRoot))
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'update-local-lib.ps1')
 
 # Windows PowerShell 5.1 may still offer TLS 1.0 first; nodejs.org wants 1.2.
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -116,6 +122,8 @@ Invoke-Step 'Node.js' {
     $major = (ConvertTo-Version (Get-Content -Raw -LiteralPath (Join-Path $repo '.nvmrc'))).Major
     $have = Get-ToolVersion 'node'
     $want = Get-NewestRelease 'node' "$major"
+    # It becomes part of a URL and a file name: the exact shape, or nothing (issue #243).
+    if ($want -and $want -notmatch '^\d+\.\d+\.\d+$') { throw "not a Node.js version: '$want'" }
     if ((ConvertTo-Version $have).Major -gt $major) {
         Note "Node.js ${have}: kept, newer than the $major.x .nvmrc names"
     }
@@ -136,36 +144,27 @@ Invoke-Step 'Node.js' {
         $work = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) ('FastStream\node-' + [guid]::NewGuid().ToString('N'))
         $msi = Join-Path $work $file
         Invoke-Change "Node.js $have -> $want (nodejs.org installer; Windows asks for admin rights)" {
-            New-Item -ItemType Directory -Path $work | Out-Null
-            # Inheritance off, everyone else out: only this user (writes and hashes the
-            # file), Administrators and SYSTEM (msiexec runs as one of them) stay. The
-            # default %ProgramData% ACL inherits entries other users can create files in.
-            $acl = Get-Acl -LiteralPath $work
-            $acl.SetAccessRuleProtection($true, $false)
-            [void]$acl.Access | Out-Null
-            foreach ($rule in @($acl.Access)) { [void]$acl.RemoveAccessRuleSpecific($rule) }
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($env:USERNAME, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('Administrators', 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            $acl.SetAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('SYSTEM', 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')))
-            Set-Acl -LiteralPath $work -AclObject $acl
-            $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
-            $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
-            $line = ($sums -split "`n") | Where-Object { $_ -match ('\s' + [regex]::Escape($file) + '\s*$') } | Select-Object -First 1
-            if (-not $line) { throw "SHASUMS256.txt names no $file" }
-            $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
-            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $msi).Hash.ToLowerInvariant()
-            if ($expected -ne $actual) { throw "$file does not match SHASUMS256.txt ($actual, expected $expected)" }
-            # A hash from the same host proves nothing against whoever serves both: the installer
-            # must also carry the OpenJS Foundation's valid code signature.
-            $signature = Get-AuthenticodeSignature -LiteralPath $msi
-            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
-                throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
+            # Only this user (writes and hashes the file), Administrators and SYSTEM
+            # (msiexec runs as one of them) may write there; it goes again however this ends.
+            Invoke-InPrivateDirectory $work {
+                $ProgressPreference = 'SilentlyContinue'
+                Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/$file" -OutFile $msi
+                $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$base/SHASUMS256.txt").Content
+                $line = ($sums -split "`n") | Where-Object { $_ -match ('\s' + [regex]::Escape($file) + '\s*$') } | Select-Object -First 1
+                if (-not $line) { throw "SHASUMS256.txt names no $file" }
+                $expected = ($line.Trim() -split '\s+')[0].ToLowerInvariant()
+                $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $msi).Hash.ToLowerInvariant()
+                if ($expected -ne $actual) { throw "$file does not match SHASUMS256.txt ($actual, expected $expected)" }
+                # A hash from the same host proves nothing against whoever serves both: the installer
+                # must also carry the OpenJS Foundation's valid code signature.
+                $signature = Get-AuthenticodeSignature -LiteralPath $msi
+                if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'OpenJS Foundation') {
+                    throw "$file is not signed by the OpenJS Foundation ($($signature.Status))"
+                }
+                $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
+                # 3010: installed, a restart completes it.
+                if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
             }
-            $process = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') -ArgumentList "/i `"$msi`" /passive /norestart" -Verb RunAs -Wait -PassThru
-            # 3010: installed, a restart completes it.
-            if ($process.ExitCode -ne 0 -and $process.ExitCode -ne 3010) { throw "the installer ended with $($process.ExitCode)" }
-            Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 }
@@ -245,15 +244,30 @@ Invoke-Step 'The repository' {
                     $storeArgs = @('--store-dir', $store)
                 }
             }
+            # An install only when the lockfile changed after the last one: git rewrites a file
+            # only when it changes, and every install that changes something rewrites its
+            # marker (pnpm's node_modules\.modules.yaml, npm's node_modules\.package-lock.json).
+            # Offered every time, the check never came back clean (2026-10-03).
             $label = ('pnpm install --frozen-lockfile ' + ($storeArgs -join ' ')).Trim()
-            Invoke-Change $label { & pnpm install --frozen-lockfile @storeArgs }
-            if (Test-Path -LiteralPath (Join-Path $repo 'fsaunpack\node_modules')) {
-                Push-Location (Join-Path $repo 'fsaunpack')
-                try {
-                    Invoke-Change 'fsaunpack: npm ci --ignore-scripts' { & npm ci --ignore-scripts }
+            if (Test-ChangedSince (Join-Path $repo 'pnpm-lock.yaml') $modules) {
+                Invoke-Change $label { & pnpm install --frozen-lockfile @storeArgs }
+            }
+            else {
+                Note 'node_modules: installed from the current pnpm-lock.yaml'
+            }
+            $unpack = Join-Path $repo 'fsaunpack'
+            if (Test-Path -LiteralPath (Join-Path $unpack 'node_modules')) {
+                if (Test-ChangedSince (Join-Path $unpack 'package-lock.json') (Join-Path $unpack 'node_modules\.package-lock.json')) {
+                    Push-Location $unpack
+                    try {
+                        Invoke-Change 'fsaunpack: npm ci --ignore-scripts' { & npm ci --ignore-scripts }
+                    }
+                    finally {
+                        Pop-Location
+                    }
                 }
-                finally {
-                    Pop-Location
+                else {
+                    Note 'fsaunpack: node_modules installed from the current package-lock.json'
                 }
             }
         }
@@ -291,7 +305,8 @@ Write-Host ''
 Write-Host '== Summary' -ForegroundColor Cyan
 foreach ($line in $summary) { Write-Host "  $line" }
 Write-Host '  Not touched: Firefox (updates itself), mpv (its own repository), WSL (pnpm run verify:linux).'
-if (-not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })) {
+$due = -not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })
+if ($due) {
     Write-Host '  Run tools\update-local.ps1 -Apply to bring everything reported above up to date.'
 }
 if ($failed.Count -gt 0) {
@@ -300,4 +315,6 @@ if ($failed.Count -gt 0) {
     foreach ($line in $failed) { Write-Host "  $line" -ForegroundColor Red }
     exit 1
 }
+# 2: the check found something to update (update-local.cmd then offers to apply it).
+if ($due) { exit 2 }
 exit 0

@@ -150,9 +150,12 @@ npm's newest and the pinned pnpm, each 5 days old by `tools/newest-release.mjs` 
 `tools/check-toolchain.mjs`); on a clean `main`, how far it is behind origin, `pnpm install
 --frozen-lockfile`, fsaunpack's `npm ci --ignore-scripts`; and whether
 `%LOCALAPPDATA%\FastStreamMpvHost`'s host is the repository's (reinstalled by
-`native-host/install.ps1` with the installed mpv and Node paths). It changes nothing; it
-never installs, pulls or reinstalls unless given `-Apply` (Node: nodejs.org MSI, SHA-256
-checked, admin prompt). Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
+`native-host/install.ps1` with the installed mpv and Node paths). The check changes nothing
+and exits 2 when something is due; the .cmd then asks "Update these now?" and Y runs
+`-Apply` (Node: nodejs.org MSI, SHA-256 checked and OpenJS-signed, staged in a folder
+`tools/update-local-lib.ps1` locks to the user, Administrators and SYSTEM by SID (names are
+localized: "Administratoren" broke it on the owner's German Windows, 2026-10-03), admin
+prompt). The installs run only when a lockfile changed after the last install. Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
 repository, Nawid3333/mpv, with its own updater) or WSL.
 
 ## Manual playback testing
@@ -387,9 +390,16 @@ than trusting `FSBlob`'s own self-report.
   `getFile()`). It read each fragment back through the worker into an `ArrayBuffer`
   wrapped in a Blob, so every "offloaded" fragment was in RAM as well. A stored fragment
   is now deleted from disk on eviction, as the Cache backend's always were.
-- A worker call unanswered for 30 s counts as a crash (`CallTimeoutMs`), and a dead
-  worker moves FSBlob on to its next backend instead of keeping every later fragment in
-  RAM.
+- A worker that answers nothing for 30 s while calls wait counts as a crash
+  (`CallTimeoutMs`, one watchdog re-armed by every answer: it runs calls one at a time, so
+  timing each call from its post counted a write backlog as a crash), and a dead worker
+  moves FSBlob on to its next backend instead of keeping every later fragment in RAM.
+- **Until 2026-10-03 no playback fragment was ever stored in OPFS** (#132): their
+  identifiers are URLs, and Firefox refuses a name with a `/` (and `\` on Windows). The
+  worker now only sees names `OPFSManager.fileName()` hands out (`f0`, `f1`, ...), so a
+  file on disk is found by `opfsManager.fileName(identifier)`, not by its identifier. A
+  sync access handle's `write()` reports a disk-full write only by a short count (Gecko
+  never throws), which the worker checks (`writeAll`).
 - `prune()` in the worker leaves a session directory younger than `STALE_MS` alone
   (it exists before its first heartbeat: two players starting together deleted each
   other's), and a heartbeat that exists but cannot be read (its owner is writing it) means
@@ -569,12 +579,14 @@ PowerShell (`tests/unit/mpvHostSecurity.test.mjs`) and the Firefox half in
   (`extension-page.mjs`'s `openExtensionPage`).
 - **The host starts only an mpv**: a file named `mpv*` (or `mpv.exe` in a named folder),
   never a UNC or device path, which it does not even `stat`.
-- Also in the host: a 1 MB cap on a message's length prefix, a page's own `fs-*`
-  fragment tags dropped before the host's are added, no direct-spawn fallback when WMI
-  fails on Windows (Firefox kills that mpv as the host exits, so it reported success for
-  nothing), "mpv quit right after it started" after ~2 s instead of a 30 s wait, and a
-  lock file around loading into the running mpv, so two sends milliseconds apart cannot
-  swap headers.
+- Also in the host: a 1 MB cap on a message's length prefix (an over-size message is read
+  past and answered with an error; `MpvBackend` leaves out subtitles that would not fit),
+  a page's own `fs-*` fragment tags dropped before the host's are added, no direct-spawn
+  fallback when WMI fails on Windows (Firefox kills that mpv as the host exits, so it
+  reported success for nothing), "mpv quit right after it started" after ~2 s instead of
+  a 30 s wait, and the headers and title as per-file options of the one `loadfile`
+  command (no lock file since 2026-10-02), so two sends milliseconds apart cannot swap
+  headers.
 
 Four things here are counter-intuitive enough that each shipped broken once:
 
@@ -621,9 +633,11 @@ then woke a fresh background with no record of the user's toolbar choice, so an
 allowlisted site auto-started MPV again even after the user had picked the
 in-page player or Off. The same loss dropped the one-hand-off-per-page latch,
 so the page's next stream request after a wake opened a second mpv window.
-`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `regexMatched`,
+`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `mpvOnPlay`, `regexMatched`,
 `mpvMatched` and `mpvAutoOpened` per tab to `chrome.storage.session` whenever
 one of them changes (toolbar click, URL change, mpv hand-off and its failure),
+and since 2026-10-03 (#158) the failure shown as "!" (`mpvError`) and the shortcut's
+waiting play (`mpvPlayPendingUntil`, `mpvPlayedVideo`, `mpvLastPlaySend`),
 and `restoreTabStates` puts them back inside `ensureOptions()`, which every
 state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one
@@ -678,6 +692,16 @@ the frame above (`TabHolder.isPlayerOfGoneDocument`) is answered null and
 forgotten. A frame whose page never named itself to this background (it restarted
 since) proves nothing and the player counts. mpv-shortcut's `/late` page pins the
 state the race left.
+
+**A player a page frames itself (2026-10-03, #225).** `player/index.html` is
+web-accessible, so a page, or an ad's iframe in it, can frame it with any
+`parent_frame_id`. The player's own load is a moz-extension request that webRequest never
+sees, so the background took that id on trust: the named frame (the top one) counted as
+holding a player, with the effect above. Now `PLAYER_LOADED` adopts the named parent only
+when the opener is that frame's page or the player frame's own
+(`TabHolder.playerParentProof`); when the background does not know the frame's name (it
+restarted since), it asks the frame's content script (`IS_PLAYER_OPENER`). Otherwise the
+player is answered null and forgotten. mpv-shortcut's `/framed` page pins it.
 
 **Gone pages, and a page Back brings back (2026-09-30).** `TabHolder.goneDocuments`
 keeps the 16 latest pages that left a tab, by name, with what each had detected. A page
@@ -783,7 +807,11 @@ and dropping `isTrusted` (a page fakes the key).
 Single-instance reuse goes over mpv's JSON IPC on a named pipe. Only
 instances this host starts are given `--input-ipc-server`, which is what
 stops it ever loading into — or closing — an mpv the user opened themselves.
-A stale pipe simply fails to connect and a fresh instance starts.
+A stale pipe simply fails to connect and a fresh instance starts. The pipe's
+name carries `config.json`'s `ipcToken` (random, written by `install.ps1`):
+pipe names are machine-wide, so another account must not be able to guess it
+(`ipcPipeFor`; a Unix socket in `$XDG_RUNTIME_DIR` off Windows). A running mpv
+that answers `loadfile` with an error is not replaced by a second one.
 
 **Anime/movie content-type hint (2026-09-12).** `open` messages always
 carry `contentType: 'anime'|'movie'` — never omitted — resolved by
@@ -816,7 +844,9 @@ only) and the host's `mpvTargetUrl` appends `fs-id=<first 16 hex of
 sha256(pageUrl)>` after the `fs-content=` tag. The mpv config's
 `stream-resume.lua` saves the playback position under that key. The stream
 URL cannot be the key: CDN tokens change it on every visit. Hashed so the
-page address never appears in mpv's path or state file. A host without this
+key is short and the same on every visit; the page address itself is in mpv's
+`path` too, percent-encoded as `fs-page=` (source-info.lua's "Site page"),
+and so wherever mpv or a script records the path. A host without this
 change simply sends no `fs-id`, and mpv then does not resume.
 
 **Debugging.** Add `"debug": true` to
@@ -868,6 +898,12 @@ kill-on-close job object: check that by hand after a change to the launch.
 **It only processes `.mjs` and `.js`.** Move code into a `.ts` file and it
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
+
+The code is `tools/splicer.mjs` (tests: `tests/unit/splicer.test.mjs`). A directive is
+a `//` comment that is exactly `SPLICER:<TARGET>:<COMMAND>`; any other `// SPLICER:`
+comment, unknown target or unknown command fails the build, and the text in a string or
+block comment is not a directive (#168). Everything else ships as written, blank lines
+included: until 2026-10-03 every blank line was dropped, inside template literals too.
 
 Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_UPDATE_CHECKER`; no code carries a
 `FIREFOX` block any more, but both Firefox builds still pass it.
@@ -933,8 +969,12 @@ releases itself.
 
 **Only when something shipped changed** (2026-09-25). Before bumping,
 auto-release downloads CI's build of the commit (the `faststream-bundles`
-artifact) and the latest release's `firefox-github-*.zip`, unzips both and
-runs `diff -rq`. Identical means the push touched only tools, tests,
+artifact) and the latest release's `firefox-github-*.zip` and signed xpi, unzips them and
+runs `diff -rq`: the github zip against its zip, the AMO build against the xpi minus
+`META-INF/` (Mozilla's signature; otherwise the xpi is that build, checked on 1.3.82.52).
+Until #164 (2026-10-03) only the github zip was compared, so a change to the AMO build
+alone (its `update_url`) released nothing. A release still waiting for its xpi cannot be
+compared, so a push then releases. Identical means the push touched only tools, tests,
 workflows, docs or dev dependencies, and the release would differ from the
 last one only in its version number (v1.3.82.33 after PR #21 was exactly
 that), so it stops with a notice and nothing is released. Any doubt - no
@@ -1001,7 +1041,7 @@ the change went in.
   fixtures no longer depend on that (the DASH and HLS ones are encoded with `-bf 0
   -sc_threshold 0`; the B-frame one is copied from `sample.mp4`). Before a push, run
   both halves of CI here: `pnpm run verify` (Windows), and **`pnpm run verify:linux`**,
-  which runs CI's Linux verify job and its workflows job (actionlint, and the `run:`
+  which runs CI's Linux verify job and its workflows job (actionlint, zizmor, and the `run:`
   scripts' tests in `tests/workflows`) in WSL, once on each Ubuntu
   release CI uses: the one `ubuntu-latest` gives and the newest GitHub offers (24.04 and
   26.04 until `ubuntu-latest` has moved, rolled out Oct 19 - Nov 19 2026), read from the runner image table
@@ -1009,9 +1049,13 @@ the change went in.
   installed, `--distro Ubuntu-26.04` picks one. Every run first brings the distro up to
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
   full-upgrade, installs the newest release of the Node major `.nvmrc` names
-  (so it moves with CI) and the current stable Firefox, apt ffmpeg
+  (so it moves with CI) with the `packageManager` pnpm through its npm (not corepack, which
+  Node 25+ lacks; Node 26 also needs apt's libatomic1, #238), and the current stable Firefox
+  (its SHA-512 from the SHA512SUMS Mozilla's release key signs, the key pinned by fingerprint
+  in setup.sh, #248; Node's sum is still only from nodejs.org itself), apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
-  `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0). Then
+  `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0),
+  and zizmor's out of the one `.github/zizmor/Dockerfile` pins (#239). Then
   `tools/linux/verify.sh` runs on a copy of the working tree with fresh fixtures. wsl.exe
   writes stdout and stderr to a redirected file at separate offsets, one over the other,
   so both scripts merge them. The Windows build of actionlint hangs driving shellcheck on
@@ -1123,7 +1167,10 @@ the change went in.
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
   tries) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-  `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
+  `sync/upstream` branches, and never checks out PR code. `gh pr list --head` lists a fork's
+  pull request from a branch of the same name too: it, `sync-upstream.yml` and
+  `mpv-updates.yml` drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
+  fails for a `--head` list that does not ask). CI red: CI is started once more
   on the same commit, and that run decides (a new run, not a re-run: a re-run by this
   workflow's token would reach no workflow when it ends); not when CI already failed on
   that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses
@@ -1136,8 +1183,11 @@ the change went in.
   patched libraries, the upstream sync) when it is not labelled `hold`, and only when its
   bot opened it (not a draft,
   against `main`) and its commits are the bot's or this workflow's merges of `main` (the
-  owner's, made with their token; an upstream sync's: upstream's own, checked with
-  `gh api repos/Andrews54757/FastStream/commits/<sha>`), it changes only what its kind
+  owner's, made with their token; Dependabot's and those merges also signed by GitHub, as
+  an author login is only the commit's e-mail, #170; an upstream sync's: in the history of
+  upstream's `main`, `compare/<sha>...main` with `behind_by` 0 - not
+  `repos/Andrews54757/FastStream/commits/<sha>`, which finds any commit of the fork network,
+  this repository's own included), it changes only what its kind
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`;
@@ -1148,13 +1198,14 @@ the change went in.
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped libraries, patched
   libraries and the upstream sync), CI's build of the extension (the `faststream-bundles`
-  artifact, firefox-github zip) is file-for-file identical to the latest release's zip
+  artifact, both zips) is file-for-file identical to the latest release's zip and xpi
   apart from `manifest.json`'s version - `auto-release.yml`'s own test, so such a merge
   releases nothing. A shipped library's major comes on its own branch: it ships when one of
   its `dependency-name`s is in the `shipped-minor-and-patch` patterns of main's
   `.github/dependabot.yml` (unreadable: treated as tooling, whose build must not differ).
   GitHub Actions updates change workflow files, which `GITHUB_TOKEN` may not merge or
-  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN`
+  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN` of the
+  `update-prs` environment
   (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
   updates"), used only to bring such a branch up to date. The comment tells the owner to
   merge an upstream sync with a merge commit, keeping upstream's commits. His merge is his
@@ -1340,7 +1391,9 @@ the change went in.
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
 - **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
-  (`e2e-retried` and `e2e-retried-windows` artifacts, all branches, the last 7 days) in one
+  (`e2e-retried` and `e2e-retried-windows` artifacts, all of this repository's branches, the
+  last 7 days; never a fork's pull request, whose CI run writes the list with its own code,
+  and the texts are cut down to a path's characters, #166) in one
   issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was
   run again, how often its retry passed, suites, branches and runs. It finds the artifacts
   through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
@@ -1404,9 +1457,19 @@ the change went in.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
-  Like every update PR it waits for the owner's merge (nothing merges itself since
-  2026-10-02); `update-prs.yml` comments "ready to merge" once CI is green and it is clean
-  (no conflict, nothing under `.github/`, no deleted file back, only upstream's commits).
+  `update-prs.yml` calls the PR ready to merge (with a merge commit) once CI is green when
+  it is clean (no conflict, nothing under `.github/`, no deleted file back, only upstream's
+  commits); otherwise it says what to look at. **A merge that changes anything under
+  `.github/` gets no CI and no dependency review** (#163, 2026-10-03): a dispatched run
+  takes its workflow file from the branch, so upstream's workflow would run with this
+  repository's token and secrets; the PR says so, and the owner starts both after reading
+  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`). And the secrets
+  that can do harm are no repository secrets any more: the AMO keys are the `release`
+  environment's (main and tags `v*` only), `UPDATE_PRS_TOKEN` the `update-prs` one's (main
+  only), so no other branch's workflow can read them; the jobs that use them name the
+  environment with `deployment: false` (no deployment records), and
+  `tests/unit/workflowSecrets.test.mjs` fails for a job that reads one without it
+  (docs/maintenance.md, "Secrets in environments").
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
   (2026-09-25): Dependabot ignores the six libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.
@@ -1448,6 +1511,9 @@ the change went in.
   tsconfig; they stall the language server otherwise. Those two and a dozen more are
   copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
   a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
+  CI runs the unit tests before the build makes those copies, so `vitest.config.mjs` points
+  the ones copied unchanged (hls.mjs, mp4box, Mediabunny) at their npm builds: a unit test
+  can run the save's real demuxer and MP4 writers (`tests/unit/hls2mp4.test.mjs`).
 - **Property tests for what a page feeds in** (2026-10-01, T8): `tests/unit/*.property.test.mjs`
   run fast-check against SubtitleUtils (SRT/VTT/XML), StreamLength (m3u8/mpd), URLUtils,
   DownloadFilename and the host's `readMessage`: no throw on arbitrary text, round trips,
@@ -1557,7 +1623,7 @@ Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
 (`native-host/faststream-mpv-host.mjs`). The types are Chrome's (`@types/chrome`,
 which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
 and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
-(`cookieStoreId`, `originUrl`). background.mjs's own fixes were JSDoc, a few
+(`cookieStoreId`). background.mjs's own fixes were JSDoc, a few
 `undefined` checks that return what the code returned before (through a throw), and
 one guard: a message from a page outside any tab is no longer handled as a tab's. The
 player's files are next; fix what tsc reports only with the playback suites to hand.

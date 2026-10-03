@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {rebuild, resolveTarget} from './rebuild.mjs';
+import {rebuild, resolveTarget, webExtSpawn} from './rebuild.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -36,15 +36,12 @@ if (!fs.existsSync(sourceDir)) {
 console.log('\nLaunching Firefox dev instance with FastStream + uBlock...');
 console.log(`Profile: ${profileDir}\n`);
 
-// On Windows, .cmd files (pnpm.cmd) must be spawned with shell:true.
-// Paths with spaces must be quoted when using shell mode.
-const isCmd = process.platform === 'win32';
-const quote = (s) => s.includes(' ') ? `"${s}"` : s;
-const webExtArgs = [
-  'pnpm', 'exec', 'web-ext', 'run',
-  '--source-dir', quote(sourceDir),
+// webExtSpawn: a shell and quoting on Windows (pnpm.cmd), the arguments as they are elsewhere.
+const {command, args, shell} = webExtSpawn([
+  'run',
+  '--source-dir', sourceDir,
   '--target', 'firefox-desktop',
-  '--firefox-profile', quote(profileDir),
+  '--firefox-profile', profileDir,
   '--profile-create-if-missing',
   '--keep-profile-changes',
   // Additional Firefox arguments: no-remote so it cannot hand off to the
@@ -52,14 +49,12 @@ const webExtArgs = [
   // prompts. These combine with the user.js prefs for defense in depth.
   '--arg=-no-remote',
   '--arg=-new-instance',
-];
+]);
 
-const webExtCmd = webExtArgs.join(' ');
-
-const webExt = spawn(webExtCmd, [], {
+const webExt = spawn(command, args, {
   cwd: root,
   stdio: 'inherit',
-  shell: isCmd,
+  shell,
   env: {
     ...process.env,
     // Force a separate Firefox process; prevents hand-off to the user's
@@ -69,4 +64,8 @@ const webExt = spawn(webExtCmd, [], {
   },
 });
 
+webExt.on('error', (e) => {
+  console.error(`Could not start web-ext through pnpm: ${e.message}`);
+  process.exit(1);
+});
 webExt.on('exit', (code) => process.exit(code ?? 0));

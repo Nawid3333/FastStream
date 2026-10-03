@@ -102,13 +102,18 @@ export class IndexedDBManager {
         try {
           const db = await IndexedDBManager.requestDB(database.name, false);
           // check if stale
+          let stale = false;
           try {
             const updatedTime = await IndexedDBManager.getValue(db, 'metadata', 'updated_time');
-            if (!updatedTime || Date.now() - updatedTime > 10000) {
-              throw new Error('Stale');
-            }
+            stale = !updatedTime || Date.now() - updatedTime > 10000;
           } catch (e) {
+            stale = true;
+          } finally {
+            // A live tab's database too: kept open, it blocked that tab's own
+            // deleteDatabase when it closed, until this tab closed as well.
             db.close();
+          }
+          if (stale) {
             await IndexedDBManager.deleteDB(database.name);
             console.log('Pruned', database.name);
           }
@@ -229,12 +234,13 @@ export class IndexedDBManager {
 
   keepAlive() {
     if (this.db && !this.isPersistent()) {
-      IndexedDBManager.setValue(this.db, 'metadata', 'updated_time', Date.now());
+      // A beat that fails is tried again in a second.
+      IndexedDBManager.setValue(this.db, 'metadata', 'updated_time', Date.now()).catch(() => {});
     }
   }
 
   static transact(db, storeName, mode, callback) {
-    return new Promise(async (resolve, reject)=>{
+    return new Promise((resolve, reject)=>{
       let transaction;
       try {
         transaction = db.transaction(storeName, mode);
@@ -248,13 +254,29 @@ export class IndexedDBManager {
         console.error(event);
         reject(event);
       };
+      // A commit that fails (quota) aborts with no error event: the call never settled.
+      transaction.onabort = () => {
+        reject(transaction.error || new Error('the transaction was aborted'));
+      };
 
       transaction.oncomplete = async (event) => {
         resolve(await result);
       };
 
-      result = callback(transaction);
-      transaction.commit();
+      try {
+        result = callback(transaction);
+        transaction.commit();
+      } catch (e) {
+        // A request the callback could not make (put() of a value that cannot be stored):
+        // the transaction, with nothing in it, completed and the call answered null, as if
+        // it had worked.
+        try {
+          transaction.abort();
+        } catch (abortError) {
+          // Already finished.
+        }
+        reject(e);
+      }
     });
   }
 

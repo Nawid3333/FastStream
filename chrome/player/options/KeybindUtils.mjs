@@ -174,6 +174,11 @@ export function actionsForKey(keyString, keybinds, withModifiers = KeybindsWithM
   }
   const modifiers = keyString.split('+');
   const baseKey = modifiers.pop();
+  // A press with no key code (some virtual keyboards, unmapped keys, synthetic events)
+  // names no key. A binding recorded from one was '' and fired on every such press.
+  if (!baseKey) {
+    return [];
+  }
 
   const results = [];
   for (const [action, value] of entries) {

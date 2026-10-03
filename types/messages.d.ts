@@ -45,11 +45,17 @@ interface FSOpenPlayer extends FSMessageBase {
   type: 'OPEN_PLAYER';
   /** Extension URL of the player page. */
   url: string;
-  /** True only for the top frame, which navigates rather than redirects. */
+  /**
+   * True only for the top frame, which never goes to the player itself: it puts the
+   * player in place of its video, or lays it over the page. Another frame whose video
+   * fills it, and which cannot go fullscreen, navigates to the player instead.
+   */
   noRedirect: boolean;
   frameId: number;
   /** -1 when the frame has no parent. */
   parentFrameId: number;
+  /** Numbers this opening; content.js names it in PLAYER_OPEN_GONE. */
+  attempt: number;
 }
 
 /** The player announcing it has finished loading. */
@@ -58,8 +64,23 @@ interface FSPlayerLoaded extends FSMessageBase {
   url: string;
   /** Always true: only the extension's player sends this (main.mjs); the web build has no background. */
   isExt: true;
-  /** Absent when the player was not opened from a parent frame. */
+  /**
+   * The frame the player's URL names as its parent (parent_frame_id); absent when the
+   * player was not opened from a parent frame. The URL is the framing page's to write,
+   * so the background takes it only when the page its opener names is that frame's
+   * (TabHolder.playerParentProof, IS_PLAYER_OPENER).
+   */
   parentFrameId?: number;
+}
+
+/**
+ * Background asks a frame whether its page is the one a player names as its opener.
+ * content.js answers `true` or `false`.
+ */
+interface FSIsPlayerOpener extends FSMessageBase {
+  type: 'IS_PLAYER_OPENER';
+  /** The opener the player's URL names. */
+  document: string;
 }
 
 /**
@@ -82,16 +103,17 @@ interface FSHeaderCommand {
   value?: string;
 }
 
-/** Background asks a frame for its video element dimensions. */
+/** Background asks a frame how big its largest visible video is. */
 interface FSGetVideoSize extends FSMessageBase {
   type: 'GET_VIDEO_SIZE';
 }
 
-/** Reply to GET_VIDEO_SIZE. */
-interface FSVideoSize {
-  width: number;
-  height: number;
-}
+/**
+ * Reply to GET_VIDEO_SIZE: the video's visible area in CSS pixels (width x height x the
+ * share of it on screen); 0 when the frame has none. The background opens the player in
+ * the frame with the biggest.
+ */
+type FSVideoSizeReply = number;
 
 /**
  * Any message crossing a context boundary.
@@ -107,6 +129,7 @@ type FSMessage =
   | FSUpdateOptions
   | FSOpenPlayer
   | FSPlayerLoaded
+  | FSIsPlayerOpener
   | FSSetHeaders
   | FSGetVideoSize
   | FSMpvTest

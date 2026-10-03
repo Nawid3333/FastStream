@@ -81,7 +81,9 @@ export class ConvolutionXTC {
 
   configure(options) {
     const g = options.g;
-    const tc = Math.round(options.tc);
+    // In samples, and not rounded to whole ones: at 48 kHz that moved the microdelay knob in
+    // steps of 20.8 us, so most of its range changed nothing.
+    const tc = options.tc;
     let y = options.y;
 
     if (this.cachedOptions.g === g && this.cachedOptions.tc === tc && this.cachedOptions.y === y) {
@@ -104,7 +106,9 @@ export class ConvolutionXTC {
     y = Math.max(min_y, y);
     const valid = isFinite(y) && y <= max_y;
 
-    for (let k = 0; k < n; k++) {
+    // The positive frequencies; the negative ones mirror them below, as they must for a
+    // real impulse response. A delay of whole samples gave that by itself, a fraction does not.
+    for (let k = 0; k <= n / 2; k++) {
       const omegatc = 2 * Math.PI * k / n * tc;
       const cos = Math.cos(omegatc);
       const cm_I = Math.sqrt(gg - 2*g*cos + 1);
@@ -126,7 +130,16 @@ export class ConvolutionXTC {
       H_CIS[k * 2 + 1] = H[1];
       H_CROSS[k * 2] = H[2];
       H_CROSS[k * 2 + 1] = H[3];
+      if (k > 0 && k < n / 2) {
+        H_CIS[(n - k) * 2] = H[0];
+        H_CIS[(n - k) * 2 + 1] = -H[1];
+        H_CROSS[(n - k) * 2] = H[2];
+        H_CROSS[(n - k) * 2 + 1] = -H[3];
+      }
     }
+    // A real filter's response at the Nyquist frequency is real.
+    H_CIS[n + 1] = 0;
+    H_CROSS[n + 1] = 0;
 
     this.H_CIS = H_CIS;
     this.H_CROSS = H_CROSS;
@@ -150,26 +163,31 @@ export class ConvolutionXTC {
     this.convolvers_XTC[other].buffer = this.buffer_XTC;
 
     if (!this.switchTimeout) {
-      this.getInputNode().connect(this.convolvers_XTC[other], 1);
+      // Connected with no output index, as it is disconnected: connected with one (which
+      // meant nothing here), the disconnect below never matched it and threw into an
+      // empty catch, so both convolvers ran for good, at twice the CPU.
+      this.getInputNode().connect(this.convolvers_XTC[other]);
     }
 
     clearTimeout(this.switchTimeout);
     this.switchTimeout = setTimeout(() => {
       this.getOutputNode().connectFrom(this.convolvers_XTC[other]);
-      try {
-        this.getInputNode().disconnect(this.convolvers_XTC[current]);
-      } catch (e) {
-
-      }
-      try {
-        this.getOutputNode().disconnectFrom(this.convolvers_XTC[current]);
-      } catch (e) {
-
-      }
+      this.detachConvolver(this.convolvers_XTC[current]);
 
       this.currentConvolver = other;
       this.switchTimeout = null;
     }, 100);
+  }
+
+  // Takes a convolver off the input and the output where it is on them: the first switch
+  // has no convolver to retire, and while a switch is pending both are on the input.
+  detachConvolver(convolver) {
+    if (this.getInputNode().indexConnectedTo(convolver) !== -1) {
+      this.getInputNode().disconnect(convolver);
+    }
+    if (this.getOutputNode().indexConnectedFrom(convolver) !== -1) {
+      this.getOutputNode().disconnectFrom(convolver);
+    }
   }
 
   async init() {
@@ -208,14 +226,7 @@ export class ConvolutionXTC {
     this.getOutputNode().disconnectFrom(this.convolver_BYPASS);
 
     this.convolvers_XTC.forEach((convolver) => {
-      try {
-        this.getInputNode().disconnect(convolver);
-      } catch (e) {
-      }
-      try {
-        this.getOutputNode().disconnectFrom(convolver);
-      } catch (e) {
-      }
+      this.detachConvolver(convolver);
     });
     this.convolver_BYPASS = null;
     this.convolvers_XTC = null;

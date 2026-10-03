@@ -267,12 +267,17 @@ describe('translateXMLEntities', () => {
   });
 
   it('resolves generated decimal and hexadecimal numeric references to the character of that code point', () => {
-    // Lines 32-43: '#' numeric references, 'x' hexadecimal, 0..0x10FFFF.
-    fc.assert(fc.property(fc.nat({max: 0x10FFFF}), (code) => {
+    // '#' numeric references, 'x' hexadecimal, 0..0x10FFFF; a surrogate code point, which
+    // is no character, becomes U+FFFD as in HTML.
+    const character = (code) => code >= 0xD800 && code <= 0xDFFF ?
+      String.fromCharCode(0xFFFD) : String.fromCodePoint(code);
+    const codes = fc.oneof(fc.nat({max: 0x10FFFF}), fc.integer({min: 0xD7F0, max: 0xE00F}));
+    fc.assert(fc.property(codes, (code) => {
       expect(SubtitleUtils.translateXMLEntities('&#' + code + ';'))
-          .toBe(String.fromCodePoint(code));
+          .toBe(character(code));
       expect(SubtitleUtils.translateXMLEntities('&#x' + code.toString(16) + ';'))
-          .toBe(String.fromCodePoint(code));
+          .toBe(character(code));
+      expect(SubtitleUtils.translateXMLEntities('&#' + code + ';').isWellFormed()).toBe(true);
     }), {numRuns: 200});
   });
 

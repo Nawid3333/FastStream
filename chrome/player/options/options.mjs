@@ -191,6 +191,11 @@ async function loadOptions(newOptions) {
 function createSelectMenu(container, options, selected, localPrefix, callback) {
   container.replaceChildren();
   const select = document.createElement('select');
+  // The wrapper carries the label (data-i18n-label), but a screen reader names the select:
+  // the eight menus were read as a bare "combo box".
+  if (container.dataset.i18nLabel) {
+    select.setAttribute('aria-label', Localize.getMessage(container.dataset.i18nLabel));
+  }
   for (const option of options) {
     const optionElement = document.createElement('option');
     optionElement.value = option;
@@ -249,6 +254,7 @@ createSelectMenu(visChangeAction, Object.values(VisChangeActions), Options.visCh
 
 createSelectMenu(colorTheme, Object.values(ColorThemes), Options.colorTheme, 'options_general_color_theme', (e) => {
   Options.colorTheme = e.target.value;
+  document.body.dataset.theme = Options.colorTheme;
   optionChanged();
 });
 
@@ -308,7 +314,10 @@ document.querySelectorAll('.video-option').forEach((option) => {
     optionChanged();
   }
 
-  numberInput.addEventListener('change', numberInputChanged);
+  numberInput.addEventListener('change', () => {
+    numberInputChanged();
+    numberInput.value = Math.round(Options[optionKey] * unitMultiplier) + unit;
+  });
   numberInput.addEventListener('input', numberInputChanged);
   rangeInput.addEventListener('change', rangeInputChanged);
   rangeInput.addEventListener('input', rangeInputChanged);
@@ -379,6 +388,11 @@ function createKeybindElement(keybind) {
     }
     e.stopPropagation();
     e.preventDefault();
+    // A press with no key code (some virtual keyboards, unmapped keys) names no key: it was
+    // saved as '', and every such press in the player fired the action.
+    if (!e.code && e.key !== ' ') {
+      return;
+    }
     keybindInput.textContent = WebUtils.getKeyString(e);
     Options.keybinds[keybind] = keybindInput.textContent;
     refreshKeybindConflicts();
@@ -409,7 +423,12 @@ function createKeybindElement(keybind) {
   keybindsList.appendChild(containerElement);
 }
 
-document.getElementById('welcome').href = EnvUtils.isExtension() ? chrome?.runtime?.getURL('welcome.html') : './../welcome.html';
+if (EnvUtils.isExtension()) {
+  document.getElementById('welcome').href = chrome.runtime.getURL('welcome.html');
+} else {
+  // The web build has no welcome page (build.mjs leaves it out): the link was a 404.
+  document.getElementById('welcomeitem').style.display = 'none';
+}
 
 playMP4URLs.addEventListener('change', () => {
   Options.playMP4URLs = playMP4URLs.checked;
@@ -440,11 +459,13 @@ mpvModeSectionToggle.addEventListener('change', () => {
 
 mpvAllowlistInput.addEventListener('change', (e) => {
   Options.mpvAllowlist = mpvAllowlistInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
+  mpvAllowlistInput.value = Options.mpvAllowlist.join('\n');
   optionChanged();
 });
 
 mpvPathInput.addEventListener('change', () => {
   Options.mpvPath = mpvPathInput.value.trim();
+  mpvPathInput.value = Options.mpvPath;
   optionChanged();
 });
 
@@ -645,6 +666,7 @@ WebUtils.setupTabIndex(document.getElementById('resetdefault'));
 
 autoEnableURLSInput.addEventListener('change', (e) => {
   Options.autoEnableURLs = autoEnableURLSInput.value.split('\n').map((o)=>o.trim()).filter((o)=>o.length);
+  autoEnableURLSInput.value = Options.autoEnableURLs.join('\n');
   optionChanged();
 });
 
@@ -700,9 +722,21 @@ exportButton.addEventListener('click', async () => {
   URL.revokeObjectURL(url);
 });
 
+// The options this page last saved. The store tells its listeners about the page's own
+// saves too, and redrawing the page then rebuilt every keybind row (the box a key was
+// just pressed in lost focus), rewrote a number field after each key typed (the caret
+// jumped to the end) and undid a search; the page already shows what it saved.
+let ownSave = null;
+
 function optionChanged() {
-  // Centralized save/broadcast
+  // Before the saved options are read, Options holds only what was just changed, and
+  // saving it would put the defaults over everything else the user had set.
+  if (!optionsLoaded) {
+    return;
+  }
+  // Centralized save/broadcast. replace() takes the options before it saves them.
   OptionsStore.replace(Options);
+  ownSave = OptionsStore.get();
 }
 
 const versionDiv = document.getElementById('version');
@@ -714,7 +748,11 @@ if (parent !== window) {
 }
 
 // React to external changes via OptionsStore
-OptionsStore.subscribe(() => loadOptions(OptionsStore.get()));
+OptionsStore.subscribe((options) => {
+  if (options !== ownSave) {
+    loadOptions(options);
+  }
+});
 
 if (EnvUtils.isExtension()) {
   // Also refresh when becoming visible to catch recent changes

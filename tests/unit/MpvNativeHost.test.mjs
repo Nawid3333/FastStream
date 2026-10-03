@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import {afterEach, describe, expect, it} from 'vitest';
-import {SubtitleDirPrefix, loadIntoExisting, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {MaxLogBytes, SubtitleDirPrefix, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -36,7 +36,8 @@ describe('loadIntoExisting', () => {
     expect(result).toEqual({ok: true, pid: 4242});
   });
 
-  it('fails when the pipe answers but loadfile is refused', async () => {
+  it('is refused, not "no mpv", when the pipe answers but loadfile is refused', async () => {
+    // Ours answered, so it runs: a fresh start would be a second mpv on its pipe (#152).
     const ipcRequest = async (commands) => ({
       ok: true,
       replies: [
@@ -45,7 +46,7 @@ describe('loadIntoExisting', () => {
       ],
     });
     const result = await loadIntoExisting(message, headerFields, title, ipcRequest);
-    expect(result).toEqual({ok: false});
+    expect(result).toEqual({ok: false, refused: true, error: 'invalid parameter'});
   });
 
   it('is busy, not phantom-successful, when only the fullscreen reply came back', async () => {
@@ -125,11 +126,19 @@ describe('loadIntoExisting', () => {
 });
 
 describe('perFileOptions', () => {
-  it('joins the headers as mpv\'s string list, escaping commas and backslashes', () => {
-    expect(perFileOptions(['Referer: https://a.test/?q=1,2', 'X-Path: C:\\dir'], 't')).toEqual({
-      'http-header-fields': 'Referer: https://a.test/?q=1\\,2,X-Path: C:\\\\dir',
+  // mpv's string list removes a backslash only right before a ',' (measured on mpv 0.41:
+  // an escaped backslash reached the server doubled, #157).
+  it('joins the headers as mpv\'s string list, escaping commas only', () => {
+    expect(perFileOptions(['Referer: https://a.test/?q=1,2', 'X-Path: C:\\dir', 'X-Both: a\\,b'], 't')).toEqual({
+      'http-header-fields': 'Referer: https://a.test/?q=1\\,2,X-Path: C:\\dir,X-Both: a\\\\,b',
       'force-media-title': 't',
     });
+  });
+
+  it('leaves out a field ending in a backslash, which would swallow the next one', () => {
+    // mpv reads "\," as an escaped comma: the Referer took the User-Agent in (measured).
+    expect(perFileOptions(['Referer: https://a.test/x\\', 'User-Agent: UA'], 't')['http-header-fields'])
+        .toBe('User-Agent: UA');
   });
 
   it('clears the headers when there are none', () => {
@@ -287,6 +296,16 @@ describe('mpvTargetUrl', () => {
         .toBe('https://cdn/a.m3u8#fs-content=movie');
   });
 
+  it('hands mpv the URL as the parser writes it, not the raw string (#154)', () => {
+    // isStreamUrl parses the URL, which drops a tab or newline the raw string still has.
+    const target = mpvTargetUrl({url: 'https://cdn.test/v.m3u8\n--foo bar\t?t=1 2'});
+    expect(target).toBe('https://cdn.test/v.m3u8--foo%20bar?t=1%202');
+    expect(target).toMatch(/^[!-~]+$/);
+    // An already clean URL, as the extension sends one, stays as it is.
+    const signed = 'https://cdn.test/hls/a%2Fb/index.m3u8?sig=AbC%3D%3D&exp=1&x=a,b;c';
+    expect(mpvTargetUrl({url: signed})).toBe(signed);
+  });
+
   it('never puts the page address itself into the URL unencoded', () => {
     // The whole point of fs-page= being one percent-encoded tag: the raw
     // address, with its ?, & and # intact, must never leak into the URL.
@@ -410,6 +429,142 @@ describe('start and subtitles from the player', () => {
     // A path with neither ';' nor ':' (the delimiter on Windows and on Linux CI).
     await loadIntoExisting(message, [], 't', ipcRequest, {start: 12, subFiles: ['/subs/1 English.srt']});
     expect(loadfileOf(sent).options).toMatchObject({'start': '12', 'sub-files': '/subs/1 English.srt'});
+  });
+});
+
+// launchMpv with stand-ins for the pipe, the window focus and the launch of a new mpv:
+// what it does with each answer of the running one.
+describe('launchMpv', () => {
+  const token = '0123456789abcdef0123456789abcdef';
+  const open = {type: 'open', url: 'https://cdn.test/v.m3u8', singleInstance: true};
+  /**
+   * Stand-ins that record what launchMpv did.
+   * @param {Object} reply - What the pipe answers (mpvIpcRequest's result) for the loadfile.
+   * @return {Object} io for launchMpv, and the record.
+   */
+  const stand = (reply) => {
+    const record = {pipes: [], focused: [], started: []};
+    return {
+      record,
+      ipcRequest: async (commands, timeoutMs, replyTimeoutMs, pipe) => {
+        record.pipes.push(pipe);
+        return typeof reply === 'function' ? reply(commands) : reply;
+      },
+      focus: async (pid) => {
+        record.focused.push(pid);
+        return 'FOCUS=True';
+      },
+      start: async (mpvPath, args) => {
+        record.started.push(args);
+        return {ok: true};
+      },
+    };
+  };
+  const answered = (error) => (commands) => ({ok: true, replies: [
+    {request_id: commands.length - 1, error},
+    {request_id: commands.length, data: 4242},
+  ]});
+
+  beforeEach(() => {
+    vi.stubEnv('FASTSTREAM_MPV_DEBUG', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('starts no second mpv when the running one refuses the stream (#152)', async () => {
+    const io = stand(answered('invalid parameter'));
+    const result = await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'});
+    expect(io.record.started).toEqual([]);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('refused the stream (invalid parameter)');
+  });
+
+  it('starts one with the pipe when none of ours runs', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    expect(await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'})).toEqual({ok: true});
+    expect(io.record.started).toHaveLength(1);
+    expect(io.record.started[0]).toContain(`--input-ipc-server=\\\\.\\pipe\\faststream-mpv-${token}`);
+  });
+
+  it('asks the pipe named by the config\'s token (#156)', async () => {
+    const io = stand(answered('success'));
+    await launchMpv('mpv.exe', open, {ipcToken: token}, {...io, platform: 'win32'});
+    expect(io.record.pipes).toEqual([`\\\\.\\pipe\\faststream-mpv-${token}`]);
+    expect(io.record.focused).toEqual([4242]);
+  });
+
+  it('raises the window on Windows only: elsewhere there is no PowerShell (#153)', async () => {
+    const io = stand(answered('success'));
+    expect(await launchMpv('/usr/bin/mpv', open, {}, {...io, platform: 'linux'})).toEqual({ok: true});
+    expect(io.record.focused).toEqual([]);
+    expect(io.record.pipes[0]).toMatch(/\/faststream-mpv-\d+\.sock$/);
+  });
+});
+
+describe('ipcPipeFor', () => {
+  const token = 'fedcba9876543210fedcba9876543210';
+
+  it('carries the config\'s token on Windows, whose pipe names are machine-wide (#156)', () => {
+    expect(ipcPipeFor({ipcToken: token}, 'win32')).toBe(`\\\\.\\pipe\\faststream-mpv-${token}`);
+  });
+
+  it('keeps the old fixed name without a usable token', () => {
+    for (const config of [{}, {ipcToken: 'short'}, {ipcToken: `..\\${token}`}, {ipcToken: 5}, null]) {
+      expect(ipcPipeFor(config, 'win32')).toBe('\\\\.\\pipe\\faststream-mpv');
+    }
+  });
+
+  it('is a socket in the user\'s runtime folder elsewhere, not a Windows name (#153)', () => {
+    expect(ipcPipeFor({}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'})).toMatch(/^\/run\/user\/1000\/faststream-mpv-\d+\.sock$/);
+    expect(ipcPipeFor({}, 'darwin', {}).startsWith(os.tmpdir())).toBe(true);
+    expect(ipcPipeFor({ipcToken: token}, 'linux', {})).not.toContain('pipe');
+  });
+});
+
+// Off Windows a new mpv is an ordinary child, and it was reported started 500 ms later
+// whatever it did; one that quits at once now reports why (#161). Node stands in for mpv.
+describe('launchDirect', () => {
+  it('reports an mpv that quits at once', async () => {
+    const result = await launchDirect(process.execPath, ['-e', 'process.exit(3)']);
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('exit code 3');
+  });
+
+  it('reports one that keeps running as started', async () => {
+    // Runs past the 500 ms launchDirect waits, and has ended by itself before the test does.
+    expect(await launchDirect(process.execPath, ['-e', 'setTimeout(() => {}, 700)'])).toEqual({ok: true});
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  });
+});
+
+// "debug": true is easily left on: the log took every subtitle text and never stopped
+// growing (#159).
+describe('the debug log', () => {
+  const dirs = [];
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) fs.rmSync(dir, {recursive: true, force: true});
+  });
+
+  it('records subtitles as their number and size', () => {
+    const logged = loggedMessage({type: 'open', url: 'https://cdn.test/v.m3u8',
+      subtitles: [{label: 'English', srt: 'x'.repeat(1000)}, {label: 'German', srt: 'yy'}]});
+    expect(logged.subtitles).toEqual({count: 2, chars: 1002});
+    expect(logged.url).toBe('https://cdn.test/v.m3u8');
+    expect(JSON.stringify(logged)).not.toContain('xxx');
+    expect(loggedMessage(null)).toBeNull();
+  });
+
+  it('starts anew past MaxLogBytes, keeping the one before', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-log-'));
+    dirs.push(dir);
+    const file = path.join(dir, 'faststream-mpv-host.log');
+    fs.writeFileSync(file, 'x'.repeat(MaxLogBytes + 1));
+    debugLog({debug: true}, 'next', {n: 1}, file);
+    expect(fs.statSync(file + '.1').size).toBe(MaxLogBytes + 1);
+    expect(JSON.parse(fs.readFileSync(file, 'utf8')).label).toBe('next');
+    debugLog({debug: true}, 'again', {n: 2}, file);
+    expect(fs.readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(2);
   });
 });
 

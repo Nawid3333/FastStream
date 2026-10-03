@@ -492,7 +492,9 @@ export class FastStreamClient extends EventEmitter {
     this.state.currentTime = time;
     this.interfaceController.timeUpdated();
 
-    if (this.options.storeProgress && this.progressData && time !== this.progressData.lastTime && !this.disableProgressSave) {
+    // Not for a live stream: its times mean nothing the next time it is opened.
+    if (this.options.storeProgress && this.progressData && time !== this.progressData.lastTime && !this.disableProgressSave &&
+      !this.isLive()) {
       const now = Date.now();
       if (now - this.lastProgressSave > 1000) {
         this.lastProgressSave = now;
@@ -644,22 +646,14 @@ export class FastStreamClient extends EventEmitter {
       let bitrate = level.bitrate;
       const fragments = this.fragments;
       if (fragments) {
-        let count = 0;
-        let size = 0;
-        let totalDuration = 0;
-        fragments.forEach((fragment) => {
-          if (fragment && fragment.dataSize !== null) {
-            count++;
-            size += fragment.dataSize;
-            totalDuration += fragment.duration;
-          }
-        });
-
-        if (count > 4) {
-          bitrate = size / totalDuration * 8;
-        }
+        bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
       }
-      if (bitrate && this.duration) {
+      if (!Number.isFinite(this.duration)) {
+        // A live stream has no size to fit, and is freed behind playback as it plays. Its
+        // infinite duration made it "too big" on its first tick: a storage warning on every
+        // live stream, and everything downloaded so far pinned for the session.
+        this.hasDownloadSpace = false;
+      } else if (bitrate && this.duration) {
         let storageAvailable = (this.storageAvailable * 8) * 0.6;
         if (this.options.maxVideoSize > 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
@@ -874,9 +868,15 @@ export class FastStreamClient extends EventEmitter {
         }
       }
 
-      if (timeFromURL === null) {
+      // The time in the player page's own address is for the video the page was opened
+      // for: it was applied to every source set in the player afterwards (a pick from the
+      // sources browser), which also skipped that source's remembered time. It is used up
+      // once applied, so a fallback stream that replaces one that failed still gets it.
+      let timeFromPage = false;
+      if (timeFromURL === null && !this.pageTimestampUsed) {
         timeFromURL = URLUtils.get_param(window.location.href, 'faststream-timestamp');
         timeFromURL = parseInt(timeFromURL);
+        timeFromPage = true;
       }
 
 
@@ -892,8 +892,10 @@ export class FastStreamClient extends EventEmitter {
         this.getLevelManager().setCurrentVideoLevelID(source.defaultLevelInfo.level);
       }
 
-      if (source.defaultLevelInfo?.audio !== undefined) {
-        this.getLevelManager().setCurrentAudioLevelID(source.defaultLevelInfo.audio);
+      // audioLevel, as an archive's source has it (SaveManager): this read `audio`, and an
+      // archive's audio track was never restored.
+      if (source.defaultLevelInfo?.audioLevel !== undefined) {
+        this.getLevelManager().setCurrentAudioLevelID(source.defaultLevelInfo.audioLevel);
       }
 
       this.storageAvailable = await EnvUtils.getAvailableStorage();
@@ -976,12 +978,15 @@ export class FastStreamClient extends EventEmitter {
         if (this.source !== source) return;
 
         if (timeFromURL) {
+          if (timeFromPage) this.pageTimestampUsed = true;
           this.setSeekSave(false);
           this.currentTime = timeFromURL || 0;
           this.setSeekSave(true);
         } else if (this.options.storeProgress && this.progressData && !this.options.disableLoadProgress) {
           const lastTime = this.progressData.lastTime;
-          if (lastTime && lastTime < this.duration - 5) {
+          // Not a live stream: a DASH one's duration is Infinity, before which every time is,
+          // and it was sought to where it was left, far outside its live window by the next day.
+          if (lastTime && !this.isLive() && lastTime < this.duration - 5) {
             this.setSeekSave(false);
             this.currentTime = lastTime;
             this.setSeekSave(true);
@@ -1037,6 +1042,9 @@ export class FastStreamClient extends EventEmitter {
       };
 
       interval = setInterval(hook, 1000);
+      // resetPlayer() stops it: a source that never got a picture left it running until some
+      // later source got one.
+      this.initHookInterval = interval;
 
       this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
       hook();
@@ -1044,18 +1052,38 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Loads progress data from secure memory.
+   * Loads progress data from secure memory. A caller while a lookup runs gets that lookup:
+   * setOptions() starts one too, and the source's own, made meanwhile, returned at once with
+   * nothing. The remembered time was then never applied, and the next save wrote over it.
    * @return {Promise<void>}
    */
-  async loadProgressData() {
+  loadProgressData() {
+    if (this.progressLoad) {
+      return this.progressLoad;
+    }
     if (!this.options.storeProgress || !this.player || this.disableProgressSave || this.progressData || !this.progressMemory) {
-      return;
+      return Promise.resolve();
     }
 
+    const load = this.progressLoad = this.readProgressData(this.player);
+    const done = () => {
+      if (this.progressLoad === load) {
+        this.progressLoad = null;
+      }
+    };
+    load.then(done, done);
+    return load;
+  }
+
+  /**
+   * Reads the remembered time of a player's source.
+   * @param {Object} player
+   * @return {Promise<void>}
+   */
+  async readProgressData(player) {
     // The lookup takes a while (two PBKDF2 hashes). If another video is set meanwhile,
     // resetPlayer() has cleared this state for it, and writing this video's record now would
     // make the next video start at this one's time and save its progress into this record.
-    const player = this.player;
     this.disableProgressSave = true;
     let hashes = null;
     let progressData = null;
@@ -1455,6 +1483,10 @@ export class FastStreamClient extends EventEmitter {
     // it, and the next source joined it, its own picture then seen only by the wait's
     // once-a-second check. The next source makes its own.
     this.initPromise = null;
+    clearInterval(this.initHookInterval);
+    // A lookup for the last video is not this one's (loadProgressData).
+    this.progressLoad = null;
+    this.autoNextRequested = false;
     this.state.bufferBehind = this.options.bufferBehind;
     this.state.bufferAhead = this.options.bufferAhead;
     if (this.context) {
@@ -1558,9 +1590,13 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.CANPLAY, (event) => {
       this.player.playbackRate = this.state.playbackRate;
 
+      // Done only once it has started, as at the other two attempts: marked first, a play()
+      // the browser blocked kept the later attempt from being made (and was an unhandled
+      // rejection).
       if (!this.state.autoPlayTriggered && this.options.autoPlay && this.state.playing === false) {
-        this.state.autoPlayTriggered = true;
-        this.play();
+        this.play().then(() => {
+          this.state.autoPlayTriggered = true;
+        }).catch((e) => console.warn('Autoplay failed', e));
       }
     });
 
@@ -1583,9 +1619,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ENDED, (event) => {
       this.pause();
-      if (this.options.autoplayNext) {
-        this.nextVideo();
-      }
+      this.autoplayNextVideo();
     });
 
     this.context.on(DefaultPlayerEvents.ERROR, (event, msg) => {
@@ -1670,7 +1704,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.WAITING, (event) => {
       if (this.options.autoplayNext && this.duration > 5&&this.duration - this.currentTime < 1) {
-        this.nextVideo();
+        this.autoplayNextVideo();
         return;
       }
       this.interfaceController.setBuffering(true);
@@ -1739,6 +1773,9 @@ export class FastStreamClient extends EventEmitter {
     if (!this.player) {
       throw new Error('No source is loaded!');
     }
+
+    // Played again: its end may go on to the next video again (autoplayNextVideo).
+    this.autoNextRequested = false;
 
     // A pause() (or another play()) made while this waits wins: this one went on after
     // it, showing "playing" over a paused video, and with a delay set, starting the
@@ -1922,6 +1959,15 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Whether the video is a live stream. dash.js gives one an infinite duration; hls.js, as
+   * HLSPlayer sets it up, the end of its live window, so HLSPlayer says it itself.
+   * @return {boolean}
+   */
+  isLive() {
+    return !Number.isFinite(this.duration) || !!this.player?.isLive;
+  }
+
+  /**
    * Gets the current playback time.
    * @return {number}
    */
@@ -2006,20 +2052,14 @@ export class FastStreamClient extends EventEmitter {
 
     if (videoChanged) {
       if (this.options.freeUnusedChannels && this.fragmentsStore[previousVideoLevelID]) {
-        this.fragmentsStore[previousVideoLevelID].forEach((fragment, i) => {
-          if (i === -1) return;
-          this.freeFragment(fragment);
-        });
+        this.freeLevel(this.fragmentsStore[previousVideoLevelID]);
       }
       this.levelManager.setCurrentVideoLevelID(videoLevelID);
     }
 
     if (audioChanged) {
       if (this.options.freeUnusedChannels && this.fragmentsStore[previousAudioLevelID]) {
-        this.fragmentsStore[previousAudioLevelID].forEach((fragment, i) => {
-          if (i === -1) return;
-          this.freeFragment(fragment);
-        });
+        this.freeLevel(this.fragmentsStore[previousAudioLevelID]);
       }
       this.levelManager.setCurrentAudioLevelID(audioLevelID);
     }
@@ -2039,6 +2079,21 @@ export class FastStreamClient extends EventEmitter {
       this.updateQualityLevels();
       this.audioConfigManager.updateChannelCount();
     }
+  }
+
+  /**
+   * Frees the fragments of a level that is no longer played, but not those a save is still
+   * writing (SAVER): freed, they were downloaded a second time. The other pins go with the
+   * level: the analyzers start again on the new one, and nothing would ever free them later,
+   * since only the playing level is freed as it plays.
+   * @param {Array} fragments - The level's fragments.
+   */
+  freeLevel(fragments) {
+    fragments.forEach((fragment) => {
+      if (!fragment.references.includes(ReferenceTypes.SAVER)) {
+        this.freeFragment(fragment);
+      }
+    });
   }
 
   /**
@@ -2089,6 +2144,17 @@ export class FastStreamClient extends EventEmitter {
     }
 
     this.interfaceController.hideControlBar();
+  }
+
+  /**
+   * Goes on to the next video when this one ends, once: the last second's `waiting` and then
+   * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
+   * Playing again (after a seek back, say) lets the end ask again.
+   */
+  autoplayNextVideo() {
+    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
+    this.autoNextRequested = true;
+    this.nextVideo();
   }
 
   /**
@@ -2239,9 +2305,13 @@ export class FastStreamClient extends EventEmitter {
 
   /**
    * Sets the playback rate and updates the UI.
+   * Within [0.1, options.maxPlaybackRate], whoever asks: only the speed menu clamped, so
+   * holding the video at 5x ran it at 10x (silent in Firefox above 8x) while the menu
+   * showed 8x, and a saved rate from a build with a higher cap was applied as it was.
    * @param {number} value
    */
   set playbackRate(value) {
+    value = Utils.clamp(value, 0.1, this.options.maxPlaybackRate);
     this.state.playbackRate = value;
     if (this.player) {
       this.player.playbackRate = value;

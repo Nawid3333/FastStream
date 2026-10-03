@@ -344,10 +344,10 @@ what can actually change behaviour.
 | coloris | 0.25.0, git tag (not on npm) | 14 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
 | coloris (CSS) | 0.25.0 | none - `dist/coloris.css` as published; only `normaliseText` | **generated since 2026-10-03** (was upstream's re-minified 0.21.x copy) |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
-| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 8 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
-| knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
+| knob | `jherrm/knobs@b8a39650` | **verified** - `pnpm run verify:knob` | **verified** |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
 code and should stay in git.
@@ -560,10 +560,15 @@ only place it executes; the VAD is reached only from `AudioAnalyzerNode`,
 behind subtitle syncing. It scores a fixed 600-frame signal (six kinds x 100
 frames: silence, noise, sweep, tremolo+noise, harmonic buzz, loud noise;
 seeded) through `VadJS.createModel()`, the same entry `AudioNodeVAD` uses,
-and compares with `tests/e2e/vad-reference.json`: 600 scores recorded in
-Firefox from the old custom runtime, 105 of the 600 frames speech. The test
-asserts a max difference <= 1e-4 and that no frame crosses the 0.5 speech
-threshold differently from the reference.
+and compares with `tests/e2e/vad-reference.json`. The test asserts a max
+difference <= 1e-4 and that no frame crosses the 0.5 speech threshold
+differently from the reference. Until 2026-10-03 the file held 600 scores
+recorded in Firefox from the old custom runtime, 105 of the 600 frames
+speech. Since `vad.mjs` gives the model the previous frame's last 64 samples
+with each frame (ricky0123/vad aa048997, issue #127), it holds the scores of
+that path on onnxruntime-web 1.30.0 in Node, 112 frames speech: on the same
+runtime Node gave the old Firefox scores to within 3.4e-6, with no decision
+changed.
 
 Old runtime vs 1.30.0, measured in Firefox 156 on Windows (old: 3 runs;
 1.30.0: 10 runs, each with the same scores):
@@ -631,18 +636,22 @@ is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
 through v5.1.0.
 
-`chrome/player/modules/vtt.mjs` is that file with exactly four changes:
+`chrome/player/modules/vtt.mjs` is that file with exactly eight changes:
 
 | Change | Why |
 |---|---|
 | `FONT_SIZE_PERCENT` 0.25 -> 0.05 | subtitles rendered at a fifth of dash.js's default size relative to the container |
 | `processCues(window, cues, overlay, parentId)` loses `parentId` | dash.js added that parameter for its own container; FastStream did not take it |
 | `if (parentId) { paddedOverlay.id = parentId; }` removed | the body of the same dash.js addition |
-| the closing-tag check's `.replace(">", "")` -> `.replace(/>/g, "")` | CodeQL alert #8 (2026-09-22): replace every `>`, not only the first |
+| closing-tag token: `replace(/>/g, "")`, not `replace(">", "")` | CodeQL alert #8 (2026-09-22) |
+| `/u2029/g` gets its backslash | the five letters "u2029" became a line break, U+2029 did not (#295) |
+| `TAG_NAME[type]` only for its own names | `<constructor>` found `Object`, and createElement threw out of the per-frame render (#291) |
+| a lookahead before the tag regex | it accepts exactly the same tags in linear time; a long unclosed tag was quadratic and froze the page (#294) |
+| `node.className = classes.join(' ')` removed | the player's own CSS matched cue classes: `<c.pseudo_fullscreen>` covered every control (#292) |
 
 plus `export const WebVTT = window.WebVTT;` appended so a bundle that assigns
 to a global can be imported. The list is `CHANGES` in `tools/verify-vtt.mjs`. Note
-that two of the four are *removals* of dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
+that two of them are *removals* of dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
 dash.js's own is.
 
 Apply those to the upstream file and the result parses to the **same program**
@@ -651,7 +660,7 @@ as the vendored one.
 It cannot be generated at build time: videojs/vtt.js publishes only `lib/*` to
 npm, and dash.js's npm package ships only the minified `vtt.min.js`, not this
 bundle. So it is *verified* instead of generated. `pnpm run verify:vtt` fetches
-the upstream file, applies the four changes and asserts AST equality, and
+the upstream file, applies the changes and asserts AST equality, and
 fails with the exact point of divergence if anything moves. That is the
 difference between a claim in a document and a claim a reviewer can re-run -
 and it is mutation-tested, so a wrong expectation fails rather than passing
@@ -1157,15 +1166,22 @@ the set at all. The bundle's own module map settles it: it requires
 `./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
 paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 **dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
-v4.7.4 through v5.1.0, plus four changes and an export line.
+v4.7.4 through v5.1.0, plus eight changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
 ### knob — 28 KB, verified on demand
 
-Base pinned: **jherrm/knobs `Knob.js` at `cf2db70f`** (2012-05-16), found with
-`tools/find-base.mjs --commits`. Not the repository's head: the 2022 commit is
-a third larger and matches far worse.
+Base pinned: **jherrm/knobs `Knob.js` at `b8a39650`** (2022-11-08, "Modernize the
+vintage javascript"), the repository's head. Until 2026-10-03 the pin was `cf2db70f`
+(2012-05-16), which `tools/find-base.mjs --commits` picked by line count: the head is
+a third larger, but only because its constructor reads options from an `<input>`'s
+attributes, which the copy leaves out. Compared by parsed declarations, the copy is
+the 2022 head: it has the scroll gesture, `angleScrollRatio`, `gestureScrollEnabled`,
+the `change` event and const/let, all upstream commits made after 2012. Against
+`cf2db70f` those upstream commits read as ten FastStream changes, and
+`vendored-updates.yml` raised them as 16 upstream changes to port (#126): there was
+nothing to port.
 
 It cannot be generated - the repository has **no `package.json`**, so no
 package manager can install it, and there is no npm release to pin. So it is
@@ -1173,48 +1189,37 @@ verified instead, the same way vtt.js is. `pnpm run verify:knob` fetches
 `Knob.js` at that commit and compares parsed declarations:
 
 ```
-top-level identical    10 of 11
+top-level identical    10 of 13
 top-level ours only    Knob            (upstream keeps it inside an IIFE)
+top-level theirs only  parseBool, parseDirection   (the <input> attribute parsing)
 top-level differing    members
-members identical      33 of 39
-members changed        val, doMouseScroll, __validateAndPublishAngle,
-                       __angleFromValue, __publish
-members added          __validateAndPublishValue, __validateValue,
-                       __valueFromAngles
-members removed        __determineValue  (renamed to __valueFromAngles)
+members identical      39 of 41
+members changed        val, __angleFromValue
 ```
 
 Every one of those differences is in the list below, and the script fails if a
 single one appears that is not - it does not check a count, it checks the
-exact sets. Mutation tested: injecting one statement into `setDimensions`
-moves it into `members changed` and exits 1.
-
-That is a stronger claim than a patch would give. A patch says "here is what we
-changed"; this says "here is what we changed, and nothing else changed", and
-re-checks it against upstream on demand.
+exact sets.
 
 The npm package named `knob` is `mmckegg/knob`, an unrelated canvas widget,
 and jherrm/knobs is not published to npm at all.
 
-Almost all of the 278-line diff is this project's eslint autofix. The real
-changes are ten, and they make it an adapted, maintained fork rather than a
-transformed copy:
+Almost all of the text diff is this project's eslint autofix. The real changes:
 
 - the IIFE wrapper is removed and `Knob` is exported
-- the constructor takes `(inputEl, callback)` instead of `(callback, options)`,
-  stores the element, and throws without one; the options-merge loop and the
-  `valueMin < valueMax` check are dropped with it
-- a scroll gesture is added: `gestureScrollEnabled`, `angleScrollRatio`, and
-  `doMouseScroll` honouring both
-- HTML-slider defaults: `valueMin: 0`, `valueMax: 100`, a new `value: 0`, and
-  `angleSlideRatio` 1 → 2
-- `val(value)` sets by value rather than by angle, and accepts `0`
-- `__determineValue` becomes `__valueFromAngles`, with a new `__validateValue`
-- `__publish` writes `element.value` and dispatches a `change` event, and the
-  callback loses its `angle, value` arguments
-- `__angleFromValue` is a genuine **upstream bug fix**: the original tested
-  `isFinite` on the angle bounds while mapping the value bounds, and
-  referenced an undefined `valueMax`
+- the constructor takes the element and the callback and keeps the default options:
+  the `<input>` attribute parsing (`parseBool`, `parseDirection`), the options loop,
+  the `valueMin < valueMax` check and the initial `val()` are dropped with it, since
+  FastStream passes a `<div>` and sets the options afterwards
+- `val(value)` accepts `0` (upstream's `if (value)` ignored it)
+- `__angleFromValue` maps `valueMax` to `angleStart`, the inverse of
+  `__valueFromAngles`; upstream maps `valueMin` there, so a value set by `val()`
+  came back as its mirror image
+
+FastStream's own behaviour around it lives in `ui/components/Knob.mjs`, not in the
+copy: since 2026-10-03 (#296) the wheel passes the knob's left edge to
+`doMouseScroll`, so wheel up always turns the value up instead of following the
+side of the knob the pointer is on.
 
 Upstream: https://github.com/jherrm/knobs
 

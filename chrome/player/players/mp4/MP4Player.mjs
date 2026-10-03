@@ -8,6 +8,8 @@ import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
+import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
+import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
 import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
@@ -20,6 +22,16 @@ const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];
 
 const VIDEO_TRACK = 0;
 const AUDIO_TRACK = 1;
+
+/**
+ * An init segment or a removal the SourceBuffer refused: nothing to mend (a removal that
+ * failed loses nothing, and an init segment is appended again with the SourceBuffers), but
+ * it was an unhandled rejection.
+ * @param {Error} e
+ */
+function warnRefused(e) {
+  console.warn('The SourceBuffer refused an operation', e);
+}
 
 export default class MP4Player extends EventEmitter {
   constructor(client, config) {
@@ -64,6 +76,20 @@ export default class MP4Player extends EventEmitter {
     // video frozen for good with nothing said.
     this.stallWatchdog = new StallWatchdog((time) => {
       this.emit(DefaultPlayerEvents.ERROR, 'Playback stuck at ' + time);
+    });
+
+    this.segmentAppender = new SegmentAppender({
+      reload: () => this.resetHLS(true),
+      // A SourceBuffer that is full holds less than this player reads ahead.
+      readLess: () => {
+        this.options.maxFragmentsBuffered = Math.max(2, Math.floor(this.options.maxFragmentsBuffered / 2));
+        this.options.maxBufferLength = Math.max(5, Math.floor(this.options.maxBufferLength / 2));
+      },
+      fail: (message) => {
+        this.running = false;
+        this.emit(DefaultPlayerEvents.ERROR, message);
+      },
+      isCurrent: (wrapper) => this.running && (wrapper === this.videoSourceBuffer || wrapper === this.audioSourceBuffer),
     });
   }
 
@@ -136,12 +162,14 @@ export default class MP4Player extends EventEmitter {
     this.mp4box.onSegment = (id, user, buffer, sampleNumber, last) => {
       // console.log(id, sampleNumber)
       // A file can have no video track (audio only) or no audio track.
+      // The samples are released once the segment is queued: one the SourceBuffer refuses
+      // is handled by the appender, which loads again from the playhead.
       if (videoTrack?.id === id) {
-        this.videoSourceBuffer.appendBuffer(buffer);
+        this.segmentAppender.append(this.videoSourceBuffer, buffer);
 
         this.freeSamples(id);
       } else if (audioTrack?.id === id) {
-        this.audioSourceBuffer.appendBuffer(buffer);
+        this.segmentAppender.append(this.audioSourceBuffer, buffer);
 
         this.freeSamples(id);
       } else {
@@ -169,11 +197,11 @@ export default class MP4Player extends EventEmitter {
 
     let ind = 0;
     if (videoTrack) {
-      this.videoSourceBuffer.appendBuffer(initSegs[ind++].buffer);
+      this.videoSourceBuffer.appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
     if (audioTrack) {
-      this.audioSourceBuffer.appendBuffer(initSegs[ind++].buffer);
+      this.audioSourceBuffer.appendBuffer(initSegs[ind++].buffer).catch(warnRefused);
     }
 
     this.mp4box.seek(this.currentTime);
@@ -319,25 +347,37 @@ export default class MP4Player extends EventEmitter {
       return;
     }
 
-    // Nothing to do while nothing is buffered: a seek to the time it is already at went
-    // through the setter, found nothing buffered there, and reset the player - on every
-    // tick until the first media arrived, 482 times opening a long fragmented file at 30 s.
-    if (this.needsInit && this.readyState === 1 && this.buffered.length > 0) {
-      const start = this.buffered.start(0);
-      if (this.currentTime < start) {
-        this.client.setSeekSave(false);
-        this.currentTime = start;
-        this.client.setSeekSave(true);
+    try {
+      // Nothing to do while nothing is buffered: a seek to the time it is already at went
+      // through the setter, found nothing buffered there, and reset the player - on every
+      // tick until the first media arrived, 482 times opening a long fragmented file at 30 s.
+      if (this.needsInit && this.readyState === 1 && this.buffered.length > 0) {
+        const start = this.buffered.start(0);
+        if (this.currentTime < start) {
+          this.client.setSeekSave(false);
+          this.currentTime = start;
+          this.client.setSeekSave(true);
+        }
       }
-    }
 
-    if (this.readyState > 1) {
-      this.needsInit = false;
-    }
+      if (this.readyState > 1) {
+        this.needsInit = false;
+      }
 
-    this.runLoad();
-    this.checkEndOfStream();
-    this.stallWatchdog.check(this.video);
+      this.runLoad();
+      this.checkEndOfStream();
+      this.stallWatchdog.check(this.video);
+    } catch (e) {
+      // runLoad stops the player with an error of its own (running is then false). Anything
+      // else thrown here stopped the loop just the same, the loading, the end of the stream
+      // and the stall watchdog with it, and nothing was said.
+      console.error(e);
+      if (this.running) {
+        this.running = false;
+        this.emit(DefaultPlayerEvents.ERROR, 'Playback stopped: ' + (e?.message || e));
+      }
+      return;
+    }
     this.loopTimeout = setTimeout(this.mainLoop.bind(this), 1);
   }
 
@@ -456,10 +496,10 @@ export default class MP4Player extends EventEmitter {
       return;
     }
     if (this.videoSourceBuffer) {
-      this.videoSourceBuffer.remove(start, end);
+      this.videoSourceBuffer.remove(start, end).catch(warnRefused);
     }
     if (this.audioSourceBuffer) {
-      this.audioSourceBuffer.remove(start, end);
+      this.audioSourceBuffer.remove(start, end).catch(warnRefused);
     }
   }
 
@@ -480,7 +520,7 @@ export default class MP4Player extends EventEmitter {
       }
       const buffered = wrapper.buffered;
       if (buffered.length > 0 && buffered.start(0) < end - BACK_BUFFER_SLACK) {
-        wrapper.remove(0, end);
+        wrapper.remove(0, end).catch(warnRefused);
       }
     }
   }
@@ -498,8 +538,12 @@ export default class MP4Player extends EventEmitter {
 
     const currentFragment = this.currentFragment;
 
+    // Both exits below stopped the player without an error, unlike the others: a spinner
+    // forever, and no next stream tried (a file shorter than its moov says, a page that is
+    // no MP4 answered with 200).
     if (!currentFragment) {
       this.running = false;
+      this.emit(DefaultPlayerEvents.ERROR, 'No current fragment');
       throw new Error('No current fragment');
     }
 
@@ -524,6 +568,7 @@ export default class MP4Player extends EventEmitter {
       const frag = this.client.getFragment(this.getCurrentVideoLevelID(), i);
       if (!frag) {
         this.running = false;
+        this.emit(DefaultPlayerEvents.ERROR, 'No next fragment');
         throw new Error('No next fragment');
       }
 
@@ -736,6 +781,7 @@ export default class MP4Player extends EventEmitter {
 
   resetHLS(noLoad) {
     if (!this.metaData) return;
+    this.segmentAppender.reloaded();
     // console.log("resetHLS");
     this.removeFromBuffers(0, this.video.duration);
     this.mp4box.flush();
@@ -851,9 +897,7 @@ export default class MP4Player extends EventEmitter {
       (mehd ? mehd.fragment_duration / this.mp4box.moov.mvhd.timescale : 0) :
       (info.duration || 0) / info.timescale;
     if (duration === 0 && info.isFragmented) {
-      duration = this.mp4box.moov.traks.reduce((acc, track) => {
-        return Math.max(acc, track.samples_duration / track.samples[0].timescale, 0);
-      }, 0);
+      duration = sampledDuration(this.mp4box.moov.traks);
     }
     return duration;
   }
@@ -869,25 +913,12 @@ export default class MP4Player extends EventEmitter {
     }
   }
 
-  getFragmentOffset(samples, time) {
-    let index = Utils.binarySearch(samples, time * samples[0].timescale, (time, sample) => {
-      return time - sample.cts;
-    });
-
-    if (index < 0) {
-      index = Math.max(-1 - index - 1, 0);
-    }
-
-    return samples[index].offset;
-  }
-
   get currentFragment() {
     let startOffset = 0;
     if (!this.metaData && this.mp4box.nextParsePosition) {
       startOffset = this.mp4box.nextParsePosition;
     } else if (this.videoTracks.length || this.audioTracks.length) {
       const time = this.currentTime;
-      let seekOffset = Infinity;
       const sortedSamples = [];
       if (this.videoTracks[this.currentVideoTrack]) {
         sortedSamples.push(this.videoTracks[parseInt(this.currentVideoTrack)].sortedSamples);
@@ -896,14 +927,9 @@ export default class MP4Player extends EventEmitter {
       if (this.currentAudioTrack !== null && this.audioTracks[this.currentAudioTrack]) {
         sortedSamples.push(this.audioTracks[this.currentAudioTrack].sortedSamples);
       }
-      for (let i = 0; i < sortedSamples.length; i++) {
-        const samples = sortedSamples[i];
-        const offset = this.getFragmentOffset(samples, time);
-        if (offset < seekOffset) {
-          seekOffset = offset;
-        }
-      }
-      startOffset = seekOffset;
+      // No keyframe in any track yet (a fragmented file none of whose moofs the ranges read
+      // so far held): read on from where mp4box stopped.
+      startOffset = keyframeOffset(sortedSamples, time) ?? (this.mp4box.nextParsePosition || 0);
     }
 
 
