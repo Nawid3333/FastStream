@@ -82,6 +82,37 @@ describe('integer readers', () => {
     // 0x04..0x07 begins in chunk 1 - proves the stitch feeds the shift math
     expect(await buf.uint32()).toBe(0x04050607);
   });
+
+  it('reads a uint32 from 2^31 up as unsigned', async () => {
+    // `<< 24` is signed: 0x80000000 came out as -2147483648.
+    const buf = await bufferOf([0x80, 0, 0, 0, 0xff, 0xff, 0xff, 0xf0]);
+    expect(await buf.uint32()).toBe(0x80000000);
+    expect(await buf.uint32()).toBe(0xfffffff0);
+  });
+});
+
+/** A LargeBuffer over the given bytes, in one chunk. */
+async function bufferOf(bytes) {
+  const buf = new LargeBuffer(bytes.length, 1);
+  await buf.initialize(async () => new Uint8Array(bytes));
+  return buf;
+}
+
+describe('lengths read from a file', () => {
+  // An archive's sizes come from the file, so a damaged or crafted one can ask for anything.
+  it('checks a length against what is left before making room for it', async () => {
+    const buf = await makeBuffer(2);
+    // Larger than any typed array: it threw a RangeError of its own before the check.
+    await expect(buf.read(Number.MAX_SAFE_INTEGER)).rejects.toThrow(/out of range/);
+  });
+
+  it('refuses a negative length instead of reading nothing', async () => {
+    const buf = await makeBuffer(2);
+    await expect(buf.getParts(-3)).rejects.toThrow(/Invalid length/);
+    await expect(buf.read(Number.NaN)).rejects.toThrow(/Invalid length/);
+    // Nothing was read: the next read is where it was.
+    expect([...await buf.read(2)]).toEqual([0, 1]);
+  });
 });
 
 describe('prefetching', () => {
