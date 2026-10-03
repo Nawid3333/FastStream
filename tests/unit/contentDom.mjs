@@ -81,19 +81,24 @@ for (const camel of CAMEL_PROPERTIES) {
 }
 
 /**
- * Whether an element matches a selector: a tag or '*', with an optional [attr^="value"],
- * or a comma-separated list of those.
+ * Whether an element matches a selector: a tag or '*', with an optional [attr],
+ * [attr="value"] or [attr^="value"], or a comma-separated list of those.
  * @param {FakeElement} el - The element.
  * @param {string} selector - The selector.
  * @return {boolean}
  */
 function matches(el, selector) {
   return selector.split(',').some((one) => {
-    const simple = /^\s*([a-zA-Z*]+)?(?:\[([a-z-]+)\^="([^"]*)"\])?\s*$/.exec(one);
+    const simple = /^\s*([a-zA-Z*]+)?(?:\[([a-z-]+)(?:(\^?=)"([^"]*)")?\])?\s*$/.exec(one);
     if (!simple) throw new Error('contentDom: unsupported selector ' + one);
-    const [, tag, attr, prefix] = simple;
+    const [, tag, attr, operator, value] = simple;
     if (tag && tag !== '*' && el.tagName !== tag.toUpperCase()) return false;
-    if (attr && !String(el.getAttribute(attr) || '').startsWith(prefix)) return false;
+    if (attr) {
+      const actual = el.getAttribute(attr);
+      if (actual === null) return false;
+      if (operator === '=' && actual !== value) return false;
+      if (operator === '^=' && !actual.startsWith(value)) return false;
+    }
     return true;
   });
 }
@@ -342,6 +347,7 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   let onMessage = null;
   const windowListeners = [];
   const timers = [];
+  const intervals = new Map();
   let now = 0;
 
   class FakeMutationObserver {
@@ -419,8 +425,12 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
       return timers.length;
     },
     clearTimeout: () => {},
-    setInterval: () => 0,
-    clearInterval: () => {},
+    setInterval: (fn) => {
+      const id = intervals.size ? Math.max(...intervals.keys()) + 1 : 1;
+      intervals.set(id, fn);
+      return id;
+    },
+    clearInterval: (id) => intervals.delete(id),
     addEventListener: (type, listener) => windowListeners.push({type, listener}),
     removeEventListener: () => {},
     parent: {postMessage() {}},
@@ -462,6 +472,12 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     window: context,
     sent,
     timers,
+    /** overlay-guard.js's OverlayGuard. */
+    overlayGuard: vm.runInContext('OverlayGuard', context),
+    /** Runs every interval timer once (the overlay guard's checks). */
+    runIntervals() {
+      for (const fn of [...intervals.values()]) fn();
+    },
     /**
      * Sends content.js a message, as the background does.
      * @param {Object} request - The message.

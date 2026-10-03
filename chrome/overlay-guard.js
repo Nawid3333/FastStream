@@ -11,8 +11,12 @@
 // iframe does. An element counts as the player's when it is painted above the iframe and
 // at least 80% of it lies inside the iframe's box, or it covers half of that box: a bar or
 // a button on the player, or a layer over it, but not a page header that overlaps its top
-// edge. It is hidden with visibility, so it keeps its box and is given back as soon as it
-// no longer covers the player (the page scrolled, the player became the miniplayer).
+// edge. The box is the whole iframe's, on screen or not: measured by its part on screen,
+// a header over a player scrolled mostly out of view covered "half" of it. A site's own
+// dialog (sign-in, cookie consent, settings) is left alone, though it covers the player as
+// an ad layer does: hidden, the user saw no dialog, and clicks went through its backdrop.
+// It is hidden with visibility, so it keeps its box and is given back as soon as it no
+// longer covers the player (the page scrolled, the player became the miniplayer).
 // eslint-disable-next-line no-unused-vars
 const OverlayGuard = (() => {
   // How often a guarded frame looks again: sites add their overlays late (ads keep coming).
@@ -26,17 +30,18 @@ const OverlayGuard = (() => {
     return el.tagName === 'IFRAME' && (el.src || '').startsWith(PLAYER_URL);
   }
 
-  // The part of the iframe that is on screen, and its area.
-  function visibleBox(iframe) {
+  // The iframe's box (full) and the part of it that is on screen (visible), with their areas.
+  function boxesOf(iframe) {
     const r = iframe.getBoundingClientRect();
-    const box = {
+    const full = {left: r.left, top: r.top, right: r.right, bottom: r.bottom, area: r.width * r.height};
+    const visible = {
       left: Math.max(0, r.left),
       top: Math.max(0, r.top),
       right: Math.min(window.innerWidth, r.right),
       bottom: Math.min(window.innerHeight, r.bottom),
     };
-    box.area = Math.max(0, box.right - box.left) * Math.max(0, box.bottom - box.top);
-    return box;
+    visible.area = Math.max(0, visible.right - visible.left) * Math.max(0, visible.bottom - visible.top);
+    return {full, visible};
   }
 
   function overlap(r, box) {
@@ -44,16 +49,26 @@ const OverlayGuard = (() => {
         Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top));
   }
 
-  function belongsToPlayer(el, box) {
+  function belongsToPlayer(el, full) {
     const r = el.getBoundingClientRect();
     const area = r.width * r.height;
-    const inside = overlap(r, box);
-    return area > 0 && (inside >= 0.8 * area || inside >= 0.5 * box.area);
+    const inside = overlap(r, full);
+    return area > 0 && (inside >= 0.8 * area || inside >= 0.5 * full.area);
+  }
+
+  const DIALOGS = 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]';
+
+  // A site's own dialog, or a layer holding one, or one the user is typing in: by what it
+  // says it is, or by the focus being in it. Geometry cannot tell it from an ad layer.
+  function isSiteDialog(el) {
+    const active = document.activeElement;
+    return el.matches(DIALOGS) || !!el.querySelector(DIALOGS) ||
+        (!!active && active !== document.body && el.contains(active));
   }
 
   // The elements painted over the iframe that belong to the player's area, each the
   // outermost one below the ancestor they share with the iframe.
-  function overlaysOf(iframe, box) {
+  function overlaysOf(iframe, {full, visible: box}) {
     const picks = new Set();
     const players = [...document.querySelectorAll(`iframe[src^="${PLAYER_URL}"]`)];
     // Every element, not only the body's: ad layers are often put straight into <html>.
@@ -77,7 +92,12 @@ const OverlayGuard = (() => {
       let pick = null;
       for (let a = el; a && !a.contains(iframe); a = a.parentElement) {
         if (stack.indexOf(a) > iframeAt) break;
-        if (belongsToPlayer(a, box) && !players.some((player) => a.contains(player))) {
+        // Nothing of a site's dialog goes: not the dialog, nor what holds it.
+        if (isSiteDialog(a)) {
+          pick = null;
+          break;
+        }
+        if (belongsToPlayer(a, full) && !players.some((player) => a.contains(player))) {
           pick = a;
         }
       }
@@ -119,12 +139,14 @@ const OverlayGuard = (() => {
       release(iframe);
       return;
     }
-    const box = visibleBox(iframe);
+    const boxes = boxesOf(iframe);
     for (const el of [...guard.hidden.keys()]) {
-      if (!el.isConnected || box.area === 0 || !belongsToPlayer(el, box)) show(guard, el);
+      if (!el.isConnected || boxes.visible.area === 0 || !belongsToPlayer(el, boxes.full) || isSiteDialog(el)) {
+        show(guard, el);
+      }
     }
-    if (box.area === 0) return;
-    for (const el of overlaysOf(iframe, box)) hide(guard, el);
+    if (boxes.visible.area === 0) return;
+    for (const el of overlaysOf(iframe, boxes)) hide(guard, el);
   }
 
   function release(iframe) {
