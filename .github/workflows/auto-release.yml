@@ -198,6 +198,7 @@ jobs:
       # version number, so there is none. Anything short of a clean "identical"
       # releases as before: a missing release, artifact or xpi (AMO has not signed the
       # latest release yet), a failed download or unzip, any difference at all.
+      # (unzip -d makes only the last folder of its path, so files/ is made first.)
       - name: Did anything shipped change since the last release?
         id: shipped
         if: steps.run.outputs.ok == 'yes'
@@ -214,6 +215,7 @@ jobs:
           if [ -n "$RUN_ID" ] && [ -n "$latest" ] &&
              gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name faststream-bundles --dir "$new/zip" &&
              gh release download "$latest" --repo "$GITHUB_REPOSITORY" --pattern 'firefox-github-*.zip' --pattern '*.xpi' --dir "$old/zip" &&
+             mkdir -p "$new/files" "$old/files" &&
              unzip -q "$new"/zip/firefox-github-*.zip -d "$new/files/github" &&
              unzip -q "$old"/zip/firefox-github-*.zip -d "$old/files/github" &&
              unzip -q "$new"/zip/firefox-amo-*.zip -d "$new/files/amo" &&

@@ -37,11 +37,14 @@ case "$1 $2" in
 esac
 EOF
 # GitHub's runners have unzip; a WSL Ubuntu may not. Then `unzip -q <zip> -d <dir>`, the
-# one form the step uses, through python3 (a missing zip fails, as unzip does).
+# one form the step uses, through python3 (a missing zip fails, as unzip does). Like
+# Info-ZIP's unzip, it makes only the last folder of <dir>: python3 made them all, and the
+# step's two-level folders passed here and failed on GitHub.
 if ! command -v unzip > /dev/null; then
   cat > "$here/bin/unzip" <<'EOF'
 #!/usr/bin/env bash
 [ "$1" = -q ] && [ "$3" = -d ] || { echo "unzip stand-in: only -q <zip> -d <dir>" >&2; exit 2; }
+[ -d "$(dirname "$4")" ] || { echo "checkdir:  cannot create extraction directory: $4" >&2; exit 3; }
 exec python3 -m zipfile -e "$2" "$4"
 EOF
   chmod +x "$here/bin/unzip"
