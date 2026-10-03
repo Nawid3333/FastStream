@@ -1445,6 +1445,9 @@ the change went in.
   tsconfig; they stall the language server otherwise. Those two and a dozen more are
   copied from `node_modules` by `tools/sync-vendor.mjs` on every build and gitignored, so
   a change to one of them goes into a pnpm patch (`docs/updating-patched-libraries.md`).
+  CI runs the unit tests before the build makes those copies, so `vitest.config.mjs` points
+  the ones copied unchanged (hls.mjs, mp4box, Mediabunny) at their npm builds: a unit test
+  can run the save's real demuxer and MP4 writers (`tests/unit/hls2mp4.test.mjs`).
 - **Property tests for what a page feeds in** (2026-10-01, T8): `tests/unit/*.property.test.mjs`
   run fast-check against SubtitleUtils (SRT/VTT/XML), StreamLength (m3u8/mpd), URLUtils,
   DownloadFilename and the host's `readMessage`: no throw on arbitrary text, round trips,
