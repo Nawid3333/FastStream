@@ -4,9 +4,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // in by the build, which CI runs after the unit tests. The session keeps the model in wasm
 // memory until it is released, and every video and every start of the voice detector
 // loads a new one; nothing released it. A failed model download went on to parse the
-// error page as a model.
+// error page as a model. The worklet node took every channel of a 5.1 source and scored
+// the left one only, and a model that did not load left a worklet node running.
 
 const sessions = [];
+const workletNodes = [];
 
 const ort = {
   Tensor: class {
@@ -31,10 +33,13 @@ const {VadJS} = await import('../../chrome/player/modules/vad/vad.mjs');
 describe('the voice detector model', () => {
   beforeEach(() => {
     sessions.length = 0;
+    workletNodes.length = 0;
     vi.stubGlobal('fetch', vi.fn(async () => ({ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(8)})));
     vi.stubGlobal('AudioWorkletNode', class {
-      constructor() {
+      constructor(context, name, options) {
+        this.options = options;
         this.port = {postMessage: vi.fn(), onmessage: null};
+        workletNodes.push(this);
       }
     });
     vi.spyOn(console, 'debug').mockImplementation(() => {});
@@ -82,5 +87,24 @@ describe('the voice detector model', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0)})));
     await expect(VadJS.createModel(ort)).rejects.toThrow(/model did not load \(404\)/);
     expect(sessions).toHaveLength(0);
+  });
+
+  it('leaves no worklet node running when the model does not load', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0)})));
+    await expect(VadJS.AudioNodeVAD.new({audioWorklet: {addModule: async () => {}}}, {ort}))
+        .rejects.toThrow(/model did not load/);
+    // A node's processor runs until it is told to close.
+    const running = workletNodes.filter((node) => !node.port.postMessage.mock.calls.some(([message]) => message === 'close'));
+    expect(running).toHaveLength(0);
+  });
+
+  it('has Web Audio mix every channel down to the one channel it scores', async () => {
+    await VadJS.AudioNodeVAD.new({audioWorklet: {addModule: async () => {}}}, {ort});
+    expect(workletNodes).toHaveLength(1);
+    expect(workletNodes[0].options).toMatchObject({
+      channelCount: 1,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'speakers',
+    });
   });
 });

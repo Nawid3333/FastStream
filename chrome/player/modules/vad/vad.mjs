@@ -223,13 +223,27 @@ class AudioNodeVAD {
 
   async init() {
     await this.ctx.audioWorklet.addModule(assetPath('vad.worklet.mjs'));
-    const vadNode = new AudioWorkletNode(this.ctx, 'vad-helper-worklet', {
-      processorOptions: {
-        frameSamples: this.options.frameSamples,
-      },
-    });
-    this.entryNode = vadNode;
+    // The model before the node: a model that did not load (a missing file, ONNX Runtime
+    // not starting) left behind a node whose processor ran for the rest of the context.
     const model = await createModel(this.options.ort);
+    let vadNode;
+    try {
+      vadNode = new AudioWorkletNode(this.ctx, 'vad-helper-worklet', {
+        processorOptions: {
+          frameSamples: this.options.frameSamples,
+        },
+        // One channel, mixed down by Web Audio (for 5.1: 0.707 (L + R) + C + 0.5 (SL + SR)):
+        // the processor reads the first channel only, which was the left one, so the
+        // dialogue in a 5.1 film's centre channel went unheard.
+        channelCount: 1,
+        channelCountMode: 'explicit',
+        channelInterpretation: 'speakers',
+      });
+    } catch (e) {
+      model.release().catch(() => {});
+      throw e;
+    }
+    this.entryNode = vadNode;
     this.model = model;
     this.frameProcessor = new FrameProcessor(model.process, model.reset_state, {
       frameSamples: this.options.frameSamples,
