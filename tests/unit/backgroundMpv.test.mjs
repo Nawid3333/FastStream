@@ -173,6 +173,65 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
   });
 });
 
+describe('the allowlist\'s MPV, a play on a page Back gave back', () => {
+  const A = 'https://site.test/watch/a';
+  const B = 'https://site.test/watch/b';
+  const SA = 'https://cdn.test/a/master.m3u8';
+  const SB = 'https://cdn.test/b/master.m3u8';
+
+  /**
+   * The tab shows page A, then page B, each sending its stream to mpv by itself, and goes
+   * Back to A, which Firefox's back-forward cache gives back without a request.
+   * @return {Promise<void>}
+   */
+  async function backToA() {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: A}],
+    });
+    await bg.navigated(1, A);
+    await bg.frameAdded(1, 0, A, 'page-a');
+    await bg.request({tabId: 1, url: SA});
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, B);
+    await bg.frameAdded(1, 0, B, 'page-b');
+    await bg.request({tabId: 1, url: SB});
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-b'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, A);
+    await bg.frameAdded(1, 0, A, 'page-a');
+    expect(bg.toMpv()).toEqual([SA, SB]);
+    // An MSE player: the video plays a blob:, no URL of the page's streams.
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/a', video: {src: 'blob:https://site.test/a', duration: null}},
+        {tabId: 1, frameId: 0});
+  }
+
+  it('sends the page\'s known stream when no other went within 3 s', async () => {
+    await backToA();
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([SA, SB, SA]);
+  });
+
+  it('sends nothing when the tab went to another page within the 3 s', async () => {
+    // The timer was the tab's, not the page's: Back once more within 3 s gave page B back
+    // with its stream, and the play on page A sent B's stream.
+    await backToA();
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, B);
+    await bg.frameAdded(1, 0, B, 'page-b');
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([SA, SB]);
+  });
+
+  it('sends nothing when another page came back at the same address within the 3 s', async () => {
+    // Two history entries of one URL: the address tells nothing, the page's name does.
+    await backToA();
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
+    await bg.frameAdded(1, 0, A, 'page-b');
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([SA, SB]);
+  });
+});
+
 describe('a failed hand-off', () => {
   it('keeps the toolbar\'s "!" after the event page restarted', async () => {
     // The badge is the browser's, but a woken background redraws every tab's button from

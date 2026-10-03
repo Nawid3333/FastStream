@@ -2083,7 +2083,13 @@ async function tabTitle(tabId) {
  * @param {?Object} video - What it plays (content.js playedVideo).
  */
 function autoOpenKnownLater(tab, frameId, src, video) {
-  const waiting = () => tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened;
+  // The page the play came from, as onUserPlay checks it: within the wait the tab can show
+  // another page (Back once more gives one back with its streams), and that page's stream
+  // went to mpv for this page's play.
+  const documentIn = () => tab.getFrame(frameId)?.documentKey;
+  const page = {url: tab.url, document: documentIn()};
+  const waiting = () => tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened &&
+    tab.url === page.url && documentIn() === page.document;
   setTimeout(async () => {
     if (!waiting()) {
       return;
