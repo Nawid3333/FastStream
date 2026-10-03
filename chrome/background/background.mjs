@@ -515,25 +515,32 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvMatched = false;
     }
 
+    // Only the fragment changed (an anchor, #t=...): still the same page, whose player
+    // plays on. Taken for a new page, the latch reset below let the page's next stream
+    // request (a quality switch) open a second mpv window, and the in-page player was
+    // taken down. content.js's link handler already keeps the player for such a link.
+    const samePage = BackgroundUtils.isSamePageUrlChange(tab.url, changeInfo.url);
     tab.url = changeInfo.url;
 
-    // The auto-open latch is per page, not per tab. The reset above only runs on
-    // a hostname change, so without this a second episode on the same site is
-    // detected and then dropped, because the tab still looks like it has
-    // already handed a stream to mpv.
-    tab.mpvAutoOpened = false;
-    tab.mpvSentUrls.clear();
-    tab.mpvError = null;
-    tab.mpvPlayPendingUntil = 0;
-    tab.mpvPlayedVideo = null;
+    if (!samePage) {
+      // The auto-open latch is per page, not per tab. The reset above only runs on
+      // a hostname change, so without this a second episode on the same site is
+      // detected and then dropped, because the tab still looks like it has
+      // already handed a stream to mpv.
+      tab.mpvAutoOpened = false;
+      tab.mpvSentUrls.clear();
+      tab.mpvError = null;
+      tab.mpvPlayPendingUntil = 0;
+      tab.mpvPlayedVideo = null;
 
-    chrome.tabs.sendMessage(tabid, {
-      type: MessageTypes.REMOVE_PLAYERS,
-    }, {
-      frameId: 0,
-    }, () => {
-      BackgroundUtils.checkMessageError('remove_players');
-    });
+      chrome.tabs.sendMessage(tabid, {
+        type: MessageTypes.REMOVE_PLAYERS,
+      }, {
+        frameId: 0,
+      }, () => {
+        BackgroundUtils.checkMessageError('remove_players');
+      });
+    }
 
     const shouldAutoEnable = AutoEnableList.matches(changeInfo.url);
 

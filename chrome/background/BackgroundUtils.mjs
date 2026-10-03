@@ -152,6 +152,25 @@ export class BackgroundUtils {
     return url.substring(0, PlayerURL.length) === PlayerURL;
   }
 
+  /**
+   * Whether a tab's new URL (tabs.onUpdated) is still the same page: only its fragment
+   * changed, to an anchor (#comments) or a time (#t=120), which Firefox reports as it
+   * reports a new page. A hash route (#/episode/2, #!/...) is a page of its own, as is
+   * the same URL again (a reload).
+   * @param {?string|undefined} oldUrl - The tab's URL before.
+   * @param {string} newUrl - Its URL now.
+   * @return {boolean}
+   */
+  static isSamePageUrlChange(oldUrl, newUrl) {
+    if (!oldUrl || !newUrl || oldUrl === newUrl) {
+      return false;
+    }
+    const hash = (url) => (url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');
+    const strip = (url) => url.split('#')[0];
+    const isRoute = (url) => hash(url).startsWith('/') || hash(url).startsWith('!');
+    return strip(oldUrl) === strip(newUrl) && !isRoute(oldUrl) && !isRoute(newUrl);
+  }
+
   static getPlayerUrl() {
     return PlayerURL;
   }
