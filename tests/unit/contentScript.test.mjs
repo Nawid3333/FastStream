@@ -160,3 +160,69 @@ describe('GET_VIDEO_SIZE', () => {
     expect(await page.send({type: 'GET_VIDEO_SIZE'})).toBe(0);
   });
 });
+
+/**
+ * A page with a linked player (frame 5) in place of its video.
+ * @return {Promise<{page: Object, wrap: Object, video: Object, iframe: Object}>}
+ */
+async function pageWithPlayer() {
+  const {page, wrap, video} = pageWithVideo();
+  const {iframe} = await openPlayer(page);
+  await linkPlayer(page, iframe, 5);
+  return {page, wrap, video, iframe};
+}
+
+/**
+ * Adds plain elements to the page's body, each with no style of its own.
+ * @param {Object} page - From loadContentScript.
+ * @param {number} count - How many.
+ * @return {Array<Object>} The elements.
+ */
+function addElements(page, count) {
+  const elements = [];
+  for (let i = 0; i < count; i++) {
+    const div = page.document.createElement('div');
+    page.document.body.appendChild(div);
+    elements.push(div);
+  }
+  return elements;
+}
+
+// Windowed fullscreen hides every other element of the page (fillScreenIframe). Each one
+// was looked up in an array of those already changed, and taken out of it with a splice:
+// both quadratic, seconds on the page's main thread for a page of 50,000 elements (#227).
+// The walk also styled the <head>'s <meta>, <script> and <style> elements.
+describe('windowed fullscreen', () => {
+  it('hides the rest of the page, and gives every element its style back', async () => {
+    const {page, iframe} = await pageWithPlayer();
+    const [plain, styled] = addElements(page, 2);
+    styled.setAttribute('style', 'color: red;');
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('enter');
+    expect(plain.style.getPropertyValue('display')).toBe('none');
+    expect(styled.style.getPropertyValue('display')).toBe('none');
+    expect(iframe.style.getPropertyValue('position')).toBe('fixed');
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('exit');
+    expect(plain.style.getPropertyValue('display')).toBe('');
+    expect(styled.getAttribute('style')).toBe('color: red;');
+  });
+
+  it('leaves the <head> alone', async () => {
+    const {page} = await pageWithPlayer();
+    const meta = page.document.createElement('meta');
+    page.document.head.appendChild(meta);
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    expect(meta.getAttribute('style')).toBeNull();
+  });
+
+  it('takes well under a second for a page of 50,000 elements', async () => {
+    const {page} = await pageWithPlayer();
+    const elements = addElements(page, 50000);
+    const start = performance.now();
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    const took = performance.now() - start;
+    expect(elements.every((el) => el.style.getPropertyValue('display') === '')).toBe(true);
+    expect(took).toBeLessThan(1000);
+  }, 60000);
+});
+

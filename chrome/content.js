@@ -37,7 +37,10 @@
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   const overlayPlayers = [];
-  const elementsChangedByFillscreen = [];
+  // What fillScreenIframe changed: each element, with the style attribute it had. A Map,
+  // as each element is looked up in it: an array made a page of 30,000 elements take
+  // seconds on its main thread (an array lookup per element, and a splice per one undone).
+  const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
@@ -891,18 +894,13 @@
   }
 
   function undoFillScreenIframe(whitelist) {
-    for (let i = 0; i < elementsChangedByFillscreen.length; i++) {
-      const [element, old] = elementsChangedByFillscreen[i];
-      if (!whitelist || whitelist.includes(element)) {
+    const only = whitelist ? new Set(whitelist) : null;
+    elementsChangedByFillscreen.forEach((old, element) => {
+      if (!only || only.has(element)) {
         element.setAttribute('style', old);
-        elementsChangedByFillscreen.splice(i, 1);
-        i--;
-
-        if (whitelist) {
-          whitelist.splice(whitelist.indexOf(element), 1);
-        }
+        elementsChangedByFillscreen.delete(element);
       }
-    }
+    });
   }
 
   function fillScreenIframe(iframe, skipHide = false) {
@@ -927,7 +925,7 @@
     if (!skipHide) {
       const elementsToHide = [];
       const elementsToExpand = [];
-      const trace = traceParents(iframe);
+      const trace = new Set(traceParents(iframe));
 
       // Gather all elements not parents of the iframe
       const elements = document.querySelectorAll('*');
@@ -945,7 +943,12 @@
           continue;
         }
 
-        if (trace.includes(element)) {
+        // Nothing in the <head> is shown: its <meta>, <script> and <style> are no layers.
+        if (document.head && document.head.contains(element)) {
+          continue;
+        }
+
+        if (trace.has(element)) {
           elementsToExpand.push(element);
         } else {
           elementsToHide.push(element);
@@ -956,13 +959,12 @@
         if (element === iframe) {
           return;
         }
-        const found = elementsChangedByFillscreen.find((e) => e[0] === element);
-        if (found) {
+        if (elementsChangedByFillscreen.has(element)) {
           return;
         }
         const oldstyle = element.getAttribute('style') || '';
         element.style.setProperty('display', 'none', 'important');
-        elementsChangedByFillscreen.push([element, oldstyle]);
+        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
 
@@ -970,13 +972,12 @@
         if (element === iframe) {
           return;
         }
-        const found = elementsChangedByFillscreen.find((e) => e[0] === element);
-        if (found) {
+        if (elementsChangedByFillscreen.has(element)) {
           return;
         }
         const oldstyle = element.getAttribute('style') || '';
         element.setAttribute('style', expandStyle);
-        elementsChangedByFillscreen.push([element, oldstyle]);
+        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
     }
