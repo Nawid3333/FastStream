@@ -4,8 +4,9 @@ import {FakeAudioContext} from './fakeWebAudio.mjs';
 
 // The output convolver (impulse responses for the output device), on a stand-in Web Audio
 // graph. Every quality switch and every checkbox rebuilt its settings and gave each
-// convolver its impulse response again, which restarts the convolution (a click); and a
-// stored impulse length that was not a number kept the whole file as the impulse response.
+// convolver its impulse response again, which restarts the convolution (a click); a stored
+// impulse length that was not a number kept the whole file as the impulse response; and a
+// file that did not decode was reported with the window's name instead of its own.
 
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
@@ -65,5 +66,12 @@ describe('OutputConvolver', () => {
     expect(length(10)).toBe(128);
     expect(length(1e9)).toBe(16384);
     expect(length(2048)).toBe(2048);
+  });
+
+  it('names the file that did not decode', async () => {
+    const convolver = Object.create(OutputConvolver.prototype);
+    convolver.audioContext = {decodeAudioData: () => Promise.reject(new Error('EncodingError'))};
+    const file = {name: 'room.wav', arrayBuffer: async () => new ArrayBuffer(4)};
+    await expect(convolver.getImpulseResponse(file)).rejects.toThrow('Could not decode impulse response: room.wav');
   });
 });

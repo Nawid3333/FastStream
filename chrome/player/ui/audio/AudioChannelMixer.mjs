@@ -434,7 +434,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
         els.muteButton.classList.toggle('active', channel.mono);
       } else {
         channel.muted = !channel.muted;
-        els.muteButton.classList.toggle('active', channel.mute);
+        els.muteButton.classList.toggle('active', channel.muted);
       }
       this.updateNodes();
     };

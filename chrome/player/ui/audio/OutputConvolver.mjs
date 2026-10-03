@@ -108,7 +108,7 @@ export class OutputConvolver extends AbstractAudioModule {
     const arrayBuffer = await file.arrayBuffer();
     const audioData = await this.audioContext.decodeAudioData(arrayBuffer).catch((e) => null);
     if (!audioData) {
-      throw new Error('Could not decode impulse response: ' + name);
+      throw new Error('Could not decode impulse response: ' + file.name);
     }
 
     // audiobuffer, get first channel
