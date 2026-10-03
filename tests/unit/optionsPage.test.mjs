@@ -5,7 +5,9 @@ import {loadPage} from './helpers/fakeDom.mjs';
 // real OptionsStore and storage stubbed. It runs as the web build does (no `chrome`).
 // - A change made before the saved options were read saved the defaults over them.
 // - The page redrew itself after its own saves: the keybind box a key was just pressed
-//   in was rebuilt (focus lost), and a number field was rewritten after each key.
+//   in was rebuilt (focus lost), and a number field was rewritten after each key. In the
+//   web build the save also came back as a message the page posts to itself (it has no
+//   opener or parent), and was reloaded from storage.
 // - A key press with no key code was saved as the binding ''.
 // - The eight menus had no accessible name on the <select> itself.
 // - The web build's "Welcome Page" link was a 404.
@@ -16,11 +18,18 @@ vi.mock('../../chrome/player/utils/SearchUtils.mjs', () => ({
 vi.mock('../../chrome/player/utils/UpdateChecker.mjs', () => ({UpdateChecker: {}}));
 
 const doc = loadPage('chrome/player/options/index.html');
-// The web build's OptionsStore hears other pages' saves as window messages.
+// The web build's OptionsStore hears other pages' saves as window messages, and posts its
+// own to its opener or parent, or else to itself: as a browser does, a post is delivered
+// as a later task, from the window that posted it.
 const win = {
-  postMessage: vi.fn(), opener: null, location: {origin: 'https://player.example'}, listeners: {},
+  opener: null, location: {origin: 'https://player.example'}, listeners: {},
   addEventListener(type, fn) {
     (this.listeners[type] ||= []).push(fn);
+  },
+  postMessage(data) {
+    setTimeout(() => {
+      for (const fn of this.listeners.message || []) fn({origin: this.location.origin, source: this, data});
+    }, 0);
   },
 };
 win.parent = win;
@@ -41,27 +50,32 @@ const saved = {
   seekStepSize: 7,
   videoZoom: 1,
 };
-// Storage answers the first read only when the test says so; later reads at once.
+// Storage answers the first read only when the test says so; later reads at once, with
+// what was written since.
+const storage = {options: JSON.stringify(saved)};
 let deliverSaved;
 let delivered = false;
 const storageRead = new Promise((resolve) => {
   deliverSaved = () => {
     delivered = true;
-    resolve(JSON.stringify(saved));
+    resolve(storage.options);
   };
 });
 vi.spyOn(Utils, 'getConfig').mockImplementation((key) => {
-  if (key !== 'options') return Promise.resolve(null);
-  return delivered ? Promise.resolve(JSON.stringify(saved)) : storageRead;
+  if (key !== 'options') return Promise.resolve(storage[key] ?? null);
+  return delivered ? Promise.resolve(storage.options) : storageRead;
 });
 const writes = [];
 vi.spyOn(Utils, 'setConfig').mockImplementation(async (key, value) => {
+  storage[key] = value;
   writes.push({key, value: JSON.parse(value)});
 });
 const optionWrites = () => writes.filter((write) => write.key === 'options');
 
-// Lets the store's saves and notifications run.
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+// Lets the store's saves, posts and notifications run: a few rounds of tasks.
+const settle = async () => {
+  for (let round = 0; round < 3; round++) await new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 await import('../../chrome/player/options/options.mjs');
 
@@ -137,8 +151,11 @@ describe('the options page once the saved options are read', () => {
   });
 
   it('still shows a change saved elsewhere', async () => {
-    saved.keybinds = {...saved.keybinds, PlayPause: 'KeyL'};
-    for (const fn of win.listeners.message) fn({origin: win.location.origin, data: {type: 'options'}});
+    const elsewhere = JSON.parse(storage.options);
+    elsewhere.keybinds.PlayPause = 'KeyL';
+    storage.options = JSON.stringify(elsewhere);
+    // Another page's post, from another window.
+    for (const fn of win.listeners.message) fn({origin: win.location.origin, source: {}, data: {type: 'options'}});
     await settle();
     expect(keybindBox('PlayPause').textContent).toBe('KeyL');
     expect(optionWrites()).toEqual([]);
