@@ -2,6 +2,10 @@ import {Localize} from './modules/Localize.mjs';
 
 window.getI18nMessage = Localize.getMessage;
 
+// The page is in the UI language, and a screen reader picks its voice from this. The
+// options, welcome and permissions pages had none, the player a fixed "en".
+document.documentElement.lang = Localize.getLanguage();
+
 document.querySelectorAll('[data-i18n]').forEach((elem) => {
   elem.innerText = window.getI18nMessage(elem.dataset.i18n);
 });

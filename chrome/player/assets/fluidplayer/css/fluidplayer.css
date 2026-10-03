@@ -2830,6 +2830,17 @@ input.crosstalk_calculator_input {
     animation: none;
 }
 
+/* Less motion for those who asked their system for it: the controls and menus appear and
+   disappear at once, and the buttons being rearranged do not shake. The controls bar
+   needs its own selector to outrank its `transition: all 0.5s !important`. */
+@media (prefers-reduced-motion: reduce) {
+    .fluid_video_wrapper.fluid_player_layout_default *,
+    .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+    }
+}
+
 @keyframes tilt-shaking {
     0% {
         transform: rotate(0deg);
