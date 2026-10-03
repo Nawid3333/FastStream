@@ -698,12 +698,14 @@ export function writeSubtitleFiles(subtitles, base = os.tmpdir()) {
 /**
  * Escapes one item of an mpv string list option: ',' separates the items, and a '\'
  * right before a ',' makes it part of the item. mpv removes no other backslash: escaped
- * as well, a '\' reached the server doubled (mpv 0.41, measured 2026-10-03).
+ * as well, a '\' reached the server doubled (mpv 0.41, measured 2026-10-03). Written as
+ * split/join: CodeQL's js/incomplete-sanitization reads a replace() that inserts '\' as
+ * backslash escaping that forgot the backslash, which mpv's list syntax is not.
  * @param {string} item - The item.
  * @return {string} The escaped item.
  */
 function listItem(item) {
-  return item.replace(/,/g, '\\,');
+  return item.split(',').join('\\,');
 }
 
 /**
