@@ -27,8 +27,20 @@ const NPM_REGISTRY = 'https://registry.npmjs.org/';
  */
 export function newestNode(index, major, now, minAgeDays = MIN_AGE_DAYS) {
   const cutoff = now - minAgeDays * DAY;
-  const release = index.find((r) => parseInt(r.version.slice(1), 10) === major && Date.parse(r.date) <= cutoff);
+  // Only the exact "v1.2.3" shape: update-local.ps1 puts it into a URL and a file name (#243).
+  const release = index.find((r) => /^v\d+\.\d+\.\d+$/.test(r.version) &&
+      parseInt(r.version.slice(1), 10) === major && Date.parse(r.date) <= cutoff);
   return release ? release.version.slice(1) : null;
+}
+
+/**
+ * Whether getJson may fetch this URL: nodejs.org's release index itself, or a package
+ * document on the npm registry (CodeQL js/request-forgery).
+ * @param {URL} url
+ * @return {boolean}
+ */
+export function isPinnedUrl(url) {
+  return url.href === NODE_INDEX_URL || (url.origin + url.pathname).startsWith(NPM_REGISTRY);
 }
 
 /**
@@ -51,10 +63,10 @@ export function newestPackage(doc, now, minAgeDays = MIN_AGE_DAYS) {
 async function getJson(url) {
   // Only the two pinned hosts are talked to, however `name` was spelled on the
   // command line (CodeQL js/request-forgery), and the URL object proves the origin.
-  const allowed = [NODE_INDEX_URL, NPM_REGISTRY];
+  // (Until #167 a precedence slip made this check pass every URL.)
   const parsed = new URL(url);
-  if (!allowed.some((base) => parsed.origin + parsed.pathname.startsWith(base))) {
-    throw new Error(`getJson refuses ${url}: not one of ${allowed.join(', ')}`);
+  if (!isPinnedUrl(parsed)) {
+    throw new Error(`getJson refuses ${url}: not ${NODE_INDEX_URL} or a package on ${NPM_REGISTRY}`);
   }
   const response = await fetch(parsed, {headers: {'accept': 'application/json', 'user-agent': 'faststream-update-local'}});
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);

@@ -69,18 +69,18 @@ last one is edited in place, so a repeat sends no second email.
 
 GitHub can't update your PC, so one double-click checks it: `update-local.cmd` in the
 repository's root. It compares your tools with what CI uses, by CI's rule (a release counts
-once it is 5 days old), and changes nothing:
+once it is 5 days old), and changes nothing without asking:
 
 - Node.js of the major `.nvmrc` names: whether a newer eligible release is on nodejs.org.
 - npm's newest release, and the pnpm version `package.json` pins (inside the repository
   pnpm switches to that one by itself).
 - On `main` with nothing uncommitted: how many commits it is behind origin, and whether the
   locked dependencies (`pnpm install --frozen-lockfile`, fsaunpack's `npm ci`, scripts off)
-  would need a run.
+  need a run: only when a lockfile changed after the last install.
 - The mpv helper: whether the repository's differs from the installed one.
 
-Whatever it reports as out of date, one run applies: `tools/update-local.ps1 -Apply`. The
-same rule as the check: Node comes as nodejs.org's installer, checked against its
+When it finds something out of date it asks "Update these now?", and Y applies all of it
+(the same as `tools/update-local.ps1 -Apply`), by the same rule as the check: Node comes as nodejs.org's installer, checked against its
 `SHASUMS256.txt` (Windows asks for admin rights; say yes), npm and pnpm install with
 scripts off, the pull is `--ff-only` on a clean `main`, and the mpv helper keeps your mpv
 and Node paths.

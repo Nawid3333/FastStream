@@ -147,9 +147,12 @@ npm's newest and the pinned pnpm, each 5 days old by `tools/newest-release.mjs` 
 `tools/check-toolchain.mjs`); on a clean `main`, how far it is behind origin, `pnpm install
 --frozen-lockfile`, fsaunpack's `npm ci --ignore-scripts`; and whether
 `%LOCALAPPDATA%\FastStreamMpvHost`'s host is the repository's (reinstalled by
-`native-host/install.ps1` with the installed mpv and Node paths). It changes nothing; it
-never installs, pulls or reinstalls unless given `-Apply` (Node: nodejs.org MSI, SHA-256
-checked, admin prompt). Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
+`native-host/install.ps1` with the installed mpv and Node paths). The check changes nothing
+and exits 2 when something is due; the .cmd then asks "Update these now?" and Y runs
+`-Apply` (Node: nodejs.org MSI, SHA-256 checked and OpenJS-signed, staged in a folder
+`tools/update-local-lib.ps1` locks to the user, Administrators and SYSTEM by SID (names are
+localized: "Administratoren" broke it on the owner's German Windows, 2026-10-03), admin
+prompt). The installs run only when a lockfile changed after the last install. Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
 repository, Nawid3333/mpv, with its own updater) or WSL.
 
 ## Manual playback testing
