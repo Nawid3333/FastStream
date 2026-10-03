@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Ara"
     },
-    "options_help_feedback": {
-        "message": "Geri Bildirim Formu"
+    "options_search_matched": {
+        "message": "$1 / $2 eşleşme"
     },
     "options_update_header": {
         "message": "Bir güncelleme mevcut!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Bir tuşa basın"
     },
+    "options_keybinds_conflict": {
+        "message": "Şunun tarafından da kullanılıyor: $1"
+    },
     "options_autourl_header": {
         "message": "Otomatik Etkinleştirilen URL'ler"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Bu desenler, web sayfalarında özel video kaynaklarını tespit etmek için kullanılır. Sırayla uygulanır ve ilk eşleşme kullanılır. Sadece ileri düzey kullanıcılar içindir."
+    },
+    "options_pattern_learnmore": {
+        "message": "Daha fazla bilgi"
     },
     "options_mpv_header": {
         "message": "MPV modu"

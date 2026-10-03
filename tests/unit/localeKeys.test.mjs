@@ -83,6 +83,8 @@ describe('Message keys', () => {
       'player/ui/audio/AudioChannelMixer.mjs: EQ/Comp',
       // The label of a hidden, aria-hidden file input, which nothing reads.
       'player/ui/subtitles/SubtitlesManager.mjs: Upload subtitle file',
+      // A fallback never shown: CHANNEL_NAMES names every one of the MAX_AUDIO_CHANNELS.
+      'player/ui/audio/OutputConvolver.mjs: Channel',
     ];
     const patterns = [
       /\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*(['"`])([A-Za-z][^'"`]*[a-z][^'"`]*)\1/g,
@@ -103,6 +105,15 @@ describe('Message keys', () => {
           if (match[2].includes('://') || match[2].startsWith('FastStream')) continue;
           found.push(`${name}: ${match[2]}`);
         }
+      }
+      // A template literal anywhere on the right of the assignment. "Also used by ${...}"
+      // and "${shown} / ${total} matched" got past the patterns above, which stop at the
+      // first quote (the one in join(', ')) and want a letter first.
+      for (const match of source.matchAll(/\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*[^;\n]*?`([^`]*)`/g)) {
+        const text = match[1].replace(/\$\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
+        // A unit, and the product's name.
+        if (!/[A-Za-z]{3,}/.test(text.replace(/\bkbps\b/g, '')) || text.startsWith('FastStream')) continue;
+        found.push(`${name}: ${text}`);
       }
     }
     // The exceptions are found, so the patterns still match.

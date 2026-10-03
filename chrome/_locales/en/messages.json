@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Search"
     },
-    "options_help_feedback": {
-        "message": "Feedback Form"
+    "options_search_matched": {
+        "message": "$1 / $2 matched"
     },
     "options_update_header": {
         "message": "An Update is Available!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Press a key"
     },
+    "options_keybinds_conflict": {
+        "message": "Also used by $1"
+    },
     "options_autourl_header": {
         "message": "Auto-enable URLs"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "These patterns are used to detect custom video sources on webpages. They are applied in order, and the first match is used. For advanced users only."
+    },
+    "options_pattern_learnmore": {
+        "message": "Learn more"
     },
     "options_mpv_header": {
         "message": "MPV Mode"

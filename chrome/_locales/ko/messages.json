@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "검색"
     },
-    "options_help_feedback": {
-        "message": "피드백 양식"
+    "options_search_matched": {
+        "message": "$1 / $2개 일치"
     },
     "options_update_header": {
         "message": "업데이트가 있습니다!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "키를 누르세요"
     },
+    "options_keybinds_conflict": {
+        "message": "$1에서도 사용 중"
+    },
     "options_autourl_header": {
         "message": "URL 자동 활성화"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "이 패턴들은 웹페이지에서 사용자 지정 비디오 소스를 감지하는 데 사용됩니다. 위에서 아래 순으로 적용되며, 첫 번째 일치 항목이 사용됩니다. 고급 사용자 전용."
+    },
+    "options_pattern_learnmore": {
+        "message": "자세히 알아보기"
     },
     "options_mpv_header": {
         "message": "MPV 모드"

@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Szukaj"
     },
-    "options_help_feedback": {
-        "message": "Formularz opinii"
+    "options_search_matched": {
+        "message": "Pasujące: $1 / $2"
     },
     "options_update_header": {
         "message": "Dostępna jest aktualizacja!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Naciśnij klawisz"
     },
+    "options_keybinds_conflict": {
+        "message": "Używany także przez $1"
+    },
     "options_autourl_header": {
         "message": "Automatyczne włączanie adresów URL"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Te wzorce służą do wykrywania niestandardowych źródeł wideo na stronach internetowych. Stosowane są w kolejności i używane jest pierwsze dopasowanie. Tylko dla zaawansowanych użytkowników."
+    },
+    "options_pattern_learnmore": {
+        "message": "Dowiedz się więcej"
     },
     "options_mpv_header": {
         "message": "Tryb MPV"

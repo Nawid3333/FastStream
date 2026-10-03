@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Buscar"
     },
-    "options_help_feedback": {
-        "message": "Formulario de Comentarios"
+    "options_search_matched": {
+        "message": "$1 / $2 coincidencias"
     },
     "options_update_header": {
         "message": "¡Hay una actualización disponible!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Pulse una tecla"
     },
+    "options_keybinds_conflict": {
+        "message": "También lo usa $1"
+    },
     "options_autourl_header": {
         "message": "Activar URLs Automáticamente"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Estos patrones se utilizan para detectar fuentes de video personalizadas en páginas web. Se aplican en orden y se usa la primera coincidencia. Solo para usuarios avanzados."
+    },
+    "options_pattern_learnmore": {
+        "message": "Más información"
     },
     "options_mpv_header": {
         "message": "Modo MPV"

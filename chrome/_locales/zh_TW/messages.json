@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "搜尋"
     },
-    "options_help_feedback": {
-        "message": "回饋表單"
+    "options_search_matched": {
+        "message": "符合 $1 / $2"
     },
     "options_update_header": {
         "message": "有更新可用！"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "按任意鍵"
     },
+    "options_keybinds_conflict": {
+        "message": "也被 $1 使用"
+    },
     "options_autourl_header": {
         "message": "自動啟用網址"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "這些模式用於偵測網頁上的自訂視訊來源。會依順序套用，採第一個符合的結果。僅供進階使用者。"
+    },
+    "options_pattern_learnmore": {
+        "message": "了解更多"
     },
     "options_mpv_header": {
         "message": "MPV 模式"

@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "搜索"
     },
-    "options_help_feedback": {
-        "message": "反馈表单"
+    "options_search_matched": {
+        "message": "匹配 $1 / $2"
     },
     "options_update_header": {
         "message": "有可用更新！"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "请按任意键"
     },
+    "options_keybinds_conflict": {
+        "message": "也被 $1 使用"
+    },
     "options_autourl_header": {
         "message": "自动启用 URL"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "这些模式用于检测网页上的自定义视频来源。按顺序应用，采用第一个匹配项。仅供高级用户使用。"
+    },
+    "options_pattern_learnmore": {
+        "message": "了解更多"
     },
     "options_mpv_header": {
         "message": "MPV 模式"

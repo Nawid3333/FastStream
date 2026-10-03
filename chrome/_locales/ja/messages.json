@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "検索"
     },
-    "options_help_feedback": {
-        "message": "フィードバックフォーム"
+    "options_search_matched": {
+        "message": "$1 / $2 件が一致"
     },
     "options_update_header": {
         "message": "アップデートが利用可能です!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "キーを押してください"
     },
+    "options_keybinds_conflict": {
+        "message": "$1 でも使用中"
+    },
     "options_autourl_header": {
         "message": "URL で自動的に有効化"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "これらのパターンは、Web ページ上のカスタム動画ソースを検出するために使用されます。順番に適用され、最初に一致したものが使用されます。上級者向け。"
+    },
+    "options_pattern_learnmore": {
+        "message": "詳細"
     },
     "options_mpv_header": {
         "message": "MPV モード"

@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Rechercher"
     },
-    "options_help_feedback": {
-        "message": "Formulaire de retours"
+    "options_search_matched": {
+        "message": "$1 / $2 correspondances"
     },
     "options_update_header": {
         "message": "Une mise à jour est disponible !"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Appuyez sur une touche"
     },
+    "options_keybinds_conflict": {
+        "message": "Également utilisé par $1"
+    },
     "options_autourl_header": {
         "message": "Activation automatique par URL"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Ces modèles sont utilisés pour détecter des sources vidéo personnalisées sur les pages web. Ils sont appliqués dans l'ordre, et la première correspondance est utilisée. Réservé aux utilisateurs avancés."
+    },
+    "options_pattern_learnmore": {
+        "message": "En savoir plus"
     },
     "options_mpv_header": {
         "message": "Mode MPV"

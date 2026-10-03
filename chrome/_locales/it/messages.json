@@ -905,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Cerca"
     },
-    "options_help_feedback": {
-        "message": "Modulo di Feedback"
+    "options_search_matched": {
+        "message": "$1 / $2 corrispondenze"
     },
     "options_update_header": {
         "message": "È Disponibile un Aggiornamento!"
@@ -1151,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Premi un tasto"
     },
+    "options_keybinds_conflict": {
+        "message": "Usato anche da $1"
+    },
     "options_autourl_header": {
         "message": "Abilita automaticamente gli URL"
     },
@@ -1165,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Questi modelli vengono utilizzati per rilevare sorgenti video personalizzate su pagine web. Vengono applicati in ordine e viene utilizzata la prima corrispondenza. Solo per utenti avanzati."
+    },
+    "options_pattern_learnmore": {
+        "message": "Scopri di più"
     },
     "options_mpv_header": {
         "message": "Modalità MPV"
