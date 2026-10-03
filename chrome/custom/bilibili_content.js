@@ -83,6 +83,17 @@ class Bilibili2Dash {
   }
 }
 
+// btoa takes Latin-1 only: a manifest with any other character (a title, an address)
+// threw. This is the manifest's UTF-8, in base64.
+function base64Utf8(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x2000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x2000));
+  }
+  return btoa(binary);
+}
+
 // look for script tag with "window.__playinfo__"
 const scriptTags = document.querySelectorAll('script');
 for (let i = 0; i < scriptTags.length; i++) {
@@ -90,10 +101,18 @@ for (let i = 0; i < scriptTags.length; i++) {
   if (script.textContent.includes('window.__playinfo__')) {
     const playInfo = script.textContent.match(/window\.__playinfo__\s*=\s*(\{.*\})/);
     if (playInfo) {
-      const playInfoObj = JSON.parse(playInfo[1]);
-      const converter = new Bilibili2Dash();
-      const mpd = converter.playInfoToDash(playInfoObj);
-      const url = `data:application/dash+xml;base64,${btoa(mpd)}`;
+      // Play info of another shape (FLV, data.durl, instead of data.dash), or more code
+      // after it on the line, threw here, uncaught, and nothing was detected.
+      let mpd;
+      try {
+        const playInfoObj = JSON.parse(playInfo[1]);
+        const converter = new Bilibili2Dash();
+        mpd = converter.playInfoToDash(playInfoObj);
+      } catch (e) {
+        console.error('No DASH play info', e);
+        continue;
+      }
+      const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
       chrome.runtime.sendMessage({
         type: 'DETECTED_SOURCE',
         url,

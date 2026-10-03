@@ -7,6 +7,9 @@ import {loadBackground} from './backgroundHarness.mjs';
 
 const PAGE = 'https://site.test/watch/1';
 const PLAYER = 'moz-extension://bg-test/player/index.html';
+// A player in the page's frame names the page that opened it (content.js adds ?opener=),
+// or the background takes no parent frame from it (#225).
+const PLAYER_IN_PAGE = PLAYER + '?opener=page-1';
 
 let bg;
 
@@ -20,7 +23,7 @@ afterEach(() => {
  * @return {Promise<Array<Object>>} The sources the background sent it.
  */
 async function sourcesForPlayer() {
-  await bg.message({type: 'PLAYER_LOADED', url: PLAYER, parentFrameId: 0}, {tabId: 1, frameId: 5});
+  await bg.message({type: 'PLAYER_LOADED', url: PLAYER_IN_PAGE, parentFrameId: 0}, {tabId: 1, frameId: 5});
   bg.sentToTabs.length = 0;
   await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
   await bg.wait(3000);
@@ -94,7 +97,7 @@ describe('a page that is never left', () => {
       await bg.request({tabId: 1, url: `https://cdn.test/v/video-${n}.mp4`});
       await bg.request({tabId: 1, url: `https://cdn.test/v/text-${n}.vtt`});
     }
-    await bg.message({type: 'PLAYER_LOADED', url: PLAYER, parentFrameId: 0}, {tabId: 1, frameId: 5});
+    await bg.message({type: 'PLAYER_LOADED', url: PLAYER_IN_PAGE, parentFrameId: 0}, {tabId: 1, frameId: 5});
     bg.sentToTabs.length = 0;
     await bg.message({type: 'REQUEST_SOURCES'}, {tabId: 1, frameId: 5});
     await bg.wait(3000);

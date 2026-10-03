@@ -30,16 +30,19 @@
     REPORT_LOADED_MEDIA: 'REPORT_LOADED_MEDIA',
     LOADED_MEDIA: 'LOADED_MEDIA',
     PLAYER_OPEN_GONE: 'PLAYER_OPEN_GONE',
+    IS_PLAYER_OPENER: 'IS_PLAYER_OPENER',
   };
 
   const iframeMap = new Map();
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   const overlayPlayers = [];
-  const elementsChangedByFillscreen = [];
+  // What fillScreenIframe changed: each element, with the style attribute it had. A Map,
+  // as each element is looked up in it: an array made a page of 30,000 elements take
+  // seconds on its main thread (an array lookup per element, and a splice per one undone).
+  const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
-  let Activated = false;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
   // detected in it.
@@ -102,6 +105,11 @@
       if (hasPlayerIframe()) {
         sendResponse(true);
       }
+      return;
+    } else if (request.type === MessageTypes.IS_PLAYER_OPENER) {
+      // Whether a player naming this frame as its parent was opened by this page: only
+      // this content script knows the page's name (background.mjs, PLAYER_LOADED).
+      sendResponse(request.document === DocumentKey);
       return;
     } else if (request.type === MessageTypes.PING_TAB) {
       sendResponse(MessageTypes.PONG_TAB);
@@ -204,6 +212,11 @@
 
         if (oldFrameObj.iframe !== iframeElement) {
           iframeElement.addEventListener('load', frameLoadListener);
+        } else if (!newFrameObj.replacedData) {
+          // The same iframe again: its player loaded anew ("Reload Frame" on it). It still
+          // stands in for the page's element, which only the old entry knew how to give
+          // back: removePlayers left that element hidden, and its media paused, for good.
+          newFrameObj.replacedData = oldFrameObj.replacedData;
         }
       } else {
         iframeElement.addEventListener('load', frameLoadListener);
@@ -212,7 +225,7 @@
       iframeMap.set(request.frameId, newFrameObj);
       checkPendingPlayers();
 
-      updateReplacedPlayers();
+      updateReplacedPlayers(replacedData && replacedData.convertDue ? replacedData : null);
     }
   });
 
@@ -324,14 +337,6 @@
   function notifyBackground(message) {
     chrome.runtime.sendMessage(message).catch((e) => {
       console.debug('FastStream: no answer to', message.type, e && e.message);
-    });
-  }
-
-  async function sendToOtherContents(message) {
-    notifyBackground({
-      type: 'SEND_TO_CONTENT',
-      data: message,
-      destination: 'custom',
     });
   }
 
@@ -464,6 +469,12 @@
           for (let i = 1; i <= 8; i++) {
             ((i) => {
               setTimeout(() => {
+                // The check for a page element that collapsed (makeSoftIntoHard) sees only
+                // players that linked up. One that has not yet (a slow start) gets it when it
+                // does, in the link handler; it used to get none.
+                if (i == 4 && replacedPlayerQueue.includes(pobj)) {
+                  pobj.convertDue = true;
+                }
                 updateReplacedPlayers(i == 4 ? pobj : null);
               }, i * 250);
             })(i);
@@ -479,13 +490,6 @@
           }
         });
         pobj.resizeObserver.observe(iframe.parentNode);
-      }
-      if (!Activated) {
-        Activated = true;
-        sendToOtherContents({
-          type: 'active-state',
-          value: true,
-        });
       }
     }).catch((e) => {
       // Whatever went wrong, the background hears back: without an answer it kept the
@@ -554,10 +558,17 @@
       miniplayerState.closeObserver = null;
     }
 
-    if ((request.force !== undefined && request.force === miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
-      updateMiniPlayer(iframeObj);
-    } else {
-      toggleMiniPlayer(iframeObj);
+    try {
+      if ((request.force !== undefined && request.force === miniplayerState.active) || iframeObj.windowedFullscreenState.active || document.fullscreenElement) {
+        updateMiniPlayer(iframeObj);
+      } else {
+        toggleMiniPlayer(iframeObj);
+      }
+    } catch (e) {
+      // Whatever went wrong, the player hears back; a throw here left it unanswered.
+      console.error(e);
+      sendResponse('error');
+      return;
     }
 
     if (miniplayerState.active && request.autoExit) {
@@ -662,30 +673,31 @@
   const ScrapedTrackKinds = ['subtitles', 'captions'];
 
   function handleCaptionsScrape(request, sender, sendResponse) {
-    const trackElements = querySelectorAllIncludingShadows('track');
-    let pending = 0;
+    // Every track is counted before any is asked for: a request that fails at once (a src
+    // XMLHttpRequest refuses) answers inside the loop, and the answer went out then, with
+    // the tracks after it never asked for.
+    const trackElements = querySelectorAllIncludingShadows('track')
+        .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind));
+    const pending = trackElements.length;
     let done = 0;
     const tracks = [];
     for (let i = 0; i < trackElements.length; i++) {
       const track = trackElements[i];
-      if (track.src && ScrapedTrackKinds.includes(track.kind)) {
-        pending++;
-        const source = track.src;
-        httpRequest(source, (err, req, body) => {
-          done++;
-          if (body) {
-            tracks.push({
-              data: body,
-              source: source,
-              label: track.label,
-              language: track.srclang,
-            });
-          }
-          if (done === pending) sendResponse(tracks);
-        });
-      }
+      const source = track.src;
+      httpRequest(source, (err, req, body) => {
+        done++;
+        if (body) {
+          tracks.push({
+            data: body,
+            source: source,
+            label: track.label,
+            language: track.srclang,
+          });
+        }
+        if (done === pending) sendResponse(tracks);
+      });
     }
-    if (done === pending) sendResponse(tracks);
+    if (pending === 0) sendResponse(tracks);
 
     return true;
   }
@@ -717,6 +729,11 @@
     OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
+      // The iframe's own style too, which only leaving windowed fullscreen gives back: an
+      // embed iframe holding the player stayed fixed over the whole page.
+      if (iframeObj.windowedFullscreenState.active) {
+        windowedFullscreenToggle(iframeObj);
+      }
       if (iframeObj.replacedData) {
         restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
@@ -747,14 +764,6 @@
         });
       }
     });
-
-    if (Activated) {
-      Activated = false;
-      sendToOtherContents({
-        type: 'active-state',
-        value: false,
-      });
-    }
   }
 
   /**
@@ -788,7 +797,12 @@
     if (miniplayerState.active) {
       const placeholder = miniplayerState.placeholder;
       const element = miniplayerState.element;
-      const aspectRatio = placeholder.clientWidth / placeholder.clientHeight;
+      // A placeholder without a size (inside a hidden part of the page) has no shape to
+      // keep: the sizes were NaN, or a miniplayer 0 px high.
+      let aspectRatio = placeholder.clientWidth / placeholder.clientHeight;
+      if (!(aspectRatio > 0 && aspectRatio < Infinity)) {
+        aspectRatio = 16 / 9;
+      }
       const newWidth = Math.min(Math.max(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
       const newHeight = newWidth / aspectRatio;
       element.style.setProperty('width', newWidth + 'px', 'important');
@@ -814,9 +828,18 @@
       return;
     }
 
+    // The page took the player's iframe out (a re-render): there is nothing to shrink, and
+    // the placeholder had no parent to go into.
+    if (!iframeObj.iframe.isConnected) {
+      return;
+    }
+
     miniplayerState.active = true;
 
-    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe);
+    // Up to the body, not the body itself: a wrapper that came to fill it made the body the
+    // miniplayer, with a second <body> put in before it as its placeholder.
+    const parentElementsWithSameBounds = getParentElementsWithSameBounds(iframeObj.iframe)
+        .filter((parent) => parent.tagName !== 'BODY');
     const element = parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : iframeObj.iframe;
     const placeholder = document.createElement(element.tagName);
 
@@ -908,18 +931,13 @@
   }
 
   function undoFillScreenIframe(whitelist) {
-    for (let i = 0; i < elementsChangedByFillscreen.length; i++) {
-      const [element, old] = elementsChangedByFillscreen[i];
-      if (!whitelist || whitelist.includes(element)) {
+    const only = whitelist ? new Set(whitelist) : null;
+    elementsChangedByFillscreen.forEach((old, element) => {
+      if (!only || only.has(element)) {
         element.setAttribute('style', old);
-        elementsChangedByFillscreen.splice(i, 1);
-        i--;
-
-        if (whitelist) {
-          whitelist.splice(whitelist.indexOf(element), 1);
-        }
+        elementsChangedByFillscreen.delete(element);
       }
-    }
+    });
   }
 
   function fillScreenIframe(iframe, skipHide = false) {
@@ -944,7 +962,7 @@
     if (!skipHide) {
       const elementsToHide = [];
       const elementsToExpand = [];
-      const trace = traceParents(iframe);
+      const trace = new Set(traceParents(iframe));
 
       // Gather all elements not parents of the iframe
       const elements = document.querySelectorAll('*');
@@ -962,7 +980,12 @@
           continue;
         }
 
-        if (trace.includes(element)) {
+        // Nothing in the <head> is shown: its <meta>, <script> and <style> are no layers.
+        if (document.head && document.head.contains(element)) {
+          continue;
+        }
+
+        if (trace.has(element)) {
           elementsToExpand.push(element);
         } else {
           elementsToHide.push(element);
@@ -973,13 +996,12 @@
         if (element === iframe) {
           return;
         }
-        const found = elementsChangedByFillscreen.find((e) => e[0] === element);
-        if (found) {
+        if (elementsChangedByFillscreen.has(element)) {
           return;
         }
         const oldstyle = element.getAttribute('style') || '';
         element.style.setProperty('display', 'none', 'important');
-        elementsChangedByFillscreen.push([element, oldstyle]);
+        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
 
@@ -987,13 +1009,12 @@
         if (element === iframe) {
           return;
         }
-        const found = elementsChangedByFillscreen.find((e) => e[0] === element);
-        if (found) {
+        if (elementsChangedByFillscreen.has(element)) {
           return;
         }
         const oldstyle = element.getAttribute('style') || '';
         element.setAttribute('style', expandStyle);
-        elementsChangedByFillscreen.push([element, oldstyle]);
+        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
     }
@@ -1834,12 +1855,39 @@
   // The requests a page's player makes for its stream, as Resource Timing names them.
   const LoadedMediaInitiators = ['xmlhttprequest', 'fetch', 'video', 'audio', 'other'];
 
+  // The page's Resource Timing buffer keeps its first 250 requests, and a streaming page has
+  // made that many (ads, trackers) before its video asks for its manifest: the manifest was
+  // never in it. An observer is told of every request, buffer full or not (Firefox's
+  // Performance::InsertResourceEntry queues each entry to observers first), from this
+  // script's start at document_start. The ones loadedMedia reports are kept here, the
+  // first ObservedMediaLimit of them (a URL once), past the buffer. Nothing the page can
+  // see changes, as it would with setResourceTimingBufferSize.
+  const ObservedMediaLimit = 1000;
+  const observedMedia = new Map();
+  try {
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (observedMedia.size >= ObservedMediaLimit) break;
+        if (!LoadedMediaInitiators.includes(entry.initiatorType) || observedMedia.has(entry.name)) continue;
+        observedMedia.set(entry.name, {
+          name: entry.name,
+          initiatorType: entry.initiatorType,
+          responseStatus: entry.responseStatus,
+          startTime: entry.startTime,
+        });
+      }
+    }).observe({type: 'resource', buffered: true});
+  } catch (e) {
+    // No observer: the timeline's own buffer is all there is.
+  }
+
   /**
    * What this page loaded that may be a stream, for a background that did not see it load:
    * Firefox unloads the background after ~30 idle seconds, and the streams it detected with
    * it, while a page asks for its manifest once, when its video starts. The page's own
    * Resource Timing entries keep those requests for as long as it lives (the first 250 of
-   * them), and its videos tell the files they play.
+   * them, and what the observer above kept past those), and its videos tell the files
+   * they play.
    * @return {Array<{url: string, media: boolean, time: number}>} Each URL, whether a media
    *   element loaded it, and when the request started (ms since the epoch).
    */
@@ -1847,10 +1895,14 @@
     const found = [];
     let entries = [];
     try {
-      entries = performance.getEntriesByType('resource');
+      entries = Array.from(performance.getEntriesByType('resource'));
     } catch (e) {
       // No timeline: the videos still tell theirs.
     }
+    const inTimeline = new Set(entries.map((entry) => entry.name));
+    observedMedia.forEach((entry, url) => {
+      if (!inTimeline.has(url)) entries.push(entry);
+    });
     for (const entry of entries) {
       if (!LoadedMediaInitiators.includes(entry.initiatorType)) continue;
       // An error answer is no stream. The status is 0 when the server did not share it.

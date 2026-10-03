@@ -642,6 +642,44 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  // "This Frame > Reload Frame" on the player loads its page again in the same frame. The
+  // background had handed the page's video to the first load only, so the reloaded player
+  // sat on its welcome screen; and the page's content script, linking the same iframe
+  // again, no longer knew how to give the page its element back (#288).
+  it('keeps the video, and the page\'s element, over a reload of the player\'s frame', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    // What Reload Frame does: the player's page loads again in the same frame.
+    await inPage(() => {
+      window.__playerAnnounced = false;
+      const iframe = window.playerIframe();
+      iframe.src = iframe.src;
+    });
+    await browser.waitUntil(async () => inPage(() => window.__playerAnnounced === true),
+        {timeout: 15000, timeoutMsg: 'the reloaded player never announced itself'});
+    await browser.switchFrame(await browser.$('iframe[src*="player/index.html"]'));
+    let source;
+    try {
+      await browser.waitUntil(async () => {
+        source = await browser.execute(() => window.fastStream?.source?.url || null);
+        return !!source;
+      }, {timeout: 15000, interval: 250, timeoutMsg: 'the reloaded player never got a source'});
+    } finally {
+      await browser.switchFrame(null);
+    }
+    expect(source).toContain('/clip.mp4?main=');
+
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => !(await hasPlayer()),
+        {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
+    expect(await inPage(() => ({
+      id: window.wrap.id,
+      width: window.wrap.getBoundingClientRect().width,
+    }))).toEqual({id: 'wrap', width: 640});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   it('keeps the player in the box the page\'s #id rule gives its element', async function() {
     await openPage('/cleanup');
     await openPlayer();
