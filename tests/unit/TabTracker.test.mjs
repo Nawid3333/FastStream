@@ -491,6 +491,12 @@ describe('handedTo', () => {
     page.resetSelfAndChildren();
     expect(page.handedTo(2)).toBeNull();
   });
+
+  it('forgets it when told to (the sources browser\'s Clear)', () => {
+    const {page} = pageThatHanded();
+    page.forgetHandedToPlayer();
+    expect(page.handedTo(2)).toBeNull();
+  });
 });
 
 // A request's headers wait for its response by request id, which is unique in the session:

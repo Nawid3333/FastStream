@@ -105,6 +105,14 @@ export class FrameHolder {
     return this.handedToPlayer && this.handedToPlayer.frameId === playerFrameId ? this.handedToPlayer : null;
   }
 
+  /**
+   * Forgets what noteHandedToPlayer kept: the sources browser's Clear, or the player
+   * asking again got the cleared sources back from here.
+   */
+  forgetHandedToPlayer() {
+    this.handedToPlayer = null;
+  }
+
   removeChildFrame(childFrame) {
     this.children.delete(childFrame);
     childFrame.parent = null;
