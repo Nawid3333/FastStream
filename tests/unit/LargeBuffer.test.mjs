@@ -59,6 +59,17 @@ describe('read', () => {
     const buf = await makeBuffer(2);
     await expect(buf.read(9)).rejects.toThrow(/out of range/);
   });
+
+  it('throws rather than reading the last chunk again when the chunks run out early', async () => {
+    // A server that answers a range short: the chunks hold fewer bytes than the declared
+    // length. Past the last one the reader used to start that chunk over, and an archive
+    // read duplicated bytes instead of failing.
+    const buf = new LargeBuffer(10, 2);
+    const chunks = [new Uint8Array([0, 1, 2, 3]), new Uint8Array([4, 5, 6])];
+    await buf.initialize(async (i) => chunks[i]);
+    expect([...await buf.read(7)]).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    await expect(buf.read(1)).rejects.toThrow(/not found/);
+  });
 });
 
 describe('integer readers', () => {

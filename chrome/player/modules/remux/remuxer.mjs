@@ -187,7 +187,7 @@ export class Remuxer extends EventEmitter {
   /**
    * Frees what the save opened: the inputs, a file still being written and its pieces.
    * @param {boolean} [immediate] whether the pieces go now; after a save that worked, the
-   *     file returned reads from them, so they stay two minutes, as MP4Merger's do
+   *     file returned reads from them, so they stay until release(), as MP4Merger's do
    */
   destroy(immediate) {
     if (this.destroyed) {
@@ -206,12 +206,18 @@ export class Remuxer extends EventEmitter {
       this.writer = null;
     }
 
+    if (immediate) {
+      this.release();
+    }
+  }
+
+  /**
+   * Closes the blob store the saved file's pieces are in, once nothing will read the file
+   * again (SaveManager: its URL dropped and the download of it over). See MP4Merger's.
+   */
+  release() {
     const blobManager = this.blobManager;
     this.blobManager = null;
-    if (immediate) {
-      blobManager.close();
-    } else {
-      setTimeout(() => blobManager.close(), 120000);
-    }
+    blobManager?.close();
   }
 }

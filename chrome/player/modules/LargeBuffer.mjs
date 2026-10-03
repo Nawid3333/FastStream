@@ -19,10 +19,11 @@ export class LargeBuffer {
     this.index = 0;
     this.bufferIndex++;
     const preloaded = this.nextPreloadedBuffer;
-    if (this.bufferIndex < this.bufferLength) {
-      this.nextPreloadedBuffer = this.getBuffer(this.bufferIndex);
-    }
-    this.currentBuffer = await preloaded;
+    // Past the last chunk there is none: the last one stayed queued, so a read past the
+    // end of chunks that came back shorter than asked (a server answering a range short)
+    // got the last chunk's bytes again instead of the error below.
+    this.nextPreloadedBuffer = this.bufferIndex < this.bufferLength ? this.getBuffer(this.bufferIndex) : null;
+    this.currentBuffer = preloaded ? await preloaded : null;
   }
 
   async getParts(length) {
@@ -38,7 +39,7 @@ export class LargeBuffer {
     }
 
     while (length > 0) {
-      if (this.index >= this.currentBuffer.byteLength) {
+      if (this.currentBuffer && this.index >= this.currentBuffer.byteLength) {
         await this.nextBuffer();
       }
 

@@ -6,6 +6,8 @@ export class MP4 {
       'avc1': [],
       // codingname
       'avcC': [],
+      'hvc1': [],
+      'hvcC': [],
       'btrt': [],
       'dinf': [],
       'dref': [],
@@ -21,6 +23,8 @@ export class MP4 {
       'moov': [],
       'mp4a': [],
       '.mp3': [],
+      'ac-3': [],
+      'dac3': [],
       'mvex': [],
       'mvhd': [],
       'pasp': [],
@@ -412,16 +416,25 @@ export class MP4 {
       }
     }
 
+    // FastStream: version 1 offsets are signed. MP4Merger copies a stream's offsets as they
+    // are, and CMAF packagers (ffmpeg's +negative_cts_offsets) make some negative: written
+    // into version 0, which is unsigned, -3000 read as 4294964296. Without a negative one
+    // the box stays version 0.
+    const version = composition_offsets.some((offset) => offset < 0) ? 1 : 0;
     const len = sample_counts.length;
     const table = new ArrayBuffer(len * 8 + 4 + 4);
     const view = new DataView(table);
-    view.setUint32(0, 0);
+    view.setUint32(0, version << 24);
     view.setUint32(4, len);
     let index = 8;
     for (let i = 0; i < len; i++) {
       view.setUint32(index, sample_counts[i]);
       index += 4;
-      view.setUint32(index, composition_offsets[i]);
+      if (version === 1) {
+        view.setInt32(index, composition_offsets[i]);
+      } else {
+        view.setUint32(index, composition_offsets[i]);
+      }
       index += 4;
     }
 
@@ -553,6 +566,87 @@ export class MP4 {
       // vSpacing
       vSpacing >> 16 & 0xff, vSpacing >> 8 & 0xff, vSpacing & 0xff])));
   }
+  // FastStream: hls.js 1.7.3's MP4.hvc1 (src/remux/mp4-generator.ts), as it writes the
+  // sample entry for the HEVC it demuxes from a transport stream. track.params is what its
+  // HEVC parser read from the VPS and SPS.
+  static hvc1(track) {
+    const ps = track.params;
+    const units = [track.vps, track.sps, track.pps];
+    const NALuLengthSize = 4;
+    const config = new Uint8Array([0x01, ps.general_profile_space << 6 | (ps.general_tier_flag ? 32 : 0) | ps.general_profile_idc, ps.general_profile_compatibility_flags[0], ps.general_profile_compatibility_flags[1], ps.general_profile_compatibility_flags[2], ps.general_profile_compatibility_flags[3], ps.general_constraint_indicator_flags[0], ps.general_constraint_indicator_flags[1], ps.general_constraint_indicator_flags[2], ps.general_constraint_indicator_flags[3], ps.general_constraint_indicator_flags[4], ps.general_constraint_indicator_flags[5], ps.general_level_idc, 240 | ps.min_spatial_segmentation_idc >> 8, 255 & ps.min_spatial_segmentation_idc, 252 | ps.parallelismType, 252 | ps.chroma_format_idc, 248 | ps.bit_depth_luma_minus8, 248 | ps.bit_depth_chroma_minus8, 0x00, parseInt(ps.frame_rate.fps), NALuLengthSize - 1 | ps.temporal_id_nested << 2 | ps.num_temporal_layers << 3 | (ps.frame_rate.fixed ? 64 : 0), units.length]);
+
+    // compute hvcC size in bytes
+    let length = config.length;
+    for (let i = 0; i < units.length; i += 1) {
+      length += 3;
+      for (let j = 0; j < units[i].length; j += 1) {
+        length += 2 + units[i][j].length;
+      }
+    }
+    const hvcC = new Uint8Array(length);
+    hvcC.set(config, 0);
+    length = config.length;
+    // append parameter set units: one vps, one or more sps and pps
+    const iMax = units.length - 1;
+    for (let i = 0; i < units.length; i += 1) {
+      hvcC.set(new Uint8Array([32 + i | (i === iMax ? 128 : 0), 0x00, units[i].length]), length);
+      length += 3;
+      for (let j = 0; j < units[i].length; j += 1) {
+        hvcC.set(new Uint8Array([units[i][j].length >> 8, units[i][j].length & 255]), length);
+        length += 2;
+        hvcC.set(units[i][j], length);
+        length += units[i][j].length;
+      }
+    }
+    const hvcc = MP4.box(MP4.types.hvcC, hvcC);
+    const width = track.width;
+    const height = track.height;
+    const hSpacing = track.pixelRatio[0];
+    const vSpacing = track.pixelRatio[1];
+    return MP4.box(MP4.types.hvc1, new Uint8Array([0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x01,
+      // data_reference_index
+      0x00, 0x00,
+      // pre_defined
+      0x00, 0x00,
+      // reserved
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      // pre_defined
+      width >> 8 & 0xff, width & 0xff,
+      // width
+      height >> 8 & 0xff, height & 0xff,
+      // height
+      0x00, 0x48, 0x00, 0x00,
+      // horizresolution
+      0x00, 0x48, 0x00, 0x00,
+      // vertresolution
+      0x00, 0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x01,
+      // frame_count
+      0x12, 0x64, 0x61, 0x69, 0x6c,
+      // dailymotion/hls.js
+      0x79, 0x6d, 0x6f, 0x74, 0x69, 0x6f, 0x6e, 0x2f, 0x68, 0x6c, 0x73, 0x2e, 0x6a, 0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      // compressorname
+      0x00, 0x18,
+      // depth = 24
+      0x11, 0x11]),
+    // pre_defined = -1
+    hvcc, MP4.box(MP4.types.btrt, new Uint8Array([0x00, 0x1c, 0x9c, 0x80,
+      // bufferSizeDB
+      0x00, 0x2d, 0xc6, 0xc0,
+      // maxBitrate
+      0x00, 0x2d, 0xc6, 0xc0])),
+    // avgBitrate
+    MP4.box(MP4.types.pasp, new Uint8Array([hSpacing >> 24,
+      // hSpacing
+      hSpacing >> 16 & 0xff, hSpacing >> 8 & 0xff, hSpacing & 0xff, vSpacing >> 24,
+      // vSpacing
+      vSpacing >> 16 & 0xff, vSpacing >> 8 & 0xff, vSpacing & 0xff])));
+  }
   static esds(track) {
     if (track.esds) {
       return new Uint8Array([
@@ -638,6 +732,30 @@ export class MP4 {
       //
       0x00, 0x00]));
   }
+  // FastStream: hls.js 1.7.3's MP4.ac3 (src/remux/mp4-generator.ts, with its audioStsd), as
+  // it writes the sample entry for the AC-3 it demuxes from a transport stream. track.config
+  // is the dac3 payload hls.js's AC-3 parser (src/demux/audio/ac3-demuxer.ts, appendFrame)
+  // built from the first frame header: fscod, bsid, bsmod, acmod, lfeon, bit_rate_code.
+  static ac3(track) {
+    const samplerate = track.samplerate || 0;
+    return MP4.box(MP4.types['ac-3'], new Uint8Array([0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x00, 0x00,
+      // reserved
+      0x00, 0x01,
+      // data_reference_index
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      // reserved
+      0x00, track.channelCount || 0,
+      // channelcount
+      0x00, 0x10,
+      // sampleSize:16bits
+      0x00, 0x00, 0x00, 0x00,
+      // reserved2
+      samplerate >> 8 & 0xff, samplerate & 0xff,
+      //
+      0x00, 0x00]), MP4.box(MP4.types.dac3, track.config));
+  }
   static stsd(track) {
     if (track.codecBuffer) {
       return MP4.box(MP4.types.stsd, MP4.STSD, new Uint8Array(track.codecBuffer));
@@ -646,8 +764,16 @@ export class MP4 {
       if (track.segmentCodec === 'mp3' && track.codec === 'mp3') {
         return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp3(track));
       }
+      // FastStream: AC-3 from a transport stream, which the save's transmuxer takes.
+      if (track.segmentCodec === 'ac3' && track.config) {
+        return MP4.box(MP4.types.stsd, MP4.STSD, MP4.ac3(track));
+      }
       return MP4.box(MP4.types.stsd, MP4.STSD, MP4.mp4a(track));
     } else {
+      // FastStream: hls.js demuxes HEVC from transport streams too; it was written as avc1.
+      if (track.segmentCodec === 'hevc') {
+        return MP4.box(MP4.types.stsd, MP4.STSD, MP4.hvc1(track));
+      }
       return MP4.box(MP4.types.stsd, MP4.STSD, MP4.avc1(track));
     }
   }
@@ -719,19 +845,32 @@ export class MP4 {
 
 
   static elst(segment_durations, media_times) {
-    const entries = new ArrayBuffer(8 + segment_durations.length * 12);
+    // FastStream: version 1 counts in 64 bits. The movie timescale is the first track's,
+    // and a DASH video track's can be 10 MHz: 32 bits ran out after 7 minutes, and the
+    // edit wrapped to a fraction of the media. An edit that fits stays version 0.
+    const wide = segment_durations.some((duration) => duration > UINT32_MAX) ||
+      media_times.some((time) => time > 0x7fffffff || time < -0x80000000);
+    const entrySize = wide ? 20 : 12;
+    const entries = new ArrayBuffer(8 + segment_durations.length * entrySize);
     const view = new DataView(entries);
 
 
-    view.setUint32(0, 0); // version and flags
+    view.setUint32(0, wide ? 1 << 24 : 0); // version and flags
     view.setUint32(4, segment_durations.length); // entry count
     let offset = 8;
 
     for (let i = 0; i < segment_durations.length; i++) {
-      view.setUint32(offset, segment_durations[i]);
-      offset += 4;
-      view.setInt32(offset, media_times[i]);
-      offset += 4;
+      if (wide) {
+        view.setBigUint64(offset, BigInt(segment_durations[i]));
+        offset += 8;
+        view.setBigInt64(offset, BigInt(media_times[i]));
+        offset += 8;
+      } else {
+        view.setUint32(offset, segment_durations[i]);
+        offset += 4;
+        view.setInt32(offset, media_times[i]);
+        offset += 4;
+      }
       view.setUint32(offset, 1 << 16);
       offset += 4;
     }

@@ -54,10 +54,17 @@ const Logger = {
 };
 export default class Transmuxer {
   constructor(transmuxConfig) {
+    // What the remuxer may produce. The output is an MP4 file, not something this
+    // browser's MSE has to take, so MP3 always goes in as MP3 in MP4: asked of
+    // MediaSource, a browser that takes 'audio/mpeg' got bare MPEG audio, which has no mdat
+    // for HLS2MP4 to place and no sample entry in MP4Generator, and the file was broken.
+    // AC-3 too: hls.js drops an AC-3 track unless told the output takes it, and an MP4
+    // file does (MP4Generator writes it as ac-3 with its dac3).
     this.typeSupported = {
-      mp4: MediaSource.isTypeSupported('video/mp4'),
-      mpeg: MediaSource.isTypeSupported('audio/mpeg'),
-      mp3: MediaSource.isTypeSupported('audio/mp4; codecs="mp3"'),
+      mp4: true,
+      mpeg: false,
+      mp3: true,
+      ac3: true,
     };
 
     this.config = new Proxy({
@@ -129,7 +136,10 @@ export default class Transmuxer {
       this.remuxer = new Remuxer(observer, config, typeSupported, Logger);
     }
     if (!demuxer || !(demuxer instanceof Demuxer)) {
-      this.demuxer = new Demuxer(observer, config, typeSupported);
+      // The logger too: TSDemuxer logs through the one it is given, and without it the
+      // first thing it reported (HEVC found, AC-3 skipped, a damaged packet, a PES with no
+      // timestamp) threw a TypeError that failed the save.
+      this.demuxer = new Demuxer(observer, config, typeSupported, Logger);
       this.probe = Demuxer.probe;
     }
   }
@@ -148,11 +158,21 @@ export default class Transmuxer {
       this.resetInitSegment(initSegmentData, audioCodec, videoCodec, duration);
       this.resetInitialTimestamp(defaultInitPts);
       this.resetContiguity();
+      this.initPTS = null;
     }
     const result = this.demux(uintData);
     const remuxed = this.remux(result.videoTrack, result.audioTrack, result.minPTS || 0);
+    // The times hls.js gives back count from an initPTS it picks from the first timestamps
+    // after each reset, separately in every transmuxer. It reports the one it picked with
+    // the init segment it makes then.
+    const initSegment = remuxed.initSegment;
+    if (initSegment && Number.isFinite(initSegment.initPTS) && initSegment.timescale) {
+      this.initPTS = initSegment.initPTS / initSegment.timescale;
+    }
     remuxed.videoTrack = result.videoTrack;
     remuxed.audioTrack = result.audioTrack;
+    // Where the stream's own clock was at this transmuxer's time 0, in seconds.
+    remuxed.initPTS = this.initPTS ?? 0;
     return remuxed;
   }
 
