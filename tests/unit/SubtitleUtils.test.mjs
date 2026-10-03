@@ -231,6 +231,32 @@ describe('convertSubtitleFormatting', () => {
   });
 });
 
+describe('cuesAt', () => {
+  const cue = (startTime, endTime, text) => ({startTime, endTime, text});
+  const textsAt = (cues, time) => SubtitleUtils.cuesAt(cues, time).map((c) => c.text);
+
+  it('keeps a long cue on screen while shorter, later cues start and end over it', () => {
+    // A sign or song spanning dialogue went off when a dialogue cue ended: at 12.5 only
+    // l2 showed, and at 20 nothing did.
+    const cues = [cue(0, 100, 'SIGN'), cue(10, 12, 'l1'), cue(11, 13, 'l2')];
+    expect(textsAt(cues, 5)).toEqual(['SIGN']);
+    expect(textsAt(cues, 11.5)).toEqual(['SIGN', 'l1', 'l2']);
+    expect(textsAt(cues, 12.5)).toEqual(['SIGN', 'l2']);
+    expect(textsAt(cues, 20)).toEqual(['SIGN']);
+    expect(textsAt(cues, 100)).toEqual(['SIGN']);
+    expect(textsAt(cues, 100.001)).toEqual([]);
+  });
+
+  it('gives the cues whose start and end include the time, in start order', () => {
+    const cues = [cue(1, 2, 'a'), cue(2, 3, 'b'), cue(2, 2.5, 'c'), cue(4, 5, 'd')];
+    expect(textsAt(cues, 0)).toEqual([]);
+    expect(textsAt(cues, 2)).toEqual(['a', 'b', 'c']);
+    expect(textsAt(cues, 2.7)).toEqual(['b']);
+    expect(textsAt(cues, 3.5)).toEqual([]);
+    expect(textsAt([], 1)).toEqual([]);
+  });
+});
+
 describe('srt2webvtt: line endings', () => {
   const EXPECTED = 'WEBVTT\n\n1\n00:00:01.000 --> 00:00:02.000\nHello\n\n2\n00:00:03.000 --> 00:00:04.000\nWorld\n\n';
 

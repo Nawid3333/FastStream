@@ -671,28 +671,9 @@ export class SubtitlesManager extends EventEmitter {
     for (let i = 0; i < tracks.length; i++) {
       const trackContainer = cachedElements[i];
       // trackContainer.replaceChildren();
-      const cues = tracks[i].cues;
-
-      let cueIndex = Utils.binarySearch(cues, this.client.state.currentTime, (time, cue) => {
-        if (cue.startTime > time) {
-          return -1;
-        } else if (cue.startTime < time) {
-          return 1;
-        }
-        return 0;
-      });
-
       const toAdd = [];
-      if (cueIndex < -1) {
-        cueIndex = -cueIndex - 2;
-      }
-
-      while (cueIndex > 0 && cues[cueIndex - 1].endTime >= currentTime && cues[cueIndex - 1].startTime <= currentTime) {
-        cueIndex--;
-      }
-
-      while (cueIndex >= 0 &&cueIndex < cues.length && cues[cueIndex].endTime >= currentTime && cues[cueIndex].startTime <= currentTime) {
-        const cue = cues[cueIndex];
+      // Every cue on screen now, a long one behind shorter, later ones included.
+      for (const cue of SubtitleUtils.cuesAt(tracks[i].cues, currentTime)) {
         if (!cue.dom) {
           cue.dom = WebVTT.convertCueToDOMTree(window, cue.text);
         }
@@ -702,7 +683,6 @@ export class SubtitlesManager extends EventEmitter {
         if (cue.dom) {
           toAdd.push(cue.dom);
         }
-        cueIndex++;
       }
 
       if (!toAdd.length) {
