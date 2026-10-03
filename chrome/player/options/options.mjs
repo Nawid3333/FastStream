@@ -351,7 +351,7 @@ function refreshKeybindConflicts() {
     const warning = container.querySelector('.keybind-warning');
     container.classList.toggle('keybind-conflict', !!others);
     warning.hidden = !others;
-    warning.textContent = others ? `Also used by ${others.map(keybindLabel).join(', ')}` : '';
+    warning.textContent = others ? Localize.getMessage('options_keybinds_conflict', [others.map(keybindLabel).join(', ')]) : '';
   });
 }
 

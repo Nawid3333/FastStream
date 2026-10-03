@@ -86,7 +86,7 @@ before reaching it unless `params.template` is set. Even if that were wrong,
 `build_firefox_amo/manifest.json`'s CSP is `script-src 'self'
 'wasm-unsafe-eval'` with no `unsafe-eval`, so the call would throw a CSP
 violation the moment it executed, regardless of caller. Patched (in
-`patches/sweetalert2@11.12.4.patch`) to throw an explanatory error instead —
+`patches/sweetalert2@11.26.25.patch`) to throw an explanatory error instead —
 the same unreachability as before, with the AST pattern the linter flags
 removed and the reason made explicit for anyone who goes looking.
 

@@ -234,7 +234,7 @@ image pinned in a form Dependabot does not update:
 
 ## Vendored files
 
-Two files the extension ships come from another project without a package manager:
+Some files the extension ships come from another project without a package manager:
 `vendored-updates.yml` (daily) watches them.
 
 - **The voice detector's model** (`chrome/player/modules/vad/silero_vad_half.onnx`, from
@@ -247,10 +247,14 @@ Two files the extension ships come from another project without a package manage
   the file opens an issue, "vtt.js changed in dash.js <tag>". Move the tag in
   `tools/verify-vtt.mjs` and run `pnpm run verify:vtt`, which says where FastStream's changes
   no longer apply.
+- **The adapted copies** listed in `tools/vendored-sources.json` (knob, StreamSaver, fft.js,
+  the voice detector's code): when upstream changes the file one came from after its `ref`,
+  an issue, "Vendored source changed upstream: <name> (<repo> <commit>)", lists the commits.
+  Port what matters, then move the `ref` to the commit you reviewed.
 
 Each closes itself once its pin reaches the release; a newer release closes the older one.
-If the workflow itself fails, it opens "Vendored updates workflow failed (model)" or
-"(vtt.js)".
+If the workflow itself fails, it opens "Vendored updates workflow failed (model)",
+"(vtt.js)" or "(sources)".
 
 ## A token for workflow updates
 

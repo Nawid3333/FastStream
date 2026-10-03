@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tasten - 60 sekunden vor-/zurückspulen"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Abspielen/Pause"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Stummschalten an/aus"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "Tasten - ein Einzelbild zurück/vor (pausiert das Video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Rückgängig gemachtes Spulen wiederholen"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "Pfeiltasten - schneller/langsamer abspielen"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Untertitel an/aus"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Bild-in-Bild"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Fenster-Vollbild"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Nächstes/vorheriges Video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Nächstes Kapitel"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Video speichern"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Bildschirmfoto machen"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Herunterladen pausieren/fortsetzen"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Video spiegeln/drehen"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Videofilter (Helligkeit, Kontrast, Farben) an/aus"
+    },
     "perms_page_title": {
         "message": "FastStream Berechtigungen"
     },
@@ -93,7 +138,7 @@
         "message": "Damit diese Erweiterung funktioniert, braucht sie bestimmte Berechtigungen. Diese Berechtigungen sind notwendig und nur für einfache Funktionen."
     },
     "perms_page_about_content1": {
-        "message": "FastStream sammelt keine Daten von dir. Es track dich nicht. Es sendet keine Daten zu irgendeinem Server. Es gibt nicht einmal einen Server um Daten zum hin schicken."
+        "message": "FastStream sammelt keine Daten von dir und verfolgt dich nicht. Es hat keinen eigenen Server. Es verbindet sich nur mit den Seiten, deren Videos du abspielst, mit OpenSubtitles, wenn du nach Untertiteln suchst, und mit GitHub, um nach Updates zu suchen."
     },
     "perms_page_about_content2": {
         "message": "Du vertraust dem nicht? FastStream hat den Quellcode öffentlich auf"
@@ -123,7 +168,7 @@
         "message": "Erlaube Vollbild berechtigungen wenn der Player in einen Frame eingefügt wird."
     },
     "perms_page_breakdown_perm1r3": {
-        "message": "Herausfiltern von Untertitel <track> Elementen von der Seite."
+        "message": "Auslesen von Untertitel-<track>-Elementen aus der Seite."
     },
     "perms_page_breakdown_perm2h": {
         "message": "Zugriff auf die webRequests API"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Videoquellen an den Player von einem Hintergrundskript zu senden."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Nachrichten mit anderen Programmen als Firefox austauschen"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Nur für mpv: Wenn ein Video an mpv geht, übergibt FastStream es an den FastStream-mpv-Host auf deinem eigenen Computer, der es in mpv öffnet. Ohne diesen Host wird diese Berechtigung nie verwendet."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Dateien herunterladen"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream speichert Dateien in deinen Downloads, wenn du es darum bittest: ein Video, einen Screenshot, eine Untertiteldatei oder deine exportierten Einstellungen."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Zugriff auf die cookies API"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Nur um zu sehen, in welchem Firefox-Container (Umgebung) ein Tab liegt, damit ein Download aus einem Container-Tab im selben Container stattfindet. FastStream liest, ändert oder sendet niemals deine Cookies."
     },
     "perms_page_granted": {
         "message": "Gewährt"
@@ -483,7 +546,7 @@
         "message": "$1 Fragmente fehlgeschlagen! Klicken um erneut zu versuchen..."
     },
     "player_fragment_allbuffered": {
-        "message": "100% Buffered"
+        "message": "100% gepuffert"
     },
     "player_welcometext": {
         "message": "Willkommen zu FastStream v$1!"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Suche"
     },
-    "options_help_feedback": {
-        "message": "Feedback Formular"
+    "options_search_matched": {
+        "message": "$1 / $2 Treffer"
     },
     "options_update_header": {
         "message": "Ein Update ist verfügbar!"
@@ -951,7 +1014,7 @@
         "message": "Den Player verwenden um MP4 Videos abzuspielen beim öffnen von video URLs (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Basis Schrittgröße für die Vor-/Zurückspul Taste (sekunden)"
+        "message": "Spulschritt der Pfeiltasten (Sekunden)"
     },
     "options_general_replace_delay": {
         "message": "Verzöggerung vor dem automatischen Ersetzen des Players (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Drücke eine Taste"
     },
+    "options_keybinds_conflict": {
+        "message": "Auch belegt von $1"
+    },
     "options_autourl_header": {
         "message": "URLs für automatische Aktivierung"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Diese Filter werden verwendet um benutzerdefinierte Videoquellen auf Webseiten zu erkennen. Diese werden in Reihenfolge angewendet und die erste Übereinstimmung wird verwendet. Nur für fortgeschrittene Benutzer."
+    },
+    "options_pattern_learnmore": {
+        "message": "Mehr erfahren"
     },
     "options_mpv_header": {
         "message": "MPV-Modus"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Ja"
-    },
-    "no": {
-        "message": "Nein"
     },
     "ok": {
         "message": "OK"

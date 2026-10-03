@@ -1,5 +1,13 @@
 # FastStream modernisation — checkpoint
 
+> **Read this first (2026-10-03).** This file is the record of the modernisation
+> (2026-09-07 to 2026-09-30). The dated notes at the top are current as of their
+> dates; the sections below them describe the tree as it was then, and several no
+> longer hold (library versions, build targets, test counts, the AMO list). For
+> the tree as it is, read `CLAUDE.md`, `docs/maintenance.md` and
+> `docs/vendored-libraries.md`. Since 2026-10-02 nothing merges itself: every pull
+> request waits for the owner, and a green push to `main` still releases.
+
 **Saves copy streams, the re-encoder is gone (2026-09-30, later):** what MP4Merger cannot
 join (WebM, odd fMP4 packaging) is copied into an MP4 as it is by `remux/remuxer.mjs`:
 Mediabunny reads the streams and writes their packets, nothing decoded or encoded. The
@@ -84,7 +92,7 @@ checks — everything green).
 | 9 · Signing | **done (unlisted)** | Own add-on ID `thanatus@Nawid`; `pnpm run sign:amo` signs unlisted, `sign:amo:listed` exists for when the license question is settled |
 | 10 · Upstream PRs | **done — open, awaiting response** | #548 Windows fix, #549 permissions, #550 `.gitattributes`, #551 vendor recipes (+ recipes comment on #547, hls.js recipe comment on #546); issue #547 carries the license ask |
 | — · TypeScript | **done** | Opt-in `tsc --noEmit` |
-| — · Upstream sync | **done** | Every 6 hours; opens or updates one PR from `sync/upstream`, never auto-merges. Close it to skip, merge it to take |
+| — · Upstream sync | **done** | Daily (06:00 UTC); opens or updates one PR from `sync/upstream`, never auto-merges. Close it to skip, merge it to take |
 
 **Licensing is the one thing that gates a *listed* store release.** Upstream
 `LICENSE.md` is **all rights reserved** — "You must receive permission before
@@ -238,11 +246,11 @@ Also in `Faststream version 4/tests/manual-playback-urls.txt`.
 cd "V:\Faststream modernisation\Faststream version 4"
 
 pnpm install
-pnpm run build          # 4 targets -> built/*.zip
+pnpm run build          # 3 targets -> built/firefox-*.zip + built/web
 pnpm run build:keep     # keeps build_*/ for web-ext (needed by lint:amo, start:ff)
 pnpm run lint           # ESLint — must stay at 0
 pnpm run typecheck      # tsc --noEmit
-pnpm test               # 58 vitest tests
+pnpm test               # the vitest unit tests
 pnpm run lint:amo       # web-ext lint on the AMO build (the store target)
 pnpm run lint:github    # web-ext lint on the self-install build
 pnpm run test:e2e       # real playback (HLS/DASH/MP4) in Firefox
@@ -257,6 +265,13 @@ pnpm run start:ff:amo   # same, with the AMO build
 ---
 
 ## AMO position
+
+> **Historical (as of 2026-09-11).** Today: dashjs 5.2.1, mp4box 2.4.1 and
+> Mediabunny 1.60.0 (which replaced mp4-muxer and jswebm) are patched or copied
+> from npm, and onnxruntime-web 1.30.0's files are shipped as published. The
+> custom ORT wasm, `verify:ort`, libsamplerate and yt.mjs/googlevideo.mjs are
+> gone, and vtt.js has 4 documented changes. The current list, with versions:
+> `docs/vendored-libraries.md`; the warnings: `docs/amo-linter-warnings.md`.
 
 `firefox-amo` (the store target): **0 errors, 0 notices, 3 warnings** —
 down from upstream's 24 warnings + 1 notice.
@@ -325,6 +340,9 @@ Chromium/Edge for Coloris).
 ---
 
 ## Open decisions
+
+(As of 2026-09-11. Item 3 changed since: both Firefox targets now have
+`strict_min_version` 142.)
 
 1. **License — the active blocker for a listed release.** Upstream is
    all-rights-reserved; publishing publicly as your own needs Andrew's
@@ -442,7 +460,7 @@ survival inside a real kill-on-close job object.
 
 **Not done:**
 
-- **Locales.** Every new option string is English-only; other locales fall
+- **Locales.** (Since done: the mpv strings are in all 16 locales.) Every new option string was English-only; other locales fall
   back to English. `build.mjs` substitutes the English string for a missing
   key so the web build no longer renders blanks, and the extension builds get
   the same fallback from the browser via `default_locale`. The cost is noise:
@@ -485,7 +503,7 @@ survival inside a real kill-on-close job object.
   tree. Regenerated at 4 spaces: the branch's locale diff went from 16,654
   lines to 102 added ones, content verified unchanged.
 
-- **Not pushed.** Merged into `dev/mv3-modernization` on 2026-09-09.
+- **Not pushed** at the time. Merged into `dev/mv3-modernization` on 2026-09-09, which became `main` on 2026-09-19.
 
 ---
 
@@ -495,7 +513,7 @@ survival inside a real kill-on-close job object.
    `dev/mv3-modernization` on 2026-09-09 after a review pass that fixed the
    leave-site gap, a non-retryable failed launch, and a locale reindent that
    fought its own generator. Still Windows-only and English-only, and the
-   `nativeMessaging` permission question above is still open. Not pushed.
+   `nativeMessaging` permission question above was still open. Not pushed at the time.
 1. ~~Settle the license.~~ **Asked** (issue #547, PR #551) — now waiting on
    Andrew's response. Listed distribution stays blocked until/unless he
    grants permission; unlisted self-distribution works today.

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tombol - lompat 60 detik maju/mundur"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Putar/jeda"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Bisukan/bunyikan"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "tombol - mundur/maju satu bingkai (menjeda video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Ulangi lompatan yang dibatalkan"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "tombol panah - putar lebih cepat/lambat"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Nyalakan/matikan subtitle"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Gambar-dalam-gambar"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Layar penuh dalam jendela"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Video berikutnya/sebelumnya"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Bab berikutnya"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Simpan video"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Ambil tangkapan layar"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Jeda/lanjutkan pengunduhan"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Balik/putar video"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Nyalakan/matikan filter video (kecerahan, kontras, warna)"
+    },
     "perms_page_title": {
         "message": "Izin FastStream"
     },
@@ -93,7 +138,7 @@
         "message": "Agar ekstensi berfungsi, ia memerlukan beberapa izin. Izin-izin ini hanya digunakan untuk fungsionalitas dasar."
     },
     "perms_page_about_content1": {
-        "message": "FastStream tidak mengumpulkan data apa pun dari Anda. Ia tidak melacak Anda. Ia tidak mengirimkan data ke server mana pun. Bahkan tidak memiliki server untuk mengirim data."
+        "message": "FastStream tidak mengumpulkan data apa pun dari Anda dan tidak melacak Anda. FastStream tidak memiliki server sendiri. FastStream hanya terhubung ke situs yang videonya Anda putar, ke OpenSubtitles saat Anda mencari subtitle, dan ke GitHub untuk memeriksa pembaruan."
     },
     "perms_page_about_content2": {
         "message": "Tidak percaya? Sumber FastStream tersedia di"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Mengirim sumber ke pemutar dari skrip latar belakang."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Bertukar pesan dengan program selain Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Hanya untuk mpv: saat video dikirim ke mpv, FastStream menyerahkannya ke host mpv FastStream di komputer Anda sendiri, yang membukanya di mpv. Tanpa host itu, izin ini tidak pernah digunakan."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Mengunduh berkas"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream menyimpan berkas ke unduhan Anda saat Anda memintanya: video, tangkapan layar, berkas subtitle, atau pengaturan yang Anda ekspor."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Akses API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Hanya untuk melihat kontainer Firefox tempat sebuah tab berada, agar unduhan yang dimulai di tab kontainer berlangsung di kontainer yang sama. FastStream tidak pernah membaca, mengubah, atau mengirim cookie Anda."
     },
     "perms_page_granted": {
         "message": "Diizinkan"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Cari"
     },
-    "options_help_feedback": {
-        "message": "Formulir Masukan"
+    "options_search_matched": {
+        "message": "$1 / $2 cocok"
     },
     "options_update_header": {
         "message": "Pembaruan Tersedia!"
@@ -951,7 +1014,7 @@
         "message": "Gunakan pemutar untuk memutar video MP4 saat membuka URL video (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Ukuran langkah dasar untuk tombol lompat (detik)"
+        "message": "Langkah lompat tombol panah (detik)"
     },
     "options_general_replace_delay": {
         "message": "Tunda sebelum mengganti pemutar secara otomatis (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Tekan tombol"
     },
+    "options_keybinds_conflict": {
+        "message": "Juga dipakai oleh $1"
+    },
     "options_autourl_header": {
         "message": "Aktifkan Otomatis untuk URL"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Pola-pola ini digunakan untuk mendeteksi sumber video kustom di halaman web. Mereka diterapkan berurutan, dan kecocokan pertama yang digunakan. Hanya untuk pengguna lanjutan."
+    },
+    "options_pattern_learnmore": {
+        "message": "Pelajari lebih lanjut"
     },
     "options_mpv_header": {
         "message": "Mode MPV"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Ya"
-    },
-    "no": {
-        "message": "Tidak"
     },
     "ok": {
         "message": "OK"

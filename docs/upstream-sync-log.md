@@ -16,11 +16,12 @@ upstream commit:
 
 ## How syncs arrive
 
-`.github/workflows/sync-upstream.yml` runs every 6 hours. When upstream has
+`.github/workflows/sync-upstream.yml` runs daily (06:00 UTC). When upstream has
 commits `main` lacks it opens, or updates, one PR from `sync/upstream` that lists
-them. Merge it to take (resolve conflicts, keep only what is wanted) or close it
-to skip; a PR closed without merging is not reopened for the same upstream
-commit. Then add a dated section below saying what was decided and why.
+them (a run on a push to `main` only closes that PR once `main` holds them all).
+Nothing merges it by itself: merge it to take (resolve conflicts, keep only what
+is wanted) or close it to skip; a PR closed without merging is not reopened for
+the same upstream commit. Then add a dated section below saying what was decided and why.
 
 Merge with `git merge`, not cherry-picks: a merge records upstream as an
 ancestor, so the next sync only shows new commits and GitHub stops counting the

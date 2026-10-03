@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "キー - 前後の 60 秒間隔のシーク"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 再生/一時停止"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- ミュート/ミュート解除"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "キー - 1 フレーム戻る/進む (動画を一時停止)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 戻したシークをやり直す"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "矢印キー - 再生速度を上げる/下げる"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 字幕のオン/オフ"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- ピクチャー イン ピクチャー"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- ウィンドウド フルスクリーン"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 次/前のビデオ"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 次のチャプター"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 動画を保存"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- スクリーンショットを撮る"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- ダウンロードを一時停止/再開"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 動画を反転/回転"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 動画フィルター (明るさ、コントラスト、色) のオン/オフ"
+    },
     "perms_page_title": {
         "message": "FastStream の権限"
     },
@@ -93,7 +138,7 @@
         "message": "拡張機能を動作させるには特定の権限を許可する必要があります。これらの権限は基本的な機能のみで使用されます。"
     },
     "perms_page_about_content1": {
-        "message": "FastStream はユーザーからデータの収集、追跡、サーバーにデータの送信は一切しません。データを送信するサーバーもありません。"
+        "message": "FastStream はユーザーのデータを収集せず、追跡もしません。独自のサーバーも持っていません。接続するのは、再生する動画のサイト、字幕を検索するときの OpenSubtitles、そして更新を確認するための GitHub だけです。"
     },
     "perms_page_about_content2": {
         "message": "信用ができませんか? FastStream のソースは次の場所で入手ができます。"
@@ -123,7 +168,7 @@
         "message": "プレーヤーがフレームに挿入されるときに全画面の権限を有効化。"
     },
     "perms_page_breakdown_perm1r3": {
-        "message": "字幕の <track> 要素をページから削除。"
+        "message": "ページから字幕の <track> 要素を取得。"
     },
     "perms_page_breakdown_perm2h": {
         "message": "webRequest API にアクセス"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "バックグラウンドスクリプトからプレーヤーにソースを送信"
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox 以外のプログラムとメッセージを交換"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "mpv 専用です。動画を mpv に送るとき、FastStream はその動画をお使いのコンピューター上の FastStream mpv ホストに渡し、ホストが mpv で開きます。このホストがなければ、この権限は一切使われません。"
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "ファイルをダウンロード"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream は、指示されたときにファイルをダウンロードフォルダーに保存します: 動画、スクリーンショット、字幕ファイル、またはエクスポートした設定。"
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Cookies API にアクセス"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "タブがどの Firefox コンテナーに属しているかを知るためだけに使います。これにより、コンテナータブで始めたダウンロードが同じコンテナー内で行われます。FastStream が Cookie を読み取ったり、変更したり、送信したりすることはありません。"
     },
     "perms_page_granted": {
         "message": "許可"
@@ -417,7 +480,7 @@
         "message": "設定ウィンドウを閉じる"
     },
     "player_savevideo_label": {
-        "message": "ALT を押しながらで動画の一部を保存します。SHIFT を押しながらでバッファーをダンプします。"
+        "message": "動画を保存します。ALT を押しながらで動画の一部を保存します。SHIFT を押しながらでバッファーをダンプします。"
     },
     "player_screenshot_label": {
         "message": "スクリーンショットを撮る"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "検索"
     },
-    "options_help_feedback": {
-        "message": "フィードバックフォーム"
+    "options_search_matched": {
+        "message": "$1 / $2 件が一致"
     },
     "options_update_header": {
         "message": "アップデートが利用可能です!"
@@ -870,7 +933,7 @@
         "message": "ビデオズーム"
     },
     "options_video_delay": {
-        "message": "Video Delay"
+        "message": "映像の遅延"
     },
     "options_video_brightness": {
         "message": "明るさ"
@@ -951,7 +1014,7 @@
         "message": "動画の URL (.mp4) を開くときにMP4 の動画を再生するプレーヤーを使用する"
     },
     "options_general_seekstep": {
-        "message": "シークキーバインドのベースステップサイズ (秒)"
+        "message": "矢印キーのシーク幅 (秒)"
     },
     "options_general_replace_delay": {
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "キーを押してください"
     },
+    "options_keybinds_conflict": {
+        "message": "$1 でも使用中"
+    },
     "options_autourl_header": {
         "message": "URL で自動的に有効化"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "これらのパターンは、Web ページ上のカスタム動画ソースを検出するために使用されます。順番に適用され、最初に一致したものが使用されます。上級者向け。"
+    },
+    "options_pattern_learnmore": {
+        "message": "詳細"
     },
     "options_mpv_header": {
         "message": "MPV モード"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "はい"
-    },
-    "no": {
-        "message": "いいえ"
     },
     "ok": {
         "message": "OK"

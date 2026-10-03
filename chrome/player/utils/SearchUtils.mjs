@@ -1,4 +1,5 @@
 import Fuse from '../modules/fuse.mjs';
+import {Localize} from '../modules/Localize.mjs';
 
 // Primary Singleton/Adapter class to pass values into Fuse
 class Search {
@@ -100,7 +101,7 @@ function renderSectionCounts(instance, query) {
     const hasSearchableItems = section.total > 0;
     if (section.countEl) {
       if (filtering && hasSearchableItems) {
-        section.countEl.textContent = `${visibleItems} / ${section.total} matched`;
+        section.countEl.textContent = Localize.getMessage('options_search_matched', [visibleItems, section.total]);
         section.countEl.removeAttribute('hidden');
       } else {
         section.countEl.textContent = '';

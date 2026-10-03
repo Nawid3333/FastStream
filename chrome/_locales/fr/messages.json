@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "Touches - avancer/reculer de 60 secondes"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Lecture/pause"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Couper/rétablir le son"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "Touches - reculer/avancer d'une image (met la vidéo en pause)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Rétablir le saut annulé"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "Touches fléchées - lecture plus rapide/lente"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Activer/désactiver les sous-titres"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Image dans l'image"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Plein écran fenêtré"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Vidéo suivante/précédente"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Chapitre suivant"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Enregistrer la vidéo"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Prendre une capture d'écran"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Mettre en pause/reprendre le téléchargement"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Retourner/faire pivoter la vidéo"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Activer/désactiver les filtres vidéo (luminosité, contraste, couleurs)"
+    },
     "perms_page_title": {
         "message": "Autorisations FastStream"
     },
@@ -93,7 +138,7 @@
         "message": "Pour que l'extension fonctionne, elle doit disposer de certaines autorisations. Celles-ci sont utilisées uniquement pour les fonctionnalités de base."
     },
     "perms_page_about_content1": {
-        "message": "FastStream ne collecte aucune donnée vous concernant. Il ne vous suit pas. Il n'envoie aucune donnée à des serveurs. Il n'a même pas de serveur vers lequel envoyer des données."
+        "message": "FastStream ne collecte aucune donnée vous concernant et ne vous suit pas. Il n'a pas de serveur à lui. Il se connecte uniquement aux sites dont vous lisez les vidéos, à OpenSubtitles quand vous cherchez des sous-titres, et à GitHub pour vérifier les mises à jour."
     },
     "perms_page_about_content2": {
         "message": "Vous ne me faites pas confiance ? Le code source de FastStream est disponible sur"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Envoyer les sources aux lecteurs depuis le script d'arrière-plan."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Échanger des messages avec d'autres programmes que Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Uniquement pour mpv : quand une vidéo est envoyée à mpv, FastStream la transmet à l'hôte mpv FastStream sur votre propre ordinateur, qui l'ouvre dans mpv. Sans cet hôte, cette autorisation n'est jamais utilisée."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Télécharger des fichiers"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream enregistre des fichiers dans vos téléchargements quand vous le lui demandez : une vidéo, une capture d'écran, un fichier de sous-titres ou vos paramètres exportés."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Accéder à l'API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Uniquement pour savoir dans quel conteneur Firefox se trouve un onglet, afin qu'un téléchargement lancé depuis un onglet conteneur ait lieu dans ce même conteneur. FastStream ne lit, ne modifie ni n'envoie jamais vos cookies."
     },
     "perms_page_granted": {
         "message": "Accordé"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Rechercher"
     },
-    "options_help_feedback": {
-        "message": "Formulaire de retours"
+    "options_search_matched": {
+        "message": "$1 / $2 correspondances"
     },
     "options_update_header": {
         "message": "Une mise à jour est disponible !"
@@ -951,7 +1014,7 @@
         "message": "Utiliser le lecteur pour lire les vidéos MP4 lors de l'ouverture d'URL (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Taille du pas pour les touches de saut (secondes)"
+        "message": "Pas de saut des touches fléchées (secondes)"
     },
     "options_general_replace_delay": {
         "message": "Délai avant remplacement automatique du lecteur (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Appuyez sur une touche"
     },
+    "options_keybinds_conflict": {
+        "message": "Également utilisé par $1"
+    },
     "options_autourl_header": {
         "message": "Activation automatique par URL"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Ces modèles sont utilisés pour détecter des sources vidéo personnalisées sur les pages web. Ils sont appliqués dans l'ordre, et la première correspondance est utilisée. Réservé aux utilisateurs avancés."
+    },
+    "options_pattern_learnmore": {
+        "message": "En savoir plus"
     },
     "options_mpv_header": {
         "message": "Mode MPV"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Oui"
-    },
-    "no": {
-        "message": "Non"
     },
     "ok": {
         "message": "OK"

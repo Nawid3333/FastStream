@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "Tecla - 60 segundo de busca para frente/trás"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Reproduzir/pausar"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Silenciar/reativar o som"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "Teclas - voltar/avançar um quadro (pausa o vídeo)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Refazer a busca desfeita"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "Setas do teclado - reproduzir mais rápido/devagar"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Ativar/desativar as legendas"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Imagem em imagem"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Tela cheia em janela"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Próximo vídeo/vídeo anterior"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Próximo capítulo"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Salvar o vídeo"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Tirar uma captura de tela"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Pausar/retomar o download"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Espelhar/girar o vídeo"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Ativar/desativar os filtros de vídeo (brilho, contraste, cores)"
+    },
     "perms_page_title": {
         "message": "Permissões do FastStream"
     },
@@ -93,7 +138,7 @@
         "message": "Para que a extensão funcione, ela precisa ter determinadas permissões. Essas permissões são usadas somente para funcionalidades básicas."
     },
     "perms_page_about_content1": {
-        "message": "O FastStream não coleta nenhum dado seu. Ele não rastreia você. Ele não envia nenhum dado para nenhum servidor. Ele nem mesmo tem um servidor para o qual enviar dados."
+        "message": "O FastStream não coleta nenhum dado seu e não rastreia você. Ele não tem servidor próprio. Ele só se conecta aos sites cujos vídeos você reproduz, ao OpenSubtitles quando você procura legendas e ao GitHub para verificar atualizações."
     },
     "perms_page_about_content2": {
         "message": "Não confia em mim? O FastStream tem seu código fonte disponível em"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Envio de fontes para os tocadores partir do script em segundo plano.."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Trocar mensagens com outros programas além do Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Só para o mpv: quando um vídeo vai para o mpv, o FastStream o entrega ao host mpv do FastStream no seu próprio computador, que o abre no mpv. Sem esse host, esta permissão nunca é usada."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Baixar arquivos"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "O FastStream salva arquivos nos seus downloads quando você pede: um vídeo, uma captura de tela, um arquivo de legenda ou suas configurações exportadas."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Acessar a API de cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Só para saber em qual contêiner do Firefox uma aba está, para que um download iniciado em uma aba contêiner aconteça nesse mesmo contêiner. O FastStream nunca lê, altera nem envia seus cookies."
     },
     "perms_page_granted": {
         "message": "Concedida"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Pesquisar"
     },
-    "options_help_feedback": {
-        "message": "Formulário de retorno"
+    "options_search_matched": {
+        "message": "$1 / $2 correspondências"
     },
     "options_update_header": {
         "message": "Uma atualização está disponível!"
@@ -951,7 +1014,7 @@
         "message": "Use o player para reproduzir transmissões no formato HLS/DASH ao abrir URLs de de listas de reprodução (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Seek keybind base do atalho de busca (segundos)"
+        "message": "Salto das setas do teclado (segundos)"
     },
     "options_general_replace_delay": {
         "message": "Atraso antes da substituição automática do player (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Pressione uma tecla"
     },
+    "options_keybinds_conflict": {
+        "message": "Também usado por $1"
+    },
     "options_autourl_header": {
         "message": "Habilitar URLs automaticamente"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Esses padrões são usados para detectar fontes de vídeo personalizadas em páginas da Web. Serão aplicados em ordem, e a primeira correspondência será usada. Somente para usuários avançados."
+    },
+    "options_pattern_learnmore": {
+        "message": "Saiba mais"
     },
     "options_mpv_header": {
         "message": "Modo MPV"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Sim"
-    },
-    "no": {
-        "message": "Não"
     },
     "ok": {
         "message": "OK"

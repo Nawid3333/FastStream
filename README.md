@@ -1,14 +1,17 @@
-[![logotext1](https://github.com/user-attachments/assets/cefd20ba-606a-482c-a522-36b3419e93c7)](https://faststream.online)
+![logotext1](https://github.com/user-attachments/assets/cefd20ba-606a-482c-a522-36b3419e93c7)
 
 # FastStream
 
 Tired of having videos buffer with slow internet speeds? Frustrated by a website's lack of accessibility features? This extension will replace videos on websites with a video player designed for your convenience. Say goodbye to buffering and hello to a more accessible video experience!
 
-1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and parallel requests for up to 6x faster download speeds.
+This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), maintained by Nawid3333. It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
+
+1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.
 3. Adjustable audio dynamics (equalizer, compressor, mixer, mono mode, volume booster), and video settings (brightness, contrast, hue, LMS daltonization for color blindness) for your unique audiovisual preferences.
-4. 20+ remappable keybinds and accessible tool buttons for easy control of the player.
-5. Available in multiple languages! Translated into Spanish, Japanese, Russian, Malay, and Italian by the FastStream community. Support for more languages is coming soon!
+4. Over 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
+5. Available in 16 languages.
+6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once; see [README-MPV.md](README-MPV.md).
 
 The player currently supports:
 - MP4 videos (.mp4)
@@ -18,21 +21,14 @@ The player currently supports:
 To use the player, simply:
 1. Go to any website you want with a video and toggle the extension on. Any video it detects will be automatically replaced with the FastStream player.
 2. Alternatively, you can also simply click on or navigate to a stream manifest file (m3u8/mpd) to begin playing.
-3. Navigate to a new tab and press the extension icon to go to the player. Play sources detected on other tabs through the Sources Browser. You can also drag and drop video files from your computer. 
+3. Navigate to a new tab and press the extension icon to go to the player. Play sources detected on other tabs through the Sources Browser. You can also drag and drop video files from your computer.
 
 Notes:
-- Livestreams are not supported. They will not be supported in the near future.
+- Live HLS and DASH streams play.
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
-- This player is still a work-in-progress. Please report any bugs to the Github issue tracker here: https://github.com/Nawid3333/FastStream/issues
-- For your privacy, this extension **does not collect telemetry**. Nor does it require additional resources from the internet to function. It will work fully offline. Feel free to browse the codebase on Github.
-- **We take accessibility concerns seriously**. If you need accommodations not available in the latest version, please contact us and we will work on it ASAP. Also, please feel free to submit feature requests or suggestions on the Github issue tracker!
+- Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
+- For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
 - The default maximum size for pre-buffering is 5GB. This can be changed in the settings page. Please be mindful of your computer's storage space when changing this setting. Browsers will offload data in the RAM to the SSD if the video is too large. Frequently pre-buffering large videos can reduce the lifespan of your SSD.
-
-## Demo
-
-See the player in action without installing the extension! Runs in Firefox. Note: Some features (OpenSubtitles/header override) are not available without installation.
-
-[Web Version + Big Buck Bunny](https://faststream.online/player/#https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8)
 
 ## Browser compatibility
 
@@ -54,6 +50,8 @@ You need Node.js 22 or newer and pnpm 11.
 
 `pnpm test` runs the unit tests, `pnpm run lint` and `pnpm run typecheck` the static checks, and `pnpm run verify` everything, end-to-end tests included (they drive Firefox).
 
+The web build (`built/web`) runs the player in an ordinary page, without OpenSubtitles or header overrides. This fork does not host it anywhere.
+
 ## Credits
 
 Many thanks to the contributors of this project.
@@ -64,6 +62,7 @@ Many thanks to the contributors of this project.
 - frenicohansen: SRT/ASS subtitles to WebVTT (PR #323)
 - Mesoon5642: Options search (PR #459)
 - nonab: Fixed vimeo playback (PR #489)
+- Nawid3333: this Firefox fork
 
 #### Translators
 - Dael (dael_io): Fixed Spanish translations
@@ -81,16 +80,12 @@ Many thanks to the contributors of this project.
 - [mp4box.js](https://github.com/gpac/mp4box.js): Used for automatic fragmentation of mp4 files
 - [vtt.js](https://github.com/mozilla/vtt.js): Used for parsing VTT subtitles
 - [Mediabunny](https://github.com/Vanilagy/mediabunny): Used for reading WebM and copying streams into MP4 when saving
-- And some more! Check the `chrome/player/modules` directory for more information.
-
-## Funding & Donation Policy
-
-FastStream does not accept donations for the project as a whole. Please see the [wiki](https://github.com/Andrews54757/FastStream/wiki/Funding) for more details.
+- And some more! [docs/vendored-libraries.md](docs/vendored-libraries.md) lists every one, with its version and what this project changed in it.
 
 ## Technical Details
 
-Please see the [wiki](https://github.com/Andrews54757/FastStream/wiki/Technical-Details) for more information on the technical details!
-  
+[CLAUDE.md](CLAUDE.md) holds the working notes (layout, conventions, tests, decisions), and [docs/](docs/) the runbooks: maintenance, patched and vendored libraries, upstream syncs.
+
 ## Disclaimer
 
 While it may be possible for FastStream to save videos from any website as long as there is no DRM, that doesn't mean you have the legal right to do so if you don't own the content. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.

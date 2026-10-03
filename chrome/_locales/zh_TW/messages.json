@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "鍵 - 前/後跳 60 秒"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 播放/暫停"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- 靜音/取消靜音"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "鍵 - 後退/前進一格（暫停影片）"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 重做已復原的跳轉"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "方向鍵 - 加快/減慢播放"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 開啟/關閉字幕"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- 畫中畫"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- 視窗化全螢幕"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 下一部/上一部影片"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 下一章節"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 儲存影片"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- 截圖"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- 暫停/繼續下載"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 翻轉/旋轉影片"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 開啟/關閉影片濾鏡（亮度、對比、色彩）"
+    },
     "perms_page_title": {
         "message": "FastStream 權限"
     },
@@ -93,7 +138,7 @@
         "message": "為了讓擴充功能運作，需要授予某些權限。這些權限僅用於基本功能。"
     },
     "perms_page_about_content1": {
-        "message": "FastStream 不會收集你的任何資料，也不會追蹤你或將資料傳送到任何伺服器；它甚至沒有伺服器可以傳送資料。"
+        "message": "FastStream 不會收集你的任何資料，也不會追蹤你。它沒有自己的伺服器，只會連線到你所播放影片的網站、你搜尋字幕時的 OpenSubtitles，以及用來檢查更新的 GitHub。"
     },
     "perms_page_about_content2": {
         "message": "不信？FastStream 的原始碼已公開於"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "由背景腳本將來源傳送給播放器。"
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "與 Firefox 以外的程式交換訊息"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "僅用於 mpv：將影片交給 mpv 時，FastStream 會把它傳給你電腦上的 FastStream mpv 主機，由主機在 mpv 中開啟。沒有該主機時，此權限從不使用。"
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "下載檔案"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream 會在你要求時將檔案儲存到下載資料夾：影片、截圖、字幕檔案或你匯出的設定。"
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "存取 cookies API"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "僅用於查看分頁所在的 Firefox 容器，讓在容器分頁中開始的下載在同一個容器中進行。FastStream 從不讀取、修改或傳送你的 Cookie。"
     },
     "perms_page_granted": {
         "message": "已授權"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "搜尋"
     },
-    "options_help_feedback": {
-        "message": "回饋表單"
+    "options_search_matched": {
+        "message": "符合 $1 / $2"
     },
     "options_update_header": {
         "message": "有更新可用！"
@@ -951,7 +1014,7 @@
         "message": "開啟 .mp4 連結時以播放器播放 MP4 影片"
     },
     "options_general_seekstep": {
-        "message": "跳轉鍵基本步長（秒）"
+        "message": "方向鍵跳轉步長（秒）"
     },
     "options_general_replace_delay": {
         "message": "自動替換播放器前的延遲（毫秒）"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "按任意鍵"
     },
+    "options_keybinds_conflict": {
+        "message": "也被 $1 使用"
+    },
     "options_autourl_header": {
         "message": "自動啟用網址"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "這些模式用於偵測網頁上的自訂視訊來源。會依順序套用，採第一個符合的結果。僅供進階使用者。"
+    },
+    "options_pattern_learnmore": {
+        "message": "了解更多"
     },
     "options_mpv_header": {
         "message": "MPV 模式"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "是"
-    },
-    "no": {
-        "message": "否"
     },
     "ok": {
         "message": "確定"

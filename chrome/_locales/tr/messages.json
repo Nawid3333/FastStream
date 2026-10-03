@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "tuşlar - 60 saniye ileri/geri sarma"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Oynat/duraklat"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Sesi kapat/aç"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "tuşlar - bir kare geri/ileri (videoyu duraklatır)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Geri alınan sarmayı yinele"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "yön tuşları - daha hızlı/yavaş oynat"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Altyazıları aç/kapat"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Resim içinde resim"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Pencereli tam ekran"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Sonraki/önceki video"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Sonraki bölüm"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Videoyu kaydet"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Ekran görüntüsü al"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- İndirmeyi duraklat/sürdür"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Videoyu çevir/döndür"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Video filtrelerini (parlaklık, kontrast, renkler) aç/kapat"
+    },
     "perms_page_title": {
         "message": "FastStream İzinleri"
     },
@@ -93,7 +138,7 @@
         "message": "Eklentinin çalışabilmesi için belirli izinlere sahip olması gerekir. Bu izinler yalnızca temel işlevsellik için kullanılır."
     },
     "perms_page_about_content1": {
-        "message": "FastStream sizden hiçbir veri toplamaz. Sizi izlemez. Herhangi bir sunucuya veri göndermez. Hatta veri gönderebileceği bir sunucusu bile yoktur."
+        "message": "FastStream sizden hiçbir veri toplamaz ve sizi izlemez. Kendine ait bir sunucusu yoktur. Yalnızca videolarını oynattığınız sitelere, altyazı aradığınızda OpenSubtitles'a ve güncellemeleri denetlemek için GitHub'a bağlanır."
     },
     "perms_page_about_content2": {
         "message": "Güvenmiyor musunuz? FastStream'in kaynak kodu şurada mevcut:"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Kaynakları arka plan betiğinden oynatıcılara gönderme."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox dışındaki programlarla mesaj alışverişi"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Yalnızca mpv için: bir video mpv'ye gönderildiğinde FastStream onu kendi bilgisayarınızdaki FastStream mpv host'una verir, o da videoyu mpv'de açar. Bu host olmadan bu izin hiç kullanılmaz."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Dosya indirme"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream, siz istediğinizde dosyaları indirilenler klasörünüze kaydeder: bir video, bir ekran görüntüsü, bir altyazı dosyası veya dışa aktardığınız ayarlar."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "cookies API'sine erişim"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Yalnızca bir sekmenin hangi Firefox kapsayıcısında olduğunu görmek için; böylece kapsayıcı sekmede başlatılan bir indirme aynı kapsayıcıda gerçekleşir. FastStream çerezlerinizi asla okumaz, değiştirmez veya göndermez."
     },
     "perms_page_granted": {
         "message": "Verildi"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Ara"
     },
-    "options_help_feedback": {
-        "message": "Geri Bildirim Formu"
+    "options_search_matched": {
+        "message": "$1 / $2 eşleşme"
     },
     "options_update_header": {
         "message": "Bir güncelleme mevcut!"
@@ -951,7 +1014,7 @@
         "message": "Video URL'leri (.mp4) açıldığında MP4 videoları oynatmak için oynatıcıyı kullan"
     },
     "options_general_seekstep": {
-        "message": "İleri/geri tuş adım boyutu (saniye)"
+        "message": "Ok tuşlarıyla sarma adımı (saniye)"
     },
     "options_general_replace_delay": {
         "message": "Otomatik oynatıcıyı değiştirmeden önce gecikme (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Bir tuşa basın"
     },
+    "options_keybinds_conflict": {
+        "message": "Şunun tarafından da kullanılıyor: $1"
+    },
     "options_autourl_header": {
         "message": "Otomatik Etkinleştirilen URL'ler"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Bu desenler, web sayfalarında özel video kaynaklarını tespit etmek için kullanılır. Sırayla uygulanır ve ilk eşleşme kullanılır. Sadece ileri düzey kullanıcılar içindir."
+    },
+    "options_pattern_learnmore": {
+        "message": "Daha fazla bilgi"
     },
     "options_mpv_header": {
         "message": "MPV modu"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Evet"
-    },
-    "no": {
-        "message": "Hayır"
     },
     "ok": {
         "message": "Tamam"

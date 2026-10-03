@@ -100,7 +100,10 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   entries, regenerated 2026-09-30). Don't run `split-locales` unless the combined file is the
   one you edited: it writes over the locales. (Plain `node localescript.mjs`, which the build
   runs, only compares keys.) Both files are formatted with a 4-space indent; keep it, or a
-  one-key change shows up as thousands of changed lines.
+  one-key change shows up as thousands of changed lines. The same test also fails when a
+  locale's keys or `$1`/`$2` placeholders differ from English's (2026-10-03), so a new string
+  needs all 16 locales before CI passes, an upstream sync's English-only key included. The
+  welcome page lists every default key; `Keybinds.test.mjs` fails when a default is missing.
 - Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
   (the default layout has no clashes and every default has a handler, the storage path, the
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
@@ -262,18 +265,18 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.
-- **Nothing is bundled.** The browser loads all 166 `.mjs` files natively as
+- **Nothing is bundled.** The browser loads every `.mjs` file natively as
   ES modules. `build.mjs` is a file-copier plus a conditional-compilation
   preprocessor — not a bundler. Introducing whole-tree bundling is a
   behaviour change, not a refactor.
 - **The hls.js/dash.js hooks are already the official public APIs.**
-  `HLSPlayer.mjs:68` passes `loader: HLSLoaderFactory(this)` (hls.js's
-  documented config option) and `DashPlayer.mjs:153` calls
+  `HLSPlayer.mjs` passes `loader: HLSLoaderFactory(this)` (hls.js's
+  documented config option) and `DashPlayer.mjs` calls
   `dash.extend('XHRLoader', DASHLoaderFactory(this), false)` (dash.js's
   public extension point). The AMO problem is that the vendored *bytes*
   aren't an official release — not that the integration is hacked.
 - **Vendored library versions are current**, not stale: dash.js reports
-  `VERSION = '5.2.1'`, hls.js carries 1.6.x branches. The vendored dash.js
+  `VERSION = '5.2.1'`, hls.js is 1.7.3 (`package.json`). The vendored dash.js
   was a pre-release `development` build, not 5.1.0 - measure a patched
   bundle against the commit it was built from, not the nearest release
   (`docs/vendored-libraries.md`, dash.js "Status").
@@ -1477,7 +1480,7 @@ the change went in.
   `tests/unit/workflowSecrets.test.mjs` fails for a job that reads one without it
   (docs/maintenance.md, "Secrets in environments").
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
-  (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
+  (2026-09-25): Dependabot ignores the six libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.
   Clean, checks passed: a PR from `patched/<name>-<version>`, with CI dispatched on it (a
   push by `GITHUB_TOKEN` starts no workflow; `gh workflow run` does). Conflict or failed
@@ -1546,8 +1549,8 @@ the change went in.
 - Branches: `main` is the project and the only long-lived branch. It was
   `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
   and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
-  from `sync/upstream` when Andrew has commits `main` lacks. A clean one merges
-  itself (`update-prs.yml`); one that waits is decided on that PR - close it to skip,
+  from `sync/upstream` when Andrew has commits `main` lacks. It waits for the owner like
+  every PR (`update-prs.yml` only says whether it is ready): close it to skip,
   merge it to take. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
   branches, if ever needed, get cut fresh off `upstream/main`.
 

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "kekunci - 60 saat mencari ke hadapan/belakang"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- Main/jeda"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Senyap/nyahsenyap"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "kekunci - undur/maju satu bingkai (menjeda video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Buat semula carian yang dibuat asal"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "kekunci anak panah - main lebih laju/perlahan"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Hidupkan/matikan sarikata"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Gambar dalam gambar"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Skrin penuh bertetingkap"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Video seterusnya/sebelumnya"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Bab seterusnya"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Simpan video"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Ambil tangkapan skrin"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Jeda/sambung muat turun"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Terbalikkan/putar video"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Hidupkan/matikan penapis video (kecerahan, kontras, warna)"
+    },
     "perms_page_title": {
         "message": "Keizinan FastStream"
     },
@@ -93,7 +138,7 @@
         "message": "Untuk membolehkan sambungan berfungsi, ia perlu mempunyai kebenaran tertentu. Kebenaran ini hanya digunakan untuk fungsi asas."
     },
     "perms_page_about_content1": {
-        "message": "FastStream tidak mengumpul sebarang data daripada anda. Ia tidak menjejaki anda. Ia tidak menghantar sebarang data ke mana-mana pelayan. Ia tidak mempunyai pelayan untuk menghantar data."
+        "message": "FastStream tidak mengumpul sebarang data daripada anda dan tidak menjejaki anda. Ia tidak mempunyai pelayan sendiri. Ia hanya menyambung ke tapak yang videonya anda mainkan, ke OpenSubtitles apabila anda mencari sarikata, dan ke GitHub untuk menyemak kemas kini."
     },
     "perms_page_about_content2": {
         "message": "Jangan percaya saya? FastStream mempunyai sumbernya tersedia di"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Menghantar sumber kepada pemain daripada skrip latar belakang."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Bertukar mesej dengan program selain Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Hanya untuk mpv: apabila video dihantar ke mpv, FastStream menyerahkannya kepada hos mpv FastStream pada komputer anda sendiri, yang membukanya dalam mpv. Tanpa hos itu, kebenaran ini tidak pernah digunakan."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Muat turun fail"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream menyimpan fail ke muat turun anda apabila anda memintanya: video, tangkapan skrin, fail sarikata atau tetapan yang anda eksport."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Akses API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Hanya untuk melihat kontena Firefox tempat sesuatu tab berada, supaya muat turun yang dimulakan dalam tab kontena berlaku dalam kontena yang sama. FastStream tidak pernah membaca, mengubah atau menghantar kuki anda."
     },
     "perms_page_granted": {
         "message": "Dibenarkan"
@@ -393,7 +456,7 @@
         "message": "Ini adalah sarikata ujian"
     },
     "player_qualitymenu_label": {
-        "message": "Kualiti Video "
+        "message": "Kualiti Video"
     },
     "player_languagemenu_label": {
         "message": "Pilihan Bahasa"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Cari"
     },
-    "options_help_feedback": {
-        "message": "Borang Maklum Balas"
+    "options_search_matched": {
+        "message": "$1 / $2 sepadan"
     },
     "options_update_header": {
         "message": "Kemas Kini Tersedia!"
@@ -951,7 +1014,7 @@
         "message": "Gunakan pemain untuk memainkan video MP4 apabila membuka URL video (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Seek keybind base step size (seconds)"
+        "message": "Langkah lompat kekunci anak panah (saat)"
     },
     "options_general_replace_delay": {
         "message": "Tangguhan sebelum pemain diganti secara automatik (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Tekan kekunci"
     },
+    "options_keybinds_conflict": {
+        "message": "Turut digunakan oleh $1"
+    },
     "options_autourl_header": {
         "message": "Auto-aktifkan URL"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Corak ini digunakan untuk mengesan sumber video tersuai pada laman web. Ia digunakan mengikut susunan, dan padanan pertama digunakan. Untuk pengguna mahir sahaja."
+    },
+    "options_pattern_learnmore": {
+        "message": "Ketahui lebih lanjut"
     },
     "options_mpv_header": {
         "message": "Mod MPV"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Ya"
-    },
-    "no": {
-        "message": "Tidak"
     },
     "ok": {
         "message": "OK"

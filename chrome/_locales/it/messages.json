@@ -51,10 +51,10 @@
         "message": "tasti freccia - vai avanti/indietro di 5 secondi"
     },
     "welcome_page_keybinds_content2": {
-        "message": " - vai avanti/indietro di 10 secondi"
+        "message": "- vai avanti/indietro di 10 secondi"
     },
     "welcome_page_keybinds_content3": {
-        "message": " - Annulla"
+        "message": "- Annulla lo spostamento"
     },
     "welcome_page_keybinds_content4": {
         "message": "tasti freccia - aumenta/diminuisci il volume del 10%"
@@ -81,7 +81,52 @@
         "message": "- Imposta la velocità a 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x o 16x - premi di nuovo lo stesso tasto per ripristinare"
     },
     "welcome_page_keybinds_content12": {
-        "message": " - vai avanti/indietro di 60 secondi"
+        "message": "- vai avanti/indietro di 60 secondi"
+    },
+    "welcome_page_keybinds_content13": {
+        "message": "- Riproduci/pausa"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- Disattiva/riattiva l'audio"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "- indietro/avanti di un fotogramma (mette in pausa il video)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- Ripristina lo spostamento annullato"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "tasti freccia - riproduci più veloce/lento"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- Attiva/disattiva i sottotitoli"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- Picture-in-picture"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- Schermo intero in finestra"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- Video successivo/precedente"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- Capitolo successivo"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- Salva il video"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- Acquisisci uno screenshot"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- Metti in pausa/riprendi il download"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- Capovolgi/ruota il video"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- Attiva/disattiva i filtri video (luminosità, contrasto, colori)"
     },
     "perms_page_title": {
         "message": "Autorizzazioni FastStream"
@@ -93,7 +138,7 @@
         "message": "Affinché l'estensione funzioni, deve poter disporre di determinate autorizzazioni. Queste autorizzazioni vengono utilizzate solo per funzionalità di base."
     },
     "perms_page_about_content1": {
-        "message": "FastStream non raccoglie alcun dato da te. Non ti traccia. Non invia alcun dato a nessun server. Non ha nemmeno un server a cui inviare dati."
+        "message": "FastStream non raccoglie alcun dato da te e non ti traccia. Non ha un server proprio. Si collega solo ai siti di cui riproduci i video, a OpenSubtitles quando cerchi sottotitoli e a GitHub per controllare gli aggiornamenti."
     },
     "perms_page_about_content2": {
         "message": "Non ti fidi di me? FastStream ha il suo codice sorgente disponibile su"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Invio di sorgenti ai lettori video dallo script in background."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Scambiare messaggi con programmi diversi da Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Solo per mpv: quando un video va a mpv, FastStream lo passa all'host mpv di FastStream sul tuo computer, che lo apre in mpv. Senza quell'host, questo permesso non viene mai usato."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Scaricare file"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream salva file nei tuoi download quando glielo chiedi: un video, uno screenshot, un file di sottotitoli o le impostazioni esportate."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Accedi all'API dei cookie"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Solo per sapere in quale contenitore di Firefox si trova una scheda, così che un download avviato da una scheda contenitore avvenga nello stesso contenitore. FastStream non legge, modifica né invia mai i tuoi cookie."
     },
     "perms_page_granted": {
         "message": "Concesso"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "Cerca"
     },
-    "options_help_feedback": {
-        "message": "Modulo di Feedback"
+    "options_search_matched": {
+        "message": "$1 / $2 corrispondenze"
     },
     "options_update_header": {
         "message": "È Disponibile un Aggiornamento!"
@@ -951,7 +1014,7 @@
         "message": "Usa il lettore video per riprodurre video MP4 quando apri l'URL di un video (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Dimensione base dell'incremento quando vai avanti/indietro (secondi)"
+        "message": "Salto dei tasti freccia (secondi)"
     },
     "options_general_replace_delay": {
         "message": "Ritardo prima della sostituzione automatica del player (ms)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "Premi un tasto"
     },
+    "options_keybinds_conflict": {
+        "message": "Usato anche da $1"
+    },
     "options_autourl_header": {
         "message": "Abilita automaticamente gli URL"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "Questi modelli vengono utilizzati per rilevare sorgenti video personalizzate su pagine web. Vengono applicati in ordine e viene utilizzata la prima corrispondenza. Solo per utenti avanzati."
+    },
+    "options_pattern_learnmore": {
+        "message": "Scopri di più"
     },
     "options_mpv_header": {
         "message": "Modalità MPV"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "Sì"
-    },
-    "no": {
-        "message": "No"
     },
     "ok": {
         "message": "OK"

@@ -83,6 +83,51 @@
     "welcome_page_keybinds_content12": {
         "message": "키 - 앞/뒤로 60초 이동"
     },
+    "welcome_page_keybinds_content13": {
+        "message": "- 재생/일시정지"
+    },
+    "welcome_page_keybinds_content14": {
+        "message": "- 음소거/음소거 해제"
+    },
+    "welcome_page_keybinds_content15": {
+        "message": "키 - 한 프레임 뒤로/앞으로 (영상 일시정지)"
+    },
+    "welcome_page_keybinds_content16": {
+        "message": "- 취소한 탐색 다시 실행"
+    },
+    "welcome_page_keybinds_content17": {
+        "message": "화살표 키 - 재생 속도 빠르게/느리게"
+    },
+    "welcome_page_keybinds_content18": {
+        "message": "- 자막 켜기/끄기"
+    },
+    "welcome_page_keybinds_content19": {
+        "message": "- 픽처인픽처"
+    },
+    "welcome_page_keybinds_content20": {
+        "message": "- 창 모드 전체화면"
+    },
+    "welcome_page_keybinds_content21": {
+        "message": "- 다음/이전 영상"
+    },
+    "welcome_page_keybinds_content22": {
+        "message": "- 다음 챕터"
+    },
+    "welcome_page_keybinds_content23": {
+        "message": "- 비디오 저장"
+    },
+    "welcome_page_keybinds_content24": {
+        "message": "- 스크린샷 찍기"
+    },
+    "welcome_page_keybinds_content25": {
+        "message": "- 다운로드 일시 중지/재개"
+    },
+    "welcome_page_keybinds_content26": {
+        "message": "- 영상 뒤집기/회전"
+    },
+    "welcome_page_keybinds_content27": {
+        "message": "- 영상 필터(밝기, 대비, 색상) 켜기/끄기"
+    },
     "perms_page_title": {
         "message": "FastStream 권한"
     },
@@ -93,7 +138,7 @@
         "message": "확장 기능이 작동하려면 특정 권한이 필요합니다. 이 권한들은 기본 기능에만 사용됩니다."
     },
     "perms_page_about_content1": {
-        "message": "FastStream는 사용자로부터 어떠한 데이터도 수집하지 않습니다. 사용자를 추적하지 않으며 어떤 서버로도 데이터를 전송하지 않습니다. 전송할 서버조차 없습니다."
+        "message": "FastStream는 사용자로부터 어떠한 데이터도 수집하지 않으며 사용자를 추적하지 않습니다. 자체 서버도 없습니다. 재생하는 영상의 사이트, 자막을 검색할 때의 OpenSubtitles, 업데이트를 확인하기 위한 GitHub에만 연결합니다."
     },
     "perms_page_about_content2": {
         "message": "믿기 어렵나요? FastStream의 소스 코드는 다음에서 확인할 수 있습니다"
@@ -160,6 +205,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "백그라운드 스크립트에서 플레이어로 소스 전송."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox가 아닌 다른 프로그램과 메시지 교환"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "mpv 전용입니다. 영상을 mpv로 보낼 때 FastStream는 사용자의 컴퓨터에 있는 FastStream mpv 호스트에 영상을 넘기고, 호스트가 mpv에서 엽니다. 이 호스트가 없으면 이 권한은 사용되지 않습니다."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "파일 다운로드"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream는 요청할 때 파일을 다운로드 폴더에 저장합니다: 영상, 스크린샷, 자막 파일 또는 내보낸 설정."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "cookies API 접근"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "탭이 어느 Firefox 컨테이너에 있는지 확인하는 데만 사용하며, 컨테이너 탭에서 시작한 다운로드가 같은 컨테이너에서 이루어지게 합니다. FastStream는 쿠키를 읽거나 변경하거나 전송하지 않습니다."
     },
     "perms_page_granted": {
         "message": "허용됨"
@@ -842,8 +905,8 @@
     "options_search_placeholder": {
         "message": "검색"
     },
-    "options_help_feedback": {
-        "message": "피드백 양식"
+    "options_search_matched": {
+        "message": "$1 / $2개 일치"
     },
     "options_update_header": {
         "message": "업데이트가 있습니다!"
@@ -951,7 +1014,7 @@
         "message": "비디오 URL(.mp4) 열 때 MP4 재생에 플레이어 사용"
     },
     "options_general_seekstep": {
-        "message": "건너뛰기 키 기본 단위(초)"
+        "message": "화살표 키 이동 간격(초)"
     },
     "options_general_replace_delay": {
         "message": "플레이어 자동 교체 전 지연(밀리초)"
@@ -1088,6 +1151,9 @@
     "options_keybinds_press": {
         "message": "키를 누르세요"
     },
+    "options_keybinds_conflict": {
+        "message": "$1에서도 사용 중"
+    },
     "options_autourl_header": {
         "message": "URL 자동 활성화"
     },
@@ -1102,6 +1168,9 @@
     },
     "options_pattern_body": {
         "message": "이 패턴들은 웹페이지에서 사용자 지정 비디오 소스를 감지하는 데 사용됩니다. 위에서 아래 순으로 적용되며, 첫 번째 일치 항목이 사용됩니다. 고급 사용자 전용."
+    },
+    "options_pattern_learnmore": {
+        "message": "자세히 알아보기"
     },
     "options_mpv_header": {
         "message": "MPV 모드"
@@ -1213,9 +1282,6 @@
     },
     "yes": {
         "message": "예"
-    },
-    "no": {
-        "message": "아니요"
     },
     "ok": {
         "message": "확인"
