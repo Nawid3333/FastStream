@@ -386,7 +386,10 @@ export class SVGDaltonizer {
     // Create identity matrix
     const matrix = IdentityMatrix.slice();
 
-    if (strength <= 0) {
+    // FastStream: an unknown type (an imported settings file's "foo", which CSSFilterUtils
+    // maps to undefined) threw a TypeError while the player set itself up, and so did a
+    // strength that is no number. Either now leaves the picture as it is.
+    if (!(strength > 0) || !Object.values(DaltonizerTypes).includes(type)) {
       return matrix;
     }
 
