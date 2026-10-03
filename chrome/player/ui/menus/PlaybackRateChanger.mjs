@@ -50,7 +50,8 @@ export class PlaybackRateChanger extends EventEmitter {
     });
 
     this.client.playbackRate = state.playbackRate;
-    this.silenceSkipSpeed = state.silenceSkipSpeed;
+    // Saved by a build with a higher cap, it went to the video as it was.
+    this.silenceSkipSpeed = Utils.clamp(state.silenceSkipSpeed, 0.1, this.maxPlaybackRate);
     // this.audioPaddingStart = state.audioPaddingStart;
     // this.audioPaddingEnd = state.audioPaddingEnd;
   }
