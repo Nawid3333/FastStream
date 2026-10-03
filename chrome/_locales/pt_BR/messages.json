@@ -93,7 +93,7 @@
         "message": "Para que a extensão funcione, ela precisa ter determinadas permissões. Essas permissões são usadas somente para funcionalidades básicas."
     },
     "perms_page_about_content1": {
-        "message": "O FastStream não coleta nenhum dado seu. Ele não rastreia você. Ele não envia nenhum dado para nenhum servidor. Ele nem mesmo tem um servidor para o qual enviar dados."
+        "message": "O FastStream não coleta nenhum dado seu e não rastreia você. Ele não tem servidor próprio. Ele só se conecta aos sites cujos vídeos você reproduz, ao OpenSubtitles quando você procura legendas e ao GitHub para verificar atualizações."
     },
     "perms_page_about_content2": {
         "message": "Não confia em mim? O FastStream tem seu código fonte disponível em"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Envio de fontes para os tocadores partir do script em segundo plano.."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Trocar mensagens com outros programas além do Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Só para o mpv: quando um vídeo vai para o mpv, o FastStream o entrega ao host mpv do FastStream no seu próprio computador, que o abre no mpv. Sem esse host, esta permissão nunca é usada."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Baixar arquivos"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "O FastStream salva arquivos nos seus downloads quando você pede: um vídeo, uma captura de tela, um arquivo de legenda ou suas configurações exportadas."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Acessar a API de cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Só para saber em qual contêiner do Firefox uma aba está, para que um download iniciado em uma aba contêiner aconteça nesse mesmo contêiner. O FastStream nunca lê, altera nem envia seus cookies."
     },
     "perms_page_granted": {
         "message": "Concedida"

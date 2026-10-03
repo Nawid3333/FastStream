@@ -93,7 +93,7 @@
         "message": "Om de extensie te laten werken, heeft deze bepaalde machtigingen nodig. Deze machtigingen worden alleen voor basisfunctionaliteit gebruikt."
     },
     "perms_page_about_content1": {
-        "message": "FastStream verzamelt geen gegevens van je. Het volgt je niet. Het stuurt geen gegevens naar servers. Het heeft zelfs geen server om gegevens naartoe te sturen."
+        "message": "FastStream verzamelt geen gegevens van je en volgt je niet. Het heeft geen eigen server. Het maakt alleen verbinding met de sites waarvan je video's afspeelt, met OpenSubtitles als je naar ondertitels zoekt, en met GitHub om op updates te controleren."
     },
     "perms_page_about_content2": {
         "message": "Niet overtuigd? De broncode van FastStream is beschikbaar op"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Verzenden van bronnen naar spelers vanuit het achtergrondscript."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Berichten uitwisselen met andere programma's dan Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Alleen voor mpv: als een video naar mpv gaat, geeft FastStream die door aan de FastStream-mpv-host op je eigen computer, die hem in mpv opent. Zonder die host wordt deze toestemming nooit gebruikt."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Bestanden downloaden"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream slaat bestanden op in je downloads als je daarom vraagt: een video, een schermafbeelding, een ondertitelbestand of je geëxporteerde instellingen."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Toegang tot de cookies-API"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Alleen om te zien in welke Firefox-container een tabblad zit, zodat een download die in een containertabblad begint in diezelfde container plaatsvindt. FastStream leest, wijzigt of verstuurt nooit je cookies."
     },
     "perms_page_granted": {
         "message": "Toegestaan"

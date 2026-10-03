@@ -93,7 +93,7 @@
         "message": "Eklentinin çalışabilmesi için belirli izinlere sahip olması gerekir. Bu izinler yalnızca temel işlevsellik için kullanılır."
     },
     "perms_page_about_content1": {
-        "message": "FastStream sizden hiçbir veri toplamaz. Sizi izlemez. Herhangi bir sunucuya veri göndermez. Hatta veri gönderebileceği bir sunucusu bile yoktur."
+        "message": "FastStream sizden hiçbir veri toplamaz ve sizi izlemez. Kendine ait bir sunucusu yoktur. Yalnızca videolarını oynattığınız sitelere, altyazı aradığınızda OpenSubtitles'a ve güncellemeleri denetlemek için GitHub'a bağlanır."
     },
     "perms_page_about_content2": {
         "message": "Güvenmiyor musunuz? FastStream'in kaynak kodu şurada mevcut:"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Kaynakları arka plan betiğinden oynatıcılara gönderme."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox dışındaki programlarla mesaj alışverişi"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Yalnızca mpv için: bir video mpv'ye gönderildiğinde FastStream onu kendi bilgisayarınızdaki FastStream mpv host'una verir, o da videoyu mpv'de açar. Bu host olmadan bu izin hiç kullanılmaz."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Dosya indirme"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream, siz istediğinizde dosyaları indirilenler klasörünüze kaydeder: bir video, bir ekran görüntüsü, bir altyazı dosyası veya dışa aktardığınız ayarlar."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "cookies API'sine erişim"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Yalnızca bir sekmenin hangi Firefox kapsayıcısında olduğunu görmek için; böylece kapsayıcı sekmede başlatılan bir indirme aynı kapsayıcıda gerçekleşir. FastStream çerezlerinizi asla okumaz, değiştirmez veya göndermez."
     },
     "perms_page_granted": {
         "message": "Verildi"

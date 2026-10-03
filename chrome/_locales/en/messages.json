@@ -93,7 +93,7 @@
         "message": "In order for the extension to function, it needs to be able to have certain permissions. These permissions are only used for basic functionality."
     },
     "perms_page_about_content1": {
-        "message": "FastStream does not collect any data from you. It does not track you. It does not send any data to any servers. It does not even have a server to send data to."
+        "message": "FastStream does not collect any data from you and does not track you. It has no server of its own. It only connects to the sites whose videos you play, to OpenSubtitles when you search for subtitles, and to GitHub to check for updates."
     },
     "perms_page_about_content2": {
         "message": "Don't trust me? FastStream has its source available on"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Sending sources to players from the background script."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Exchange messages with programs other than Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Only for mpv: when a video goes to mpv, FastStream hands it to the FastStream mpv host on your own computer, which opens it in mpv. Without that host, this permission is never used."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Download files"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream saves files to your downloads when you ask it to: a video, a screenshot, a subtitle file or your exported settings."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Access the cookies API"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Only to see which Firefox container a tab is in, so that a download started in a container tab happens in that same container. FastStream never reads, changes or sends your cookies."
     },
     "perms_page_granted": {
         "message": "Granted"

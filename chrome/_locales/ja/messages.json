@@ -93,7 +93,7 @@
         "message": "拡張機能を動作させるには特定の権限を許可する必要があります。これらの権限は基本的な機能のみで使用されます。"
     },
     "perms_page_about_content1": {
-        "message": "FastStream はユーザーからデータの収集、追跡、サーバーにデータの送信は一切しません。データを送信するサーバーもありません。"
+        "message": "FastStream はユーザーのデータを収集せず、追跡もしません。独自のサーバーも持っていません。接続するのは、再生する動画のサイト、字幕を検索するときの OpenSubtitles、そして更新を確認するための GitHub だけです。"
     },
     "perms_page_about_content2": {
         "message": "信用ができませんか? FastStream のソースは次の場所で入手ができます。"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "バックグラウンドスクリプトからプレーヤーにソースを送信"
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox 以外のプログラムとメッセージを交換"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "mpv 専用です。動画を mpv に送るとき、FastStream はその動画をお使いのコンピューター上の FastStream mpv ホストに渡し、ホストが mpv で開きます。このホストがなければ、この権限は一切使われません。"
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "ファイルをダウンロード"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream は、指示されたときにファイルをダウンロードフォルダーに保存します: 動画、スクリーンショット、字幕ファイル、またはエクスポートした設定。"
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Cookies API にアクセス"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "タブがどの Firefox コンテナーに属しているかを知るためだけに使います。これにより、コンテナータブで始めたダウンロードが同じコンテナー内で行われます。FastStream が Cookie を読み取ったり、変更したり、送信したりすることはありません。"
     },
     "perms_page_granted": {
         "message": "許可"

@@ -93,7 +93,7 @@
         "message": "为了使扩展正常运行，需要某些权限。这些权限仅用于基本功能。"
     },
     "perms_page_about_content1": {
-        "message": "FastStream 不会收集你的任何数据，也不会追踪你，不会向任何服务器发送数据，甚至没有可发送数据的服务器。"
+        "message": "FastStream 不会收集你的任何数据，也不会追踪你。它没有自己的服务器，只会连接到你所播放视频的网站、你搜索字幕时的 OpenSubtitles，以及用于检查更新的 GitHub。"
     },
     "perms_page_about_content2": {
         "message": "不信？FastStream 的源码公开托管于"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "从后台脚本向播放器发送视频源。"
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "与 Firefox 之外的其他程序交换消息"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "仅用于 mpv：把视频交给 mpv 时，FastStream 会将它传给你电脑上的 FastStream mpv 主机，由主机在 mpv 中打开。没有该主机时，此权限从不使用。"
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "下载文件"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream 会在你要求时把文件保存到下载文件夹：视频、截图、字幕文件或你导出的设置。"
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "访问 cookies API"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "仅用于查看标签页所在的 Firefox 容器，以便在容器标签页中开始的下载在同一容器中进行。FastStream 从不读取、修改或发送你的 Cookie。"
     },
     "perms_page_granted": {
         "message": "已授权"

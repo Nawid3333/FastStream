@@ -93,7 +93,7 @@
         "message": "Aby rozszerzenie mogło działać, potrzebuje określonych uprawnień. Uprawnienia te są wykorzystywane jedynie do podstawowych funkcji."
     },
     "perms_page_about_content1": {
-        "message": "FastStream nie zbiera od Ciebie żadnych danych. Nie śledzi Cię. Nie wysyła żadnych danych do żadnych serwerów. Nawet nie ma serwera, do którego mógłby je wysyłać."
+        "message": "FastStream nie zbiera od Ciebie żadnych danych i nie śledzi Cię. Nie ma własnego serwera. Łączy się tylko z witrynami, których filmy odtwarzasz, z OpenSubtitles, gdy szukasz napisów, oraz z GitHubem, aby sprawdzić aktualizacje."
     },
     "perms_page_about_content2": {
         "message": "Nie ufasz? Kod źródłowy FastStream jest dostępny na"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Wysyłanie źródeł do odtwarzaczy ze skryptu w tle."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Wymiana komunikatów z programami innymi niż Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Tylko dla mpv: gdy wideo trafia do mpv, FastStream przekazuje je hostowi mpv FastStream na Twoim komputerze, który otwiera je w mpv. Bez tego hosta to uprawnienie nigdy nie jest używane."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Pobieranie plików"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream zapisuje pliki w pobranych, gdy o to poprosisz: wideo, zrzut ekranu, plik napisów lub wyeksportowane ustawienia."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Dostęp do API plików cookie"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Tylko po to, by sprawdzić, w którym kontenerze Firefoksa jest karta, aby pobieranie rozpoczęte w karcie kontenera odbyło się w tym samym kontenerze. FastStream nigdy nie odczytuje, nie zmienia ani nie wysyła Twoich ciasteczek."
     },
     "perms_page_granted": {
         "message": "Przyznano"

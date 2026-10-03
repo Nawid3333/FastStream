@@ -93,7 +93,7 @@
         "message": "확장 기능이 작동하려면 특정 권한이 필요합니다. 이 권한들은 기본 기능에만 사용됩니다."
     },
     "perms_page_about_content1": {
-        "message": "FastStream는 사용자로부터 어떠한 데이터도 수집하지 않습니다. 사용자를 추적하지 않으며 어떤 서버로도 데이터를 전송하지 않습니다. 전송할 서버조차 없습니다."
+        "message": "FastStream는 사용자로부터 어떠한 데이터도 수집하지 않으며 사용자를 추적하지 않습니다. 자체 서버도 없습니다. 재생하는 영상의 사이트, 자막을 검색할 때의 OpenSubtitles, 업데이트를 확인하기 위한 GitHub에만 연결합니다."
     },
     "perms_page_about_content2": {
         "message": "믿기 어렵나요? FastStream의 소스 코드는 다음에서 확인할 수 있습니다"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "백그라운드 스크립트에서 플레이어로 소스 전송."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Firefox가 아닌 다른 프로그램과 메시지 교환"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "mpv 전용입니다. 영상을 mpv로 보낼 때 FastStream는 사용자의 컴퓨터에 있는 FastStream mpv 호스트에 영상을 넘기고, 호스트가 mpv에서 엽니다. 이 호스트가 없으면 이 권한은 사용되지 않습니다."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "파일 다운로드"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream는 요청할 때 파일을 다운로드 폴더에 저장합니다: 영상, 스크린샷, 자막 파일 또는 내보낸 설정."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "cookies API 접근"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "탭이 어느 Firefox 컨테이너에 있는지 확인하는 데만 사용하며, 컨테이너 탭에서 시작한 다운로드가 같은 컨테이너에서 이루어지게 합니다. FastStream는 쿠키를 읽거나 변경하거나 전송하지 않습니다."
     },
     "perms_page_granted": {
         "message": "허용됨"

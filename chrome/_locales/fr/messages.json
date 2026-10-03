@@ -93,7 +93,7 @@
         "message": "Pour que l'extension fonctionne, elle doit disposer de certaines autorisations. Celles-ci sont utilisées uniquement pour les fonctionnalités de base."
     },
     "perms_page_about_content1": {
-        "message": "FastStream ne collecte aucune donnée vous concernant. Il ne vous suit pas. Il n'envoie aucune donnée à des serveurs. Il n'a même pas de serveur vers lequel envoyer des données."
+        "message": "FastStream ne collecte aucune donnée vous concernant et ne vous suit pas. Il n'a pas de serveur à lui. Il se connecte uniquement aux sites dont vous lisez les vidéos, à OpenSubtitles quand vous cherchez des sous-titres, et à GitHub pour vérifier les mises à jour."
     },
     "perms_page_about_content2": {
         "message": "Vous ne me faites pas confiance ? Le code source de FastStream est disponible sur"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Envoyer les sources aux lecteurs depuis le script d'arrière-plan."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Échanger des messages avec d'autres programmes que Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Uniquement pour mpv : quand une vidéo est envoyée à mpv, FastStream la transmet à l'hôte mpv FastStream sur votre propre ordinateur, qui l'ouvre dans mpv. Sans cet hôte, cette autorisation n'est jamais utilisée."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Télécharger des fichiers"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream enregistre des fichiers dans vos téléchargements quand vous le lui demandez : une vidéo, une capture d'écran, un fichier de sous-titres ou vos paramètres exportés."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Accéder à l'API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Uniquement pour savoir dans quel conteneur Firefox se trouve un onglet, afin qu'un téléchargement lancé depuis un onglet conteneur ait lieu dans ce même conteneur. FastStream ne lit, ne modifie ni n'envoie jamais vos cookies."
     },
     "perms_page_granted": {
         "message": "Accordé"

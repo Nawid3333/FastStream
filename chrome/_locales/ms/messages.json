@@ -93,7 +93,7 @@
         "message": "Untuk membolehkan sambungan berfungsi, ia perlu mempunyai kebenaran tertentu. Kebenaran ini hanya digunakan untuk fungsi asas."
     },
     "perms_page_about_content1": {
-        "message": "FastStream tidak mengumpul sebarang data daripada anda. Ia tidak menjejaki anda. Ia tidak menghantar sebarang data ke mana-mana pelayan. Ia tidak mempunyai pelayan untuk menghantar data."
+        "message": "FastStream tidak mengumpul sebarang data daripada anda dan tidak menjejaki anda. Ia tidak mempunyai pelayan sendiri. Ia hanya menyambung ke tapak yang videonya anda mainkan, ke OpenSubtitles apabila anda mencari sarikata, dan ke GitHub untuk menyemak kemas kini."
     },
     "perms_page_about_content2": {
         "message": "Jangan percaya saya? FastStream mempunyai sumbernya tersedia di"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Menghantar sumber kepada pemain daripada skrip latar belakang."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Bertukar mesej dengan program selain Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Hanya untuk mpv: apabila video dihantar ke mpv, FastStream menyerahkannya kepada hos mpv FastStream pada komputer anda sendiri, yang membukanya dalam mpv. Tanpa hos itu, kebenaran ini tidak pernah digunakan."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Muat turun fail"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream menyimpan fail ke muat turun anda apabila anda memintanya: video, tangkapan skrin, fail sarikata atau tetapan yang anda eksport."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Akses API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Hanya untuk melihat kontena Firefox tempat sesuatu tab berada, supaya muat turun yang dimulakan dalam tab kontena berlaku dalam kontena yang sama. FastStream tidak pernah membaca, mengubah atau menghantar kuki anda."
     },
     "perms_page_granted": {
         "message": "Dibenarkan"

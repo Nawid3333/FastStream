@@ -93,7 +93,7 @@
         "message": "Agar ekstensi berfungsi, ia memerlukan beberapa izin. Izin-izin ini hanya digunakan untuk fungsionalitas dasar."
     },
     "perms_page_about_content1": {
-        "message": "FastStream tidak mengumpulkan data apa pun dari Anda. Ia tidak melacak Anda. Ia tidak mengirimkan data ke server mana pun. Bahkan tidak memiliki server untuk mengirim data."
+        "message": "FastStream tidak mengumpulkan data apa pun dari Anda dan tidak melacak Anda. FastStream tidak memiliki server sendiri. FastStream hanya terhubung ke situs yang videonya Anda putar, ke OpenSubtitles saat Anda mencari subtitle, dan ke GitHub untuk memeriksa pembaruan."
     },
     "perms_page_about_content2": {
         "message": "Tidak percaya? Sumber FastStream tersedia di"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Mengirim sumber ke pemutar dari skrip latar belakang."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Bertukar pesan dengan program selain Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Hanya untuk mpv: saat video dikirim ke mpv, FastStream menyerahkannya ke host mpv FastStream di komputer Anda sendiri, yang membukanya di mpv. Tanpa host itu, izin ini tidak pernah digunakan."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Mengunduh berkas"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream menyimpan berkas ke unduhan Anda saat Anda memintanya: video, tangkapan layar, berkas subtitle, atau pengaturan yang Anda ekspor."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Akses API cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Hanya untuk melihat kontainer Firefox tempat sebuah tab berada, agar unduhan yang dimulai di tab kontainer berlangsung di kontainer yang sama. FastStream tidak pernah membaca, mengubah, atau mengirim cookie Anda."
     },
     "perms_page_granted": {
         "message": "Diizinkan"

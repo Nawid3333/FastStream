@@ -93,7 +93,7 @@
         "message": "Para que la extensión funcione, necesita tener ciertos permisos. Estos permisos solo se utilizan para la funcionalidad básica."
     },
     "perms_page_about_content1": {
-        "message": "FastStream no recopila ningún dato de ti. No te rastrea. No envía ningún dato a ningún servidor. Ni siquiera tiene un servidor al que enviar datos."
+        "message": "FastStream no recopila ningún dato tuyo ni te rastrea. No tiene servidor propio. Solo se conecta a los sitios cuyos videos reproduces, a OpenSubtitles cuando buscas subtítulos y a GitHub para buscar actualizaciones."
     },
     "perms_page_about_content2": {
         "message": "¿No confías en mí? FastStream tiene su fuente disponible en"
@@ -160,6 +160,24 @@
     },
     "perms_page_breakdown_perm5r1": {
         "message": "Enviando fuentes a los reproductores desde el script de fondo."
+    },
+    "perms_page_breakdown_perm6h": {
+        "message": "Intercambiar mensajes con programas distintos de Firefox"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Solo para mpv: cuando un video va a mpv, FastStream lo entrega al host mpv de FastStream en tu propio ordenador, que lo abre en mpv. Sin ese host, este permiso nunca se usa."
+    },
+    "perms_page_breakdown_perm7h": {
+        "message": "Descargar archivos"
+    },
+    "perms_page_breakdown_perm7d": {
+        "message": "FastStream guarda archivos en tus descargas cuando se lo pides: un video, una captura de pantalla, un archivo de subtítulos o tu configuración exportada."
+    },
+    "perms_page_breakdown_perm8h": {
+        "message": "Accede a la API de cookies"
+    },
+    "perms_page_breakdown_perm8d": {
+        "message": "Solo para saber en qué contenedor de Firefox está una pestaña, de modo que una descarga iniciada en una pestaña contenedora se haga en ese mismo contenedor. FastStream nunca lee, cambia ni envía tus cookies."
     },
     "perms_page_granted": {
         "message": "Concedido"
