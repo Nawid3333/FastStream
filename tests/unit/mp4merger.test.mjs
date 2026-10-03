@@ -1,0 +1,104 @@
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {fragment, initSegment, videoTrack} from './helpers/fmp4.mjs';
+import {readMp4} from './helpers/mp4boxes.mjs';
+
+// The merger (MP4Merger), which joins a DASH or fMP4 HLS stream's fragments into one MP4
+// with mp4box (the patched npm build: see vitest.config.mjs), and the file it writes read
+// back box by box.
+
+vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
+  FSBlob: class {
+    constructor() {
+      // No OPFS: finalize() builds the file as a Blob.
+      this.opfsManager = null;
+    }
+    close() {}
+  },
+}));
+
+vi.mock('../../chrome/player/utils/BlobManager.mjs', () => ({
+  BlobManager: {
+    getDataFromBlob: async (blob) => blob.arrayBuffer(),
+  },
+}));
+
+const {MP4Merger} = await import('../../chrome/player/modules/dash2mp4/mp4merger.mjs');
+
+beforeEach(() => {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/**
+ * Merges a video-only stream and reads the file back.
+ * @param {Object} track from videoTrack()
+ * @param {Blob[]} fragments
+ * @param {number} duration in seconds
+ * @return {Promise<Object>} readMp4() of the file
+ */
+async function merge(track, fragments, duration) {
+  const zipped = fragments.map((data) => ({track: 0, getEntry: async () => ({getData: async () => data})}));
+  const blob = await new MP4Merger().convert(duration, initSegment(track), 0, null, zipped);
+  return readMp4(new Uint8Array(await blob.arrayBuffer()));
+}
+
+describe('MP4Merger: what it writes', () => {
+  it('writes negative composition offsets into a signed (version 1) ctts', async () => {
+    // A CMAF stream with B pictures: trun version 1, the reordered pictures shown before
+    // they are decoded. The ctts was always version 0, which is unsigned: -3000 read as
+    // 4294964296, nearly 13 hours at 90 kHz.
+    const track = videoTrack({timescale: 90000});
+    const samples = [
+      {duration: 3000, cts: 0, key: true},
+      {duration: 3000, cts: 3000},
+      {duration: 3000, cts: -3000},
+      {duration: 3000, cts: 3000},
+      {duration: 3000, cts: -3000},
+    ];
+    const {tracks} = await merge(track, [fragment(track, 1, 0, samples)], 15000 / 90000);
+
+    expect(tracks.vide.ctts.version).toBe(1);
+    expect(tracks.vide.ctts.offsets).toEqual(samples.map((sample) => sample.cts));
+  });
+
+  it('keeps a version 0 ctts when no offset is negative', async () => {
+    const track = videoTrack({timescale: 90000});
+    const samples = [
+      {duration: 3000, cts: 3000, key: true},
+      {duration: 3000, cts: 6000},
+      {duration: 3000, cts: 0},
+    ];
+    const {tracks} = await merge(track, [fragment(track, 1, 0, samples)], 9000 / 90000);
+
+    expect(tracks.vide.ctts.version).toBe(0);
+    expect(tracks.vide.ctts.offsets).toEqual([3000, 6000, 0]);
+  });
+
+  it('writes an edit longer than 2^32 ticks of the movie timescale in full', async () => {
+    // A 10 MHz video timescale (common in DASH made from Smooth Streaming) runs past 2^32
+    // after 7 minutes 9 s. The movie timescale is the video's, and the edit was 32-bit: an
+    // 8 minute save had an edit of 1 minute 10 s, and players that follow edit lists
+    // stopped there.
+    const timescale = 10000000;
+    const track = videoTrack({timescale});
+    const minute = 60 * timescale;
+    const samples = Array.from({length: 8}, (_, i) => ({duration: minute, cts: 0, key: i === 0}));
+    const {tracks} = await merge(track, [fragment(track, 1, 0, samples)], 8 * 60);
+
+    expect(tracks.vide.elst.version).toBe(1);
+    expect(tracks.vide.editEnd).toBe(8 * 60);
+    expect(tracks.vide.mediaEnd).toBe(8 * 60);
+  });
+
+  it('keeps a version 0 edit list when it fits', async () => {
+    const track = videoTrack({timescale: 90000});
+    const samples = [{duration: 3000, cts: 0, key: true}, {duration: 3000, cts: 0}];
+    const {tracks} = await merge(track, [fragment(track, 1, 0, samples)], 6000 / 90000);
+
+    expect(tracks.vide.elst.version).toBe(0);
+    expect(tracks.vide.editEnd).toBeCloseTo(6000 / 90000, 6);
+  });
+});

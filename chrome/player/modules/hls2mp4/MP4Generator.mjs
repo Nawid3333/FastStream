@@ -412,16 +412,25 @@ export class MP4 {
       }
     }
 
+    // FastStream: version 1 offsets are signed. MP4Merger copies a stream's offsets as they
+    // are, and CMAF packagers (ffmpeg's +negative_cts_offsets) make some negative: written
+    // into version 0, which is unsigned, -3000 read as 4294964296. Without a negative one
+    // the box stays version 0.
+    const version = composition_offsets.some((offset) => offset < 0) ? 1 : 0;
     const len = sample_counts.length;
     const table = new ArrayBuffer(len * 8 + 4 + 4);
     const view = new DataView(table);
-    view.setUint32(0, 0);
+    view.setUint32(0, version << 24);
     view.setUint32(4, len);
     let index = 8;
     for (let i = 0; i < len; i++) {
       view.setUint32(index, sample_counts[i]);
       index += 4;
-      view.setUint32(index, composition_offsets[i]);
+      if (version === 1) {
+        view.setInt32(index, composition_offsets[i]);
+      } else {
+        view.setUint32(index, composition_offsets[i]);
+      }
       index += 4;
     }
 
@@ -719,19 +728,32 @@ export class MP4 {
 
 
   static elst(segment_durations, media_times) {
-    const entries = new ArrayBuffer(8 + segment_durations.length * 12);
+    // FastStream: version 1 counts in 64 bits. The movie timescale is the first track's,
+    // and a DASH video track's can be 10 MHz: 32 bits ran out after 7 minutes, and the
+    // edit wrapped to a fraction of the media. An edit that fits stays version 0.
+    const wide = segment_durations.some((duration) => duration > UINT32_MAX) ||
+      media_times.some((time) => time > 0x7fffffff || time < -0x80000000);
+    const entrySize = wide ? 20 : 12;
+    const entries = new ArrayBuffer(8 + segment_durations.length * entrySize);
     const view = new DataView(entries);
 
 
-    view.setUint32(0, 0); // version and flags
+    view.setUint32(0, wide ? 1 << 24 : 0); // version and flags
     view.setUint32(4, segment_durations.length); // entry count
     let offset = 8;
 
     for (let i = 0; i < segment_durations.length; i++) {
-      view.setUint32(offset, segment_durations[i]);
-      offset += 4;
-      view.setInt32(offset, media_times[i]);
-      offset += 4;
+      if (wide) {
+        view.setBigUint64(offset, BigInt(segment_durations[i]));
+        offset += 8;
+        view.setBigInt64(offset, BigInt(media_times[i]));
+        offset += 8;
+      } else {
+        view.setUint32(offset, segment_durations[i]);
+        offset += 4;
+        view.setInt32(offset, media_times[i]);
+        offset += 4;
+      }
       view.setUint32(offset, 1 << 16);
       offset += 4;
     }
