@@ -866,6 +866,12 @@ kill-on-close job object: check that by hand after a change to the launch.
 silently stops being spliced — no error, wrong code ships. Stay on `.mjs`
 plus JSDoc.
 
+The code is `tools/splicer.mjs` (tests: `tests/unit/splicer.test.mjs`). A directive is
+a `//` comment that is exactly `SPLICER:<TARGET>:<COMMAND>`; any other `// SPLICER:`
+comment, unknown target or unknown command fails the build, and the text in a string or
+block comment is not a directive (#168). Everything else ships as written, blank lines
+included: until 2026-10-03 every blank line was dropped, inside template literals too.
+
 Targets: `EXTENSION`, `FIREFOX`, `WEB`, `NO_UPDATE_CHECKER`; no code carries a
 `FIREFOX` block any more, but both Firefox builds still pass it.
 (`CENSORYT` and `NO_YOUTUBE` existed before YouTube support was removed

@@ -60,6 +60,15 @@ describe('splice: the directives', () => {
     expect(splice(blockComment, 'WEB', 'x.mjs')).toBe(blockComment);
   });
 
+  it('keeps blank lines, so a multi-line string ships as written', () => {
+    // Every blank line used to be deleted, the ones inside template literals too: hls.js's
+    // getSequenceError message shipped one line short.
+    const text = 'a();\n\nconst message = `${head}\n\nPlaylist starting @${sn}`;\n\nb();\n';
+    expect(splice(text, 'WEB', 'x.mjs')).toBe(text);
+    const removed = 'a();\n\n// SPLICER:WEB:REMOVE_START\ngone();\n\n// SPLICER:WEB:REMOVE_END\nb();\n';
+    expect(splice(removed, 'WEB', 'x.mjs')).toBe('a();\n\nb();\n');
+  });
+
   it('still throws on an unmatched block', () => {
     expect(() => splice('// SPLICER:WEB:REMOVE_START\na();', 'WEB', 'x.mjs')).toThrow(/Unmatched/);
     expect(() => splice('a();\n// SPLICER:WEB:REMOVE_END', 'WEB', 'x.mjs')).toThrow(/Unmatched/);
@@ -99,6 +108,16 @@ describe('spliceAndCopy', () => {
       fs.writeFileSync(path.join(tmp, 'src', name), text);
     }
   };
+  const built = (name) => fs.readFileSync(path.join(tmp, 'out', name), 'utf8');
+
+  it('ships a script without directives exactly as written', () => {
+    const text = '// header\n\nexport const a = 1;\n\nconst s = `x\n\n  \ny`;\n';
+    source({'a.mjs': text, 'b.js': 'a(); // SPLICER:WEB:REMOVE_LINE\nb();\n', 'c.mjs': 'no newline at the end'});
+    spliceAndCopy(path.join(tmp, 'src'), path.join(tmp, 'out'), ['WEB']);
+    expect(built('a.mjs')).toBe(text);
+    expect(built('b.js')).toBe('b();\n');
+    expect(built('c.mjs')).toBe('no newline at the end\n');
+  });
 
   it('ships nothing for a removed file', () => {
     source({'gone.mjs': '// SPLICER:WEB:REMOVE_FILE\ncode();\n'});

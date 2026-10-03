@@ -45,7 +45,7 @@ export function splice(fileText, target, relativePath) {
     throw new Error(`Unknown SPLICER target ${target}: add it to TARGETS in tools/splicer.mjs`);
   }
   const lines = fileText.split('\n');
-  let newLines = [];
+  const newLines = [];
   let inSplicerRemove = false;
   let removedLines = 0;
 
@@ -145,10 +145,8 @@ export function splice(fileText, target, relativePath) {
     throw new Error('Unmatched SPLICER');
   }
 
-  newLines = newLines.filter((line) => {
-    return line.trim().length;
-  });
-
+  // Blank lines stay. Every one used to be dropped, those inside a template literal too,
+  // which changed the string (#168); a removed line or block leaves none behind anyway.
   return newLines.join('\n');
 }
 
@@ -177,7 +175,7 @@ export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFi
 
           if (spliced.length) {
             fs.mkdirSync(path.dirname(targetPath), {recursive: true});
-            fs.writeFileSync(targetPath, spliced + '\n');
+            fs.writeFileSync(targetPath, spliced.endsWith('\n') ? spliced : spliced + '\n');
           }
         } else {
           fs.mkdirSync(path.dirname(targetPath), {recursive: true});

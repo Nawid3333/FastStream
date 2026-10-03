@@ -96,7 +96,10 @@ file times.
 ### The splicer
 
 `build.mjs` preprocesses sources using `SPLICER:<TARGET>:` comments embedded
-in the code. For the AMO target the active tags are:
+in the code (`tools/splicer.mjs`). Apart from the lines those comments remove or
+insert, every script ships as it is in the tree (a missing final newline is
+added). For the AMO target the
+active tags are:
 
 ```
 EXTENSION  FIREFOX  NO_UPDATE_CHECKER
