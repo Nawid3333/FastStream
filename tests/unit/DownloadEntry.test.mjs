@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../../chrome/player/network/DownloadEntry.mjs';
 
@@ -37,6 +37,11 @@ function watchers() {
 }
 
 describe('DownloadEntry watchers', () => {
+  // Also after a failed test: a spy left behind would silence the later tests.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const cases = {
     onSuccess: (entry) => entry.onSuccess({data: new ArrayBuffer(4), url: entry.url}, {}),
     onFail: (entry) => entry.onFail({}),
@@ -56,7 +61,6 @@ describe('DownloadEntry watchers', () => {
       // Cleaned up: no downloader or watcher left on it.
       expect(entry.downloader).toBe(null);
       expect(entry.watchers).toEqual([]);
-      vi.restoreAllMocks();
     });
   }
 });

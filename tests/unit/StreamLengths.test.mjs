@@ -320,10 +320,13 @@ describe('StreamLengths', () => {
     const fetch = (url) => new Promise((resolve) => gates.push(() => resolve(new Response('', {status: 404}))));
     const lengths = new StreamLengths({fetch});
     const probes = Array.from({length: 6}, (_, i) => lengths.probe({url: `https://cdn.example/${i}.m3u8`, mode: HLS}));
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    // Everything the probes do before their next fetch is promise work, which is all done
+    // by the next turn of the event loop: no real time needs to pass.
+    const nextTurn = () => new Promise((resolve) => setImmediate(resolve));
+    await nextTurn();
     expect(gates).toHaveLength(4);
     gates.splice(0).forEach((open) => open());
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await nextTurn();
     expect(gates).toHaveLength(2);
     gates.splice(0).forEach((open) => open());
     expect(await Promise.all(probes)).toEqual([null, null, null, null, null, null]);

@@ -1,4 +1,4 @@
-import {describe, expect, it, vi} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DASHLoaderFactory as dashLoaderFactory} from '../../chrome/player/players/dash/DashLoader.mjs';
 
 // DashLoader hands dash.js's requests to FastStream's download manager, passing each URL
@@ -33,6 +33,11 @@ function loadManifest(url) {
   expect(getFile).toHaveBeenCalledTimes(1);
   return getFile.mock.calls[0][0];
 }
+
+// A spy a failed test left behind would silence the files' later tests.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('DashLoader URLs', () => {
   it('requests a URL with a lone % as it is', () => {
@@ -124,10 +129,9 @@ describe('DashLoader, a segment that keeps failing', () => {
     player.client.getFragment = () => {
       throw new Error('store gone');
     };
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const request = segmentRequest();
     dashLoaderFactory(player)().load(request);
-    error.mockRestore();
     expect(request.customData.onFail).toHaveBeenCalledTimes(1);
   });
 });

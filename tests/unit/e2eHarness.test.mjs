@@ -103,6 +103,14 @@ describe('decodePath', () => {
 });
 
 describe('sendFile', () => {
+  // Also after a failed test: a spy or a folder left behind.
+  let dir;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    if (dir) fs.rmSync(dir, {recursive: true, force: true});
+    dir = null;
+  });
+
   it('ends the response, not the process, when the file cannot be read', async () => {
     const res = new PassThrough();
     const destroyed = new Promise((resolve) => res.on('close', resolve));
@@ -111,11 +119,11 @@ describe('sendFile', () => {
     await destroyed;
     expect(res.destroyed).toBe(true);
     expect(error).toHaveBeenCalledWith(expect.stringContaining('could not read'));
-    error.mockRestore();
   });
 
   it('sends the range asked for', async () => {
-    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'send-')), 'f.bin');
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'send-'));
+    const file = path.join(dir, 'f.bin');
     fs.writeFileSync(file, '0123456789');
     const res = new PassThrough();
     const chunks = [];
@@ -124,6 +132,5 @@ describe('sendFile', () => {
     sendFile(res, file, {start: 7, end: 9});
     await ended;
     expect(Buffer.concat(chunks).toString()).toBe('789');
-    fs.rmSync(path.dirname(file), {recursive: true, force: true});
   });
 });
