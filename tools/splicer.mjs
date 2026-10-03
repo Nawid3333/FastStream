@@ -156,18 +156,17 @@ export function spliceAndCopy(sourceDir, buildDir, spliceTargets = [], excludeFi
         const fileExtension = path.extname(file);
         const relativePath = path.relative(sourceDir, file);
         const targetPath = path.resolve(buildDir, relativePath);
-        const fileText = fs.readFileSync(file, 'utf8');
 
-        // See if exclude files shares a prefix with the file
-        for (let i = 0; i < excludeFiles.length; i++) {
-          const excludeFile = excludeFiles[i];
-          if (relativePath.startsWith(excludeFile)) {
-            return;
-          }
+        // An entry names a file or a directory, by whole path segments: as a plain prefix,
+        // 'background' also left out a backgroundAudio.mjs (#175).
+        const relative = relativePath.split(path.sep).join('/');
+        if (excludeFiles.some((exclude) => relative === exclude || relative.startsWith(exclude + '/'))) {
+          return;
         }
 
         if (fileExtension === '.mjs' || fileExtension === '.js') {
-          let spliced = fileText;
+          // Only scripts are read as text: every wasm, model and image was too, for nothing (#174).
+          let spliced = fs.readFileSync(file, 'utf8');
 
           spliceTargets.forEach((target) => {
             spliced = splice(spliced, target, relativePath);

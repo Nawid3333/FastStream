@@ -124,4 +124,35 @@ describe('spliceAndCopy', () => {
     spliceAndCopy(path.join(tmp, 'src'), path.join(tmp, 'out'), ['WEB']);
     expect(fs.existsSync(path.join(tmp, 'out', 'gone.mjs'))).toBe(false);
   });
+
+  it('leaves out what the exclusion list names, by whole path segments', () => {
+    // As a plain prefix, 'background' also dropped a root-level backgroundAudio.mjs (#175).
+    source({
+      'background/worker.mjs': 'a();\n',
+      'backgroundAudio.mjs': 'b();\n',
+      'custom/site.js': 'c();\n',
+      'customElements.mjs': 'd();\n',
+      'icon16.png': 'png',
+      'icon16.png.txt': 'notes',
+      'player/background.mjs': 'e();\n',
+      'player/skip/x.mjs': 'f();\n',
+      'player/skipped.mjs': 'g();\n',
+    });
+    spliceAndCopy(path.join(tmp, 'src'), path.join(tmp, 'out'), ['WEB'], ['background', 'custom', 'icon16.png', 'player/skip']);
+    const shipped = (name) => fs.existsSync(path.join(tmp, 'out', name));
+    expect(['background/worker.mjs', 'custom/site.js', 'icon16.png', 'player/skip/x.mjs'].filter(shipped)).toEqual([]);
+    expect(['backgroundAudio.mjs', 'customElements.mjs', 'icon16.png.txt', 'player/background.mjs', 'player/skipped.mjs']
+        .filter((name) => !shipped(name))).toEqual([]);
+  });
+
+  it('reads only the scripts as text, and copies everything else as bytes', () => {
+    // The wasm, the onnx model and the images were each decoded as UTF-8 and thrown away (#174).
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0xc3]);
+    source({'a.mjs': 'a();\n', 'img/icon.png': binary, 'skip.wasm': binary});
+    const reads = vi.spyOn(fs, 'readFileSync');
+    spliceAndCopy(path.join(tmp, 'src'), path.join(tmp, 'out'), ['WEB'], ['skip.wasm']);
+    const read = reads.mock.calls.map(([file]) => path.relative(path.join(tmp, 'src'), String(file)).split(path.sep).join('/'));
+    expect(read).toEqual(['a.mjs']);
+    expect(fs.readFileSync(path.join(tmp, 'out', 'img', 'icon.png')).equals(binary)).toBe(true);
+  });
 });
