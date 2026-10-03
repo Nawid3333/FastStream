@@ -28,6 +28,33 @@ export class FrameHolder {
      * @type {?string}
      */
     this.documentKey = null;
+    /**
+     * What sendSources last handed a player in a frame inside this one (noteHandedToPlayer).
+     * @type {?{frameId: number, subtitles: Array<Object>, sources: Array<Object>, video: ?Object}}
+     */
+    this.handedToPlayer = null;
+  }
+
+  /**
+   * Keeps what a player in a frame inside this one was handed (sendSources), for that
+   * player loading again in its frame ("Reload Frame" on it): sendSources takes what it
+   * hands out of the frames, so the player asked again and got nothing.
+   * @param {number} playerFrameId - The player's frame.
+   * @param {{subtitles: Array<Object>, sources: Array<Object>, video: ?Object}} handed - What
+   *   it was handed.
+   */
+  noteHandedToPlayer(playerFrameId, handed) {
+    this.handedToPlayer = {frameId: playerFrameId, ...handed};
+  }
+
+  /**
+   * What noteHandedToPlayer kept for a player's frame.
+   * @param {number} playerFrameId - The player's frame.
+   * @return {?{frameId: number, subtitles: Array<Object>, sources: Array<Object>, video: ?Object}}
+   *   Null when the last player handed sources here was in another frame.
+   */
+  handedTo(playerFrameId) {
+    return this.handedToPlayer && this.handedToPlayer.frameId === playerFrameId ? this.handedToPlayer : null;
   }
 
   removeChildFrame(childFrame) {

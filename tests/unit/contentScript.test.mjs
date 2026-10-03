@@ -325,3 +325,18 @@ describe('the soft replace turning hard', () => {
     expect(wrap.isConnected).toBe(true);
   });
 });
+
+// "This Frame > Reload Frame" on the player loads its page again in the same frame, which
+// links up with the same iframe again. The new entry had nothing to give back, so leaving
+// the page kept the page's element hidden and its media paused for good (#288).
+describe('a player that loads again in its frame', () => {
+  it('still gives the page its element back when the player goes', async () => {
+    const {page, wrap, video, iframe} = await pageWithPlayer();
+    await linkPlayer(page, iframe, 5);
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(iframe.isConnected).toBe(false);
+    expect(wrap.style.width).toBe('');
+    expect(wrap.id).toBe('wrap');
+    expect(video.listeners.filter((l) => l.type === 'play')).toEqual([]);
+  });
+});

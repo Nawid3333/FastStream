@@ -1616,6 +1616,29 @@ function collectSources(frame, remove = false) {
 async function sendSources(frame) {
   const continuationOptions = frame.tab.continuationOptions;
   frame.tab.continuationOptions = null;
+  const send = (subtitles, sources, video) => {
+    chrome.tabs.sendMessage(frame.tab.tabId, {
+      type: MessageTypes.SOURCES,
+      subtitles: subtitles,
+      sources: sources,
+      video,
+      autoSetSource: true,
+      continuationOptions: continuationOptions,
+    }, {
+      frameId: frame.frameId,
+    }, () => {
+      BackgroundUtils.checkMessageError('sources');
+    });
+  };
+
+  // A player loading again in its frame ("Reload Frame" on it) gets what its first load
+  // got: that was taken out of the page's frames (collectSources), and it sat on the
+  // welcome screen with nothing.
+  const handed = frame.parent ? frame.parent.handedTo(frame.frameId) : null;
+  if (handed && collectSources(frame).sources.length === 0) {
+    send(handed.subtitles, handed.sources, handed.video);
+    return;
+  }
 
   // The player plays the one the page's video played, or the longest of them: a little
   // time for the lengths still being read. The video is asked about after that, when the
@@ -1642,18 +1665,10 @@ async function sendSources(frame) {
     source.duration = lengths[i];
   });
 
-  chrome.tabs.sendMessage(frame.tab.tabId, {
-    type: MessageTypes.SOURCES,
-    subtitles: subtitles,
-    sources: sources,
-    video,
-    autoSetSource: true,
-    continuationOptions: continuationOptions,
-  }, {
-    frameId: frame.frameId,
-  }, () => {
-    BackgroundUtils.checkMessageError('sources');
-  });
+  if (frame.parent && sources.length) {
+    frame.parent.noteHandedToPlayer(frame.frameId, {subtitles, sources, video});
+  }
+  send(subtitles, sources, video);
 }
 
 async function scrapeCaptionsTags(frame) {

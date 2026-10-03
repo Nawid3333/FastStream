@@ -489,3 +489,36 @@ describe('restoredFromCache', () => {
     expect(main.restoredFromCache).toBe(false);
   });
 });
+
+// "Reload Frame" on the player loads it again in the same frame, and it asks for its
+// sources again; sendSources had taken them out of the page's frames, so it got none and
+// sat on the welcome screen (#288). The page's frame keeps what it handed the player.
+describe('handedTo', () => {
+  /**
+   * A page frame (1) whose player (frame 2) was handed a stream.
+   * @return {{tab: Object, page: Object}}
+   */
+  function pageThatHanded() {
+    const tab = new TabTracker().getTabOrCreate(7);
+    const page = tab.getFrameOrCreate(1);
+    page.noteHandedToPlayer(2, {subtitles: [], sources: [{url: 'https://cdn.example.com/a.m3u8'}], video: null});
+    return {tab, page};
+  }
+
+  it('gives a player in the same frame what the last one there was handed', () => {
+    const {page} = pageThatHanded();
+    expect(page.handedTo(2).sources).toEqual([{url: 'https://cdn.example.com/a.m3u8'}]);
+  });
+
+  it('gives a player in another frame nothing', () => {
+    // A new player is a new iframe, so a new frame: it gets what the page has now.
+    const {page} = pageThatHanded();
+    expect(page.handedTo(3)).toBeNull();
+  });
+
+  it('forgets it when another page comes in the frame', () => {
+    const {page} = pageThatHanded();
+    page.resetSelfAndChildren();
+    expect(page.handedTo(2)).toBeNull();
+  });
+});

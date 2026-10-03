@@ -212,6 +212,11 @@
 
         if (oldFrameObj.iframe !== iframeElement) {
           iframeElement.addEventListener('load', frameLoadListener);
+        } else if (!newFrameObj.replacedData) {
+          // The same iframe again: its player loaded anew ("Reload Frame" on it). It still
+          // stands in for the page's element, which only the old entry knew how to give
+          // back: removePlayers left that element hidden, and its media paused, for good.
+          newFrameObj.replacedData = oldFrameObj.replacedData;
         }
       } else {
         iframeElement.addEventListener('load', frameLoadListener);
