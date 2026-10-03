@@ -31,6 +31,19 @@ describe('tools/linux/setup.sh', () => {
     expect(setup).toMatch(/image_files https:\/\/ghcr\.io\/v2\/zizmorcore\/zizmor "\$token" "\$digest" \/opt\/zizmor usr\/bin\/zizmor/);
     expect(setup).toContain('ln -sf /opt/zizmor/zizmor /usr/local/bin/zizmor');
   });
+
+  it('installs Firefox only after Mozilla\'s signed SHA512SUMS vouches for it (#248)', () => {
+    // verify_signed_sum itself: tests/workflows/linux-firefox-signature.test.sh.
+    const setup = commands('tools/linux/setup.sh');
+    // Mozilla Software Releases <release@mozilla.com>, as read from its KEY files (2026-10-03).
+    expect(setup).toMatch(/^mozilla_key=14F26682D0916CDD81E37B6D61B7B526D98F0353$/m);
+    expect(setup).toContain('for f in SHA512SUMS SHA512SUMS.asc KEY; do curl -fsSL -o "$tmp/$f" "$release/$f"; done');
+    const check = setup.indexOf('verify_signed_sum "$tmp" "linux-x86_64/en-US/firefox-$ff_want.tar.xz" "$tmp/firefox.tar.xz" "$mozilla_key"');
+    expect(check).toBeGreaterThan(0);
+    expect(check).toBeLessThan(setup.indexOf('tar -xJf "$tmp/firefox.tar.xz" -C /opt'));
+    expect(setup).not.toContain('SHA256SUMS');
+    expect(setup).toMatch(/^for pkg in [^;]*\bgpg\b/m);
+  });
 });
 
 describe('tools/linux/verify.sh', () => {

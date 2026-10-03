@@ -27,7 +27,7 @@ upgrades=$(apt-get -s full-upgrade | grep -c '^Inst' || true)
 need_apt=()
 # libatomic1: Node 26's binary needs libatomic.so.1, which a WSL Ubuntu lacks and the
 # runner image has; without it every `node` fails to start.
-for pkg in ffmpeg rsync git curl xz-utils bzip2 ca-certificates jq libatomic1 \
+for pkg in ffmpeg rsync git curl xz-utils bzip2 ca-certificates jq gpg libatomic1 \
     libgtk-3-0t64 libasound2t64 libdbus-glib-1-2 libx11-xcb1 libxtst6 libpci3 libegl1; do
   dpkg -s "$pkg" > /dev/null 2>&1 || need_apt+=("$pkg")
 done
@@ -77,17 +77,62 @@ fi
 for bin in pnpm pnpx; do ln -sf "/opt/node/bin/$bin" "/usr/local/bin/$bin"; done
 [ -e /usr/local/bin/corepack ] || rm -f /usr/local/bin/corepack
 
-# The current stable Firefox, from Mozilla, when product-details names a newer one.
+# verify_signed_sum <dir> <name> <file> <fingerprint>: checks <file> against the SHA-512 that
+# <dir>/SHA512SUMS lists for <name>, once <dir>/SHA512SUMS.asc has proven a good signature on
+# that list by the key in <dir>/KEY, and KEY has proven to hold that one primary key and no
+# other. gpg reads KEY into a throwaway home, never a keyring of this machine's, and starts no
+# agent. Any failure says what failed and returns 1, which stops setup.
+verify_signed_sum() {
+  local dir=$1 name=$2 file=$3 fingerprint=$4 home primaries status want got
+  home=$(mktemp -d)
+  primaries=$(gpg --homedir "$home" --batch --no-autostart --show-keys --with-colons "$dir/KEY" 2> /dev/null |
+    awk -F: '$1 == "pub" { pub = 1; next } pub && $1 == "fpr" { print $10; pub = 0 }' || true)
+  if [ "$primaries" != "$fingerprint" ]; then
+    echo "$dir/KEY: primary key(s) ${primaries//$'\n'/ }, not the pinned $fingerprint"
+    rm -rf "$home"
+    return 1
+  fi
+  # GOODSIG: a good signature by a key that is neither expired nor revoked.
+  if ! gpg --homedir "$home" --batch --no-autostart --quiet --import "$dir/KEY" 2> /dev/null ||
+    ! status=$(gpg --homedir "$home" --batch --no-autostart --status-fd 1 \
+      --verify "$dir/SHA512SUMS.asc" "$dir/SHA512SUMS" 2> /dev/null) ||
+    ! grep -q '^\[GNUPG:\] GOODSIG ' <<< "$status"; then
+    echo "$dir/SHA512SUMS.asc: not a good signature by $fingerprint"
+    grep -E '^\[GNUPG:\] [A-Z]*(SIG|PUBKEY)' <<< "${status:-}" || true
+    rm -rf "$home"
+    return 1
+  fi
+  rm -rf "$home"
+  want=$(awk -v name="$name" '$2 == name { print $1 }' "$dir/SHA512SUMS")
+  if [ -z "$want" ] || [ "$(wc -l <<< "$want")" -ne 1 ]; then
+    echo "$dir/SHA512SUMS: lists $name $(grep -c . <<< "$want") times, not once"
+    return 1
+  fi
+  got=$(sha512sum "$file" | cut -d' ' -f1)
+  if [ "$got" != "$want" ]; then
+    echo "$file: SHA-512 $got, but the signed SHA512SUMS says $want"
+    return 1
+  fi
+}
+
+# The current stable Firefox, from Mozilla, when product-details names a newer one. Its
+# SHA-512 comes from the SHA512SUMS that Mozilla's release key signs (#248): a sum from the
+# same server alone proved nothing. The key is pinned by its primary fingerprint, read from
+# the KEY files of Firefox 60.0, 115.0, 140.0esr and 157.0 and from keyserver.ubuntu.com
+# (2026-10-03, all the same): Mozilla Software Releases <release@mozilla.com>, 2015. Its
+# signing subkeys change every two years or so; KEY brings the current one. Should Mozilla
+# ever replace the primary key itself, setup stops naming both: check the new one the same
+# way before changing this line.
+mozilla_key=14F26682D0916CDD81E37B6D61B7B526D98F0353
 ff_want=$(curl -fsSL https://product-details.mozilla.org/1.0/firefox_versions.json | jq -r .LATEST_FIREFOX_VERSION)
 ff_have=$(/opt/firefox/firefox --version 2>/dev/null | awk '{print $3}' || true)
 if [ "$ff_have" != "$ff_want" ]; then
   echo "firefox: $ff_want"
   tmp=$(mktemp -d)
-  curl -fsSL -o "$tmp/firefox.tar.xz" \
-    "https://download-installer.cdn.mozilla.net/pub/firefox/releases/$ff_want/linux-x86_64/en-US/firefox-$ff_want.tar.xz"
-  curl -fsSL "https://download-installer.cdn.mozilla.net/pub/firefox/releases/$ff_want/SHA256SUMS" |
-    grep " linux-x86_64/en-US/firefox-$ff_want.tar.xz\$" | awk '{print $1 "  firefox.tar.xz"}' > "$tmp/sum"
-  (cd "$tmp" && sha256sum -c sum > /dev/null)
+  release=https://download-installer.cdn.mozilla.net/pub/firefox/releases/$ff_want
+  curl -fsSL -o "$tmp/firefox.tar.xz" "$release/linux-x86_64/en-US/firefox-$ff_want.tar.xz"
+  for f in SHA512SUMS SHA512SUMS.asc KEY; do curl -fsSL -o "$tmp/$f" "$release/$f"; done
+  verify_signed_sum "$tmp" "linux-x86_64/en-US/firefox-$ff_want.tar.xz" "$tmp/firefox.tar.xz" "$mozilla_key"
   rm -rf /opt/firefox
   tar -xJf "$tmp/firefox.tar.xz" -C /opt
   rm -rf "$tmp"

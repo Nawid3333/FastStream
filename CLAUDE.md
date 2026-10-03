@@ -1013,7 +1013,9 @@ the change went in.
   date, as a freshly built runner image is: `tools/linux/setup.sh` runs apt update +
   full-upgrade, installs the newest release of the Node major `.nvmrc` names
   (so it moves with CI) with the `packageManager` pnpm through its npm (not corepack, which
-  Node 25+ lacks; Node 26 also needs apt's libatomic1, #238), and the current stable Firefox, apt ffmpeg
+  Node 25+ lacks; Node 26 also needs apt's libatomic1, #238), and the current stable Firefox
+  (its SHA-512 from the SHA512SUMS Mozilla's release key signs, the key pinned by fingerprint
+  in setup.sh, #248; Node's sum is still only from nodejs.org itself), apt ffmpeg
   with libx264, and the actionlint and shellcheck binaries out of the image digest
   `.github/actionlint/Dockerfile` pins (apt's shellcheck is 0.9.0 on 24.04, the image's 0.11.0),
   and zizmor's out of the one `.github/zizmor/Dockerfile` pins (#239). Then
