@@ -260,13 +260,20 @@ export class Utils {
    * stays a minute.
    * @param {string} url - The blob: URL.
    * @param {*} download - What downloadURL resolved with: the download's id, or not.
+   * @return {Promise<void>} Settles once the URL is revoked: whatever else the download
+   *     reads from (a save's OPFS session) can be let go then too.
    */
   static revokeWhenDownloaded(url, download) {
-    const revoke = () => URL.revokeObjectURL(url);
+    let revoked;
+    const over = new Promise((resolve) => (revoked = resolve));
+    const revoke = () => {
+      URL.revokeObjectURL(url);
+      revoked();
+    };
     const downloads = globalThis.chrome?.downloads;
     if (typeof download !== 'number' || !downloads?.onChanged || !downloads.search) {
       setTimeout(revoke, 60000);
-      return;
+      return over;
     }
     let done = false;
     const finish = () => {
@@ -288,6 +295,7 @@ export class Utils {
     downloads.search({id: download}).then(([item]) => {
       if (!item || item.state !== 'in_progress') finish();
     }).catch(finish);
+    return over;
   }
 
   /**

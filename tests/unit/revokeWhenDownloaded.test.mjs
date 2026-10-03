@@ -46,6 +46,17 @@ describe('Utils.revokeWhenDownloaded', () => {
     expect(listeners.size).toBe(0);
   });
 
+  it('says when it has revoked it, so a save can let go of its file then too', async () => {
+    items.set(7, {id: 7, state: 'in_progress'});
+    let over = false;
+    Utils.revokeWhenDownloaded('blob:a', 7).then(() => (over = true));
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(over).toBe(false);
+    change({id: 7, state: {current: 'complete'}});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(over).toBe(true);
+  });
+
   it('revokes it when the download was interrupted', async () => {
     items.set(7, {id: 7, state: 'in_progress'});
     Utils.revokeWhenDownloaded('blob:a', 7);
