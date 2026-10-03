@@ -512,6 +512,16 @@ export default class HLSPlayer extends EventEmitter {
     return this.video.duration;
   }
 
+  /**
+   * Whether the stream is live. Its duration does not say so: with liveDurationInfinity off,
+   * hls.js makes it the end of the live window, not Infinity.
+   * @return {boolean}
+   */
+  get isLive() {
+    const level = this.hls.levels[this.hls.currentLevel === -1 ? this.hls.loadLevel : this.hls.currentLevel];
+    return !!level?.details?.live;
+  }
+
   get currentFragment() {
     if (!this.hls.streamController.currentFrag) return null;
     return this.client.getFragment(this.getIdentifier(0, this.hls.streamController.currentFrag.level), this.hls.streamController.currentFrag.sn);

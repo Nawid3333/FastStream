@@ -492,10 +492,9 @@ export class FastStreamClient extends EventEmitter {
     this.state.currentTime = time;
     this.interfaceController.timeUpdated();
 
-    // Not for a live stream (an infinite duration): its times mean nothing the next time it
-    // is opened.
+    // Not for a live stream: its times mean nothing the next time it is opened.
     if (this.options.storeProgress && this.progressData && time !== this.progressData.lastTime && !this.disableProgressSave &&
-      Number.isFinite(this.duration)) {
+      !this.isLive()) {
       const now = Date.now();
       if (now - this.lastProgressSave > 1000) {
         this.lastProgressSave = now;
@@ -998,9 +997,9 @@ export class FastStreamClient extends EventEmitter {
           this.setSeekSave(true);
         } else if (this.options.storeProgress && this.progressData && !this.options.disableLoadProgress) {
           const lastTime = this.progressData.lastTime;
-          // A live stream's duration is Infinity, before which every time is: it was sought
-          // to where it was left, far outside its live window by the next day.
-          if (lastTime && Number.isFinite(this.duration) && lastTime < this.duration - 5) {
+          // Not a live stream: a DASH one's duration is Infinity, before which every time is,
+          // and it was sought to where it was left, far outside its live window by the next day.
+          if (lastTime && !this.isLive() && lastTime < this.duration - 5) {
             this.setSeekSave(false);
             this.currentTime = lastTime;
             this.setSeekSave(true);
@@ -1970,6 +1969,15 @@ export class FastStreamClient extends EventEmitter {
    */
   get duration() {
     return this.player?.duration || 0;
+  }
+
+  /**
+   * Whether the video is a live stream. dash.js gives one an infinite duration; hls.js, as
+   * HLSPlayer sets it up, the end of its live window, so HLSPlayer says it itself.
+   * @return {boolean}
+   */
+  isLive() {
+    return !Number.isFinite(this.duration) || !!this.player?.isLive;
   }
 
   /**

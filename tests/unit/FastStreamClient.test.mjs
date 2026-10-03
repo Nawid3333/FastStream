@@ -362,6 +362,33 @@ describe('FastStreamClient, remembered times', () => {
     expect(player.seeks).not.toContain(3600);
   });
 
+  it('does not seek a live HLS stream either, whose duration is the end of its window', async () => {
+    // hls.js, as HLSPlayer sets it up, gives a live stream a finite duration that grows:
+    // only the player can say it is live.
+    const client = makeClient({storeProgress: true});
+    client.progressMemory = makeProgressMemory({lastTime: 60});
+    const player = await setSource(client, makeSource('http://127.0.0.1/live.m3u8'), (made) => {
+      made.duration = 120;
+      made.isLive = true;
+    });
+    expect(player.seeks).not.toContain(60);
+  });
+
+  it('does not remember a time for a live HLS stream', () => {
+    const client = makeClient({storeProgress: true});
+    client.progressMemory = makeProgressMemory(null);
+    client.progressHashesCache = ['h1', 'h2'];
+    client.progressData = {lastTime: 0};
+    client.lastProgressSave = 0;
+    client.player = new FakePlayer(makeSource('http://127.0.0.1/live.m3u8'));
+    client.player.duration = 120;
+    client.player.isLive = true;
+
+    client.updateTime(100);
+
+    expect(client.progressMemory.setFile).not.toHaveBeenCalled();
+  });
+
   it('still seeks a video to the time it was left at', async () => {
     const client = makeClient({storeProgress: true});
     client.progressMemory = makeProgressMemory({lastTime: 30});
