@@ -115,7 +115,7 @@ perform the same steps by hand instead of running the script.
 The script does **not**: run anything as admin, modify `PATH`, install
 software, start any background process, make network connections, or touch
 anything outside `%LOCALAPPDATA%\FastStreamMpvHost` and the one
-`NativeMessagingHosts` registry key listed above. Read it — it is about 80
+`NativeMessagingHosts` registry key listed above. Read it — it is about 110
 lines, commented, one action per block.
 
 ### Option B — manual setup (any OS, no script)

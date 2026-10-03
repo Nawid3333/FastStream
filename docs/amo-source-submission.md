@@ -155,9 +155,11 @@ pnpm run verify
 This runs eslint, TypeScript type-checking, unit tests, all three builds
 (the GitHub zip, the AMO build and the web player), addons-linter against
 both Firefox targets, browser end-to-end tests (WebDriver + Firefox),
-extension-loaded end-to-end tests (including the VAD reference check,
-`tests/e2e/ext-specs/vad.e2e.mjs`), and the VAD model hash check
-(`pnpm run verify:vad`).
+extension-loaded end-to-end tests on the AMO build and on the GitHub build
+(including the VAD reference check, `tests/e2e/ext-specs/vad.e2e.mjs`), the
+extension in private windows (`test:pbm`), and the provenance checks
+`verify:vtt`, `verify:knob`, `verify:vad` and `verify:fsaunpack` (the
+archive-unpacking helper outside the extension).
 
 The end-to-end tests require a Firefox binary and will download WebDriver
 components on first run; they are not needed to reproduce the package.

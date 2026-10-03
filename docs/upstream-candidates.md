@@ -291,7 +291,9 @@ this file. Worth filing that issue before offering C8.
 - **Depends on:** a real toolchain (emsdk + autotools) to run - it is a
   by-hand reproduction, not a `pnpm run` target, the same shape as the ONNX
   Runtime rebuild command in `docs/vendored-libraries.md`.
-- **Status:** `queued`
+- **Status:** `dropped` — the re-encoder, libsamplerate's wasm and this script
+  left the tree on 2026-10-01 (#101: saves copy the streams as they are), so
+  there is nothing left to reproduce.
 
 ## C10b. VAD model provenance, verified rather than generated
 
@@ -311,7 +313,7 @@ this file. Worth filing that issue before offering C8.
   them in the extension.
 - **Status:** `done` (2026-09-30)
 
-## C10c. knob provenance, verified rather than generated
+## C10d. knob provenance, verified rather than generated
 
 - **What:** `tools/verify-knob.mjs` and `pnpm run verify:knob`. jherrm/knobs
   has no `package.json` and no npm release, so `knob.mjs` cannot be generated.
@@ -435,10 +437,10 @@ with every other PR here, and it violates the rule this queue is built
 on — that he can integrate one change at a time and still have a working
 program.
 
-**3. It buys the least where this fork is weakest.** The open problems are
-libsamplerate's laptop-built wasm and knob's provenance; the ONNX Runtime
-blobs were settled on 2026-09-30 (stock `onnxruntime-web@1.30.0` files).
-A framework does nothing for either. What it offers is a
+**3. It buys the least where this fork is weakest.** The open problem was
+provenance: knob's is verified now (`verify:knob`), libsamplerate's wasm left
+with the re-encoder, and the ONNX Runtime blobs were settled on 2026-09-30
+(stock `onnxruntime-web@1.30.0` files). A framework does nothing for any of it. What it offers is a
 faster dev loop, and `pnpm run start:ff` already covers that.
 
 None of this is an argument that WXT is bad. It is a good framework, and for
