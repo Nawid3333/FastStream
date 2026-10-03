@@ -151,8 +151,11 @@ describe('Options page search box', function() {
     }, query);
     const zoom = await shownSections('zoom');
     console.log('      sections shown for "zoom":', JSON.stringify(zoom));
+    // The keybinds section rightly stays: its Zoom In Video, Zoom Out Video and Zoom Reset
+    // rows match.
     expect(zoom).toContain('video');
-    for (const section of ['keybinds', 'autourl', 'patterns', 'mpv', 'export', 'help']) {
+    expect(zoom).toContain('keybinds');
+    for (const section of ['autourl', 'patterns', 'mpv', 'export', 'help']) {
       expect(zoom).not.toContain(section);
     }
     const help = await browser.execute(() => document.querySelector('[data-search-section="help"] h1').textContent);
