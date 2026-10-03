@@ -427,3 +427,41 @@ describe('restoredFromCache', () => {
     expect(main.restoredFromCache).toBe(false);
   });
 });
+
+// A request's headers wait for its response by request id, which is unique in the session:
+// on the tab, so the page's reset (FRAME_ADDED, a new site) does not lose those of a request
+// still in flight (backgroundDetection.test.mjs drives that through the background).
+describe('request headers', () => {
+  it('outlive the tab\'s resets', () => {
+    const tab = new TabTracker().getTabOrCreate(7);
+    tab.rememberRequestHeaders('r1', [{name: 'Referer', value: 'https://a.test/'}]);
+    tab.getFrameOrCreate(0).resetSelfAndChildren();
+    tab.resetForReload();
+    tab.resetForNewSite('https://b.test/');
+    expect(tab.requestHeaders.get('r1')).toEqual([{name: 'Referer', value: 'https://a.test/'}]);
+  });
+
+  it('go when their response comes', () => {
+    const tracker = new TabTracker();
+    tracker.getTabOrCreate(7).rememberRequestHeaders('r1', []);
+    tracker.forgetRequestHeaders(7, 'r1');
+    expect(tracker.getTab(7).requestHeaders.size).toBe(0);
+  });
+
+  it('do not bring back a closed tab', () => {
+    // A closing tab's requests are cancelled, and the errors can come after tabs.onRemoved.
+    const tracker = new TabTracker();
+    tracker.forgetRequestHeaders(7, 'r1');
+    expect(tracker.getTab(7)).toBeUndefined();
+  });
+
+  it('are kept for the latest 500 requests at most', () => {
+    const tab = new TabTracker().getTabOrCreate(7);
+    for (let i = 0; i < 520; i++) {
+      tab.rememberRequestHeaders('r' + i, []);
+    }
+    expect(tab.requestHeaders.size).toBe(500);
+    expect(tab.requestHeaders.has('r19')).toBe(false);
+    expect(tab.requestHeaders.has('r20')).toBe(true);
+  });
+});

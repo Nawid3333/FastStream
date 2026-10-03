@@ -1826,7 +1826,7 @@ async function onSourceRecieved(details, frame, mode) {
   // a second onHeadersReceived listener, so it runs the moment this function
   // yields at its first await; reading them after that always returns
   // undefined and the Referer/Origin the CDN needs is lost.
-  const customHeaders = details.customHeaders || frame.requestHeaders.get(details.requestId);
+  const customHeaders = details.customHeaders || frame.tab.requestHeaders.get(details.requestId);
 
   await ensureOptions();
 
@@ -2380,9 +2380,7 @@ chrome.webRequest.onBeforeRequest.addListener((details) => {
 });
 
 chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
-  const tab = Tabs.getTabOrCreate(details.tabId);
-  const frame = tab.getFrameOrCreate(details.frameId);
-  frame.requestHeaders.set(details.requestId, details.requestHeaders);
+  Tabs.getTabOrCreate(details.tabId).rememberRequestHeaders(details.requestId, details.requestHeaders);
 }, {
   urls: ['<all_urls>'],
 }, webRequestPerms);
@@ -2404,7 +2402,7 @@ chrome.webRequest.onHeadersReceived.addListener(
       const ext = urlType(url);
 
       if (BackgroundUtils.isSubtitles(ext)) {
-        handleSubtitles(url, frame, frame.requestHeaders.get(details.requestId));
+        handleSubtitles(url, frame, tab.requestHeaders.get(details.requestId));
         return;
       }
 
@@ -2454,9 +2452,7 @@ chrome.webRequest.onErrorOccurred.addListener(deleteHeaderCache, {
  * @return {undefined}
  */
 function deleteHeaderCache(details) {
-  const tab = Tabs.getTabOrCreate(details.tabId);
-  const frame = tab.getFrameOrCreate(details.frameId);
-  frame.requestHeaders.delete(details.requestId);
+  Tabs.forgetRequestHeaders(details.tabId, details.requestId);
 }
 
 ensureOptions();

@@ -21,7 +21,6 @@ export class FrameHolder {
     this.isPlayer = false;
     this.trackedSubtitles = [];
     this.trackedSources = [];
-    this.requestHeaders = new Map();
     this.url = '';
     /**
      * The name content.js gave the page it shows (FRAME_ADDED); null when unknown.
@@ -95,6 +94,10 @@ export class FrameHolder {
 // How many gone pages a tab remembers (TabHolder.goneDocuments). Navigating a tab would
 // otherwise grow it without end; the oldest go first.
 const GoneDocumentLimit = 16;
+// How many requests' headers a tab keeps while their responses are awaited
+// (TabHolder.requestHeaders). Each goes when its response or its error comes; this only
+// bounds those that never get either.
+const RequestHeaderLimit = 500;
 
 /**
  * @param {string} a - A URL, or anything else.
@@ -119,6 +122,13 @@ export class TabHolder {
     // (restoreGoneDocument), and to refuse a player still starting that names one
     // (isPlayerOfGoneDocument). Not cleared by reset(), see there.
     this.goneDocuments = new Map();
+    // The headers of the tab's requests still waiting for a response, by request id
+    // (rememberRequestHeaders). The tab's, not a frame's, and not cleared by reset(): a
+    // request can be sent before the page that made it named itself (a preload, 103
+    // Early Hints) or before the reset on a new site, and answered after, and a stream
+    // found without the Referer its CDN checks got a 403 in the player.
+    /** @type {Map<string, *>} */
+    this.requestHeaders = new Map();
 
     this.isOn = false;
     this.isMpv = false;
@@ -211,6 +221,19 @@ export class TabHolder {
       }
     }
     this.playerCount = players;
+  }
+
+  /**
+   * Keeps a request's headers until its response or its error comes (forgetRequestHeaders).
+   * @param {string} requestId - webRequest's id, unique in the session.
+   * @param {*} headers - Its requestHeaders.
+   */
+  rememberRequestHeaders(requestId, headers) {
+    this.requestHeaders.delete(requestId);
+    this.requestHeaders.set(requestId, headers);
+    while (this.requestHeaders.size > RequestHeaderLimit) {
+      this.requestHeaders.delete(this.requestHeaders.keys().next().value);
+    }
   }
 
   getFrames() {
@@ -482,6 +505,17 @@ export class TabTracker {
   removeTab(tabId) {
     this.tabs.delete(tabId);
     chrome.storage.session.remove(TabStateKeyPrefix + tabId).catch(() => {});
+  }
+
+  /**
+   * Forgets a request's headers once its response or its error came. A tab this tracker
+   * does not know (closed, its requests cancelled after tabs.onRemoved) is not made again
+   * for it: Firefox never reuses a tab id, so it would stay for the background's life.
+   * @param {number} tabId - The request's tab.
+   * @param {string} requestId - Its id.
+   */
+  forgetRequestHeaders(tabId, requestId) {
+    this.getTab(tabId)?.requestHeaders.delete(requestId);
   }
 
   getFrame(tabId, frameId) {
