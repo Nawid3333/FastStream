@@ -4,12 +4,12 @@
 // is no browser: what it proves is the scripts' own bookkeeping, not how Firefox lays a
 // page out. The e2e suites (tests/e2e/classic-specs) cover that.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
-
-const ROOT = path.resolve(import.meta.dirname, '../..');
+// The scripts' text, which vitest includes when it loads this module (?raw): read at run
+// time, the code run below was "user-provided" to CodeQL (js/code-injection).
+import overlayGuardSource from '../../chrome/overlay-guard.js?raw';
+import contentSource from '../../chrome/content.js?raw';
 
 const CAMEL_PROPERTIES = ['width', 'height', 'overflow', 'margin', 'contain', 'display', 'position',
   'zIndex', 'border', 'borderRadius', 'boxShadow', 'transition', 'visibility', 'top', 'left',
@@ -490,8 +490,8 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   }
   context.window = context;
   vm.createContext(context);
-  for (const file of ['chrome/overlay-guard.js', 'chrome/content.js']) {
-    vm.runInContext(fs.readFileSync(path.join(ROOT, file), 'utf8'), context, {filename: file});
+  for (const [file, source] of [['chrome/overlay-guard.js', overlayGuardSource], ['chrome/content.js', contentSource]]) {
+    vm.runInContext(source, context, {filename: file});
   }
 
   return {

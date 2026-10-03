@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
 import {beforeAll, describe, expect, it} from 'vitest';
 
@@ -9,7 +7,9 @@ import {beforeAll, describe, expect, it} from 'vitest';
 // info of another shape and on any manifest with a character btoa refuses, and reports of
 // no type the background recorded anyway.
 
-const root = path.resolve(import.meta.dirname, '../..');
+// The site scripts' text, which vitest includes when it loads this file (?raw): read at run
+// time, the code run below was "user-provided" to CodeQL (js/code-injection).
+const SITE_SCRIPTS = import.meta.glob('../../chrome/custom/*.js', {query: '?raw', import: 'default', eager: true});
 
 /**
  * Runs a site script on a stand-in page with these <script> elements.
@@ -42,7 +42,11 @@ function runSiteScript(file, scripts = []) {
     TextEncoder,
     btoa,
   };
-  vm.runInNewContext(fs.readFileSync(path.join(root, 'chrome/custom', file), 'utf8'), context);
+  const source = SITE_SCRIPTS[`../../chrome/custom/${file}`];
+  if (source === undefined) {
+    throw new Error(`no site script chrome/custom/${file}`);
+  }
+  vm.runInNewContext(source, context);
   return {sent, listeners};
 }
 
