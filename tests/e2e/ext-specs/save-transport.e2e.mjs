@@ -30,69 +30,8 @@
 import {browser, expect} from '@wdio/globals';
 import {pageState} from '../specs/diagnostics.mjs';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
-
-/**
- * Opens an extension page and focuses it - same dance as extension.e2e.mjs
- * (geckodriver refuses direct moz-extension:// navigation).
- * @param {string} pagePath path under the extension origin
- * @return {Promise<void>}
- */
-async function openExtensionPage(pagePath) {
-  const handlesBefore = await browser.getWindowHandles();
-  for (const h of handlesBefore.slice(1)) {
-    await browser.switchToWindow(h);
-    await browser.closeWindow();
-  }
-  await browser.switchToWindow(handlesBefore[0]);
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), ORIGIN + pagePath);
-  await browser.waitUntil(
-      async () => (await browser.getWindowHandles()).length > 1,
-      {timeout: 15000, timeoutMsg: 'the extension page never opened'});
-  const handles = await browser.getWindowHandles();
-  await browser.switchToWindow(handles[handles.length - 1]);
-  await browser.waitUntil(
-      async () => (await browser.getUrl()).startsWith('moz-extension://'),
-      {timeout: 15000, timeoutMsg: 'the new window is not the extension page'});
-  await browser.waitUntil(
-      async () => browser.execute(() => document.readyState === 'complete'),
-      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
-}
-
-/**
- * Runs an async snippet in the page and waits for it to settle, surfacing
- * page-side errors - same shape as extension.e2e.mjs's runInPage.
- * @param {Function} fn async function to run in the page
- * @param {number} [timeout] how long to allow, in ms
- * @return {Promise<any>} whatever fn resolved with
- */
-async function runInPage(fn, timeout = 60000) {
-  await browser.execute((body) => {
-    window.__out = undefined;
-    window.____err = undefined;
-    (0, eval)(`(${body})()`)
-        .then((v) => {
-          window.__out = v;
-        })
-        .catch((e) => {
-          window.__err = (e && e.stack) || String(e);
-        });
-  }, fn.toString());
-
-  await browser.waitUntil(
-      async () => browser.execute(
-          () => window.__out !== undefined || window.__err !== undefined),
-      {timeout, interval: 250, timeoutMsg: 'the page never settled'},
-  );
-
-  const {out, err} = await browser.execute(
-      () => ({out: window.__out, err: window.__err}));
-  if (err) throw new Error('page-side failure: ' + err);
-  return out;
-}
+import {openExtensionPage} from '../extension-page.mjs';
+import {runInPage} from '../runInPage.mjs';
 
 /**
  * Navigates to the harness /embed page (an ordinary http page embedding the

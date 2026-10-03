@@ -3,85 +3,12 @@
 // Everything here is about the extension origin and its CSP. Anything that can
 // be proved over http belongs in the other suite, which is faster.
 
-import {browser, expect} from '@wdio/globals';
+import {expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
-
-/**
- * Opens an extension page and focuses it.
- *
- * geckodriver will not navigate to moz-extension:// directly, so this loads an
- * ordinary http page first and has it `window.open` the extension page. That
- * only works because `player/index.html` is a web-accessible resource - which
- * is itself worth asserting, since it is how every site that embeds FastStream
- * reaches the player.
- *
- * @param {string} pagePath path under the extension origin
- * @return {Promise<void>} resolves once the extension page is focused
- */
-async function openExtensionPage(pagePath) {
-  const handlesBefore = await browser.getWindowHandles();
-  for (const h of handlesBefore.slice(1)) {
-    await browser.switchToWindow(h);
-    await browser.closeWindow();
-  }
-  await browser.switchToWindow(handlesBefore[0]);
-  await browser.url(OPENER_URL);
-  await browser.execute((u) => window.open(u, '_blank'), ORIGIN + pagePath);
-  await browser.waitUntil(
-      async () => (await browser.getWindowHandles()).length > 1,
-      {timeout: 15000, timeoutMsg: 'the extension page never opened'});
-  const handles = await browser.getWindowHandles();
-  await browser.switchToWindow(handles[handles.length - 1]);
-  await browser.waitUntil(
-      async () => (await browser.getUrl()).startsWith('moz-extension://'),
-      {timeout: 15000, timeoutMsg: 'the new window is not the extension page'});
-  // window.open resolves as soon as the window exists, long before the
-  // document has parsed. Without this the first read of the page sees a
-  // half-built DOM and an empty <title>, which looks exactly like a page
-  // whose scripts failed.
-  await browser.waitUntil(
-      async () => browser.execute(() => document.readyState === 'complete'),
-      {timeout: 30000, timeoutMsg: 'the extension page never finished loading'});
-}
-
-/**
- * Runs an async snippet on an extension page and waits for it to settle.
- *
- * Same shape as the module suite's helper: `browser.execute` returns before a
- * promise-returning body has finished, so the outcome is parked on `window`
- * and polled, which surfaces the page-side error instead of a bare timeout.
- *
- * @param {Function} fn async function to run in the page
- * @param {number} [timeout] how long to allow, in ms
- * @return {Promise<any>} whatever fn resolved with
- */
-async function runInPage(fn, timeout = 60000) {
-  await browser.execute((body) => {
-    window.__out = undefined;
-    window.__err = undefined;
-    (0, eval)(`(${body})()`)
-        .then((v) => {
-          window.__out = v;
-        })
-        .catch((e) => {
-          window.__err = (e && e.stack) || String(e);
-        });
-  }, fn.toString());
-
-  await browser.waitUntil(
-      async () => browser.execute(
-          () => window.__out !== undefined || window.__err !== undefined),
-      {timeout, interval: 250, timeoutMsg: 'the page never settled'},
-  );
-
-  const {out, err} = await browser.execute(
-      () => ({out: window.__out, err: window.__err}));
-  if (err) throw new Error('page-side failure: ' + err);
-  return out;
-}
+// openExtensionPage finds the page by its URL: the newest handle can be the welcome page
+// a temporary install opens at no fixed moment, which shares the extension's origin.
+import {openExtensionPage} from '../extension-page.mjs';
+import {runInPage} from '../runInPage.mjs';
 
 describe('the installed extension', function() {
   it('serves its player page from the extension origin', async function() {
@@ -89,6 +16,7 @@ describe('the installed extension', function() {
     const result = await runInPage(async () => ({
       origin: location.origin,
       protocol: location.protocol,
+      path: location.pathname,
       title: document.title,
       // The player builds its UI on load; a near-empty body would mean the
       // page rendered but its scripts never ran. The welcome screen is small
@@ -99,6 +27,8 @@ describe('the installed extension', function() {
 
     console.log('      page:', JSON.stringify(result));
     expect(result.protocol).toBe('moz-extension:');
+    // The player page, not the welcome page a fresh install opens on the same origin.
+    expect(result.path).toBe('/player/index.html');
     // Set by the player's own localisation, so this also shows
     // that its startup path ran, not merely that HTML parsed.
     expect(result.title).toContain('FastStream');

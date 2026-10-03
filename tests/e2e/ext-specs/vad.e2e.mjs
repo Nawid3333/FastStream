@@ -25,10 +25,7 @@ import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
-import {inExtensionPage} from '../extension-page.mjs';
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
+import {inExtensionPage, openExtensionPage} from '../extension-page.mjs';
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
 // The scores the runtime shipped until 1.3.82.44 gave for the signal sequence below:
@@ -40,17 +37,8 @@ const REFERENCE = path.join(__dirname, '../vad-reference.json');
 
 describe('the voice activity detector', function() {
   it('loads ONNX Runtime and runs the silero model', async function() {
-    await browser.url(OPENER_URL);
-    await browser.execute(
-        (u) => window.open(u, '_blank'), ORIGIN + '/player/index.html');
-    await browser.waitUntil(
-        async () => (await browser.getWindowHandles()).length > 1,
-        {timeout: 15000, timeoutMsg: 'the extension page never opened'});
-    const handles = await browser.getWindowHandles();
-    await browser.switchToWindow(handles[handles.length - 1]);
-    await browser.waitUntil(
-        async () => browser.execute(() => document.readyState === 'complete'),
-        {timeout: 30000, timeoutMsg: 'the page never finished loading'});
+    // Found by its URL, not as the newest handle: that can be the welcome page.
+    await openExtensionPage('/player/index.html');
 
     await browser.execute(() => {
       window.__out = undefined;
