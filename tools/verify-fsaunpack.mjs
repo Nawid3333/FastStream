@@ -40,6 +40,34 @@ entries.forEach((entry, i) => {
   fs.writeFileSync(path.join(output, `${i}.${entry.responseType === 'arraybuffer' ? 'bin' : 'txt'}`), entry.data);
 });
 
+/**
+ * @return {?string} An IPv4 address of this machine that is not the loopback one, if any.
+ */
+function notLoopbackAddress() {
+  const found = Object.values(os.networkInterfaces()).flat()
+      .find((address) => address && (address.family === 'IPv4' || address.family === 4) && !address.internal);
+  return found ? found.address : null;
+}
+
+/**
+ * Whether a TCP connection to an address and port is accepted within 3 s.
+ * @param {string} host - The address.
+ * @param {number} port - The port.
+ * @return {Promise<boolean>}
+ */
+function reachable(host, port) {
+  return new Promise((resolve) => {
+    const socket = net.connect(port, host);
+    const done = (answer) => {
+      socket.destroy();
+      resolve(answer);
+    };
+    socket.setTimeout(3000, () => done(false));
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+  });
+}
+
 const port = await new Promise((resolve, reject) => {
   const probe = net.createServer().once('error', reject).listen(0, '127.0.0.1', () => {
     const {port: free} = probe.address();
@@ -80,6 +108,12 @@ try {
   await expect('/v/master.m3u8', 200, entries[0].data);
   await expect('/seg(1)*:2.ts', 200, entries[1].data);
   await expect('/not-recorded.ts', 404);
+
+  // Only this machine reaches it: an archive's manifests can hold a CDN's tokens.
+  const outside = notLoopbackAddress();
+  if (outside && await reachable(outside, port)) {
+    failures.push(`the server answers on ${outside}, not only on 127.0.0.1`);
+  }
 } catch (e) {
   failures.push(e.message);
 } finally {

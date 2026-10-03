@@ -40,6 +40,8 @@ app.use((req, res, next) => {
 });
 
 
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
+// This machine only: the archive is a recording of a stream, and its manifests can hold
+// the CDN's tokens. On all interfaces, anyone on the same network could fetch it.
+app.listen(port, '127.0.0.1', () => {
+  console.log(`Listening on port ${port} of 127.0.0.1`);
 });
