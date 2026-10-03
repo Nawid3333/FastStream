@@ -8,6 +8,43 @@ import {AbstractAudioModule} from './AbstractAudioModule.mjs';
 // DynamicsCompressor, which Firefox's node is built on.
 const COMPRESSOR_PRE_DELAY = 0.006;
 
+/**
+ * A DelayNode that holds the sound back exactly as long as a compressor does: Firefox
+ * rounds the look-ahead down to whole frames (288 at 48 kHz, 264 at 44.1 kHz).
+ * @param {BaseAudioContext} audioContext
+ * @return {DelayNode}
+ */
+function createLookAheadDelay(audioContext) {
+  const delay = audioContext.createDelay(COMPRESSOR_PRE_DELAY * 2);
+  delay.delayTime.value = Math.floor(COMPRESSOR_PRE_DELAY * audioContext.sampleRate) / audioContext.sampleRate;
+  return delay;
+}
+
+/**
+ * The channels each compressor takes, for a source of more than two channels, in Web
+ * Audio's order (5.1: L R C LFE SL SR). A DynamicsCompressorNode takes two at most. A
+ * pair of speakers shares one, so both sides are turned down together and the image stays
+ * put; the centre and the LFE get one each, so a bass hit does not turn the dialogue down.
+ * @param {number} count - The number of channels, 3 or more.
+ * @return {number[][]}
+ */
+function compressorGroups(count) {
+  const groups = [[0, 1]];
+  let next = 2;
+  // A centre in every layout but quad (L R SL SR); an LFE from 5.1 on.
+  if (count !== 4) {
+    groups.push([next++]);
+  }
+  if (count >= 6) {
+    groups.push([next++]);
+  }
+  while (next < count) {
+    groups.push(next + 1 < count ? [next, next + 1] : [next]);
+    next += 2;
+  }
+  return groups;
+}
+
 export class AudioCompressor extends AbstractAudioModule {
   constructor(customTitlePrepend, numberOfChannelsGetter) {
     super('AudioCompressor');
@@ -105,13 +142,14 @@ export class AudioCompressor extends AbstractAudioModule {
 
     if (compressor.enabled) {
       await this.createCompressorNodes();
-      if (this.compressorNode) {
-        this.compressorNode.threshold.value = compressor.threshold;
-        this.compressorNode.knee.value = compressor.knee;
-        this.compressorNode.ratio.value = compressor.ratio;
-        this.compressorNode.attack.value = compressor.attack;
-        this.compressorNode.release.value = compressor.release;
-        this.compressorGain.gain.value = compressor.gain;
+      // Every compressor, with the same settings.
+      for (const stage of this.compressorStages || []) {
+        stage.compressor.threshold.value = compressor.threshold;
+        stage.compressor.knee.value = compressor.knee;
+        stage.compressor.ratio.value = compressor.ratio;
+        stage.compressor.attack.value = compressor.attack;
+        stage.compressor.release.value = compressor.release;
+        stage.gain.gain.value = compressor.gain;
       }
     } else {
       this.destroyCompressorNodes();
@@ -124,49 +162,56 @@ export class AudioCompressor extends AbstractAudioModule {
     if (numChannels === 0 || this.compressorNode || !this.compressorConfig?.enabled) return;
 
     const audioContext = this.audioContext;
-
-    this.compressorNode = audioContext.createDynamicsCompressor();
-    this.compressorGain = audioContext.createGain();
-
-    this.compressorNode.connect(this.compressorGain);
+    this.removeBypassDelay();
 
     const shouldUseSplitterMerger = numChannels > 2;
     if (shouldUseSplitterMerger) {
+      // A DynamicsCompressorNode takes two channels at most: one compressor per group of
+      // channels (compressorGroups), all with the same settings. Only the front pair used to
+      // be compressed, the other channels went around it. Every compressor delays by the
+      // same look-ahead, so the channels stay in time.
       this.splitterNode = audioContext.createChannelSplitter(numChannels);
       this.mergerNode = audioContext.createChannelMerger(numChannels);
-      this.compressorMerger = audioContext.createChannelMerger(2);
-      this.compressorSplitter = audioContext.createChannelSplitter(2);
-
-      // The compressor delays what it compresses by its look-ahead: Firefox's (Blink's
-      // DynamicsCompressor) is 6 ms, in whole frames. The channels that go around it are
-      // delayed as much, or they reached the speakers 6 ms before the front pair.
-      const lookAhead = Math.floor(COMPRESSOR_PRE_DELAY * audioContext.sampleRate) / audioContext.sampleRate;
-      this.bypassDelays = [];
-      for (let i = 2; i < numChannels; i++) {
-        const delay = audioContext.createDelay(COMPRESSOR_PRE_DELAY * 2);
-        delay.delayTime.value = lookAhead;
-        this.splitterNode.connect(delay, i, 0);
-        delay.connect(this.mergerNode, 0, i);
-        this.bypassDelays.push(delay);
-      }
-
-      this.splitterNode.connect(this.compressorMerger, 0, 0);
-      this.splitterNode.connect(this.compressorMerger, 1, 1);
-
-      this.compressorMerger.connect(this.compressorNode);
-      this.compressorGain.connect(this.compressorSplitter);
-
-      this.compressorSplitter.connect(this.mergerNode, 0, 0);
-      this.compressorSplitter.connect(this.mergerNode, 1, 1);
+      this.compressorStages = compressorGroups(numChannels).map((channels) => {
+        const stage = {
+          compressor: audioContext.createDynamicsCompressor(),
+          gain: audioContext.createGain(),
+        };
+        stage.compressor.connect(stage.gain);
+        if (channels.length === 1) {
+          this.splitterNode.connect(stage.compressor, channels[0], 0);
+          stage.gain.connect(this.mergerNode, 0, channels[0]);
+        } else {
+          stage.merger = audioContext.createChannelMerger(2);
+          stage.splitter = audioContext.createChannelSplitter(2);
+          channels.forEach((channel, i) => {
+            this.splitterNode.connect(stage.merger, channel, i);
+            stage.splitter.connect(this.mergerNode, i, channel);
+          });
+          stage.merger.connect(stage.compressor);
+          stage.gain.connect(stage.splitter);
+        }
+        return stage;
+      });
 
       this.getInputNode().disconnect(this.getOutputNode());
       this.getInputNode().connect(this.splitterNode);
       this.getOutputNode().connectFrom(this.mergerNode);
     } else {
+      const stage = {
+        compressor: audioContext.createDynamicsCompressor(),
+        gain: audioContext.createGain(),
+      };
+      stage.compressor.connect(stage.gain);
+      this.compressorStages = [stage];
+
       this.getInputNode().disconnect(this.getOutputNode());
-      this.getInputNode().connect(this.compressorNode);
-      this.getOutputNode().connectFrom(this.compressorGain);
+      this.getInputNode().connect(stage.compressor);
+      this.getOutputNode().connectFrom(stage.gain);
     }
+    // The front pair's: the graph shows its gain reduction.
+    this.compressorNode = this.compressorStages[0].compressor;
+    this.compressorGain = this.compressorStages[0].gain;
   }
 
   destroyCompressorNodes(skipDisconnect = false) {
@@ -175,33 +220,72 @@ export class AudioCompressor extends AbstractAudioModule {
     if (!skipDisconnect) {
       if (this.splitterNode) {
         this.getInputNode().disconnect(this.splitterNode);
-        this.splitterNode.disconnect(this.compressorMerger);
-        this.compressorMerger.disconnect(this.compressorNode);
-        this.compressorGain.disconnect(this.compressorSplitter);
-        this.compressorSplitter.disconnect(this.mergerNode);
         this.getOutputNode().disconnectFrom(this.mergerNode);
+        this.splitterNode.disconnect();
+        for (const stage of this.compressorStages) {
+          stage.merger?.disconnect();
+          stage.compressor.disconnect();
+          stage.gain.disconnect();
+          stage.splitter?.disconnect();
+        }
       } else {
         this.getInputNode().disconnect(this.compressorNode);
         this.getOutputNode().disconnectFrom(this.compressorGain);
+        this.compressorNode.disconnect(this.compressorGain);
       }
 
-      this.compressorNode.disconnect(this.compressorGain);
       this.getInputNode().connect(this.getOutputNode());
     }
 
     this.splitterNode = null;
     this.mergerNode = null;
-    this.bypassDelays = null;
-    this.compressorMerger = null;
+    this.compressorStages = null;
     this.compressorNode = null;
     this.compressorGain = null;
-    this.compressorSplitter = null;
+
+    if (!skipDisconnect) {
+      this.updateBypassDelay();
+    }
+  }
+
+  /**
+   * Has the sound wait as long as the compressor would make it wait, while the compressor
+   * is off: the mixer asks it of a channel whose compressor is off while another channel's
+   * is on, or that channel reached the speakers 6 ms before the compressed ones.
+   * @param {boolean} match - Whether to wait.
+   */
+  setLatencyMatch(match) {
+    this.latencyMatch = match;
+    this.updateBypassDelay();
+  }
+
+  updateBypassDelay() {
+    if (!this.audioContext || !this.getInputNode()) return;
+    const wanted = !!this.latencyMatch && !this.compressorNode;
+    if (wanted && !this.bypassDelay) {
+      this.bypassDelay = createLookAheadDelay(this.audioContext);
+      this.getInputNode().disconnect(this.getOutputNode());
+      this.getInputNode().connect(this.bypassDelay);
+      this.getOutputNode().connectFrom(this.bypassDelay);
+    } else if (!wanted) {
+      this.removeBypassDelay();
+    }
+  }
+
+  removeBypassDelay() {
+    if (!this.bypassDelay) return;
+    this.getInputNode().disconnect(this.bypassDelay);
+    this.getOutputNode().disconnectFrom(this.bypassDelay);
+    this.getInputNode().connect(this.getOutputNode());
+    this.bypassDelay = null;
   }
 
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
     this.getInputNode().connect(this.getOutputNode());
     this.destroyCompressorNodes(true);
+    this.bypassDelay = null;
+    this.updateBypassDelay();
     this.updateCompressor();
   }
 

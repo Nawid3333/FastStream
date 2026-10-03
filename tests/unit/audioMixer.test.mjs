@@ -1,5 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
+import {FakeAudioContext} from './fakeWebAudio.mjs';
+
 // The audio mixer's channel strips, on stand-in elements. The mute button's lit state was
 // toggled from `channel.mute`, a field that does not exist: classList.toggle(name,
 // undefined) flips, so it only matched while nothing else changed `muted`.
@@ -40,10 +42,31 @@ vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {playerCo
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
 vi.mock('../../chrome/player/utils/WebUtils.mjs', () => ({WebUtils: {create: () => el(), setupTabIndex() {}, setLabels() {}}}));
 vi.mock('../../chrome/player/ui/components/Knob.mjs', () => ({createKnob: () => ({container: el(), knob: {val() {}}})}));
+// The equalizers' drawing is not what these tests are about: a pass-through stand-in.
+vi.mock('../../chrome/player/ui/audio/AudioEqualizer.mjs', async () => {
+  const {AbstractAudioModule} = await import('../../chrome/player/ui/audio/AbstractAudioModule.mjs');
+  return {AudioEqualizer: class extends AbstractAudioModule {
+    setupNodes(ctx) {
+      super.setupNodes(ctx);
+      this.getInputNode().connect(this.getOutputNode());
+    }
+    setConfig(config) {
+      this.config = config;
+    }
+    hasNodes() {
+      return false;
+    }
+    getElement() {
+      return el();
+    }
+    render() {}
+  }};
+});
 
 const {AudioChannelMixer} = await import('../../chrome/player/ui/audio/AudioChannelMixer.mjs');
 const {AudioChannelControl} = await import('../../chrome/player/ui/audio/config/AudioChannelControl.mjs');
 const {AudioUtils} = await import('../../chrome/player/utils/AudioUtils.mjs');
+const {AudioProfile} = await import('../../chrome/player/ui/audio/config/AudioProfile.mjs');
 
 describe('AudioChannelMixer: a channel strip', () => {
   it('lights the mute button when, and only when, the channel is muted', () => {
@@ -145,5 +168,50 @@ describe('AudioChannelMixer: the meters', () => {
     expect(AudioUtils.isClipping(analyser(samples))).toBe(true);
     samples[20] = 0;
     expect(AudioUtils.isClipping(analyser(samples))).toBe(false);
+  });
+});
+
+describe('AudioChannelMixer: channels with and without a compressor', () => {
+  /**
+   * A mixer on a 5.1 stand-in graph, between a source and the destination.
+   * @return {{mixer: AudioChannelMixer, ctx: FakeAudioContext}}
+   */
+  function mixerOn51() {
+    const ctx = new FakeAudioContext({maxChannelCount: 6});
+    const mixer = new AudioChannelMixer({
+      getChannelCount: async () => 6,
+      getOutputMeter: () => ({updateChannelCount() {}, createAnalysers() {}, destroyAnalysers() {}}),
+    });
+    mixer.setupUI(el(), el());
+    // Hidden: no meters.
+    mixer.ui.mixer.offsetParent = null;
+    mixer.setupNodes(ctx);
+    mixer.getInputNode().connectFrom(ctx.node('source'));
+    mixer.getOutputNode().connect(ctx.destination);
+    return {mixer, ctx};
+  }
+
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('keeps every channel in time when only the centre is compressed', async () => {
+    const {mixer, ctx} = mixerOn51();
+    const profile = new AudioProfile(1);
+    profile.channels[2].compressor.enabled = true;
+    mixer.setConfig(profile);
+    await settle();
+
+    const paths = ctx.channelPaths(mixer.channelSplitter, mixer.channelMerger);
+    expect(paths.map((path) => [path.from, path.to])).toEqual([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4], [5, 5]]);
+    expect(paths.map((path) => path.compressors.length)).toEqual([0, 0, 1, 0, 0, 0]);
+    for (const path of paths) {
+      expect(path.delay).toBe(ctx.compressorLookAhead);
+    }
+
+    // With no compressor on, no channel waits.
+    profile.channels[2].compressor.enabled = false;
+    await mixer.channelNodes[2].compressor.updateCompressor();
+    mixer.channelNodes[2].compressor.emit('change');
+    await settle();
+    expect(ctx.edges.some((edge) => edge.to.kind === 'delay' || edge.from.kind === 'delay')).toBe(false);
   });
 });

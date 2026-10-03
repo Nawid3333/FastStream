@@ -152,4 +152,43 @@ export class FakeAudioContext {
   outputsOf(node) {
     return this.edges.filter((edge) => edge.from === node);
   }
+
+  /**
+   * How long a DynamicsCompressorNode holds the sound back, as Firefox's does: its 6 ms
+   * pre-delay, rounded down to whole frames.
+   * @return {number} seconds
+   */
+  get compressorLookAhead() {
+    return Math.floor(0.006 * this.sampleRate) / this.sampleRate;
+  }
+
+  /**
+   * Every path from one splitter's outputs to one merger's inputs, following a channel
+   * through the mergers and splitters on the way.
+   * @param {FakeNode} splitter
+   * @param {FakeNode} merger
+   * @return {Array<{from: number, to: number, delay: number, compressors: FakeNode[]}>}
+   *   sorted by channel; `delay` adds up the DelayNodes and the compressors' look-ahead.
+   */
+  channelPaths(splitter, merger) {
+    const found = [];
+    const walk = (node, channel, delay, compressors, from) => {
+      for (const edge of this.outputsOf(node)) {
+        // A splitter passes one channel on each output.
+        if (node !== splitter && node.kind === 'splitter' && channel !== null && edge.output !== channel) continue;
+        const start = node === splitter ? edge.output : from;
+        if (edge.to === merger) {
+          found.push({from: start, to: edge.input, delay, compressors});
+          continue;
+        }
+        const to = edge.to;
+        let next = node.kind === 'splitter' ? null : channel;
+        if (to.kind === 'merger') next = edge.input;
+        const added = to.kind === 'delay' ? to.delayTime.value : to.kind === 'compressor' ? this.compressorLookAhead : 0;
+        walk(to, next, delay + added, to.kind === 'compressor' ? [...compressors, to] : compressors, start);
+      }
+    };
+    walk(splitter, null, 0, [], null);
+    return found.sort((a, b) => a.from - b.from || a.to - b.to);
+  }
 }

@@ -776,6 +776,13 @@ export class AudioChannelMixer extends AbstractAudioModule {
       return nodes.equalizer.hasNodes() || nodes.compressor.isEnabled();
     });
 
+    // A compressor delays what it compresses by its look-ahead: while any channel has one
+    // on, the channels without wait as long, or they reached the speakers 6 ms early.
+    const anyCompressed = activeChannels.some((i) => this.channelNodes[i].compressor.isEnabled());
+    this.channelNodes.forEach((nodes, i) => {
+      nodes.compressor.setLatencyMatch(anyCompressed && activeChannels.includes(i));
+    });
+
     const needsMerger = hasNonUnityChannelGains || hasActiveNodes || needsAnalyzer;
     const needsSplitter = needsMerger; // numberOfChannels > 1 && needsMerger;
     if (needsMasterGain) {
