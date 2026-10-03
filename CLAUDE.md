@@ -100,7 +100,10 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   entries, regenerated 2026-09-30). Don't run `split-locales` unless the combined file is the
   one you edited: it writes over the locales. (Plain `node localescript.mjs`, which the build
   runs, only compares keys.) Both files are formatted with a 4-space indent; keep it, or a
-  one-key change shows up as thousands of changed lines.
+  one-key change shows up as thousands of changed lines. The same test also fails when a
+  locale's keys or `$1`/`$2` placeholders differ from English's (2026-10-03), so a new string
+  needs all 16 locales before CI passes, an upstream sync's English-only key included. The
+  welcome page lists every default key; `Keybinds.test.mjs` fails when a default is missing.
 - Tests: `tests/unit/KeybindUtils.test.mjs` (the pure functions), `tests/unit/Keybinds.test.mjs`
   (the default layout has no clashes and every default has a handler, the storage path, the
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
