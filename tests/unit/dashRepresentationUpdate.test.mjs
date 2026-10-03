@@ -1,5 +1,7 @@
-import {readFileSync} from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
+// Its text, which vitest includes when it loads this file (?raw): read at run time, the code
+// run below was "user-provided" to CodeQL (js/code-injection).
+import DASH_SOURCE from '../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js?raw';
 
 // patches/dashjs@5.2.1.patch makes dash.js update a representation (load its segment
 // index) only when it is needed: Representation.setUpdateCallback() arms it, and
@@ -12,14 +14,12 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 // This runs the Representation class of the dash.js that pnpm installed with the patch,
 // which is the file tools/sync-vendor.mjs vendors as chrome/player/modules/dash.mjs.
 
-const DASH = new URL('../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js', import.meta.url);
-
 /**
  * The installed dash.js's Representation class.
  * @return {Function}
  */
 function loadRepresentation() {
-  const source = readFileSync(DASH, 'utf8');
+  const source = DASH_SOURCE;
   const start = source.indexOf('class Representation {');
   expect(start).toBeGreaterThan(-1);
   let depth = 0;

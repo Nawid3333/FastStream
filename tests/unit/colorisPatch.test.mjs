@@ -1,6 +1,8 @@
-import fs from 'node:fs';
 import vm from 'node:vm';
 import {describe, expect, it} from 'vitest';
+// Its text, which vitest includes when it loads this file (?raw): read at run time, the code
+// run below was "user-provided" to CodeQL (js/code-injection).
+import source from '../../node_modules/Coloris/dist/coloris.js?raw';
 import {FakeDocument, FakeElement} from './helpers/fakeDom.mjs';
 
 // For tests/unit/, once patches/Coloris@0.25.0.patch has the change (#298) and
@@ -10,8 +12,6 @@ import {FakeDocument, FakeElement} from './helpers/fakeDom.mjs';
 //   handled before `parent` that touches the picker (clearLabel, closeLabel, a11y)
 //   threw: InterfaceController lists `parent` first, and only that kept it working.
 // - A second configure({parent}) built a second picker and bound every listener again.
-
-const source = fs.readFileSync(new URL('../../node_modules/Coloris/dist/coloris.js', import.meta.url), 'utf8');
 
 /**
  * Runs Coloris on a page with a .mainplayer and calls it with each set of options.
