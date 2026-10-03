@@ -41,4 +41,29 @@ describe('gh in the workflows', () => {
     expect(lists.length).toBeGreaterThan(0);
     expect(lists.filter(({command}) => !command.includes('isCrossRepository'))).toEqual([]);
   });
+
+  // gh applies --jq with gojq, built in, whose test/match/capture/sub/scan/splits take Go's
+  // RE2 regexes; tests/workflows applies it with jq 1.7, whose Oniguruma takes more. A
+  // lookaround, a backreference or an atomic group passes every workflow test and fails on
+  // GitHub with a gojq compile error (#249). Named groups, (?<name>...), RE2 has.
+  it('uses no regex in a --jq filter that RE2 (gojq) lacks', () => {
+    const RE2_LACKS = [
+      ['lookahead or lookbehind', /\(\?<?[=!]/],
+      ['atomic group', /\(\?>/],
+      ['backreference', /\\\\[1-9]|\\\\k</],
+    ];
+    const filters = files.flatMap(commands).filter(({command}) => /\bgh\b.*\s--jq\s/.test(command))
+        .map(({step, command}) => ({step, filter: command.slice(command.indexOf('--jq'))}));
+    expect(filters.length).toBeGreaterThan(50);
+    const bad = filters.flatMap(({step, filter}) => RE2_LACKS.filter(([, re]) => re.test(filter))
+        .map(([what]) => `${step}: ${what} in ${filter}`));
+    expect(bad).toEqual([]);
+  });
+
+  it('would catch each of those', () => {
+    expect(/\(\?<?[=!]/.test(`--jq '.[] | select(.title | test("^Bump (?!x)"))'`)).toBe(true);
+    expect(/\(\?<?[=!]/.test(`--jq '.body | capture("(?<=a)b")'`)).toBe(true);
+    expect(/\(\?<?[=!]/.test(`--jq '.body | capture("<!-- alerts: (?<n>[0-9 ]*) -->")'`)).toBe(false);
+    expect(/\\\\[1-9]|\\\\k</.test(String.raw`--jq '.title | test("(a)\\1")'`)).toBe(true);
+  });
 });
