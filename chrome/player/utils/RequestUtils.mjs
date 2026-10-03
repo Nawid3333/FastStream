@@ -151,7 +151,8 @@ export class RequestUtils {
   /**
    * Makes a simple HTTP request and returns the XMLHttpRequest object.
    * @param {Object|string} details - Request details or URL string.
-   * @param {Function} [callback] - Optional callback(error, xhr, responseText).
+   * @param {Function} [callback] - Optional callback(error, xhr, body): body is the
+   *   responseText, or with a details.responseType other than text, the response.
    * @return {Promise<XMLHttpRequest>} Resolves with the XMLHttpRequest object.
    */
   static async requestSimple(details, callback) {
@@ -178,8 +179,10 @@ export class RequestUtils {
       return xhr;
     }
 
-    // success
-    if (callback) callback(undefined, xhr, xhr.responseText);
+    // success (responseText throws for any responseType but text)
+    if (callback) {
+      callback(undefined, xhr, xhr.responseType === '' || xhr.responseType === 'text' ? xhr.responseText : xhr.response);
+    }
     return xhr;
   }
 

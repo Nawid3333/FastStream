@@ -11,6 +11,49 @@ const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
  */
 export class SubtitleUtils {
   /**
+   * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
+   * a charset the server declared), except that bytes that are no UTF-8 are read as
+   * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every
+   * accented letter in them showed as U+FFFD. Every place that reads a subtitle file's bytes
+   * uses this; content.js, which cannot import it, carries a copy a test keeps the same.
+   * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
+   * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
+   * @return {string} The file's text.
+   */
+  static decodeSubtitleBytes(data, contentType) {
+    const bytes = ArrayBuffer.isView(data) ?
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data || 0);
+    // A byte order mark says what the file is, before anything a server says.
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return new TextDecoder('utf-16le').decode(bytes);
+    }
+    if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return new TextDecoder('utf-16be').decode(bytes);
+    }
+    // A charset the server declared, unless it is UTF-8: a file a server calls UTF-8 often
+    // is not, and is then read like one that came with no charset.
+    const charset = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType || '');
+    if (charset) {
+      try {
+        const decoder = new TextDecoder(charset[1]);
+        if (decoder.encoding !== 'utf-8') {
+          return decoder.decode(bytes);
+        }
+      } catch (e) {
+        // A charset no browser knows: as if none was given.
+      }
+    }
+    try {
+      return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('windows-1252').decode(bytes);
+    }
+  }
+
+  /**
    * Translates XML entities in a string to their corresponding characters.
    * @param {string} str - The input string.
    * @return {string} The translated string.

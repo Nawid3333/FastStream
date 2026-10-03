@@ -205,19 +205,31 @@ describe('Subtitle search', function() {
   const trackLabels = () => browser.execute(() =>
     window.fastStream.interfaceController.subtitlesManager.tracks.map((track) => track.label));
 
+  const VTT_FILE = 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n';
+  const SIGN_IN_PAGE = '<!doctype html><title>Sign in</title><p>Please sign in</p>';
+
+  /**
+   * Answers the subtitle file's request, with its bytes as the player asks for them.
+   * @param {string} text - The file.
+   * @return {Promise<void>}
+   */
+  const answerFile = (text) => browser.execute((text) => window.__requests[2].resolve({
+    status: 200, response: new TextEncoder().encode(text).buffer, getResponseHeader: () => null,
+  }), text);
+
   it('drops a download that finishes after the subtitles were cleared for another video', async function() {
     // It was added to the new video, and turned on.
     await openSearch();
     await startDownload();
     await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.clearTracks());
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await answerFile(VTT_FILE);
     await shown();
     expect(await trackLabels()).toEqual([]);
 
     // The same download, the subtitles left as they were: added.
     await openSearch();
     await startDownload();
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await answerFile(VTT_FILE);
     await shown();
     expect(await trackLabels()).toEqual(['someone - Film']);
   });
@@ -226,7 +238,7 @@ describe('Subtitle search', function() {
     // A web page in place of the file (a login, an error) became a track with no cues.
     await openSearch();
     await startDownload();
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: '<!doctype html><title>Sign in</title><p>Please sign in</p>'}));
+    await answerFile(SIGN_IN_PAGE);
     await shown();
     expect(await trackLabels()).toEqual([]);
   });

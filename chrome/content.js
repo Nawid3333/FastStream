@@ -673,9 +673,10 @@
         const source = track.src;
         httpRequest(source, (err, req, body) => {
           done++;
-          if (body) {
+          const text = body ? decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')) : '';
+          if (text) {
             tracks.push({
-              data: body,
+              data: text,
               source: source,
               label: track.label,
               language: track.srclang,
@@ -1248,6 +1249,49 @@
   const HttpRequestStallMs = 2000;
   const HttpRequestTimeoutMs = 10000;
 
+  /**
+   * A copy of SubtitleUtils.decodeSubtitleBytes (a classic script cannot import it; a unit
+   * test keeps the two the same): a subtitle file's bytes as text, Windows-1252 when they
+   * are no UTF-8.
+   * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
+   * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
+   * @return {string} The file's text.
+   */
+  function decodeSubtitleBytes(data, contentType) {
+    const bytes = ArrayBuffer.isView(data) ?
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data || 0);
+    // A byte order mark says what the file is, before anything a server says.
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    if (bytes[0] === 0xFF && bytes[1] === 0xFE) {
+      return new TextDecoder('utf-16le').decode(bytes);
+    }
+    if (bytes[0] === 0xFE && bytes[1] === 0xFF) {
+      return new TextDecoder('utf-16be').decode(bytes);
+    }
+    // A charset the server declared, unless it is UTF-8: a file a server calls UTF-8 often
+    // is not, and is then read like one that came with no charset.
+    const charset = /;\s*charset\s*=\s*"?([^";\s]+)/i.exec(contentType || '');
+    if (charset) {
+      try {
+        const decoder = new TextDecoder(charset[1]);
+        if (decoder.encoding !== 'utf-8') {
+          return decoder.decode(bytes);
+        }
+      } catch (e) {
+        // A charset no browser knows: as if none was given.
+      }
+    }
+    try {
+      return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
+    } catch (e) {
+      return new TextDecoder('windows-1252').decode(bytes);
+    }
+  }
+
+  // Answers with the response's bytes: its one use is the page's subtitle files, which
+  // decodeSubtitleBytes reads.
   function httpRequest(...args) {
     const url = args[0];
     let post = undefined;
@@ -1265,6 +1309,7 @@
     try {
       const xhr = new XMLHttpRequest();
       xhr.open(post ? 'POST' : 'GET', url + (bust ? ('?' + Date.now()) : ''));
+      xhr.responseType = 'arraybuffer';
       // A timed-out or aborted request still reaches readyState 4, with status 0.
       xhr.timeout = HttpRequestTimeoutMs;
       let stallTimer;
@@ -1280,7 +1325,7 @@
         }
         clearTimeout(stallTimer);
         if (xhr.status === 200) {
-          callback(undefined, xhr, xhr.responseText);
+          callback(undefined, xhr, xhr.response);
         } else {
           callback(true, xhr, false);
         }

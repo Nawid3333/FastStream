@@ -481,6 +481,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
           body = (await RequestUtils.request({
             url: link,
+            responseType: 'arraybuffer',
 
             header_commands: [
               {
@@ -495,7 +496,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
             throw new Error('Bad status code');
           }
 
-          body = body.responseText;
+          body = SubtitleUtils.decodeSubtitleBytes(body.response, body.getResponseHeader('Content-Type'));
 
           if (!body) {
             throw new Error('No body');

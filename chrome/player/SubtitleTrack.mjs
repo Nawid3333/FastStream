@@ -14,7 +14,9 @@ export class SubtitleTrack {
 
   loadURL(url) {
     return fetch(url).then((response) => {
-      return response.text();
+      return response.arrayBuffer().then((bytes) => {
+        return SubtitleUtils.decodeSubtitleBytes(bytes, response.headers.get('Content-Type'));
+      });
     }).then((text) => {
       this.loadText(text);
     });

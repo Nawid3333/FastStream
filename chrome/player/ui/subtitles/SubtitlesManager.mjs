@@ -228,7 +228,7 @@ export class SubtitlesManager extends EventEmitter {
         // the URL and OpenSubtitles paths say so.
         try {
           const track = new SubtitleTrack(name, null);
-          track.loadText(reader.result);
+          track.loadText(SubtitleUtils.decodeSubtitleBytes(reader.result));
           track.checkHasCues();
 
           this.addTrack(track);
@@ -236,7 +236,7 @@ export class SubtitlesManager extends EventEmitter {
           AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
         }
       };
-      reader.readAsText(file);
+      reader.readAsArrayBuffer(file);
       // Picking the file the input still holds fires no change, so the same file could not
       // be added again (after removing it, say).
       filechooser.value = '';
@@ -262,11 +262,11 @@ export class SubtitlesManager extends EventEmitter {
 
       if (url) {
         AlertPolyfill.toast('info', Localize.getMessage('player_subtitles_addtrack_downloading'));
-        RequestUtils.requestSimple(url, (err, req, body) => {
+        RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (err, req, body) => {
           if (!err && body) {
             try {
               const track = new SubtitleTrack('URL Track', null);
-              track.loadText(body);
+              track.loadText(SubtitleUtils.decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')));
               // A web page (a login, an error page) added an empty track, and said "added".
               track.checkHasCues();
 
