@@ -398,25 +398,40 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     crypto: webcrypto,
     URL,
     URLSearchParams,
+    TextDecoder,
     Node: {ELEMENT_NODE: 1},
     ShadowRoot: class ShadowRoot {},
     MutationObserver: FakeMutationObserver,
     ResizeObserver: FakeResizeObserver,
     IntersectionObserver: FakeIntersectionObserver,
     // Answers with `responses` (URL -> text; 404 for any other), a moment after send(). A
-    // URL with a bad host makes open() throw, as Firefox's does.
+    // URL with a bad host makes open() throw, as Firefox's does. As there, a request for an
+    // arraybuffer gets the bytes as its response (the subtitle PR #302 asks for them), and
+    // reading responseText then throws.
     XMLHttpRequest: class {
+      responseType = '';
       open(method, url) {
         if (url.startsWith('http://[')) throw new SyntaxError('An invalid or illegal string was specified');
         this.url = url;
       }
       setRequestHeader() {}
+      getResponseHeader() {
+        return null;
+      }
       abort() {}
       send() {
         Promise.resolve().then(() => {
           this.readyState = 4;
           this.status = this.url in responses ? 200 : 404;
-          this.responseText = responses[this.url] || '';
+          const text = responses[this.url] || '';
+          if (this.responseType === 'arraybuffer') {
+            this.response = new TextEncoder().encode(text).buffer;
+            Object.defineProperty(this, 'responseText', {get() {
+              throw new DOMException('responseText is only available for a text response', 'InvalidStateError');
+            }});
+          } else {
+            this.response = this.responseText = text;
+          }
           this.onreadystatechange();
         });
       }
