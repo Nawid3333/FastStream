@@ -64,12 +64,14 @@ function createWriteStreamBlob(filename, opts, size) {
  * @param {FSBlob} blobManager
  * @param {string} url - The blob: URL being downloaded.
  * @param {*} download - What Utils.downloadURL resolved with.
+ * @return {Promise<void>} Not awaited: the save is done before its download is.
  */
-function closeWhenDownloaded(blobManager, url, download) {
-  Promise.all([
+async function closeWhenDownloaded(blobManager, url, download) {
+  await Promise.all([
     Utils.revokeWhenDownloaded(url, download),
     Utils.asyncTimeout(120000),
-  ]).then(() => blobManager.close());
+  ]);
+  blobManager.close();
 }
 
 /**
