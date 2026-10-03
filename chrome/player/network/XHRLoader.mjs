@@ -197,8 +197,11 @@ export class XHRLoader {
     const isArrayBuffer = request.responseType === 'arraybuffer';
     // A server that ignores Range answers 200 with the whole file, from its first byte. That
     // was taken for the range asked for (the file's start, labelled as a range further in);
-    // the range is cut out of it now (readBody).
-    const wholeFile = status === 200 && !!request.rangeEnd;
+    // the range is cut out of it now (readBody). A 200 that says it is the range (a
+    // Content-Range, or exactly the range's length) is taken as one, as before.
+    const length = parseInt(response.headers.get('content-length'), 10);
+    const wholeFile = status === 200 && !!request.rangeEnd && !response.headers.has('content-range') &&
+        !(request.rangeStart > 0 && length === request.rangeEnd - request.rangeStart);
 
     let data;
     try {

@@ -443,8 +443,8 @@ describe('XHRLoader', () => {
     const file = Uint8Array.from({length: 100}, (_, i) => i);
 
     /** The data a range of `file` came back as. */
-    async function loadRange(rangeStart, rangeEnd, body = file) {
-      vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 200})));
+    async function loadRange(rangeStart, rangeEnd, body = file, headers = {}) {
+      vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 200, headers})));
       const loader = new XHRLoader();
       const recorder = makeCallbackRecorder();
       loader.addCallbacks(recorder);
@@ -487,6 +487,15 @@ describe('XHRLoader', () => {
       const {recorder, loader} = await loadRange(200, 300);
       expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
       expect(loader.stats.error.code).toBe(416);
+    });
+
+    it('takes a 200 that says it is the range as the range, as before', async () => {
+      const range = file.slice(10, 20);
+      for (const headers of [{'content-range': 'bytes 10-19/100'}, {'content-length': '10'}]) {
+        const {recorder} = await loadRange(10, 20, range, headers);
+        const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+        expect(new Uint8Array(response.data)).toEqual(range);
+      }
     });
 
     it('leaves a whole-file request alone', async () => {
