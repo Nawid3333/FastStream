@@ -2680,6 +2680,12 @@ input.crosstalk_calculator_input {
     left: 50%;
     transform: translate(-50%, -50%);
     opacity: 0.9;
+    border-radius: 50%;
+}
+
+.knob_knob_container:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
 }
 
 .knob_knob {

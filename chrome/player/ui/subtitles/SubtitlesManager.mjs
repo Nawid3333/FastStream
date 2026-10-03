@@ -561,10 +561,16 @@ export class SubtitlesManager extends EventEmitter {
     const mouseup = (e) => {
       DOMElements.playerContainer.removeEventListener('mousemove', mousemove);
       DOMElements.playerContainer.removeEventListener('mouseup', mouseup);
+      document.removeEventListener('mouseup', mouseup);
       e.stopPropagation();
     };
 
     const mousemove = (e) => {
+      // No button held: it was let go where this drag never heard of it.
+      if (e.buttons === 0) {
+        mouseup(e);
+        return;
+      }
       // drag by adjusting margin-bottom
       const oldDiff = yStart - e.clientY;
       let diff = oldDiff;
@@ -592,10 +598,17 @@ export class SubtitlesManager extends EventEmitter {
     };
 
     wrapper.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      // Only the left button drags. A right-click's context menu takes the mouseup, and the
+      // subtitles then followed the mouse until the next click.
+      if (e.button !== 0) {
+        return;
+      }
       yStart = e.clientY;
       DOMElements.playerContainer.addEventListener('mousemove', mousemove);
       DOMElements.playerContainer.addEventListener('mouseup', mouseup);
-      e.stopPropagation();
+      // Let go outside the player: only the document hears that mouseup.
+      document.addEventListener('mouseup', mouseup);
     });
 
 

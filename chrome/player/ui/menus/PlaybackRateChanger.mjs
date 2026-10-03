@@ -57,10 +57,21 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   onAudioMouseDown(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    // Only the left button drags: a right-click's context menu takes the mouseup.
+    if (e.button !== 0) {
+      return;
+    }
     const startY = e.clientY;
     const startThreshold = this.silenceThreshold;
     const fineTimeControls = this.client.interfaceController.fineTimeControls;
     const onAudioMouseMove = (e) => {
+      // No button held: it was let go where this drag never heard of it.
+      if (e.buttons === 0) {
+        onAudioMouseUp();
+        return;
+      }
       const diff = startY - e.clientY;
       this.silenceThreshold = Utils.clamp(startThreshold + diff / fineTimeControls.ui.timelineAudio.clientHeight, 0, 1);
       this.updateSilenceSkipper();
@@ -75,8 +86,6 @@ export class PlaybackRateChanger extends EventEmitter {
     DOMElements.playerContainer.addEventListener('mousemove', onAudioMouseMove);
     DOMElements.playerContainer.addEventListener('mouseup', onAudioMouseUp);
     DOMElements.playerContainer.addEventListener('mouseleave', onAudioMouseUp);
-    e.stopPropagation();
-    e.preventDefault();
   }
 
   updateSilenceSkipper() {

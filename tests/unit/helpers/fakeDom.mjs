@@ -33,6 +33,12 @@ export class FakeElement {
     this.checked = false;
     this.disabled = false;
     this.hidden = false;
+    // Layout, as the test sets it: getBoundingClientRect() answers with `rect`.
+    this.rect = {left: 0, top: 0, width: 0, height: 0};
+    this.offsetLeft = 0;
+    this.offsetTop = 0;
+    this.clientWidth = 0;
+    this.clientHeight = 0;
     const classes = new Set();
     this.classList = {
       add: (...names) => names.forEach((name) => classes.add(name)),
@@ -157,6 +163,16 @@ export class FakeElement {
     return event;
   }
 
+  dispatchEvent(event) {
+    for (const fn of (this.listeners[event.type] || []).slice()) fn.call(this, event);
+    return true;
+  }
+
+  getBoundingClientRect() {
+    const {left, top, width, height} = this.rect;
+    return {left, top, width, height, right: left + width, bottom: top + height, x: left, y: top};
+  }
+
   focus() {
     this.ownerDocument.activeElement = this;
   }
@@ -279,7 +295,20 @@ export class FakeDocument {
     (this.listeners[type] ||= []).push(fn);
   }
 
-  removeEventListener() {}
+  removeEventListener(type, fn) {
+    const list = this.listeners[type] || [];
+    if (list.includes(fn)) list.splice(list.indexOf(fn), 1);
+  }
+
+  /**
+   * Calls the document's own listeners for an event (one that reached the document).
+   * @param {string} type - The event type.
+   * @param {Object} [props] - The event's properties.
+   */
+  fire(type, props = {}) {
+    const event = {type, target: this, preventDefault() {}, stopPropagation() {}, ...props};
+    for (const fn of (this.listeners[type] || []).slice()) fn.call(this, event);
+  }
 }
 
 /**
