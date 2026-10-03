@@ -185,6 +185,22 @@ describe('Keybinding menu', function() {
     expect((await savedOptions()).keybindsVersion).toBe(3);
   });
 
+  it('keeps the box a key was set in, and its focus, after the save', async function() {
+    // The page redrew itself after its own save: every row was rebuilt, and a keyboard
+    // user was sent back to the top of the page after each key (#188).
+    await browser.execute((selector) => {
+      window.__box = document.querySelector(`${selector} .keybind-input`);
+    }, row('Mute'));
+    await assignKey('Mute', 'KeyU');
+    await waitForSaved((saved) => saved.keybinds.Mute === 'KeyU');
+    await browser.pause(300);
+    const state = await browser.execute((selector) => {
+      const box = document.querySelector(`${selector} .keybind-input`);
+      return {same: box === window.__box, focused: document.activeElement === box, key: box.textContent};
+    }, row('Mute'));
+    expect(state).toEqual({same: true, focused: true, key: 'KeyU'});
+  });
+
   it('saves the choice with the layout version, and shows it again after a reload', async function() {
     await assignKey('SeekPercent50', 'KeyU');
     await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
