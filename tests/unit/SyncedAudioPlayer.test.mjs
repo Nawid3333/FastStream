@@ -179,6 +179,63 @@ describe('SyncedAudioPlayer', () => {
     expect(resync).toHaveBeenCalledTimes(10);
   });
 
+  /**
+   * Sends an event to a player as its own emitter would.
+   * @param {Object} player - From audioPlayer().
+   * @param {string} event
+   * @param {*} [arg]
+   */
+  function emitTo(player, event, arg) {
+    player.on.mock.calls.filter(([name]) => name === event).forEach(([, handler]) => handler(arg));
+  }
+
+  it('lets the video play on with its own sound when a separate audio player fails', async () => {
+    // A hidden audio player's error (a segment its own loader gave up on) failed the whole
+    // player: the error banner over a video that went on playing, and no fallback stream.
+    const client = makeClient();
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setVideoDelay(300);
+    const players = synced.audioPlayers.slice();
+    expect(players).toHaveLength(2);
+    // The resync gave the sound to a separate player.
+    client.player.volume = 0;
+
+    emitTo(players[1], 'error', 'Segment failed to load');
+
+    expect(client.failedToLoad).not.toHaveBeenCalled();
+    expect(players.every((player) => player.destroyed)).toBe(true);
+    expect(synced.audioPlayers).toEqual([]);
+    expect(synced.madePlayers).toBe(false);
+    expect(client.player.volume).toBe(1);
+    // Nothing goes to the players that are gone.
+    await synced.play();
+    synced.setCurrentTime(20);
+    expect(players[0].play).not.toHaveBeenCalled();
+  });
+
+  it('does not keep the other player when one fails while it is being built', async () => {
+    let finishSetup;
+    const first = audioPlayer();
+    const second = audioPlayer();
+    second.setup = vi.fn(() => new Promise((resolve) => {
+      finishSetup = resolve;
+    }));
+    const made = [first, second];
+    const client = makeClient({createPlayer: vi.fn(async () => made.shift())});
+    const synced = new SyncedAudioPlayer(client);
+    const building = synced.setVideoDelay(300);
+    await vi.waitFor(() => expect(second.setup).toHaveBeenCalled());
+
+    emitTo(first, 'error', 'Manifest failed to load');
+    finishSetup();
+    await building;
+
+    expect(first.destroyed).toBe(true);
+    expect(second.destroyed).toBe(true);
+    expect(synced.audioPlayers).toEqual([]);
+    expect(client.failedToLoad).not.toHaveBeenCalled();
+  });
+
   it('delays the sound by a negative delay of more than a second in full', async () => {
     // The delay node was made for at most 1 s: -1500 ms played at -1000.
     const client = makeClient();
