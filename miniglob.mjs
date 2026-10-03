@@ -9,13 +9,12 @@
 //
 import {readdirSync, statSync} from 'fs';
 
-const DIRSEP = (() => {
-  try {
-    return require('path').sep;
-  } catch (_) {
-    return '/';
-  }
-})();
+// FastStream: '/' everywhere. This used to be require('path').sep, but an ES module run by
+// Node has no `require`, so it was '/' even on Windows, where a path.join()ed pattern then
+// matched nothing; under vitest, which defines `require`, it was '\' and `dir + '/**'`
+// matched nothing. Node takes '/' in Windows paths, and glob() turns a Windows pattern's
+// backslashes into it.
+const DIRSEP = '/';
 const DIRSEP_BYTE = DIRSEP.charCodeAt(0);
 const DIRSEP_RE_PG = DIRSEP == ':' ? /\:+/g : DIRSEP == '\\' ? /\\+/g : /\/+/g;
 const WIN32 = process.platform == 'win32';
@@ -29,6 +28,10 @@ export class PatternError extends Error {
 
 
 export function glob(pattern) {
+  // FastStream: on Windows '\' is a separator, never an escape (see match()).
+  if (WIN32) {
+    pattern = pattern.replace(/\\/g, '/');
+  }
   if (pattern.indexOf('**') < 0) {
     return glob0(pattern);
   }
