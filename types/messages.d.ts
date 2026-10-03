@@ -45,11 +45,17 @@ interface FSOpenPlayer extends FSMessageBase {
   type: 'OPEN_PLAYER';
   /** Extension URL of the player page. */
   url: string;
-  /** True only for the top frame, which navigates rather than redirects. */
+  /**
+   * True only for the top frame, which never goes to the player itself: it puts the
+   * player in place of its video, or lays it over the page. Another frame whose video
+   * fills it, and which cannot go fullscreen, navigates to the player instead.
+   */
   noRedirect: boolean;
   frameId: number;
   /** -1 when the frame has no parent. */
   parentFrameId: number;
+  /** Numbers this opening; content.js names it in PLAYER_OPEN_GONE. */
+  attempt: number;
 }
 
 /** The player announcing it has finished loading. */
@@ -97,16 +103,17 @@ interface FSHeaderCommand {
   value?: string;
 }
 
-/** Background asks a frame for its video element dimensions. */
+/** Background asks a frame how big its largest visible video is. */
 interface FSGetVideoSize extends FSMessageBase {
   type: 'GET_VIDEO_SIZE';
 }
 
-/** Reply to GET_VIDEO_SIZE. */
-interface FSVideoSize {
-  width: number;
-  height: number;
-}
+/**
+ * Reply to GET_VIDEO_SIZE: the video's visible area in CSS pixels (width x height x the
+ * share of it on screen); 0 when the frame has none. The background opens the player in
+ * the frame with the biggest.
+ */
+type FSVideoSizeReply = number;
 
 /**
  * Any message crossing a context boundary.

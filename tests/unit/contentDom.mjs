@@ -314,9 +314,17 @@ export class FakeDocument {
 
   removeEventListener() {}
 
-  /** Runs the MutationObservers watching the document (synchronously, for the tests). */
+  /**
+   * Runs the MutationObservers watching the document once the current task is done, as
+   * Firefox does (with no records: the scripts' own lists are what is tested).
+   */
   mutated() {
-    for (const observer of [...this.observers]) observer.callback([], observer);
+    if (this.mutationQueued) return;
+    this.mutationQueued = true;
+    queueMicrotask(() => {
+      this.mutationQueued = false;
+      for (const observer of [...this.observers]) observer.callback([], observer);
+    });
   }
 }
 
@@ -325,9 +333,10 @@ export class FakeDocument {
  * @param {Object} [options]
  * @param {string} [options.hostname] - The page's host.
  * @param {Array<Object>} [options.entries] - Its Resource Timing entries.
+ * @param {Object<string, string>} [options.responses] - What its requests get, by URL.
  * @return {Object} The page: its document, what content.js sent, and how to talk to it.
  */
-export function loadContentScript({hostname = 'site.example', entries = []} = {}) {
+export function loadContentScript({hostname = 'site.example', entries = [], responses = {}} = {}) {
   const document = new FakeDocument();
   const sent = [];
   let onMessage = null;
@@ -386,9 +395,22 @@ export function loadContentScript({hostname = 'site.example', entries = []} = {}
     MutationObserver: FakeMutationObserver,
     ResizeObserver: FakeResizeObserver,
     IntersectionObserver: FakeIntersectionObserver,
+    // Answers with `responses` (URL -> text; 404 for any other), a moment after send(). A
+    // URL with a bad host makes open() throw, as Firefox's does.
     XMLHttpRequest: class {
-      open() {
-        throw new Error('contentDom: no network');
+      open(method, url) {
+        if (url.startsWith('http://[')) throw new SyntaxError('An invalid or illegal string was specified');
+        this.url = url;
+      }
+      setRequestHeader() {}
+      abort() {}
+      send() {
+        Promise.resolve().then(() => {
+          this.readyState = 4;
+          this.status = this.url in responses ? 200 : 404;
+          this.responseText = responses[this.url] || '';
+          this.onreadystatechange();
+        });
       }
     },
     console: {log() {}, error() {}, warn() {}, debug() {}, info() {}},
@@ -447,7 +469,9 @@ export function loadContentScript({hostname = 'site.example', entries = []} = {}
      */
     send(request) {
       return new Promise((resolve) => {
-        const async = onMessage(request, {id: 'test'}, resolve);
+        // Copied when sent, as Firefox copies it: what the script changes after is not in it.
+        const sendResponse = (response) => resolve(response === undefined ? undefined : structuredClone(response));
+        const async = onMessage(request, {id: 'test'}, sendResponse);
         if (async !== true) resolve(undefined);
       });
     },

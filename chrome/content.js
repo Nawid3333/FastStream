@@ -40,7 +40,6 @@
   const elementsChangedByFillscreen = [];
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
-  let Activated = false;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
   // detected in it.
@@ -333,14 +332,6 @@
     });
   }
 
-  async function sendToOtherContents(message) {
-    notifyBackground({
-      type: 'SEND_TO_CONTENT',
-      data: message,
-      destination: 'custom',
-    });
-  }
-
   function handleContentMessage(request, sender, sendResponse) {
     const data = request.data;
     if (data.type === 'config') {
@@ -485,13 +476,6 @@
           }
         });
         pobj.resizeObserver.observe(iframe.parentNode);
-      }
-      if (!Activated) {
-        Activated = true;
-        sendToOtherContents({
-          type: 'active-state',
-          value: true,
-        });
       }
     }).catch((e) => {
       // Whatever went wrong, the background hears back: without an answer it kept the
@@ -668,30 +652,31 @@
   const ScrapedTrackKinds = ['subtitles', 'captions'];
 
   function handleCaptionsScrape(request, sender, sendResponse) {
-    const trackElements = querySelectorAllIncludingShadows('track');
-    let pending = 0;
+    // Every track is counted before any is asked for: a request that fails at once (a src
+    // XMLHttpRequest refuses) answers inside the loop, and the answer went out then, with
+    // the tracks after it never asked for.
+    const trackElements = querySelectorAllIncludingShadows('track')
+        .filter((track) => track.src && ScrapedTrackKinds.includes(track.kind));
+    const pending = trackElements.length;
     let done = 0;
     const tracks = [];
     for (let i = 0; i < trackElements.length; i++) {
       const track = trackElements[i];
-      if (track.src && ScrapedTrackKinds.includes(track.kind)) {
-        pending++;
-        const source = track.src;
-        httpRequest(source, (err, req, body) => {
-          done++;
-          if (body) {
-            tracks.push({
-              data: body,
-              source: source,
-              label: track.label,
-              language: track.srclang,
-            });
-          }
-          if (done === pending) sendResponse(tracks);
-        });
-      }
+      const source = track.src;
+      httpRequest(source, (err, req, body) => {
+        done++;
+        if (body) {
+          tracks.push({
+            data: body,
+            source: source,
+            label: track.label,
+            language: track.srclang,
+          });
+        }
+        if (done === pending) sendResponse(tracks);
+      });
     }
-    if (done === pending) sendResponse(tracks);
+    if (pending === 0) sendResponse(tracks);
 
     return true;
   }
@@ -753,14 +738,6 @@
         });
       }
     });
-
-    if (Activated) {
-      Activated = false;
-      sendToOtherContents({
-        type: 'active-state',
-        value: false,
-      });
-    }
   }
 
   /**
