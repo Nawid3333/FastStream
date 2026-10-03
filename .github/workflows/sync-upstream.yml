@@ -125,6 +125,9 @@ jobs:
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
           authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
           finish() { echo "action=$1" >> "$GITHUB_OUTPUT"; }
+          # gh pr list --head matches the branch name in any repository: each list here (and
+          # in the next step) drops a fork's pull request from a branch of the same name, which
+          # would otherwise be closed, edited, or taken as a decision to skip.
 
           BEHIND=$(git rev-list --count "HEAD..upstream/main")
           BASE_SHA=$(git rev-parse --short=10 HEAD)
@@ -140,7 +143,7 @@ jobs:
             echo "Already up to date." >> "$GITHUB_STEP_SUMMARY"
             # Everything upstream has is in main now, however it got there, so
             # an open sync PR has nothing left to offer.
-            for pr in $(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[].number'); do
+            for pr in $(gh pr list --head "$SYNC_BRANCH" --state open --json number,isCrossRepository --jq '.[] | select(.isCrossRepository | not) | .number'); do
               gh pr close "$pr" --comment "Closing: ${WORK_BRANCH} (${BASE_SHA}) now holds every upstream commit, up to ${UP_SHA}. Nothing left to take."
               echo "Closed sync PR #$pr: upstream fully adopted." >> "$GITHUB_STEP_SUMMARY"
             done
@@ -161,8 +164,8 @@ jobs:
 
           # A PR closed without merging for this upstream commit is a decision to
           # skip it. Recreating it every run would undo that decision.
-          SKIPPED=$(gh pr list --head "$SYNC_BRANCH" --state closed --json mergedAt,body \
-            --jq "[.[] | select(.mergedAt == null and ((.body // \"\") | contains(\"upstream=${UP_SHA} \")))] | length")
+          SKIPPED=$(gh pr list --head "$SYNC_BRANCH" --state closed --json mergedAt,body,isCrossRepository \
+            --jq "[.[] | select((.isCrossRepository | not) and .mergedAt == null and ((.body // \"\") | contains(\"upstream=${UP_SHA} \")))] | length")
           if [ "$SKIPPED" -gt 0 ]; then
             echo "The sync PR for upstream ${UP_SHA} was closed without merging; not reopening it." >> "$GITHUB_STEP_SUMMARY"
             finish none
@@ -172,7 +175,7 @@ jobs:
           # The open PR already describes exactly this state. Pushing the branch
           # again would only rewrite its head and rerun CI for nothing. (Read first: a
           # failed list then stops the run, where a pipe into grep would rebuild the PR.)
-          OPEN_BODIES=$(gh pr list --head "$SYNC_BRANCH" --state open --json body --jq '.[].body')
+          OPEN_BODIES=$(gh pr list --head "$SYNC_BRANCH" --state open --json body,isCrossRepository --jq '.[] | select(.isCrossRepository | not) | .body')
           if grep -qF -- "$MARKER" <<< "$OPEN_BODIES"; then
             echo "The open sync PR is already current." >> "$GITHUB_STEP_SUMMARY"
             finish none
@@ -274,7 +277,7 @@ jobs:
             printf '\n<!-- sync-upstream base=%s upstream=%s -->\n' "$BASE_SHA" "$UP_SHA"
           } > "$RUNNER_TEMP/pr-body.md"
 
-          EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number')
+          EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
           if [ -n "$EXISTING" ]; then
             # The upstream commit the PR was built for, from its marker. A failed read stops
             # the run (pipefail): an empty answer would say "upstream moved" when it has not.

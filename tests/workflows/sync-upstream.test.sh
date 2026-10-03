@@ -145,7 +145,7 @@ check 'the newest first' contains "$LOG" "- $(git -C "$UPSTREAM" rev-parse --sho
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
 old_up=$(short "$UPSTREAM" HEAD~1)
-prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$old_up")\n\"}]"
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$old_up")\n\"}]"
 sync 's3 upstream moved past the open PR -> the PR rebuilt, a comment says upstream moved'
 check 'succeeds' test "$status" -eq 0
 check 'edits #5, assigned' grep -qF 'PR_EDIT [5] [--title] [Sync upstream (1 commits)] [--body-file]' "$LOG"
@@ -154,7 +154,7 @@ check 'opens no second PR' lacks "$LOG" 'PR_CREATE'
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
-prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\r\n\r\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\r\n\"}]"
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\r\n\r\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\r\n\"}]"
 sync 's4 main moved, upstream did not (a body edited in the browser, CRLF) -> the PR rebuilt, no comment'
 check 'succeeds' test "$status" -eq 0
 check 'edits #5' grep -qF 'PR_EDIT [5]' "$LOG"
@@ -162,7 +162,7 @@ check 'no comment: upstream did not move' lacks "$LOG" 'PR_COMMENT'
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
-prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD~1)")\n\"}]"
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD~1)")\n\"}]"
 : > "$FIX/pr_view_fails"
 sync "s5 the open PR's body cannot be read -> fails, says nothing about upstream moving"
 check 'fails (the failure step reports it)' test "$status" -eq 1
@@ -170,7 +170,7 @@ check 'no "upstream moved" comment' lacks "$LOG" 'PR_COMMENT'
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
-prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\n\n$(marker "$(short "$FIX/work" main)" "$(short "$UPSTREAM" HEAD)")\n\"}]"
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker "$(short "$FIX/work" main)" "$(short "$UPSTREAM" HEAD)")\n\"}]"
 sync 's6 the open PR is current -> nothing pushed, edited or started'
 check 'succeeds' test "$status" -eq 0
 check 'says so' contains "$GITHUB_STEP_SUMMARY" 'The open sync PR is already current.'
@@ -179,14 +179,14 @@ check 'starts nothing' test "$(dispatched)" -eq 0
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
-prs "[{\"number\":4,\"state\":\"closed\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\"}]"
+prs "[{\"number\":4,\"state\":\"closed\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\"}]"
 sync 's7 the PR for this upstream commit was closed unmerged -> skipped'
 check 'succeeds' test "$status" -eq 0
 check 'pushes nothing' bash -c '! git -C "$0" rev-parse -q --verify refs/heads/sync/upstream' "$FIX/origin.git"
 check 'opens nothing' lacks "$LOG" 'PR_CREATE'
 
 fixtures
-prs '[{"number":5,"state":"open","headRefName":"sync/upstream","mergedAt":null,"body":"x"}]'
+prs '[{"number":5,"state":"open","headRefName":"sync/upstream","isCrossRepository":false,"mergedAt":null,"body":"x"}]'
 sync 's8 main holds every upstream commit -> the open PR closed'
 check 'succeeds' test "$status" -eq 0
 check 'closes #5' grep -qF 'PR_CLOSE [5] [--comment] [Closing: main' "$LOG"
@@ -198,6 +198,28 @@ sync 's9 a push to main with upstream commits to take -> nothing rebuilt'
 check 'succeeds' test "$status" -eq 0
 check 'pushes nothing' bash -c '! git -C "$0" rev-parse -q --verify refs/heads/sync/upstream' "$FIX/origin.git"
 check 'starts nothing' test "$(dispatched)" -eq 0
+
+# gh pr list --head lists a fork's pull request from a branch named sync/upstream too (#169).
+fork_prs() { # <this repository's PRs, comma-separated JSON>: they, and a fork's open and closed one
+  printf '[%s{"number":9,"state":"open","headRefName":"sync/upstream","isCrossRepository":true,"mergedAt":null,"body":"x %s"},{"number":8,"state":"closed","headRefName":"sync/upstream","isCrossRepository":true,"mergedAt":null,"body":"%s"}]' \
+    "${1:+$1,}" "$(marker "$(short "$FIX/work" main)" "$(short "$UPSTREAM" HEAD)")" "$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")" > "$FIX/prs.json"
+}
+fixtures
+up_commit chrome/b.txt b 'Bug fixes'
+fork_prs ''
+sync "s16 a fork's PRs from a branch named sync/upstream (one with this sync's marker, one closed) -> this repository's own PR"
+check 'succeeds' test "$status" -eq 0
+check 'pushes the sync branch' pushed
+check 'opens its own PR' grep -qF 'PR_CREATE [--base] [main] [--head] [sync/upstream]' "$LOG"
+check "edits or comments on no fork's PR" bash -c '! grep -qE "^PR_(EDIT|COMMENT|CLOSE) \[(8|9)\]" "$0"' "$LOG"
+check 'starts CI' contains "$LOG" 'DISPATCH [ci.yml] [--ref] [sync/upstream]'
+
+fixtures
+fork_prs '{"number":5,"state":"open","headRefName":"sync/upstream","isCrossRepository":false,"mergedAt":null,"body":"x"}'
+sync "s17 main holds every upstream commit, a fork's PR open too -> closes only this repository's"
+check 'succeeds' test "$status" -eq 0
+check 'closes #5' grep -qF 'PR_CLOSE [5]' "$LOG"
+check "leaves the fork's #9 alone" lacks "$LOG" 'PR_CLOSE [9]'
 
 # Upstream's changes under .github/ would run with this repository's token and secrets in a
 # CI run on the branch (#163): a person reads them first, and nothing is started.
@@ -221,7 +243,7 @@ check 'starts nothing' test "$(dispatched)" -eq 0
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'
-prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\n\"}]"
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\n\"}]"
 up_commit .github/workflows/release.yml 'name: upstream release' 'Release workflow'
 sync 's15 upstream moved past the open PR with a .github/ change -> the comment says CI was not started; nothing started'
 check 'succeeds' test "$status" -eq 0

@@ -171,10 +171,12 @@ jobs:
           LABEL=ci-failed
 
           # --- The open pull request CI ran for: this branch, at exactly this commit. A newer
-          # commit has a run of its own, which decides.
+          # commit has a run of its own, which decides. gh's --head matches the branch name in
+          # any repository: a fork's pull request from a branch of the same name, even at the
+          # same commit, is never the one (#169).
           gh pr list --state open --head "$BRANCH" --limit 20 \
-            --json number,headRefOid,baseRefName,author,title,isDraft,labels > "$RUNNER_TEMP/prs.json"
-          pr=$(jq -c --arg sha "$SHA" '[.[] | select(.headRefOid == $sha)][0] // empty' "$RUNNER_TEMP/prs.json")
+            --json number,headRefOid,baseRefName,author,title,isDraft,labels,isCrossRepository > "$RUNNER_TEMP/prs.json"
+          pr=$(jq -c --arg sha "$SHA" '[.[] | select(.headRefOid == $sha and (.isCrossRepository | not))][0] // empty' "$RUNNER_TEMP/prs.json")
           if [ -z "$pr" ]; then
             echo "No open pull request on $BRANCH at ${SHA:0:8}: merged, closed, or moved on. Nothing to do."
             exit 0

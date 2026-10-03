@@ -1120,7 +1120,10 @@ the change went in.
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
   tries) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-  `sync/upstream` branches, and never checks out PR code. CI red: CI is started once more
+  `sync/upstream` branches, and never checks out PR code. `gh pr list --head` lists a fork's
+  pull request from a branch of the same name too: it, `sync-upstream.yml` and
+  `mpv-updates.yml` drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
+  fails for a `--head` list that does not ask). CI red: CI is started once more
   on the same commit, and that run decides (a new run, not a re-run: a re-run by this
   workflow's token would reach no workflow when it ends); not when CI already failed on
   that commit (an earlier run, or this run was re-run by hand), and when GitHub refuses

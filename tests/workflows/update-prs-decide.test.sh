@@ -298,7 +298,7 @@ updated-dependencies:
 
 pr() { # <author> [draft] [labels json]
   jq -n --arg sha "$sha" --arg author "$1" --argjson draft "${2:-false}" --argjson labels "${3:-[]}" \
-    '[{number: 42, headRefOid: $sha, baseRefName: "main", author: {login: $author}, title: "build(deps-dev): bump eslint", isDraft: $draft, labels: $labels}]' \
+    '[{number: 42, headRefOid: $sha, baseRefName: "main", author: {login: $author}, title: "build(deps-dev): bump eslint", isDraft: $draft, labels: $labels, isCrossRepository: false}]' \
     > "$STATE/prs.json"
 }
 prview() { # <files json> <commits json>
@@ -421,6 +421,43 @@ EOF
 no_pr() {
   setup
   jq '.[0].headRefOid = "bbbb"' "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'no mutations' test "$(n_mut)" -eq 0
+}
+
+fork_pr() { # [number]: a fork's open pull request from a branch of the same name, at the same commit, listed first
+  jq --argjson n "${1:-43}" '[.[0] + {number: $n, isCrossRepository: true, author: {login: "mallory"}}] + .' \
+    "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
+}
+untouched_43() { ! grep -qE '^pr [a-z]+ 43( |$)|/(issues|pulls)/43(/|$)' "$STATE/gh.log"; }
+
+fork_pr_same_branch_and_sha() {
+  # gh's --head lists a fork's pull request from a branch of the same name too (#169).
+  setup
+  fork_pr
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'reports on #42' has_call 'pr edit 42 --add-assignee nawid'
+  check 'ready to merge' ready
+  check "the fork's #43 untouched" untouched_43
+}
+
+fork_pr_red() {
+  # Red, and the fork's pull request first in the list: no label, assignee or comment on it.
+  setup
+  export CONCLUSION=failure RUN_ATTEMPT=2
+  fork_pr
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'labels #42' has_call 'pr edit 42 --add-assignee nawid --add-label ci-failed'
+  check "the fork's #43 untouched" untouched_43
+}
+
+fork_pr_only() {
+  # Only a fork's pull request on this branch at this commit: nothing to report on.
+  setup
+  jq '.[0] += {isCrossRepository: true, author: {login: "mallory"}}' "$STATE/prs.json" > "$STATE/p" && mv "$STATE/p" "$STATE/prs.json"
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'no mutations' test "$(n_mut)" -eq 0
@@ -1624,6 +1661,9 @@ lock_head_unreadable() {
 }
 
 no_pr
+fork_pr_same_branch_and_sha
+fork_pr_red
+fork_pr_only
 other_branch_name
 red_first
 red_dispatch_refused
