@@ -437,10 +437,14 @@ const TabStateKeyPrefix = 'tabState:';
 // the same lifetime tab ids have) so a woken background still knows it.
 // mpvAutoOpened goes with it: without it the page's next stream request after a
 // wake opens a second mpv window for a page already handed off. mpvOnPlay too,
-// or a woken background forwards the page's first stream after all. The rest of a
+// or a woken background forwards the page's first stream after all. mpvError, or the
+// toolbar's "!" for a failed hand-off went at the wake. And a play still waiting for its
+// stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
+// which keeps a player's second play() from opening a second window). The rest of a
 // TabHolder - frames, detected sources - describes the current page and is
 // rebuilt as that page makes requests.
-const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened'];
+const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
+  'mpvError', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend'];
 
 export class TabTracker {
   constructor() {

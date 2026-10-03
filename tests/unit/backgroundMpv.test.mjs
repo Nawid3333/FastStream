@@ -110,6 +110,51 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
     expect(bg.toMpv()).toEqual([]);
   });
 
+  it('still takes the video\'s stream after the event page restarted', async () => {
+    // Firefox stops an idle background, and a restart for any reason took the waiting
+    // play with it: the stream the player asked for next was only tracked.
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await playWithShortcutMpv(1400);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], session,
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends a video once when the player plays it again after a restart', async () => {
+    // A player calls play() twice, or resumes after the page was paused: within 10 s the
+    // same stream only pauses the page again. Forgotten at a restart, it opened a second
+    // mpv window.
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], session,
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.sent('PAUSE_MEDIA')).toHaveLength(1);
+  });
+
   it('takes the next page\'s play by itself while the last page\'s stream is still read', async () => {
     bg = await loadBackground({
       options: {mpvMode: true},
@@ -125,5 +170,50 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
     await bg.request({tabId: 1, url: EPISODE});
     await bg.wait(3000);
     expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+});
+
+describe('a failed hand-off', () => {
+  it('keeps the toolbar\'s "!" after the event page restarted', async () => {
+    // The badge is the browser's, but a woken background redraws every tab's button from
+    // what it knows, and it did not know of the failure any more.
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: () => ({ok: false, error: 'mpv executable not found'}),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(bg.badges.get(1)).toBe('!');
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}], session});
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toBe('FastStream - MPV - the stream did not open: mpv executable not found');
+  });
+
+  it('shows no "!" after a restart once a later hand-off worked', async () => {
+    let answer = {ok: false, error: 'mpv executable not found'};
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: () => answer,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    expect(bg.badges.get(1)).toBe('!');
+    answer = {ok: true};
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([AD, EPISODE]);
+    expect(bg.badges.get(1)).toBe('');
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}], session});
+    expect(bg.badges.get(1)).toBe('');
   });
 });

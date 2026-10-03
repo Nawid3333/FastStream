@@ -618,9 +618,11 @@ then woke a fresh background with no record of the user's toolbar choice, so an
 allowlisted site auto-started MPV again even after the user had picked the
 in-page player or Off. The same loss dropped the one-hand-off-per-page latch,
 so the page's next stream request after a wake opened a second mpv window.
-`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `regexMatched`,
+`TabTracker.saveTabState` now writes `url`, `isOn`, `isMpv`, `mpvOnPlay`, `regexMatched`,
 `mpvMatched` and `mpvAutoOpened` per tab to `chrome.storage.session` whenever
 one of them changes (toolbar click, URL change, mpv hand-off and its failure),
+and since 2026-10-03 (#158) the failure shown as "!" (`mpvError`) and the shortcut's
+waiting play (`mpvPlayPendingUntil`, `mpvPlayedVideo`, `mpvLastPlaySend`),
 and `restoreTabStates` puts them back inside `ensureOptions()`, which every
 state-changing listener already awaits. A new field that has to survive a wake
 goes into `PersistedTabFields`, and every place that sets it saves. Within one

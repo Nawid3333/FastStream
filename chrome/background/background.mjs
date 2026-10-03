@@ -2052,6 +2052,7 @@ function setMpvError(tab, result) {
   if (tab.mpvError !== error) {
     tab.mpvError = error;
     BackgroundUtils.updateTabIcon(tab);
+    Tabs.saveTabState(tab);
   }
 }
 
@@ -2162,6 +2163,7 @@ async function onUserPlay(sender, src, video) {
     // page asks for decides, when its length can be the video's (onSourceRecieved).
     tab.mpvPlayedVideo = video || null;
     tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;
+    Tabs.saveTabState(tab);
   }
 }
 
@@ -2184,6 +2186,7 @@ async function sendPendingPlay(tab, first) {
   const queue = [first];
   tab.mpvPlayChecking = queue;
   tab.mpvPlayPendingUntil = 0;
+  Tabs.saveTabState(tab);
   try {
     while (queue.length > 0) {
       const candidate = /** @type {typeof first} */ (queue.shift());
@@ -2205,6 +2208,7 @@ async function sendPendingPlay(tab, first) {
     }
     // Each was another video's: the next one may be the video's, while the wait lasts.
     tab.mpvPlayPendingUntil = until;
+    Tabs.saveTabState(tab);
   } finally {
     if (tab.mpvPlayChecking === queue) {
       tab.mpvPlayChecking = null;
@@ -2330,6 +2334,7 @@ function sendPlayedToMpv(tab, source) {
   }
 
   tab.mpvLastPlaySend = {url: source.url, time: now};
+  Tabs.saveTabState(tab);
   tabTitle(tab.tabId).then((title) =>
     Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
@@ -2339,6 +2344,7 @@ function sendPlayedToMpv(tab, source) {
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
       // The host never launched mpv, so let the next play try again.
       tab.mpvLastPlaySend = null;
+      Tabs.saveTabState(tab);
     }
   }).catch((e) => {
     console.error('Handing the played video to mpv failed', e);
