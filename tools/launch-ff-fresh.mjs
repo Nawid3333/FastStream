@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import * as url from 'node:url';
 
-import {rebuild, resolveTarget} from './rebuild.mjs';
+import {rebuild, resolveTarget, webExtSpawn} from './rebuild.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -71,31 +71,32 @@ if (!fs.existsSync(sourceDir)) {
 console.log('\nLaunching fresh Firefox dev instance with FastStream + uBlock...');
 console.log(`Profile: ${profileDir} (reset, add-ons preserved)\n`);
 
-const isCmd = process.platform === 'win32';
-const quote = (s) => (s.includes(' ') ? `"${s}"` : s);
-const webExtArgs = [
-  'pnpm', 'exec', 'web-ext', 'run',
-  '--source-dir', quote(sourceDir),
+// webExtSpawn: a shell and quoting on Windows (pnpm.cmd), the arguments as they are elsewhere.
+const {command, args, shell} = webExtSpawn([
+  'run',
+  '--source-dir', sourceDir,
   '--target', 'firefox-desktop',
-  '--firefox-profile', quote(profileDir),
+  '--firefox-profile', profileDir,
   '--profile-create-if-missing',
   // Do not keep profile changes between runs for the fresh launcher.
   // This is redundant with the delete above, but protects against
   // accidental state leakage if the profile survives for any reason.
   '--arg=-no-remote',
   '--arg=-new-instance',
-];
+]);
 
-const webExtCmd = webExtArgs.join(' ');
-
-const webExt = spawn(webExtCmd, [], {
+const webExt = spawn(command, args, {
   cwd: root,
   stdio: 'inherit',
-  shell: isCmd,
+  shell,
   env: {
     ...process.env,
     MOZ_NO_REMOTE: '1',
   },
 });
 
+webExt.on('error', (e) => {
+  console.error(`Could not start web-ext through pnpm: ${e.message}`);
+  process.exit(1);
+});
 webExt.on('exit', (code) => process.exit(code ?? 0));
