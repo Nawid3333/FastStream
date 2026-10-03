@@ -343,7 +343,7 @@ what can actually change behaviour.
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
 | coloris | 0.25.0, git tag (not on npm) | 9 KB patch (`patches/Coloris@0.25.0.patch`); one deliberate bug fix on top | **migrated** |
 | jswebm | 0.1.2 | - | **removed 2026-09-30** with the re-encoder: Mediabunny reads WebM |
-| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 4 changes | **verified** |
+| vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 8 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
 | knob | `jherrm/knobs@cf2db70f` | **verified** - `pnpm run verify:knob` | **verified** |
@@ -631,16 +631,21 @@ is six flat files. The layout belongs to the build **dash.js** maintains at
 `contrib/videojs-vtt.js/vtt.js`, which is byte-identical across dash.js v4.7.4
 through v5.1.0.
 
-`chrome/player/modules/vtt.mjs` is that file with exactly four changes:
+`chrome/player/modules/vtt.mjs` is that file with exactly eight changes:
 
 | Change | Why |
 |---|---|
 | `FONT_SIZE_PERCENT` 0.25 -> 0.05 | subtitles rendered at a fifth of dash.js's default size relative to the container |
 | `processCues(window, cues, overlay, parentId)` loses `parentId` | dash.js added that parameter for its own container; FastStream did not take it |
 | `if (parentId) { paddedOverlay.id = parentId; }` removed | the body of the same dash.js addition |
+| closing-tag token: `replace(/>/g, "")`, not `replace(">", "")` | CodeQL alert #8 (2026-09-22) |
+| `/u2029/g` gets its backslash | the five letters "u2029" became a line break, U+2029 did not (#295) |
+| `TAG_NAME[type]` only for its own names | `<constructor>` found `Object`, and createElement threw out of the per-frame render (#291) |
+| a lookahead before the tag regex | it accepts exactly the same tags in linear time; a long unclosed tag was quadratic and froze the page (#294) |
+| `node.className = classes.join(' ')` removed | the player's own CSS matched cue classes: `<c.pseudo_fullscreen>` covered every control (#292) |
 
 plus `export const WebVTT = window.WebVTT;` appended so a bundle that assigns
-to a global can be imported. Note that two of the three are *removals* of
+to a global can be imported. Note that two of them are *removals* of
 dash.js's additions - FastStream's copy is closer to videojs/vtt.js than
 dash.js's own is.
 
@@ -650,7 +655,7 @@ as the vendored one.
 It cannot be generated at build time: videojs/vtt.js publishes only `lib/*` to
 npm, and dash.js's npm package ships only the minified `vtt.min.js`, not this
 bundle. So it is *verified* instead of generated. `pnpm run verify:vtt` fetches
-the upstream file, applies the four changes and asserts AST equality, and
+the upstream file, applies the changes and asserts AST equality, and
 fails with the exact point of divergence if anything moves. That is the
 difference between a claim in a document and a claim a reviewer can re-run -
 and it is mutation-tested, so a wrong expectation fails rather than passing
@@ -1145,7 +1150,7 @@ the set at all. The bundle's own module map settles it: it requires
 `./process/parse-content.js`, `./parser/parser.js` and eighteen more nested
 paths that videojs/vtt.js's six flat `lib/` files do not have. The file is
 **dash.js's `contrib/videojs-vtt.js/vtt.js`**, byte-identical across dash.js
-v4.7.4 through v5.1.0, plus four changes and an export line.
+v4.7.4 through v5.1.0, plus eight changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 

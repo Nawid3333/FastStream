@@ -466,7 +466,8 @@
                                 if (self.cue.text) {
                                     self.cue.text += "\n";
                                 }
-                                self.cue.text += line.replace(/\u2028/g, '\n').replace(/u2029/g, '\n');
+                                // FastStream: U+2029, not the five letters "u2029" (#295)
+                                self.cue.text += line.replace(/\u2028/g, '\n').replace(/\u2029/g, '\n');
                                 continue;
                             case "BADCUE": // BADCUE
                                 // 54-62 - Collect and discard the remaining cue.
@@ -1190,7 +1191,9 @@
 
                 // Create an element for this tag.
                 function createElement(type, annotation) {
-                    var tagName = TAG_NAME[type];
+                    // FastStream: own names only - <constructor> found Object, which createElement
+                    // threw on, out of the player's per-frame subtitle render (#291)
+                    var tagName = Object.prototype.hasOwnProperty.call(TAG_NAME, type) ? TAG_NAME[type] : null;
                     if (!tagName) {
                         return null;
                     }
@@ -1227,7 +1230,10 @@
                             current.appendChild(node);
                             continue;
                         }
-                        var m = t.match(/^<([^.\s/0-9>]+)(\.[^\s\\>]+)?([^>\\]+)?(\\?)>?$/);
+                        // FastStream: the lookahead accepts exactly the tags the rest of the regex does, in
+                        // linear time. Without it the class and annotation groups overlap, and a tag that
+                        // fails at its end was retried for every split of the two: quadratic (#294).
+                        var m = t.match(/^(?=<[^.\s/0-9>]+(?:[.\s/0-9][^>\\]*)?\\?>?$)<([^.\s/0-9>]+)(\.[^\s\\>]+)?([^>\\]+)?(\\?)>?$/);
                         // If we can't parse the tag, skip to the next tag.
                         if (!m) {
                             continue;
@@ -1259,7 +1265,9 @@
                                 }
                             });
 
-                            node.className = classes.join(' ');
+                            // FastStream: the classes are not set on the element. The player's own
+                            // stylesheet matched them, and <c.pseudo_fullscreen> laid the cue over every
+                            // control (#292). The colour classes are inline styles, set above.
                         }
                         // Append the node to the current node, and enter the scope of the new
                         // node.

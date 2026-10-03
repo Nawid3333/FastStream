@@ -9,6 +9,9 @@ import {browser, expect} from '@wdio/globals';
 
 const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 
+// A download link as the API gives them; the player fetches no link on another host.
+const DOWNLOAD_LINK = 'https://www.opensubtitles.com/download/0123456789ABCDEF/subfile/sub.vtt';
+
 /**
  * An answer of the search API with one result.
  * @param {string} title - The result's title.
@@ -195,26 +198,38 @@ describe('Subtitle search', function() {
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
     await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2));
-    await browser.execute(() => window.__requests[1].resolve({response: {link: 'https://dl.example/sub.vtt'}}));
+    await browser.execute((link) => window.__requests[1].resolve({response: {link}}), DOWNLOAD_LINK);
     await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 3));
   }
 
   const trackLabels = () => browser.execute(() =>
     window.fastStream.interfaceController.subtitlesManager.tracks.map((track) => track.label));
 
+  const VTT_FILE = 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n';
+  const SIGN_IN_PAGE = '<!doctype html><title>Sign in</title><p>Please sign in</p>';
+
+  /**
+   * Answers the subtitle file's request, with its bytes as the player asks for them.
+   * @param {string} text - The file.
+   * @return {Promise<void>}
+   */
+  const answerFile = (text) => browser.execute((text) => window.__requests[2].resolve({
+    status: 200, response: new TextEncoder().encode(text).buffer, getResponseHeader: () => null,
+  }), text);
+
   it('drops a download that finishes after the subtitles were cleared for another video', async function() {
     // It was added to the new video, and turned on.
     await openSearch();
     await startDownload();
     await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.clearTracks());
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await answerFile(VTT_FILE);
     await shown();
     expect(await trackLabels()).toEqual([]);
 
     // The same download, the subtitles left as they were: added.
     await openSearch();
     await startDownload();
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: 'WEBVTT\n\n00:00.000 --> 00:01.000\nHello\n'}));
+    await answerFile(VTT_FILE);
     await shown();
     expect(await trackLabels()).toEqual(['someone - Film']);
   });
@@ -223,8 +238,30 @@ describe('Subtitle search', function() {
     // A web page in place of the file (a login, an error) became a track with no cues.
     await openSearch();
     await startDownload();
-    await browser.execute(() => window.__requests[2].resolve({status: 200, responseText: '<!doctype html><title>Sign in</title><p>Please sign in</p>'}));
+    await answerFile(SIGN_IN_PAGE);
     await shown();
+    expect(await trackLabels()).toEqual([]);
+  });
+
+  it('does not fetch a download link that is not on OpenSubtitles', async function() {
+    // The link in the API's answer was fetched with the extension's host permissions,
+    // whatever its scheme or host (#189).
+    await openSearch();
+    await search('film');
+    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film'));
+    await shown();
+    await browser.execute(() => {
+      window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
+          .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
+    });
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2));
+    // Closed first, so the failure shows no alert to wait on.
+    await browser.execute(() => {
+      window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.closeUI();
+      window.__requests[1].resolve({response: {link: 'https://dl.example/sub.vtt'}});
+    });
+    const state = await shown();
+    expect(state.requests).toBe(2);
     expect(await trackLabels()).toEqual([]);
   });
 

@@ -14,7 +14,9 @@ export class SubtitleTrack {
 
   loadURL(url) {
     return fetch(url).then((response) => {
-      return response.text();
+      return response.arrayBuffer().then((bytes) => {
+        return SubtitleUtils.decodeSubtitleBytes(bytes, response.headers.get('Content-Type'));
+      });
     }).then((text) => {
       this.loadText(text);
     });
@@ -53,6 +55,12 @@ export class SubtitleTrack {
   }
 
   loadText(text) {
+    // A byte order mark hid the WEBVTT signature (and '<?xml') from the checks below and
+    // from the parser: no cue. The page's own subtitles come in as the page wrote them.
+    if (text.charCodeAt(0) === 0xFEFF) {
+      text = text.substring(1);
+    }
+
     if (text.substring(0, 5) === '<?xml') {
       text = SubtitleUtils.xml2vtt(text);
     } else if (text.trim().split('\n')[0].trim().substr(0, 6) !== 'WEBVTT') {
@@ -83,7 +91,9 @@ export class SubtitleTrack {
       console.error(error);
     };
 
-    parser.parse(text);
+    // toWellFormed: the parser's decoder, decodeURIComponent(encodeURIComponent(text)),
+    // throws "URI malformed" on a lone surrogate, which a page's string can hold.
+    parser.parse(text.toWellFormed());
     parser.flush();
   }
 

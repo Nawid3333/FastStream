@@ -29,7 +29,10 @@ async function openPlayer() {
         window.__toasts.push(icon);
       };
       AlertPolyfill.prompt = async () => window.__promptAnswer;
-      RequestUtils.requestSimple = (url, callback) => setTimeout(() => callback(null, {}, window.__urlBody), 0);
+      // The URL is read as bytes now (decodeSubtitleBytes), as the request gives them.
+      RequestUtils.requestSimple = (details, callback) => setTimeout(() => callback(null,
+          {getResponseHeader: () => null}, Array.isArray(window.__urlBody) ?
+          new Uint8Array(window.__urlBody).buffer : new TextEncoder().encode(window.__urlBody).buffer), 0);
       done(null);
     }).catch((e) => done(String(e)));
   });
@@ -44,7 +47,7 @@ const state = () => browser.execute(() => ({
 /**
  * Picks a file in the subtitle menu's file chooser.
  * @param {string} name - The file's name.
- * @param {string} text - Its contents.
+ * @param {string|number[]} text - Its contents, as text or as bytes.
  * @return {Promise<void>}
  */
 async function pickFile(name, text) {
@@ -52,7 +55,7 @@ async function pickFile(name, text) {
     window.__toasts.length = 0;
     const chooser = Array.from(document.querySelectorAll('input[type="file"]')).find((input) => input.accept.includes('.vtt'));
     const transfer = new DataTransfer();
-    transfer.items.add(new File([text], name));
+    transfer.items.add(new File([Array.isArray(text) ? new Uint8Array(text) : text], name));
     chooser.files = transfer.files;
     chooser.dispatchEvent(new Event('change'));
   }, name, text);
@@ -61,7 +64,7 @@ async function pickFile(name, text) {
 
 /**
  * Adds a subtitle URL through the subtitle menu, the page at it answering with a text.
- * @param {string} body - What the URL answers.
+ * @param {string|number[]} body - What the URL answers, as text or as bytes.
  * @return {Promise<void>}
  */
 async function addUrl(body) {
@@ -96,5 +99,16 @@ describe('Adding a subtitle file', function() {
     expect(await state()).toEqual({tracks: [], toasts: ['info', 'error']});
     await addUrl(VTT);
     expect(await state()).toEqual({tracks: ['URL Track'], toasts: ['info', 'success']});
+  });
+
+  it('reads a Windows-1252 file with its umlauts, from disk and from a URL', async function() {
+    // Read as UTF-8, as the browser does, each of these letters was the replacement mark.
+    const srt = Array.from('1\n00:00:00,000 --> 00:00:01,000\nGr', (c) => c.charCodeAt(0)).concat([0xfc, 0xdf, 0x65]);
+    const expected = 'Gr' + String.fromCharCode(0xfc, 0xdf) + 'e';
+    await pickFile('de.srt', srt);
+    await addUrl(srt);
+    const texts = await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.tracks
+        .map((track) => track.cues.map((cue) => cue.text)));
+    expect(texts).toEqual([[expected], [expected]]);
   });
 });
