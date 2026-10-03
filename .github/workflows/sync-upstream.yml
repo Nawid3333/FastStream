@@ -116,6 +116,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # git reaches the repository with the token only here, one command at a time: the
           # checkout keeps none in .git/config. The header is the one actions/checkout uses.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
@@ -166,8 +167,10 @@ jobs:
           fi
 
           # The open PR already describes exactly this state. Pushing the branch
-          # again would only rewrite its head and rerun CI for nothing.
-          if gh pr list --head "$SYNC_BRANCH" --state open --json body --jq '.[].body' | grep -qF "$MARKER"; then
+          # again would only rewrite its head and rerun CI for nothing. (Read first: a
+          # failed list then stops the run, where a pipe into grep would rebuild the PR.)
+          OPEN_BODIES=$(gh pr list --head "$SYNC_BRANCH" --state open --json body --jq '.[].body')
+          if grep -qF -- "$MARKER" <<< "$OPEN_BODIES"; then
             echo "The open sync PR is already current." >> "$GITHUB_STEP_SUMMARY"
             finish none
             exit 0
@@ -213,6 +216,7 @@ jobs:
           RELEASES: ${{ steps.merge.outputs.releases }}
           OWNER: ${{ github.repository_owner }}
         run: |
+          set -euo pipefail
           UPSTREAM_REPO=Andrews54757/FastStream
           TITLE="Sync upstream (${BEHIND} commits"
           if [ -n "$RELEASES" ]; then
@@ -249,13 +253,18 @@ jobs:
           ### Upstream commits not yet in this project (merge commits are not listed)
 
           EOF
-            git log --no-merges --format='- %h %s' "${WORK_BRANCH}..upstream/main" | head -40
+            # git's own limit, not a pipe into head: under pipefail, head ending first would
+            # fail the step on a sync of more than 40 commits.
+            git log --no-merges --max-count=40 --format='- %h %s' "${WORK_BRANCH}..upstream/main"
             printf '\n<!-- sync-upstream base=%s upstream=%s -->\n' "$BASE_SHA" "$UP_SHA"
           } > "$RUNNER_TEMP/pr-body.md"
 
           EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
-            PREV_UP=$(gh pr view "$EXISTING" --json body --jq '.body' | sed -n 's/.*upstream=\([0-9a-f]*\) .*/\1/p' | head -1)
+            # The upstream commit the PR was built for, from its marker. A failed read stops
+            # the run (pipefail): an empty answer would say "upstream moved" when it has not.
+            PREV_UP=$(gh pr view "$EXISTING" --json body --jq '.body' | sed -n 's/.*<!-- sync-upstream base=[0-9a-f]* upstream=\([0-9a-f]*\) -->.*/\1/p')
+            PREV_UP=${PREV_UP%%$'\n'*}
             gh pr edit "$EXISTING" --title "$TITLE" --body-file "$RUNNER_TEMP/pr-body.md" --add-assignee "$OWNER"
             # Editing a PR notifies no one; a comment with the mention does. Only
             # when upstream itself moved: main moving also rebuilds the PR, and
@@ -274,33 +283,46 @@ jobs:
           gh workflow run ci.yml --ref "$SYNC_BRANCH" || { sleep 30; gh workflow run ci.yml --ref "$SYNC_BRANCH"; }
           gh workflow run dependency-review.yml --ref "$SYNC_BRANCH" || { sleep 30; gh workflow run dependency-review.yml --ref "$SYNC_BRANCH"; }
 
-      # A run that got this far succeeded, so an earlier failure has cleared.
+      # A run that got this far succeeded, so an earlier failure has cleared. The issue is
+      # found by its exact title in the list of open issues, as in every other workflow
+      # here: the search index lags minutes behind a new issue.
       - name: Close the failure issue
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Upstream sync workflow failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          for issue in $(gh issue list --search "Upstream sync workflow failed in:title" --state open --json number --jq '.[].number'); do
+          set -euo pipefail
+          gh issue list --state open --limit 200 --json number,title \
+            --jq '.[] | select(.title == env.TITLE) | .number' > "$RUNNER_TEMP/failed-issues.txt"
+          while read -r issue; do
             gh issue close "$issue" --comment "The sync ran cleanly again: $RUN_URL"
-          done
+          done < "$RUNNER_TEMP/failed-issues.txt"
 
       # No SMTP secrets to manage: assigning a GitHub issue emails the
       # assignee under that account's default notification settings. Reuses
       # one issue by title instead of opening a new one on every failed run
       # (daily, and on every push to main) so repeated failures don't pile up.
+      # By the exact title, not a search: two runs failing minutes apart (the
+      # daily one and a push's) would otherwise open two, the search index
+      # lagging behind the first.
       - name: Notify on failure
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Upstream sync workflow failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          TITLE='Upstream sync workflow failed'
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          EXISTING=$(gh issue list --search "$TITLE in:title" --state open --json number --jq '.[0].number')
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          EXISTING=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || EXISTING=''
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" --body "Failed again: $RUN_URL"
           else
             gh issue create --title "$TITLE" \
               --body "The sync-upstream workflow failed. Run: $RUN_URL" \
-              --assignee "${{ github.repository_owner }}"
+              --assignee "$OWNER"
           fi
