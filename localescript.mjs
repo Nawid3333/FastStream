@@ -46,8 +46,10 @@ function getLocalesFromMultiPath() {
 }
 
 function getLocalesFromCombinedFile() {
+  // No file (deleted to regenerate it, say): no combined locales. This returned undefined,
+  // and the key check below threw on it, failing every build (#178).
   if (!fs.existsSync(combinedLocalesFile)) {
-    return;
+    return new Map();
   }
 
   const locales = new Map();
@@ -121,6 +123,9 @@ function saveLocalesToCombinedFile(locales, whiteList) {
 }
 
 function checkLocaleKeys(locales) {
+  if (locales.size === 0) {
+    return;
+  }
   const defaultLocale = locales.get(defaultLanguage);
   const defaultLocaleKeys = new Set(defaultLocale.keys());
   for (const [locale, translations] of locales.entries()) {
@@ -148,6 +153,10 @@ let whiteList = null;
 if (args.length > 0) {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--whitelist') {
+      if (!args[i + 1] || args[i + 1].startsWith('--')) {
+        console.log('--whitelist needs a comma-separated list of locales, e.g. --whitelist en,de');
+        process.exit(1);
+      }
       whiteList = args[i + 1].split(',');
       i++;
     } else if (args[i] === '--split') {
@@ -169,6 +178,11 @@ if (combine && split) {
 
 const localesCombined = getLocalesFromCombinedFile();
 const localesMulti = getLocalesFromMultiPath();
+
+if (split && localesCombined.size === 0) {
+  console.log(`Nothing to split: ${path.basename(combinedLocalesFile)} is missing or empty`);
+  process.exit(1);
+}
 
 console.log('Checking locale keys');
 checkLocaleKeys(localesMulti);
