@@ -101,14 +101,25 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     console.log('[FrameExtractor] Starting background analyzer');
 
-    const backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
-      if (backgroundAnalyzerPlayer === this.backgroundAnalyzerPlayer) {
-        console.log('[FrameExtractor] Background analyzer finished', completed ? 'successfully' : 'with errors');
-        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+    let backgroundAnalyzerPlayer;
+    try {
+      backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
+        if (backgroundAnalyzerPlayer === this.backgroundAnalyzerPlayer) {
+          console.log('[FrameExtractor] Background analyzer finished', completed ? 'successfully' : 'with errors');
+          this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+          this.client.interfaceController.updateMarkers();
+        }
+        this.backgroundAnalyzerPlayer = null;
+      });
+    } catch (e) {
+      // Thrown on, it was an unhandled rejection. Failed, as a run that ends in errors is.
+      console.warn('[FrameExtractor] The background analyzer could not load', e);
+      if (newSource === this.backgroundAnalyzerSource) {
+        this.backgroundAnalyzerStatus = AnalyzerStatus.FAILED;
         this.client.interfaceController.updateMarkers();
       }
-      this.backgroundAnalyzerPlayer = null;
-    });
+      return;
+    }
 
     if (newSource !== this.backgroundAnalyzerSource) {
       backgroundAnalyzerPlayer.destroy();
@@ -137,23 +148,33 @@ export class PreviewFrameExtractor extends EventEmitter {
       isAnalyzer: true,
     });
 
-    await player.setup();
+    try {
+      await player.setup();
 
-    player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
-      player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
-      player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
-    });
-
-    const onLoadMeta = () => {
-      player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
-      this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
-        onDone(completed);
+      player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
+        player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
+        player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
       });
-    };
 
-    player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+      const onLoadMeta = () => {
+        player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+        this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
+          onDone(completed);
+        });
+      };
 
-    await player.setSource(source);
+      player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+
+      await player.setSource(source);
+    } catch (e) {
+      // Not left half built, downloading on its own.
+      try {
+        player.destroy();
+      } catch (destroyError) {
+        console.error(destroyError);
+      }
+      throw e;
+    }
     return player;
   }
 
