@@ -27,7 +27,7 @@ jobs:
   mutation:
     name: Stryker over the pure-logic modules
     runs-on: ubuntu-latest
-    # About 4,000 mutants, each a run of the unit suite (the command runner).
+    # About 4,300 mutants, each a run of the unit suite (the command runner).
     timeout-minutes: 240
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

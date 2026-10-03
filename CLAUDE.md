@@ -1425,8 +1425,8 @@ the change went in.
   -> closed, push -> no rebuild, new release named, comment only on upstream movement;
   patched libraries: open once, no duplicates, close when caught up or unpatched).
 - **`mutation-tests.yml`** (Mondays 06:40 UTC), 2026-10-01, T4: Stryker
-  (`stryker.config.mjs`, `pnpm run test:mutation`) over the 15 pure-logic modules with unit
-  tests. A report, not a gate: the run summary gets a table per file
+  (`stryker.config.mjs`, `pnpm run test:mutation`) over 25 pure-logic modules with unit
+  tests (10 small ones added 2026-10-03, #253; the config says which wait, and why). A report, not a gate: the run summary gets a table per file
   (`tools/mutation-report.mjs`), the HTML report is the `mutation-reports` artifact, and when
   the unit tests missed mutants (survived, or no test reaches them), one issue "Mutation
   testing: week to <date>" lists them, assigned + @mention; next week's replaces it, a week
