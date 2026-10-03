@@ -32,7 +32,7 @@ describe('Overlapping subtitle cues', function() {
         const shownAt = (time) => {
           client.state.currentTime = time;
           manager.renderSubtitles();
-          const container = manager.subtitleTrackDisplayElements[0];
+          const container = manager.subtitleTrackDisplayElements[manager.activeTracks.indexOf(track)];
           return container.style.opacity === '0' ? [] :
             Array.from(container.children).map((cue) => cue.textContent);
         };
