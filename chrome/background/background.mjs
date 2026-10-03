@@ -9,7 +9,7 @@ import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
-import {modeFromContentType} from './ManifestTypes.mjs';
+import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
@@ -2507,7 +2507,10 @@ chrome.webRequest.onHeadersReceived.addListener(
       }
       if (!mode) {
         if (details.type === 'media') {
-          mode = PlayerModes.ACCELERATED_MP4;
+          mode = modeFromMediaType(details.responseHeaders);
+          if (!mode) {
+            return;
+          }
         } else if ((details.type === 'main_frame' || details.type === 'sub_frame') &&
             isHtmlResponse(details.responseHeaders)) {
           // A page is not a stream, even when its query string names one: an embed page

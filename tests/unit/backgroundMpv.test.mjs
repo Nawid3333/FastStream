@@ -296,6 +296,22 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
   });
 });
 
+describe('the allowlist\'s MPV, a page that plays a sound first', () => {
+  it('sends the video, not the sound', async () => {
+    // Every file a media element loaded was taken for an MP4 video, and the allowlist sends
+    // a page's first stream: a notification sound went to mpv, and the video stayed.
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: 'https://site.test/sounds/ding', type: 'media'},
+        {responseHeaders: [{name: 'Content-Type', value: 'audio/mpeg'}]});
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+});
+
 describe('a failed hand-off', () => {
   it('keeps the toolbar\'s "!" after the event page restarted', async () => {
     // The badge is the browser's, but a woken background redraws every tab's button from
