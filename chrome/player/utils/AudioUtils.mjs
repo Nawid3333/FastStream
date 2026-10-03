@@ -71,7 +71,9 @@ export class AudioUtils {
   }
 
   static isClipping(analyser) {
-    const bufferLength = analyser.frequencyBinCount;
+    // The whole window: an array of frequencyBinCount (half of it) got the older half only,
+    // so a clip in the newer half went unseen.
+    const bufferLength = analyser.fftSize;
     const dataArray = new Float32Array(bufferLength);
     analyser.getFloatTimeDomainData(dataArray);
 

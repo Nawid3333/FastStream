@@ -10,6 +10,20 @@ import {AudioEqualizer} from './AudioEqualizer.mjs';
 import {MAX_AUDIO_CHANNELS, CHANNEL_NAMES} from './config/AudioProfile.mjs';
 import {VirtualAudioNode} from './VirtualAudioNode.mjs';
 
+/**
+ * Sizes a meter's canvas when its size has changed. Setting a canvas's size, even to the
+ * size it has, clears it and resets its context: that was done every frame on all seven
+ * meters, which are cleared before they are drawn anyway.
+ * @param {HTMLCanvasElement} canvas
+ * @param {number} width
+ * @param {number} height
+ */
+function sizeCanvas(canvas, width, height) {
+  // The size is a whole number: a fraction is dropped when it is set.
+  if (canvas.width !== Math.trunc(width)) canvas.width = width;
+  if (canvas.height !== Math.trunc(height)) canvas.height = height;
+}
+
 export class AudioChannelMixer extends AbstractAudioModule {
   constructor(configManager) {
     super('AudioChannelMixer');
@@ -125,8 +139,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
     const height = canvas.clientHeight * window.devicePixelRatio;
     if (width === 0 || height === 0) return;
 
-    canvas.width = width;
-    canvas.height = height;
+    sizeCanvas(canvas, width, height);
 
     ctx.clearRect(0, 0, width, height);
 
@@ -202,8 +215,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
     const height = canvas.clientHeight * window.devicePixelRatio;
     if (width === 0 || height === 0) return;
 
-    canvas.width = width;
-    canvas.height = height;
+    sizeCanvas(canvas, width, height);
 
     ctx.clearRect(0, 0, width, height);
 
