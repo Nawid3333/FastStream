@@ -1337,7 +1337,9 @@ the change went in.
   can't see the PC): the owner closes it; a title is never used twice; a newer release
   closes the open one. Permissions: `issues: write` only, no checkout.
 - **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
-  (`e2e-retried` and `e2e-retried-windows` artifacts, all branches, the last 7 days) in one
+  (`e2e-retried` and `e2e-retried-windows` artifacts, all of this repository's branches, the
+  last 7 days; never a fork's pull request, whose CI run writes the list with its own code,
+  and the texts are cut down to a path's characters, #166) in one
   issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was
   run again, how often its retry passed, suites, branches and runs. It finds the artifacts
   through the repository's artifact list (`actions/artifacts?name=`), not run by run. The
