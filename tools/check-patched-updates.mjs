@@ -32,6 +32,33 @@ export function patchedDependencies(yaml) {
 }
 
 /**
+ * The libraries tools/sync-vendor.mjs marks `patched` whose patch pnpm does not apply: one
+ * with no patchedDependencies entry, or installed at another version than its patch is cut
+ * against. Either would be copied without FastStream's changes, with the build green (#176).
+ * @param {Array<{name: string, patched?: boolean}>} vendor - sync-vendor.mjs's list.
+ * @param {string} yaml - pnpm-workspace.yaml.
+ * @param {function(string): ?string} installed - A library's installed version, null if none.
+ * @return {string[]} One message per such library.
+ */
+export function unappliedPatches(vendor, yaml, installed) {
+  const patches = patchedDependencies(yaml);
+  const problems = [];
+  for (const name of new Set(vendor.filter((lib) => lib.patched).map((lib) => lib.name))) {
+    const patch = patches.find((entry) => entry.name === name);
+    const version = installed(name);
+    if (!patch) {
+      problems.push(`${name} is marked patched in tools/sync-vendor.mjs, but pnpm-workspace.yaml's ` +
+        'patchedDependencies has no entry for it, so it would ship without FastStream\'s changes. If ' +
+        'every change has landed upstream (tools/recut-patch.mjs says so), take its marks out.');
+    } else if (version && version !== patch.version) {
+      problems.push(`${name} ${version} is installed, but its patch is cut against ${patch.version}: ` +
+        'run pnpm install, or re-cut the patch (docs/updating-patched-libraries.md).');
+    }
+  }
+  return problems;
+}
+
+/**
  * Compares two versions part by part, numerically; a leading v is ignored and a missing
  * part counts as 0. Pre-release suffixes are not expected here (only `latest` is read).
  * @param {string} a
