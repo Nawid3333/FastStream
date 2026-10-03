@@ -24,5 +24,7 @@ if (command === 'pin') {
     `It is ${MP4_FIXTURE_PIN.size} bytes, SHA-256 ${MP4_FIXTURE_PIN.sha256}.`);
 } else {
   console.error('usage: node tests/e2e/mp4FixtureCli.mjs pin|ensure');
-  process.exit(2);
+  // The script ends here: the same exit status, without process.exit(), which CodeQL takes
+  // for a security decision when a command-line argument leads to it (js/user-controlled-bypass).
+  process.exitCode = 2;
 }
