@@ -560,10 +560,15 @@ only place it executes; the VAD is reached only from `AudioAnalyzerNode`,
 behind subtitle syncing. It scores a fixed 600-frame signal (six kinds x 100
 frames: silence, noise, sweep, tremolo+noise, harmonic buzz, loud noise;
 seeded) through `VadJS.createModel()`, the same entry `AudioNodeVAD` uses,
-and compares with `tests/e2e/vad-reference.json`: 600 scores recorded in
-Firefox from the old custom runtime, 105 of the 600 frames speech. The test
-asserts a max difference <= 1e-4 and that no frame crosses the 0.5 speech
-threshold differently from the reference.
+and compares with `tests/e2e/vad-reference.json`. The test asserts a max
+difference <= 1e-4 and that no frame crosses the 0.5 speech threshold
+differently from the reference. Until 2026-10-03 the file held 600 scores
+recorded in Firefox from the old custom runtime, 105 of the 600 frames
+speech. Since `vad.mjs` gives the model the previous frame's last 64 samples
+with each frame (ricky0123/vad aa048997, issue #127), it holds the scores of
+that path on onnxruntime-web 1.30.0 in Node, 112 frames speech: on the same
+runtime Node gave the old Firefox scores to within 3.4e-6, with no decision
+changed.
 
 Old runtime vs 1.30.0, measured in Firefox 156 on Windows (old: 3 runs;
 1.30.0: 10 runs, each with the same scores):

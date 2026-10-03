@@ -31,11 +31,12 @@ import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
-// The scores the runtime shipped until 1.3.82.44 gave for the signal sequence below:
-// onnxruntime-web 1.20.0's loader driving a custom build of ONNX Runtime at
-// 5c74539ab7, recorded in Firefox before that runtime was replaced by the stock
-// onnxruntime-web files. VAD_WRITE_REFERENCE=1 rewrites the file from whatever
-// runtime the build now ships - only do that on purpose.
+// The scores vad.mjs gives for the signal sequence below since it feeds the model the
+// previous frame's last 64 samples with each frame (ricky0123/vad aa048997), computed on
+// onnxruntime-web 1.30.0 in Node. On the same runtime, Node gave the scores recorded here
+// in Firefox before that change (from the custom runtime shipped until 1.3.82.44) to
+// within 3.4e-6, with no decision changed. VAD_WRITE_REFERENCE=1 rewrites the file from
+// whatever runtime the build now ships - only do that on purpose.
 const REFERENCE = path.join(__dirname, '../vad-reference.json');
 
 describe('the voice activity detector', function() {
@@ -65,9 +66,9 @@ describe('the voice activity detector', function() {
           });
         const session = await ort.InferenceSession.create(model);
 
-        // The same call AudioAnalyzerNode makes: 512 samples at 16 kHz, and a
-        // zeroed [2,1,128] state. `sr` is commented out in vad.mjs because
-        // this model has the rate baked in.
+        // Close to the call vad.mjs makes: 512 samples at 16 kHz (vad.mjs puts the
+        // previous frame's last 64 in front of them), and a zeroed [2,1,128] state.
+        // `sr` is commented out in vad.mjs because this model has the rate baked in.
         const run = async (frame, state) => {
           const out = await session.run({
             input: new ort.Tensor('float32', frame, [1, frame.length]),
@@ -200,9 +201,9 @@ describe('the voice activity detector', function() {
       if ((score >= 0.5) !== (reference[i] >= 0.5)) flips++;
     });
     console.log(`      vad: largest difference from the reference ${maxDiff}, ${flips} decisions changed`);
-    // A newer runtime may round differently (1.30.0 against the reference: 3.4e-6
+    // A newer runtime may round differently (1.30.0 against the old custom runtime: 3.4e-6
     // at most, measured over 3000 frames), but no frame may change its speech decision.
-    // The reference frame nearest the 0.5 threshold is 5.3e-4 away, so a runtime
+    // The reference frame nearest the 0.5 threshold is 1.6e-3 away, so a runtime
     // within 1e-4 cannot flip one, and a broken model misses by far more.
     expect(maxDiff).toBeLessThanOrEqual(1e-4);
     expect(flips).toBe(0);

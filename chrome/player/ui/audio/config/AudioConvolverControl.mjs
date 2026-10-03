@@ -1,4 +1,5 @@
 import {MAX_AUDIO_CHANNELS} from './AudioProfile.mjs';
+import {finiteOr} from './ConfigNumbers.mjs';
 
 export class AudioConvolverChannel {
   constructor(id, enabled, normalize) {
@@ -51,7 +52,10 @@ export class AudioConvolverProfile {
         newChannels.push(AudioConvolverChannel.default(i));
       }
     }
-    return new AudioConvolverProfile(obj.id, obj.label, obj.downmix, obj.bufferSize, newChannels);
+    // As the impulse length field allows: a stored size that was not a number kept the whole
+    // file, minutes of it, as the impulse response.
+    const bufferSize = Math.floor(finiteOr(obj.bufferSize, 4096, 128, 16384));
+    return new AudioConvolverProfile(obj.id, obj.label, obj.downmix, bufferSize, newChannels);
   }
 
   static default(id) {

@@ -1,3 +1,9 @@
+import {finiteOr} from './ConfigNumbers.mjs';
+
+// What a BiquadFilterNode can be. It ignores any other type it is given, so a node of an
+// unknown type stayed a lowpass at its frequency.
+const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'peaking', 'notch', 'allpass'];
+
 export class AudioEQNode {
   constructor(type, frequency, gain, q) {
     this.type = type;
@@ -6,8 +12,17 @@ export class AudioEQNode {
     this.q = parseFloat(q);
   }
 
+  /**
+   * @param {Object} obj - A node as stored or imported.
+   * @return {AudioEQNode|null} null for a node with no usable type or frequency.
+   */
   static fromObj(obj) {
-    return new AudioEQNode(obj.type, obj.frequency, obj.gainDb === undefined ? obj.gain : obj.gainDb, obj.q ?? 1);
+    const frequency = parseFloat(obj?.frequency);
+    if (!FILTER_TYPES.includes(obj?.type) || !Number.isFinite(frequency) || frequency <= 0) {
+      return null;
+    }
+    const gain = obj.gainDb === undefined ? obj.gain : obj.gainDb;
+    return new AudioEQNode(obj.type, frequency, finiteOr(gain, 0), finiteOr(obj.q, 1));
   }
 
   toObj() {
@@ -19,4 +34,3 @@ export class AudioEQNode {
     };
   }
 }
-

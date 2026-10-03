@@ -5,7 +5,9 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // reopening the syncer) used to leave two detectors running for good; a failed start
 // stayed failed; the ONNX session was never released, so each video and each start kept
 // another model in wasm memory; a failed background analyzer could never retry its
-// source; and the first ~20 ms of audio were written to vadBuffer[-1].
+// source; the first ~20 ms of audio were written to vadBuffer[-1]; and a background
+// analyzer player (8x playback, downloads, its own audio context) could be left running
+// with nothing able to stop it, when a stop and a new start came while one loaded.
 
 const newVad = vi.fn();
 
@@ -189,6 +191,101 @@ describe('AudioAnalyzer', () => {
     expect(analyzer.getVadData()[2]).toBe(100);
     // The event still goes out for both.
     expect(seen).toEqual([[-0.02, 200], [0.25, 100]]);
+  });
+
+  /**
+   * An analyzer whose background players load when the test says so. Each player's
+   * destroy() reports its end, as a running analyzer player does.
+   * @param {Object} c - The client.
+   * @return {{analyzer: AudioAnalyzer, loads: Array}}
+   */
+  function withLoads(c) {
+    const analyzer = new AudioAnalyzer(c);
+    const loads = [];
+    analyzer.loadPlayer = (source, doneRanges, onDone) => {
+      const load = deferred();
+      const player = {
+        source,
+        destroy: vi.fn(() => onDone(false)),
+      };
+      loads.push({player, finish: () => load.resolve(player), fail: (e) => load.reject(e)});
+      return load.promise;
+    };
+    return {analyzer, loads};
+  }
+
+  it('keeps one background player when it is stopped and started again for the same video while loading', async () => {
+    const c = client();
+    const {analyzer, loads} = withLoads(c);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const startA = analyzer.startBackgroundAnalyzer();
+      analyzer.stopBackgroundAnalyzer();
+      const startB = analyzer.startBackgroundAnalyzer();
+      expect(loads).toHaveLength(2);
+      loads[0].finish();
+      loads[1].finish();
+      await Promise.all([startA, startB]);
+
+      const [a, b] = loads.map((load) => load.player);
+      expect(a.destroy).toHaveBeenCalledTimes(1);
+      expect(analyzer.backgroundAnalyzerPlayer).toBe(b);
+      expect(b.destroy).not.toHaveBeenCalled();
+
+      // And a stop stops the one that runs.
+      analyzer.stopBackgroundAnalyzer();
+      expect(b.destroy).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('keeps the new video\'s background player when the old video\'s finishes loading after it', async () => {
+    const c = client();
+    const {analyzer, loads} = withLoads(c);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const startA = analyzer.startBackgroundAnalyzer();
+      analyzer.reset();
+      c.player.getSource = () => 'source-2';
+      const startB = analyzer.startBackgroundAnalyzer();
+      loads[1].finish();
+      await startB;
+      loads[0].finish();
+      await startA;
+
+      const [a, b] = loads.map((load) => load.player);
+      expect(a.destroy).toHaveBeenCalledTimes(1);
+      // The old player's end did not clear the new one's place.
+      expect(analyzer.backgroundAnalyzerPlayer).toBe(b);
+      analyzer.stopBackgroundAnalyzer();
+      expect(b.destroy).toHaveBeenCalledTimes(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('keeps a newer start for the same video when an older load fails after it', async () => {
+    const c = client();
+    const {analyzer, loads} = withLoads(c);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const startA = analyzer.startBackgroundAnalyzer();
+      analyzer.stopBackgroundAnalyzer();
+      const startB = analyzer.startBackgroundAnalyzer();
+      loads[0].fail(new Error('no audio'));
+      await startA;
+      loads[1].finish();
+      await startB;
+
+      const b = loads[1].player;
+      expect(b.destroy).not.toHaveBeenCalled();
+      expect(analyzer.backgroundAnalyzerPlayer).toBe(b);
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
   });
 
   it('tries the background analyzer again after a failed start, and destroys the failed player', async () => {

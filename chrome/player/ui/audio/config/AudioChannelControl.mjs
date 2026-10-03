@@ -1,5 +1,9 @@
 import {AudioEQNode} from './AudioEQNode.mjs';
 import {AudioCompressionControl} from './AudioCompressionControl.mjs';
+import {finiteOr} from './ConfigNumbers.mjs';
+
+// +10 dB, the top of a channel's fader.
+const MAX_CHANNEL_GAIN = Math.pow(10, 10 / 20);
 
 export class AudioChannelControl {
   constructor(channelId, gain, mutedOrMono, solo, equalizerNodes, compressor) {
@@ -22,15 +26,18 @@ export class AudioChannelControl {
   }
 
   static fromObj(obj) {
-    const equalizerNodes = obj.equalizerNodes?.map((nodeObj) => {
+    const equalizerNodes = Array.isArray(obj.equalizerNodes) ? obj.equalizerNodes.map((nodeObj) => {
       return AudioEQNode.fromObj(nodeObj);
-    }) || [];
+    }).filter((node) => node) : [];
     const compressor = obj.compressor ? AudioCompressionControl.fromObj(obj.compressor) : AudioCompressionControl.default();
+    // The fader's range, -∞ to +10 dB; a gain that is not a number (it threw in the
+    // mixer, which then left the other channels as they were) is unity.
+    const gain = finiteOr(obj.gain, 1, 0, MAX_CHANNEL_GAIN);
 
     if (obj.id === 'master') {
-      return new AudioChannelControl(obj.id, obj.gain, obj.mono, null, equalizerNodes, compressor);
+      return new AudioChannelControl(obj.id, gain, !!obj.mono, null, equalizerNodes, compressor);
     } else {
-      return new AudioChannelControl(obj.id, obj.gain, obj.muted, obj.solo, equalizerNodes, compressor);
+      return new AudioChannelControl(obj.id, gain, !!obj.muted, !!obj.solo, equalizerNodes, compressor);
     }
   }
 

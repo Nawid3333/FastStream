@@ -27,7 +27,7 @@
       "copy": "chrome/player/modules/vad/vad.mjs",
       "repo": "ricky0123/vad",
       "path": "packages/web/src",
-      "ref": "7c2f259b9977125e6b8665118f24cdc1ed59c8ff"
+      "ref": "43e20495ffdfbf4320c88bc910febaf032a06829"
     }
   ]
 }
