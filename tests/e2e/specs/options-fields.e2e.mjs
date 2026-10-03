@@ -76,7 +76,16 @@ describe('Options page settings import', function() {
    * @param {string} text - The file's contents.
    * @return {Promise<string[]>} What the page alerted.
    */
-  const importText = async (text) => {
+  /**
+   * Imports a settings file with this text through the page's own picker.
+   * @param {string} text - The file's text.
+   * @param {boolean} [alerts] - Whether the import is expected to say something: then
+   *   this waits for it. (The page reads the file before it answers: a fixed 300 ms pause
+   *   came up short on a loaded runner.) An import that says nothing is waited for by its
+   *   saved option instead.
+   * @return {Promise<string[]>} What the page alerted.
+   */
+  const importText = async (text, alerts = true) => {
     await browser.execute(() => {
       window.__alerts = [];
       window.alert = (message) => window.__alerts.push(String(message));
@@ -96,7 +105,10 @@ describe('Options page settings import', function() {
       window.__picker.files = transfer.files;
       window.__picker.dispatchEvent(new Event('change'));
     }, text);
-    await browser.pause(300);
+    if (alerts) {
+      await browser.waitUntil(async () => browser.execute(() => window.__alerts.length > 0),
+          {timeout: 10000, timeoutMsg: 'the import never said anything'});
+    }
     return browser.execute(() => window.__alerts);
   };
 
@@ -111,8 +123,12 @@ describe('Options page settings import', function() {
   });
 
   it('still imports a settings file', async function() {
-    expect(await importText(JSON.stringify({seekStepSize: 7}))).toEqual([]);
-    expect(await savedOption('seekStepSize')).toBe(7);
+    await importText(JSON.stringify({seekStepSize: 7}), false);
+    // The value itself: the page may have saved its defaults before the import.
+    await browser.waitUntil(
+        async () => (await browser.execute(() => JSON.parse(localStorage.getItem('options'))?.seekStepSize)) === 7,
+        {timeout: 10000, timeoutMsg: 'the imported seekStepSize (7) was never saved'});
+    expect(await browser.execute(() => window.__alerts)).toEqual([]);
   });
 });
 
