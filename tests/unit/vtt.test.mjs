@@ -125,15 +125,20 @@ describe('convertCueToDOMTree: the tag regex', () => {
   // that fails to match at its end is retried for every split of the two: quadratic.
   const UPSTREAM_TAG = /^<([^.\s/0-9>]+)(\.[^\s\\>]+)?([^>\\]+)?(\\?)>?$/;
 
+  // The regex vtt.mjs ships, as a literal here (CodeQL counts a RegExp built from a file's
+  // text as regex injection); shippedTagRegex checks it is the one in vtt.mjs.
+  const SHIPPED_TAG = /^(?=<[^.\s/0-9>]+(?:[.\s/0-9][^>\\]*)?\\?>?$)<([^.\s/0-9>]+)(\.[^\s\\>]+)?([^>\\]+)?(\\?)>?$/;
+
   /**
-   * The tag regex vtt.mjs uses, read from its source.
+   * The tag regex vtt.mjs uses: SHIPPED_TAG, after checking that vtt.mjs's source holds it.
    * @return {RegExp}
    */
   function shippedTagRegex() {
     const source = fs.readFileSync(VTT_PATH, 'utf8');
     const literal = source.match(/var m = t\.match\(\/(\^.*\$)\/\);/);
     expect(literal).not.toBeNull();
-    return new RegExp(literal[1]);
+    expect(literal[1]).toBe(SHIPPED_TAG.source);
+    return SHIPPED_TAG;
   }
 
   it('reads a long tag that never closes in linear time', () => {
