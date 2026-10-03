@@ -28,6 +28,19 @@ describe('patchedDependencies', () => {
     expect(patchedDependencies('packages: []\n')).toEqual([]);
   });
 
+  it('pins each patched library in package.json to exactly the version its patch is cut against', () => {
+    // A range ("^1.7.3") lets any non-frozen install take 1.7.4, which the patch is not keyed
+    // to: pnpm then fails, or ships the library unpatched (#247).
+    const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+    const declared = {...pkg.dependencies, ...pkg.devDependencies};
+    for (const {name, version} of patchedDependencies(yaml)) {
+      // An exact version, or a git spec pinned to that version's tag (Coloris: github:…#v0.25.0).
+      const spec = declared[name] || '';
+      const exact = spec === version || spec.endsWith(`#v${version}`) || spec.endsWith(`#${version}`);
+      expect(exact, `${name}: "${spec}"`).toBe(true);
+    }
+  });
+
   it('is the list Dependabot is told to ignore', () => {
     const dependabot = fs.readFileSync(new URL('../../.github/dependabot.yml', import.meta.url), 'utf8');
     const ignored = [...dependabot.matchAll(/dependency-name: '([^']+)'/g)].map((match) => match[1]).sort();
