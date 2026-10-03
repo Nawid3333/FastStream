@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {findMpvOnPath, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
+import {findMpvOnPath, isMpvExecutableName, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
 
 // The native host used to hand a bare `mpv` on without looking: "Test mpv connection"
 // reported mpv on a machine that had none, and on Windows the WMI launch searches its own
@@ -111,6 +111,53 @@ describe('resolveMpvPath with a path from the options page', () => {
     const name = process.platform === 'win32' ? 'cmd.exe' : 'sh';
     const file = path.join(dirWith('other', [name]), name);
     expect(resolveMpvPath(file)).not.toBe(file);
+  });
+
+  // Windows runs a .bat or .cmd through cmd.exe, which reads mpv's arguments again: a
+  // header value or a title with & or %VAR% in it would be a command (#160).
+  it('takes only a .exe or .com on Windows, any mpv name elsewhere', () => {
+    for (const name of ['mpv.exe', 'MPV.EXE', 'mpv.com', 'mpv-x86_64.exe']) {
+      expect(isMpvExecutableName(name, 'win32')).toBe(true);
+    }
+    for (const name of ['mpv.bat', 'mpv.cmd', 'mpv.ps1', 'mpv.vbs', 'mpv', 'mpv.exe.bat', 'cmd.exe']) {
+      expect(isMpvExecutableName(name, 'win32')).toBe(false);
+    }
+    expect(isMpvExecutableName('mpv', 'linux')).toBe(true);
+    expect(isMpvExecutableName('mpv-git', 'linux')).toBe(true);
+    expect(isMpvExecutableName('sh', 'linux')).toBe(false);
+  });
+
+  it.runIf(process.platform === 'win32')('never starts an mpv.bat or mpv.cmd', () => {
+    const dir = dirWith('scripts', ['mpv.bat', 'mpv.cmd']);
+    expect(resolveMpvPath(path.join(dir, 'mpv.bat'))).not.toBe(path.join(dir, 'mpv.bat'));
+    expect(resolveMpvPath(path.join(dir, 'mpv.cmd'))).not.toBe(path.join(dir, 'mpv.cmd'));
+  });
+
+  // WMI starts the command line in its own working directory, where a relative path
+  // names nothing (#160).
+  it('hands on an absolute path for a relative one', () => {
+    const name = process.platform === 'win32' ? 'mpv-rel.exe' : 'mpv-rel';
+    // Under the working directory, so the relative path exists (the temp folder can be
+    // on another drive).
+    const dir = fs.mkdtempSync(path.join(process.cwd(), '.fs-mpv-rel-'));
+    try {
+      fs.writeFileSync(path.join(dir, name), '');
+      fs.chmodSync(path.join(dir, name), 0o755);
+      const relative = path.relative(process.cwd(), path.join(dir, name));
+      expect(path.isAbsolute(relative)).toBe(false);
+      expect(resolveMpvPath(relative)).toBe(path.join(dir, name));
+      // mpv on a relative PATH entry, and (Windows) a relative folder holding mpv.exe.
+      const onPath = process.platform === 'win32' ? 'mpv.exe' : 'mpv';
+      fs.writeFileSync(path.join(dir, onPath), '');
+      fs.chmodSync(path.join(dir, onPath), 0o755);
+      const relativeDir = path.relative(process.cwd(), dir);
+      expect(findMpvOnPath({PATH: relativeDir}, process.platform)).toBe(path.join(dir, onPath));
+      if (process.platform === 'win32') {
+        expect(resolveMpvPath(relativeDir)).toBe(path.join(dir, 'mpv.exe'));
+      }
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
   });
 
   it.each([

@@ -3,7 +3,7 @@ import {PassThrough} from 'node:stream';
 import {describe, expect, it} from 'vitest';
 import fc from 'fast-check';
 
-import {MaxMessageBytes, readMessage} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxMessageBytes, TooLarge, readMessage} from '../../native-host/faststream-mpv-host.mjs';
 
 // readMessage is the native host's front door: every byte the extension sends
 // goes through this framing, so a regression here silently loses or corrupts
@@ -82,17 +82,15 @@ describe('readMessage', () => {
     ), {numRuns: 100});
   });
 
-  it('resolves null instead of rejecting when the length prefix is 0 or past MaxMessageBytes', () => {
-    // Host lines 225-230: the length is checked as soon as the 4 header bytes
-    // are in; the body is never even awaited.
-    fc.assert(fc.asyncProperty(
+  it('resolves null instead of rejecting when the length prefix is 0, or past MaxMessageBytes and the input ends', async () => {
+    // The length is checked as soon as the 4 header bytes are in; nothing that size is
+    // allocated. (This once wrote a zero-length header before the one under test, so
+    // only 0 was ever checked.)
+    await fc.assert(fc.asyncProperty(
         fc.constantFrom(0, MaxMessageBytes + 1, MaxMessageBytes * 2, 0xFFFFFFFF),
         async (length) => {
           const stream = new PassThrough();
           const pending = readMessage(stream);
-          stream.write(frameFor(Buffer.alloc(0)).subarray(0, 4));
-          // The length written above is `length`; rewrite it directly in case
-          // frameFor was given a zero-payload frame.
           const header = Buffer.alloc(4);
           header.writeUInt32LE(length, 0);
           stream.write(header);
@@ -101,7 +99,28 @@ describe('readMessage', () => {
           expect(rejected).toBeUndefined();
           expect(resolved).toBeNull();
         },
-    ), {numRuns: 200});
+    ), {numRuns: 20});
+  });
+
+  it('reads an over-size message to its end and resolves TooLarge, so the host can answer it', async () => {
+    // The host used to quit without a word, and the extension said "is the host
+    // installed?" (#151). Read to the end first: the browser is still writing it.
+    await fc.assert(fc.asyncProperty(
+        fc.integer({min: MaxMessageBytes + 1, max: MaxMessageBytes + 64 * 1024}),
+        fc.array(fc.nat({max: MaxMessageBytes + 64 * 1024}), {maxLength: 8}),
+        async (length, splitPoints) => {
+          const buffer = frameFor(Buffer.alloc(length, 0x41));
+          const stream = new PassThrough();
+          const pending = readMessage(stream);
+          for (const chunk of splitIntoChunks(buffer, splitPoints)) {
+            stream.write(chunk);
+          }
+          const {resolved, rejected} = await outcomeOf(pending);
+          expect(rejected).toBeUndefined();
+          expect(resolved).toBe(TooLarge);
+          stream.end();
+        },
+    ), {numRuns: 20});
   });
 
   it('resolves null when the body is cut short and the input then ends', async () => {
