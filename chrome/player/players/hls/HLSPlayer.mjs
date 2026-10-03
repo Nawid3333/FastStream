@@ -6,7 +6,7 @@ import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
-import {HLSFragment} from './HLSFragment.mjs';
+import {storeIndex, storeLevel} from './HLSFragmentStore.mjs';
 import {HLSFragmentRequester} from './HLSFragmentRequester.mjs';
 import {HLSLoaderFactory} from './HLSLoader.mjs';
 
@@ -352,26 +352,8 @@ export default class HLSPlayer extends EventEmitter {
     if (!HLSFragmentRequester.takeOverDecryption(levelDetails.fragments)) {
       this.emit(DefaultPlayerEvents.NEED_KEY);
     }
-    // A live playlist's window moves on: its first fragment starts where hls.js placed
-    // it, not at 0, or each refresh would place its new fragments over the old ones.
-    let time = levelDetails.fragments[0]?.start || 0;
-    levelDetails.fragments.forEach((fragment, i) => {
-      const identifier = this.getIdentifier(levelDetails.trackID, fragment.level);
-      if (fragment.initSegment && i === 0) {
-        fragment.initSegment.trackID = levelDetails.trackID;
-        if (!this.client.getFragment(identifier, -1)) {
-          this.client.makeFragment(identifier, -1, new HLSFragment(fragment.initSegment, 0, 0));
-        }
-      }
-      const start = time;
-      time += fragment.duration;
-      const end = time;
-      fragment.levelIdentifier = identifier;
-      fragment.trackID = levelDetails.trackID;
-      if (!this.client.getFragment(identifier, fragment.sn)) {
-        this.client.makeFragment(identifier, fragment.sn, new HLSFragment(fragment, start, end));
-      }
-    });
+    // Into the store, from the level's first segment (HLSFragmentStore).
+    storeLevel(this.client, levelDetails, (level) => this.getIdentifier(trackID, level));
   }
   getVideo() {
     return this.video;
@@ -523,8 +505,11 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   get currentFragment() {
-    if (!this.hls.streamController.currentFrag) return null;
-    return this.client.getFragment(this.getIdentifier(0, this.hls.streamController.currentFrag.level), this.hls.streamController.currentFrag.sn);
+    const frag = this.hls.streamController.currentFrag;
+    if (!frag) return null;
+    const identifier = this.getIdentifier(0, frag.level);
+    const index = storeIndex(this.client.getFragments(identifier), frag.sn);
+    return index === null ? null : this.client.getFragment(identifier, index);
   }
 
   getCurrentAudioLevelID() {

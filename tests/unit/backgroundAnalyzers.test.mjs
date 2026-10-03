@@ -100,6 +100,19 @@ describe('VideoAnalyzer, a background player that fails to load', () => {
     expect(player.destroyed).toBe(true);
   });
 
+  it('pins a range with holes in it, as a live stream\'s store has', async () => {
+    // HLSFragmentStore forgets what a live window has left: the walk over the range threw on
+    // the first hole.
+    const client = makeClient(failingPlayer());
+    delete client.fragments[3];
+    const analyzer = new VideoAnalyzer(client);
+    await analyzer.setSource(client.source);
+
+    const reserved = analyzer.referenceFragments(0, 60);
+
+    expect(reserved.map((fragment) => fragment.sn)).toEqual([0, 1, 2, 4, 5]);
+  });
+
   it('tries again once the quality changes, as after any failure', async () => {
     const client = makeClient(failingPlayer());
     const analyzer = new VideoAnalyzer(client);

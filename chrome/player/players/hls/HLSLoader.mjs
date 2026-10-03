@@ -1,3 +1,5 @@
+import {storeIndex} from './HLSFragmentStore.mjs';
+
 // How many times in a row one segment may fail before hls.js hears an error. Until then a
 // failure is reported as an abort, and hls.js asks for the segment again: FastStream's way
 // of riding out a failure that passes, on top of XHRLoader's own retries. For good, it hid
@@ -141,7 +143,10 @@ export function HLSLoaderFactory(player) {
           sn = -1;
         }
         const identifier = player.getIdentifier(this.context.frag.trackID, this.context.frag.level);
-        let frag = player.client.getFragment(identifier, sn);
+        // A segment is stored at its place in the level, not at its sequence number
+        // (HLSFragmentStore).
+        const index = sn === -1 ? -1 : storeIndex(player.client.getFragments(identifier), sn);
+        let frag = index === null ? null : player.client.getFragment(identifier, index);
         // One init segment is kept per level, but a playlist can change its EXT-X-MAP:
         // the kept one is only this request's if it is the same segment.
         if (frag && sn === -1 && !isSameSegment(frag.getFrag(), this.context.frag)) {

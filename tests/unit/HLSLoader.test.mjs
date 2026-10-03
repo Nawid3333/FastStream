@@ -21,7 +21,8 @@ function makePlayer(stored = null) {
     activeRequests: [],
     loadedManifests: new Set(),
     getIdentifier: (trackID, level) => `${trackID}:${level}`,
-    client: {getFragment: vi.fn(() => stored)},
+    // A level stored from sequence number 0 (HLSFragmentStore), when anything is stored.
+    client: {getFragment: vi.fn(() => stored), getFragments: () => (stored ? Object.assign([], {snBase: 0}) : undefined)},
     getClient: () => ({downloadManager: {getFile, getIdentifier: (details) => details.url, forgetCompletedFile: vi.fn()}}),
     fragmentRequester: {requestFragment},
   };
