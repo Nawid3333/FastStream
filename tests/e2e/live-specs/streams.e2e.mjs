@@ -60,7 +60,7 @@ const libs = {};
 
 /**
  * Returns one file of an npm package, downloading the package from the registry the first
- * time and caching it under the OS temp directory.
+ * time and caching it in tests/e2e/fixtures/live-libs (gitignored).
  * @param {string} pkg - The package name.
  * @param {string} file - The file's path inside the package.
  * @return {Promise<Buffer>} The file.
@@ -76,11 +76,13 @@ async function npmFile(pkg, file) {
   }
   // The registry host is pinned: the version comes from this repo's own package.json,
   // and both the fetch and the cache land under it (CodeQL js/request-forgery,
-  // js/http-to-file-access). The cache lives next to the suite's gitignored fixtures
+  // js/http-to-file-access). The cache lives in the e2e suites' gitignored fixtures
   // directory, not in the OS temp root whose fixed paths are world-readable and
-  // pre-createable (CodeQL js/insecure-temporary-file).
+  // pre-createable (CodeQL js/insecure-temporary-file). (It was once put in a fixtures
+  // directory of live-specs' own, which nothing ignored: a `git add -A` after a live run
+  // took both libraries into the tree.)
   const registry = 'https://registry.npmjs.org';
-  const cacheDir = path.join(__dirname, 'fixtures', 'live-libs', `${pkg}@${version}`);
+  const cacheDir = path.join(__dirname, '..', 'fixtures', 'live-libs', `${pkg}@${version}`);
   const cached = path.join(cacheDir, file);
   // Read without a preceding existsSync: gone-in-between is handled by the catch
   // (CodeQL js/file-system-race).

@@ -205,7 +205,7 @@ against real streams: Shaka Player's demo assets on storage.googleapis.com (HLS 
 angel-one: 5 qualities, 5 audio languages; DASH Sintel, 888 s, seeked 10 minutes in; a
 live DASH stream) and a progressive MP4 on raw.githubusercontent.com. The pages are local
 and embed them the way sites do: the site's own hls.js/dash.js (the official releases of
-the versions `package.json` pins, from the npm registry, cached in the OS temp dir), a
+the versions `package.json` pins, from the npm registry, cached in the gitignored `tests/e2e/fixtures/live-libs`), a
 plain `<video src>`, a cross-origin iframe that may go fullscreen (player laid over it)
 and one that may not (the frame is sent to the player page), plus a manifest opened
 directly (`playStreamURLs`). Not in `verify` or CI: a third-party outage must not block a
