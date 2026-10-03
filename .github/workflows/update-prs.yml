@@ -619,6 +619,7 @@ jobs:
             new=$RUNNER_TEMP/new
             old=$RUNNER_TEMP/old
             # unpack <zip> <dir>: a build's files, without a signature and its manifest's version.
+            # (unzip -d makes only the last folder of its path, so files/ is made first.)
             unpack() {
               unzip -q "$1" -d "$2" && rm -rf "$2/META-INF" &&
                 jq 'del(.version)' "$2/manifest.json" > "$2.manifest" && mv "$2.manifest" "$2/manifest.json"
@@ -626,6 +627,7 @@ jobs:
             if [ -n "$tag" ] &&
                gh run download "$RUN_ID" --name faststream-bundles --dir "$new/zip" &&
                gh release download "$tag" --pattern 'firefox-github-*.zip' --pattern '*.xpi' --dir "$old/zip" &&
+               mkdir -p "$new/files" "$old/files" &&
                unpack "$new"/zip/firefox-github-*.zip "$new/files/github" &&
                unpack "$old"/zip/firefox-github-*.zip "$old/files/github" &&
                unpack "$new"/zip/firefox-amo-*.zip "$new/files/amo" &&

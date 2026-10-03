@@ -307,8 +307,10 @@ cat "$f"
 EOF
   cat > "$BIN/unzip" <<'EOF'
 #!/usr/bin/env bash
-# unzip -q <zip> -d <dir>
+# unzip -q <zip> -d <dir>. Like Info-ZIP's unzip, it makes only the last folder of <dir>
+# (python3 makes them all, which hid a step unzipping into files/github on 2026-10-03).
 zip=$2 dir=$4
+[ -d "$(dirname "$dir")" ] || { echo "checkdir:  cannot create extraction directory: $dir" >&2; exit 3; }
 exec python3 -m zipfile -e "$zip" "$dir"
 EOF
   chmod +x "$BIN/gh" "$BIN/sleep" "$BIN/unzip" "$BIN/curl"
