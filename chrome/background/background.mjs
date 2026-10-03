@@ -809,15 +809,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     tab.playerCount -= playerCount;
     tab.playerCount = Math.max(0, tab.playerCount);
     checkURLMatch(frame);
-
-    frame.loadedCallbacks.forEach((callback) => {
-      try {
-        callback('loaded');
-      } catch (e) {
-        console.error(e);
-      }
-    });
-    frame.loadedCallbacks.clear();
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     tab.forgetRemovedFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame, msg.document);
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
@@ -826,22 +817,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (frame.playerOpening && frame.playerOpeningAttempt === msg.attempt) {
       frame.playerOpening = false;
     }
-  } else if (msg.type === MessageTypes.WAIT_UNTIL_MAIN_LOADED) {
-    frame.loadedCallbacks.add(sendResponse);
-
-    // Try to ping tab
-    chrome.tabs.sendMessage(tab.tabId, {
-      type: MessageTypes.PING_TAB,
-    }, (response) => {
-      BackgroundUtils.checkMessageError('ping_tab');
-      if (response === MessageTypes.PONG_TAB) {
-        if (frame.loadedCallbacks.has(sendResponse)) {
-          frame.loadedCallbacks.delete(sendResponse);
-          sendResponse('loaded');
-        }
-      }
-    });
-    return true;
   } else if (msg.type === MessageTypes.SEND_TO_CONTENT) {
     chrome.tabs.sendMessage(tab.tabId, {
       type: MessageTypes.MESSAGE_FROM_CONTENT,
