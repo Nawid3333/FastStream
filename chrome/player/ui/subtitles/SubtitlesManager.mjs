@@ -621,6 +621,11 @@ export class SubtitlesManager extends EventEmitter {
   // Make sure subtitles are not outside of the video
   checkTrackBounds() {
     const trackElements = this.subtitleTrackDisplayElements;
+    // Nothing to keep in bounds. This runs on every time update (each frame for a short
+    // video), and the style read below makes the browser lay the page out each time.
+    if (trackElements.length === 0) {
+      return;
+    }
     const playerHeight = DOMElements.playerContainer.offsetHeight - parseInt(window.getComputedStyle(DOMElements.subtitlesContainer).bottom);
 
     let totalTrackHeight = 0;
