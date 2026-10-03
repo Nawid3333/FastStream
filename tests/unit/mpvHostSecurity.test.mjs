@@ -153,14 +153,26 @@ describe('readMessage', () => {
     expect(await read).toBeNull();
   });
 
+  // {"url":"..."}: the URL's length plus 10 bytes of JSON around it.
+  const urlForBody = (bytes) => 'https://cdn.test/' + 'a'.repeat(bytes - 10 - 'https://cdn.test/'.length);
+
   it('reads a message right at the limit', async () => {
     const input = new PassThrough();
     const read = readMessage(input);
-    const url = 'https://cdn.test/' + 'a'.repeat(MaxMessageBytes - 40);
+    const url = urlForBody(MaxMessageBytes);
     const body = Buffer.from(JSON.stringify({url}), 'utf8');
-    expect(body.length).toBeLessThanOrEqual(MaxMessageBytes);
+    expect(body.length).toBe(MaxMessageBytes);
     input.write(frame(body));
     expect((await read).url).toBe(url);
+  });
+
+  it('refuses a message one byte over the limit', async () => {
+    const input = new PassThrough();
+    const read = readMessage(input);
+    const body = Buffer.from(JSON.stringify({url: urlForBody(MaxMessageBytes + 1)}), 'utf8');
+    expect(body.length).toBe(MaxMessageBytes + 1);
+    input.write(frame(body));
+    expect(await read).toBeNull();
   });
 
   it('gives null for a stream that ends early or holds no JSON', async () => {

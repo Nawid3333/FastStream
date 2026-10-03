@@ -82,24 +82,30 @@ describe('readMessage', () => {
     ), {numRuns: 100});
   });
 
-  it('resolves null instead of rejecting when the length prefix is 0 or past MaxMessageBytes', () => {
+  it('resolves null instead of rejecting when the length prefix is 0 or past MaxMessageBytes', async () => {
     // Host lines 225-230: the length is checked as soon as the 4 header bytes
-    // are in; the body is never even awaited.
-    fc.assert(fc.asyncProperty(
+    // are in; the body is never even awaited. So the input is left open: a length
+    // the host took would wait for a body, and an end would settle that with null
+    // too. One header per run: this once wrote a 0-length header first, which
+    // settled every run before the generated length was read, and the property
+    // was not awaited, so a failure surfaced only as an unattributed unhandled
+    // rejection.
+    await fc.assert(fc.asyncProperty(
         fc.constantFrom(0, MaxMessageBytes + 1, MaxMessageBytes * 2, 0xFFFFFFFF),
         async (length) => {
           const stream = new PassThrough();
           const pending = readMessage(stream);
-          stream.write(frameFor(Buffer.alloc(0)).subarray(0, 4));
-          // The length written above is `length`; rewrite it directly in case
-          // frameFor was given a zero-payload frame.
           const header = Buffer.alloc(4);
           header.writeUInt32LE(length, 0);
           stream.write(header);
-          stream.end();
-          const {resolved, rejected} = await outcomeOf(pending);
-          expect(rejected).toBeUndefined();
-          expect(resolved).toBeNull();
+          // The header reaches readMessage within process.nextTick; setImmediate
+          // runs after that.
+          const outcome = await Promise.race([
+            outcomeOf(pending),
+            new Promise((resolve) => setImmediate(() => resolve('still waiting for a body'))),
+          ]);
+          stream.destroy();
+          expect(outcome).toEqual({resolved: null});
         },
     ), {numRuns: 200});
   });
