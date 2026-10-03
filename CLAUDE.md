@@ -257,18 +257,18 @@ Real sites serving DASH: Bilibili (has a dedicated content script at
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.
-- **Nothing is bundled.** The browser loads all 166 `.mjs` files natively as
+- **Nothing is bundled.** The browser loads every `.mjs` file natively as
   ES modules. `build.mjs` is a file-copier plus a conditional-compilation
   preprocessor — not a bundler. Introducing whole-tree bundling is a
   behaviour change, not a refactor.
 - **The hls.js/dash.js hooks are already the official public APIs.**
-  `HLSPlayer.mjs:68` passes `loader: HLSLoaderFactory(this)` (hls.js's
-  documented config option) and `DashPlayer.mjs:153` calls
+  `HLSPlayer.mjs` passes `loader: HLSLoaderFactory(this)` (hls.js's
+  documented config option) and `DashPlayer.mjs` calls
   `dash.extend('XHRLoader', DASHLoaderFactory(this), false)` (dash.js's
   public extension point). The AMO problem is that the vendored *bytes*
   aren't an official release — not that the integration is hacked.
 - **Vendored library versions are current**, not stale: dash.js reports
-  `VERSION = '5.2.1'`, hls.js carries 1.6.x branches. The vendored dash.js
+  `VERSION = '5.2.1'`, hls.js is 1.7.3 (`package.json`). The vendored dash.js
   was a pre-release `development` build, not 5.1.0 - measure a patched
   bundle against the commit it was built from, not the nearest release
   (`docs/vendored-libraries.md`, dash.js "Status").
@@ -1401,11 +1401,11 @@ the change went in.
   incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
   `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
   commit; it never rebuilds it. The failure issue closes on the next clean run.
-  `update-prs.yml` merges the PR (`--merge`) once CI is green when it is clean (no
-  conflict, nothing under `.github/`, no deleted file back, only upstream's commits);
-  otherwise it waits for the owner (2026-10-01).
+  Like every update PR it waits for the owner's merge (nothing merges itself since
+  2026-10-02); `update-prs.yml` comments "ready to merge" once CI is green and it is clean
+  (no conflict, nothing under `.github/`, no deleted file back, only upstream's commits).
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
-  (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
+  (2026-09-25): Dependabot ignores the six libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.
   Clean, checks passed: a PR from `patched/<name>-<version>`, with CI dispatched on it (a
   push by `GITHUB_TOKEN` starts no workflow; `gh workflow run` does). Conflict or failed
@@ -1471,8 +1471,8 @@ the change went in.
 - Branches: `main` is the project and the only long-lived branch. It was
   `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
   and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
-  from `sync/upstream` when Andrew has commits `main` lacks. A clean one merges
-  itself (`update-prs.yml`); one that waits is decided on that PR - close it to skip,
+  from `sync/upstream` when Andrew has commits `main` lacks. It waits for the owner like
+  every PR (`update-prs.yml` only says whether it is ready): close it to skip,
   merge it to take. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
   branches, if ever needed, get cut fresh off `upstream/main`.
 

@@ -118,7 +118,7 @@ covers this library.
 
 ## hls.worker.js
 
-`HLSPlayer.mjs:29` sets hls.js's `workerPath` config option (official API,
+`HLSPlayer.mjs` sets hls.js's `workerPath` config option (official API,
 default `null`) to `modules/hls.worker.js`. That file is **required**: hls.js
 normally builds its worker at runtime from a `blob:` URL, and Manifest V3's
 extension CSP blocks blob workers, so the worker has to be a real file inside

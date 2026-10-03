@@ -1,6 +1,6 @@
 # Updating a patched library
 
-Seven libraries ship with a pnpm patch - FastStream's changes to them, as a diff a
+Six libraries ship with a pnpm patch - FastStream's changes to them, as a diff a
 reviewer can read (`pnpm-workspace.yaml`, `patchedDependencies`; why:
 `docs/vendored-libraries.md`). A patch is keyed to one exact version, so Dependabot leaves
 these alone and the **Patched libraries** workflow watches them instead, once a day.
