@@ -1014,7 +1014,7 @@
         "message": "Video URL'leri (.mp4) açıldığında MP4 videoları oynatmak için oynatıcıyı kullan"
     },
     "options_general_seekstep": {
-        "message": "İleri/geri tuş adım boyutu (saniye)"
+        "message": "Ok tuşlarıyla sarma adımı (saniye)"
     },
     "options_general_replace_delay": {
         "message": "Otomatik oynatıcıyı değiştirmeden önce gecikme (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Evet"
-    },
-    "no": {
-        "message": "Hayır"
     },
     "ok": {
         "message": "Tamam"

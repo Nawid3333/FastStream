@@ -456,7 +456,7 @@
         "message": "Ini adalah sarikata ujian"
     },
     "player_qualitymenu_label": {
-        "message": "Kualiti Video "
+        "message": "Kualiti Video"
     },
     "player_languagemenu_label": {
         "message": "Pilihan Bahasa"
@@ -1014,7 +1014,7 @@
         "message": "Gunakan pemain untuk memainkan video MP4 apabila membuka URL video (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Seek keybind base step size (seconds)"
+        "message": "Langkah lompat kekunci anak panah (saat)"
     },
     "options_general_replace_delay": {
         "message": "Tangguhan sebelum pemain diganti secara automatik (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Ya"
-    },
-    "no": {
-        "message": "Tidak"
     },
     "ok": {
         "message": "OK"

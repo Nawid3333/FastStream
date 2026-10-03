@@ -1014,7 +1014,7 @@
         "message": "Użyj odtwarzacza do odtwarzania plików MP4 z adresów URL (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Podstawowy krok przewijania (sekundy)"
+        "message": "Krok przewijania strzałkami (sekundy)"
     },
     "options_general_replace_delay": {
         "message": "Opóźnienie przed automatyczną zamianą odtwarzacza (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Tak"
-    },
-    "no": {
-        "message": "Nie"
     },
     "ok": {
         "message": "OK"

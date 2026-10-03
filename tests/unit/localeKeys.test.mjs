@@ -37,7 +37,8 @@ function namedKeys() {
   for (const file of sourceFiles(chromeDir)) {
     const source = fs.readFileSync(file, 'utf8');
     const name = path.relative(chromeDir, file).split(path.sep).join('/');
-    for (const match of source.matchAll(/\b(?:Localize|i18n)\.getMessage\(\s*(['"])([^'"]+)\1\s*([,)+])/g)) {
+    // getI18nMessage is what i18n.mjs gives the extension's pages (perms.mjs, options.mjs).
+    for (const match of source.matchAll(/\b(?:(?:Localize|i18n)\.getMessage|getI18nMessage)\(\s*(['"])([^'"]+)\1\s*([,)+])/g)) {
       add(match[3] === '+' ? prefixes : keys, match[2], name);
     }
     // getMessage(count === 1 ? 'one' : 'other')
@@ -62,6 +63,7 @@ describe('Message keys', () => {
     expect(keys.size).toBeGreaterThanOrEqual(300);
     expect(keys.has('player_fragment_failed_plural')).toBe(true);
     expect(keys.has('extension_name')).toBe(true);
+    expect(keys.has('perms_page_granted')).toBe(true);
     const missing = [...keys].filter(([key]) => !Object.hasOwn(english, key))
         .map(([key, files]) => `${key} (${[...files].join(', ')})`);
     expect(missing).toEqual([]);
@@ -120,6 +122,24 @@ describe('Message keys', () => {
     expect(allowed.filter((entry) => !found.includes(entry))).toEqual([]);
     expect(found.filter((entry) => !allowed.includes(entry))).toEqual([]);
   });
+});
+
+describe('Every locale', () => {
+  // A locale is compared with English, not only with combined-locales.json: one that lacks
+  // a key shows that text in English, one that has a key English dropped carries dead
+  // text, and one whose $1/$2 differ from English's loses or garbles what is put in.
+  const placeholders = (message) => (message.match(/[$]\d/g) || []).sort().join(' ');
+  for (const locale of fs.readdirSync(path.join(chromeDir, '_locales'))) {
+    it(`${locale} has English's keys, each with English's placeholders`, () => {
+      const messages = JSON.parse(fs.readFileSync(path.join(chromeDir, '_locales', locale, 'messages.json'), 'utf8'));
+      expect(Object.keys(messages).sort()).toEqual(Object.keys(english).sort());
+      const empty = Object.keys(messages).filter((key) => !messages[key].message?.trim());
+      expect(empty).toEqual([]);
+      const differing = Object.keys(english).filter((key) => Object.hasOwn(messages, key) &&
+          placeholders(messages[key].message) !== placeholders(english[key].message));
+      expect(differing).toEqual([]);
+    });
+  }
 });
 
 describe('combined-locales.json', () => {

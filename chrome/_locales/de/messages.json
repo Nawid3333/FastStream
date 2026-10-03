@@ -168,7 +168,7 @@
         "message": "Erlaube Vollbild berechtigungen wenn der Player in einen Frame eingefügt wird."
     },
     "perms_page_breakdown_perm1r3": {
-        "message": "Herausfiltern von Untertitel <track> Elementen von der Seite."
+        "message": "Auslesen von Untertitel-<track>-Elementen aus der Seite."
     },
     "perms_page_breakdown_perm2h": {
         "message": "Zugriff auf die webRequests API"
@@ -546,7 +546,7 @@
         "message": "$1 Fragmente fehlgeschlagen! Klicken um erneut zu versuchen..."
     },
     "player_fragment_allbuffered": {
-        "message": "100% Buffered"
+        "message": "100% gepuffert"
     },
     "player_welcometext": {
         "message": "Willkommen zu FastStream v$1!"
@@ -1014,7 +1014,7 @@
         "message": "Den Player verwenden um MP4 Videos abzuspielen beim öffnen von video URLs (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Basis Schrittgröße für die Vor-/Zurückspul Taste (sekunden)"
+        "message": "Spulschritt der Pfeiltasten (Sekunden)"
     },
     "options_general_replace_delay": {
         "message": "Verzöggerung vor dem automatischen Ersetzen des Players (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Ja"
-    },
-    "no": {
-        "message": "Nein"
     },
     "ok": {
         "message": "OK"

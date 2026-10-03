@@ -72,7 +72,7 @@
         "message": "- Omitir intro/outro si corresponde"
     },
     "welcome_page_keybinds_content9": {
-        "message": "- Ocultar/mostrar jugador"
+        "message": "- Ocultar/mostrar el reproductor"
     },
     "welcome_page_keybinds_content10": {
         "message": "- Saltar al 10%-90% del video (0 - inicio)"
@@ -966,13 +966,13 @@
         "message": "Ninguno"
     },
     "options_video_daltonizer_protanomaly": {
-        "message": "Protanomaly"
+        "message": "Protanomalía"
     },
     "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomaly"
+        "message": "Deuteranomalía"
     },
     "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomaly"
+        "message": "Tritanomalía"
     },
     "options_general_header": {
         "message": "Opciones Generales"
@@ -1014,7 +1014,7 @@
         "message": "Use el reproductor para reproducir videos MP4 al abrir URLs de video (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Buscar tamaño de paso base de la tecla de acceso rápido (segundos)"
+        "message": "Salto de las teclas de flecha (segundos)"
     },
     "options_general_replace_delay": {
         "message": "Retraso antes de reemplazar auto (ms)"
@@ -1143,7 +1143,7 @@
         "message": "Atajos de Teclado"
     },
     "options_keybinds_body": {
-        "message": "Las teclas de acceso rápido solo están activas cuando el jugador está enfocado."
+        "message": "Las teclas de acceso rápido solo están activas cuando el reproductor está enfocado."
     },
     "options_keybinds_reset": {
         "message": "Restablecer a los valores predeterminados"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Sí"
-    },
-    "no": {
-        "message": "No"
     },
     "ok": {
         "message": "Aceptar"

@@ -1014,7 +1014,7 @@
         "message": "Gebruik de speler om MP4-video's af te spelen bij het openen van video-URL's (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Basisstapgrootte voor zoeken (seconden)"
+        "message": "Spronggrootte van de pijltjestoetsen (seconden)"
     },
     "options_general_replace_delay": {
         "message": "Vertraging voordat speler automatisch wordt vervangen (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Ja"
-    },
-    "no": {
-        "message": "Nee"
     },
     "ok": {
         "message": "OK"

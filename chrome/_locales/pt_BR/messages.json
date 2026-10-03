@@ -1014,7 +1014,7 @@
         "message": "Use o player para reproduzir transmissões no formato HLS/DASH ao abrir URLs de de listas de reprodução (.mp4)"
     },
     "options_general_seekstep": {
-        "message": "Seek keybind base do atalho de busca (segundos)"
+        "message": "Salto das setas do teclado (segundos)"
     },
     "options_general_replace_delay": {
         "message": "Atraso antes da substituição automática do player (ms)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "Sim"
-    },
-    "no": {
-        "message": "Não"
     },
     "ok": {
         "message": "OK"

@@ -168,7 +168,7 @@
         "message": "プレーヤーがフレームに挿入されるときに全画面の権限を有効化。"
     },
     "perms_page_breakdown_perm1r3": {
-        "message": "字幕の <track> 要素をページから削除。"
+        "message": "ページから字幕の <track> 要素を取得。"
     },
     "perms_page_breakdown_perm2h": {
         "message": "webRequest API にアクセス"
@@ -480,7 +480,7 @@
         "message": "設定ウィンドウを閉じる"
     },
     "player_savevideo_label": {
-        "message": "ALT を押しながらで動画の一部を保存します。SHIFT を押しながらでバッファーをダンプします。"
+        "message": "動画を保存します。ALT を押しながらで動画の一部を保存します。SHIFT を押しながらでバッファーをダンプします。"
     },
     "player_screenshot_label": {
         "message": "スクリーンショットを撮る"
@@ -933,7 +933,7 @@
         "message": "ビデオズーム"
     },
     "options_video_delay": {
-        "message": "Video Delay"
+        "message": "映像の遅延"
     },
     "options_video_brightness": {
         "message": "明るさ"
@@ -1014,7 +1014,7 @@
         "message": "動画の URL (.mp4) を開くときにMP4 の動画を再生するプレーヤーを使用する"
     },
     "options_general_seekstep": {
-        "message": "シークキーバインドのベースステップサイズ (秒)"
+        "message": "矢印キーのシーク幅 (秒)"
     },
     "options_general_replace_delay": {
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
@@ -1282,9 +1282,6 @@
     },
     "yes": {
         "message": "はい"
-    },
-    "no": {
-        "message": "いいえ"
     },
     "ok": {
         "message": "OK"
