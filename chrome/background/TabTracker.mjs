@@ -173,6 +173,10 @@ export class TabHolder {
     // What that play plays (content.js's playedVideo): a stream plainly another length is
     // not its stream.
     this.mpvPlayedVideo = null;
+    // While a stream is checked for such a play, the streams detected meanwhile, to be
+    // checked next (background.mjs sendPendingPlay); null otherwise.
+    /** @type {?Array<Object>} */
+    this.mpvPlayChecking = null;
   }
 
   /**

@@ -235,6 +235,7 @@ async function startMpv(tab, onPlay = false) {
     tab.mpvLastPlaySend = null;
     tab.mpvPlayPendingUntil = 0;
     tab.mpvPlayedVideo = null;
+    tab.mpvPlayChecking = null;
     chrome.tabs.sendMessage(tab.tabId, {
       type: MessageTypes.MPV_REPORT_PLAYING,
     }, () => {
@@ -531,6 +532,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.mpvError = null;
     tab.mpvPlayPendingUntil = 0;
     tab.mpvPlayedVideo = null;
+    tab.mpvPlayChecking = null;
 
     chrome.tabs.sendMessage(tabid, {
       type: MessageTypes.REMOVE_PLAYERS,
@@ -1864,26 +1866,15 @@ async function onSourceRecieved(details, frame, mode) {
       // The shortcut's MPV: streams are only tracked, for onUserPlay to pick
       // from - unless the user already pressed play and the player asked
       // for its stream only afterwards, in which case this is that stream.
-      if (frame.tab.mpvPlayPendingUntil > Date.now()) {
-        const tab = frame.tab;
-        const until = tab.mpvPlayPendingUntil;
-        const page = {url: tab.url, document: frame.documentKey};
-        // Taken now, so another stream found while this one's length is read waits.
-        tab.mpvPlayPendingUntil = 0;
-        // Its length, read above, tells whether it is the video the user started: the
-        // first stream after the play went unchecked, a preview's or an ad's as well.
-        await Lengths.settle(() => [{url, mode, headers: customHeaders}], SourceLengthWaitMs);
-        if (tab.url !== page.url || frame.documentKey !== page.document) {
-          return;
-        }
-        if (StreamPick.conflicts(tab.mpvPlayedVideo, Lengths.lengthOf(url))) {
-          // Another video's: the next one may be the video's, while the wait lasts.
-          tab.mpvPlayPendingUntil = until;
-          return;
-        }
-        if (tab.isOn && tab.isMpv && tab.mpvOnPlay) {
-          sendPlayedToMpv(tab, {url, headers: customHeaders});
-        }
+      const tab = frame.tab;
+      const candidate = {frame, document: frame.documentKey, url, mode, headers: customHeaders};
+      if (tab.mpvPlayChecking) {
+        // Another stream is being checked for the play: this one is next, should that one
+        // be another video's. Dropped, an ad's manifest and then the episode's left the
+        // play with nothing sent.
+        tab.mpvPlayChecking.push(candidate);
+      } else if (tab.mpvPlayPendingUntil > Date.now()) {
+        await sendPendingPlay(tab, candidate);
       }
       return;
     }
@@ -2171,6 +2162,53 @@ async function onUserPlay(sender, src, video) {
     // page asks for decides, when its length can be the video's (onSourceRecieved).
     tab.mpvPlayedVideo = video || null;
     tab.mpvPlayPendingUntil = Date.now() + MpvPlayPendingMs;
+  }
+}
+
+/**
+ * The shortcut's MPV, after a play whose stream was not detected yet (onUserPlay): checks
+ * the streams detected since, in the order the page asked for them, and sends the first
+ * whose length can be the video's. The length tells: the first stream after the play
+ * went unchecked once, a preview's or an ad's as well. Streams found while one is checked
+ * wait their turn in tab.mpvPlayChecking. None that fits: the play waits on for the next,
+ * while its time lasts.
+ *
+ * @param {TabHolder} tab - The tab the video plays in.
+ * @param {{frame: FrameHolder, document: ?string, url: string, mode: string, headers: *}} first -
+ *   The stream that came first, and the page its frame showed then.
+ * @return {Promise<void>}
+ */
+async function sendPendingPlay(tab, first) {
+  const until = tab.mpvPlayPendingUntil;
+  const url = tab.url;
+  const queue = [first];
+  tab.mpvPlayChecking = queue;
+  tab.mpvPlayPendingUntil = 0;
+  try {
+    while (queue.length > 0) {
+      const candidate = /** @type {typeof first} */ (queue.shift());
+      // Its length, being read since it was detected (onSourceRecieved's probe).
+      await Lengths.settle(() => [candidate], SourceLengthWaitMs);
+      // A new page, a reload or MPV started again drop the play (and this queue).
+      if (tab.mpvPlayChecking !== queue || tab.url !== url) {
+        return;
+      }
+      // Its frame went on to another page meanwhile, or its length is another video's.
+      if (candidate.frame.documentKey !== candidate.document ||
+          StreamPick.conflicts(tab.mpvPlayedVideo, Lengths.lengthOf(candidate.url))) {
+        continue;
+      }
+      if (tab.isOn && tab.isMpv && tab.mpvOnPlay) {
+        sendPlayedToMpv(tab, candidate);
+      }
+      return;
+    }
+    // Each was another video's: the next one may be the video's, while the wait lasts.
+    tab.mpvPlayPendingUntil = until;
+  } finally {
+    if (tab.mpvPlayChecking === queue) {
+      tab.mpvPlayChecking = null;
+    }
   }
 }
 
