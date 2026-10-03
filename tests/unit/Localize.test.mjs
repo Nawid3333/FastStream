@@ -24,11 +24,14 @@ function translationMap() {
     messages: JSON.parse(fs.readFileSync(path.join(localesDir, code, 'messages.json'), 'utf8')),
   }));
   locales.sort((a, b) => a.code === 'en' ? -1 : b.code === 'en' ? 1 : a.code.localeCompare(b.code));
-  const map = {LANGUAGES: locales.map((locale) => locale.code)};
-  for (const key of Object.keys(locales[0].messages)) {
-    map[key] = locales.map((locale) => (locale.messages[key] || locales[0].messages[key]).message);
-  }
-  return map;
+  // Made from entries, not written key by key: the keys come from the locale files, and a
+  // write by such a key is CodeQL's js/remote-property-injection.
+  return Object.fromEntries([
+    ['LANGUAGES', locales.map((locale) => locale.code)],
+    ...Object.keys(locales[0].messages).map((key) => [
+      key, locales.map((locale) => (locale.messages[key] || locales[0].messages[key]).message),
+    ]),
+  ]);
 }
 
 /**
