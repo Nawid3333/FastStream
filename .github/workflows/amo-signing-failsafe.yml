@@ -51,6 +51,11 @@ jobs:
   failsafe:
     name: Make sure the latest release reaches Firefox
     runs-on: ubuntu-latest
+    # The AMO keys: secrets of the "release" environment, as in release.yml (#163). This runs
+    # on main (schedule, and release.yml's dispatch), which the environment allows.
+    environment:
+      name: release
+      deployment: false
     # Up to 15 minutes for a release.yml run to finish, the build, and 40 for AMO.
     timeout-minutes: 75
     env:

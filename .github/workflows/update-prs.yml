@@ -102,6 +102,13 @@ jobs:
         startsWith(github.event.workflow_run.head_branch, 'patched/') ||
         github.event.workflow_run.head_branch == 'sync/upstream'))
     runs-on: ubuntu-latest
+    # UPDATE_PRS_TOKEN is a secret of the "update-prs" environment, which only main may use
+    # (Settings, Environments): a workflow file on any other branch cannot read it (#163).
+    # This job always runs main's file (workflow_run, and ci.yml's dispatch with --ref main).
+    # The environment only guards the secret, so no deployment is recorded.
+    environment:
+      name: update-prs
+      deployment: false
     # The wait (7 minutes) and the decision (16), with room to spare.
     timeout-minutes: 28
     env:

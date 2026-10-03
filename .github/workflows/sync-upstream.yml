@@ -237,9 +237,11 @@ jobs:
           fi
           # What the merge changes under .github/ (upstream's changes there, or conflict markers).
           # A workflow_dispatch run takes its workflow file from the branch it runs on, with this
-          # repository's token and secrets (the AMO keys, the owner's UPDATE_PRS_TOKEN); so does
-          # an approved run of this pull request. CI and the dependency review are then not
-          # started here: a person reads those changes first.
+          # repository's token (at whatever permissions that file asks for) and its repository
+          # secrets; so does an approved run of this pull request. (The AMO keys and the owner's
+          # UPDATE_PRS_TOKEN are environment secrets, which only main may use: docs/maintenance.md,
+          # "Secrets in environments".) CI and the dependency review are then not started here:
+          # a person reads those changes first.
           GITHUB_CHANGES=$(git diff --no-renames --name-only "$WORK_BRANCH" HEAD -- .github/ | paste -sd' ' -)
 
           {

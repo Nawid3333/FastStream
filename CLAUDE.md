@@ -1161,7 +1161,8 @@ the change went in.
   its `dependency-name`s is in the `shipped-minor-and-patch` patterns of main's
   `.github/dependabot.yml` (unreadable: treated as tooling, whose build must not differ).
   GitHub Actions updates change workflow files, which `GITHUB_TOKEN` may not merge or
-  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN`
+  update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN` of the
+  `update-prs` environment
   (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
   updates"), used only to bring such a branch up to date. The comment tells the owner to
   merge an upstream sync with a merge commit, keeping upstream's commits. His merge is his
@@ -1419,7 +1420,13 @@ the change went in.
   `.github/` gets no CI and no dependency review** (#163, 2026-10-03): a dispatched run
   takes its workflow file from the branch, so upstream's workflow would run with this
   repository's token and secrets; the PR says so, and the owner starts both after reading
-  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`).
+  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`). And the secrets
+  that can do harm are no repository secrets any more: the AMO keys are the `release`
+  environment's (main and tags `v*` only), `UPDATE_PRS_TOKEN` the `update-prs` one's (main
+  only), so no other branch's workflow can read them; the jobs that use them name the
+  environment with `deployment: false` (no deployment records), and
+  `tests/unit/workflowSecrets.test.mjs` fails for a job that reads one without it
+  (docs/maintenance.md, "Secrets in environments").
 - **`patched-libraries.yml`** + `tools/check-patched-updates.mjs` + `tools/recut-patch.mjs`
   (2026-09-25): Dependabot ignores the seven libraries in `patchedDependencies` (a bump
   leaves the patch unapplied), so for each new version this re-cuts the patch itself.

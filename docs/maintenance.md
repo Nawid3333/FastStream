@@ -267,8 +267,42 @@ code. Without it the comment asks you to use **Update branch** on such a PR your
 4. **Permissions**, Repository permissions: **Contents**, **Pull requests** and **Workflows**,
    each Read and write. (Metadata: read-only is added by itself.)
 5. **Generate token**, and copy it.
-6. In the repository: **Settings**, **Secrets and variables**, **Actions**,
-   **New repository secret**. Name `UPDATE_PRS_TOKEN`, paste the token, **Add secret**.
+6. In the repository: **Settings**, **Environments**, **update-prs**, under
+   **Environment secrets** **Add Secret**. Name `UPDATE_PRS_TOKEN`, paste the token,
+   **Add secret**. (Not a repository secret: see "Secrets in environments" below.)
 
 An Actions update changes nothing the extension ships, so your merge of one releases
 nothing.
+
+## Secrets in environments
+
+The three secrets that can do harm live in GitHub Environments, not as repository secrets
+(#163, 2026-10-03): `AMO_API_KEY` and `AMO_API_SECRET` (they sign and publish the add-on) in
+**release**, which only `main` and tags `v*` may use, and `UPDATE_PRS_TOKEN` in
+**update-prs**, which only `main` may use. A workflow file on any other branch - an upstream
+sync's, a pull request's - runs with this repository's token but cannot read them: GitHub
+hands a job an environment's secrets only when the job names that environment and its
+branch or tag is allowed there. `release.yml`, the release failsafe and `update-prs.yml` name
+them (`environment:` with `deployment: false`, so no deployment is recorded);
+`tests/unit/workflowSecrets.test.mjs` fails for a job that reads one of these secrets
+without its environment.
+
+To set them up (or check them): **Settings**, **Environments**. (A workflow run that names
+an environment that does not exist creates it, with no rules and no secrets: if `release`
+or `update-prs` is listed already, click it instead of **New environment**.)
+
+1. **New environment**, name `release`, **Configure environment**. In the **Deployment
+   branches** dropdown pick **Selected branches and tags**. **Add deployment branch or tag
+   rule**: Ref type **Branch**, name pattern `main`, **Add rule**. Again: Ref type **Tag**,
+   name pattern `v*`, **Add rule**. Leave reviewers and wait timer off.
+2. Under **Environment secrets**, **Add Secret** twice: `AMO_API_KEY` (AMO's "JWT issuer")
+   and `AMO_API_SECRET` (its "JWT secret"), with the same values as before. GitHub never
+   shows a secret again: if you no longer have them, make new credentials on AMO's API key
+   page, https://addons.mozilla.org/developers/addon/api/key/ (the old ones stop working).
+3. **New environment**, name `update-prs`, **Configure environment**. **Selected branches
+   and tags**, one rule: Ref type **Branch**, `main`. Under **Environment secrets** add
+   `UPDATE_PRS_TOKEN`: a new token, made as in "A token for workflow updates" above, or the
+   old one's **Regenerate token** on GitHub's token page.
+4. Then **Settings**, **Secrets and variables**, **Actions**, **Repository secrets**: delete
+   `AMO_API_KEY`, `AMO_API_SECRET` and `UPDATE_PRS_TOKEN` there. Until they are deleted, any
+   branch's workflow can still read those copies.

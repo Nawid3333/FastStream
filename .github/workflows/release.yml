@@ -53,6 +53,13 @@ jobs:
   release:
     name: Build and publish release
     runs-on: ubuntu-latest
+    # The AMO keys are secrets of the "release" environment, which only main and v* tags may
+    # use (Settings, Environments): a workflow file on any other branch - an upstream sync's,
+    # a pull request's - cannot read them (#163). The environment only guards the secrets,
+    # so no deployment is recorded.
+    environment:
+      name: release
+      deployment: false
     # AMO signing waits up to 30 minutes for approval (approvalTimeout in
     # tools/sign-amo.mjs); after that amo-signing-failsafe.yml takes over, so
     # the job needs those 30 minutes plus the checks, build and upload.
