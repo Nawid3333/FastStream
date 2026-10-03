@@ -384,9 +384,16 @@ than trusting `FSBlob`'s own self-report.
   `getFile()`). It read each fragment back through the worker into an `ArrayBuffer`
   wrapped in a Blob, so every "offloaded" fragment was in RAM as well. A stored fragment
   is now deleted from disk on eviction, as the Cache backend's always were.
-- A worker call unanswered for 30 s counts as a crash (`CallTimeoutMs`), and a dead
-  worker moves FSBlob on to its next backend instead of keeping every later fragment in
-  RAM.
+- A worker that answers nothing for 30 s while calls wait counts as a crash
+  (`CallTimeoutMs`, one watchdog re-armed by every answer: it runs calls one at a time, so
+  timing each call from its post counted a write backlog as a crash), and a dead worker
+  moves FSBlob on to its next backend instead of keeping every later fragment in RAM.
+- **Until 2026-10-03 no playback fragment was ever stored in OPFS** (#132): their
+  identifiers are URLs, and Firefox refuses a name with a `/` (and `\` on Windows). The
+  worker now only sees names `OPFSManager.fileName()` hands out (`f0`, `f1`, ...), so a
+  file on disk is found by `opfsManager.fileName(identifier)`, not by its identifier. A
+  sync access handle's `write()` reports a disk-full write only by a short count (Gecko
+  never throws), which the worker checks (`writeAll`).
 - `prune()` in the worker leaves a session directory younger than `STALE_MS` alone
   (it exists before its first heartbeat: two players starting together deleted each
   other's), and a heartbeat that exists but cannot be read (its owner is writing it) means
