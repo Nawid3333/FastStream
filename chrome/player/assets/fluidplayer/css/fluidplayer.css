@@ -207,6 +207,7 @@ body {
     height: 60px;
     border-radius: 50px;
     cursor: pointer;
+    background-color: var(--initial-play-background-color);
 }
 
 .fluid_initial_play_button {
@@ -632,6 +633,7 @@ body {
 
 .fluid_control_mute .speaker-muted {
     display: none;
+    color: var(--mute-icon-color);
 }
 
 .fluid_control_mute.muted .speaker-muted {
@@ -2349,8 +2351,9 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     background-color: rgba(0, 75, 0, 0.9);
 }
 
+/* After the .active rule, which it overrides; with !important no theme could. */
 .mixer_channel_buttons>div.mixer_channel_dyn.configured {
-    color: rgba(80, 255, 80, 0.9) !important;
+    color: var(--mixer-configured-color);
 }
 
 .mixer_channel_volume {
