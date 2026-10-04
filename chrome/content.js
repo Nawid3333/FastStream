@@ -2054,6 +2054,8 @@
         type: MessageTypes.MPV_USER_PLAY,
         src: video.currentSrc || '',
         video: playedVideo(video),
+        // The page's address now: a site like YouTube moves to the next video without a load.
+        page: location.href,
       }, () => {
         void chrome.runtime.lastError;
       });

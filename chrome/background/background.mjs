@@ -716,7 +716,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     return;
   } else if (msg.type === MessageTypes.MPV_USER_PLAY) {
-    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null);
+    onUserPlay(sender, typeof msg.src === 'string' ? msg.src : '', msg.video || null,
+        typeof msg.page === 'string' ? msg.page : '');
     return;
   } else if (msg.type === MessageTypes.SHORTCUT_CANCELLED) {
     if (sender.tab && typeof msg.key === 'string' && typeof msg.code === 'string') {
@@ -2292,11 +2293,15 @@ function autoOpenKnownLater(tab, frameId, src, video) {
  * page (a URL change without a load, which lets the page's MPV send again) still
  * has the last one's streams, and the play came before the new one's.
  *
+ * A video on a YouTube watch page goes as the video's address, in the shortcut's MPV:
+ * mpv's yt-dlp finds its streams, which FastStream cannot.
+ *
  * @param {Object} sender - The message sender: its tab and frameId.
  * @param {string} src - The video element's currentSrc.
  * @param {?Object} video - What it plays (content.js playedVideo).
+ * @param {string} pageUrl - The address of the video's page, as the page had it.
  */
-async function onUserPlay(sender, src, video) {
+async function onUserPlay(sender, src, video, pageUrl) {
   await ensureOptions();
 
   if (!Options.mpvMode || !sender.tab || typeof sender.frameId !== 'number') {
@@ -2312,6 +2317,15 @@ async function onUserPlay(sender, src, video) {
   const onPlay = tab.mpvOnPlay;
   const frame = tab.getFrame(sender.frameId);
   if (!onPlay && !(frame && frame.restoredFromCache)) {
+    return;
+  }
+
+  // The page's address, not the tab's: YouTube moves to the next video by pushState, and
+  // the tab's may still be the last video's.
+  const youTube = onPlay ? MpvBackend.youTubeVideoUrl(pageUrl) : null;
+  if (youTube) {
+    if (Logging) console.log('[MPV] user started a YouTube video:', youTube);
+    sendPlayedToMpv(tab, {url: youTube}, youTube);
     return;
   }
 
@@ -2503,8 +2517,9 @@ function newestOfLongest(sources, video = null) {
  *
  * @param {Object} tab - TabHolder the video is in.
  * @param {Object} source - Detected source: url and request headers.
+ * @param {string} [pageUrl] - The video's page, which mpv resumes it by.
  */
-function sendPlayedToMpv(tab, source) {
+function sendPlayedToMpv(tab, source, pageUrl = tab.url) {
   const now = Date.now();
   const last = tab.mpvLastPlaySend;
   if (last && last.url === source.url && now - last.time < MpvPlayRepeatMs) {
@@ -2515,7 +2530,7 @@ function sendPlayedToMpv(tab, source) {
   tab.mpvLastPlaySend = {url: source.url, time: now};
   Tabs.saveTabState(tab);
   tabTitle(tab.tabId).then((title) =>
-    Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), pageUrl, title)).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
     setMpvError(tab, result);
     followMpvDecoder(tab, result);
