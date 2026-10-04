@@ -19,7 +19,8 @@ import * as url from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
 import {closeSpecMpv, hostInstalled} from '../mpvTestProcesses.mjs';
-import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {suspendBackground} from '../classic-helpers.mjs';
+import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -39,32 +40,6 @@ let cdnServer;
 const requests = [];
 
 const HAVE_HOST = hostInstalled();
-
-/**
- * Suspends the background event page, as Firefox does once it has been idle.
- * @return {Promise<void>}
- */
-async function suspendBackground() {
-  await browser.setMozContext('chrome');
-  let result;
-  try {
-    result = await browser.executeAsync((extId, done) => {
-      (async () => {
-        try {
-          await WebExtensionPolicy.getByID(extId).extension.terminateBackground();
-          done({ok: true});
-        } catch (e) {
-          done({err: String(e)});
-        }
-      })();
-    }, EXTENSION_ID);
-  } finally {
-    await browser.setMozContext('content');
-  }
-  if (!result || !result.ok) {
-    throw new Error('could not suspend the background: ' + JSON.stringify(result));
-  }
-}
 
 describe('MPV mode across a suspended background', function() {
   before(async function() {

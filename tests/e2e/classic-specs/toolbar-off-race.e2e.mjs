@@ -24,7 +24,8 @@ import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {clickToolbar as clickToolbarIn, suspendBackground} from '../classic-helpers.mjs';
+import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -38,69 +39,7 @@ let siteServer;
 let extHandle;
 let siteHandle;
 
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
-
-/**
- * Clicks the extension's toolbar button for the selected tab, `times` times in a row
- * without waiting in between.
- * @param {number} times - How many clicks.
- */
-async function clickToolbar(times) {
-  await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, times, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        const action = ExtensionParent.apiManager.global.browserActionFor(extension);
-        for (let i = 0; i < times; i++) {
-          await action.triggerAction(win);
-        }
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID, times);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
-
-/**
- * Suspends the background event page, as Firefox does once it has been idle.
- * @return {Promise<void>}
- */
-async function suspendBackground() {
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        await WebExtensionPolicy.getByID(extId).extension.terminateBackground();
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not suspend the background: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = (times) => clickToolbarIn(siteHandle, times);
 
 /**
  * Reads the site tab's mode off its toolbar button.

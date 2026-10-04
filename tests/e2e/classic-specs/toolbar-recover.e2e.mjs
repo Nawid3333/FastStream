@@ -16,7 +16,7 @@ import path from 'node:path';
 import {browser, expect} from '@wdio/globals';
 
 import {loopedPlaylist} from '../loopedPlaylist.mjs';
-import {EXTENSION_ID} from '../wdio.extension.conf.mjs';
+import {clickToolbar as clickToolbarIn, suspendBackground} from '../classic-helpers.mjs';
 
 const SITE_PORT = 41992;
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
@@ -39,56 +39,10 @@ const requested = [];
 const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
 /**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
+ * Clicks the extension's toolbar button for the site's tab: the one selected, over the
+ * welcome page the add-on opened when it was installed.
  */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
-
-/** Clicks the extension's toolbar button for the site's tab. */
-async function clickToolbar() {
-  // Selected, over the welcome page the add-on opened when it was installed.
-  await browser.switchToWindow(await browser.getWindowHandle());
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        await ExtensionParent.apiManager.global.browserActionFor(extension).triggerAction(win);
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
-
-/**
- * Suspends the background event page, as Firefox does once it has been idle.
- * @return {Promise<void>}
- */
-async function suspendBackground() {
-  const result = await inChrome((extId, done) => {
-    WebExtensionPolicy.getByID(extId).extension.terminateBackground()
-        .then(() => done({ok: true}), (e) => done({err: String(e)}));
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not suspend the background: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = async () => clickToolbarIn(await browser.getWindowHandle());
 
 /**
  * Waits for the player to replace the page's video, and reads the source it plays.

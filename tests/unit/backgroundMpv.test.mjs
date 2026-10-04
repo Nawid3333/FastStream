@@ -313,6 +313,46 @@ describe('a same-site link into an allowlisted or auto-enabled path', () => {
   });
 });
 
+describe('the allowlist\'s MPV, an address that changes only after its #', () => {
+  // A gap #147 named: what a hash-only change does to a page the allowlist handed off.
+  // isSamePageUrlChange says which of them is a new page.
+  const EPISODE_2 = 'https://cdn.test/episode-2/master.m3u8';
+
+  /**
+   * An allowlisted page whose stream went to mpv by itself.
+   * @param {string} page - Its address.
+   * @return {Promise<void>}
+   */
+  async function handedOff(page) {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: page}]});
+    await bg.navigated(1, page);
+    await bg.frameAdded(1, 0, page, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  }
+
+  it('sends nothing again, and keeps the page, when only its anchor changes', async () => {
+    await handedOff(PAGE);
+    const removals = bg.sent('REMOVE_PLAYERS').length;
+    await bg.navigated(1, PAGE + '#comments');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(bg.sent('REMOVE_PLAYERS')).toHaveLength(removals);
+  });
+
+  it('hands off the next page\'s stream after a hash route, a page of its own', async () => {
+    await handedOff('https://site.test/#/watch/1');
+    const removals = bg.sent('REMOVE_PLAYERS').length;
+    await bg.navigated(1, 'https://site.test/#/watch/2');
+    await bg.request({tabId: 1, url: EPISODE_2});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE, EPISODE_2]);
+    expect(bg.sent('REMOVE_PLAYERS')).toHaveLength(removals + 1);
+  });
+});
+
 describe('the allowlist\'s MPV, a page that plays a sound first', () => {
   it('sends the video, not the sound', async () => {
     // Every file a media element loaded was taken for an MP4 video, and the allowlist sends
