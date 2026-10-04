@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "頭部距離"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "以立體聲運作：開啟時，環繞聲（5.1、7.1）會被縮混為兩個聲道。"
+    },
     "audiocompressor_title": {
         "message": "音訊壓縮器"
     },

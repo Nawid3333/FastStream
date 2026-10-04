@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Afstand tot hoofd"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Werkt in stereo: zolang deze aan staat, wordt surroundgeluid (5.1, 7.1) naar twee kanalen gemixt."
+    },
     "audiocompressor_title": {
         "message": "Audiocompressor"
     },

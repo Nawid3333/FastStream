@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Расстояние до головы"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Работает в стерео: пока она включена, объёмный звук (5.1, 7.1) сводится к двум каналам."
+    },
     "audiocompressor_title": {
         "message": "Компрессор"
     },

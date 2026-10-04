@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "ヘッド間の距離"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "ステレオで動作します。有効な間、サラウンド音声（5.1、7.1）は2チャンネルにダウンミックスされます。"
+    },
     "audiocompressor_title": {
         "message": "オーディオコンプレッサー"
     },

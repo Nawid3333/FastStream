@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Odległość od głowy"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Działa w stereo: gdy jest włączona, dźwięk przestrzenny (5.1, 7.1) jest miksowany do dwóch kanałów."
+    },
     "audiocompressor_title": {
         "message": "Kompresor audio"
     },
