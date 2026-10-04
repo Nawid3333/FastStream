@@ -59,9 +59,12 @@ export const EXTENSION_UUID = 'f45ea7c1-3b2d-4a19-9c6e-8d5b0f2a7e34';
 // they differ in more than the manifest - the GitHub build keeps the update
 // checker (NO_UPDATE_CHECKER only splices the AMO one) and asks for
 // contextualIdentities - so passing on one says nothing about the other.
-export const BUILD = process.env.FS_EXT_BUILD || 'amo';
-if (BUILD !== 'amo' && BUILD !== 'github') {
-  throw new Error(`FS_EXT_BUILD must be 'amo' or 'github', not '${BUILD}'`);
+// BUILD is one of the two names, never the variable's own text: it goes into log file
+// names (CodeQL js/path-injection, local sources).
+const requestedBuild = process.env.FS_EXT_BUILD || 'amo';
+export const BUILD = ['amo', 'github'].find((build) => build === requestedBuild);
+if (!BUILD) {
+  throw new Error(`FS_EXT_BUILD must be 'amo' or 'github', not '${requestedBuild}'`);
 }
 
 // Found rather than named, so a version bump does not silently stop this

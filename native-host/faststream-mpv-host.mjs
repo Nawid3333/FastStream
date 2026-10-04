@@ -46,12 +46,14 @@ import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 
+// No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
+// mpvPath and the options page's path name one, and an environment variable reached
+// statSync unchecked (CodeQL js/path-injection, local sources).
 const DefaultMpvPaths = [
-  process.env.FASTSTREAM_MPV_PATH,
   'C:\\Program Files\\mpv\\mpv.exe',
   'C:\\Program Files (x86)\\mpv\\mpv.exe',
   'mpv',
-].filter(Boolean);
+];
 
 // "debug": true is easily left on after a troubleshooting session, and the log was never
 // cut: past this size it is moved to faststream-mpv-host.log.1 (replacing the one before)

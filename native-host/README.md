@@ -183,9 +183,10 @@ The host takes the first mpv it finds, in this order:
 
 1. The options page's **mpv path** (sent with each message).
 2. `mpvPath` in `config.json` next to the host script.
-3. The `FASTSTREAM_MPV_PATH` environment variable.
-4. `C:\Program Files\mpv\mpv.exe`, then `C:\Program Files (x86)\mpv\mpv.exe`.
-5. `mpv` on `PATH` (`mpv.exe` on Windows).
+3. `C:\Program Files\mpv\mpv.exe`, then `C:\Program Files (x86)\mpv\mpv.exe`.
+4. `mpv` on `PATH` (`mpv.exe` on Windows).
+
+(The `FASTSTREAM_MPV_PATH` environment variable is no longer read: use `mpvPath`.)
 
 A folder works too: the host looks for `mpv.exe` in it. So a path in the
 options page wins over `config.json`, which matters when an old one there

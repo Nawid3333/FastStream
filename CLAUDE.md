@@ -1432,20 +1432,25 @@ the change went in.
 - **The Security tab's count also holds CodeQL code scanning** (2026-10-03). GitHub's
   default setup runs it on every push to `main` (Actions shows it as "CodeQL",
   `dynamic/github-code-scanning/codeql`; there is no workflow file), JavaScript and
-  Actions, and security-alerts.yml does not see its alerts. The 7 open on 2026-10-03 were
-  2 Dependabot (node-forge, braces: dev-only, no fixed release) and 5 CodeQL: the direct
-  player's `video.src` (js/xss, js/xss-through-dom, js/client-side-unvalidated-url-redirection;
-  now `URLUtils.playableUrl`), the fsaunpack test server (js/missing-rate-limiting; now
-  express-rate-limit) and firefox.e2e.mjs's `includes('addons.mozilla.org')`
-  (js/incomplete-url-substring-sanitization). The API is not reachable from a session
-  without `gh`, so find them by running the same scan: the CodeQL bundle from
-  github/codeql-action's releases (`codeql database create --language=javascript-typescript`
-  on `git archive origin/main`, then `database analyze`; the same for `actions`). Run the
-  105 queries GitHub runs, read off a CodeQL job log's `Loaded .../javascript-queries/...`
-  lines: `javascript-code-scanning.qls` has only 89 and misses e.g.
-  js/regex/missing-regexp-anchor, which flagged #320's first try. With all 105, `main`
-  gives 19 results: the 5 open ones and 14 in tests and tools that are not open on the
-  Security tab (dismissed before); compare a branch against `main`, not against zero.
+  Actions, and security-alerts.yml does not see its alerts. It runs 105 JavaScript queries
+  (read off a CodeQL job log's `Loaded .../javascript-queries/...` lines;
+  `javascript-code-scanning.qls` has only 89) with **local sources on**: environment
+  variables, files read, command-line arguments and stdin count as untrusted. The API is not
+  reachable from a session without `gh`, so reproduce a scan: the CodeQL bundle from
+  github/codeql-action's releases, `codeql database create --language=javascript-typescript`
+  on `git archive origin/main`, then `database analyze` with those 105 queries,
+  `--threat-model=local` and `--rerun` (a cached result from a run without it is reused
+  silently). On `main` at c6372bc that gives 70 results, nearly all in tools and tests and
+  dismissed on the Security tab, so compare a branch against `main`, never against zero, and
+  ask the owner which alerts are open. On 2026-10-04 the open ones were 2 Dependabot
+  (node-forge, braces: dev-only, no fixed release) and 5 CodeQL: `FASTSTREAM_MPV_PATH` into
+  the mpv host's `statSync` (the variable is gone; `config.json`'s `mpvPath` does the same),
+  `FS_EXT_BUILD` into e2e log names (`BUILD` is now one of the two constants),
+  instagramInject.test.mjs running a file read (now a `?raw` import), and the MP4 fixture
+  download in `mp4Fixture.mjs` (js/http-to-file-access; checked against its pinned SHA-256
+  before it is written, so dismissed as a false positive). #320's five fixes (the direct
+  player's `video.src`, the fsaunpack rate limiter, firefox.e2e.mjs) were real but were not
+  open alerts: the count matched by chance, a mistake not to repeat.
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
   other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
   half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the
