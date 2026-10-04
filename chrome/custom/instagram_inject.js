@@ -25,6 +25,39 @@
   }
 
 
+  // Posts the first video_dash_manifest with a value in a response, if the response is JSON.
+  function readResponse(text) {
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return;
+    }
+
+    // video_dash_manifest
+    // Nothing for a response that is not an object (a JSON number or string). Most
+    // responses have none, so that is no error: it filled the page's console.
+    const objs = findPropertyRecursive(data, 'video_dash_manifest');
+
+    if (!objs || objs.length === 0) {
+      return;
+    }
+
+    // Find non empty value. Every one can be empty (media still being processed).
+    const value = objs.find((o)=>!!o.value)?.value;
+
+    if (!value) {
+      console.error('No value found', data);
+      return;
+    }
+
+    window.postMessage({
+      type: 'fs_source_detected',
+      value: value.toString(),
+      ext: 'mpd',
+    }, '*');
+  }
+
   const rawOpen = XMLHttpRequest.prototype.open;
 
   XMLHttpRequest.prototype.open = function() {
@@ -48,36 +81,25 @@
         return;
       }
 
-      // Parse json
-      let data;
-      try {
-        data = JSON.parse(xhr.responseText);
-      } catch (e) {
-        return;
-      }
-
-      // video_dash_manifest
-      // Nothing for a response that is not an object (a JSON number or string). Most
-      // responses have none, so that is no error: it filled the page's console.
-      const objs = findPropertyRecursive(data, 'video_dash_manifest');
-
-      if (!objs || objs.length === 0) {
-        return;
-      }
-
-      // Find non empty value. Every one can be empty (media still being processed).
-      const value = objs.find((o)=>!!o.value)?.value;
-
-      if (!value) {
-        console.error('No value found', data);
-        return;
-      }
-
-      window.postMessage({
-        type: 'fs_source_detected',
-        value: value.toString(),
-        ext: 'mpd',
-      }, '*');
+      readResponse(xhr.responseText);
     });
+  }
+
+  // Instagram loads some of its data with fetch, which the XHR hook never saw (#232). The
+  // page gets its own response untouched; a copy of a text one (JSON, script, HTML) is read.
+  // A video, an image or other bytes is not copied: it would be held twice and read as text.
+  const rawFetch = window.fetch;
+  if (typeof rawFetch === 'function') {
+    window.fetch = function(...args) {
+      const result = rawFetch.apply(this, args);
+      result.then((response) => {
+        const type = response.headers.get('Content-Type') || '';
+        if (!/json|javascript|^text\//i.test(type)) {
+          return;
+        }
+        return response.clone().text().then(readResponse);
+      }).catch(() => {});
+      return result;
+    };
   }
 })();
