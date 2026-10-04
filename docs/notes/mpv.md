@@ -197,6 +197,16 @@ when the opener is that frame's page or the player frame's own
 restarted since), it asks the frame's content script (`IS_PLAYER_OPENER`). Otherwise the
 player is answered null and forgotten. mpv-shortcut's `/framed` page pins it.
 
+**A page Back brings back with its in-page player (measured 2026-10-04, #286).** Firefox
+157 caches a page whose in-page player is up, an MP4 (MediaSource) player and a direct one
+alike, and Back gives it back with the player in it (`pagehide` and `pageshow` persisted,
+the iframe there both times). Its `FRAME_ADDED` makes the background reset the page's
+frames, the player's with them. Right after the `pageshow` the player goes: the tab's URL
+changed, and the background's `REMOVE_PLAYERS` reaches the page (the only other caller of
+`removePlayers` is a click on a link, and there was none). So no player outlives the
+background's memory of it, and nothing was changed for #286; content-cleanup.e2e.mjs
+("takes down the player a page brings back ...") pins it.
+
 **Gone pages, and a page Back brings back (2026-09-30).** `TabHolder.goneDocuments`
 keeps the 16 latest pages that left a tab, by name, with what each had detected. A page
 leaves when its `FRAME_REMOVED` is taken, when another page names itself in its frame
