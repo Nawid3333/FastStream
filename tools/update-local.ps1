@@ -31,11 +31,16 @@ What it checks, and what -Apply does about it:
   - The mpv helper: whether %LOCALAPPDATA%\FastStreamMpvHost's copy is the repository's;
     -Apply runs native-host\install.ps1 again, with the mpv and Node paths it was installed
     with.
+  - WSL, which pnpm run verify:linux runs in: microsoft/WSL's latest release, once it is 5
+    days old (until 2026-10-04 a daily workflow opened an issue for each release). -Apply
+    runs wsl --update (Windows may ask for admin rights), then wsl --shutdown, so the next
+    start runs the new version: that stops every running distro, a verify:linux run with
+    it. A PC without WSL is only told so.
 
 It never touches Firefox (it updates itself, and FastStream from this repository's
-releases), mpv (its own repository updates it), or WSL (pnpm run verify:linux updates its
-distros). -DryRun is accepted as an old name for the check; -Repo <path> works on another
-checkout than the one this script is in.
+releases), mpv (its own repository updates it), or the Ubuntu releases inside WSL (pnpm
+run verify:linux updates them). -DryRun is accepted as an old name for the check; -Repo
+<path> works on another checkout than the one this script is in.
 #>
 param([switch]$Apply, [switch]$DryRun, [string]$Repo = (Split-Path -Parent $PSScriptRoot))
 
@@ -301,10 +306,59 @@ Invoke-Step 'The mpv helper' {
     }
 }
 
+# What wsl.exe --version reports, or $null when it reports none: no WSL on this PC, or the
+# Windows component from before the Store release, which does not know the option.
+function Get-WslVersion {
+    $ErrorActionPreference = 'Continue'
+    $out = & wsl.exe --version 2>$null
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return ConvertFrom-WslVersionText (($out | Out-String))
+}
+
+Invoke-Step 'WSL' {
+    if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+        Note 'WSL: not on this PC (pnpm run verify:linux needs it; wsl --install sets it up)'
+        return
+    }
+    # wsl.exe writes UTF-16 unless told otherwise, which reads here as a NUL after every
+    # character, in its version and in what --update prints.
+    $utf8Before = $env:WSL_UTF8
+    $env:WSL_UTF8 = '1'
+    try {
+        $have = Get-WslVersion
+        if (-not $have) {
+            Note 'WSL: wsl.exe reports no version (pnpm run verify:linux needs WSL; wsl --install sets it up)'
+            return
+        }
+        $want = Get-NewestRelease 'wsl' 'WSL'
+        if (-not $want) {
+            Note "WSL ${have}: its newest release is not 5 days old yet, kept"
+        }
+        elseif ((ConvertTo-Version $have) -ge (ConvertTo-Version $want)) {
+            Note "WSL ${have}: up to date"
+        }
+        else {
+            Invoke-Change "WSL $want (this PC has $have): wsl --update, then wsl --shutdown, which stops every running distro" {
+                & wsl.exe --update
+                if ($LASTEXITCODE -eq 0) { & wsl.exe --shutdown }
+            }
+            if ($Apply) {
+                $now = Get-WslVersion
+                if ($now -and (ConvertTo-Version $now) -lt (ConvertTo-Version $want)) {
+                    Note "WSL is still ${now}: Microsoft has not rolled $want out to this PC yet (wsl --update --web-download takes it from GitHub)"
+                }
+            }
+        }
+    }
+    finally {
+        $env:WSL_UTF8 = $utf8Before
+    }
+}
+
 Write-Host ''
 Write-Host '== Summary' -ForegroundColor Cyan
 foreach ($line in $summary) { Write-Host "  $line" }
-Write-Host '  Not touched: Firefox (updates itself), mpv (its own repository), WSL (pnpm run verify:linux).'
+Write-Host '  Not touched: Firefox (updates itself), mpv (its own repository), the Ubuntu releases in WSL (pnpm run verify:linux).'
 $due = -not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })
 if ($due) {
     Write-Host '  Run tools\update-local.ps1 -Apply to bring everything reported above up to date.'

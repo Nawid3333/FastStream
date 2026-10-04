@@ -1,3 +1,4 @@
+// @ts-check
 export const MessageTypes = {
   PING: 'PING',
   PONG: 'PONG',

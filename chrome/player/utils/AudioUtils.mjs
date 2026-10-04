@@ -1,3 +1,4 @@
+// @ts-check
 import {Utils} from './Utils.mjs';
 
 // --- ITU-R 468 weighting with per-bin cache, returns dBFS ---

@@ -1,3 +1,4 @@
+// @ts-check
 export const PlayerModes = {
   AUTO: 'auto',
   DIRECT: 'direct',

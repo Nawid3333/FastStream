@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {BlobManager} from '../utils/BlobManager.mjs';
 import {Utils} from '../utils/Utils.mjs';

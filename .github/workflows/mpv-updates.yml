@@ -354,7 +354,7 @@ jobs:
 
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
       # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as wsl-releases.yml does. A failure while it is open adds a
+      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
       # comment to it.
       # Not for a pull request's dry run: its failure shows on the pull request.
       - name: Report this workflow's own failure

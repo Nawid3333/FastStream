@@ -81,7 +81,7 @@ Muito obrigado aos colaboradores deste projeto.
 
 ## Detalhes técnicos
 
-[CLAUDE.md](CLAUDE.md) reúne as notas de trabalho (estrutura, convenções, testes, decisões) e [docs/](docs/) os guias: manutenção, bibliotecas corrigidas e incluídas, sincronizações com o projeto original. Tudo em inglês.
+[CLAUDE.md](CLAUDE.md) reúne as regras que toda alteração segue, [docs/notes/](docs/notes/) as notas de trabalho por área (convenções, testes, decisões) e [docs/](docs/) os guias: manutenção, bibliotecas corrigidas e incluídas, sincronizações com o projeto original. Tudo em inglês.
 
 ## Aviso Legal
 

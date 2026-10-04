@@ -4,7 +4,8 @@
 #
 # .gitignore already covers node_modules, built, output, web-ext-artifacts, logs,
 # coverage, the vendored libraries and the e2e fixtures. This adds the files that are
-# committed but only ever add noise to a search. Keep it in step with .claudeignore.
+# committed but only ever add noise to a search. Keep it in step with the Read
+# denials in .claude/settings.json.
 
 pnpm-lock.yaml
 

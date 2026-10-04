@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 
 // The Content-Types a server names a manifest by. Many name theirs this way only, with no

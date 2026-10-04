@@ -1,4 +1,4 @@
-// The playback checklist in CLAUDE.md, automated against real streams on the internet.
+// The playback checklist in docs/notes/playback-testing.md, automated against real streams on the internet.
 //
 // Every other suite plays files from this repository, served from 127.0.0.1. That cannot
 // show what only a real server does: a CDN's HTTP/2, its CORS and range answers, its

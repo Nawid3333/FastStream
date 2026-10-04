@@ -2,7 +2,7 @@ name: Auto release
 
 # Cuts a release automatically after every push to main
 # that passes CI - this fork's convention is that a push to that branch is
-# already a finished product (see CLAUDE.md), so there is no separate
+# already a finished product (see docs/notes/build-and-release.md), so there is no separate
 # "now ship it" step left to automate away.
 #
 # Except a push that changes nothing the extension ships (since 2026-09-25):

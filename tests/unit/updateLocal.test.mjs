@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {isPinnedUrl, newestNode, newestPackage} from '../../tools/newest-release.mjs';
+import {isPinnedUrl, newestNode, newestPackage, newestWsl} from '../../tools/newest-release.mjs';
 
 // tools/update-local.ps1 brings this PC to the versions CI's rule allows: the newest release
 // at least 5 days old (tools/check-toolchain.mjs). tools/newest-release.mjs picks them.
@@ -56,6 +56,10 @@ describe('isPinnedUrl', () => {
     ['http://registry.npmjs.org/pnpm', false],
     ['https://nodejs.org/dist/index.json.evil', false],
     ['https://nodejs.org/dist/v26.10.0/', false],
+    ['https://api.github.com/repos/microsoft/WSL/releases/latest', true],
+    ['https://api.github.com/repos/microsoft/WSL/releases', false],
+    ['https://api.github.com/repos/evil/WSL/releases/latest', false],
+    ['https://api.github.com/repos/microsoft/WSL/releases/latest?per_page=1', false],
   ])('%s -> %s', (url, allowed) => {
     expect(isPinnedUrl(new URL(url))).toBe(allowed);
   });
@@ -74,6 +78,38 @@ describe('newestPackage', () => {
 
   it('takes the latest major once its release is old enough', () => {
     expect(newestPackage(doc, now + 5 * 24 * 60 * 60 * 1000)).toBe('12.0.0');
+  });
+});
+
+// WSL on the owner's PC runs verify:linux, and nothing on GitHub can update it. Until
+// 2026-10-04 wsl-releases.yml opened an issue for each release; update-local.ps1 now
+// compares the PC's WSL with the latest release itself.
+describe('newestWsl', () => {
+  const release = (tag, days, more = {}) => ({tag_name: tag, published_at: daysAgo(days), ...more});
+
+  it('is the latest release once it is 5 days old', () => {
+    expect(newestWsl(release('2.6.1', 9), now)).toBe('2.6.1');
+    expect(newestWsl(release('2.6.1.0', 5), now)).toBe('2.6.1.0');
+  });
+
+  it('is nothing while the latest release is younger', () => {
+    expect(newestWsl(release('2.6.2', 4), now)).toBe(null);
+  });
+
+  it('is nothing for a pre-release, a draft or a release without a date', () => {
+    expect(newestWsl(release('2.7.0', 9, {prerelease: true}), now)).toBe(null);
+    expect(newestWsl(release('2.7.0', 9, {draft: true}), now)).toBe(null);
+    expect(newestWsl({tag_name: '2.7.0'}, now)).toBe(null);
+  });
+
+  // update-local.ps1 compares it and prints it: another project's text goes no further.
+  it.each(['v2.6.1', '2.6.1-rc1', '2', '2.6.1 && calc', '', undefined])('refuses the tag %s', (tag) => {
+    expect(() => newestWsl({tag_name: tag, published_at: daysAgo(9)}, now)).toThrow(/not a version number/);
+  });
+
+  it('refuses an answer that is no release', () => {
+    expect(() => newestWsl(null, now)).toThrow(/not a version number/);
+    expect(() => newestWsl({message: 'API rate limit exceeded'}, now)).toThrow(/not a version number/);
   });
 });
 
@@ -138,6 +174,26 @@ describe('update-local.ps1', () => {
     {encoding: 'utf8', windowsHide: true, env});
     fs.rmSync(parent, {recursive: true, force: true});
     expect(r.stdout.trim()).toBe('made');
+  }, 30000);
+
+  // What wsl.exe --version prints, as Windows PowerShell 5.1 gets it: the label is in
+  // Windows' language, and without WSL_UTF8 every character is followed by a NUL.
+  it.runIf(process.platform === 'win32')('ConvertFrom-WslVersionText reads the version off the first line', () => {
+    const lines = (...text) => '(' + text.map((line) => `'${line}'`).join(' + [char]13 + [char]10 + ') + ')';
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `$ErrorActionPreference = 'Stop'; . '${helper}'; ` +
+      `$utf16 = -join ('WSL version: 2.6.1.0'.ToCharArray() | ForEach-Object { [string]$_ + [char]0 }); ` +
+      '@(' + [
+        `[string](ConvertFrom-WslVersionText ${lines('WSL version: 2.6.1.0', 'Kernel version: 6.6.87.2-1')})`,
+        `[string](ConvertFrom-WslVersionText ${lines('WSL-Version: 2.5.9.0', 'Kernelversion: 6.6.87.1-1')})`,
+        `[string](ConvertFrom-WslVersionText ${lines('', 'WSL version: 2.4.13.0')})`,
+        '[string](ConvertFrom-WslVersionText $utf16)',
+        `[string](ConvertFrom-WslVersionText ${lines('Copyright (c) Microsoft Corporation.', 'Usage: wsl.exe 2.0')})`,
+        `[string](ConvertFrom-WslVersionText '')`,
+      ].join(', ') + ') | ConvertTo-Json -Compress'],
+    {encoding: 'utf8', windowsHide: true});
+    expect(r.stderr).toBe('');
+    expect(JSON.parse(r.stdout)).toEqual(['2.6.1.0', '2.5.9.0', '2.4.13.0', '2.6.1.0', '', '']);
   }, 30000);
 
   // The double-click: a check, then "Update these now?" only when the check exits with 2, and

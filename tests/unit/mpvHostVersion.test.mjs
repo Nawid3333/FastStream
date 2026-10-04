@@ -15,34 +15,49 @@ import {HostVersion, withHostVersion} from '../../native-host/faststream-mpv-hos
 // that is older than the host it was released with.
 //
 // That only works while the version moves with the host, so this file is the ratchet: a
-// change to the host fails it until HostVersion, RequiredHostVersion and RECORDED agree.
+// change to the host or its installer fails it until HostVersion, RequiredHostVersion and
+// RECORDED agree.
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../..');
 const hostFile = path.join(root, 'native-host/faststream-mpv-host.mjs');
+const installerFile = path.join(root, 'native-host/install.ps1');
 
-// The host as it was when its version was last raised: the SHA-256 of the file, line ends
-// as LF. After a change to the host: raise HostVersion there and RequiredHostVersion in
-// chrome/background/MpvBackend.mjs by one, then put both new values here (a failure
-// prints the hash).
+// The host as it was when its version was last raised: the SHA-256 of the host and of its
+// installer, line ends as LF. The installer counts because what it writes (the wrapper, the
+// manifest, config.json) is part of the host a PC has, and update-local.ps1 tells an
+// installed host from the repository's by the host file alone: raising HostVersion changes
+// that file, so a change to install.ps1 reaches the PC the same way. After a change to
+// either: raise HostVersion in the host and RequiredHostVersion in
+// chrome/background/MpvBackend.mjs by one, then put the new values here (a failure prints
+// the hashes).
 const RECORDED = {
   version: 1,
-  sha256: '7bf5f2db4bc8063948926b88210b8c752928c0923919ea4ba8bf1a2f26a9b18d',
+  host: '97a61b5acc482eb2a1012c04724416cd54f9e5f790d1e863ec8ea9fb355f72fa',
+  installer: '40301c0365877f54d34f56b4e75ad27382d317cfaed6ab2018437acc79daef4c',
 };
 
 // Stryker runs this suite on a copy of the host with every mutant written into it
 // (.stryker-tmp/sandbox-*), which is never the recorded file.
 const inMutationSandbox = root.split(path.sep).includes('.stryker-tmp');
 
+/**
+ * A file's SHA-256, its line ends read as LF (a Windows checkout may have CRLF).
+ * @param {string} file - The file.
+ * @return {string} The hash, in hex.
+ */
+function sha256Of(file) {
+  const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+  return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
 describe('the mpv host\'s version', () => {
-  it.skipIf(inMutationSandbox)('is raised with every change to the host', () => {
-    const text = fs.readFileSync(hostFile, 'utf8').replace(/\r\n/g, '\n');
-    const sha256 = crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+  it.skipIf(inMutationSandbox)('is raised with every change to the host or its installer', () => {
     const next = HostVersion === RECORDED.version ? HostVersion + 1 : HostVersion;
-    expect({version: HostVersion, sha256},
-        'native-host/faststream-mpv-host.mjs changed. A PC keeps running its installed copy, ' +
-        'so the version has to move: set HostVersion there and RequiredHostVersion in ' +
-        `chrome/background/MpvBackend.mjs to ${next}, then run this test again and record ` +
-        'the version and the hash it prints in RECORDED').toEqual(RECORDED);
+    expect({version: HostVersion, host: sha256Of(hostFile), installer: sha256Of(installerFile)},
+        'native-host/faststream-mpv-host.mjs or install.ps1 changed. A PC keeps running its ' +
+        'installed copy, so the version has to move: set HostVersion in the host and ' +
+        `RequiredHostVersion in chrome/background/MpvBackend.mjs to ${next}, then run this test ` +
+        'again and record the version and the hashes it prints in RECORDED').toEqual(RECORDED);
   });
 
   it('is the one the extension asks for', () => {

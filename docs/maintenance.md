@@ -25,7 +25,7 @@ merged themselves.
 | pnpm 11.x | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/pnpm-<version>`, changing only `packageManager`, once the release is 5 days old; one in conflict with `main` is rebuilt on it weekly | "ready to merge" | the PR |
 | pnpm next major | a PR from `toolchain-updates.yml`, once dependabot/dependabot-core#15904 is closed | as for 11.x; one that wants the lockfile rewritten fails CI, and the comment says so | the PR |
 | Node LTS | a PR from `toolchain-updates.yml` (Mondays 07:00 UTC) on `toolchain/node-<major>`, changing `.nvmrc` | "ready to merge" when the build is unchanged | the PR |
-| WSL, on your PC | `wsl-releases.yml` (daily) looks up WSL's newest release; nothing in the repository changes | nothing to merge: GitHub can't update your PC | an issue per release, "WSL update: <version>", with the commands; close it once you have updated (a newer release closes it for you) |
+| WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release (once it is 5 days old); nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
 | patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | "ready to merge"; your merge releases as for the shipped libraries | the PR |
 | patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | as for minor/patch | the PR |
 | upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it, except when it changes anything under `.github/`: then the PR says so, and you start CI after reading those files (they would run with this repository's secrets) | "ready to merge" when it has no conflict, changes nothing under `.github/`, brings back no file this project deleted, and every commit on it is upstream's own; merge it with **Create a merge commit** (keeping upstream's commits), and it releases as for the shipped libraries | the PR |
@@ -85,9 +85,13 @@ When it finds something out of date it asks "Update these now?", and Y applies a
 scripts off, the pull is `--ff-only` on a clean `main`, and the mpv helper keeps your mpv
 and Node paths.
 
+WSL itself is checked too (`pnpm run verify:linux` runs in it): a newer release is
+installed with `wsl --update`, then `wsl --shutdown`, which stops every running distro, so
+do not answer Y while a `verify:linux` run is going.
+
 It never touches Firefox (it updates itself, and FastStream from the releases), mpv
-(`C:\Program Files\mpv` has its own repository and updater) or WSL (`pnpm run verify:linux`
-updates its distros; a "WSL update" issue says when WSL itself has a new release). Run the
+(`C:\Program Files\mpv` has its own repository and updater) or the Ubuntu releases inside
+WSL (`pnpm run verify:linux` updates them). Run the
 check whenever you like: it changes nothing, and lists everything out of date with what to
 do about it.
 
@@ -142,10 +146,9 @@ image, a Firefox version, the upstream sync, a patched library whose patch could
 not be cut. Each names what failed. The Firefox, runner-image and sync issues
 close themselves on the next green run, a patched-library one when the patch is
 cut against that version or newer, a "Security alert" one when its alerts are fixed or
-dismissed. If `update-prs.yml`, `toolchain-updates.yml`, `wsl-releases.yml` or
-`security-alerts.yml` itself fails, it opens one issue, "Update PRs workflow failed",
-"Toolchain updates workflow failed", "WSL releases workflow failed" or "Security alerts
-workflow failed", while that one is open.
+dismissed. If `update-prs.yml`, `toolchain-updates.yml` or `security-alerts.yml` itself
+fails, it opens one issue, "Update PRs workflow failed", "Toolchain updates workflow
+failed" or "Security alerts workflow failed", while that one is open.
 
 Once a week, `flaky-specs.yml` opens "Flaky e2e specs: week to <date>" when a CI run in
 those 7 days had to run a spec file again: a test that failed once and passed on its
