@@ -1930,6 +1930,25 @@
   // background ignores the report unless the tab is in that mode.
   const userStartedVideos = new WeakSet();
 
+  // How long Firefox counts a press as the user's (dom.user_activation.transient.timeout).
+  const UserActivationMs = 5000;
+  // When the user last pressed a pointer or a key in this frame (trusted; onUserGesture).
+  let lastUserGestureAt = -Infinity;
+
+  /**
+   * Whether a play now follows the user's own press. navigator.userActivation.isActive
+   * alone missed a common case: a site whose play button first opens a pop-up. window.open()
+   * consumes the activation, so the video the same click started played with isActive
+   * already false, was taken for an autoplay, and never went to mpv. A trusted press in
+   * this frame within the time Firefox gives an activation counts too; an autoplay with no
+   * press behind it still does not.
+   * @return {boolean}
+   */
+  function playFollowsUserPress() {
+    if (navigator.userActivation && navigator.userActivation.isActive) return true;
+    return performance.now() - lastUserGestureAt <= UserActivationMs;
+  }
+
   function reportUserPlay(video) {
     try {
       chrome.runtime.sendMessage({
@@ -1950,7 +1969,7 @@
     if (!e.isTrusted) return;
     const video = e.target;
     if (!video || video.tagName !== 'VIDEO') return;
-    if (!navigator.userActivation || !navigator.userActivation.isActive) return;
+    if (!playFollowsUserPress()) return;
     userStartedVideos.add(video);
     reportUserPlay(video);
   }
@@ -1985,6 +2004,13 @@
 
   function onUserGesture(e) {
     if (!e.isTrusted) return;
+    // A key that starts a video is a plain one (Space, Enter, K). A chord is a shortcut,
+    // the MPV shortcut itself among them, and Escape is no activation in Firefox.
+    const chordOrNoKey = e.type === 'keydown' && (e.ctrlKey || e.altKey || e.metaKey ||
+      ['Escape', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key));
+    if (!chordOrNoKey) {
+      lastUserGestureAt = performance.now();
+    }
     for (const node of e.composedPath()) {
       if (node instanceof ShadowRoot) {
         listenInRoot(node);

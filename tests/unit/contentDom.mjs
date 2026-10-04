@@ -390,6 +390,8 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
     navigator: {userActivation: {isActive: false}},
     performance: {
       timeOrigin: 1000,
+      // The page's clock is the harness's (advance()).
+      now: () => now,
       getEntriesByType: (type) => (type === 'resource' ? entries.slice(0, 250) : []),
     },
     screen: {width: 1920, height: 1080},
@@ -517,6 +519,28 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
         const async = onMessage(request, {id: 'test'}, sendResponse);
         if (async !== true) resolve(undefined);
       });
+    },
+    /**
+     * Fires an event at the window's listeners (pointerdown, keydown...), trusted unless
+     * the event says otherwise, as Firefox's own input is.
+     * @param {string} type - The event type.
+     * @param {Object} [event] - Its fields.
+     */
+    dispatchWindow(type, event = {}) {
+      for (const {type: listening, listener} of windowListeners) {
+        if (listening === type) listener({type, isTrusted: true, composedPath: () => [], ...event});
+      }
+    },
+    /**
+     * Fires an event at the document's listeners (a media event, which content.js takes in
+     * the capture phase), trusted unless the event says otherwise.
+     * @param {string} type - The event type.
+     * @param {Object} [event] - Its fields (target: the element).
+     */
+    dispatchDocument(type, event = {}) {
+      for (const {type: listening, listener} of document.listeners) {
+        if (listening === type) listener({type, isTrusted: true, ...event});
+      }
     },
     /**
      * Posts a message to the page's window, as a frame in it does.

@@ -278,6 +278,21 @@ event, because Firefox gives the command the tab active when the key's round
 trip through the page ends, and a test that switches tabs straight after
 pressing sends it to the wrong tab.
 
+**A play after a pop-up (2026-10-04).** "Only a video the user starts" was
+`navigator.userActivation.isActive` at the `play`, and a site whose play button opens a
+pop-up first broke it: `window.open()` consumes the activation (Firefox's web-platform
+tests check that `isActive` turns false), so the video the same click started played as
+if nobody had started it, nothing went to mpv, and it played on in the page. content.js
+now also counts a trusted press in the same frame within Firefox's activation time
+(`dom.user_activation.transient.timeout`, 5 s): `pointerdown`, or a `keydown` that is no
+chord (Ctrl/Alt/Meta: the MPV shortcut itself must not count) and not Escape or a lone
+modifier (`playFollowsUserPress`). An autoplay with no press behind it, a page-made event,
+or a press over 5 s old still sends nothing. Not covered: a press in a child frame and the
+play in its parent once the pop-up consumed the activation (Firefox propagates activation up
+the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.test.mjs` (3 of
+9 fail without the fix, the rest guard the autoplay cases) and mpv-shortcut's `/popup` page,
+whose mpv half runs where the host is installed (CI's e2e-windows).
+
 **A page that cancels a shortcut (2026-09-27).** Firefox lets page content
 cancel an extension's shortcut: a keydown the page calls `preventDefault()` on
 never reaches the command (the extension's `<key>` has no `reserved`
