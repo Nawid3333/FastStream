@@ -279,14 +279,23 @@ describe('update-local.ps1', () => {
         fs.writeFileSync(marker, '{}\n');
         fs.utimesSync(lock, new Date('2026-10-01T10:00:00Z'), new Date('2026-10-01T10:00:00Z'));
         fs.utimesSync(marker, new Date('2026-10-02T10:00:00Z'), new Date('2026-10-02T10:00:00Z'));
+        // PowerShell's own modules only: with LOCALAPPDATA in a fresh folder its module
+        // analysis cache is gone, and every lookup of a command that is not there
+        // (Get-Command wsl.exe) scanned every installed module - hundreds on GitHub's runner,
+        // 25-45 s per run (2026-10-04), against about 1 s here.
+        const modules = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules');
         const env = {
           SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: '.COM;.EXE;.BAT;.CMD',
           PATH: bin, TEMP: temp, TMP: temp, LOCALAPPDATA: temp, APPDATA: temp, USERPROFILE: dir,
+          PSModulePath: modules,
           ...upToDate, ...change,
         };
         const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        // A margin, not the expected time (about 1 s with the module path above): the run
+        // gets 100 s and the test 120 s, and a hung PowerShell is ended with the run.
         const r = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-          '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env});
+          '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env, timeout: 100000});
+        expect(r.error).toBeUndefined();
         expect(r.stdout).not.toMatch(/failed|stand-in/);
         expect(r.stdout).toMatch(/WSL: not on this PC/);
         expect(r.stdout.includes('Run tools\\update-local.ps1 -Apply')).toBe(code === 2);
@@ -294,7 +303,7 @@ describe('update-local.ps1', () => {
       } finally {
         fs.rmSync(dir, {recursive: true, force: true});
       }
-    }, 30000);
+    }, 120000);
   });
 
   // The Node.js step's download folder goes however the step ends (#244): a declined admin
