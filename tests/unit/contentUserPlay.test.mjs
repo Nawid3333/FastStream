@@ -88,9 +88,13 @@ describe('a play nobody started', () => {
     expect(plays()).toEqual([]);
   });
 
-  it('does not count a shortcut chord, the MPV shortcut itself among them, nor Escape', () => {
-    for (const key of [{key: 'U', ctrlKey: true, shiftKey: true}, {key: 'f', altKey: true},
-      {key: 'k', metaKey: true}, {key: 'Escape'}, {key: 'Shift', shiftKey: true}]) {
+  // The MPV shortcut itself is one of these, whatever it is bound to in about:addons:
+  // Ctrl+Shift+U by default, Alt+F on the owner's PC. Switching MPV on must not make a
+  // preview that starts a moment later count as the user's.
+  it('does not count a key that could be a shortcut, whatever it is bound to, nor Escape', () => {
+    for (const key of [{key: 'f', altKey: true}, {key: 'U', ctrlKey: true, shiftKey: true},
+      {key: 'k', metaKey: true}, {key: 'F9'}, {key: 'MediaPlayPause'}, {key: 'Escape'},
+      {key: 'Shift', shiftKey: true}, {key: 'AltGraph'}]) {
       const {p, video, plays} = page();
       p.dispatchWindow('keydown', key);
       p.dispatchDocument('play', {target: video});

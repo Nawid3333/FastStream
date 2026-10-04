@@ -2004,11 +2004,13 @@
 
   function onUserGesture(e) {
     if (!e.isTrusted) return;
-    // A key that starts a video is a plain one (Space, Enter, K). A chord is a shortcut,
-    // the MPV shortcut itself among them, and Escape is no activation in Firefox.
-    const chordOrNoKey = e.type === 'keydown' && (e.ctrlKey || e.altKey || e.metaKey ||
-      ['Escape', 'Shift', 'Control', 'Alt', 'Meta'].includes(e.key));
-    if (!chordOrNoKey) {
+    // A key that starts a video is a plain one (Space, Enter, K). One that could be an
+    // extension's shortcut is not: the MPV shortcut itself is one, whatever the user bound
+    // it to in about:addons (Ctrl+Shift+U by default, Alt+F on the owner's PC). Nor is a
+    // modifier alone, or Escape, which is no activation in Firefox.
+    const noPress = e.type === 'keydown' &&
+      (ModifierKeys.includes(e.key) || e.key === 'Escape' || couldBeExtensionShortcut(e));
+    if (!noPress) {
       lastUserGestureAt = performance.now();
     }
     for (const node of e.composedPath()) {
@@ -2050,10 +2052,20 @@
   // one.
   const ModifierKeys = ['Control', 'Shift', 'Alt', 'AltGraph', 'Meta', 'OS'];
 
+  /**
+   * Whether a key press could be an extension's keyboard shortcut, whatever the user bound
+   * in about:addons: Firefox's shortcuts need Ctrl, Alt or Command, except F-keys and media
+   * keys.
+   * @param {KeyboardEvent} e - The press.
+   * @return {boolean}
+   */
+  function couldBeExtensionShortcut(e) {
+    return e.ctrlKey || e.altKey || e.metaKey || /^(F\d+|Media\w+)$/.test(e.key);
+  }
+
   window.addEventListener('keydown', (e) => {
     if (!e.isTrusted || e.repeat || e.isComposing || ModifierKeys.includes(e.key)) return;
-    // Firefox shortcuts need Ctrl, Alt or Command, except F-keys and media keys.
-    if (!e.ctrlKey && !e.altKey && !e.metaKey && !/^(F\d+|Media\w+)$/.test(e.key)) return;
+    if (!couldBeExtensionShortcut(e)) return;
     setTimeout(() => {
       if (!e.defaultPrevented) return;
       try {

@@ -284,9 +284,11 @@ pop-up first broke it: `window.open()` consumes the activation (Firefox's web-pl
 tests check that `isActive` turns false), so the video the same click started played as
 if nobody had started it, nothing went to mpv, and it played on in the page. content.js
 now also counts a trusted press in the same frame within Firefox's activation time
-(`dom.user_activation.transient.timeout`, 5 s): `pointerdown`, or a `keydown` that is no
-chord (Ctrl/Alt/Meta: the MPV shortcut itself must not count) and not Escape or a lone
-modifier (`playFollowsUserPress`). An autoplay with no press behind it, a page-made event,
+(`dom.user_activation.transient.timeout`, 5 s): `pointerdown`, or a `keydown` that could
+be no extension's shortcut (`couldBeExtensionShortcut`, the rule the cancelled-shortcut
+listener uses: Ctrl, Alt or Command, an F-key or a media key), not Escape and not a lone
+modifier (`playFollowsUserPress`). The MPV shortcut itself must not count, whatever it is
+bound to in about:addons: Ctrl+Shift+U by default, Alt+F on the owner's PC. An autoplay with no press behind it, a page-made event,
 or a press over 5 s old still sends nothing. Not covered: a press in a child frame and the
 play in its parent once the pop-up consumed the activation (Firefox propagates activation up
 the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.test.mjs` (3 of
