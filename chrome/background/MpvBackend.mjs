@@ -47,9 +47,6 @@ export const RequiredHostVersion = 2;
 // without a word, and the hand-off failed with "is the host installed?".
 export const HostMaxMessageBytes = 1024 * 1024;
 
-// Where a YouTube watch page is (youTubeVideoUrl).
-const YouTubeHosts = ['www.youtube.com', 'youtube.com', 'm.youtube.com'];
-
 /**
  * Which video decoder an mpv started by the host uses (the host's `status` answer).
  * @typedef {Object} MpvDecoder
@@ -137,28 +134,6 @@ export class MpvBackend {
     } catch (e) {
       return false;
     }
-  }
-
-  /**
-   * The video a YouTube watch page plays, as the address mpv opens it by: its yt-dlp
-   * finds the streams, which FastStream cannot. The video's own address, without the
-   * page's list=, t= and the like: it is also the key mpv resumes the video by, which
-   * would differ with each of them.
-   * @param {*} page - The page's address.
-   * @return {?string} https://www.youtube.com/watch?v=<id>, or null for any other page.
-   */
-  static youTubeVideoUrl(page) {
-    let url;
-    try {
-      url = new URL(page);
-    } catch (e) {
-      return null;
-    }
-    if (url.protocol !== 'https:' || !YouTubeHosts.includes(url.hostname) || url.pathname !== '/watch') {
-      return null;
-    }
-    const id = url.searchParams.get('v');
-    return id && /^[\w-]{11}$/.test(id) ? `https://www.youtube.com/watch?v=${id}` : null;
   }
 
   /**

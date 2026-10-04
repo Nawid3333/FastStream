@@ -86,9 +86,8 @@ over the allowlist tag for that one video.
 
 On any site, the MPV shortcut (**Alt+F**; you can change it in Firefox's
 add-on shortcut settings) puts the tab in MPV: the next video you start
-there goes to mpv. On a YouTube video page it goes as the video's link
-(`youtube.com/watch?v=…`), which mpv opens with yt-dlp; FastStream itself
-does not play YouTube.
+there goes to mpv. FastStream does nothing for YouTube; paste a YouTube link
+into mpv yourself, which opens it with yt-dlp.
 
 ## Options
 

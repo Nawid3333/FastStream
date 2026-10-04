@@ -276,18 +276,11 @@ automatic first stream. Measured in Firefox 157: a `window.open()` tab names its
 but a pop-up *window* (`popup,width=...`) has `openerTabId` null. Reaching that would need
 the `webNavigation` permission (`onCreatedNavigationTarget`), which Firefox would ask the
 user to accept on update, so it is left out.
-**YouTube in the shortcut's MPV (2026-10-04, Nawid: occasional use, keep it minimal).**
-FastStream finds no YouTube stream, so a play on a watch page
-(`MpvBackend.youTubeVideoUrl`: www/m/bare youtube.com, `/watch?v=<11 chars>`) sends
-`https://www.youtube.com/watch?v=<id>` itself, with no wait for a stream, and that as
-the page URL (the resume key, `resumeIdFor`): the page's own address with its `list=`
-or `t=` would give one video a key per variant. The address comes from the page (`MPV_USER_PLAY`'s `page`, its
-`location.href`), since YouTube moves to the next video by pushState and the tab's URL
-may still be the last one's. Measured 2026-10-04: the pinned mpv with `--no-config`
-and yt-dlp opened the host's URL (`mpvTargetUrl`, with `#fs-id=…&fs-page=…`), played,
-and kept the fragment in `path`; the window title is the tab's (`force-media-title`).
-The allowlist's MPV is unchanged (no stream goes for YouTube there). Shorts, embeds
-and YouTube Music are left to the usual path.
+**No YouTube in MPV (2026-10-04).** #338 sent a play on a YouTube watch page to mpv as
+`https://www.youtube.com/watch?v=<id>`; it was removed the same day, on Nawid's word: it
+caused more problems than it solved, and he pastes YouTube links into mpv himself.
+FastStream finds no YouTube stream, so a YouTube page in MPV sends nothing. Don't bring
+it back unless he asks.
 **Ctrl+Shift+F is its own command, `toggle_player` (2026-09-28)**, not the
 toolbar button (`_execute_action`) any more. `_execute_action` fires the
 button's own `action.onClicked`, as a click does, so the background cannot
