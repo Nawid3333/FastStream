@@ -2498,6 +2498,20 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     right: 0px;
 }
 
+.crosstalk .crosstalk_container {
+    bottom: 22px;
+}
+
+.crosstalk_note {
+    position: absolute;
+    bottom: 5px;
+    left: 10px;
+    right: 10px;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
 .convolver_container {
     flex-direction: column;
 }

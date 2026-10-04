@@ -1,5 +1,6 @@
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {Utils} from '../../utils/Utils.mjs';
+import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 
@@ -165,8 +166,8 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   shouldSkipSilence(time) {
-    const minDB = -100;
-    const maxDB = -30;
+    const minDB = AudioUtils.VOLUME_FLOOR_DB;
+    const maxDB = AudioUtils.VOLUME_CEILING_DB;
     const dbRange = maxDB - minDB;
 
     const volumeBuffer = this.client.audioAnalyzer.getVolumeData();

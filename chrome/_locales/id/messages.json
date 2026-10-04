@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Jarak Kepala"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Bekerja dalam stereo: selama aktif, suara surround (5.1, 7.1) dicampur menjadi dua saluran."
+    },
     "audiocompressor_title": {
         "message": "Kompresor Audio"
     },

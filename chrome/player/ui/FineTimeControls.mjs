@@ -3,6 +3,7 @@ import {DOMElements} from './DOMElements.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
+import {AudioUtils} from '../utils/AudioUtils.mjs';
 
 export class FineTimeControls extends EventEmitter {
   constructor(client) {
@@ -444,8 +445,8 @@ export class FineTimeControls extends EventEmitter {
     const startFrame = Math.floor(minCanvIndex * 10 * outputRate);
     const endFrame = Math.floor(maxCanvIndex * 10 * outputRate);
 
-    const minDB = -100;
-    const maxDB = -30;
+    const minDB = AudioUtils.VOLUME_FLOOR_DB;
+    const maxDB = AudioUtils.VOLUME_CEILING_DB;
     const dbRange = maxDB - minDB;
 
     let silencedBitset;

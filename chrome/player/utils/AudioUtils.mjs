@@ -60,14 +60,32 @@ function get468WeightsForAnalyser(analyser) {
   return weights;
 }
 
+// The mean square of the Blackman window AnalyserNode applies (a0 0.42, a1 0.5, a2 0.08):
+// what the window takes off a signal's power.
+const BLACKMAN_MEAN_SQUARE = 0.42 * 0.42 + 0.5 * 0.5 / 2 + 0.08 * 0.08 / 2;
+
+// Each analyser's frequency and time arrays, kept: getVolume and isClipping run for every
+// meter on every frame.
+const _frequencyArrays = new WeakMap();
+const _timeArrays = new WeakMap();
+
 /**
  * Utility functions for audio processing and conversions.
  */
 export class AudioUtils {
+  /**
+   * The range the volume meters and the silence graph show, in dB of full scale (a
+   * full-scale sine is -3 dB). Volume analysers carry it as their min/maxDecibels.
+   */
+  static VOLUME_FLOOR_DB = -70;
+  static VOLUME_CEILING_DB = 0;
+
   static createVolumeAnalyserNode(audioContext) {
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.5;
+    analyser.maxDecibels = AudioUtils.VOLUME_CEILING_DB;
+    analyser.minDecibels = AudioUtils.VOLUME_FLOOR_DB;
     return analyser;
   }
 
@@ -75,7 +93,11 @@ export class AudioUtils {
     // The whole window: an array of frequencyBinCount (half of it) got the older half only,
     // so a clip in the newer half went unseen.
     const bufferLength = analyser.fftSize;
-    const dataArray = new Float32Array(bufferLength);
+    let dataArray = _timeArrays.get(analyser);
+    if (!dataArray || dataArray.length !== bufferLength) {
+      dataArray = new Float32Array(bufferLength);
+      _timeArrays.set(analyser, dataArray);
+    }
     analyser.getFloatTimeDomainData(dataArray);
 
     for (let i = 0; i < bufferLength; i++) {
@@ -86,43 +108,44 @@ export class AudioUtils {
     return false;
   }
   /**
-   * Calculates the volume in decibels from an AnalyserNode.
+   * Calculates the volume in decibels from an AnalyserNode: the ITU-R 468 weighted level,
+   * in dB of full scale (a full-scale sine near 6.3 kHz, where the weight is 1, is -3 dB),
+   * at least the analyser's minDecibels.
    * @param {AnalyserNode} analyser - The Web Audio analyser node.
    * @return {number} The volume in decibels.
    */
   static getVolume(analyser) {
     const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyser.getByteFrequencyData(dataArray);
+    let dataArray = _frequencyArrays.get(analyser);
+    if (!dataArray || dataArray.length !== bufferLength) {
+      dataArray = new Float32Array(bufferLength);
+      _frequencyArrays.set(analyser, dataArray);
+    }
+    // In dB, as they are: the bytes stopped at maxDecibels (-30 then), so every bin of a
+    // tone louder than about -16 dB of full scale read the same, and the meters filled
+    // no further.
+    analyser.getFloatFrequencyData(dataArray);
 
     const minDb = analyser.minDecibels;
-    const maxDb = analyser.maxDecibels;
-    const minLinear = Math.pow(10, minDb / 20);
-
     const weights = get468WeightsForAnalyser(analyser);
 
-    // Combine bins in linear power, rank by power
+    // Combine bins in linear power
     let sum = 0;
-    for (let i = 1; i < dataArray.length; i++) {
-      const byteVal = dataArray[i];
-      if (byteVal === 0) continue; // at or below minDb
-
-      // Map byte [0..255] back to dB in [minDb..maxDb]
-      const dB = (byteVal / 255) * (maxDb - minDb) + minDb;
+    for (let i = 1; i < bufferLength; i++) {
+      const dB = dataArray[i];
+      if (!(dB > -Infinity)) continue; // silence, or nothing yet
 
       // Convert to linear amplitude, apply cached 468 weight
-      const amp = Math.pow(10, dB / 20);
-      const w = weights[i];
-      const power = (amp * w) * (amp * w);
-      sum += power;
+      const amp = Math.pow(10, dB / 20) * weights[i];
+      sum += amp * amp;
     }
 
-    const meanPower = sum / (bufferLength - 1);
-    const rms = Math.sqrt(meanPower);
-
-    // Convert to dB, between minDb and maxDb
-    const volumeDb = rms <= minLinear ? minDb : 20 * Math.log10(rms);
-    return volumeDb;
+    // The signal's mean square, from its spectrum (Parseval): the analyser divides each bin
+    // by its window's length, shows half the spectrum, and applies a Blackman window. The
+    // bins' power was averaged instead of added, which put every level 21 dB low (128 bins).
+    const meanSquare = 2 * sum / BLACKMAN_MEAN_SQUARE;
+    const volumeDb = meanSquare > 0 ? 10 * Math.log10(meanSquare) : -Infinity;
+    return Math.max(minDb, volumeDb);
   }
 
   /**

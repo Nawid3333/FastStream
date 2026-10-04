@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Kafa Mesafesi"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Stereo olarak çalışır: açıkken surround ses (5.1, 7.1) iki kanala indirilir."
+    },
     "audiocompressor_title": {
         "message": "Ses Kompresörü"
     },

@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Distanza della Testa"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Funziona in stereo: finché è attiva, l'audio surround (5.1, 7.1) viene mixato su due canali."
+    },
     "audiocompressor_title": {
         "message": "Compressore Audio"
     },

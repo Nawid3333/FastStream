@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "머리 거리"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "스테레오로 작동합니다. 켜져 있는 동안 서라운드 사운드(5.1, 7.1)는 2채널로 다운믹스됩니다."
+    },
     "audiocompressor_title": {
         "message": "오디오 컴프레서"
     },

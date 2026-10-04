@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Distancia de la Cabeza"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Funciona en estéreo: mientras está activada, el sonido envolvente (5.1, 7.1) se mezcla en dos canales."
+    },
     "audiocompressor_title": {
         "message": "Compresor de Audio"
     },

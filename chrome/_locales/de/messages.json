@@ -815,6 +815,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Kopf Distanz"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Arbeitet in Stereo: Solange sie an ist, wird Surround-Ton (5.1, 7.1) auf zwei Kanäle heruntergemischt."
+    },
     "audiocompressor_title": {
         "message": "Audio Kompression"
     },

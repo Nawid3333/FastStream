@@ -4895,6 +4895,24 @@
         "zh_CN": "头部距离",
         "zh_TW": "頭部距離"
     },
+    "audiocrosstalk_stereo_note": {
+        "en": "Works in stereo: while it is on, surround sound (5.1, 7.1) is mixed down to two channels.",
+        "de": "Arbeitet in Stereo: Solange sie an ist, wird Surround-Ton (5.1, 7.1) auf zwei Kanäle heruntergemischt.",
+        "es": "Funciona en estéreo: mientras está activada, el sonido envolvente (5.1, 7.1) se mezcla en dos canales.",
+        "fr": "Fonctionne en stéréo : tant qu'elle est activée, le son surround (5.1, 7.1) est réduit à deux canaux.",
+        "id": "Bekerja dalam stereo: selama aktif, suara surround (5.1, 7.1) dicampur menjadi dua saluran.",
+        "it": "Funziona in stereo: finché è attiva, l'audio surround (5.1, 7.1) viene mixato su due canali.",
+        "ja": "ステレオで動作します。有効な間、サラウンド音声（5.1、7.1）は2チャンネルにダウンミックスされます。",
+        "ko": "스테레오로 작동합니다. 켜져 있는 동안 서라운드 사운드(5.1, 7.1)는 2채널로 다운믹스됩니다.",
+        "ms": "Berfungsi dalam stereo: semasa ia aktif, bunyi surround (5.1, 7.1) dicampurkan kepada dua saluran.",
+        "nl": "Werkt in stereo: zolang deze aan staat, wordt surroundgeluid (5.1, 7.1) naar twee kanalen gemixt.",
+        "pl": "Działa w stereo: gdy jest włączona, dźwięk przestrzenny (5.1, 7.1) jest miksowany do dwóch kanałów.",
+        "pt_BR": "Funciona em estéreo: enquanto estiver ativada, o som surround (5.1, 7.1) é mixado em dois canais.",
+        "ru": "Работает в стерео: пока она включена, объёмный звук (5.1, 7.1) сводится к двум каналам.",
+        "tr": "Stereo olarak çalışır: açıkken surround ses (5.1, 7.1) iki kanala indirilir.",
+        "zh_CN": "以立体声工作：开启时，环绕声（5.1、7.1）会被缩混为两个声道。",
+        "zh_TW": "以立體聲運作：開啟時，環繞聲（5.1、7.1）會被縮混為兩個聲道。"
+    },
     "audiocompressor_title": {
         "en": "Audio Compressor",
         "de": "Audio Kompression",
