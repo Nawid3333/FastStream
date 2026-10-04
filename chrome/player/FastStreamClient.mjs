@@ -1445,6 +1445,10 @@ export class FastStreamClient extends EventEmitter {
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
+    // The page may play its own media again. A stream that fails while it plays (a fatal
+    // network error) plays out what it has and waits, never pausing: the page's player
+    // stayed held under the error, paused each time it was started.
+    this.reportPlaying(false);
   }
 
   /**

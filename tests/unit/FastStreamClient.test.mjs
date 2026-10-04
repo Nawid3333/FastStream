@@ -555,6 +555,29 @@ describe('FastStreamClient, autoplay of the next video', () => {
   });
 });
 
+describe('FastStreamClient, the page\'s own media', () => {
+  // While the player plays, the background has the page around it hold its own media
+  // (PLAYER_PLAYING). A stream that fails while playing (a fatal network error) plays out
+  // what it has and waits, without a pause: the page's player stayed held under the error
+  // message, paused again each time the user started it.
+  it('may play again once the player has failed', () => {
+    const client = makeClient();
+    const player = new FakePlayer(makeSource('http://127.0.0.1/a.m3u8'));
+    client.player = player;
+    client.bindPlayer(player);
+    const reports = () => chrome.runtime.sendMessage.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.type === MessageTypes.PLAYER_PLAYING);
+
+    player.emit(DefaultPlayerEvents.PLAY);
+    expect(reports().at(-1)).toEqual({type: MessageTypes.PLAYER_PLAYING, playing: true});
+
+    player.emit(DefaultPlayerEvents.ERROR, 'fatal network error');
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalled();
+    expect(reports().at(-1)).toEqual({type: MessageTypes.PLAYER_PLAYING, playing: false});
+  });
+});
+
 describe('FastStreamClient, the decoding-aware quality option', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

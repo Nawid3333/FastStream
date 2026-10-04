@@ -277,6 +277,47 @@ describe('a codec picked by hand', () => {
     m.setPrioritizedVideoCodec('xyz1.0');
     expect(m.videoCodecFamilyBySite).toEqual({});
   });
+
+  // What the quality menu remembers of a click (rememberVideoChoice, with the versions of
+  // the size it was picked from). Every click on a quality with one version, and every
+  // pick among versions that differ only in bitrate, saved that version's codec family for
+  // the site, and the family outranked the hardware decoder at every height there: one
+  // click on a 360p that only came in H.264 got the software H.264 1080p from then on.
+  const ladder = () => [
+    level('360p', {width: 640, height: 360, bitrate: 8e5, videoCodec: 'avc1.4d401e', decoding: HW}),
+    level('h264-sw', {videoCodec: 'avc1.640028', bitrate: 6e6, decoding: SW}),
+    level('hevc-hw', {videoCodec: 'hvc1.1.6.L120.90', bitrate: 4e6, decoding: HW}),
+  ];
+
+  it('is not taken from a quality that has one version, though its container still is', () => {
+    const m = manager({source: site('https://a.example/')});
+    const only = level('360p', {width: 640, height: 360, videoCodec: 'avc1.4d401e', mimeType: 'video/webm'});
+    m.rememberVideoChoice(only, [only]);
+    expect(m.videoCodecFamilyBySite).toEqual({});
+    expect(m.prioritizedVideoContainer).toBe('webm');
+    expect(pick(m, ladder())).toBe('hevc-hw');
+  });
+
+  it('is not taken from versions that differ only in bitrate', () => {
+    const m = manager({source: site('https://a.example/')});
+    const versions = [
+      level('h264-hi', {videoCodec: 'avc1.640028', bitrate: 6e6}),
+      level('h264-lo', {videoCodec: 'avc1.64001f', bitrate: 3e6}),
+      // A version whose codec is not known is no other codec.
+      level('unknown', {videoCodec: null, bitrate: 2e6}),
+    ];
+    m.rememberVideoChoice(versions[1], versions);
+    expect(m.videoCodecFamilyBySite).toEqual({});
+    expect(pick(m, ladder())).toBe('hevc-hw');
+  });
+
+  it('is taken from a pick between codecs, for that site', () => {
+    const m = manager({source: site('https://a.example/')});
+    const versions = ladder().filter((version) => version.height === 1080);
+    m.rememberVideoChoice(versions[0], versions);
+    expect(m.videoCodecFamilyBySite).toEqual({'a.example': 'avc'});
+    expect(pick(m, ladder())).toBe('h264-sw');
+  });
 });
 
 describe('codec preferences, loaded', () => {

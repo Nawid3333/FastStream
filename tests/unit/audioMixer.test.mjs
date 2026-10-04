@@ -267,6 +267,27 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
     expect(rewire).toHaveBeenCalledTimes(1);
   });
 
+  it('rewires for a compressor turned on after a video whose set-up threw', async () => {
+    // setupNodes() ignores the modules' changes while it gives them their settings. A throw
+    // in there (a setting the browser refuses) left it ignoring them for good.
+    const {mixer} = mixerOn51();
+    const profile = new AudioProfile(1);
+    mixer.setConfig(profile);
+    await settle();
+    const compressor = mixer.channelNodes[2].compressor;
+    vi.spyOn(compressor, 'setupNodes').mockImplementationOnce(() => {
+      throw new TypeError('The value is not a finite floating-point value');
+    });
+    expect(() => mixer.setupNodes(new FakeAudioContext({maxChannelCount: 6}))).toThrow(TypeError);
+
+    const rewire = vi.spyOn(mixer, 'updateNodes');
+    profile.channels[2].compressor.enabled = true;
+    await compressor.updateCompressor();
+    compressor.emit('change');
+    await settle();
+    expect(rewire).toHaveBeenCalledTimes(1);
+  });
+
   /**
    * Web Audio's "speakers" up-mix of the layouts the master chain makes (the spec's
    * channel up-mixing table): which input channel each output channel carries, or null.

@@ -220,7 +220,9 @@ export class VideoQualityChanger extends EventEmitter {
         Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
           element.classList.remove('source_active');
         });
-        this.emit('qualityChanged', chosen, levels.length <= 1);
+        // With the versions it was picked from: LevelManager.rememberVideoChoice saves a
+        // codec only for a choice between codecs.
+        this.emit('qualityChanged', chosen, levels.length <= 1, levels);
         levelelement.classList.add('source_active');
         e.stopPropagation();
       });
@@ -357,7 +359,7 @@ export class VideoQualityChanger extends EventEmitter {
             Array.from(DOMElements.videoSourceList.getElementsByClassName('source_active')).forEach((element) => {
               element.classList.remove('source_active');
             });
-            this.emit('qualityChanged', level, true);
+            this.emit('qualityChanged', level, true, levels);
             subLevelElement.classList.add('source_active');
             e.stopPropagation();
           });

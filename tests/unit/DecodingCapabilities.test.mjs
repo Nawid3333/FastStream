@@ -205,6 +205,27 @@ describe('asking Firefox', () => {
     expect(decodingInfo).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps an answer that comes after the probe gave up, and does not ask again', async () => {
+    // The pick goes on without it, but the quality menu, the next pick and a live
+    // manifest's refresh read it. It was dropped: a version whose answer took longer than
+    // the wait never had one, and every refresh asked again and waited again.
+    vi.useFakeTimers();
+    const decodingInfo = stubDecodingInfo(() => new Promise((resolve) => {
+      setTimeout(() => resolve(HW), PROBE_TIMEOUT_MS + 200);
+    }));
+    const probe = videoProbeFor({codec: 'av01.0.08M.08'});
+    const pending = probeDecoding(probe);
+    await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
+    // The start-up wait is the same.
+    expect(await pending).toBe(null);
+    expect(cachedAnswer(probe)).toBe(null);
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(cachedAnswer(probe)).toEqual(HW);
+    expect(await probeDecoding(probe)).toEqual(HW);
+    expect(decodingInfo).toHaveBeenCalledTimes(1);
+  });
+
   it('turns a partial answer into booleans', async () => {
     stubDecodingInfo(async () => ({supported: true}));
     expect(await probeDecoding(audioProbeFor({codec: 'mp4a.40.2'}))).toEqual({supported: true, smooth: false, powerEfficient: false});

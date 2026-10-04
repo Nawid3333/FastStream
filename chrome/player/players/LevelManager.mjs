@@ -124,6 +124,44 @@ export class LevelManager {
   }
 
   /**
+   * Remembers a version picked by hand in the quality menu: its container, and its codec
+   * family when the click chose between codecs (isCodecChoice). A quality with one version,
+   * or versions that differ only in bitrate, say nothing about codecs: the family saved
+   * from such a click outranked the hardware decoder (rankHeightGroup) at every height on
+   * that site, so one click on a 360p that only came in H.264 got the software-decoded
+   * H.264 1080p over the hardware HEVC one from then on.
+   * @param {Object} level - The version picked.
+   * @param {Array<Object>} [versions] - The versions of its size it was picked from.
+   */
+  rememberVideoChoice(level, versions = [level]) {
+    const mimeType = (level.mimeType || '').split('/');
+    if (mimeType.length > 1) {
+      this.setPrioritizedVideoContainer(mimeType[1]);
+    }
+
+    if (level.videoCodec && LevelManager.isCodecChoice(versions)) {
+      this.setPrioritizedVideoCodec(level.videoCodec);
+    }
+  }
+
+  /**
+   * Whether picking one of these versions is a choice between codecs: they come in more
+   * than one codec family (a version whose codec is not known does not count).
+   * @param {Array<Object>} versions
+   * @return {boolean}
+   */
+  static isCodecChoice(versions) {
+    const families = new Set();
+    for (const version of versions || []) {
+      const family = getCodecFamily(version?.videoCodec);
+      if (family) {
+        families.add(family);
+      }
+    }
+    return families.size > 1;
+  }
+
+  /**
    * @return {?string} The codec family picked by hand on this site, if any.
    */
   getPrioritizedVideoCodecFamily() {

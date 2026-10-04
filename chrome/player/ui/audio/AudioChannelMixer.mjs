@@ -717,48 +717,54 @@ export class AudioChannelMixer extends AbstractAudioModule {
     this.channelMerger = null;
     this.makeModules();
     this.settingUpNodes = true;
-    this.channelNodes = this.channelModules.map((modules, i) => {
-      const nodes = {
+    try {
+      this.channelNodes = this.channelModules.map((modules, i) => {
+        const nodes = {
+          gain: null,
+          analyzer: null,
+          postSplit: new VirtualAudioNode(`AudioChannelMixer postSplit ${i}`),
+          preGain: new VirtualAudioNode(`AudioChannelMixer preGain ${i}`),
+          preMerge: new VirtualAudioNode(`AudioChannelMixer preMerge ${i}`),
+          equalizer: modules.equalizer,
+          compressor: modules.compressor,
+        };
+
+        nodes.compressor.setupNodes(audioContext);
+        nodes.equalizer.setupNodes(audioContext);
+
+        if (this.channelConfigs && this.channelConfigs[i]) {
+          this.applyConfig(nodes, this.channelConfigs[i]);
+        }
+        modules.equalizerOn = nodes.equalizer.hasNodes();
+        modules.compressorOn = nodes.compressor.isEnabled();
+
+        nodes.postSplit.connect(nodes.equalizer.getInputNode());
+        nodes.equalizer.getOutputNode().connect(nodes.compressor.getInputNode());
+        nodes.compressor.getOutputNode().connect(nodes.preGain);
+        nodes.preGain.connect(nodes.preMerge);
+
+        return nodes;
+      });
+      this.masterNodes = {
         gain: null,
         analyzer: null,
-        postSplit: new VirtualAudioNode(`AudioChannelMixer postSplit ${i}`),
-        preGain: new VirtualAudioNode(`AudioChannelMixer preGain ${i}`),
-        preMerge: new VirtualAudioNode(`AudioChannelMixer preMerge ${i}`),
-        equalizer: modules.equalizer,
-        compressor: modules.compressor,
+        postMerge: new VirtualAudioNode('AudioChannelMixer postMerge master'),
+        equalizer: this.masterModules.equalizer,
+        compressor: this.masterModules.compressor,
+        preGain: new VirtualAudioNode(`AudioChannelMixer preGain master`),
       };
+      this.masterNodes.compressor.setupNodes(audioContext);
+      this.masterNodes.equalizer.setupNodes(audioContext);
 
-      nodes.compressor.setupNodes(audioContext);
-      nodes.equalizer.setupNodes(audioContext);
-
-      if (this.channelConfigs && this.channelConfigs[i]) {
-        this.applyConfig(nodes, this.channelConfigs[i]);
+      if (this.masterConfig) {
+        this.applyConfig(this.masterNodes, this.masterConfig);
       }
-      modules.equalizerOn = nodes.equalizer.hasNodes();
-      modules.compressorOn = nodes.compressor.isEnabled();
-
-      nodes.postSplit.connect(nodes.equalizer.getInputNode());
-      nodes.equalizer.getOutputNode().connect(nodes.compressor.getInputNode());
-      nodes.compressor.getOutputNode().connect(nodes.preGain);
-      nodes.preGain.connect(nodes.preMerge);
-
-      return nodes;
-    });
-    this.masterNodes = {
-      gain: null,
-      analyzer: null,
-      postMerge: new VirtualAudioNode('AudioChannelMixer postMerge master'),
-      equalizer: this.masterModules.equalizer,
-      compressor: this.masterModules.compressor,
-      preGain: new VirtualAudioNode(`AudioChannelMixer preGain master`),
-    };
-    this.masterNodes.compressor.setupNodes(audioContext);
-    this.masterNodes.equalizer.setupNodes(audioContext);
-
-    if (this.masterConfig) {
-      this.applyConfig(this.masterNodes, this.masterConfig);
+    } finally {
+      // Also when something in there threw (a setting the browser refuses, such as a NaN
+      // filter value): the modules' changes were ignored for good after that, and turning
+      // an equalizer or a compressor on or off no longer rewired the graph.
+      this.settingUpNodes = false;
     }
-    this.settingUpNodes = false;
 
     this.masterNodes.postMerge.connect(this.masterNodes.equalizer.getInputNode());
     this.masterNodes.equalizer.getOutputNode().connect(this.masterNodes.compressor.getInputNode());

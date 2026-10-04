@@ -347,6 +347,10 @@ export function probeDecoding(probe) {
     return Promise.resolve(null);
   }
   const key = keyOf(probe);
+  // An answer that came after its probe gave up is kept (below): not asked again.
+  if (answers.has(key)) {
+    return Promise.resolve(answers.get(key) ?? null);
+  }
   const existing = probes.get(key);
   if (existing) {
     return existing;
@@ -371,14 +375,23 @@ export function probeDecoding(probe) {
       .catch((e) => {
         console.warn('[DecodingCapabilities] decodingInfo failed', probe, e);
         return null;
+      })
+      .then((info) => {
+        // Kept whenever it comes, also after the probe gave up on it: the pick that waited
+        // has gone on without it, but the quality menu, the next pick and a live manifest's
+        // refresh read it. It used to be dropped, and a stream whose probes took longer than
+        // PROBE_TIMEOUT_MS never had an answer.
+        if (info) {
+          answers.set(key, info);
+        }
+        return info;
       });
   const answer = Promise.race([asked, timeout]).then((result) => {
     clearTimeout(timer);
     const info = /** @type {DecodingInfo|null} */ (result);
-    // A timed-out probe is asked again next time instead of being remembered as unknown.
-    if (info) {
-      answers.set(key, info);
-    } else {
+    // No answer (an error, or none in time) is not remembered as unknown: asked again next
+    // time, unless the late answer has come by then.
+    if (!info) {
       probes.delete(key);
     }
     return info;

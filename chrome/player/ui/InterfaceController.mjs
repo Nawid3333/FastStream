@@ -56,16 +56,10 @@ export class InterfaceController {
 
     this.videoQualityChanger = new VideoQualityChanger();
     this.videoQualityChanger.setupUI();
-    this.videoQualityChanger.on('qualityChanged', (level, savePriority) => {
+    this.videoQualityChanger.on('qualityChanged', (level, savePriority, versions) => {
       if (savePriority) {
-        const mimeType = (level.mimeType || '').split('/');
-        if (mimeType.length > 1) {
-          this.client.getLevelManager().setPrioritizedVideoContainer(mimeType[1]);
-        }
-
-        if (level.videoCodec) {
-          this.client.getLevelManager().setPrioritizedVideoCodec(level.videoCodec);
-        }
+        // Its container, and its codec only if the click chose between codecs.
+        this.client.getLevelManager().rememberVideoChoice(level, versions);
       }
       this.client.setCurrentVideoLevelID(level.id);
     });
