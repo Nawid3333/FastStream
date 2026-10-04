@@ -381,3 +381,39 @@ describe('testConnection', () => {
         .toEqual({ok: false, error: 'Error: nativeMessaging permission missing'});
   });
 });
+
+// In MPV mode, a video on a YouTube watch page goes to mpv as its address: mpv's yt-dlp finds
+// the streams, which FastStream cannot (background.mjs onUserPlay).
+describe('youTubeVideoUrl', () => {
+  it.each([
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    ['https://youtube.com/watch?v=dQw4w9WgXcQ', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    ['https://m.youtube.com/watch?v=a_b-c_d-e_f', 'https://www.youtube.com/watch?v=a_b-c_d-e_f'],
+    // The video's own address, also mpv's resume key: the same with any list= or t=.
+    ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL0123456789&index=3&t=42s', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+    ['https://www.youtube.com/watch?pp=x&v=dQw4w9WgXcQ#comments', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'],
+  ])('gives %s as %s', (page, video) => {
+    expect(MpvBackend.youTubeVideoUrl(page)).toBe(video);
+  });
+
+  it.each([
+    'https://www.youtube.com/',
+    'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+    'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    'https://www.youtube.com/watch',
+    'https://www.youtube.com/watch?v=',
+    'https://www.youtube.com/watch?v=short',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQx',
+    'https://www.youtube.com/watch?v=dQw4w9WgX%2FQ',
+    'https://www.youtube.com/watchlater?v=dQw4w9WgXcQ',
+    'http://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://www.youtube.com.site.test/watch?v=dQw4w9WgXcQ',
+    'https://music.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://site.test/watch?v=dQw4w9WgXcQ',
+    'not an address',
+    '',
+    undefined,
+  ])('gives nothing for %s', (page) => {
+    expect(MpvBackend.youTubeVideoUrl(page)).toBe(null);
+  });
+});

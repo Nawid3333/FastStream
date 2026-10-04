@@ -456,3 +456,20 @@ describe('HOLD_PAGE_MEDIA', () => {
     expect(() => play(div)).not.toThrow();
   });
 });
+
+describe('a video the user starts (MPV_USER_PLAY)', () => {
+  it('names the page by its address now, which a site changes without a load', () => {
+    const page = loadContentScript({hostname: 'www.youtube.com'});
+    const video = page.document.createElement('video');
+    video.currentSrc = 'blob:https://www.youtube.com/1';
+    page.document.body.appendChild(video);
+    // YouTube's next video: pushState, no new page.
+    page.window.location.href = 'https://www.youtube.com/watch?v=bbbbbbbbbbb';
+    page.window.navigator.userActivation.isActive = true;
+    for (const {type, listener} of page.document.listeners) {
+      if (type === 'play') listener({isTrusted: true, target: video});
+    }
+    expect(page.sent.filter((message) => message.type === 'MPV_USER_PLAY'))
+        .toEqual([expect.objectContaining({src: 'blob:https://www.youtube.com/1', page: 'https://www.youtube.com/watch?v=bbbbbbbbbbb'})]);
+  });
+});
