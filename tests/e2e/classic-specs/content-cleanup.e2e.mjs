@@ -742,6 +742,39 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  it('measures a hard-replaced element without putting it back into the page', async function() {
+    // Each update (a resize, the timers after opening) put the page's element back to
+    // measure it: its observers and custom-element callbacks ran each time, and a <video
+    // autoplay> in it loaded again (#228). A stand-in is measured instead.
+    await openPage('/cleanup');
+    await inPage(() => window.shrinkWhenReplaced());
+    await openPlayer();
+    await browser.waitUntil(async () => inPage(() => !document.contains(window.wrap)),
+        {timeout: 10000, timeoutMsg: 'the soft replace never turned hard'});
+    await browser.pause(1000);
+    await inPage(() => {
+      window.__wrapInserted = 0;
+      new MutationObserver((records) => {
+        for (const record of records) {
+          if (Array.from(record.addedNodes).includes(window.wrap)) window.__wrapInserted++;
+        }
+      }).observe(document.body, {childList: true, subtree: true});
+    });
+    await nudgeWindowSize();
+    await nudgeWindowSize();
+    expect(await inPage(() => ({
+      inserted: window.__wrapInserted,
+      inPage: document.contains(window.wrap),
+      // The player still takes the element's box (100 px at the least, as it always did).
+      size: (() => {
+        const r = window.playerIframe().getBoundingClientRect();
+        return [r.width, r.height].map(Math.round);
+      })(),
+      id: window.playerIframe().id,
+    }))).toEqual({inserted: 0, inPage: false, size: [100, 100], id: 'wrap'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   // The background keeps a player's frame apart: its streams are the player's own, and
   // no player opens over it. Only the player's beforeunload told it the player went, and
   // an iframe taken out of the page runs none: the page's next video was dropped as the

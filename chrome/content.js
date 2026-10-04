@@ -1150,12 +1150,78 @@
       final_size = transferStyles(old, iframe, true);
       hideSoft(old);
     } else {
-      parent.insertBefore(old, iframe);
-      transferId(iframe, old);
-      final_size = transferStyles(old, iframe, false);
-      parent.removeChild(old);
+      // The page's own element went back into the page for every measurement (every
+      // resize): its observers and custom-element callbacks ran each time, and a <video
+      // autoplay> in it started loading again (#228). A stand-in sized by the same rules is
+      // measured instead, once it measured as the element did.
+      let fits = standInFits.get(old);
+      if (fits === undefined) {
+        fits = standInMeasuresAs(old, parent, iframe);
+        standInFits.set(old, fits);
+      }
+      const measured = (fits && makeStandIn(old)) || old;
+      parent.insertBefore(measured, iframe);
+      transferId(iframe, measured);
+      final_size = transferStyles(measured, iframe, false);
+      parent.removeChild(measured);
     }
     return final_size;
+  }
+
+  // Elements a stand-in cannot be sized like: what they show sizes them (media, frames,
+  // images), or the page's code runs when one is made (custom elements, by their '-').
+  const NoStandInTags = new Set(['video', 'audio', 'iframe', 'img', 'canvas', 'object', 'embed', 'picture', 'svg']);
+
+  // For each hard-replaced element, whether its stand-in measures as it does.
+  const standInFits = new WeakMap();
+
+  /**
+   * An empty element the page's CSS sizes as it sizes `old`: the same tag and attributes
+   * (classes, inline style, data-*), but nothing inside, no id (the measurement lends it
+   * the id) and no inline handlers.
+   * @param {Element} old - The page's element.
+   * @return {?Element} null when no stand-in can be sized like it.
+   */
+  function makeStandIn(old) {
+    const tag = old.localName;
+    if (old.namespaceURI !== 'http://www.w3.org/1999/xhtml' || tag.includes('-') || NoStandInTags.has(tag)) {
+      return null;
+    }
+    const standIn = document.createElement(tag);
+    for (const {name, value} of Array.from(old.attributes)) {
+      if (name !== 'id' && !name.toLowerCase().startsWith('on')) {
+        standIn.setAttribute(name, value);
+      }
+    }
+    return standIn;
+  }
+
+  /**
+   * Measures the page's element where the player is, once, and a stand-in in the same
+   * place: a box that comes from what is inside (an aspect ratio its video gives it, text)
+   * makes the stand-in's differ, and then the element itself goes on being measured.
+   * @param {Element} old - The page's element, out of the page.
+   * @param {Node} parent - Where the player is.
+   * @param {Element} iframe - The player.
+   * @return {boolean} Whether the stand-in had the element's size.
+   */
+  function standInMeasuresAs(old, parent, iframe) {
+    const standIn = makeStandIn(old);
+    if (!standIn) {
+      return false;
+    }
+    const measure = (element) => {
+      parent.insertBefore(element, iframe);
+      transferId(iframe, element);
+      const rect = element.getBoundingClientRect();
+      transferId(element, iframe);
+      parent.removeChild(element);
+      return rect;
+    };
+    const real = measure(old);
+    const stood = measure(standIn);
+    return real.width > 0 && real.height > 0 &&
+      Math.abs(real.width - stood.width) < 0.5 && Math.abs(real.height - stood.height) < 0.5;
   }
 
   function pauseOnPlay() {
