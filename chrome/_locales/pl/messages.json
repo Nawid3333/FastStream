@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Odtwarzanie w MPV - dekodowane przez kartę graficzną: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Odtwarzanie w MPV - dekodowane przez procesor ($1): dodaj hwdec=auto-safe do mpv.conf, aby dekodować na karcie graficznej"
+    },
     "options_mpv_test_outdated": {
         "message": "Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "Otwarty mpv dekoduje na karcie graficznej: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "Otwarty mpv dekoduje na procesorze ($1): dodaj hwdec=auto-safe do mpv.conf, aby dekodować na karcie graficznej."
     },
     "player_mpv_sent_outdated": {
         "message": "Wysłano do mpv. Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."

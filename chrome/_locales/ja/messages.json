@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - MPV で再生中 - グラフィックカードでデコード: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - MPV で再生中 - プロセッサでデコード ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください"
+    },
     "options_mpv_test_outdated": {
         "message": "このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "開いている mpv はグラフィックカードでデコードしています: $1。"
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "開いている mpv はプロセッサでデコードしています ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください。"
     },
     "player_mpv_sent_outdated": {
         "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"

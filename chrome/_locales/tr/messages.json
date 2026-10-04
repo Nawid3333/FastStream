@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - MPV'de oynatılıyor - ekran kartı tarafından çözülüyor: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - MPV'de oynatılıyor - işlemci tarafından çözülüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin"
+    },
     "options_mpv_test_outdated": {
         "message": "Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "Açık mpv ekran kartında çözüyor: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "Açık mpv işlemcide çözüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin."
     },
     "player_mpv_sent_outdated": {
         "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."

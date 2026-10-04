@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Diputar di MPV - didekode oleh kartu grafis: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Diputar di MPV - didekode oleh prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis"
+    },
     "options_mpv_test_outdated": {
         "message": "Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "mpv yang terbuka mendekode di kartu grafis: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
     },
     "player_mpv_sent_outdated": {
         "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."

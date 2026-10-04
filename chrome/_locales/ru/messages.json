@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - хост mpv на этом компьютере устарел: запустите update-local.cmd (или native-host\\install.ps1) в репозитории FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Воспроизведение в MPV - декодируется видеокартой: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Воспроизведение в MPV - декодируется процессором ($1): добавьте hwdec=auto-safe в mpv.conf, чтобы декодировать на видеокарте"
+    },
     "options_mpv_test_outdated": {
         "message": "Хост mpv на этом компьютере устарел: запустите update-local.cmd (или native-host\\install.ps1) в репозитории FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "Открытый mpv декодирует на видеокарте: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "Открытый mpv декодирует на процессоре ($1): добавьте hwdec=auto-safe в mpv.conf, чтобы декодировать на видеокарте."
     },
     "player_mpv_sent_outdated": {
         "message": "Отправлено в mpv. Хост mpv на этом компьютере устарел: запустите update-local.cmd (или native-host\\install.ps1) в репозитории FastStream."

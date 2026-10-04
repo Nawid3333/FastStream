@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - de mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Speelt af in MPV - gedecodeerd door de grafische kaart: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Speelt af in MPV - gedecodeerd door de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen"
+    },
     "options_mpv_test_outdated": {
         "message": "De mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "De geopende mpv decodeert op de grafische kaart: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "De geopende mpv decodeert op de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen."
     },
     "player_mpv_sent_outdated": {
         "message": "Verzonden naar mpv. De mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository."

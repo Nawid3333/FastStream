@@ -1238,8 +1238,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 이 컴퓨터의 mpv 호스트가 오래되었습니다: FastStream 저장소에서 update-local.cmd(또는 native-host\\install.ps1)를 실행하세요"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - MPV에서 재생 중 - 그래픽 카드로 디코딩: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - MPV에서 재생 중 - 프로세서로 디코딩 ($1): 그래픽 카드로 디코딩하려면 mpv.conf에 hwdec=auto-safe를 추가하세요"
+    },
     "options_mpv_test_outdated": {
         "message": "이 컴퓨터의 mpv 호스트가 오래되었습니다: FastStream 저장소에서 update-local.cmd(또는 native-host\\install.ps1)를 실행하세요."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "열려 있는 mpv는 그래픽 카드로 디코딩합니다: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "열려 있는 mpv는 프로세서로 디코딩합니다 ($1): 그래픽 카드로 디코딩하려면 mpv.conf에 hwdec=auto-safe를 추가하세요."
     },
     "player_mpv_sent_outdated": {
         "message": "mpv로 보냄. 이 컴퓨터의 mpv 호스트가 오래되었습니다: FastStream 저장소에서 update-local.cmd(또는 native-host\\install.ps1)를 실행하세요."

@@ -375,3 +375,24 @@ The host's own functions are unit tested (`tests/unit/MpvNativeHost`, `mpvHostPa
 `mpvHostSecurity`, `mpvHostInstall`); the last two run the real PowerShell and the
 installed `.bat` on Windows only. What no suite covers is survival inside a real
 kill-on-close job object: check that by hand after a change to the launch.
+
+**Which decoder mpv uses (2026-10-04, host version 2).** FastStream never sets mpv's
+hardware decoding: a `--hwdec` on the command line would beat the user's mpv.conf (here
+gpu-next on Vulkan with shaders), so it only says what mpv does. After a hand-off that
+worked (the three automatic paths: allowlist, toolbar/shortcut, a play), the background
+sends the host `{type: 'status', waitMs: 20000}` (`followMpvDecoder`). The host
+(`queryDecoder`) asks the mpv on its pipe for `hwdec-current`, `hwdec`, `video-format`,
+`width` and `height` once a second until `hwdec-current` is there (it is unavailable while
+no video decoder is loaded, "no" in software, "d3d11va", "vulkan", "d3d11va-copy"... in
+hardware), at most `waitMs` (capped at 30 s), and answers `{running, decoder}`. Only an mpv
+the host started for single-instance use has the pipe, so with "Reuse one mpv window" off
+nothing is asked. The answer goes to `tab.mpvDecoder` (persisted like `mpvError`; cleared on a new
+page and before each hand-off's own question, and an older question's late answer is
+dropped by `tab.mpvDecoderQuery`). The tooltip then says "decoded by the graphics card:
+d3d11va, AV1 1920x1080", or "decoded by the processor (H.264 1280x720): add
+hwdec=auto-safe to mpv.conf...". The badge is unchanged: a failure's "!" and the outdated
+host's come first. "Test mpv connection" asks too (`waitMs: 0`) and adds the same sentence
+while such an mpv is open. A host from before answers "unknown message", which reads as no
+answer. Tests: `tests/unit/mpvDecoderStatus.test.mjs`, including a socket that answers as
+mpv does (Linux) and the background end to end; not yet run against a real mpv. mpv's own
+choice of stream version is issue #330.

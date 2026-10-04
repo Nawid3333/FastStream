@@ -117,6 +117,7 @@ Common cases:
 | **Test mpv connection** fails | Browser not restarted after installing, or the helper is not registered. |
 | mpv opens and closes instantly | The stream itself was refused — an expired token, or a site that needs cookies. Cookies are deliberately **not** sent to mpv. |
 | mpv plays but nothing switches | Log will show whether a second URL arrived at all. |
+| The toolbar tooltip says "decoded by the processor" | mpv decodes in software. FastStream never changes your mpv settings; add `hwdec=auto-safe` to `mpv.conf` for the graphics card. The tooltip (and **Test mpv connection**, while an mpv FastStream started is open) say what mpv uses; this needs **Reuse one mpv window** on (the default). |
 
 ## Uninstall
 
