@@ -527,9 +527,35 @@ describe('launchMpv', () => {
 
   it('raises the window on Windows only: elsewhere there is no PowerShell (#153)', async () => {
     const io = stand(answered('success'));
-    expect(await launchMpv('/usr/bin/mpv', open, {}, {...io, platform: 'linux'})).toEqual({ok: true});
+    expect(await launchMpv('/usr/bin/mpv', open, {}, {...io, platform: 'linux'})).toStrictEqual({ok: true, reused: true});
     expect(io.record.focused).toEqual([]);
     expect(io.record.pipes[0]).toMatch(/\/faststream-mpv-\d+\.sock$/);
+  });
+
+  // The reply said {ok: true} and nothing else, so an mpv that opened behind the browser
+  // looked like one in front: the extension could neither show nor log it (2026-10-04).
+  it('says how raising the reused window went', async () => {
+    const io = {...stand(answered('success')), focus: async () => 'FOCUS=True FGOK=False'};
+    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
+        .toStrictEqual({ok: true, reused: true, focus: 'True', foreground: 'False'});
+  });
+
+  it('says how raising a new window went, and nothing else of the launch', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    io.start = async () => ({ok: true, pid: 77, focus: 'True', foreground: 'True', tries: 2});
+    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
+        .toStrictEqual({ok: true, focus: 'True', foreground: 'True'});
+    io.start = async () => ({ok: true, pid: 77, focus: 'nowindow'});
+    expect(await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'}))
+        .toStrictEqual({ok: true, focus: 'nowindow'});
+  });
+
+  it('reports a new mpv that did not start as the failure it is', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    io.start = async () => ({ok: false, error: 'mpv quit right after it started: check the mpv path'});
+    const result = await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'});
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('Could not start mpv: mpv quit right after it started: check the mpv path');
   });
 });
 

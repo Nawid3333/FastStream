@@ -189,6 +189,21 @@ describe('openStream retry bookkeeping', () => {
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'mpv executable not found'});
   });
+
+  // The host says how raising mpv's window went (host version 3): the result passes it
+  // on, so the background can log an mpv that opened behind the browser (2026-10-04).
+  it('passes on how raising mpv\'s window went, as the host sent it', async () => {
+    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
+        .toStrictEqual({ok: true, focus: 'True', foreground: 'False', reused: true});
+    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 'nowindow'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true, focus: 'nowindow'});
+  });
+
+  it('passes on only fields of the expected type', async () => {
+    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 5, foreground: {x: 1}, reused: 'yes'});
+    expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true});
+  });
 });
 
 // contentType is the MPV allowlist tag or the player's manual anime/movie

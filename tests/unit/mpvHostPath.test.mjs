@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {findMpvOnPath, isMpvExecutableName, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
+import {findMpvOnPath, isMpvExecutableName, preferGuiBuild, resolveMpvPath} from '../../native-host/faststream-mpv-host.mjs';
 
 // The native host used to hand a bare `mpv` on without looking: "Test mpv connection"
 // reported mpv on a machine that had none, and on Windows the WMI launch searches its own
@@ -125,6 +125,23 @@ describe('resolveMpvPath with a path from the options page', () => {
     expect(isMpvExecutableName('mpv', 'linux')).toBe(true);
     expect(isMpvExecutableName('mpv-git', 'linux')).toBe(true);
     expect(isMpvExecutableName('sh', 'linux')).toBe(false);
+  });
+
+  // mpv.com is the console wrapper: it starts the mpv.exe beside it as its child, so WMI
+  // reported the wrapper's process, which has no window, the focus helper found none, and
+  // mpv's window stayed behind the browser (2026-10-04).
+  it('starts the GUI build beside a console wrapper on Windows', () => {
+    const both = dirWith('both', ['mpv.com', 'mpv.exe', 'mpv-x86_64.com', 'mpv-x86_64.exe']);
+    expect(resolveMpvPath(path.join(both, 'mpv.com'), 'win32')).toBe(path.join(both, 'mpv.exe'));
+    expect(resolveMpvPath(path.join(both, 'mpv-x86_64.com'), 'win32')).toBe(path.join(both, 'mpv-x86_64.exe'));
+    expect(preferGuiBuild(path.join(both, 'mpv.exe'))).toBe(path.join(both, 'mpv.exe'));
+  });
+
+  it('starts the wrapper when it is all there is, and leaves names alone elsewhere', () => {
+    const wrapper = dirWith('wrapper-only', ['mpv.com']);
+    expect(resolveMpvPath(path.join(wrapper, 'mpv.com'), 'win32')).toBe(path.join(wrapper, 'mpv.com'));
+    const both = dirWith('both-linux', ['mpv.com', 'mpv.exe']);
+    expect(resolveMpvPath(path.join(both, 'mpv.com'), 'linux')).toBe(path.join(both, 'mpv.com'));
   });
 
   it.runIf(process.platform === 'win32')('never starts an mpv.bat or mpv.cmd', () => {

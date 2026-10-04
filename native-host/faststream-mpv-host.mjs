@@ -9,10 +9,20 @@
 // Messages:
 //   {type: 'ping', mpvPath?}      -> {ok, mpv, path}
 //   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?,
-//    pageUrl?, title?, start?, subtitles?} -> {ok, error?}
+//    pageUrl?, title?, start?, subtitles?} -> {ok, error?, reused?, focus?, foreground?}
 //   {type: 'status', waitMs?}    -> {ok, running, decoder: {hardware, api, requested,
 //                                    format, width, height} | null}
 // Every answer also carries hostVersion (HostVersion below).
+//
+// An open that worked on Windows says how raising mpv's window went (focusOutcome):
+// focus is "True"/"False" (what SetForegroundWindow answered), "nowindow" (no window
+// within WindowWaitSeconds), "error" (the script failed) or "unknown" (no answer from it),
+// and for a reused mpv also "gone"/"quit" (it ended before its window was found); a new
+// mpv that ends so is a failed open instead. foreground is "True"/"False", whether mpv's
+// window really was the foreground window 250 ms after (only when a window was found).
+// reused is true when the stream went into the mpv already open (single-instance), whose
+// window was raised the same way. Both describe that moment only: a window that goes
+// behind the browser later is not seen. Absent off Windows, where nothing is raised.
 //
 // title is the tab's title for mpv's window, start the position to start at, subtitles
 // the player's tracks as SubRip text ([{label, srt}]), and singleInstance loads the
@@ -57,7 +67,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 2;
+export const HostVersion = 3;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -184,12 +194,42 @@ export function isMpvExecutableName(name, platform = process.platform) {
 }
 
 /**
+ * The GUI build to start in place of mpv's console wrapper: mpv-x86_64.exe for
+ * mpv-x86_64.com, mpv.exe for mpv.com, when it is there.
+ *
+ * The wrapper (mpv.com) starts the .exe beside it as a child of its own and waits for it.
+ * So the process WMI reports is the wrapper's, which has no window: the focus helper looked
+ * for one on that process, never found it, and mpv's window stayed behind the browser.
+ * Started through WMI, the wrapper also opens a console window of its own.
+ *
+ * @param {string} file - The resolved executable.
+ * @return {string} The sibling .exe for a .com that has one; file otherwise.
+ */
+export function preferGuiBuild(file) {
+  if (!/\.com$/i.test(file)) {
+    return file;
+  }
+  const exe = file.slice(0, -'.com'.length) + '.exe';
+  try {
+    if (fs.statSync(exe).isFile()) {
+      fs.accessSync(exe, fs.constants.X_OK);
+      return exe;
+    }
+  } catch (e) {
+    // No .exe beside it: the wrapper is all there is.
+  }
+  return file;
+}
+
+/**
  * The mpv to start: the first usable candidate, as an absolute path (WMI resolves a
- * relative one against its own working directory, where it is not).
+ * relative one against its own working directory, where it is not). On Windows a console
+ * wrapper (mpv.com) gives way to the GUI build beside it (preferGuiBuild).
  * @param {string} [messagePath] - The options page's mpv path.
+ * @param {string} [platform] - process.platform, or a stand-in.
  * @return {string|null} The executable, or null when there is none.
  */
-export function resolveMpvPath(messagePath) {
+export function resolveMpvPath(messagePath, platform = process.platform) {
   const config = readConfig();
   const candidates = [
     messagePath,
@@ -217,11 +257,11 @@ export function resolveMpvPath(messagePath) {
         fs.accessSync(exe, fs.constants.X_OK);
         return path.resolve(exe);
       }
-      if (!isMpvExecutableName(path.basename(candidate))) {
+      if (!isMpvExecutableName(path.basename(candidate), platform)) {
         continue;
       }
       fs.accessSync(candidate, fs.constants.X_OK);
-      return path.resolve(candidate);
+      return path.resolve(platform === 'win32' ? preferGuiBuild(candidate) : candidate);
     } catch (e) {
       // Try the next candidate.
     }
@@ -976,16 +1016,19 @@ function focusWindowLines(pidExpr) {
     '    $deadline = (Get-Date).AddSeconds(' + WindowWaitSeconds + ')',
     '    $h = [IntPtr]::Zero',
     '    $seen = $false',
+    '    $quit = $false',
     '    $misses = 0',
     '    while ((Get-Date) -lt $deadline) {',
     '      $p = Get-Process -Id ' + pidExpr + ' -ErrorAction SilentlyContinue',
     '      if ($p) { $seen = $true } else { $misses++ }',
     '      if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) ' +
       '{ $h = $p.MainWindowHandle; break }',
-    // mpv gone again after we saw it: it failed to open the URL and quit.
-    // Give up instead of polling the full deadline for a window that can
-    // never appear.
-    '      if ($seen -and -not $p) { break }',
+    // mpv gone again after we saw it, before it had a window: it quit at once (an option
+    // it refuses, a broken install; with --force-window=immediate the window comes before
+    // the stream is opened). FOCUS=quit, which launchViaWmi reports as the failure it is.
+    // The first look almost always finds mpv still starting, so "never seen" (FOCUS=gone)
+    // alone missed nearly every such quit, and the hand-off was reported as working.
+    '      if ($seen -and -not $p) { $quit = $true; break }',
     // Never there at all: mpv quit before the first look (an option mpv
     // refuses, a broken install). Stop after about 2 s, not the full 30.
     '      if (-not $seen -and $misses -ge 20) { break }',
@@ -1018,6 +1061,7 @@ function focusWindowLines(pidExpr) {
     '      Write-Output ("FOCUS=" + $ok + " FGOK=" + $fgok + ' +
       '" TRIES=" + $tries)',
     '    } elseif (-not $seen) { Write-Output "FOCUS=gone" }',
+    '    elseif ($quit) { Write-Output "FOCUS=quit" }',
     '    else { Write-Output "FOCUS=nowindow" }',
     '  } catch { Write-Output "FOCUS=error" }',
   ];
@@ -1087,20 +1131,78 @@ async function focusPid(pid) {
 }
 
 /**
+ * What a focus script (focusWindowLines) reported, as the open reply carries it.
+ * @param {string} text - The script's output, or focusPid's FOCUS= line.
+ * @return {{focus?: string, foreground?: string}} focus is the FOCUS= value ("True",
+ *   "False", "nowindow", "quit", "gone", "error", "unknown"), foreground the FGOK= value
+ *   ("True", "False"); each only when the text has it.
+ */
+export function focusOutcome(text) {
+  /** @type {{focus?: string, foreground?: string}} */
+  const outcome = {};
+  const focus = /FOCUS=(\S+)/.exec(text);
+  const foreground = /FGOK=(\S+)/.exec(text);
+  if (focus) {
+    outcome.focus = focus[1];
+  }
+  if (foreground) {
+    outcome.foreground = foreground[1];
+  }
+  return outcome;
+}
+
+/**
+ * What the WMI launch script's output (wmiLaunchLines) means.
+ *
+ * An mpv that is gone before it had a window quit at once: FOCUS=gone when the first look
+ * already missed it, FOCUS=quit when it was seen and then went. Both are a failed launch.
+ *
+ * @param {string} text - The script's output.
+ * @return {{ok: boolean, pid?: number, error?: string, focus?: string, foreground?: string,
+ *   tries?: number}} focus and foreground as focusOutcome reads them.
+ */
+export function wmiLaunchResult(text) {
+  const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
+  if (!match) {
+    return {ok: false, error: 'unexpected WMI output: ' + text};
+  }
+  if (match[1] !== '0') {
+    return {ok: false, error: 'WMI Create returned ' + match[1]};
+  }
+  const outcome = focusOutcome(text);
+  if (outcome.focus === 'gone' || outcome.focus === 'quit') {
+    return {ok: false, error: 'mpv quit right after it started: check the mpv path, and mpv.conf for an option mpv refuses'};
+  }
+  const tries = /TRIES=(\d+)/.exec(text);
+  return {
+    ok: true,
+    pid: match[2] ? Number(match[2]) : undefined,
+    ...outcome,
+    tries: tries ? Number(tries[1]) : undefined,
+  };
+}
+
+/**
  * Launches mpv through the WMI process provider.
  *
- * Firefox runs a native messaging host inside a job object created with
- * JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, and every descendant of the host joins
- * that job. When the host exits after replying, the job closes and Windows
- * kills everything in it -- including an mpv started with detached:true and
- * unref(), neither of which escapes a job. Measured: a directly spawned mpv
- * and one started via `cmd /c start` are both killed; one created by the WMI
- * service survives, because it is parented to WmiPrvSE rather than to us.
+ * Firefox starts a native messaging host in a job object of its own and terminates that
+ * job when the host exits (or is killed): TerminateJobObject in the Subprocess module's
+ * wait() and kill(), toolkit/modules/subprocess/subprocess_win.worker.js (read on
+ * mozilla-firefox/firefox main, 2026-10-04). Every process the host starts joins the job,
+ * so it dies with the host -- an mpv started with detached:true and unref() as well,
+ * neither of which leaves a job. Measured: a directly spawned mpv and one started via
+ * `cmd /c start` are both killed; one created by the WMI service survives, because it is
+ * parented to WmiPrvSE rather than to us.
+ *
+ * The job's only limit is JOB_OBJECT_LIMIT_BREAKAWAY_OK (not KILL_ON_JOB_CLOSE, as this
+ * comment said until 2026-10-04), so a process created with CREATE_BREAKAWAY_FROM_JOB
+ * would leave it too. Node's spawn cannot ask for that flag (libuv's detached deliberately
+ * does not set it), and the host does not use it: not measured here.
  *
  * @param {string} mpvPath - Path to the mpv executable.
  * @param {Array<string>} args - Arguments to pass to mpv.
- * @return {Promise<{ok: boolean, pid?: number, error?: string, focus?: string, foreground?: string}>}
- *   Result; focus and foreground are what the PowerShell script reported.
+ * @return {Promise<{ok: boolean, pid?: number, error?: string, focus?: string, foreground?: string,
+ *   tries?: number}>} wmiLaunchResult's reading of the script's output.
  */
 function launchViaWmi(mpvPath, args) {
   const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
@@ -1108,28 +1210,7 @@ function launchViaWmi(mpvPath, args) {
     return Promise.resolve({ok: false, error: 'the stream URL is too long for mpv\'s command line'});
   }
 
-  return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then((text) => {
-    const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
-    if (!match) {
-      return {ok: false, error: 'unexpected WMI output: ' + text};
-    }
-    if (match[1] !== '0') {
-      return {ok: false, error: 'WMI Create returned ' + match[1]};
-    }
-    const focus = /FOCUS=(\S+)/.exec(text);
-    if (focus && focus[1] === 'gone') {
-      return {ok: false, error: 'mpv quit right after it started: check the mpv path, and mpv.conf for an option mpv refuses'};
-    }
-    const fgOk = /FGOK=(\S+)/.exec(text);
-    const tries = /TRIES=(\d+)/.exec(text);
-    return {
-      ok: true,
-      pid: match[2] ? Number(match[2]) : undefined,
-      focus: focus ? focus[1] : undefined,
-      foreground: fgOk ? fgOk[1] : undefined,
-      tries: tries ? Number(tries[1]) : undefined,
-    };
-  });
+  return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then(wmiLaunchResult);
 }
 
 /**
@@ -1161,10 +1242,14 @@ export function streamTitle(message) {
  * @param {Object} message - The open message; its url passed isStreamUrl.
  * @param {Object} config - The parsed config.json.
  * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
- *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string}>,
+ *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
+ *     pid?: number, focus?: string, foreground?: string}>,
  *   platform?: string}} [io] - Stand-ins for tests: the IPC transport, the window focus,
- *   the launch of a new mpv, and process.platform. The real ones by default.
- * @return {Promise<{ok: boolean, error?: string}>} The reply for the extension.
+ *   the launch of a new mpv (launchViaWmi on Windows, launchDirect elsewhere), and
+ *   process.platform. The real ones by default.
+ * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
+ *   foreground?: string}>} The reply for the extension; focus and foreground on Windows
+ *   (see the message list at the top of this file).
  */
 export async function launchMpv(mpvPath, message, config, io = {}) {
   const platform = io.platform || process.platform;
@@ -1196,7 +1281,7 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
         focused = await focus(existing.pid);
       }
       debugLog(config, 'reused', {pid: existing.pid, focus: focused});
-      return {ok: true};
+      return {ok: true, reused: true, ...focusOutcome(focused || '')};
     }
     // Running, but silent or refusing: a second mpv on the same pipe would get no IPC,
     // and every later send would go to the first one anyway.
@@ -1244,29 +1329,45 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
 
   debugLog(config, 'spawn', {mpvPath, args});
 
-  if (io.start) {
-    return io.start(mpvPath, args);
-  }
   // On Windows mpv has to be started by someone outside this process's job
   // object, or the browser kills it the moment this host exits. See
   // launchViaWmi.
   if (platform === 'win32') {
-    return launchViaWmi(mpvPath, args).then((result) => {
-      if (result.ok) {
-        debugLog(config, 'wmi-created',
-            {pid: result.pid, focus: result.focus,
-              foreground: result.foreground});
-        return {ok: true};
-      }
-      debugLog(config, 'wmi-failed', result);
-      // No direct spawn as a fallback: Firefox kills it the moment this host
-      // exits (see launchViaWmi), so it reported success for an mpv that was
-      // gone before it showed anything.
-      return {ok: false, error: 'Could not start mpv: ' + result.error};
-    });
+    const result = await (io.start || launchViaWmi)(mpvPath, args);
+    if (result.ok) {
+      debugLog(config, 'wmi-created',
+          {pid: result.pid, focus: result.focus,
+            foreground: result.foreground});
+      // How raising the window went, for the extension to show or log: the reply said
+      // ok and nothing else, and an mpv that opened behind the browser looked like one in
+      // front (focusOutcome).
+      return {ok: true, ...focusFields(result)};
+    }
+    debugLog(config, 'wmi-failed', result);
+    // No direct spawn as a fallback: Firefox kills it the moment this host
+    // exits (see launchViaWmi), so it reported success for an mpv that was
+    // gone before it showed anything.
+    return {ok: false, error: 'Could not start mpv: ' + result.error};
   }
 
-  return launchDirect(mpvPath, args);
+  return (io.start || launchDirect)(mpvPath, args);
+}
+
+/**
+ * A launch result's focus and foreground, the ones it has.
+ * @param {{focus?: string, foreground?: string}} result - launchViaWmi's result.
+ * @return {{focus?: string, foreground?: string}}
+ */
+function focusFields(result) {
+  /** @type {{focus?: string, foreground?: string}} */
+  const fields = {};
+  if (typeof result.focus === 'string') {
+    fields.focus = result.focus;
+  }
+  if (typeof result.foreground === 'string') {
+    fields.foreground = result.foreground;
+  }
+  return fields;
 }
 
 /**

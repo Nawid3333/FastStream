@@ -58,12 +58,23 @@ last one: anywhere else (`?x=fs-id=...`, `#a=1;fs-id=...`) it is the page's.
 
 ## Why mpv is started through WMI on Windows
 
-Firefox runs a native messaging host inside a Windows **job
-object** created with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Every descendant of
-the host joins that job. This host answers one message and exits, the browser
-then closes the job, and Windows kills everything still in it -- so an mpv
+Firefox starts a native messaging host inside a Windows **job object** of its
+own, and every process the host starts joins that job. This host answers one
+message and exits, and when it does Firefox **terminates the job**
+(`TerminateJobObject`): Windows kills everything still in it -- so an mpv
 started as an ordinary child dies a fraction of a second after it appears.
-`detached: true` and `unref()` do not help: neither escapes a job object.
+`detached: true` and `unref()` do not help: neither leaves a job object.
+
+(Until 2026-10-04 this said the job was created with
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Firefox's source says otherwise:
+`toolkit/modules/subprocess/subprocess_win.worker.js`, read on
+mozilla-firefox/firefox `main`, starts the host with `CREATE_NO_WINDOW`, gives
+the job one limit, `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, and calls
+`TerminateJobObject` in `wait()`, when the host has exited, and in `kill()`.
+The effect on mpv is the same. `JOB_OBJECT_LIMIT_BREAKAWAY_OK` means a process
+created with `CREATE_BREAKAWAY_FROM_JOB` would leave the job too; Node's
+`spawn` cannot ask for that flag, and the host does not use it, so it is not
+measured here.)
 
 Measured, spawning mpv from inside such a job and then closing it:
 
@@ -78,6 +89,17 @@ parented to `WmiPrvSE` and outlives the browser's job. If WMI is unavailable
 the host reports the error: a direct spawn would be killed the moment the host
 exits, before mpv shows anything. On other platforms there is no job object and
 the direct detached spawn is used.
+
+A process the WMI service creates may not take the foreground, so mpv would
+open behind the browser. The host's PowerShell waits for mpv's window and
+raises it (it attaches to the foreground window's input queue), then checks
+250 ms later that mpv's window really is in front. The answer to an `open`
+says how that went (host version 3): `focus` (`True`, `False`, `nowindow`, ...)
+and `foreground` (`True` when the check found mpv in front), plus `reused: true`
+when the stream went into the mpv already open; the message list at the top of
+`faststream-mpv-host.mjs` names every value. Both describe that moment only. An
+mpv that is gone before it had a window (an option it refuses, a broken
+install) is reported as not started.
 
 ## Requirements
 
@@ -191,6 +213,11 @@ The host takes the first mpv it finds, in this order:
 A folder works too: the host looks for `mpv.exe` in it. So a path in the
 options page wins over `config.json`, which matters when an old one there
 seems to be ignored.
+
+A path to `mpv.com`, mpv's console wrapper, starts the `mpv.exe` beside it
+when there is one (`mpv-x86_64.com` the `mpv-x86_64.exe`): the wrapper starts
+the `.exe` as a child of its own, so the host would raise the wrapper's
+process, which has no window, and mpv stayed behind the browser.
 
 The log: `"debug": true` in `config.json`, or the environment variable
 `FASTSTREAM_MPV_DEBUG=1`, makes the host append every message, the mpv

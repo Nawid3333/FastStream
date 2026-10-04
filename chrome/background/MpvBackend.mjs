@@ -9,9 +9,16 @@
  * small JSON messages and launches mpv on the user's machine:
  *   {type: 'ping', mpvPath?}                      -> {ok, mpv, path}
  *   {type: 'open', url, headers?, contentType?, pageUrl?, title?, start?, subtitles?,
- *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?}
+ *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?, reused?, focus?, foreground?}
  *   {type: 'status', waitMs?}                     -> {ok, running, decoder}
  * Every answer carries the host's `hostVersion` (see RequiredHostVersion below).
+ *
+ * An open that worked on Windows (host version 3 and later) says how raising mpv's window
+ * went: `focus` ("True", "False", "nowindow", ...) and `foreground` ("True" when mpv's
+ * window was the foreground window 250 ms after it was raised), and `reused` when the
+ * stream went into the mpv already open. openStream passes the three on as the host sent
+ * them (the message list at the top of native-host/faststream-mpv-host.mjs says what each
+ * value means), so a caller can log or show an mpv that opened behind the browser.
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
@@ -40,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 2;
+export const RequiredHostVersion = 3;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -101,6 +108,30 @@ export class MpvBackend {
   static isHostOutdated(response) {
     const version = response && typeof response === 'object' ? response.hostVersion : undefined;
     return !(Number.isInteger(version) && version >= RequiredHostVersion);
+  }
+
+  /**
+   * How the host's raising of mpv's window went, from an open's answer: focus, foreground
+   * and reused as the host sent them, each only when it has the expected type.
+   * @param {*} response - The host's answer.
+   * @return {{focus?: string, foreground?: string, reused?: boolean}}
+   */
+  static focusOf(response) {
+    /** @type {{focus?: string, foreground?: string, reused?: boolean}} */
+    const fields = {};
+    if (!response || typeof response !== 'object') {
+      return fields;
+    }
+    if (typeof response.focus === 'string') {
+      fields.focus = response.focus;
+    }
+    if (typeof response.foreground === 'string') {
+      fields.foreground = response.foreground;
+    }
+    if (response.reused === true) {
+      fields.reused = true;
+    }
+    return fields;
   }
 
   /**
@@ -189,9 +220,12 @@ export class MpvBackend {
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
    * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>}} [extras]
    *   - Where the browser's player was, and the subtitles it shows (the player's button).
-   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}>}
+   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
+   *   focus?: string, foreground?: string, reused?: boolean}>}
    *   Host response; noHost when the host itself could not be reached, hostOutdated when
-   *   it answered as a version older than RequiredHostVersion.
+   *   it answered as a version older than RequiredHostVersion; focus, foreground and reused
+   *   as the host sent them for an open that worked (focusOf; none for a URL already sent,
+   *   which asks the host nothing).
    */
   openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
     if (!MpvBackend.isStreamUrl(url)) {
@@ -300,7 +334,7 @@ export class MpvBackend {
             return;
           }
 
-          resolve(this.withHostState({ok: true}));
+          resolve(this.withHostState({ok: true, ...MpvBackend.focusOf(response)}));
         });
       } catch (e) {
         if (tab && tab.mpvSentUrls) {
