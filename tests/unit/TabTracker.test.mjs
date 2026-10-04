@@ -51,7 +51,7 @@ describe('forgetFrame', () => {
   });
 });
 
-// PLAYER_LOADED from a player whose page reloaded while it started: Ctrl+Shift+U with the
+// PLAYER_LOADED from a player whose page reloaded while it started: the MPV key with the
 // player just opened. It said it loaded after the new page's FRAME_ADDED, and the new page
 // then counted as holding a player: its streams were dropped, and no player opened on it.
 // The player's URL names the page that opened it, and each page names itself in FRAME_ADDED.
@@ -319,7 +319,7 @@ describe('noteDocumentReplaced', () => {
   });
 });
 
-// Ctrl+Shift+U, Ctrl+Shift+F's MPV exit or the toolbar's Off with a player still starting
+// The MPV key, Ctrl+Shift+F's MPV exit or the toolbar's Off with a player still starting
 // in an iframe of an iframe: reset, reload, and the player's late PLAYER_LOADED makes its
 // frame and the frame above new ones, with no names on them.
 describe('resetForReload', () => {

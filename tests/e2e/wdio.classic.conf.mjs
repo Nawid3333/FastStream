@@ -18,6 +18,12 @@ import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 const caps = structuredClone(base.capabilities);
 caps[0]['wdio:enforceWebDriverClassic'] = true;
+// No menu access keys. The MPV key's default is Alt+F, which the menus of an English
+// Firefox take for themselves: Alt+F opens File, and the extension's key never fires
+// (measured 2026-10-04 with the specs' key presses: the File menu opened, the command
+// did not run). The owner's Firefox is German, whose menus have no F (Datei is Alt+D),
+// so Alt+F reaches FastStream there; this makes the test Firefox the same.
+caps[0]['moz:firefoxOptions'].prefs['ui.key.menuAccessKey'] = 0;
 
 export const config = {
   ...base,

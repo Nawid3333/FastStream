@@ -100,7 +100,7 @@
     },
     "toggle_mpv": {
       "suggested_key": {
-        "default": "Ctrl+Shift+U"
+        "default": "Alt+F"
       },
       "description": "__MSG_command_toggle_mpv__"
     }

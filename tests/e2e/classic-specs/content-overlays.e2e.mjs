@@ -391,9 +391,24 @@ describe('A site\'s overlays around an in-page player', function() {
     await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
         {timeout: 20000, timeoutMsg: 'the web component\'s video never loaded'});
     await browser.pause(500);
+    // The player's first message to the page: the background has linked the player to its
+    // iframe by then (content.js's listener runs before the page's). Windowed fullscreen
+    // needs that link. In Firefox 158 the player is ready a moment before it, and a toggle
+    // that soon was answered 'no_element' and did nothing (measured: Beta on Windows).
+    await inPage(() => {
+      window.__playerAnnounced = false;
+      window.addEventListener('message', (e) => {
+        const frame = document.getElementById('host').shadowRoot.querySelector('iframe[src*="player/index.html"]');
+        if (frame && frame.contentWindow === e.source) {
+          window.__playerAnnounced = true;
+        }
+      });
+    });
     await clickToolbar();
     const frame = await browser.$('#host').shadow$('iframe[src*="player/index.html"]');
     await frame.waitForExist({timeout: 15000, timeoutMsg: 'no player in the web component'});
+    await browser.waitUntil(async () => inPage(() => window.__playerAnnounced === true),
+        {timeout: 15000, timeoutMsg: 'the player never linked up with its iframe'});
     const toggle = async () => {
       await browser.switchFrame(await browser.$('#host').shadow$('iframe[src*="player/index.html"]'));
       await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.interfaceController),

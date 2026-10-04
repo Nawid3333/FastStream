@@ -239,7 +239,11 @@ fires it on removal; content-cleanup's case fails without it), and `removePlayer
 reports every player iframe that is out of the page when it is done, whoever took it out,
 overlays too, once each.
 
-**MPV shortcut: Ctrl+Shift+U, the `toggle_mpv` command (2026-09-26).** MPV
+**MPV shortcut: Alt+F since 2026-10-04 (Ctrl+Shift+U before), the `toggle_mpv`
+command (2026-09-26).** The owner switched to Alt+F (tested: nothing in their Firefox
+uses it) and made it the default, so new installs get it the way Ctrl+Shift+F is the
+player's; a user who rebound the key in about:addons keeps theirs. The paragraphs below
+were written for Ctrl+Shift+U; what they say about the key holds for any binding. MPV
 on or off for the tab on any site, allowlisted or not, while MPV mode is on
 (off = FastStream off, as the toolbar's MPV -> Off). On a blank or new tab it
 arms MPV for the next page opened there (the tab's mode survives navigation);

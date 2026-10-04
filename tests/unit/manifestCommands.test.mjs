@@ -7,8 +7,10 @@ import {describe, expect, it} from 'vitest';
 // only one of them works on most sites and silently does nothing on the others.
 //
 // Ctrl+Shift+F must not be the toolbar button (_execute_action) again. A click on MPV
-// goes to Off, so after Ctrl+Shift+U the key turned FastStream off, and getting the
+// goes to Off, so after the MPV key the key turned FastStream off, and getting the
 // in-page player took a second press (2026-09-28).
+//
+// The MPV key is Alt+F since 2026-10-04 (Ctrl+Shift+U before), the owner's choice.
 
 const read = (file) => fs.readFileSync(path.resolve(import.meta.dirname, '../..', file), 'utf8');
 const manifest = JSON.parse(read('chrome/manifest.json'));
@@ -30,10 +32,10 @@ function block(start) {
 describe('manifest commands', () => {
   const names = Object.keys(manifest.commands);
 
-  it('gives Ctrl+Shift+F and Ctrl+Shift+U a command of their own each', () => {
+  it('gives Ctrl+Shift+F and Alt+F a command of their own each', () => {
     const keys = Object.fromEntries(names.map((name) =>
       [name, manifest.commands[name].suggested_key?.default]));
-    expect(keys).toEqual({toggle_player: 'Ctrl+Shift+F', toggle_mpv: 'Ctrl+Shift+U'});
+    expect(keys).toEqual({toggle_player: 'Ctrl+Shift+F', toggle_mpv: 'Alt+F'});
   });
 
   it('runs every command on both paths', () => {
