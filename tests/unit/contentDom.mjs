@@ -137,6 +137,13 @@ export class FakeElement {
     return node === this.ownerDocument;
   }
 
+  // The document, or the top of a tree out of it: this stand-in has no shadow roots.
+  getRootNode() {
+    let node = this;
+    while (node.parentNode) node = node.parentNode;
+    return node;
+  }
+
   get src() {
     return this.getAttribute('src') || '';
   }

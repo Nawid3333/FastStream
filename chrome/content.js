@@ -962,10 +962,13 @@
     if (!skipHide) {
       const elementsToHide = [];
       const elementsToExpand = [];
-      const trace = new Set(traceParents(iframe));
+      // What the player is drawn inside, shadow roots and the slots that show it included:
+      // a web-component player's host was expanded, but the bar next to the player in its
+      // shadow root was never hidden (#233).
+      const trace = new Set(flatTreeParents(iframe));
 
       // Gather all elements not parents of the iframe
-      const elements = document.querySelectorAll('*');
+      const elements = allElementsIncludingShadows();
       for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
         if (element === iframe) {
@@ -982,6 +985,10 @@
 
         // Nothing in the <head> is shown: its <meta>, <script> and <style> are no layers.
         if (document.head && document.head.contains(element)) {
+          continue;
+        }
+        // Nor a shadow root's own styles and scripts.
+        if (NotLayerTags.has(element.tagName)) {
           continue;
         }
 
@@ -1477,12 +1484,38 @@
     return element.parentElement || element.assignedSlot || element.parentNode?.host;
   }
 
-  function traceParents(element) {
+  const NotLayerTags = new Set(['STYLE', 'SCRIPT', 'LINK', 'TEMPLATE']);
+
+  /**
+   * Every element of the page, those in shadow roots (open or closed) too, each root's
+   * after its host.
+   * @param {Document|ShadowRoot} [root]
+   * @param {Element[]} [found]
+   * @return {Element[]}
+   */
+  function allElementsIncludingShadows(root = document, found = []) {
+    for (const element of root.querySelectorAll('*')) {
+      found.push(element);
+      // Firefox lets a content script into closed roots too.
+      const shadow = element.openOrClosedShadowRoot || element.shadowRoot;
+      if (shadow) {
+        allElementsIncludingShadows(shadow, found);
+      }
+    }
+    return found;
+  }
+
+  /**
+   * The element and what it is drawn inside, up to <html>: the slot that shows it before
+   * its light-DOM parent, and a shadow root's host after the root's top element.
+   * @param {Element} element
+   * @return {Element[]}
+   */
+  function flatTreeParents(element) {
     const parents = [];
-    let current = element;
-    while (current) {
+    for (let current = element; current;) {
       parents.push(current);
-      current = getParentElement(current);
+      current = current.assignedSlot || current.parentElement || current.parentNode?.host;
     }
     return parents;
   }

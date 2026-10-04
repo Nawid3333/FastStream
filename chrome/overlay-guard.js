@@ -30,6 +30,34 @@ const OverlayGuard = (() => {
     return el.tagName === 'IFRAME' && (el.src || '').startsWith(PLAYER_URL);
   }
 
+  // A web-component player keeps its control bar in its shadow root, next to the player
+  // FastStream put there: document.querySelectorAll('*') never saw the bar, and contains()
+  // stops at the shadow boundary (#233).
+
+  // Every element of the page, those in shadow roots (open or closed) too.
+  function allElements(root = document, found = []) {
+    for (const el of root.querySelectorAll('*')) {
+      found.push(el);
+      // Firefox lets a content script into closed roots too.
+      const shadow = el.openOrClosedShadowRoot || el.shadowRoot;
+      if (shadow) allElements(shadow, found);
+    }
+    return found;
+  }
+
+  // The element above, across a shadow root's boundary to its host.
+  function parentOf(el) {
+    return el.parentElement || el.parentNode?.host || null;
+  }
+
+  // Whether `inner` is `outer` or inside it, shadow roots included.
+  function holds(outer, inner) {
+    for (let el = inner; el; el = parentOf(el)) {
+      if (el === outer) return true;
+    }
+    return false;
+  }
+
   // The iframe's box (full) and the part of it that is on screen (visible), with their areas.
   function boxesOf(iframe) {
     const r = iframe.getBoundingClientRect();
@@ -70,18 +98,23 @@ const OverlayGuard = (() => {
   // outermost one below the ancestor they share with the iframe.
   function overlaysOf(iframe, {full, visible: box}) {
     const picks = new Set();
-    const players = [...document.querySelectorAll(`iframe[src^="${PLAYER_URL}"]`)];
+    const everything = allElements();
+    const players = everything.filter(isPlayerFrame);
+    // The document's elementsFromPoint gives a shadow root's elements as their host: the
+    // iframe's own root gives the iframe, and the elements of its shadow root.
+    const root = iframe.getRootNode();
+    const stackRoot = typeof root.elementsFromPoint === 'function' ? root : document;
     // Every element, not only the body's: ad layers are often put straight into <html>.
-    for (const el of document.querySelectorAll('*')) {
-      if (el === iframe || el.contains(iframe) || iframe.contains(el) || isPlayerFrame(el)) continue;
+    for (const el of everything) {
+      if (el === iframe || holds(el, iframe) || isPlayerFrame(el)) continue;
       // Inside one already picked, which goes as a whole.
-      if ([...picks].some((pick) => pick.contains(el))) continue;
+      if ([...picks].some((pick) => holds(pick, el))) continue;
       const r = el.getBoundingClientRect();
       if (r.width < 1 || r.height < 1 || overlap(r, box) < 16) continue;
       // Painted above the iframe where the two overlap?
       const x = (Math.max(r.left, box.left) + Math.min(r.right, box.right)) / 2;
       const y = (Math.max(r.top, box.top) + Math.min(r.bottom, box.bottom)) / 2;
-      const stack = document.elementsFromPoint(x, y);
+      const stack = stackRoot.elementsFromPoint(x, y);
       const iframeAt = stack.indexOf(iframe);
       const elAt = stack.indexOf(el);
       if (iframeAt === -1 || elAt === -1 || elAt > iframeAt) continue;
@@ -90,20 +123,20 @@ const OverlayGuard = (() => {
       // missing from the stack says nothing of where it is painted: pointer-events: none,
       // as a see-through veil holding a clickable ad has. It goes by its size, as before.
       let pick = null;
-      for (let a = el; a && !a.contains(iframe); a = a.parentElement) {
+      for (let a = el; a && !holds(a, iframe); a = parentOf(a)) {
         if (stack.indexOf(a) > iframeAt) break;
         // Nothing of a site's dialog goes: not the dialog, nor what holds it.
         if (isSiteDialog(a)) {
           pick = null;
           break;
         }
-        if (belongsToPlayer(a, full) && !players.some((player) => a.contains(player))) {
+        if (belongsToPlayer(a, full) && !players.some((player) => holds(a, player))) {
           pick = a;
         }
       }
       if (pick) picks.add(pick);
     }
-    return [...picks].filter((el) => ![...picks].some((other) => other !== el && other.contains(el)));
+    return [...picks].filter((el) => ![...picks].some((other) => other !== el && holds(other, el)));
   }
 
   function hide(guard, el) {
