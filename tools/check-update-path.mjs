@@ -13,7 +13,8 @@
 // Exits with:
 //   0  every link holds
 //   1  a link is broken - printed, one line each
-//   2  the check could not be made (the network): nothing is known to be wrong
+//   2  the check could not be made (the network, or GitHub answering 5xx or 429 three
+//      times): nothing is known to be wrong
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -160,22 +161,53 @@ export function geckoIdFromBuild(source) {
 }
 
 /** A network failure, as opposed to an answer. */
-class Unreachable extends Error {}
+export class Unreachable extends Error {}
 
-async function download(url) {
+/**
+ * Whether an HTTP status is GitHub having trouble rather than an answer about the file: a
+ * server error (a 502 from the download redirect's CDN) or a rate limit. Asked again, then
+ * counted as the network, as a broken link it is not.
+ * @param {number} status
+ * @return {boolean}
+ */
+export function isPassingTrouble(status) {
+  return status === 429 || status >= 500;
+}
+
+/**
+ * Downloads a link of the update path. A network failure, a server error or a rate limit is
+ * tried again, three times in all, then thrown as Unreachable; any other answer is returned.
+ * Until 2026-10-04 a 5xx came back as an answer, and a CDN hiccup opened "Update path
+ * broken" for a path that held.
+ * @param {string} url
+ * @param {Object} [options]
+ * @param {function(string, Object): Promise<Response>} [options.get] - fetch.
+ * @param {function(number): Promise<void>} [options.sleep]
+ * @return {Promise<{status: number, body?: Buffer}>} status 200 with the body, or the
+ *   status of an answer that says the file is not there (a 404, say).
+ */
+export async function download(url, {
+  get = fetch,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+} = {}) {
   for (let attempt = 1; ; attempt++) {
+    let trouble;
     try {
-      const response = await fetch(url, {redirect: 'follow'});
-      if (!response.ok) {
+      const response = await get(url, {redirect: 'follow'});
+      if (response.ok) {
+        return {status: 200, body: Buffer.from(await response.arrayBuffer())};
+      }
+      if (!isPassingTrouble(response.status)) {
         return {status: response.status};
       }
-      return {status: 200, body: Buffer.from(await response.arrayBuffer())};
+      trouble = `HTTP ${response.status}`;
     } catch (e) {
-      if (attempt === 3) {
-        throw new Unreachable(`${url}: ${e.message}`);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+      trouble = e.message;
     }
+    if (attempt === 3) {
+      throw new Unreachable(`${url}: ${trouble}`);
+    }
+    await sleep(10 * 1000);
   }
 }
 

@@ -5,7 +5,11 @@
 #   workflow closed itself (the problem was gone) does not, so the same thing breaking
 #   again is reported again.
 #   "Start release.yml again for a tag it did not publish": only the release.yml runs since
-#   the tag was made count toward its two restarts, so a tag made again starts afresh.
+#   the tag was made count toward its two restarts, so a tag made again starts afresh; and a
+#   run still going when the wait ends is left to finish, never doubled.
+#   "Look at the newest tag and the latest release": a latest release that cannot be read
+#   stops the run, rather than going on with no tag.
+#   "Report this workflow's own failure": one issue, then comments on it.
 # gh and git are stubs answering from $FIX; calls are logged to $LOG.
 source "$(dirname "$0")/lib.sh"
 
@@ -13,6 +17,8 @@ here=$(mktemp -d)
 trap 'rm -rf "$here"' EXIT
 step_script amo-signing-failsafe.yml 'Define already_reported' > "$here/define.sh" || exit 1
 step_script amo-signing-failsafe.yml 'Start release.yml again for a tag it did not publish' > "$here/restart.sh" || exit 1
+step_script amo-signing-failsafe.yml 'Look at the newest tag and the latest release' > "$here/look.sh" || exit 1
+step_script amo-signing-failsafe.yml "Report this workflow's own failure" > "$here/report.sh" || exit 1
 
 mkdir -p "$here/bin"
 cat > "$here/bin/gh" <<'EOF'
@@ -31,16 +37,31 @@ case "$1 $2" in
     [ -f "$FIX/events-$n.json" ] || { echo 'stub gh: HTTP 502' >&2; exit 1; }
     jq -r "$jqf" "$FIX/events-$n.json" ;;
   'run list') jq -r "$jqf" "$FIX/runs.json" ;;
-  'release view') exit 1 ;;
+  'release view')
+    # With --json: the latest release, or with a tag that one's assets, from latest.json.
+    # A fail-first file makes the first such call fail, as a hiccup of the API would.
+    # Without --json: whether a tag has a release; none has.
+    case " $* " in
+      *' --json '*)
+        if [ -f "$FIX/fail-first" ]; then rm "$FIX/fail-first"; echo 'stub gh: HTTP 502' >&2; exit 1; fi
+        [ -f "$FIX/latest.json" ] || { echo 'stub gh: release not found' >&2; exit 1; }
+        jq -r "$jqf" "$FIX/latest.json" ;;
+      *) exit 1 ;;
+    esac ;;
   'workflow run') ;;
   'issue create') ;;
+  'issue comment') ;;
   *) echo "stub gh: unexpected: $*" >&2; exit 2 ;;
 esac
 EOF
 cat > "$here/bin/git" <<'EOF'
 #!/usr/bin/env bash
-# git for-each-ref --format='%(creatordate:unix)' refs/tags/<tag>: when the tag was made.
-cat "$FIX/tagged"
+case "$1" in
+  # git tag -l 'v*': the repository's tags.
+  tag) cat "$FIX/tags" 2> /dev/null || true ;;
+  # git for-each-ref --format='%(creatordate:unix)' refs/tags/<tag>: when the tag was made.
+  *) cat "$FIX/tagged" ;;
+esac
 EOF
 printf '#!/usr/bin/env bash\n' > "$here/bin/sleep"
 chmod +x "$here/bin/gh" "$here/bin/git" "$here/bin/sleep"
@@ -116,5 +137,63 @@ run_at 20 completed; run_at 10 completed
 restart 30
 check 'starts nothing more' lacks "$LOG" 'workflow run'
 check 'tells the owner' contains "$LOG" 'issue create'
+
+echo 'release.yml still signing when the wait ends (the schedule came during the release)'
+fresh; echo '[]' > "$FIX/issues.json"; echo '[]' > "$FIX/runs.json"
+run_at 24 in_progress
+check 'the step passes' restart 25
+check 'says the next run looks again' contains "$FIX/out" 'still running for v1.3.82.49 after 15 minutes'
+check 'starts no second release.yml beside it' lacks "$LOG" 'workflow run'
+check 'opens no issue' lacks "$LOG" 'issue create'
+
+not() { ! "$@"; }
+
+# look: runs "Look at the newest tag and the latest release"; its status is the test's.
+look() {
+  export GITHUB_OUTPUT=$FIX/output
+  : > "$GITHUB_OUTPUT"
+  PATH="$here/bin:$PATH" run_step "$here/look.sh" > "$FIX/out" 2>&1
+}
+latest() { # <tag>: the latest release, published two hours ago, complete
+  jq -n --arg tag "$1" --arg at "$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)" \
+    '{tagName: $tag, publishedAt: $at, assets: [{name: "firefox-github-\($tag).zip"}, {name: "faststream.xpi"}, {name: "updates.json"}]}' \
+    > "$FIX/latest.json"
+}
+
+echo 'the latest release, complete, and the newest tag is its own'
+fresh; latest v1.3.82.57; printf 'v1.3.82.56\nv1.3.82.57\nV1.3.77\n' > "$FIX/tags"
+check 'the step passes' look
+check 'names the tag' grep -qx 'tag=v1.3.82.57' "$FIX/output"
+check 'complete' grep -qx 'complete=true' "$FIX/output"
+check 'no orphan' grep -qx 'orphan=' "$FIX/output"
+
+echo 'reading the latest release fails once (the API hiccups), then answers'
+fresh; latest v1.3.82.57; printf 'v1.3.82.57\n' > "$FIX/tags"; : > "$FIX/fail-first"
+check 'the step fails' not look
+check 'with no tag handed on' lacks "$FIX/output" 'tag='
+
+echo 'the latest release reads as no tag'
+fresh; latest ''; printf 'v1.3.82.57\n' > "$FIX/tags"
+check 'the step fails' not look
+check 'says why' contains "$FIX/out" 'no tag or no publication date'
+check 'with no tag handed on' lacks "$FIX/output" 'tag='
+
+# report <issues.json>: runs "Report this workflow's own failure" against those open issues.
+report() {
+  echo "$1" > "$FIX/issues.json"
+  RUN_URL=https://github.com/me/fs/actions/runs/7 TITLE='Release failsafe failed' \
+    PATH="$here/bin:$PATH" run_step "$here/report.sh" > "$FIX/out" 2>&1
+}
+
+echo 'the failsafe failed, no issue open'
+fresh
+check 'the step passes' report '[{"number": 3, "title": "Other"}]'
+check 'opens "Release failsafe failed"' contains "$LOG" 'issue create --repo me/fs --title Release failsafe failed --assignee nawid'
+
+echo 'the failsafe failed again, its issue open'
+fresh
+check 'the step passes' report '[{"number": 3, "title": "Other"}, {"number": 12, "title": "Release failsafe failed"}]'
+check 'comments on it' contains "$LOG" 'issue comment 12 --repo me/fs'
+check 'opens no second one' lacks "$LOG" 'issue create'
 
 finish

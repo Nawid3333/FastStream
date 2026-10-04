@@ -31,7 +31,8 @@ name: Release failsafe
 #      the network stopped is not reported; the next run makes it again.
 #
 # Every issue is assigned to the owner and @mentions them, so it arrives by email; it is
-# opened once, and closed by the first run that finds it resolved.
+# opened once, and closed by the first run that finds it resolved. A run of this workflow
+# that fails opens "Release failsafe failed" (the runs release.yml starts email no one).
 
 on:
   schedule:
@@ -78,7 +79,15 @@ jobs:
         id: release
         run: |
           set -euo pipefail
-          read -r tag published <<< "$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt --jq '"\(.tagName) \(.publishedAt)"')"
+          # Read into a variable first: a failed gh inside `read <<< "$(...)"` went unnoticed
+          # (set -e does not see it), and the run went on with no tag at all. A latest release
+          # that cannot be read, or reads as nothing, stops the run here, loudly.
+          latest=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName,publishedAt --jq '"\(.tagName) \(.publishedAt)"')
+          read -r tag published <<< "$latest"
+          if [ -z "$tag" ] || [ -z "$published" ]; then
+            echo "::error::The latest release came back as '$latest': no tag or no publication date."
+            exit 1
+          fi
           assets=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '[.assets[].name] | join(" ")')
           age_hours=$(( ( $(date +%s) - $(date -d "$published" +%s) ) / 3600 ))
           complete=false
@@ -169,11 +178,20 @@ jobs:
               --json status,createdAt --jq "[.[] | select(.createdAt >= env.TAGGED_AT)] | $1"
           }
           # release.yml starts this failsafe as its last step, so its run for the tag is
-          # usually still finishing.
+          # usually still finishing. One still going after 15 minutes (AMO signing slowly, while
+          # the schedule ran this) is left to finish, and the next run of this failsafe looks
+          # again: another release.yml beside it would sign and publish the same tag twice at
+          # once. Until 2026-10-04 the end of the wait started one all the same.
+          running=1
           for _ in $(seq 1 30); do
-            [ "$(runs '[.[] | select(.status != "completed")] | length')" = 0 ] && break
+            running=$(runs '[.[] | select(.status != "completed")] | length')
+            [ "$running" = 0 ] && break
             sleep 30
           done
+          if [ "$running" != 0 ]; then
+            echo "release.yml is still running for $ORPHAN after 15 minutes; the next run of this failsafe looks again."
+            exit 0
+          fi
           if gh release view "$ORPHAN" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "$ORPHAN has been published meanwhile."
             exit 0
@@ -358,3 +376,26 @@ jobs:
             printf -- '- `error`: see the run: %s\n' "$run_url"
           } > "$RUNNER_TEMP/body.md"
           gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
+
+      # A failed run is emailed only to whoever started it: for the runs release.yml starts,
+      # this repository's token, so no one; for the schedule, whoever last changed the cron
+      # line. One issue while it is open, assigned and @mentioning the owner, as the other
+      # workflows do; a failure while it is open adds a comment to it.
+      - name: Report this workflow's own failure
+        if: failure()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: 'Release failsafe failed'
+        run: |
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
+          if [ -n "$number" ]; then
+            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
+            gh issue comment "$number" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/comment.md"
+            exit 0
+          fi
+          printf '@%s amo-signing-failsafe.yml (Release failsafe) failed: %s\n\nThe run log names the failed command. Until it runs cleanly, a release that did not publish or sign, or a broken update path, may go unnoticed. Close this issue once it is fixed; a later failure opens a new one.\n' \
+            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"

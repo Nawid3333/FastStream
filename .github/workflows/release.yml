@@ -49,6 +49,14 @@ permissions:
   # The last step starts amo-signing-failsafe.yml.
   actions: write
 
+# One run per tag at a time: a second one (the failsafe's restart, a run by hand) waits for
+# the first to end instead of signing and publishing the same version beside it, racing it to
+# `gh release create`. GitHub keeps one waiting run per group, and a newer one replaces it:
+# for one tag, that is the same release asked for again.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build and publish release

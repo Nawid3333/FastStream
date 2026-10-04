@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import {describe, expect, it} from 'vitest';
-import {checkUpdatesJson, checkXpi, geckoIdFromBuild, readZip} from '../../tools/check-update-path.mjs';
+import {checkUpdatesJson, checkXpi, download, geckoIdFromBuild, readZip, Unreachable} from '../../tools/check-update-path.mjs';
 
 // Firefox's update check finds nothing, silently, when any link of the self-update path
 // breaks: updates.json, its entry, the xpi's hash, Mozilla's signature, the add-on id.
@@ -172,5 +172,50 @@ describe('geckoIdFromBuild', () => {
 
   it('refuses builds that disagree on the id', () => {
     expect(() => geckoIdFromBuild('gecko: {id: \'a@b\'} gecko: {id: \'c@d\'}')).toThrow(/one gecko id/);
+  });
+});
+
+// A link GitHub fails to serve is not a broken one: a 5xx from the download redirect's CDN, or
+// a rate limit, is asked again and then ends the check as unreachable (exit 2), which the
+// failsafe does not report. Until 2026-10-04 it came back as an answer, and the failsafe
+// opened "Update path broken" for a path that held.
+describe('download', () => {
+  // A fetch that gives these answers in turn (an Error is thrown), and counts the calls.
+  const answers = (...list) => {
+    const get = async () => {
+      get.calls++;
+      const next = list.shift();
+      if (next instanceof Error) throw next;
+      return new Response(next.body ?? null, {status: next.status});
+    };
+    get.calls = 0;
+    return get;
+  };
+  const sleep = async () => {};
+
+  it('asks again after a server error, and takes the file when it comes', async () => {
+    const get = answers({status: 502}, {status: 503}, {status: 200, body: 'xpi'});
+    const got = await download('https://github.com/x', {get, sleep});
+    expect(got.status).toBe(200);
+    expect(got.body.toString()).toBe('xpi');
+    expect(get.calls).toBe(3);
+  });
+
+  it.each([[500], [502], [503], [429]])('counts %i three times over as unreachable, not as a broken link', async (status) => {
+    const get = answers({status}, {status}, {status});
+    await expect(download('https://github.com/x', {get, sleep})).rejects.toThrow(Unreachable);
+    expect(get.calls).toBe(3);
+  });
+
+  it('counts a network failure three times over as unreachable', async () => {
+    const failed = () => new TypeError('fetch failed');
+    const get = answers(failed(), failed(), failed());
+    await expect(download('https://github.com/x', {get, sleep})).rejects.toThrow(Unreachable);
+  });
+
+  it('returns an answer that says the file is not there at once', async () => {
+    const get = answers({status: 404});
+    expect(await download('https://github.com/x', {get, sleep})).toEqual({status: 404});
+    expect(get.calls).toBe(1);
   });
 });

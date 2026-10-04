@@ -221,6 +221,82 @@ describe('update-local.ps1', () => {
     }
   }, 30000);
 
+  // The real check, in Windows PowerShell 5.1 as update-local.cmd starts it, against a fake
+  // repository, with nothing on PATH but stand-ins for node, npm, pnpm and git (no wsl.exe, so
+  // the WSL step only notes it is missing) and LOCALAPPDATA in a temporary folder (no mpv
+  // helper installed): nothing real is asked or changed. Its exit code is what the .cmd reads.
+  // Until 2026-10-04 a Node.js, npm or pnpm update exited 0, so the double-click never asked.
+  describe.runIf(process.platform === 'win32')('the check\'s exit code', () => {
+    const upToDate = {
+      STUB_NODE: '22.23.3', STUB_NODE_NEWEST: '22.23.3',
+      STUB_NPM: '11.9.0', STUB_NPM_NEWEST: '11.9.0',
+      STUB_PNPM: '11.28.0', STUB_BEHIND: '0',
+    };
+    // A stand-in: answers what update-local.ps1 asks (a tool's --version; node running
+    // newest-release.mjs, %2 being what it looks up; git's four questions), from the
+    // environment, and fails loudly on anything else, which fails the step and the exit code.
+    const stub = (lines) => `@echo off\r\n${lines.join('\r\n')}\r\necho stand-in: unexpected %* 1>&2\r\nexit /b 9\r\n`;
+    const stubs = {
+      'node.cmd': stub([
+        'if "%~1"=="--version" (echo v%STUB_NODE%& exit /b 0)',
+        'if "%~2"=="node" (echo %STUB_NODE_NEWEST%& exit /b 0)',
+        'if "%~2"=="npm" (echo %STUB_NPM_NEWEST%& exit /b 0)',
+      ]),
+      'npm.cmd': stub(['if "%~1"=="--version" (echo %STUB_NPM%& exit /b 0)']),
+      'pnpm.cmd': stub(['if "%~1"=="--version" (echo %STUB_PNPM%& exit /b 0)']),
+      'git.cmd': stub([
+        'if "%~1"=="remote" (echo origin& exit /b 0)',
+        'if "%~1"=="status" exit /b 0',
+        'if "%~1"=="rev-parse" (echo main& exit /b 0)',
+        'if "%~1"=="rev-list" (echo %STUB_BEHIND%& exit /b 0)',
+      ]),
+    };
+
+    it.each([
+      ['nothing is due', 0, {}],
+      ['a newer Node.js', 2, {STUB_NODE: '22.23.2'}],
+      ['a newer npm', 2, {STUB_NPM: '11.8.0'}],
+      ['pnpm older than the pin', 2, {STUB_PNPM: '11.27.0'}],
+      ['main behind origin', 2, {STUB_BEHIND: '3'}],
+    ])('%s: exits %i', (name, code, change) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-update-check-'));
+      const bin = path.join(dir, 'bin');
+      const repo = path.join(dir, 'repo');
+      const temp = path.join(dir, 'temp');
+      try {
+        for (const folder of [bin, path.join(repo, 'node_modules'), temp]) {
+          fs.mkdirSync(folder, {recursive: true});
+        }
+        for (const [name, text] of Object.entries(stubs)) {
+          fs.writeFileSync(path.join(bin, name), text);
+        }
+        fs.writeFileSync(path.join(repo, '.nvmrc'), '22\n');
+        fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({packageManager: 'pnpm@11.28.0'}));
+        // Installed after the lockfile's last change: no install is due.
+        const lock = path.join(repo, 'pnpm-lock.yaml');
+        const marker = path.join(repo, 'node_modules', '.modules.yaml');
+        fs.writeFileSync(lock, 'lockfileVersion: 9.0\n');
+        fs.writeFileSync(marker, '{}\n');
+        fs.utimesSync(lock, new Date('2026-10-01T10:00:00Z'), new Date('2026-10-01T10:00:00Z'));
+        fs.utimesSync(marker, new Date('2026-10-02T10:00:00Z'), new Date('2026-10-02T10:00:00Z'));
+        const env = {
+          SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: '.COM;.EXE;.BAT;.CMD',
+          PATH: bin, TEMP: temp, TMP: temp, LOCALAPPDATA: temp, APPDATA: temp, USERPROFILE: dir,
+          ...upToDate, ...change,
+        };
+        const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+        const r = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+          '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env});
+        expect(r.stdout).not.toMatch(/failed|stand-in/);
+        expect(r.stdout).toMatch(/WSL: not on this PC/);
+        expect(r.stdout.includes('Run tools\\update-local.ps1 -Apply')).toBe(code === 2);
+        expect(r.status).toBe(code);
+      } finally {
+        fs.rmSync(dir, {recursive: true, force: true});
+      }
+    }, 30000);
+  });
+
   // The Node.js step's download folder goes however the step ends (#244): a declined admin
   // prompt makes Start-Process throw, like the throw here.
   it.runIf(process.platform === 'win32').each([

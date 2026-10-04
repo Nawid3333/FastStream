@@ -58,10 +58,21 @@ function Note([string]$line) {
     $summary.Add($line)
 }
 
+# What the check found that -Apply would change: noted, and the check exits 2, so
+# update-local.cmd offers to apply it. Every such finding goes through here. Until
+# 2026-10-04 the exit code was read off the summary's wording, and the Node.js, npm and
+# pnpm lines ("... is out ...; -Apply installs it") did not match it: the check exited 0
+# and the double-click never asked.
+$script:due = $false
+function Add-Due([string]$line) {
+    Note $line
+    $script:due = $true
+}
+
 # Runs one change, or only names it. A native command's exit code counts.
 function Invoke-Change([string]$what, [scriptblock]$action) {
     if (-not $Apply) {
-        Note "available: $what"
+        Add-Due "available: $what"
         return
     }
     $global:LASTEXITCODE = 0
@@ -139,7 +150,7 @@ Invoke-Step 'Node.js' {
         Note "Node.js ${have}: up to date"
     }
     else {
-        if (-not $Apply) { Note "Node.js ${have}: $want is out (nodejs.org/dist/v$want/); -Apply installs it"; return }
+        if (-not $Apply) { Add-Due "Node.js ${have}: $want is out (nodejs.org/dist/v$want/); -Apply installs it"; return }
         $base = "https://nodejs.org/dist/v$want"
         $file = "node-v$want-x64.msi"
         # Per-run staging directory whose ACL admits only this user, Administrators and
@@ -181,7 +192,7 @@ Invoke-Step 'npm' {
         Note "npm ${have}: up to date"
     }
     elseif (-not $Apply) {
-        Note "npm ${have}: $want is out (npm install --global --ignore-scripts npm@$want); -Apply installs it"
+        Add-Due "npm ${have}: $want is out (npm install --global --ignore-scripts npm@$want); -Apply installs it"
     }
     else {
         Invoke-Change "npm $have -> $want" { & npm install --global --ignore-scripts "npm@$want" }
@@ -195,7 +206,7 @@ Invoke-Step 'pnpm' {
         Note "pnpm ${have}: up to date (package.json pins $pin)"
     }
     elseif (-not $Apply) {
-        Note "pnpm ${have}: $pin is pinned (npm install --global --ignore-scripts pnpm@$pin); -Apply installs it"
+        Add-Due "pnpm ${have}: $pin is pinned (npm install --global --ignore-scripts pnpm@$pin); -Apply installs it"
     }
     else {
         Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global --ignore-scripts "pnpm@$pin" }
@@ -233,7 +244,7 @@ Invoke-Step 'The repository' {
                 Note 'repository: up to date with origin/main'
             }
             elseif (-not $Apply) {
-                Note "repository: $behind behind origin/main (git pull --ff-only); -Apply pulls, then installs"
+                Add-Due "repository: $behind behind origin/main (git pull --ff-only); -Apply pulls, then installs"
                 return
             }
             else {
@@ -359,7 +370,7 @@ Write-Host ''
 Write-Host '== Summary' -ForegroundColor Cyan
 foreach ($line in $summary) { Write-Host "  $line" }
 Write-Host '  Not touched: Firefox (updates itself), mpv (its own repository), the Ubuntu releases in WSL (pnpm run verify:linux).'
-$due = -not $Apply -and ($summary | Where-Object { $_ -match '^(available:|repository:.*behind)' })
+$due = -not $Apply -and $script:due
 if ($due) {
     Write-Host '  Run tools\update-local.ps1 -Apply to bring everything reported above up to date.'
 }
