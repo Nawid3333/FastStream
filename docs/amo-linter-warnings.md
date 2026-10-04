@@ -9,7 +9,7 @@ why the file has not been changed to silence it.
 **The script passes `--self-hosted`.** Without it, addons-linter reports a
 `MANIFEST_UPDATE_URL` error on `browser_specific_settings.gecko.update_url`
 (set in `build.mjs`'s `buildFirefoxAmo()` for this unlisted build's
-self-hosted update checking, documented in `CHECKPOINT.md`) - a real rule,
+self-hosted update checking, documented in `docs/modernisation-checkpoint.md`) - a real rule,
 but one that only applies to add-ons hosted directly on AMO, which this
 isn't. `web-ext lint --help` describes the flag exactly: "Your extension
 will be self-hosted. This disables messages related to hosting on

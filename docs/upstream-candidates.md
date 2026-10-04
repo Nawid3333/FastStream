@@ -2,7 +2,7 @@
 
 **Inactive since 2026-09-10.** Nawid decided to stop tracking upstream
 compatibility as a goal and modernize this fork ("version 4") independently —
-see `CHECKPOINT.md`'s "Open decisions" and `CLAUDE.md`. PRs #548–#551 already
+see `docs/modernisation-checkpoint.md`'s "Open decisions" and `CLAUDE.md`. PRs #548–#551 already
 went out and are tracked below with their final status; nothing past that
 point should be cut or opened without checking first. Kept as a record of
 what was already researched, not as an active queue.
@@ -13,7 +13,7 @@ modernization work.
 
 **Held per project decision:** no PR gets opened until the whole fork is
 done, so Andrew can integrate them one at a time without ever landing on a
-broken intermediate state. See `CHECKPOINT.md`.
+broken intermediate state. See `docs/modernisation-checkpoint.md`.
 
 **Test workflow, once we start cutting these:**
 

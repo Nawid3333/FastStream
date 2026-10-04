@@ -115,9 +115,9 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
 `.claude/settings.json` denies the Read tool on `pnpm-lock.yaml`, `node_modules/`,
 `combined-locales.json`, the vendored libraries under `chrome/player/modules/` (generated from npm
 by the build and gitignored), source maps and build output. `.ignore` keeps the committed ones out
-of Grep and Glob results. `.claudeignore` repeats the list, but Claude Code does not read a file
-with that name (checked against 2.1.278); the two above are what work. The rules load when a
-session starts, so an already-open session keeps reading them.
+of Grep and Glob results. (A `.claudeignore` repeated the list until 2026-10-04; Claude Code
+reads no file with that name, checked against 2.1.278.) The rules load when a session starts,
+so an already-open session keeps reading them.
 
 When one of those files has to be consulted, do not read it whole: run `grep -n` or `sed -n`
 through Bash, or have the ollama helper (`glm-5.3-flash:cloud`, through its HTTP API) pull out the
@@ -1403,8 +1403,9 @@ the change went in.
   Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3);
   since 2026-09-30 that includes the ONNX Runtime wasm, which ships as `onnxruntime-web`
   publishes it.
-- **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
-  labelled `reminder: <month>`, so a parked issue emails its owner in that month.
+- **No `reminders.yml` any more** (removed 2026-10-04): it commented on open issues
+  labelled `reminder: <month>` on the 1st of that month. The only issue that ever carried
+  such a label (#10) was closed, so it had nothing to do.
 - **No `mpv-host-changed.yml` any more** (removed 2026-10-04; it emailed "run install.ps1
   again" through issue #73 after a push that changed the host). The host now sends its
   version with every answer, and the extension says when the installed copy is older: see
