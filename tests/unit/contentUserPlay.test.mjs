@@ -28,8 +28,10 @@ describe('a play the user started', () => {
     const {p, video, plays, activation} = page();
     activation.isActive = true;
     p.dispatchDocument('play', {target: video});
+    // With the page's address as it is now (YouTube in MPV, #338).
     expect(plays()).toEqual([{type: 'MPV_USER_PLAY', src: 'https://cdn.example/episode.mp4',
-      video: {src: 'https://cdn.example/episode.mp4', duration: 1400, playing: 'https://cdn.example/episode.mp4'}}]);
+      video: {src: 'https://cdn.example/episode.mp4', duration: 1400, playing: 'https://cdn.example/episode.mp4'},
+      page: 'https://site.example/page'}]);
   });
 
   it('is reported when the click opened a pop-up first, which used up the activation', () => {
