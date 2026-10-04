@@ -296,6 +296,29 @@ function userTurnedOff(tab) {
 }
 
 /**
+ * Forgets the user's Off (tab.mpvTurnedOff) for a tab whose address the MPV Allowlist
+ * covers now and did not before: putting the site on the list is a fresh decision, and the
+ * tab's next page there goes to MPV as on any listed site. Kept, an Off given on a site
+ * before the user listed it outlived the listing (mpv-shortcut.e2e.mjs, "on a site on the
+ * MPV allowlist"). An entry for another site, or any other option, keeps the Off; so does a
+ * background that has just woken, which has no list from before to compare.
+ * @param {?Array<string>} before - The allowlist's entries before the options changed.
+ */
+function forgetOffsForNewEntries(before) {
+  if (!before) {
+    return;
+  }
+  const old = new UrlMatchList();
+  old.setEntries(before);
+  for (const tab of Tabs.tabs.values()) {
+    if (tab.mpvTurnedOff && tab.url && MpvAllowlist.matches(tab.url) && !old.matches(tab.url)) {
+      tab.mpvTurnedOff = false;
+      Tabs.saveTabState(tab);
+    }
+  }
+}
+
+/**
  * Takes every tab out of MPV while MPV mode is off. That option is the switch for the
  * whole mpv integration, and a tab keeps its mode until something changes it: one in MPV
  * when the option was switched off, or put back so by a woken background, went on handing
@@ -728,7 +751,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse(MessageTypes.PONG);
     return;
   } else if (msg.type === MessageTypes.LOAD_OPTIONS) {
-    loadOptions().then(() => leaveMpvWhenOff()).catch((e) => console.error('Loading the new options failed', e));
+    // The allowlist as this background had it, when it had one (none yet right after a wake).
+    const allowlistBefore = Array.isArray(Options.mpvAllowlist) ? Options.mpvAllowlist : null;
+    loadOptions().then(() => {
+      leaveMpvWhenOff();
+      forgetOffsForNewEntries(allowlistBefore);
+    }).catch((e) => console.error('Loading the new options failed', e));
     // sent to all tabs
     BackgroundUtils.queryTabs().then((tabs) => {
       tabs.forEach((tab) => {

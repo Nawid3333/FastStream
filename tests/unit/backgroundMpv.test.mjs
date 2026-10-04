@@ -1076,6 +1076,37 @@ describe('after the user turned MPV off', () => {
     expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
   });
 
+  it('forgets the Off where the user puts the site on the allowlist afterwards', async () => {
+    // MPV off with its key on a site, then the site put on the MPV Allowlist: a fresh
+    // decision, and its next page goes to MPV. The Off outlived the listing
+    // (mpv-shortcut.e2e.mjs, "on a site on the MPV allowlist").
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: []}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.command('toggle_mpv', 1);
+    await bg.command('toggle_mpv', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: false, mpvTurnedOff: true});
+    bg.options.mpvAllowlist = ['https://site.test/'];
+    await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+    await bg.navigated(1, 'https://site.test/watch/2');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true, mpvTurnedOff: false});
+  });
+
+  it('keeps the Off when the allowlist changes for another site only', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: true});
+    // MPV -> Off with the toolbar.
+    await bg.click(1);
+    bg.options.mpvAllowlist = ['https://site.test/', 'https://other.test/'];
+    await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: false, mpvTurnedOff: true});
+  });
+
   it('a page on the auto-enable list too gets the in-page player there, not MPV', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch'],
       autoEnableURLs: ['https://site.test/watch']}, tabs: [{id: 1, url: PAGE}]});
