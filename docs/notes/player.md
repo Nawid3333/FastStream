@@ -115,6 +115,13 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
   downloader limit) while the converter reads the current one, in order; the `catch` calls
   its `cancel()`, which aborts what is still downloading for the save.
+- **A partial save keeps the time of the fragments it lacks** (2026-10-04, #224). Both
+  writers place samples one after the other, so a hole would close up. `MP4Merger` (DASH)
+  and `HLS2MP4` (HLS) stretch the last sample before a hole until the next fragment's
+  decode time. In HLS that is only within one timeline (same `cc`, a jump in `sn`): at an
+  `EXT-X-DISCONTINUITY` the clock starts over, and the pieces are written back to back. An
+  audio rendition has holes of its own, and without the padding it played out of step with
+  the video after the first one (`hls2mp4.test.mjs`, "discontinuities").
 - **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
   nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
   downloader stays busy for good.
