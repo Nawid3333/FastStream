@@ -6,6 +6,7 @@
 // Usage: node tools/newest-release.mjs node <major>    the newest Node.js <major>.x
 //        node tools/newest-release.mjs npm <package>   the newest release of an npm package,
 //                                                       from its latest major down
+//        node tools/newest-release.mjs wsl             WSL's latest release (microsoft/WSL)
 // Prints the version, or nothing when no release is old enough.
 
 import path from 'node:path';
@@ -17,6 +18,7 @@ const DAY = 24 * 60 * 60 * 1000;
 // The only hosts this tool talks to; `name` never leaves them (CodeQL js/request-forgery).
 const NODE_INDEX_URL = 'https://nodejs.org/dist/index.json';
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
+const WSL_RELEASE_URL = 'https://api.github.com/repos/microsoft/WSL/releases/latest';
 
 /**
  * @param {Array<{version: string, date: string}>} index - nodejs.org/dist/index.json, newest first.
@@ -34,13 +36,34 @@ export function newestNode(index, major, now, minAgeDays = MIN_AGE_DAYS) {
 }
 
 /**
- * Whether getJson may fetch this URL: nodejs.org's release index itself, or a package
- * document on the npm registry (CodeQL js/request-forgery).
+ * Whether getJson may fetch this URL: nodejs.org's release index itself, WSL's latest
+ * release on GitHub, or a package document on the npm registry (CodeQL js/request-forgery).
  * @param {URL} url
  * @return {boolean}
  */
 export function isPinnedUrl(url) {
-  return url.href === NODE_INDEX_URL || (url.origin + url.pathname).startsWith(NPM_REGISTRY);
+  return url.href === NODE_INDEX_URL || url.href === WSL_RELEASE_URL ||
+    (url.origin + url.pathname).startsWith(NPM_REGISTRY);
+}
+
+/**
+ * WSL's latest release, once it is old enough. GitHub's "latest" is never a pre-release
+ * or a draft; one marked so is skipped all the same.
+ * @param {{tag_name?: string, published_at?: string, prerelease?: boolean, draft?: boolean}} release
+ *     - api.github.com/repos/microsoft/WSL/releases/latest.
+ * @param {number} now - Date.now().
+ * @param {number} [minAgeDays]
+ * @return {string|null} Its version, or null while it is too new. Throws for a tag that
+ *     is not a plain version number: update-local.ps1 compares it and prints it.
+ */
+export function newestWsl(release, now, minAgeDays = MIN_AGE_DAYS) {
+  const version = release && release.tag_name;
+  if (typeof version !== 'string' || !/^\d+(\.\d+){1,3}$/.test(version)) {
+    throw new Error(`microsoft/WSL's latest release is tagged '${version}', not a version number`);
+  }
+  if (release.prerelease || release.draft) return null;
+  const published = Date.parse(release.published_at || '');
+  return published <= now - minAgeDays * DAY ? version : null;
 }
 
 /**
@@ -66,7 +89,7 @@ async function getJson(url) {
   // (Until #167 a precedence slip made this check pass every URL.)
   const parsed = new URL(url);
   if (!isPinnedUrl(parsed)) {
-    throw new Error(`getJson refuses ${url}: not ${NODE_INDEX_URL} or a package on ${NPM_REGISTRY}`);
+    throw new Error(`getJson refuses ${url}: not ${NODE_INDEX_URL}, ${WSL_RELEASE_URL} or a package on ${NPM_REGISTRY}`);
   }
   const response = await fetch(parsed, {headers: {'accept': 'application/json', 'user-agent': 'faststream-update-local'}});
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
@@ -82,8 +105,10 @@ async function main() {
     // Exactly one or two path segments, percent-encoded: the scoped name stays on the
     // pinned registry host (CodeQL js/request-forgery).
     version = newestPackage(await getJson(new URL(encodeURIComponent(name), NPM_REGISTRY)), Date.now());
+  } else if (what === 'wsl') {
+    version = newestWsl(await getJson(WSL_RELEASE_URL), Date.now());
   } else {
-    throw new Error('usage: node tools/newest-release.mjs node <major> | npm <package>');
+    throw new Error('usage: node tools/newest-release.mjs node <major> | npm <package> | wsl');
   }
   if (version) console.log(version);
 }

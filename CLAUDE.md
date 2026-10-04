@@ -155,8 +155,14 @@ and exits 2 when something is due; the .cmd then asks "Update these now?" and Y 
 `-Apply` (Node: nodejs.org MSI, SHA-256 checked and OpenJS-signed, staged in a folder
 `tools/update-local-lib.ps1` locks to the user, Administrators and SYSTEM by SID (names are
 localized: "Administratoren" broke it on the owner's German Windows, 2026-10-03), admin
-prompt). The installs run only when a lockfile changed after the last install. Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
-repository, Nawid3333/mpv, with its own updater) or WSL.
+prompt). The installs run only when a lockfile changed after the last install. WSL too
+(2026-10-04, instead of `wsl-releases.yml`'s issues): `wsl.exe --version` against
+microsoft/WSL's latest release once it is 5 days old (`newest-release.mjs wsl`), and
+`-Apply` runs `wsl --update`, then `wsl --shutdown` (which stops a running `verify:linux`).
+`WSL_UTF8=1` for those calls: wsl.exe otherwise writes UTF-16, read as a NUL after every
+character (`ConvertFrom-WslVersionText` drops them all the same, and reads the number, not
+the localized label). Never Firefox, mpv (`C:\Program Files\mpv` is the owner's own
+repository, Nawid3333/mpv, with its own updater) or the Ubuntu releases inside WSL.
 
 ## Manual playback testing
 
@@ -1413,12 +1419,9 @@ the change went in.
   version with every answer, and the extension says when the installed copy is older: see
   "The host's version" under "MPV mode and the native host". `update-local.cmd` installs
   it again.
-- **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
-  and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
-  microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:
-  <version>" with the update commands, assigned + @mention. It can't close itself (GitHub
-  can't see the PC): the owner closes it; a title is never used twice; a newer release
-  closes the open one. Permissions: `issues: write` only, no checkout.
+- **No `wsl-releases.yml` any more** (removed 2026-10-04; it opened an issue "WSL update:
+  <version>" for each microsoft/WSL release, which the owner closed by hand, GitHub not
+  seeing the PC). `update-local.cmd` checks WSL itself now: see "Commands".
 - **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
   (`e2e-retried` and `e2e-retried-windows` artifacts, all of this repository's branches, the
   last 7 days; never a fork's pull request, whose CI run writes the list with its own code,

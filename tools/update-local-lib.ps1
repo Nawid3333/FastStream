@@ -1,5 +1,5 @@
 # Dot-sourced by update-local.ps1 (and its test): New-PrivateDirectory,
-# Invoke-InPrivateDirectory, Test-ChangedSince.
+# Invoke-InPrivateDirectory, Test-ChangedSince, ConvertFrom-WslVersionText.
 
 # Windows PowerShell started under PowerShell 7 - by cmd.exe or node in a PowerShell 7
 # terminal, as VS Code's is - inherits 7's module folders ahead of its own, and then fails to
@@ -54,4 +54,21 @@ function Invoke-InPrivateDirectory([string]$Path, [scriptblock]$Body) {
     finally {
         Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
     }
+}
+
+# The WSL version in what `wsl.exe --version` prints: the number on its first line with
+# text, "WSL version: 2.6.1.0" ("WSL-Version: 2.6.1.0" on German Windows, so the label is
+# not read). Without WSL_UTF8=1 wsl.exe writes UTF-16, which Windows PowerShell reads as a
+# NUL after every character: those are dropped. $null for text whose first line has no
+# version, as the help an old wsl.exe prints for an option it does not know.
+function ConvertFrom-WslVersionText([string]$Text) {
+    $clean = $Text -replace [string][char]0, ''
+    foreach ($line in ($clean -split '\r?\n')) {
+        if ($line.Trim()) {
+            $m = [regex]::Match($line, '\d+(\.\d+){1,3}')
+            if ($m.Success) { return $m.Value }
+            return $null
+        }
+    }
+    return $null
 }
