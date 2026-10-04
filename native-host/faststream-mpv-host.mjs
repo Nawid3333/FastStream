@@ -10,6 +10,7 @@
 //   {type: 'ping', mpvPath?}      -> {ok, mpv, path}
 //   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?,
 //    pageUrl?, title?, start?, subtitles?} -> {ok, error?}
+// Every answer also carries hostVersion (HostVersion below).
 //
 // title is the tab's title for mpv's window, start the position to start at, subtitles
 // the player's tracks as SubRip text ([{label, srt}]), and singleInstance loads the
@@ -45,6 +46,15 @@ import net from 'net';
 import * as url from 'url';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
+
+// Which host this is, sent with every answer. A PC runs the copy install.ps1 made, which
+// a `git pull` leaves alone, so the extension compares this with the version it was
+// released with (RequiredHostVersion in chrome/background/MpvBackend.mjs) and says so
+// when the installed host is older: on the toolbar button, the player's mpv button and
+// "Test mpv connection". Raise it by one with every change to this file, together with
+// RequiredHostVersion and the hash in tests/unit/mpvHostVersion.test.mjs, which fails
+// until all three agree.
+export const HostVersion = 1;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -218,6 +228,15 @@ export function resolveMpvPath(messagePath) {
 }
 
 /**
+ * An answer as it goes to the extension: with this host's version.
+ * @param {Object} message - The answer.
+ * @return {Object} The answer with hostVersion.
+ */
+export function withHostVersion(message) {
+  return {...message, hostVersion: HostVersion};
+}
+
+/**
  * Writes one native-messaging frame and resolves once it has actually been
  * flushed. stdout is a pipe here, so writes are asynchronous -- calling
  * process.exit() straight after one can truncate the reply and leave the
@@ -226,7 +245,7 @@ export function resolveMpvPath(messagePath) {
  * @return {Promise<void>} Resolves when the frame has been flushed.
  */
 function sendMessage(message) {
-  const payload = Buffer.from(JSON.stringify(message), 'utf8');
+  const payload = Buffer.from(JSON.stringify(withHostVersion(message)), 'utf8');
   const header = Buffer.alloc(4);
   header.writeUInt32LE(payload.length, 0);
   return new Promise((resolve) => {

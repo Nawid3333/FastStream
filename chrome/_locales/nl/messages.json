@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - de stream is niet geopend: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - de mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository"
+    },
+    "options_mpv_test_outdated": {
+        "message": "De mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Verzonden naar mpv. De mpv-host op deze computer is verouderd: voer update-local.cmd (of native-host\\install.ps1) uit in de FastStream-repository."
+    },
     "player_mpv_content_unset": {
         "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
     },

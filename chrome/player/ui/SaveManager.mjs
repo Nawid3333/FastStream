@@ -115,7 +115,12 @@ export class SaveManager {
       const reason = response && !response.ok && !response.noHost && typeof response.error === 'string' ?
         response.error : '';
       if (response && response.ok) {
-        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
+        // An outdated host still got the stream; say that it wants installing again.
+        if (response.hostOutdated) {
+          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent_outdated'), 'warning', 8000);
+        } else {
+          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
+        }
         // mpv has the stream now, so stop playing it here too: otherwise both
         // players run at once and the user has to come back just to pause.
         if (this.client.options.mpvPausePage) {

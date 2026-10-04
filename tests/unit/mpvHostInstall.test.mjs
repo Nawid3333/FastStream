@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
+import {HostVersion} from '../../native-host/faststream-mpv-host.mjs';
 
 // install.ps1 wrote its files with -Encoding ASCII, which Windows PowerShell 5.1 turns into
 // '?' for every other character: under a user folder like C:\Users\José, the config's mpv
@@ -115,7 +116,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 under a folder name th
 
     // The config's mpv path, read back by the host itself.
     const reply = await ask(manifest.path, {type: 'ping'});
-    expect(reply).toEqual({ok: true, mpv: true, path: mpv});
+    expect(reply).toEqual({ok: true, mpv: true, path: mpv, hostVersion: HostVersion});
   }, 60000);
 });
 
@@ -136,8 +137,8 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
     expect(config).toEqual({mpvPath: mpv, debug: true, ipcToken: expect.stringMatching(/^[0-9a-f]{32}$/)});
   }, 60000);
 
-  // mpv-host-changed.yml's reminder says to run it without -MpvPath: the default came back
-  // over an mpv elsewhere, and "Send to mpv" failed (#241).
+  // A reinstall run by hand has no -MpvPath: the default came back over an mpv elsewhere,
+  // and "Send to mpv" failed (#241).
   it('keeps the configured mpv path when run without -MpvPath', async () => {
     const installDir = path.join(dir, 'FastStreamMpvHost');
     fs.mkdirSync(installDir, {recursive: true});
@@ -200,7 +201,7 @@ describe.runIf(process.platform === 'win32')('install.ps1 under unusual folder n
     await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', mpv, '-NodePath', process.execPath]);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'com.faststream.mpv.json'), 'utf8'));
-    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv});
+    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv, hostVersion: HostVersion});
   }, 60000);
 
   // With -Path, PowerShell reads [ ] as a wildcard: the host script was "not found" in a
@@ -222,6 +223,6 @@ describe.runIf(process.platform === 'win32')('install.ps1 under unusual folder n
     expect(output).not.toContain('mpv not found');
     expect(fs.existsSync(path.join(installDir, 'faststream-mpv-host.mjs'))).toBe(true);
     const manifest = JSON.parse(fs.readFileSync(path.join(installDir, 'com.faststream.mpv.json'), 'utf8'));
-    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv});
+    expect(await ask(manifest.path, {type: 'ping'})).toEqual({ok: true, mpv: true, path: mpv, hostVersion: HostVersion});
   }, 60000);
 });

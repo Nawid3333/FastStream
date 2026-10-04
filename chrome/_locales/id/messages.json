@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - stream tidak terbuka: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream"
+    },
+    "options_mpv_test_outdated": {
+        "message": "Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+    },
     "player_mpv_content_unset": {
         "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"
     },

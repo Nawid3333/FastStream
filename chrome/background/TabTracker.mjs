@@ -243,6 +243,11 @@ export class TabHolder {
     // ("!" and the reason in the tooltip); null after one that worked or a new page.
     /** @type {?string} */
     this.mpvError = null;
+    // Whether the mpv host's last answer in this tab came from an outdated host
+    // (MpvBackend's RequiredHostVersion): the button then shows "!" after a hand-off that
+    // worked too, and its tooltip says to install the host again.
+    /** @type {boolean} */
+    this.mpvHostOutdated = false;
     this.url = '';
     // Popup/popunder guard: set by content.js when focus moves into one of
     // this tab's player iframes (the click that ad sites hook via a
@@ -551,14 +556,15 @@ const TabStateKeyPrefix = 'tabState:';
 // the same lifetime tab ids have) so a woken background still knows it.
 // mpvAutoOpened goes with it: without it the page's next stream request after a
 // wake opens a second mpv window for a page already handed off. mpvOnPlay too,
-// or a woken background forwards the page's first stream after all. mpvError, or the
-// toolbar's "!" for a failed hand-off went at the wake. And a play still waiting for its
+// or a woken background forwards the page's first stream after all. mpvError and
+// mpvHostOutdated, or the toolbar's "!" for a failed hand-off or an outdated host went at
+// the wake. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
 // which keeps a player's second play() from opening a second window). The rest of a
 // TabHolder - frames, detected sources - describes the current page and is
 // rebuilt as that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
-  'mpvError', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend'];
+  'mpvError', 'mpvHostOutdated', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend'];
 
 export class TabTracker {
   constructor() {

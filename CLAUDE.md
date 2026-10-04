@@ -548,6 +548,22 @@ registers the host under `HKCU\Software\Mozilla\NativeMessagingHosts`.
 Editing `native-host/faststream-mpv-host.mjs` in the repo changes nothing
 until it is copied to the install directory — a rebuild does **not** ship it.
 
+**The host's version (2026-10-04).** `HostVersion` in the host goes out with every answer
+(`withHostVersion`), and `RequiredHostVersion` in `MpvBackend.mjs` is the host the
+extension was released with. An answer with a lower version, or with none (a host from
+before this), is an outdated host (`MpvBackend.isHostOutdated`): the stream still goes
+to it, and the result carries `hostOutdated`. That shows as "!" on the toolbar button
+in MPV mode with what to run in the tooltip (`tab.mpvHostOutdated`, persisted like
+`mpvError`, whose reason comes first), in the player's "Sent to mpv" message, and after
+"Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
+the host file raises both numbers by one**: `tests/unit/mpvHostVersion.test.mjs` records
+the host file's SHA-256 beside its version and fails until `HostVersion`,
+`RequiredHostVersion` and the recorded pair agree (the failure prints the new hash). The
+extension changes with it, so such a push releases, Firefox updates the extension, and
+the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
+`install.ps1`) has run. The hash check is skipped in Stryker's sandbox, whose copy of
+the host holds every mutant.
+
 **Only http(s) goes to mpv, and a bare `mpv` is looked up (2026-09-28).** mpv opens
 local files and UNC paths too, and a UNC path makes Windows sign in to that host with
 the user's credentials. The player page is web-accessible, so a page could build a
@@ -1389,13 +1405,11 @@ the change went in.
   publishes it.
 - **`reminders.yml`** (1st of each month) comments with an @mention on every open issue
   labelled `reminder: <month>`, so a parked issue emails its owner in that month.
-- **`mpv-host-changed.yml`** (a push to `main` changing `native-host/faststream-mpv-host.mjs`
-  or `native-host/install.ps1`): the helper runs from the copy install.ps1 puts in
-  `%LOCALAPPDATA%\FastStreamMpvHost`, which a `git pull` leaves alone, so it comments with
-  an @mention on the reminder issue #73: run install.ps1 again, then restart Firefox. Reads
-  each pushed commit's files from the commits API, no checkout; `issues: write` only. The
-  push payload Actions gets lists the commits without their files (no `added`, `modified`
-  or `removed`), which failed its first run on 2026-09-30.
+- **No `mpv-host-changed.yml` any more** (removed 2026-10-04; it emailed "run install.ps1
+  again" through issue #73 after a push that changed the host). The host now sends its
+  version with every answer, and the extension says when the installed copy is older: see
+  "The host's version" under "MPV mode and the native host". `update-local.cmd` installs
+  it again.
 - **`wsl-releases.yml`** (daily, 06:00 UTC): WSL on the owner's PC runs `verify:linux`,
   and nothing updates it (setup.sh updates only the Ubuntu inside). For each new
   microsoft/WSL release (pre-releases not counted) it opens one issue "WSL update:

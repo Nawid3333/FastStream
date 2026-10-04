@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
+import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // MPV mode through the background's real listeners: the shortcut's MPV (only a video the
@@ -360,7 +361,7 @@ describe('a failed hand-off', () => {
     await bg.navigated(1, PAGE);
     await bg.request({tabId: 1, url: AD});
     expect(bg.badges.get(1)).toBe('!');
-    answer = {ok: true};
+    answer = {ok: true, hostVersion: RequiredHostVersion};
     await bg.request({tabId: 1, url: EPISODE});
     expect(bg.toMpv()).toEqual([AD, EPISODE]);
     expect(bg.badges.get(1)).toBe('');
@@ -370,5 +371,66 @@ describe('a failed hand-off', () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: PAGE}], session});
     expect(bg.badges.get(1)).toBe('');
+  });
+});
+
+// The host is not part of the extension: the copy a PC runs stays as it is through an
+// extension update and a `git pull`. Until 2026-10-04 an e-mail said to install it again;
+// now the button does, where MPV mode is used.
+describe('an outdated mpv host', () => {
+  const OUTDATED = 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+    'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository';
+
+  it('gets the stream, and the toolbar says to install the host again', async () => {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      // A host from before it sent its version.
+      onNative: () => ({ok: true}),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toBe(OUTDATED);
+    const session = bg.session;
+    bg.unload();
+
+    // And still after the event page restarted, as a failed hand-off's "!" does.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}], session});
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toBe(OUTDATED);
+  });
+
+  it('shows the reason first when the hand-off failed as well', async () => {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: () => ({ok: false, error: 'mpv executable not found'}),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toBe('FastStream - MPV - the stream did not open: mpv executable not found');
+  });
+
+  it('is forgotten once the host answers as a current one', async () => {
+    let answer = {ok: true, hostVersion: RequiredHostVersion - 1};
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: () => answer,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    expect(bg.badges.get(1)).toBe('!');
+    // The host was installed again; the next page's stream goes through the new one.
+    answer = {ok: true, hostVersion: RequiredHostVersion};
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([AD, EPISODE]);
+    expect(bg.badges.get(1)).toBe('');
+    expect(bg.titles.get(1)).toBe('FastStream - Playing in MPV');
   });
 });
