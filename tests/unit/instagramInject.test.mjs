@@ -14,7 +14,7 @@ import source from '../../chrome/custom/instagram_inject.js?raw';
  * Runs the script against a stand-in XMLHttpRequest, and the page's fetch.
  * @param {function(...*): Promise<Response>} [fetch] - The page's fetch.
  * @return {{posted: Array<Object>, errors: Array<Array<*>>, respond: function(string): void,
- *   window: {fetch: function(...*): Promise<Response>}}}
+ *   window: {fetch: function(...*): Promise<Response>}, XHR: Function}}
  */
 function load(fetch) {
   const posted = [];
@@ -41,6 +41,7 @@ function load(fetch) {
     posted,
     errors,
     window: context.window,
+    XHR: context.XMLHttpRequest,
     respond(text) {
       const xhr = new context.XMLHttpRequest();
       xhr.open('GET', '/graphql');
@@ -85,6 +86,40 @@ describe('instagram_inject.js', () => {
     const page = load();
     page.respond('{"data": {"user": 1}}');
     expect(page.errors).toEqual([]);
+  });
+
+  /**
+   * A finished request of another responseType, whose responseText throws as a browser's
+   * does for anything but '' and 'text'.
+   * @param {Object} page - load()'s result.
+   * @param {string} type - The responseType.
+   * @param {*} response - xhr.response.
+   */
+  function respondAs(page, type, response) {
+    const xhr = new page.XHR();
+    xhr.open('GET', '/graphql');
+    xhr.readyState = 4;
+    xhr.responseType = type;
+    xhr.response = response;
+    Object.defineProperty(xhr, 'responseText', {get() {
+      throw new Error('InvalidStateError: responseText is only for a text response');
+    }});
+    for (const listener of xhr.listeners) listener({});
+  }
+
+  it('reads a JSON-typed response from its parsed value, never its responseText', () => {
+    // Read responseText for every non-arraybuffer request: a 'json' one threw in the page.
+    const page = load();
+    expect(() => respondAs(page, 'json', {a: {video_dash_manifest: '<MPD/>'}})).not.toThrow();
+    expect(page.posted).toEqual([{type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'}]);
+    expect(() => respondAs(page, 'json', null)).not.toThrow();
+  });
+
+  it('leaves a blob or document response alone', () => {
+    const page = load();
+    expect(() => respondAs(page, 'blob', {})).not.toThrow();
+    expect(() => respondAs(page, 'document', {})).not.toThrow();
+    expect(page.posted).toEqual([]);
   });
 });
 

@@ -38,9 +38,13 @@
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   const overlayPlayers = [];
-  // What fillScreenIframe changed: each element, with the style attribute it had. A Map,
-  // as each element is looked up in it: an array made a page of 30,000 elements take
-  // seconds on its main thread (an array lookup per element, and a splice per one undone).
+  // What fillScreenIframe changed: each element, with what it gets back. A Map, as each
+  // element is looked up in it: an array made a page of 30,000 elements take seconds on its
+  // main thread (an array lookup per element, and a splice per one undone). What holds the
+  // player gets its whole style attribute back ({style}); a hidden element only its display
+  // ({display, priority}), as display is all that hid it: putting its whole old attribute
+  // back also put back the overlay guard's visibility: hidden, which the guard had given
+  // back meanwhile, and the element stayed hidden for good.
   const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
@@ -355,7 +359,7 @@
   }
 
   function findIframeWithWindow(win) {
-    const iframes = querySelectorAllIncludingShadows('iframe');
+    const iframes = querySelectorAllInAllShadows('iframe');
     for (let i = 0; i < iframes.length; i++) {
       if (iframes[i].contentWindow === win) {
         return iframes[i];
@@ -493,7 +497,10 @@
             updateReplacedPlayers();
           }
         });
-        pobj.resizeObserver.observe(iframe.parentNode);
+        // An element: a video straight in a shadow root put the player there, with the root
+        // as its parent, which a ResizeObserver refuses. The throw left the player without
+        // one: it followed the window's size, but not its box on the page.
+        pobj.resizeObserver.observe(iframe.parentElement || iframe.parentNode.host);
       }
     }).catch((e) => {
       // Whatever went wrong, the background hears back: without an answer it kept the
@@ -714,10 +721,11 @@
    */
   function pauseAllMedia() {
     let paused = 0;
-    // Shadow roots too: a player built as a web component keeps its <video> in one.
-    querySelectorAllIncludingShadows('video, audio', document.documentElement).forEach((media) => {
+    // Shadow roots too, closed ones as well: a player built as a web component keeps its
+    // <video> in one.
+    querySelectorAllInAllShadows('video, audio', document.documentElement).forEach((media) => {
       try {
-        if (!media.paused) {
+        if (!media.paused && !playsLiveStream(media)) {
           media.pause();
           paused++;
         }
@@ -726,6 +734,17 @@
       }
     });
     return paused;
+  }
+
+  /**
+   * Whether a media element plays a MediaStream (srcObject): a call's or a camera's, live.
+   * Neither mpv's pause nor the hold below is for it: a watch party's voice chat in the
+   * same tab fell silent, and again on every play, while FastStream's player played.
+   * @param {HTMLMediaElement} media - The element.
+   * @return {boolean}
+   */
+  function playsLiveStream(media) {
+    return typeof MediaStream !== 'undefined' && media.srcObject instanceof MediaStream;
   }
 
   // While a FastStream player in this tab plays, the page's own media stays paused
@@ -748,16 +767,20 @@
 
   function pauseHeldMedia(e) {
     const media = e.target;
-    if (pageMediaHeld && media && (media.tagName === 'VIDEO' || media.tagName === 'AUDIO')) {
+    if (pageMediaHeld && media && (media.tagName === 'VIDEO' || media.tagName === 'AUDIO') &&
+        !playsLiveStream(media)) {
       media.pause();
     }
   }
 
   function removePlayers() {
     MiniplayerCooldown = Date.now() + 1000;
-    // The players go, and with them the reason to hold the page's media.
-    pageMediaHeld = false;
-    OverlayGuard.releaseAll();
+    // The hold on the page's media is not ended here: the background ends it once the
+    // playing player's frame goes (the sweep below reports it, and so does the player's own
+    // pagehide). This frame may hold only the frame of a player that plays on: a
+    // REMOVE_PLAYERS reaches the top frame alone (a same-site URL change), a click on a
+    // link only its own frame, and a player in a site's embed stays up. Ending the hold
+    // here let the page's media play under it.
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
       // The iframe's own style too, which only leaving windowed fullscreen gives back: an
@@ -795,6 +818,11 @@
         });
       }
     });
+
+    // What the overlay guard hid over an iframe now out of the page comes back. Over an
+    // iframe still here, a site's embed with a player of its own that stays up, it stays
+    // hidden: released, the site's bar went back over that player.
+    OverlayGuard.releaseGone();
   }
 
   /**
@@ -965,7 +993,13 @@
     const only = whitelist ? new Set(whitelist) : null;
     elementsChangedByFillscreen.forEach((old, element) => {
       if (!only || only.has(element)) {
-        element.setAttribute('style', old);
+        if (old.style !== undefined) {
+          element.setAttribute('style', old.style);
+        } else if (old.display) {
+          element.style.setProperty('display', old.display, old.priority);
+        } else {
+          element.style.removeProperty('display');
+        }
         elementsChangedByFillscreen.delete(element);
       }
     });
@@ -1037,9 +1071,11 @@
         if (elementsChangedByFillscreen.has(element)) {
           return;
         }
-        const oldstyle = element.getAttribute('style') || '';
+        elementsChangedByFillscreen.set(element, {
+          display: element.style.getPropertyValue('display'),
+          priority: element.style.getPropertyPriority('display'),
+        });
         element.style.setProperty('display', 'none', 'important');
-        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
 
@@ -1050,9 +1086,8 @@
         if (elementsChangedByFillscreen.has(element)) {
           return;
         }
-        const oldstyle = element.getAttribute('style') || '';
+        elementsChangedByFillscreen.set(element, {style: element.getAttribute('style') || ''});
         element.setAttribute('style', expandStyle);
-        elementsChangedByFillscreen.set(element, oldstyle);
         addedElements.push(element);
       });
     }
@@ -1485,7 +1520,17 @@
     return querySelectorAllIncludingShadows('iframe').some((iframe) => iframe.src.startsWith(playerUrl));
   }
 
-  function querySelectorAllIncludingShadows(query, currentElement = document.body, results = []) {
+  /**
+   * Every element matching a query, those in open shadow roots too.
+   * @param {string} query - The selector.
+   * @param {?Element|DocumentFragment} [currentElement] - Where to look; the body by default.
+   * @param {Element[]} [results] - Where to put what is found.
+   * @param {function(Element): ?ShadowRoot} [shadowOf] - The shadow root to look into, of
+   *   an element: its open one by default (querySelectorAllInAllShadows: closed ones too).
+   * @return {Element[]}
+   */
+  function querySelectorAllIncludingShadows(query, currentElement = document.body, results = [],
+      shadowOf = (el) => el.shadowRoot) {
     if (!currentElement) {
       return results;
     }
@@ -1494,8 +1539,9 @@
 
     const allElements = currentElement.querySelectorAll('*');
     Array.from(allElements).forEach((el) => {
-      if (el.shadowRoot) {
-        querySelectorAllIncludingShadows(query, el.shadowRoot, results);
+      const shadow = shadowOf(el);
+      if (shadow) {
+        querySelectorAllIncludingShadows(query, shadow, results, shadowOf);
       }
     });
 
@@ -1504,11 +1550,28 @@
     // shadow root added it while FastStream's player was up, and pauseAllWithin's observer,
     // which looks inside each added element, never paused it. Last, so what the walk above
     // found keeps its place.
-    if (currentElement.shadowRoot) {
-      querySelectorAllIncludingShadows(query, currentElement.shadowRoot, results);
+    const own = shadowOf(currentElement);
+    if (own) {
+      querySelectorAllIncludingShadows(query, own, results, shadowOf);
     }
 
     return results;
+  }
+
+  /**
+   * querySelectorAllIncludingShadows into closed shadow roots as well, which Firefox opens
+   * to a content script (openOrClosedShadowRoot; shadowRoot is null for a closed one). For
+   * what is paused or looked up there - the page's media, a frame's iframe - not for where
+   * a player goes. The listeners for a play already went into closed roots
+   * (listenInShadowRoots), so a play there was heard, and sent to mpv, but nothing paused
+   * it: it played on beside mpv (PAUSE_MEDIA) and under FastStream's player
+   * (HOLD_PAGE_MEDIA), and an embed's iframe in one never linked up.
+   * @param {string} query - The selector.
+   * @param {?Element|DocumentFragment} [root] - Where to look; the body by default.
+   * @return {Element[]}
+   */
+  function querySelectorAllInAllShadows(query, root = document.body) {
+    return querySelectorAllIncludingShadows(query, root, [], (el) => el.openOrClosedShadowRoot || el.shadowRoot);
   }
 
   function getParentElement(element) {
@@ -2163,7 +2226,7 @@
   // Pressing the shortcut while already watching a video the user started
   // counts as starting it now.
   function reportPlayingUserVideo() {
-    for (const video of querySelectorAllIncludingShadows('video')) {
+    for (const video of querySelectorAllInAllShadows('video')) {
       if (userStartedVideos.has(video) && !video.paused && !video.ended) {
         reportUserPlay(video);
         return true;
@@ -2219,6 +2282,47 @@
     }, 0);
   }, true);
 
+  // Firefox fires beforeunload for a navigation that then never happens: a link answered
+  // with a download or a 204, a "Leave page?" the user said no to (this listener runs
+  // before the page's). The page stays, but the background was told it left: it forgot the
+  // page's frames and their streams, and refused every player the page opened after that,
+  // as one of a gone page (TabHolder.isPlayerOfGoneDocument), until a reload. So a page
+  // still here a moment later names itself again, as one the back-forward cache gives back
+  // does (pageshow, below), and from then on reports its leaving on pagehide too.
+  //
+  // The report itself stays at beforeunload, not pagehide. The next page's own load can be
+  // its stream (a proxy link opened in the tab, embed-page-query.e2e.mjs), detected as its
+  // answer comes in, which is before the old page's pagehide. Told at beforeunload, the
+  // background has let go of the old page's frame by then: kept, a frame holding a player
+  // dropped that stream (onHeadersReceived's hasPlayer), and the old page's late leave took
+  // it away with that page (FRAME_ADDED keeps only what the frame already has). A load that
+  // takes longer than LeaveSettledMs gets the pagehide report, and loses that ordering.
+  const LeaveSettledMs = 2000;
+  // 'here'; 'left', told at beforeunload; or 'back', named again after a leave that never
+  // happened.
+  let leaveState = 'here';
+  let leaveTimer = null;
+
+  /** Names this page to the background (FRAME_ADDED). */
+  function nameThisPage() {
+    notifyBackground({
+      type: MessageTypes.FRAME_ADDED,
+      url: window.location.href,
+      document: DocumentKey,
+    });
+  }
+
+  /** Tells the background this page left its frame (FRAME_REMOVED). */
+  function reportLeaving() {
+    leaveState = 'left';
+    // The page's name: this message can reach the background after the next page's
+    // FRAME_ADDED, and must not make it forget that page's frame.
+    notifyBackground({
+      type: MessageTypes.FRAME_REMOVED,
+      document: DocumentKey,
+    });
+  }
+
   window.addEventListener('beforeunload', () => {
     // FRAME_REMOVED makes the background forget this frame and its sources. For the
     // redirect to the player that is exactly wrong: the player loads in this same frame
@@ -2226,12 +2330,26 @@
     if (RedirectingToPlayer) {
       return;
     }
-    // The page's name: this message can reach the background after the next page's
-    // FRAME_ADDED, and must not make it forget that page's frame.
-    notifyBackground({
-      type: MessageTypes.FRAME_REMOVED,
-      document: DocumentKey,
-    });
+    if (leaveState !== 'left') {
+      reportLeaving();
+    }
+    const timer = setTimeout(() => {
+      if (leaveTimer === timer && leaveState === 'left') {
+        leaveTimer = null;
+        leaveState = 'back';
+        nameThisPage();
+      }
+    }, LeaveSettledMs);
+    leaveTimer = timer;
+  });
+
+  window.addEventListener('pagehide', () => {
+    // Gone, or into the back-forward cache, which names the page again itself (pageshow).
+    clearTimeout(leaveTimer);
+    leaveTimer = null;
+    if (leaveState === 'back' && !RedirectingToPlayer) {
+      reportLeaving();
+    }
   });
 
   // Firefox's back-forward cache gives this page back, content script and all, after
@@ -2244,11 +2362,13 @@
       return;
     }
     RedirectingToPlayer = false;
-    notifyBackground({
-      type: MessageTypes.FRAME_ADDED,
-      url: window.location.href,
-      document: DocumentKey,
-    });
+    leaveState = 'here';
+    // A hold from before it left can be stale: its end, sent to the tab's frames while this
+    // page was in the cache, never reached it, and its frames would go on pausing every
+    // play, the site's own player in its embed included. The background holds it again if
+    // a player still plays: naming the page (below) makes it tell every frame (FRAME_ADDED).
+    pageMediaHeld = false;
+    nameThisPage();
   });
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -2257,9 +2377,5 @@
     });
   });
 
-  notifyBackground({
-    type: MessageTypes.FRAME_ADDED,
-    url: window.location.href,
-    document: DocumentKey,
-  });
+  nameThisPage();
 })();

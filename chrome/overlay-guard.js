@@ -7,8 +7,8 @@
 // full-page iframe, the embedding page's bar stayed on top of FastStream.
 //
 // While a player is up, each frame of its chain hides what it paints over the iframe it
-// holds, and gives it back when the player goes (releaseAll, from removePlayers) or the
-// iframe does. An element counts as the player's when it is painted above the iframe and
+// holds, and gives it back when the iframe goes (releaseGone, from removePlayers, or the
+// next check). An element counts as the player's when it is painted above the iframe and
 // at least 80% of it lies inside the iframe's box, or it covers half of that box: a bar or
 // a button on the player, or a layer over it, but not a page header that overlaps its top
 // edge. The box is the whole iframe's, on screen or not: measured by its part on screen,
@@ -86,12 +86,30 @@ const OverlayGuard = (() => {
 
   const DIALOGS = 'dialog[open], [role="dialog"], [role="alertdialog"], [aria-modal="true"]';
 
+  // The element with the focus, inside shadow roots too: document.activeElement gives a
+  // field in a shadow root as its host.
+  function focused() {
+    let active = document.activeElement;
+    for (;;) {
+      const root = active && (active.openOrClosedShadowRoot || active.shadowRoot);
+      if (!root || !root.activeElement) return active;
+      active = root.activeElement;
+    }
+  }
+
+  function isEditable(el) {
+    return el.matches('input, textarea, select') || !!el.isContentEditable;
+  }
+
   // A site's own dialog, or a layer holding one, or one the user is typing in: by what it
-  // says it is, or by the focus being in it. Geometry cannot tell it from an ad layer.
+  // says it is, or by a field in it having the focus. Geometry cannot tell it from an ad
+  // layer. Only a field: a link or a button keeps the focus after a click, and an ad layer
+  // the user clicked once (or a click-to-play cover) then stayed over the player for good,
+  // taking every click meant for it.
   function isSiteDialog(el) {
-    const active = document.activeElement;
+    const active = focused();
     return el.matches(DIALOGS) || !!el.querySelector(DIALOGS) ||
-        (!!active && active !== document.body && el.contains(active));
+        (!!active && active !== document.body && isEditable(active) && holds(el, active));
   }
 
   // The elements painted over the iframe that belong to the player's area, each the
@@ -199,6 +217,13 @@ const OverlayGuard = (() => {
     },
     releaseAll() {
       for (const iframe of [...guards.keys()]) release(iframe);
+    },
+    // Those whose iframe is out of the page (content.js's removePlayers). The others hold
+    // a player still up, in the frame below: a site's embed, whose player is that frame's.
+    releaseGone() {
+      for (const iframe of [...guards.keys()]) {
+        if (!iframe.isConnected) release(iframe);
+      }
     },
   };
 })();

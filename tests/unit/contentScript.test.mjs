@@ -78,6 +78,21 @@ describe('SCRAPE_CAPTIONS', () => {
 const PLAYER_URL = 'moz-extension://test/player/index.html';
 
 /**
+ * Gives an element of the page a closed shadow root, as Firefox shows one to a content
+ * script: element.shadowRoot is null, element.openOrClosedShadowRoot is the root. The root
+ * is a stand-in element, in the page through its host.
+ * @param {Object} page - From loadContentScript.
+ * @param {Object} host - The element.
+ * @return {Object} The root.
+ */
+function closedShadowRoot(page, host) {
+  const root = page.document.createElement('div');
+  root.parentNode = host;
+  host.openOrClosedShadowRoot = root;
+  return root;
+}
+
+/**
  * A page with a 640x360 video in a wrapper of the same size (#wrap), which a player
  * replaces.
  * @param {Object} [options] - For loadContentScript.
@@ -206,6 +221,54 @@ describe('windowed fullscreen', () => {
     expect(styled.getAttribute('style')).toBe('color: red;');
   });
 
+  it('gives a hidden element its own display back, and leaves the rest of its style as it is now', async () => {
+    const {page} = await pageWithPlayer();
+    const [flex] = addElements(page, 1);
+    flex.setAttribute('style', 'display: flex !important; color: red;');
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    // Changed meanwhile, by the page or by the overlay guard giving its change back.
+    flex.style.setProperty('color', 'blue');
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    expect(flex.style.getPropertyValue('display')).toBe('flex');
+    expect(flex.style.getPropertyPriority('display')).toBe('important');
+    expect(flex.style.getPropertyValue('color')).toBe('blue');
+  });
+
+  // The overlay guard hides a bar over the player with visibility. Windowed fullscreen then
+  // hid the bar too, and kept its whole style attribute, the guard's visibility in it; the
+  // guard gave the bar back meanwhile (hidden, it has no box), and leaving windowed
+  // fullscreen put the old attribute back: the bar stayed hidden for good, after the
+  // player went as well.
+  it('leaves no bar hidden that the overlay guard gave back meanwhile', async () => {
+    const page = loadContentScript();
+    const {document} = page;
+    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    const embed = document.createElement('iframe');
+    embed.src = 'https://embed.example/e/1';
+    embed.rect = {x: 0, y: 0, width: 640, height: 360};
+    document.body.appendChild(embed);
+    const bar = document.createElement('div');
+    // An element with display: none has no box, as in Firefox.
+    bar.rect = () => (bar.style.getPropertyValue('display') === 'none' ?
+      {x: 0, y: 0, width: 0, height: 0} : {x: 0, y: 320, width: 640, height: 40});
+    document.body.appendChild(bar);
+    await linkPlayer(page, embed, 7);
+    // Asked of this frame as the player in the embed opens: the guard starts.
+    await page.send({type: 'IS_FULL', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+    page.runIntervals();
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('exit');
+    page.runIntervals();
+    // Over the player again: the guard hides it again, and still knows to give it back.
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+    embed.remove();
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
+  });
+
   it('leaves the <head> alone', async () => {
     const {page} = await pageWithPlayer();
     const meta = page.document.createElement('meta');
@@ -243,6 +306,32 @@ describe('REMOVE_PLAYERS', () => {
     expect(embed.getAttribute('style')).toBe('width: 640px;');
     // And it knows it left: the next toggle enters again.
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+  });
+
+  // REMOVE_PLAYERS reaches only the top frame: a player in a site's embed stays up, and
+  // the top frame's overlay guard over the embed went, which put the site's bar back over
+  // that player. What it hid over a player iframe it took out comes back.
+  it('keeps what the overlay guard hid over an embed whose player stays up', async () => {
+    const page = loadContentScript();
+    const {document} = page;
+    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    const embed = document.createElement('iframe');
+    embed.src = 'https://embed.example/e/1';
+    embed.rect = {x: 0, y: 0, width: 640, height: 360};
+    document.body.appendChild(embed);
+    const bar = document.createElement('div');
+    bar.rect = {x: 0, y: 320, width: 640, height: 40};
+    document.body.appendChild(bar);
+    await linkPlayer(page, embed, 7);
+    await page.send({type: 'IS_FULL', frameId: 7});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
+    // The embed goes too: its player with it.
+    embed.remove();
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(bar.style.getPropertyValue('visibility')).toBe('');
   });
 });
 
@@ -438,12 +527,61 @@ describe('HOLD_PAGE_MEDIA', () => {
     expect(video.paused).toBe(false);
   });
 
-  it('ends with the players: REMOVE_PLAYERS lets the page play', async () => {
+  // REMOVE_PLAYERS reaches only the top frame (a same-site URL change), and a click on a
+  // link only its own frame, while the player that plays can be in a site's embed, and stay
+  // up. Ending the hold there let the page's media play under it. The background ends it
+  // once the playing player's frame goes.
+  it('stays through REMOVE_PLAYERS in a frame without a player of its own', async () => {
     const {page, video, play} = playingPage();
     await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
     await page.send({type: 'REMOVE_PLAYERS'});
     play(video);
+    expect(video.paused).toBe(true);
+    expect(page.sent.filter((m) => m.type === 'FRAME_REMOVED')).toEqual([]);
+  });
+
+  it('is the background\'s to end when REMOVE_PLAYERS takes the player out', async () => {
+    const {page, video, iframe} = await pageWithPlayer();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(iframe.isConnected).toBe(false);
+    // What makes the background end the hold (sendPageMediaHold).
+    expect(page.sent.filter((m) => m.type === 'FRAME_REMOVED')).toEqual([{type: 'FRAME_REMOVED', frameId: 5}]);
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: false});
+    video.paused = false;
+    page.dispatchDocument('play', {target: video});
     expect(video.paused).toBe(false);
+  });
+
+  // Firefox's back-forward cache gives a page back with its content script as it was. The
+  // hold's end, sent to the tab's frames while it was in the cache, never reached it.
+  it('ends when the back-forward cache gives the page back', async () => {
+    const {page, video, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    page.dispatchWindow('pageshow', {persisted: true});
+    play(video);
+    expect(video.paused).toBe(false);
+  });
+
+  it('pauses a video already playing in a closed shadow root', async () => {
+    const page = loadContentScript();
+    const root = closedShadowRoot(page, page.document.body);
+    const video = page.document.createElement('video');
+    root.appendChild(video);
+    video.paused = false;
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    expect(video.paused).toBe(true);
+  });
+
+  // A watch party's voice chat in the same tab fell silent, and again on every play.
+  it('leaves a call\'s live stream alone', async () => {
+    const {page, video, sound, play} = playingPage();
+    page.window.MediaStream = class MediaStream {};
+    sound.srcObject = new page.window.MediaStream();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    expect([video.paused, sound.paused]).toEqual([true, false]);
+    play(sound);
+    expect(sound.paused).toBe(false);
   });
 
   it('leaves a play event of anything but media alone', async () => {
@@ -454,5 +592,187 @@ describe('HOLD_PAGE_MEDIA', () => {
       throw new Error('paused a div');
     };
     expect(() => play(div)).not.toThrow();
+  });
+});
+
+// What the background sends every frame once mpv has the stream.
+describe('PAUSE_MEDIA', () => {
+  // A play in a closed shadow root was heard (listenInShadowRoots looks into closed roots)
+  // and sent to mpv, but the walk that pauses looked into open roots only: the page's
+  // player played on beside mpv.
+  it('pauses a video playing in a closed shadow root', async () => {
+    const page = loadContentScript();
+    const root = closedShadowRoot(page, page.document.body);
+    const video = page.document.createElement('video');
+    root.appendChild(video);
+    video.paused = false;
+    expect(await page.send({type: 'PAUSE_MEDIA'})).toBe(1);
+    expect(video.paused).toBe(true);
+  });
+
+  it('leaves a call\'s live stream alone', async () => {
+    const page = loadContentScript();
+    page.window.MediaStream = class MediaStream {};
+    const call = page.document.createElement('audio');
+    call.srcObject = new page.window.MediaStream();
+    call.paused = false;
+    page.document.body.appendChild(call);
+    expect(await page.send({type: 'PAUSE_MEDIA'})).toBe(0);
+    expect(call.paused).toBe(false);
+  });
+});
+
+// The MPV key pressed while the user watches a video they started: that video is sent.
+describe('MPV_REPORT_PLAYING', () => {
+  it('finds the video the user started in a closed shadow root', async () => {
+    const page = loadContentScript();
+    const host = page.document.createElement('div');
+    page.document.body.appendChild(host);
+    const root = closedShadowRoot(page, host);
+    const video = page.document.createElement('video');
+    video.currentSrc = 'https://cdn.example/episode.mp4';
+    root.appendChild(video);
+    // The user's click: the roots get their play listeners, and the play counts as theirs.
+    page.dispatchWindow('pointerdown');
+    page.window.navigator.userActivation.isActive = true;
+    video.paused = false;
+    for (const {type, listener} of root.listeners) {
+      if (type === 'play') listener({isTrusted: true, target: video});
+    }
+    page.sent.length = 0;
+    expect(await page.send({type: 'MPV_REPORT_PLAYING'})).toBe(true);
+    expect(page.sent.map((m) => m.type)).toEqual(['MPV_USER_PLAY']);
+  });
+});
+
+// A frame links each frame below it to its iframe (FRAME_LINK_RECEIVER, then that frame
+// posts the key): for windowed fullscreen, the miniplayer and the overlay guard.
+describe('frame links', () => {
+  it('find an embed\'s iframe in a closed shadow root', async () => {
+    const page = loadContentScript();
+    const host = page.document.createElement('div');
+    page.document.body.appendChild(host);
+    const embed = page.document.createElement('iframe');
+    closedShadowRoot(page, host).appendChild(embed);
+    await linkPlayer(page, embed, 7);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
+  });
+});
+
+describe('a player put in a shadow root', () => {
+  // A video straight in a shadow root, in a host with a bar below it (so the host is not
+  // the player's box): the player goes into the root, next to the video. The resize
+  // observer watched the iframe's parent, the root, which ResizeObserver refuses: the
+  // throw left the player without one.
+  it('has its box watched through the root\'s host', async () => {
+    const page = loadContentScript();
+    const {document} = page;
+    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
+    const host = document.createElement('div');
+    host.rect = {x: 0, y: 0, width: 640, height: 420};
+    document.body.appendChild(host);
+    // An open shadow root: a node of its own (11), whose children have no parent element.
+    const root = document.createElement('div');
+    root.nodeType = 11;
+    root.host = host;
+    root.parentNode = host;
+    host.shadowRoot = root;
+    const video = document.createElement('video');
+    video.rect = {x: 0, y: 0, width: 640, height: 360};
+    root.appendChild(video);
+    const observed = [];
+    page.window.ResizeObserver = class {
+      observe(target) {
+        // As Firefox's: Argument 1 of ResizeObserver.observe does not implement Element.
+        if (target.nodeType !== 1) throw new TypeError('ResizeObserver.observe: not an Element');
+        observed.push(target);
+      }
+      disconnect() {}
+    };
+    const {answer} = await openPlayer(page);
+    expect(answer).toBe('replace');
+    expect(root.querySelectorAll('iframe')).toHaveLength(1);
+    expect(observed).toEqual([host]);
+  });
+});
+
+// Firefox fires beforeunload for a navigation that then never happens: a link answered
+// with a download or a 204, a "Leave page?" the user said no to. The page stays, but it had
+// told the background it left: the background forgot its frames and their streams, and
+// refused every player the page opened after that, as one of a gone page, until a reload.
+describe('a page that leaves', () => {
+  /**
+   * What the page told the background about itself since it started.
+   * @param {Object} page - From loadContentScript.
+   * @return {Array<Object>} Its FRAME_ADDED and FRAME_REMOVED after the first FRAME_ADDED.
+   */
+  function told(page) {
+    return page.sent.filter((m) => m.type === 'FRAME_ADDED' || m.type === 'FRAME_REMOVED').slice(1);
+  }
+
+  it('says so at beforeunload, under its name', () => {
+    const page = loadContentScript();
+    page.dispatchWindow('beforeunload');
+    expect(told(page)).toEqual([{type: 'FRAME_REMOVED', document: pageName(page)}]);
+  });
+
+  it('names itself again when it is still there a moment later, and then reports its leaving on pagehide', () => {
+    const page = loadContentScript();
+    page.dispatchWindow('beforeunload');
+    page.advance(2000);
+    const name = {url: 'https://site.example/page', document: pageName(page)};
+    expect(told(page)).toEqual([
+      {type: 'FRAME_REMOVED', document: name.document},
+      {type: 'FRAME_ADDED', ...name},
+    ]);
+    // It leaves without a beforeunload (the page took its iframe out), or really leaves.
+    page.dispatchWindow('pagehide', {persisted: false});
+    expect(told(page).at(-1)).toEqual({type: 'FRAME_REMOVED', document: name.document});
+  });
+
+  it('reports a real leave once, at beforeunload, after it named itself again', () => {
+    const page = loadContentScript();
+    page.dispatchWindow('beforeunload');
+    page.advance(2000);
+    page.dispatchWindow('beforeunload');
+    page.dispatchWindow('pagehide', {persisted: false});
+    expect(told(page).map((m) => m.type)).toEqual(['FRAME_REMOVED', 'FRAME_ADDED', 'FRAME_REMOVED']);
+  });
+
+  it('does not name itself again once it went, into the back-forward cache or for good', () => {
+    for (const persisted of [true, false]) {
+      const page = loadContentScript();
+      page.dispatchWindow('beforeunload');
+      page.dispatchWindow('pagehide', {persisted});
+      page.advance(10000);
+      expect(told(page).map((m) => m.type), String(persisted)).toEqual(['FRAME_REMOVED']);
+    }
+  });
+
+  it('tells nothing on a pagehide alone, as before (an iframe the page took out)', () => {
+    const page = loadContentScript();
+    page.dispatchWindow('pagehide', {persisted: false});
+    page.advance(10000);
+    expect(told(page)).toEqual([]);
+  });
+
+  it('tells nothing when it goes to the player, which asks for its streams', async () => {
+    // handlePlayerOpen's redirect: no video, and a frame that cannot go fullscreen.
+    const page = loadContentScript();
+    page.document.fullscreenEnabled = false;
+    expect(await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, force: true, frameId: 3, parentFrameId: 0})).toBe('redirect');
+    page.dispatchWindow('beforeunload');
+    page.advance(10000);
+    page.dispatchWindow('pagehide', {persisted: false});
+    expect(told(page)).toEqual([]);
+  });
+
+  it('names itself again when the back-forward cache gives it back', () => {
+    const page = loadContentScript();
+    page.dispatchWindow('beforeunload');
+    page.dispatchWindow('pagehide', {persisted: true});
+    page.dispatchWindow('pageshow', {persisted: true});
+    expect(told(page).map((m) => m.type)).toEqual(['FRAME_REMOVED', 'FRAME_ADDED']);
   });
 });

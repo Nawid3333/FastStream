@@ -33,7 +33,11 @@
     } catch (e) {
       return;
     }
+    readData(data);
+  }
 
+  // Posts the first video_dash_manifest with a value in parsed JSON.
+  function readData(data) {
     // video_dash_manifest
     // Nothing for a response that is not an object (a JSON number or string). Most
     // responses have none, so that is no error: it filled the page's console.
@@ -76,8 +80,14 @@
         return;
       }
 
-      // Make sure it is not an arraybuffer
-      if (xhr.responseType === 'arraybuffer') {
+      // responseText exists only for a text response: for 'json', 'blob' or 'document' it
+      // throws InvalidStateError, inside the page's own XHR handling. A 'json' one is
+      // already parsed; the others hold no JSON to read.
+      if (xhr.responseType === 'json') {
+        readData(xhr.response);
+        return;
+      }
+      if (xhr.responseType !== '' && xhr.responseType !== 'text') {
         return;
       }
 

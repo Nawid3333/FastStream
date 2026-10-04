@@ -62,6 +62,22 @@ describe('OverlayGuard', () => {
     expect(visibility(layer)).toBe('');
   });
 
+  it('gives back, on releaseGone, only what it hid over an iframe out of the page', () => {
+    const {page, iframe} = pageWithPlayerAt(PLAYER);
+    const other = page.document.createElement('iframe');
+    other.src = 'https://embed.example/e/1';
+    other.rect = {x: 0, y: 400, width: 640, height: 300};
+    page.document.body.appendChild(other);
+    const bar = addLayer(page, page.document.body, {x: 0, y: 320, width: 640, height: 40});
+    const otherBar = addLayer(page, page.document.body, {x: 0, y: 660, width: 640, height: 40});
+    page.overlayGuard.guard(iframe);
+    page.overlayGuard.guard(other);
+    expect([visibility(bar), visibility(otherBar)]).toEqual(['hidden', 'hidden']);
+    iframe.remove();
+    page.overlayGuard.releaseGone();
+    expect([visibility(bar), visibility(otherBar)]).toEqual(['', 'hidden']);
+  });
+
   it('hides a bar on the player', () => {
     const {page, iframe} = pageWithPlayerAt(PLAYER);
     const bar = addLayer(page, page.document.body, {x: 0, y: 320, width: 640, height: 40});
@@ -107,6 +123,39 @@ describe('OverlayGuard', () => {
       page.document.activeElement = input;
       page.overlayGuard.guard(iframe);
       expect(visibility(form)).toBe('');
+    });
+
+    it('leaves alone a layer the user is typing in through a field in a shadow root', () => {
+      const {page, iframe} = pageWithPlayerAt(PLAYER);
+      const form = addLayer(page, page.document.body, VIEWPORT);
+      const field = page.document.createElement('div');
+      form.appendChild(field);
+      // The field's shadow root, a node of its own (11): document.activeElement gives its
+      // host, the root what has the focus in it.
+      const root = page.document.createElement('div');
+      root.nodeType = 11;
+      root.host = field;
+      field.shadowRoot = root;
+      const input = page.document.createElement('input');
+      root.appendChild(input);
+      root.activeElement = input;
+      page.document.activeElement = field;
+      page.overlayGuard.guard(iframe);
+      expect(visibility(form)).toBe('');
+    });
+
+    // A link or a button keeps the focus after a click. An ad layer the user clicked once,
+    // or a click-to-play cover, counted as a layer the user was typing in, and stayed over
+    // the player, taking every click meant for it.
+    it('hides an ad link over the player that has the focus', () => {
+      const {page, iframe} = pageWithPlayerAt(PLAYER);
+      const ad = page.document.createElement('a');
+      ad.setAttribute('href', 'https://ads.example/click');
+      ad.rect = VIEWPORT;
+      page.document.body.appendChild(ad);
+      page.document.activeElement = ad;
+      page.overlayGuard.guard(iframe);
+      expect(visibility(ad)).toBe('hidden');
     });
 
     it('gives back a layer that became a dialog after it was hidden', () => {
