@@ -256,7 +256,8 @@ describe('Subtitle search', function() {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2));
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2),
+        {timeout: 10000, timeoutMsg: 'the picked subtitle was never asked for'});
     // Closed first, so the failure shows no alert to wait on.
     await browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.closeUI();

@@ -49,6 +49,24 @@ describe('recordRetriedSpecs', () => {
     expect(records().map((r) => r.passed)).toEqual([false]);
   });
 
+  it('starts a suite\'s run with none of its earlier runs\' lines, and keeps the other suites\'', () => {
+    // A local run appended to every run before it, until logs/ was deleted (#266).
+    const old = (suite) => JSON.stringify({suite, spec: 'tests/e2e/specs/old.e2e.mjs', attempts: 2, passed: true, os: 'x'});
+    fs.writeFileSync(path.join(dir, 'retried.jsonl'), [old('web'), old('ext-amo'), 'not json', old('web'), ''].join('\n'));
+    const hook = recordRetriedSpecs(dir, 'web');
+    hook('0-1', 0, [spec]);
+    expect(fs.readFileSync(path.join(dir, 'retried.jsonl'), 'utf8')).toBe(old('ext-amo') + '\nnot json\n');
+
+    // This run's own retries are kept, the second worker's too.
+    hook('0-2', 1, [spec]);
+    hook('0-2', 0, [spec]);
+    hook('0-3', 1, [spec]);
+    hook('0-3', 0, [spec]);
+    const lines = fs.readFileSync(path.join(dir, 'retried.jsonl'), 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines.slice(2).map((line) => JSON.parse(line).suite)).toEqual(['web', 'web']);
+  });
+
   it('keeps each attempt\'s driver log, as before', () => {
     const hook = recordRetriedSpecs(dir, 'web');
     fs.writeFileSync(path.join(dir, 'wdio-0-4-geckodriver.log'), 'first');

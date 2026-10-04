@@ -20,6 +20,34 @@ import {keepDriverLogs} from './driverLogs.mjs';
 const repoRoot = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../..');
 
 /**
+ * Takes a suite's lines out of <outputDir>/retried.jsonl, keeping the others'.
+ * @param {string} outputDir
+ * @param {string} suite
+ */
+function forgetSuite(outputDir, suite) {
+  const file = path.join(outputDir, 'retried.jsonl');
+  try {
+    if (!fs.existsSync(file)) {
+      return;
+    }
+    const kept = fs.readFileSync(file, 'utf8').split('\n').filter((line) => {
+      if (!line.trim()) {
+        return false;
+      }
+      try {
+        return JSON.parse(line).suite !== suite;
+      } catch (e) {
+        return true;
+      }
+    });
+    fs.writeFileSync(file, kept.map((line) => line + '\n').join(''));
+  } catch (e) {
+    // A diagnostic aid: failing to tidy it must not fail the run.
+    console.warn(`could not drop ${suite}'s earlier lines from retried.jsonl: ${e.message}`);
+  }
+}
+
+/**
  * An onWorkerEnd hook that keeps the driver logs and records the spec files that were
  * run again.
  * @param {string} outputDir - The config's outputDir; retried.jsonl goes there.
@@ -29,7 +57,16 @@ const repoRoot = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 
 export function recordRetriedSpecs(outputDir, suite) {
   const keepLogs = keepDriverLogs(outputDir, suite);
   const ends = new Map();
+  let forgotten = false;
   return function onWorkerEnd(cid, exitCode, specs) {
+    // The first worker of a run to end, before any retry of it is written: the suite's
+    // lines from earlier runs go. A local run appended to every run before it, until
+    // logs/ was deleted (#266); the other suites' lines stay, so after `pnpm run verify`
+    // the file holds each suite's last run. CI starts each job with no file.
+    if (!forgotten) {
+      forgotten = true;
+      forgetSuite(outputDir, suite);
+    }
     const attempt = (ends.get(cid) || 0) + 1;
     ends.set(cid, attempt);
     keepLogs(cid, exitCode, specs);

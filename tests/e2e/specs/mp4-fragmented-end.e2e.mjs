@@ -25,6 +25,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
+import {byteRange} from '../serveFile.mjs';
+
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
 // MP4Player.mjs's FRAGMENT_SIZE: the first range is bytes [0, RANGE).
@@ -115,9 +117,14 @@ describe('A fragmented MP4 whose first range ends between two fragments', functi
         res.writeHead(204, cors);
         return res.end();
       }
-      const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
-      const start = match ? Number(match[1]) : 0;
-      const end = match && match[2] ? Math.min(Number(match[2]), bytes.length - 1) : bytes.length - 1;
+      // The harness's range reading (serveFile.mjs): a range like bytes=5-2 gave a negative
+      // Content-Length, which writeHead throws on in the request listener (#266).
+      const range = byteRange(req.headers.range, bytes.length);
+      if (range === 'unsatisfiable') {
+        res.writeHead(416, {...cors, 'Content-Range': `bytes */${bytes.length}`});
+        return res.end();
+      }
+      const {start, end} = range || {start: 0, end: bytes.length - 1};
       const answer = () => {
         res.writeHead(206, {...cors, 'Content-Type': 'video/mp4',
           'Content-Range': `bytes ${start}-${end}/${bytes.length}`, 'Content-Length': end - start + 1});

@@ -12,7 +12,8 @@ import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {inChrome, clickToolbar as clickToolbarIn} from '../classic-helpers.mjs';
+import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -143,21 +144,6 @@ const embedPage = (t) => `<!doctype html><title>embed</title>
 </style>
 <video id="main" muted preload="auto" src="/clip.mp4?embed=${t}"></video>`;
 
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
-
 /** Starts collecting the errors the content scripts report, once per browser. */
 async function watchContentErrors() {
   await inChrome((done) => {
@@ -193,26 +179,7 @@ async function takeContentErrors() {
 }
 
 /** Clicks the extension's toolbar button for the site tab. */
-async function clickToolbar() {
-  await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        await ExtensionParent.apiManager.global.browserActionFor(extension).triggerAction(win);
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = () => clickToolbarIn(siteHandle);
 
 /** @return {Promise<string>} The site tab's mode, 'on' or 'off'. */
 async function tabMode() {

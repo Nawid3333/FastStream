@@ -19,6 +19,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
 
+import {byteRange} from '../serveFile.mjs';
+
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 // 160 s, 17 MB: 18 of MP4Player's 1 MB ranges. wdio.conf.mjs writes it.
 const LONG_FIXTURE = path.join(fixturesDir, 'long-av.mp4');
@@ -88,9 +90,13 @@ describe('MP4Player loading', function() {
         return res.end();
       }
       const file = new URL(req.url, ORIGIN).pathname.slice(1).replace('.mp4', '');
-      const match = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || '');
-      const start = match ? Number(match[1]) : 0;
-      const end = Math.min(match && match[2] ? Number(match[2]) : bytes.length - 1, bytes.length - 1);
+      // The harness's range reading (serveFile.mjs), as every test server's (#266).
+      const range = byteRange(req.headers.range, bytes.length);
+      if (range === 'unsatisfiable') {
+        res.writeHead(416, {...cors, 'Content-Range': `bytes */${bytes.length}`});
+        return res.end();
+      }
+      const {start, end} = range || {start: 0, end: bytes.length - 1};
       // The file's second range: always refused for dead.mp4, twice for flaky.mp4.
       if (start >= RANGE && start < 2 * RANGE && Object.hasOwn(asked, file)) {
         asked[file]++;
@@ -135,7 +141,7 @@ describe('MP4Player loading', function() {
     await browser.waitUntil(async () => {
       state = await playerState();
       return state.time > 20 || state.failed;
-    }, {timeout: 60000, interval: 500}).catch(() => {});
+    }, {timeout: 60000, interval: 500, timeoutMsg: 'playback never got past 20 s'}).catch(() => {});
     console.log('      state:', JSON.stringify(state), 'asked:', asked.flaky);
     expect(state.failed).toBe(false);
     expect(state.time).toBeGreaterThan(20);
@@ -150,7 +156,7 @@ describe('MP4Player loading', function() {
       await browser.waitUntil(async () => {
         state = await playerState();
         return state.time > 2 || state.failed;
-      }, {timeout: 40000, interval: 500}).catch(() => {});
+      }, {timeout: 40000, interval: 500, timeoutMsg: 'playback never got past 2 s'}).catch(() => {});
       console.log('      moov at the end:', name, JSON.stringify(state));
       expect(state.failed).toBe(false);
       expect(state.time).toBeGreaterThan(2);
