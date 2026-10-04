@@ -418,6 +418,24 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
           </script>`);
         return;
       }
+      if (req.url.startsWith('/popup')) {
+        // As many streaming sites: the play button opens a pop-up (an ad) first, then starts
+        // the video. window.open() consumes the click's activation, so the play comes with
+        // navigator.userActivation.isActive false.
+        res.end(`<!doctype html><title>mpv shortcut test, pop-up</title>
+          <video id="main" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <script>
+            document.getElementById('play').addEventListener('click', () => {
+              window.open('/away?popup=' + Date.now(), '_blank');
+              window.consumedActivation = !navigator.userActivation.isActive;
+              const main = document.getElementById('main');
+              main.src = '${CDN}/clip.mp4?popup=' + Date.now();
+              main.play().catch(() => {});
+            });
+          </script>`);
+        return;
+      }
       if (req.url.startsWith('/mse')) {
         // An MSE player: its video plays a blob:, and it fetched the film's manifest,
         // then an ad's - the newest of the page's streams, and the short one. Well after:
@@ -1292,6 +1310,41 @@ describe('The MPV keyboard shortcut (Ctrl+Shift+U)', function() {
         await replaceSiteTab();
       }
     });
+  });
+
+  // A pop-up the play button opens first consumed the click's activation, and the play was
+  // taken for an autoplay: the video played in the page and nothing went to mpv.
+  it('sends the video a click started after the page opened a pop-up', async function() {
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/popup`);
+    await expectMode('off', 'opening a site that is not on the allowlist');
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U');
+
+    const handles = await browser.getWindowHandles();
+    const before = mpvCount();
+    try {
+      await clickPlay();
+      await browser.waitUntil(async () => (await browser.getWindowHandles()).length > handles.length, {
+        timeout: 10000,
+        timeoutMsg: 'the page\'s pop-up never opened',
+      });
+      // The case this is about: Firefox reports no activation for the play any more.
+      await browser.switchToWindow(siteHandle);
+      expect(await browser.execute(() => window.consumedActivation)).toBe(true);
+      if (HAVE_HOST) {
+        await expectMainInMpv(before, 'clicking play on a page that opens a pop-up first');
+      }
+    } finally {
+      for (const handle of await browser.getWindowHandles()) {
+        if (!handles.includes(handle)) {
+          await browser.switchToWindow(handle);
+          await browser.closeWindow();
+        }
+      }
+      await browser.switchToWindow(siteHandle);
+      await replaceSiteTab();
+    }
   });
 
   // A site that plays its next episode in the same page: the URL change lets the page's MPV

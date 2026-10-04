@@ -2029,6 +2029,25 @@
   // background ignores the report unless the tab is in that mode.
   const userStartedVideos = new WeakSet();
 
+  // How long Firefox counts a press as the user's (dom.user_activation.transient.timeout).
+  const UserActivationMs = 5000;
+  // When the user last pressed a pointer or a key in this frame (trusted; onUserGesture).
+  let lastUserGestureAt = -Infinity;
+
+  /**
+   * Whether a play now follows the user's own press. navigator.userActivation.isActive
+   * alone missed a common case: a site whose play button first opens a pop-up. window.open()
+   * consumes the activation, so the video the same click started played with isActive
+   * already false, was taken for an autoplay, and never went to mpv. A trusted press in
+   * this frame within the time Firefox gives an activation counts too; an autoplay with no
+   * press behind it still does not.
+   * @return {boolean}
+   */
+  function playFollowsUserPress() {
+    if (navigator.userActivation && navigator.userActivation.isActive) return true;
+    return performance.now() - lastUserGestureAt <= UserActivationMs;
+  }
+
   function reportUserPlay(video) {
     try {
       chrome.runtime.sendMessage({
@@ -2049,7 +2068,7 @@
     if (!e.isTrusted) return;
     const video = e.target;
     if (!video || video.tagName !== 'VIDEO') return;
-    if (!navigator.userActivation || !navigator.userActivation.isActive) return;
+    if (!playFollowsUserPress()) return;
     userStartedVideos.add(video);
     reportUserPlay(video);
   }
@@ -2084,6 +2103,15 @@
 
   function onUserGesture(e) {
     if (!e.isTrusted) return;
+    // A key that starts a video is a plain one (Space, Enter, K). One that could be an
+    // extension's shortcut is not: the MPV shortcut itself is one, whatever the user bound
+    // it to in about:addons (Ctrl+Shift+U by default, Alt+F on the owner's PC). Nor is a
+    // modifier alone, or Escape, which is no activation in Firefox.
+    const noPress = e.type === 'keydown' &&
+      (ModifierKeys.includes(e.key) || e.key === 'Escape' || couldBeExtensionShortcut(e));
+    if (!noPress) {
+      lastUserGestureAt = performance.now();
+    }
     for (const node of e.composedPath()) {
       if (node instanceof ShadowRoot) {
         listenInRoot(node);
@@ -2123,10 +2151,20 @@
   // one.
   const ModifierKeys = ['Control', 'Shift', 'Alt', 'AltGraph', 'Meta', 'OS'];
 
+  /**
+   * Whether a key press could be an extension's keyboard shortcut, whatever the user bound
+   * in about:addons: Firefox's shortcuts need Ctrl, Alt or Command, except F-keys and media
+   * keys.
+   * @param {KeyboardEvent} e - The press.
+   * @return {boolean}
+   */
+  function couldBeExtensionShortcut(e) {
+    return e.ctrlKey || e.altKey || e.metaKey || /^(F\d+|Media\w+)$/.test(e.key);
+  }
+
   window.addEventListener('keydown', (e) => {
     if (!e.isTrusted || e.repeat || e.isComposing || ModifierKeys.includes(e.key)) return;
-    // Firefox shortcuts need Ctrl, Alt or Command, except F-keys and media keys.
-    if (!e.ctrlKey && !e.altKey && !e.metaKey && !/^(F\d+|Media\w+)$/.test(e.key)) return;
+    if (!couldBeExtensionShortcut(e)) return;
     setTimeout(() => {
       if (!e.defaultPrevented) return;
       try {
