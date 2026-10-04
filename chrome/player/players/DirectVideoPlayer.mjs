@@ -36,7 +36,14 @@ export default class DirectVideoPlayer extends EventEmitter {
 
   async setSource(source) {
     this.source = source;
-    this.video.src = source.url;
+    const url = URLUtils.playableUrl(source.url, document.baseURI);
+    if (!url) {
+      // As the media element reports a source it cannot load: an ERROR after this call,
+      // which the client answers with the next source or the load error.
+      setTimeout(() => this.emit(DefaultPlayerEvents.ERROR, 'The source is not an http(s), blob, data or file URL'));
+      return;
+    }
+    this.video.src = url;
   }
 
   getSource() {

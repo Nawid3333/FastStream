@@ -39,4 +39,21 @@ describe('A stream that cannot be loaded', function() {
       expect(state.failed).toBe(true);
     });
   }
+
+  it('shows the load error for a javascript: source, which never reaches the video', async function() {
+    // CodeQL's js/xss: the address went to video.src unchecked (DirectVideoPlayer).
+    await openPlayer('javascript:document.title=%22ran%22');
+    let state = {};
+    await browser.waitUntil(async () => {
+      state = await browser.execute(() => ({
+        failed: !!window.fastStream?.interfaceController?.failed,
+        sources: [...document.querySelectorAll('video, audio')].map((media) => media.getAttribute('src') || ''),
+        title: document.title,
+      }));
+      return state.failed;
+    }, {timeout: 30000, interval: 250}).catch(() => {});
+    expect(state.failed).toBe(true);
+    expect(state.sources.filter((src) => src !== '')).toEqual([]);
+    expect(state.title).not.toBe('ran');
+  });
 });
