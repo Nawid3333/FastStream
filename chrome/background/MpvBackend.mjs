@@ -10,6 +10,7 @@
  *   {type: 'ping', mpvPath?}                      -> {ok, mpv, path}
  *   {type: 'open', url, headers?, contentType?, pageUrl?, title?, start?, subtitles?,
  *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?}
+ *   {type: 'status', waitMs?}                     -> {ok, running, decoder}
  * Every answer carries the host's `hostVersion` (see RequiredHostVersion below).
  *
  * `headers` is the subset of the original request headers mpv needs to
@@ -39,12 +40,32 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 1;
+export const RequiredHostVersion = 2;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
 // without a word, and the hand-off failed with "is the host installed?".
 export const HostMaxMessageBytes = 1024 * 1024;
+
+/**
+ * Which video decoder an mpv started by the host uses (the host's `status` answer).
+ * @typedef {Object} MpvDecoder
+ * @property {boolean} hardware - False when mpv decodes in software (hwdec-current "no").
+ * @property {string} api - mpv's hwdec-current: "d3d11va", "vulkan", "d3d11va-copy", "no"...
+ * @property {?string} format - mpv's video-format: "av1", "h264", "hevc", "vp9"...
+ * @property {?number} width
+ * @property {?number} height
+ */
+
+// mpv's video-format names as people know them.
+const FormatNames = new Map([
+  ['av1', 'AV1'],
+  ['h264', 'H.264'],
+  ['hevc', 'HEVC'],
+  ['vp9', 'VP9'],
+  ['vp8', 'VP8'],
+  ['mpeg2video', 'MPEG-2'],
+]);
 
 /**
  * The size of a message as it reaches the host.
@@ -84,9 +105,10 @@ export class MpvBackend {
 
   /**
    * A result with what is known about the host's version.
-   * @param {{ok: boolean, error?: string, mpv?: boolean, path?: string}} result - The result.
-   * @return {{ok: boolean, error?: string, mpv?: boolean, path?: string, hostOutdated?: boolean}}
-   *   The result, with hostOutdated when the host is outdated.
+   * @template {{ok: boolean}} T
+   * @param {T} result - The result.
+   * @return {T & {hostOutdated?: boolean}} The result, with hostOutdated when the host is
+   *   outdated.
    */
   withHostState(result) {
     return this.hostOutdated ? {...result, hostOutdated: true} : result;
@@ -287,6 +309,85 @@ export class MpvBackend {
         resolve({ok: false, error: String(e)});
       }
     });
+  }
+
+  /**
+   * Asks the host which video decoder the mpv it started uses (only an mpv started for
+   * single-instance use can be asked). Read-only: mpv.conf stays the only authority on
+   * hardware decoding, and FastStream only says what mpv does.
+   * @param {number} [waitMs] - How long the host may wait for mpv to load a decoder.
+   * @return {Promise<{ok: boolean, running?: boolean, decoder?: ?MpvDecoder, error?: string,
+   *   hostOutdated?: boolean}>} running:false when no mpv of ours is open; decoder null
+   *   while it has none loaded (or from a host too old to ask).
+   */
+  decoderStatus(waitMs = 0) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendNativeMessage(NativeHostName, {type: 'status', waitMs}, (response) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            resolve({ok: false, error: lastError.message});
+            return;
+          }
+          this.hostOutdated = MpvBackend.isHostOutdated(response);
+          if (!response || response.ok !== true) {
+            // A host from before the status message answers "unknown message".
+            resolve(this.withHostState({ok: false, error: (response && response.error) || 'mpv host error'}));
+            return;
+          }
+          resolve(this.withHostState({
+            ok: true,
+            running: response.running === true,
+            decoder: MpvBackend.readDecoder(response.decoder),
+          }));
+        });
+      } catch (e) {
+        resolve({ok: false, error: String(e)});
+      }
+    });
+  }
+
+  /**
+   * The host's decoder answer, checked field by field.
+   * @param {*} value
+   * @return {?MpvDecoder}
+   */
+  static readDecoder(value) {
+    if (!value || typeof value !== 'object' || typeof value.api !== 'string' || !value.api) {
+      return null;
+    }
+    const text = (v) => (typeof v === 'string' && v ? v.slice(0, 40) : null);
+    const size = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : null);
+    return {
+      hardware: value.api !== 'no',
+      api: value.api.slice(0, 40),
+      format: text(value.format),
+      width: size(value.width),
+      height: size(value.height),
+    };
+  }
+
+  /**
+   * How the toolbar tooltip and "Test mpv connection" name a decoder:
+   * "d3d11va, AV1 1920x1080", or "AV1 1920x1080" in software.
+   * @param {?MpvDecoder} decoder
+   * @return {string}
+   */
+  static describeDecoder(decoder) {
+    if (!decoder) {
+      return '';
+    }
+    const parts = [];
+    if (decoder.hardware) {
+      parts.push(decoder.api);
+    }
+    const format = decoder.format ? (FormatNames.get(decoder.format) || decoder.format.toUpperCase()) : '';
+    const size = decoder.width && decoder.height ? `${decoder.width}x${decoder.height}` : '';
+    const video = [format, size].filter(Boolean).join(' ');
+    if (video) {
+      parts.push(video);
+    }
+    return parts.join(', ');
   }
 
   /**

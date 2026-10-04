@@ -528,6 +528,13 @@ mpvTestButton.addEventListener('click', () => {
       if (response.ok && response.hostOutdated) {
         mpvTestResult.textContent += ' ' + window.getI18nMessage('options_mpv_test_outdated');
       }
+      // An mpv the host started is open: which decoder it plays with, as mpv says. On the
+      // processor, only a hint: mpv.conf is the user's, and FastStream never overrides it.
+      if (response.ok && response.decoder && typeof response.decoderText === 'string') {
+        const key = response.decoder.hardware ? 'options_mpv_test_decoder_hw' : 'options_mpv_test_decoder_sw';
+        const what = response.decoderText || String(response.decoder.api || '');
+        mpvTestResult.textContent += ' ' + window.getI18nMessage(key, [what]);
+      }
     });
   };
   if (chrome.permissions && chrome.permissions.contains) {

@@ -1256,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - the mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Playing in MPV - decoded by the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card"
+    },
     "options_mpv_test_outdated": {
         "message": "The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "The open mpv decodes on the graphics card: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "The open mpv decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_sent_outdated": {
         "message": "Sent to mpv. The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."

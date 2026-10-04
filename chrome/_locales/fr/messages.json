@@ -1256,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - l'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Lecture dans MPV - décodé par la carte graphique : $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Lecture dans MPV - décodé par le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique"
+    },
     "options_mpv_test_outdated": {
         "message": "L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "Le mpv ouvert décode sur la carte graphique : $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "Le mpv ouvert décode sur le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique."
     },
     "player_mpv_sent_outdated": {
         "message": "Envoyé vers mpv. L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."

@@ -1256,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh kad grafik: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik"
+    },
     "options_mpv_test_outdated": {
         "message": "Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "mpv yang terbuka menyahkod pada kad grafik: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
     },
     "player_mpv_sent_outdated": {
         "message": "Dihantar ke mpv. Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."

@@ -1,5 +1,6 @@
 // @ts-check
 import {URLUtils} from '../player/utils/URLUtils.mjs';
+import {MpvBackend} from './MpvBackend.mjs';
 
 const PlayerURL = chrome.runtime.getURL('player/index.html');
 
@@ -94,6 +95,17 @@ export class BackgroundUtils {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
           'FastStream - MPV - the mpv host on this computer is out of date: ' +
           'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository';
+      } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
+        // What mpv itself said about its decoder (MpvBackend.decoderStatus).
+        const what = MpvBackend.describeDecoder(tab.mpvDecoder);
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv_hw', [what]) ||
+          'FastStream - Playing in MPV - decoded by the graphics card: ' + what;
+      } else if (tab.mpvDecoder) {
+        // Only a hint: mpv.conf is the user's, and FastStream never overrides it.
+        const what = MpvBackend.describeDecoder(tab.mpvDecoder) || tab.mpvDecoder.api;
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv_sw', [what]) ||
+          'FastStream - Playing in MPV - decoded by the processor (' + what + '): ' +
+          'add hwdec=auto-safe to mpv.conf to decode on the graphics card';
       } else {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV';
       }
