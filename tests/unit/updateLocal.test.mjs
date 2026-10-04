@@ -117,6 +117,29 @@ describe('update-local.ps1', () => {
     ].sort());
   }, 30000);
 
+  // Windows PowerShell started under PowerShell 7 by anything but PowerShell 7 itself
+  // (update-local.cmd from a PowerShell 7 terminal, as VS Code's is; vitest started there)
+  // inherits 7's module folders first, and Get-Acl's module then failed to load (2026-10-04).
+  it.runIf(process.platform === 'win32')('New-PrivateDirectory works with PowerShell 7\'s module folders first', (ctx) => {
+    const pwsh = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', '$PSHOME'],
+        {encoding: 'utf8', windowsHide: true});
+    if (pwsh.status !== 0) {
+      ctx.skip();
+    }
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-private-pwsh7-'));
+    const dir = path.join(parent, 'staging');
+    // Every spelling of the name goes: a test worker's environment can hold it twice
+    // (PSMODULEPATH and PSModulePath), and Windows then reads the one left unchanged.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^PSModulePath$/i.test(name)));
+    env.PSModulePath = [path.join(pwsh.stdout.trim(), 'Modules'), process.env.PSModulePath].filter(Boolean).join(';');
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+      `$ErrorActionPreference = 'Stop'; . '${helper}'; ` +
+      `try { New-PrivateDirectory '${dir}'; 'made' } catch { 'threw: ' + $_.Exception.Message }`],
+    {encoding: 'utf8', windowsHide: true, env});
+    fs.rmSync(parent, {recursive: true, force: true});
+    expect(r.stdout.trim()).toBe('made');
+  }, 30000);
+
   // The double-click: a check, then "Update these now?" only when the check exits with 2, and
   // -Apply only on Y. A stand-in update-local.ps1 logs each call; choice reads stdin.
   it.runIf(process.platform === 'win32').each([
