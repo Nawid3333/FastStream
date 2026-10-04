@@ -557,3 +557,107 @@ describe('the shortcut\'s MPV on YouTube', () => {
     expect(bg.toMpv()).toEqual([]);
   });
 });
+
+// A tab a tab in MPV opens - a site's player in a pop-up tab, an episode middle-clicked -
+// starts in MPV too, the MPV key's way: only a video the user starts there goes (#337).
+describe('a tab a tab in MPV opens', () => {
+  const POPUP = 'https://embed.test/e/1';
+
+  /**
+   * The user starts the video in tab 2, whose stream the page asks for next.
+   * @return {Promise<void>}
+   */
+  async function playInPopup() {
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://embed.test/1', video: {src: '', duration: 1400}},
+        {tabId: 2, frameId: 0});
+    await bg.request({tabId: 2, url: EPISODE});
+    await bg.wait(1000);
+  }
+
+  it('starts in MPV, and sends the video the user starts there', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.command('toggle_mpv', 1);
+    await bg.opened({id: 2, openerTabId: 1});
+    expect(bg.session['tabState:2']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
+    expect(bg.titles.get(2)).toContain('MPV');
+    await bg.navigated(2, POPUP);
+    await playInPopup();
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends nothing the pop-up plays by itself: most are ads', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[AD]: 30})});
+    await bg.command('toggle_mpv', 1);
+    await bg.opened({id: 2, openerTabId: 1});
+    await bg.navigated(2, POPUP);
+    await bg.request({tabId: 2, url: AD});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('takes the MPV key\'s way from the allowlist\'s MPV as well, not its first stream', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}], fetch: playlists({[AD]: 30})});
+    await bg.navigated(1, PAGE);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: true, mpvOnPlay: false});
+    await bg.opened({id: 2, openerTabId: 1});
+    await bg.navigated(2, POPUP);
+    expect(bg.session['tabState:2']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
+    await bg.request({tabId: 2, url: AD});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('inherits with the pop-up guard switched off too, which then closes nothing', async () => {
+    bg = await loadBackground({options: {mpvMode: true, blockPopupsWhilePlaying: false}, tabs: [{id: 1, url: PAGE}]});
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0});
+    await bg.opened({id: 2, openerTabId: 1});
+    expect(bg.removedTabs).toEqual([]);
+    expect(bg.session['tabState:2']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
+  });
+
+  it('leaves it alone when the opener has the in-page player on, or was turned off from MPV', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: 'https://other.test/watch/1'}, {id: 3, url: PAGE}]});
+    // FastStream on, not MPV.
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.opened({id: 2, openerTabId: 1});
+    // The allowlist's MPV, then the toolbar: Off.
+    await bg.navigated(3, PAGE);
+    await bg.click(3);
+    expect(bg.session['tabState:3']).toMatchObject({isOn: false});
+    await bg.opened({id: 4, openerTabId: 3});
+    expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
+    expect(bg.session['tabState:4']?.isMpv).not.toBe(true);
+  });
+
+  it('gives nothing to a pop-up the guard closes', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'POPUP_GUARD_ARM'}, {tabId: 1, frameId: 0});
+    await bg.opened({id: 2, openerTabId: 1});
+    expect(bg.removedTabs).toEqual([2]);
+    expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
+  });
+
+  it('leaves a tab alone whose opener is not in MPV, or that names none', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.opened({id: 2, openerTabId: 1});
+    await bg.command('toggle_mpv', 1);
+    await bg.opened({id: 3});
+    expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
+    expect(bg.session['tabState:3']?.isMpv).not.toBe(true);
+  });
+
+  it('leaves it alone while MPV mode is off', async () => {
+    // The tab went to MPV before the option was switched off.
+    bg = await loadBackground({options: {mpvMode: false}, tabs: [{id: 1, url: PAGE}],
+      session: {'tabState:1': {url: PAGE, isOn: true, isMpv: true, mpvOnPlay: true}}});
+    await bg.opened({id: 2, openerTabId: 1});
+    expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
+  });
+});

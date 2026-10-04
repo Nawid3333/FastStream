@@ -348,6 +348,18 @@ export async function loadBackground({
   };
 
   /**
+   * A tab opens (tabs.onCreated): a page's pop-up or a link, when it names its opener.
+   * @param {{id: number, openerTabId?: number, url?: string}} tab - The new tab.
+   * @return {Promise<void>}
+   */
+  bg.opened = async (tab) => {
+    const created = {url: 'about:blank', ...tab};
+    bg.tabs.push(created);
+    for (const listener of tabEvents.onCreated.listeners) listener({...created});
+    await settle();
+  };
+
+  /**
    * The tab is closed.
    * @param {number} tabId - The tab.
    * @return {Promise<void>}

@@ -266,6 +266,16 @@ child). The spec was checked against both mistakes it guards (the old
 automatic hand-off; no activation check): each fails 4 of its 5 tests. It shares
 `startMpv`/`stopMpv` with the toolbar, so the two cannot drift: a tab is
 always exactly one of Off / On / MPV, and the last key pressed decides.
+**A tab a tab in MPV opens starts in MPV, the MPV key's way (2026-10-04, #337).** A site
+that opens its player in a pop-up tab, or an episode middle-clicked, used to get a tab
+with no MPV, and its video played in the browser. `tabs.onCreated` with `openerTabId`
+(`inheritMpv`, after the pop-up guard, which still closes a pop-up from a click on the
+player) gives the new tab `isOn`/`isMpv`/`mpvOnPlay`. That holds whichever MPV the opener
+is in: an ad pop-up's autoplay must never go to mpv, so it is never the allowlist's
+automatic first stream. Measured in Firefox 157: a `window.open()` tab names its opener,
+but a pop-up *window* (`popup,width=...`) has `openerTabId` null. Reaching that would need
+the `webNavigation` permission (`onCreatedNavigationTarget`), which Firefox would ask the
+user to accept on update, so it is left out.
 **YouTube in the shortcut's MPV (2026-10-04, Nawid: occasional use, keep it minimal).**
 FastStream finds no YouTube stream, so a play on a watch page
 (`MpvBackend.youTubeVideoUrl`: www/m/bare youtube.com, `/watch?v=<11 chars>`) sends

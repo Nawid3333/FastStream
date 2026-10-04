@@ -483,23 +483,50 @@ chrome.tabs.onRemoved.addListener((tabid, removed) => {
 // blur within tens of ms) unreliable.
 chrome.tabs.onCreated.addListener(async (newTab) => {
   await ensureOptions();
-  if (!Options.blockPopupsWhilePlaying) return;
 
   const openerTabId = newTab.openerTabId;
   if (typeof openerTabId !== 'number') return;
 
   const openerTab = Tabs.getTab(openerTabId);
-  if (!openerTab || openerTab.popupGuardArmedUntil <= Date.now()) return;
+  if (!openerTab) return;
 
-  if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
-  chrome.tabs.remove(/** @type {number} */ (newTab.id));
+  if (Options.blockPopupsWhilePlaying && openerTab.popupGuardArmedUntil > Date.now()) {
+    if (Logging) console.log('[PopupGuard] Closing tab opened right after a click on the player', openerTabId, newTab.id, newTab.url);
+    chrome.tabs.remove(/** @type {number} */ (newTab.id));
 
-  // Re-arm briefly rather than clearing outright: a single popup/popunder
-  // script commonly chains two or three tabs off one click, and this still
-  // keeps the guard from lingering long enough to catch an unrelated later
-  // tab the user opens on their own.
-  openerTab.popupGuardArmedUntil = Date.now() + PopupGuardChainMs;
+    // Re-arm briefly rather than clearing outright: a single popup/popunder
+    // script commonly chains two or three tabs off one click, and this still
+    // keeps the guard from lingering long enough to catch an unrelated later
+    // tab the user opens on their own.
+    openerTab.popupGuardArmedUntil = Date.now() + PopupGuardChainMs;
+    return;
+  }
+
+  inheritMpv(openerTab, /** @type {number} */ (newTab.id));
 });
+
+/**
+ * A tab a tab in MPV opened - a site's player in a pop-up tab, an episode middle-clicked -
+ * starts in MPV as well, the MPV key's way: only a video the user starts there goes to mpv
+ * (#337). MPV belongs to a tab, and the new one had none, so its video played in the
+ * browser. Never the allowlist's automatic first stream: most pop-ups are ads, and an
+ * autoplaying one would go to mpv. Firefox names the opener (openerTabId) for a tab, not
+ * for a pop-up window, which this cannot reach (measured 2026-10-04).
+ * @param {TabHolder} openerTab - The tab that opened it.
+ * @param {number} tabId - The new tab.
+ */
+function inheritMpv(openerTab, tabId) {
+  // isMpv only with isOn: every switch to Off clears both.
+  if (!Options.mpvMode || !openerTab.isMpv) {
+    return;
+  }
+  const tab = Tabs.getTabOrCreate(tabId);
+  tab.isOn = true;
+  tab.isMpv = true;
+  tab.mpvOnPlay = true;
+  BackgroundUtils.updateTabIcon(tab);
+  Tabs.saveTabState(tab);
+}
 
 chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
   await ensureOptions();
