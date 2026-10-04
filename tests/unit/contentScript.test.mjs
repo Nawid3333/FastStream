@@ -307,32 +307,6 @@ describe('REMOVE_PLAYERS', () => {
     // And it knows it left: the next toggle enters again.
     expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 7})).toBe('enter');
   });
-
-  // REMOVE_PLAYERS reaches only the top frame: a player in a site's embed stays up, and
-  // the top frame's overlay guard over the embed went, which put the site's bar back over
-  // that player. What it hid over a player iframe it took out comes back.
-  it('keeps what the overlay guard hid over an embed whose player stays up', async () => {
-    const page = loadContentScript();
-    const {document} = page;
-    document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 2000};
-    document.body.rect = {x: 0, y: 0, width: 1280, height: 2000};
-    const embed = document.createElement('iframe');
-    embed.src = 'https://embed.example/e/1';
-    embed.rect = {x: 0, y: 0, width: 640, height: 360};
-    document.body.appendChild(embed);
-    const bar = document.createElement('div');
-    bar.rect = {x: 0, y: 320, width: 640, height: 40};
-    document.body.appendChild(bar);
-    await linkPlayer(page, embed, 7);
-    await page.send({type: 'IS_FULL', frameId: 7});
-    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
-    await page.send({type: 'REMOVE_PLAYERS'});
-    expect(bar.style.getPropertyValue('visibility')).toBe('hidden');
-    // The embed goes too: its player with it.
-    embed.remove();
-    await page.send({type: 'REMOVE_PLAYERS'});
-    expect(bar.style.getPropertyValue('visibility')).toBe('');
-  });
 });
 
 /**
@@ -527,29 +501,11 @@ describe('HOLD_PAGE_MEDIA', () => {
     expect(video.paused).toBe(false);
   });
 
-  // REMOVE_PLAYERS reaches only the top frame (a same-site URL change), and a click on a
-  // link only its own frame, while the player that plays can be in a site's embed, and stay
-  // up. Ending the hold there let the page's media play under it. The background ends it
-  // once the playing player's frame goes.
-  it('stays through REMOVE_PLAYERS in a frame without a player of its own', async () => {
+  it('ends with the players: REMOVE_PLAYERS lets the page play', async () => {
     const {page, video, play} = playingPage();
     await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
     await page.send({type: 'REMOVE_PLAYERS'});
     play(video);
-    expect(video.paused).toBe(true);
-    expect(page.sent.filter((m) => m.type === 'FRAME_REMOVED')).toEqual([]);
-  });
-
-  it('is the background\'s to end when REMOVE_PLAYERS takes the player out', async () => {
-    const {page, video, iframe} = await pageWithPlayer();
-    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
-    await page.send({type: 'REMOVE_PLAYERS'});
-    expect(iframe.isConnected).toBe(false);
-    // What makes the background end the hold (sendPageMediaHold).
-    expect(page.sent.filter((m) => m.type === 'FRAME_REMOVED')).toEqual([{type: 'FRAME_REMOVED', frameId: 5}]);
-    await page.send({type: 'HOLD_PAGE_MEDIA', hold: false});
-    video.paused = false;
-    page.dispatchDocument('play', {target: video});
     expect(video.paused).toBe(false);
   });
 

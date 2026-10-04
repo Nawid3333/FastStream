@@ -310,10 +310,11 @@ lost the GPU device - the mpv repo's AGENTS.md "NO VULKAN VIDEO DECODING").**
   starts the `.exe` beside it.
 - *Page side:* FRAME_REMOVED stays at `beforeunload` (the next page's own load can be its
   stream), but a page still there 2 s later (a download link, a cancelled "Leave page?")
-  names itself again and reports its leave on `pagehide`; `removePlayers` no longer ends
-  the page-media hold (the background ends it when the playing player's frame goes) and
-  releases only overlay guards whose iframe left (`releaseGone`); pauses and the hold reach
-  closed shadow roots and skip live MediaStream media (calls).
+  names itself again and reports its leave on `pagehide`; pauses and the hold reach closed
+  shadow roots and skip live MediaStream media (calls). Tried and reverted the same night:
+  keeping the hold and the overlay guards through `removePlayers` (for a site's embed whose
+  player stays up across a URL change) - the page is given back on a URL change, which
+  content-overlays.e2e.mjs "hides the embedding page's bar..." pins.
 **Ctrl+Shift+F is its own command, `toggle_player` (2026-09-28)**, not the
 toolbar button (`_execute_action`) any more. `_execute_action` fires the
 button's own `action.onClicked`, as a click does, so the background cannot

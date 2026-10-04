@@ -62,22 +62,6 @@ describe('OverlayGuard', () => {
     expect(visibility(layer)).toBe('');
   });
 
-  it('gives back, on releaseGone, only what it hid over an iframe out of the page', () => {
-    const {page, iframe} = pageWithPlayerAt(PLAYER);
-    const other = page.document.createElement('iframe');
-    other.src = 'https://embed.example/e/1';
-    other.rect = {x: 0, y: 400, width: 640, height: 300};
-    page.document.body.appendChild(other);
-    const bar = addLayer(page, page.document.body, {x: 0, y: 320, width: 640, height: 40});
-    const otherBar = addLayer(page, page.document.body, {x: 0, y: 660, width: 640, height: 40});
-    page.overlayGuard.guard(iframe);
-    page.overlayGuard.guard(other);
-    expect([visibility(bar), visibility(otherBar)]).toEqual(['hidden', 'hidden']);
-    iframe.remove();
-    page.overlayGuard.releaseGone();
-    expect([visibility(bar), visibility(otherBar)]).toEqual(['', 'hidden']);
-  });
-
   it('hides a bar on the player', () => {
     const {page, iframe} = pageWithPlayerAt(PLAYER);
     const bar = addLayer(page, page.document.body, {x: 0, y: 320, width: 640, height: 40});

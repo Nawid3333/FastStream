@@ -775,12 +775,12 @@
 
   function removePlayers() {
     MiniplayerCooldown = Date.now() + 1000;
-    // The hold on the page's media is not ended here: the background ends it once the
-    // playing player's frame goes (the sweep below reports it, and so does the player's own
-    // pagehide). This frame may hold only the frame of a player that plays on: a
-    // REMOVE_PLAYERS reaches the top frame alone (a same-site URL change), a click on a
-    // link only its own frame, and a player in a site's embed stays up. Ending the hold
-    // here let the page's media play under it.
+    // The players go, and with them the reason to hold the page's media. (Keeping the hold
+    // and the guards over a site's embed whose player stays up through a URL change was
+    // tried on 2026-10-04 and reverted the same night: the page is given back on a URL
+    // change, content-overlays.e2e.mjs "hides the embedding page's bar...".)
+    pageMediaHeld = false;
+    OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
       // The iframe's own style too, which only leaving windowed fullscreen gives back: an
@@ -818,11 +818,6 @@
         });
       }
     });
-
-    // What the overlay guard hid over an iframe now out of the page comes back. Over an
-    // iframe still here, a site's embed with a player of its own that stays up, it stays
-    // hidden: released, the site's bar went back over that player.
-    OverlayGuard.releaseGone();
   }
 
   /**

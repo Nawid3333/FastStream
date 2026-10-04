@@ -7,8 +7,8 @@
 // full-page iframe, the embedding page's bar stayed on top of FastStream.
 //
 // While a player is up, each frame of its chain hides what it paints over the iframe it
-// holds, and gives it back when the iframe goes (releaseGone, from removePlayers, or the
-// next check). An element counts as the player's when it is painted above the iframe and
+// holds, and gives it back when the player goes (releaseAll, from removePlayers) or the
+// iframe does. An element counts as the player's when it is painted above the iframe and
 // at least 80% of it lies inside the iframe's box, or it covers half of that box: a bar or
 // a button on the player, or a layer over it, but not a page header that overlaps its top
 // edge. The box is the whole iframe's, on screen or not: measured by its part on screen,
@@ -217,13 +217,6 @@ const OverlayGuard = (() => {
     },
     releaseAll() {
       for (const iframe of [...guards.keys()]) release(iframe);
-    },
-    // Those whose iframe is out of the page (content.js's removePlayers). The others hold
-    // a player still up, in the frame below: a site's embed, whose player is that frame's.
-    releaseGone() {
-      for (const iframe of [...guards.keys()]) {
-        if (!iframe.isConnected) release(iframe);
-      }
     },
   };
 })();
