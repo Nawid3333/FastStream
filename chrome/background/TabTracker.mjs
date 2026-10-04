@@ -258,6 +258,16 @@ export class TabHolder {
     // The latest decoder question in flight: an older answer is dropped.
     /** @type {?Object} */
     this.mpvDecoderQuery = null;
+    // Counts the pages the tab showed (background.mjs, tabs.onUpdated): the host answers a
+    // hand-off seconds later, and an answer for a page the tab has left applies nothing.
+    /** @type {number} */
+    this.mpvPage = 0;
+    // The user turned the tab off, or MPV off, on the site it shows (background.mjs
+    // userTurnedOff): the MPV Allowlist does not start MPV there again by itself, also
+    // after a page of the site it does not list. Another site, or the user turning MPV on,
+    // ends it. Not cleared by reset(), which the Off's own reload runs.
+    /** @type {boolean} */
+    this.mpvTurnedOff = false;
     this.url = '';
     // Popup/popunder guard: set by content.js when focus moves into one of
     // this tab's player iframes (the click that ad sites hook via a
@@ -570,11 +580,13 @@ const TabStateKeyPrefix = 'tabState:';
 // mpvHostOutdated, or the toolbar's "!" for a failed hand-off or an outdated host went at
 // the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
-// which keeps a player's second play() from opening a second window). The rest of a
+// which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
+// MPV Allowlist started MPV again on the site the user had turned it off on. The rest of a
 // TabHolder - frames, detected sources - describes the current page and is
 // rebuilt as that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
-  'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend'];
+  'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
+  'mpvTurnedOff'];
 
 export class TabTracker {
   constructor() {

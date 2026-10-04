@@ -231,6 +231,15 @@ describe('the allowlist\'s MPV, a play on a page Back gave back', () => {
     await bg.wait(3500);
     expect(bg.toMpv()).toEqual([SA, SB]);
   });
+
+  it('sends nothing when the toolbar turned MPV off within the 3 s', async () => {
+    // Off means off: nothing in the tab goes to mpv after it.
+    await backToA();
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([SA, SB]);
+  });
 });
 
 describe('a same-site link into an allowlisted or auto-enabled path', () => {
@@ -576,5 +585,562 @@ describe('a tab a tab in MPV opens', () => {
       session: {'tabState:1': {url: PAGE, isOn: true, isMpv: true, mpvOnPlay: true}}});
     await bg.opened({id: 2, openerTabId: 1});
     expect(bg.session['tabState:2']?.isMpv).not.toBe(true);
+  });
+});
+
+// A playlist of the seek bar's thumbnails and a piece of a stream, as the background's
+// length reads (StreamLengths) see them: the playlist says EXT-X-IMAGES-ONLY, and a media
+// segment starts with styp and moof.
+const THUMBS = 'https://cdn.test/episode/thumbs.m3u8';
+const PIECE = 'https://cdn.test/episode/seg-14.mp4';
+const THUMBS_PLAYLIST = ['#EXTM3U', '#EXT-X-TARGETDURATION:10', '#EXT-X-IMAGES-ONLY',
+  '#EXTINF:10.0,', 'tile-1.jpg', '#EXTINF:10.0,', 'tile-2.jpg', '#EXT-X-ENDLIST'].join('\n');
+
+/**
+ * The start of a media segment: a styp box, then a moof.
+ * @return {Uint8Array} Its bytes.
+ */
+function segmentBytes() {
+  const bytes = new Uint8Array(32);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 24);
+  bytes.set(new TextEncoder().encode('stypmsdh'), 4);
+  view.setUint32(24, 8);
+  bytes.set(new TextEncoder().encode('moof'), 28);
+  return bytes;
+}
+
+/**
+ * The network: the episode's playlist (1400 s), the thumbnails' playlist and a segment,
+ * each answered after a delay; a 404 for anything else.
+ * @param {number} [delayMs] - How long each answer takes.
+ * @return {function(string): Promise<Object>} fetch() for loadBackground.
+ */
+function episodeFiles(delayMs = 100) {
+  const bodies = {[EPISODE]: hlsPlaylist(1400), [THUMBS]: THUMBS_PLAYLIST, [PIECE]: segmentBytes()};
+  return (url) => new Promise((resolve) => {
+    setTimeout(() => resolve(url in bodies ? response(bodies[url]) : response('', 404)), delayMs);
+  });
+}
+
+describe('the shortcut\'s MPV, a stream that shows no video of its own', () => {
+  // The lengths of the seek bar's thumbnails and of a piece of a stream are no lengths
+  // (STILLS_LENGTH, PIECE_LENGTH), and StreamPick.conflicts took them for unknown ones: a
+  // play waiting for its stream took the first of them that came. mpv showed the
+  // thumbnails, or played a few seconds of the video.
+
+  it('waits on past the seek bar\'s thumbnails for the video\'s stream', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: episodeFiles()});
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: THUMBS});
+    await bg.wait(50);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('waits on past a piece of a stream', async () => {
+    // The player's next segment, its manifest one the background did not see.
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: episodeFiles()});
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: PIECE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('sends no piece for a play in a frame that detected nothing else', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], fetch: episodeFiles()});
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: PIECE});
+    await bg.request({tabId: 1, url: PIECE.replace('14', '15')});
+    await bg.wait(500);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: '', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+});
+
+describe('the allowlist\'s MPV, a stream already known to show no video', () => {
+  it('does not send the seek bar\'s thumbnails the page\'s last load read', async () => {
+    // The allowlist sends a page's first stream as it is detected, before its length is
+    // read: a playlist of stills asked for first still goes the first time. One read
+    // before, here on the page's last load, does not.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}], fetch: episodeFiles()});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'load-1');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.request({tabId: 1, url: THUMBS});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    // The page is loaded again: the same address is a page of its own.
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'load-2');
+    await bg.request({tabId: 1, url: THUMBS});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE, EPISODE]);
+  });
+});
+
+describe('the shortcut\'s MPV after Firefox stopped the event page', () => {
+  it('asks the page what it loaded, and sends the video\'s stream from that', async () => {
+    // MPV has no extension page open to keep the background running, and the streams it
+    // detected go when Firefox stops it. The page asked for its manifest as it opened, and
+    // asks for none when the user starts the video: nothing went to mpv, and the video
+    // played in the page. content.js answers REPORT_LOADED_MEDIA with a LOADED_MEDIA.
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], session,
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: '', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    expect(bg.sent('REPORT_LOADED_MEDIA')).toHaveLength(1);
+    await bg.message({type: 'LOADED_MEDIA', url: PAGE, document: 'page-1',
+      resources: [{url: EPISODE, media: false, time: Date.now() - 60000}]}, {tabId: 1, frameId: 0});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    // With the browser's User-Agent, which the page's request had: mpv's own is refused by
+    // CDNs, and the request's own headers went with the background that saw it.
+    const open = bg.native.find((m) => m.type === 'open');
+    expect(open.headers).toContainEqual({name: 'User-Agent', value: navigator.userAgent});
+  });
+});
+
+describe('a hand-off the host answers after the tab went on to the next page', () => {
+  // A fresh mpv answers seconds after the send (WMI, then the wait for its window), and
+  // the answer went to whatever page the tab showed by then.
+  const PAGE_2 = 'https://site.test/watch/2';
+
+  /**
+   * The mpv host: an open answered after 2 s, as a fresh mpv's is; the decoder question
+   * at once.
+   * @param {Object} openAnswer - The answer to the open.
+   * @return {function(Object): *} onNative for loadBackground.
+   */
+  function slowHost(openAnswer) {
+    return (message) => (message.type === 'open' ?
+      new Promise((resolve) => setTimeout(() => resolve(openAnswer), 2000)) :
+      {ok: true, running: true, hostVersion: RequiredHostVersion, decoder: {api: 'no', format: 'h264', width: 1280, height: 720}});
+  }
+
+  /**
+   * The user starts a video in the shortcut's MPV, and goes on to the next page before
+   * the host answered.
+   * @param {Object} openAnswer - The host's answer to the open.
+   * @return {Promise<void>}
+   */
+  async function playThenNextPage(openAnswer) {
+    bg = await loadBackground({options: {mpvMode: true, mpvSingleInstance: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}, 50), onNative: slowHost(openAnswer)});
+    await bg.navigated(1, PAGE);
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(500);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: '', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(100);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    await bg.navigated(1, PAGE_2);
+    await bg.frameAdded(1, 0, PAGE_2, 'page-2');
+    await bg.wait(3000);
+  }
+
+  it('pauses nothing on the next page, and asks mpv nothing for it', async () => {
+    await playThenNextPage({ok: true, hostVersion: RequiredHostVersion});
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
+    expect(bg.native.filter((m) => m.type === 'status')).toEqual([]);
+    expect(bg.titles.get(1)).toBe('FastStream - Playing in MPV');
+  });
+
+  it('shows the page before\'s failure not on the next page', async () => {
+    await playThenNextPage({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    expect(bg.badges.get(1)).toBe('');
+    expect(bg.session['tabState:1'].mpvError).toBe(null);
+  });
+
+  it('lets no late failure of the page before send the next page\'s second stream', async () => {
+    // The allowlist's MPV: the failure opened the page's hand-off again, and the next page,
+    // whose stream had gone already, sent its next one too.
+    const A = 'https://cdn.test/a/master.m3u8';
+    const B = 'https://cdn.test/b/master.m3u8';
+    const C = 'https://cdn.test/b/ad.m3u8';
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: (m) => (m.type === 'open' && m.url === A ?
+        new Promise((resolve) => setTimeout(() => resolve({ok: false, error: 'mpv quit right after it started',
+          hostVersion: RequiredHostVersion}), 2000)) :
+        {ok: true, hostVersion: RequiredHostVersion}),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: A});
+    await bg.wait(500);
+    await bg.navigated(1, PAGE_2);
+    await bg.frameAdded(1, 0, PAGE_2, 'page-2');
+    await bg.request({tabId: 1, url: B});
+    await bg.wait(2000);
+    await bg.request({tabId: 1, url: C});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([A, B]);
+  });
+});
+
+describe('MPV mode switched off in the options', () => {
+  // The option is the switch for the whole mpv integration, but a tab kept the mode it was
+  // in: on a site on both the MPV Allowlist and the auto-enable list, every page's stream
+  // went on to mpv.
+
+  /**
+   * The options page saves MPV mode off and says so.
+   * @return {Promise<void>}
+   */
+  async function switchOff() {
+    bg.options.mpvMode = false;
+    await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+  }
+
+  it('takes a tab out of MPV, to the in-page player where the auto-enable list turns it on', async () => {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], autoEnableURLs: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    await switchOff();
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false, mpvOnPlay: false});
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/2', 'page-2');
+    await bg.request({tabId: 1, url: 'https://cdn.test/episode-2/master.m3u8'});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(bg.sent('OPEN_PLAYER')).toHaveLength(1);
+  });
+
+  it('turns a tab in the MPV key\'s MPV off', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.command('toggle_mpv', 1);
+    await switchOff();
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false, mpvOnPlay: false});
+  });
+
+  it('takes a tab out of MPV that a woken background put back in it', async () => {
+    bg = await loadBackground({options: {mpvMode: false, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}],
+      session: {'tabState:1': {url: PAGE, isOn: true, isMpv: true, mpvOnPlay: false, regexMatched: true, mpvMatched: true}}});
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([]);
+  });
+});
+
+describe('the toolbar button after MPV off and on again', () => {
+  it('no longer shows the last hand-off\'s failure, with nothing sent since', async () => {
+    let answer = {ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion};
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}), onNative: () => answer});
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.badges.get(1)).toBe('!');
+    // mpv is put right, and the user turns MPV off and on again.
+    answer = {ok: true, hostVersion: RequiredHostVersion};
+    await bg.command('toggle_mpv', 1);
+    await bg.command('toggle_mpv', 1);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(bg.badges.get(1)).toBe('');
+    expect(bg.titles.get(1)).toBe('FastStream - Playing in MPV');
+  });
+});
+
+describe('a tab closed right after its hand-off', () => {
+  it('is not saved again by mpv\'s answer to the decoder question', async () => {
+    // The stream plays in mpv, and the user closes the tab. The question takes up to 20 s,
+    // and its answer saved the closed tab's state again: every later background made a
+    // holder of it.
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true},
+      tabs: [{id: 1, url: PAGE}],
+      onNative: (m) => (m.type === 'status' ?
+        new Promise((resolve) => setTimeout(() => resolve({ok: true, running: true, hostVersion: RequiredHostVersion,
+          decoder: {api: 'd3d11va', format: 'hevc', width: 1920, height: 1080}}), 5000)) :
+        {ok: true, hostVersion: RequiredHostVersion}),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    await bg.closed(1);
+    await bg.wait(6000);
+    expect(bg.session).not.toHaveProperty('tabState:1');
+  });
+});
+
+describe('a message that wakes the background', () => {
+  // The message that starts a stopped background comes before its options are read, and
+  // the ping or the stream went without the user's mpv path.
+  const MPV_PATH = 'D:/Tools/mpv/mpv.exe';
+
+  /**
+   * storage.local answers 200 ms late, as on a cold start.
+   * @param {Object} chrome - The stand-in.
+   */
+  function slowStorage(chrome) {
+    const get = chrome.storage.local.get;
+    chrome.storage.local.get = (key, callback) => {
+      setTimeout(() => get(key, callback), 200);
+    };
+  }
+
+  it('tests the connection with the mpv path from the options', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvPath: MPV_PATH}, beforeImport: slowStorage,
+      onNative: (m) => ({ok: true, mpv: !!m.mpvPath, path: m.mpvPath, hostVersion: RequiredHostVersion})});
+    const answer = bg.message({type: 'MPV_TEST'}, {tabId: 5});
+    await bg.wait(500);
+    expect(await answer).toMatchObject({ok: true, mpv: true, path: MPV_PATH});
+    expect(bg.native[0]).toEqual({type: 'ping', mpvPath: MPV_PATH});
+  });
+
+  it('sends the player\'s stream with the mpv path from the options (the player\'s mpv button)', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvPath: MPV_PATH}, tabs: [{id: 1, url: PAGE}],
+      beforeImport: slowStorage});
+    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    expect(await answer).toMatchObject({ok: true});
+    expect(bg.native.find((m) => m.type === 'open')).toMatchObject({url: EPISODE, mpvPath: MPV_PATH});
+  });
+});
+
+describe('how mpv\'s window came up', () => {
+  it('is in the debug log after a hand-off', async () => {
+    // The host says whether it raised mpv's window (focus), whether the window was in front
+    // after that (foreground), and whether the stream went into the mpv already open
+    // (reused): an mpv that opened behind the browser shows in the log.
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      beforeImport: (chrome) => {
+        chrome.management.getSelf = async () => ({installType: 'development'});
+      },
+      onNative: () => ({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true}),
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: EPISODE});
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    expect(log).toHaveBeenCalledWith('[MPV] mpv window: reused', true, 'focus', 'True', 'foreground', 'False');
+  });
+});
+
+// Off means off: once the user turned the tab off, or MPV off - the toolbar, the MPV key,
+// MPV mode in the options - nothing in that tab goes to mpv until they turn MPV on again.
+// Each case is one way something started before, or kept from before, could still send.
+describe('after the user turned MPV off', () => {
+  const PLAY = {type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: '', duration: 1400}};
+
+  it('a play still waiting for its stream sends nothing (the MPV key)', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await playWithShortcutMpv(1400);
+    await bg.command('toggle_mpv', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false, mpvPlayPendingUntil: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a play still waiting for its stream sends nothing (the toolbar)', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await playWithShortcutMpv(1400);
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false, mpvPlayPendingUntil: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a stream being checked for the play sends nothing', async () => {
+    // Its length is read (300 ms) when the key turns MPV off.
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.command('toggle_mpv', 1);
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a play whose stream\'s length was still read sends nothing', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.command('toggle_mpv', 1);
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a play sends nothing, and neither does the page\'s next stream', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400, [AD]: 1400})});
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: AD});
+    await bg.command('toggle_mpv', 1);
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a hand-off the host answers only after the Off does not pause the page', async () => {
+    // mpv opens all the same - it was sent - but the page the user went back to plays on.
+    bg = await loadBackground({options: {mpvMode: true, mpvPausePage: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}, 50),
+      onNative: (m) => (m.type === 'open' ?
+        new Promise((resolve) => setTimeout(() => resolve({ok: true, hostVersion: RequiredHostVersion}), 2000)) :
+        {ok: false, error: 'unknown message', hostVersion: RequiredHostVersion})});
+    await bg.command('toggle_mpv', 1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(500);
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.wait(100);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    await bg.command('toggle_mpv', 1);
+    await bg.wait(3000);
+    expect(bg.sent('PAUSE_MEDIA')).toEqual([]);
+  });
+
+  it('the allowlist sends nothing more on the page, nor on the site\'s next page', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    expect(bg.toMpv()).toEqual([AD]);
+    await bg.click(1);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/2', 'page-2');
+    await bg.request({tabId: 1, url: 'https://cdn.test/episode-2/master.m3u8'});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([AD]);
+  });
+
+  it('the allowlist\'s start by address, still waiting for the page, sends nothing', async () => {
+    // startWithTrackedLater waits half a second for the new page to name itself.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: 'https://site.test/'}]});
+    await bg.navigated(1, 'https://site.test/');
+    await bg.frameAdded(1, 0, 'https://site.test/', 'app');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.navigated(1, PAGE);
+    await bg.click(1);
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('the allowlist does not start again on the site after a page of it that is not listed', async () => {
+    // An entry for the site's /watch pages: the user turns MPV off on an episode, goes to
+    // the site's home page, and opens the next episode from there. Leaving the listed
+    // pages forgot the user's Off, and the next episode went to mpv by itself.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    expect(bg.toMpv()).toEqual([AD]);
+    await bg.click(1);
+    await bg.navigated(1, 'https://site.test/');
+    await bg.frameAdded(1, 0, 'https://site.test/', 'home');
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/2', 'page-2');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([AD]);
+    expect(bg.session['tabState:1']).toMatchObject({isMpv: false});
+    // Another site is a fresh decision, as before.
+    bg.options.mpvAllowlist = ['https://site.test/watch', 'https://other.test/'];
+    await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+    await bg.navigated(1, 'https://other.test/watch/1');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+  });
+
+  it('a page on the auto-enable list too gets the in-page player there, not MPV', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch'],
+      autoEnableURLs: ['https://site.test/watch']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    expect(bg.toMpv()).toEqual([AD]);
+    await bg.click(1);
+    await bg.navigated(1, 'https://site.test/');
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/2', 'page-2');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([AD]);
+  });
+
+  it('a restarted background brings nothing of MPV back', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await playWithShortcutMpv(1400);
+    await bg.command('toggle_mpv', 1);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}], session,
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.message(PLAY, {tabId: 1, frameId: 0});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a restarted background keeps the Off on the site from the MPV Allowlist', async () => {
+    const options = {mpvMode: true, mpvAllowlist: ['https://site.test/watch']};
+    bg = await loadBackground({options, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, url: AD});
+    await bg.click(1);
+    const session = bg.session;
+    bg.unload();
+
+    bg = await loadBackground({options, tabs: [{id: 1, url: PAGE}], session});
+    await bg.navigated(1, 'https://site.test/');
+    await bg.navigated(1, 'https://site.test/watch/2');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('a pop-up tab that the user turned off sends nothing', async () => {
+    // It started in MPV, the MPV key's way, from its opener (inheritMpv).
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400})});
+    await bg.command('toggle_mpv', 1);
+    await bg.opened({id: 2, openerTabId: 1});
+    await bg.navigated(2, 'https://embed.test/e/1');
+    expect(bg.session['tabState:2']).toMatchObject({isOn: true, isMpv: true});
+    await bg.click(2);
+    await bg.message(PLAY, {tabId: 2, frameId: 0});
+    await bg.request({tabId: 2, url: EPISODE});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([]);
+    // A pop-up the opener opens after its Off starts with nothing of MPV.
+    await bg.command('toggle_mpv', 1);
+    await bg.opened({id: 3, openerTabId: 1});
+    expect(bg.session['tabState:3']?.isMpv).not.toBe(true);
   });
 });
