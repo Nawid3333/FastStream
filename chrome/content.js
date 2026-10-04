@@ -2015,7 +2015,8 @@
   // Firefox lets a page cancel an extension's keyboard shortcut: a keydown
   // the page calls preventDefault() on never reaches the command. Sites do it
   // by accident - VOE's "no view-source" guard cancels every Ctrl+U, Shift or
-  // not, which swallowed Ctrl+Shift+U. So once the page is done with a key
+  // not, which swallowed Ctrl+Shift+U (the MPV key until 2026-10-04, and still a
+  // user's if they bound it). So once the page is done with a key
   // press, a cancelled one that could be a shortcut goes to the background,
   // which runs the command bound to it, if any. A press the page left alone
   // is Firefox's to run: reporting only cancelled ones means a shortcut never

@@ -78,6 +78,10 @@ describe('matches', () => {
   it('matches a rebound shortcut', () => {
     expect(KeyShortcut.matches('Alt+Shift+U', press('U', 'KeyU', {altKey: true, shiftKey: true})))
         .toBe(true);
+    // The MPV key's default since 2026-10-04, and not the player's Ctrl+Shift+F.
+    expect(KeyShortcut.matches('Alt+F', press('f', 'KeyF', {altKey: true}))).toBe(true);
+    expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', ctrlShift))).toBe(false);
+    expect(KeyShortcut.matches('Alt+F', press('F', 'KeyF', {altKey: true, shiftKey: true}))).toBe(false);
     expect(KeyShortcut.matches('Ctrl+Comma', press(',', 'Comma', {ctrlKey: true}))).toBe(true);
     expect(KeyShortcut.matches('Alt+Up', press('ArrowUp', 'ArrowUp', {altKey: true}))).toBe(true);
     expect(KeyShortcut.matches('F5', press('F5', 'F5'))).toBe(true);

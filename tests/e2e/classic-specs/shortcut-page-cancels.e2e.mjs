@@ -1,5 +1,5 @@
-// FastStream's shortcuts (Ctrl+Shift+F, Ctrl+Shift+U) still work on a page
-// that cancels them.
+// FastStream's shortcuts (Ctrl+Shift+F, and Alt+F for MPV: Ctrl+Shift+U until
+// 2026-10-04) still work on a page that cancels them.
 //
 // Firefox lets a page cancel an extension's shortcut: a keydown the page calls
 // preventDefault() on never reaches the command. Sites do it by accident -
@@ -84,6 +84,8 @@ const PAGES = {
 };
 
 const KEYS = {
+  // The MPV key's default.
+  altF: {alt: true, key: 'F'},
   ctrlShiftU: {ctrl: true, shift: true, key: 'U'},
   ctrlShiftF: {ctrl: true, shift: true, key: 'F'},
   altShiftU: {alt: true, shift: true, key: 'U'},
@@ -166,8 +168,9 @@ async function press(combo) {
       if (combo.shift) {
         mods.push(new KE('', {key: 'Shift', code: 'ShiftLeft', keyCode: KE.DOM_VK_SHIFT}));
       }
-      const k = new KE('', {key: combo.key, code: 'Key' + combo.key,
-        keyCode: KE['DOM_VK_' + combo.key]});
+      // A keyboard gives the lower case letter without Shift (Alt+F is "f").
+      const k = new KE('', {key: combo.shift ? combo.key : combo.key.toLowerCase(),
+        code: 'Key' + combo.key, keyCode: KE['DOM_VK_' + combo.key]});
       mods.forEach((m) => tip.keydown(m));
       tip.keydown(k);
       tip.keyup(k);
@@ -287,10 +290,10 @@ describe('FastStream shortcuts on a page that cancels them', function() {
       const pathname = req.url.split('?')[0];
       res.writeHead(200, {'Content-Type': 'text/html'});
       if (pathname === '/outer') {
-        // The VOE guard in a cross-origin frame: the key goes to the frame's
-        // own process, where content.js runs as well.
+        // A page that cancels every Ctrl and Alt key, in a cross-origin frame: the key
+        // goes to the frame's own process, where content.js runs as well.
         res.end(`<!doctype html><title>outer</title>
-          <iframe id="inner" src="${FRAME}/voe" width="400" height="200"></iframe>`);
+          <iframe id="inner" src="${FRAME}/cancel-modified" width="400" height="200"></iframe>`);
         return;
       }
       res.end(page(PAGES[pathname] ?? ''));
@@ -340,19 +343,39 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     if (frameServer) await new Promise((r) => frameServer.close(r));
   });
 
-  it('Ctrl+Shift+U works past VOE\'s guard, which cancels every Ctrl+U', async function() {
-    await openPage(SITE + '/voe');
+  // The MPV key was Ctrl+Shift+U until 2026-10-04, and a user may still have it bound.
+  it('Ctrl+Shift+U, bound by the user, works past VOE\'s guard, which cancels every Ctrl+U', async function() {
+    await rebind('toggle_mpv', 'Ctrl+Shift+U');
+    try {
+      await openPage(SITE + '/voe');
+      await expectMode('off', 'on opening the page');
+
+      await focusPage();
+      expect(await press(KEYS.ctrlShiftU)).toBe(false);
+      // The guard really did cancel it: Firefox did not run the command above.
+      expect(await pageKeys()).toEqual([{key: 'U', prevented: true}]);
+      await expectMode('mpv', 'after Ctrl+Shift+U');
+
+      await focusPage();
+      await press(KEYS.ctrlShiftU);
+      await expectMode('off', 'after Ctrl+Shift+U again');
+    } finally {
+      await rebind('toggle_mpv', null);
+    }
+  });
+
+  it('Alt+F works on a page that cancels every Alt key', async function() {
+    await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftU)).toBe(false);
-    // The guard really did cancel it: Firefox did not run the command above.
-    expect(await pageKeys()).toEqual([{key: 'U', prevented: true}]);
-    await expectMode('mpv', 'after Ctrl+Shift+U');
+    expect(await press(KEYS.altF)).toBe(false);
+    expect(await pageKeys()).toEqual([{key: 'f', prevented: true}]);
+    await expectMode('mpv', 'after Alt+F');
 
     await focusPage();
-    await press(KEYS.ctrlShiftU);
-    await expectMode('off', 'after Ctrl+Shift+U again');
+    await press(KEYS.altF);
+    await expectMode('off', 'after Alt+F again');
   });
 
   it('Ctrl+Shift+F works on a page that cancels every Ctrl key', async function() {
@@ -373,8 +396,8 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await expectMode('off', 'on opening the page');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftU)).toBe(true);
-    await expectMode('mpv', 'after Ctrl+Shift+U');
+    expect(await press(KEYS.altF)).toBe(true);
+    await expectMode('mpv', 'after Alt+F');
 
     await focusPage();
     expect(await press(KEYS.ctrlShiftF)).toBe(true);
@@ -392,8 +415,8 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await expectMode('off', 'on opening the page');
 
     await focusPage();
-    expect(await press(KEYS.ctrlShiftU)).toBe(false);
-    await expectMode('mpv', 'after Ctrl+Shift+U');
+    expect(await press(KEYS.altF)).toBe(false);
+    await expectMode('mpv', 'after Alt+F');
 
     await focusPage();
     expect(await press(KEYS.ctrlShiftF)).toBe(false);
@@ -408,18 +431,17 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
-    // One at a time, so each key's own effect would show.
-    for (const key of ['U', 'F']) {
+    // One at a time, so each key's own effect would show: Alt+F and Ctrl+Shift+F.
+    for (const combo of [{key: 'f', altKey: true}, {key: 'F', ctrlKey: true, shiftKey: true}]) {
       await browser.switchToWindow(siteHandle);
-      await browser.execute((key) => {
+      await browser.execute((combo) => {
         window.__keys = [];
         document.getElementById('focus').dispatchEvent(new KeyboardEvent('keydown', {
-          key, code: 'Key' + key, keyCode: key.charCodeAt(0),
-          ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+          ...combo, code: 'KeyF', keyCode: 70, bubbles: true, cancelable: true,
         }));
-      }, key);
-      expect(await pageKeys()).toEqual([{key, prevented: true}]);
-      await expectModeKept('off', `after the page dispatched Ctrl+Shift+${key} itself`);
+      }, combo);
+      expect(await pageKeys()).toEqual([{key: combo.key, prevented: true}]);
+      await expectModeKept('off', `after the page dispatched ${JSON.stringify(combo)} itself`);
     }
   });
 
@@ -436,20 +458,20 @@ describe('FastStream shortcuts on a page that cancels them', function() {
       (await browser.execute(() => document.readyState)) === 'complete');
     await browser.$('#focus').click();
     await browser.switchFrame(null);
-    expect(await press(KEYS.ctrlShiftU)).toBe(false);
+    expect(await press(KEYS.altF)).toBe(false);
 
     await browser.switchFrame(await browser.$('#inner'));
     const frameKeys = await browser.execute(() => window.__keys);
     await browser.switchFrame(null);
-    expect(frameKeys).toEqual([{key: 'U', prevented: true}]);
-    await expectMode('mpv', 'after Ctrl+Shift+U in the frame');
+    expect(frameKeys).toEqual([{key: 'f', prevented: true}]);
+    await expectMode('mpv', 'after Alt+F in the frame');
 
     await browser.switchToWindow(siteHandle);
     await browser.switchFrame(await browser.$('#inner'));
     await browser.$('#focus').click();
     await browser.switchFrame(null);
-    await press(KEYS.ctrlShiftU);
-    await expectMode('off', 'after Ctrl+Shift+U in the frame again');
+    await press(KEYS.altF);
+    await expectMode('off', 'after Alt+F in the frame again');
   });
 
   it('follows a shortcut the user rebinds', async function() {
@@ -459,8 +481,8 @@ describe('FastStream shortcuts on a page that cancels them', function() {
 
     // The old key is no longer FastStream's, cancelled or not.
     await focusPage();
-    await press(KEYS.ctrlShiftU);
-    await expectModeKept('off', 'after the old Ctrl+Shift+U');
+    await press(KEYS.altF);
+    await expectModeKept('off', 'after the old Alt+F');
 
     await focusPage();
     expect(await press(KEYS.altShiftU)).toBe(false);

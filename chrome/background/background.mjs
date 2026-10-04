@@ -272,10 +272,10 @@ async function stopMpv(tab) {
  *
  * The button cycles MPV -> Off -> On -> MPV on a site on the MPV Allowlist, and turns
  * FastStream off or on everywhere else; from MPV a click is Off. The key is the in-page
- * player's own switch: from MPV - the allowlist's or Ctrl+Shift+U's - it goes straight
+ * player's own switch: from MPV - the allowlist's or the MPV key's - it goes straight
  * to the player, and otherwise turns the player off or on, on the allowlist too. So
  * each key turns on its own mode whatever mode the tab is in, and the last key pressed
- * decides. The key used to be the button (_execute_action), and after Ctrl+Shift+U it
+ * decides. The key used to be the button (_execute_action), and after the MPV key it
  * turned FastStream off: getting the player took a second press.
  *
  * @param {Object} tabobj - The tab the button was clicked or the key pressed in.
@@ -366,7 +366,8 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
 chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
 
 /**
- * The toggle_mpv shortcut (Ctrl+Shift+U unless the user rebinds it): MPV on or
+ * The toggle_mpv shortcut (Alt+F unless the user rebinds it; Ctrl+Shift+U until
+ * 2026-10-04): MPV on or
  * off for the tab, on any site. Unlike the toolbar cycle it does not need the
  * site on the MPV Allowlist - pressing it is the deliberate choice the
  * allowlist otherwise makes for the user. Off means FastStream off, the same
@@ -379,7 +380,7 @@ chrome.action.onClicked.addListener((tabobj) => onClicked(tabobj));
  *
  * On a blank or new tab it arms MPV for the tab instead: nothing is playing
  * yet, and the tab's mode survives navigation, so the first video of the next
- * page opened there goes to mpv (new tab, Ctrl+Shift+U, paste a link). The
+ * page opened there goes to mpv (new tab, Alt+F, paste a link). The
  * toolbar opens the player page on a blank tab; that page has no video to send.
  * On the player page itself it does nothing.
  *
@@ -558,7 +559,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     if (isPlayerUrl) {
       tab.isOn = true;
       tab.regexMatched = true;
-      // The player page has no MPV mode. Ctrl+Shift+U's arm on a new tab would show
+      // The player page has no MPV mode. The MPV key's arm on a new tab would show
       // there (Ctrl+Shift+F on that tab opens this page), with nothing to send.
       tab.isMpv = false;
       tab.mpvOnPlay = false;
