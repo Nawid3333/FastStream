@@ -138,3 +138,48 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 - **`setSourceInternal`'s progress chain returns if another source came in**, both before
   it switches progress saving off and after it waits for the player. The wait ends when
   whichever player is current is ready, which may be the next source's.
+
+## Which version of a height gets picked (2026-10-04)
+
+`LevelManager.pickVideoLevel` used to take the highest bitrate among the versions of the
+chosen height and never looked at the codec: 1080p AV1 at 2.5 Mbit/s lost to 1080p H.264 at
+5 Mbit/s, and on a GPU without AV1 decoding a higher-bitrate AV1 version was decoded in
+software. Now the players ask Firefox first (`players/DecodingCapabilities.mjs`, the Media
+Capabilities API's `decodingInfo`) and `rankHeightGroup` orders the versions of that height
+by, in turn: playable, no HDR the screen cannot show, decoded in hardware (`powerEfficient`,
+which in Firefox means a hardware decoder), smooth, HDR when screen and decoder both can,
+frame rate, codec efficiency (AV1 > VP9 = HEVC > H.264), bitrate.
+
+- **It only reorders, and only within the height.** `matchQuality` still decides the height
+  (the user's setting), so no answer ever lowers the resolution; nothing is removed. A
+  version without an answer (no codec in the playlist, a probe that timed out) sits between
+  hardware and software ones.
+- **Frame rate and codec count only between hardware-decoded versions.** Between software
+  ones, or ones without an answer, the bitrate decides as before: a deviation from the old
+  pick needs a known hardware decoder behind it.
+- **The answers are in before the first pick.** The pick is synchronous (dash.js calls it
+  from its track selection). HLS: the `MANIFEST_PARSED` handler awaits the probes before it
+  emits, picks and calls `load()` (`autoStartLoad` is off). DASH:
+  `registerCustomCapabilitiesFilter` - dash.js 5.2 awaits custom capability filters
+  (`CapabilitiesFilter._applyCustomFilters`, after its own codec filter) before selecting
+  tracks. The filter always answers true. It gets the representation as parsed, with the
+  AdaptationSet's `codecs`, `mimeType`, `frameRate` and `EssentialProperty` pushed down
+  (dash.js's objectiron `commonProperties`). A probe gives up after 1.5 s, and a timed-out
+  one is asked again next time, not remembered as unknown.
+- **The container priority still runs after it**: with the default `mp4`, a WebM VP9 version
+  of the same height loses to the MP4 ones unless the user picked WebM. Unchanged.
+- **HLS audio levels store a whole MIME type** (`audio/mp4; codecs="..."`) in `audioCodec`,
+  DASH a bare codec; `bareCodec` reads both.
+- **A codec picked by hand is now a family per site** (`videoCodecFamilyBySite`, the 200 most
+  recent sites; the site is the source's Referer or Origin, else the stream's host, without
+  "www."). It was one global exact string (`prioritizedVideoCodec`, "avc1.640028"), which
+  seldom matched anywhere else and, where it did, overrode every site. The old value is
+  ignored.
+- The option `decodingAwareQuality` (on) switches the ranking and "playable audio first" off.
+  The quality menu shows HW/SW (`getDecodingLabel`) and the codec name of each version.
+- **Measured:** unit tests only (`tests/unit/decodingAwareQuality.test.mjs`,
+  `DecodingCapabilities.test.mjs`, the `setOptions` test in `FastStreamClient.test.mjs`); 20
+  of the ranking tests failed against the old `LevelManager`. Not yet run in a real Firefox:
+  check a stream with AV1 and H.264 at one height, the menu's labels against
+  `about:support`'s codec table, and the start-up delay the probes add.
+- mpv still picks its own version (`--hls-bitrate`, highest): issue #330.

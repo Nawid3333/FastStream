@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(semasa)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Dinyahkod oleh kad grafik (penyahkodan perkakasan)"
+    },
+    "player_quality_sw_title": {
+        "message": "Dinyahkod oleh pemproses (penyahkodan perisian)"
+    },
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
     },
@@ -1000,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Tunjukkan pratonton apabila meleret di atas garis masa"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Utamakan versi yang boleh dinyahkod oleh kad grafik (penyahkodan perkakasan), kemudian kadar bingkai lebih tinggi dan codec lebih cekap seperti AV1. Tidak sekali-kali menurunkan resolusi yang dipilih"
     },
     "options_general_analyze": {
         "message": "Analisis video berturutan secara automatik untuk intro/outro\n(matikan jika anda menghadapi masalah prestasi CPU)"

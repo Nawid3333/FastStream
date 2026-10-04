@@ -64,6 +64,7 @@ export class FastStreamClient extends EventEmitter {
       storeProgress: false,
       disableLoadProgress: false,
       previewEnabled: true,
+      decodingAwareQuality: true,
       autoplayNext: false,
       singleClickAction: ClickActions.HIDE_CONTROLS,
       doubleClickAction: ClickActions.PLAY_PAUSE,
@@ -384,6 +385,8 @@ export class FastStreamClient extends EventEmitter {
     }
 
     this.options.defaultQuality = options.defaultQuality;
+    // Read by LevelManager at the next pick; what is playing keeps its version.
+    this.options.decodingAwareQuality = options.decodingAwareQuality !== false;
 
     this.updateCSSFilters();
 

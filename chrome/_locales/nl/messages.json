@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(huidig)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Gedecodeerd door de grafische kaart (hardwaredecodering)"
+    },
+    "player_quality_sw_title": {
+        "message": "Gedecodeerd door de processor (softwaredecodering)"
+    },
     "player_quality_unknown": {
         "message": "(onbekend)"
     },
@@ -1000,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Toon voorbeeld bij aanwijzen van de tijdlijn"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Geef de voorkeur aan de versie die je grafische kaart kan decoderen (hardwaredecodering), daarna een hogere framerate en efficiëntere codecs zoals AV1. Verlaagt nooit de gekozen resolutie"
     },
     "options_general_analyze": {
         "message": "Analyseer automatisch opeenvolgende video's op intro's/outro's\n(schakel uit bij CPU-prestatieproblemen)"

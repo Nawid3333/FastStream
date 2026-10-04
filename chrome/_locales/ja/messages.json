@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(現在)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "グラフィックカードでデコード（ハードウェアデコード）"
+    },
+    "player_quality_sw_title": {
+        "message": "プロセッサでデコード（ソフトウェアデコード）"
+    },
     "player_quality_unknown": {
         "message": "(不明)"
     },
@@ -1000,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "タイムライン上でマウスを移動するとプレビューが表示されます"
+    },
+    "options_general_decodingawarequality": {
+        "message": "グラフィックカードでデコードできるバージョン（ハードウェアデコード）を優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません"
     },
     "options_general_analyze": {
         "message": "イントロ/アウトロが付いた動画を自動的に解析する\n(CPU パフォーマンスに問題がある場合は OFF にしてください)"

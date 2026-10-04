@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(aktuell)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Von der Grafikkarte dekodiert (Hardware-Dekodierung)"
+    },
+    "player_quality_sw_title": {
+        "message": "Vom Prozessor dekodiert (Software-Dekodierung)"
+    },
     "player_quality_unknown": {
         "message": "(unbekannt)"
     },
@@ -1000,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Vorschau beim halten über die Timeline anzeigen"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Die Version bevorzugen, die deine Grafikkarte dekodieren kann (Hardware-Dekodierung), danach eine höhere Bildrate und effizientere Codecs wie AV1. Senkt nie die gewählte Auflösung"
     },
     "options_general_analyze": {
         "message": "Automatische Analyse sequenzieller Videos auf Intros/Outros\n(Schalte dies aus falls du CPU Performanz Probleme hast)"

@@ -58,6 +58,7 @@ const miniPos = document.getElementById('minipos');
 const daltonizerType = document.getElementById('daltonizerType');
 const daltonizerStrength = document.getElementById('daltonizerStrength');
 const previewEnabled = document.getElementById('previewenabled');
+const decodingAwareQuality = document.getElementById('decodingawarequality');
 const replaceDelay = document.getElementById('replacedelay');
 const colorTheme = document.getElementById('colortheme');
 const optionsSearchBar = document.getElementById('searchbar');
@@ -128,6 +129,8 @@ async function loadOptions(newOptions) {
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
   previewEnabled.checked = !!Options.previewEnabled;
+  // On unless turned off: options saved before it existed have no value for it.
+  decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
@@ -558,6 +561,11 @@ downloadAll.addEventListener('change', () => {
 
 previewEnabled.addEventListener('change', () => {
   Options.previewEnabled = previewEnabled.checked;
+  optionChanged();
+});
+
+decodingAwareQuality.addEventListener('change', () => {
+  Options.decodingAwareQuality = decodingAwareQuality.checked;
   optionChanged();
 });
 

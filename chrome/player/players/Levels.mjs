@@ -10,6 +10,9 @@ export class VideoLevel {
     audioCodec,
     track,
     label,
+    frameRate,
+    videoRange,
+    decoding,
   }) {
     this.id = id;
     // Distinguishes levels that are different sources rather than different qualities,
@@ -23,6 +26,13 @@ export class VideoLevel {
     this.videoCodec = videoCodec ?? null;
     this.audioCodec = audioCodec ?? null;
     this.track = track;
+    // 0 when the manifest does not say.
+    this.frameRate = frameRate || 0;
+    // 'SDR', 'PQ' or 'HLG' (DecodingCapabilities.normalizeVideoRange).
+    this.videoRange = videoRange || 'SDR';
+    // Firefox's {supported, smooth, powerEfficient} for this version, or null without an
+    // answer (DecodingCapabilities). LevelManager ranks versions of one height by it.
+    this.decoding = decoding ?? null;
   }
 }
 
@@ -34,6 +44,7 @@ export class AudioLevel {
     language,
     audioCodec,
     track,
+    decoding,
   }) {
     this.id = id;
     this.bitrate = bitrate || 0;
@@ -41,5 +52,6 @@ export class AudioLevel {
     this.language = language || '';
     this.audioCodec = audioCodec ?? null;
     this.track = track;
+    this.decoding = decoding ?? null;
   }
 }

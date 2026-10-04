@@ -2,6 +2,7 @@ import {DefaultPlayerEvents} from '../../enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from '../../enums/DownloadStatus.mjs';
 import {ReferenceTypes} from '../../enums/ReferenceTypes.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
+import {audioProbeFor, cachedAnswer, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
 import {EmitterRelay, EventEmitter} from '../../modules/eventemitter.mjs';
 import {AbrController, Hls} from '../../modules/hls.mjs';
 import {Utils} from '../../utils/Utils.mjs';
@@ -300,7 +301,17 @@ export default class HLSPlayer extends EventEmitter {
     VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
 
 
-    this.hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+    this.hls.on(Hls.Events.MANIFEST_PARSED, async (event, data) => {
+      // What Firefox says about decoding each version, before the first pick reads it.
+      // Nothing loads until load() below (autoStartLoad is off), and a probe gives up
+      // after DecodingCapabilities.PROBE_TIMEOUT_MS. It never throws (an error is no answer),
+      // so the pick and load() below always run.
+      await this.probeLevels().catch((e) => console.warn('[HLSPlayer] probing levels failed', e));
+      if (!this.video) {
+        // Destroyed while asking.
+        return;
+      }
+
       this.emit(DefaultPlayerEvents.MANIFEST_PARSED);
 
       const levels = this.getVideoLevels();
@@ -438,6 +449,38 @@ export default class HLSPlayer extends EventEmitter {
     return this.video.paused;
   }
 
+  /**
+   * @param {Object} level - An hls.js Level.
+   * @return {?Object} What DecodingCapabilities asks about it.
+   */
+  static videoProbeForLevel(level) {
+    return videoProbeFor({
+      codec: level.videoCodec,
+      width: level.width,
+      height: level.height,
+      bitrate: level.bitrate,
+      frameRate: level.frameRate,
+      videoRange: level.videoRange,
+    });
+  }
+
+  /**
+   * @param {Object} track - An hls.js audio track.
+   * @return {?Object}
+   */
+  static audioProbeForTrack(track) {
+    return audioProbeFor({codec: track.audioCodec, bitrate: track.bitrate});
+  }
+
+  async probeLevels() {
+    const levels = this.hls?.levels || [];
+    const tracks = this.hls?.audioTracks || [];
+    await Promise.all([
+      ...levels.map((level) => probeDecoding(HLSPlayer.videoProbeForLevel(level))),
+      ...tracks.map((track) => probeDecoding(HLSPlayer.audioProbeForTrack(track))),
+    ]);
+  }
+
   getVideoLevels() {
     const result = new Map();
     this.hls.levels.forEach((level, index) => {
@@ -451,6 +494,9 @@ export default class HLSPlayer extends EventEmitter {
         language: null,
         videoCodec: level.videoCodec || null,
         audioCodec: level.audioCodec || null,
+        frameRate: level.frameRate,
+        videoRange: level.videoRange,
+        decoding: cachedAnswer(HLSPlayer.videoProbeForLevel(level)),
       }));
     });
     return result;
@@ -466,6 +512,7 @@ export default class HLSPlayer extends EventEmitter {
         mimeType: null,
         language: track.lang,
         audioCodec: track.audioCodec ? `audio/mp4; codecs="${track.audioCodec}"` : null,
+        decoding: cachedAnswer(HLSPlayer.audioProbeForTrack(track)),
       }));
     });
     return result;

@@ -1,4 +1,8 @@
 import {Localize} from '../modules/Localize.mjs';
+import {getCodecEfficiency, getCodecFamily, screenSupportsHdr} from './DecodingCapabilities.mjs';
+
+// Sites whose manual codec choice is remembered; the oldest is forgotten past this.
+const MAX_CODEC_SITES = 200;
 
 export class LevelManager {
   constructor(client) {
@@ -13,7 +17,11 @@ export class LevelManager {
     this.prioritizedVideoContainer = 'mp4';
     this.prioritizedAudioContainer = 'mp4';
 
-    this.prioritizedVideoCodec = null;
+    // A codec picked by hand in the quality menu, as a family (CodecFamilies) per site.
+    // It replaced one global exact codec string ("avc1.640028"), which seldom matched
+    // anywhere but where it was picked and, where it did, overrode every other site.
+    /** @type {Object<string, string>} */
+    this.videoCodecFamilyBySite = {};
     this.prioritizedAudioCodec = null;
 
     this.shouldPreferDRCAudio = true;
@@ -34,7 +42,7 @@ export class LevelManager {
       audioLanguage: this.currentAudioLanguage,
       prioritizedVideoContainer: this.prioritizedVideoContainer,
       prioritizedAudioContainer: this.prioritizedAudioContainer,
-      prioritizedVideoCodec: this.prioritizedVideoCodec,
+      videoCodecFamilyBySite: this.videoCodecFamilyBySite,
       prioritizedAudioCodec: this.prioritizedAudioCodec,
       shouldPreferDRCAudio: this.shouldPreferDRCAudio,
     };
@@ -52,7 +60,8 @@ export class LevelManager {
       this.currentAudioLanguage = prefs.audioLanguage || null;
       this.prioritizedVideoContainer = prefs.prioritizedVideoContainer || 'mp4';
       this.prioritizedAudioContainer = prefs.prioritizedAudioContainer || 'mp4';
-      this.prioritizedVideoCodec = prefs.prioritizedVideoCodec || null;
+      const bySite = prefs.videoCodecFamilyBySite;
+      this.videoCodecFamilyBySite = (bySite && typeof bySite === 'object' && !Array.isArray(bySite)) ? bySite : {};
       this.prioritizedAudioCodec = prefs.prioritizedAudioCodec || null;
       // Its default is on: settings saved before it existed loaded it as off.
       this.shouldPreferDRCAudio = prefs.shouldPreferDRCAudio ?? true;
@@ -94,9 +103,127 @@ export class LevelManager {
     this.savePreferences();
   }
 
+  /**
+   * Remembers the codec of a version picked by hand, as its family, for the site playing.
+   * @param {?string} codec
+   */
   setPrioritizedVideoCodec(codec) {
-    this.prioritizedVideoCodec = codec;
+    const family = getCodecFamily(codec);
+    const site = this.getSiteKey();
+    if (!family || !site) {
+      return;
+    }
+    // Re-inserted so the object's order is oldest first.
+    delete this.videoCodecFamilyBySite[site];
+    this.videoCodecFamilyBySite[site] = family;
+    const sites = Object.keys(this.videoCodecFamilyBySite);
+    for (let i = 0; i < sites.length - MAX_CODEC_SITES; i++) {
+      delete this.videoCodecFamilyBySite[sites[i]];
+    }
     this.savePreferences();
+  }
+
+  /**
+   * @return {?string} The codec family picked by hand on this site, if any.
+   */
+  getPrioritizedVideoCodecFamily() {
+    const site = this.getSiteKey();
+    return (site && Object.hasOwn(this.videoCodecFamilyBySite, site)) ? this.videoCodecFamilyBySite[site] : null;
+  }
+
+  /**
+   * The site a video plays on: the page that asked for it (its Referer or Origin), else
+   * the stream's own host. "www." is dropped so both spellings of a site are one.
+   * @return {?string}
+   */
+  getSiteKey() {
+    const source = this.client?.source;
+    if (!source) {
+      return null;
+    }
+    const headers = source.headers || {};
+    const candidates = [headers.referer, headers.origin, source.url];
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'string' || !candidate) continue;
+      try {
+        const host = new URL(candidate).hostname;
+        if (host) {
+          return host.replace(/^www\./, '');
+        }
+      } catch (e) {
+        // Not a URL: try the next.
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Whether versions are ranked by what Firefox says about decoding them (the
+   * "decodingAwareQuality" option, on by default).
+   * @return {boolean}
+   */
+  isDecodingAware() {
+    return this.client?.options?.decodingAwareQuality !== false;
+  }
+
+  /**
+   * How good a version of a given height is to pick, as a key compared left to right,
+   * higher first. Only what is known moves a version ahead of today's choice (the higher
+   * bitrate): frame rate and codec efficiency count only between versions decoded in
+   * hardware, and a version without an answer sits between a hardware and a software one.
+   * @param {Object} level
+   * @param {boolean} hdrScreen
+   * @return {Array<number>}
+   */
+  videoRankKey(level, hdrScreen) {
+    const decoding = level.decoding || null;
+    const known = (value) => value === true ? 2 : (decoding ? 0 : 1);
+    const isHdr = !!level.videoRange && level.videoRange !== 'SDR';
+    const hdrUsable = isHdr && hdrScreen && decoding?.supported === true;
+    const hardware = decoding?.powerEfficient === true;
+    return [
+      decoding?.supported === false ? 0 : 1,
+      // HDR the screen or decoder cannot show looks washed out or dark: SDR before it.
+      isHdr && !hdrUsable ? 0 : 1,
+      known(decoding?.powerEfficient),
+      known(decoding?.smooth),
+      hdrUsable ? 1 : 0,
+      hardware ? Math.round(level.frameRate || 0) : 0,
+      hardware ? getCodecEfficiency(getCodecFamily(level.videoCodec)) : 0,
+      level.bitrate || 0,
+    ];
+  }
+
+  /**
+   * Orders the versions that share the first one's height (the height being picked) by
+   * videoRankKey; the rest stay behind them as matchQuality left them. Nothing is removed,
+   * and no version of another height moves ahead: the resolution stays the user's choice.
+   * @param {Array<Object>} levels - As matchQuality returns them.
+   * @return {Array<Object>}
+   */
+  rankHeightGroup(levels) {
+    if (levels.length < 2) {
+      return levels;
+    }
+    const height = levels[0].height;
+    const group = levels.filter((level) => level.height === height);
+    if (group.length < 2) {
+      return levels;
+    }
+    const rest = levels.filter((level) => level.height !== height);
+    const hdrScreen = screenSupportsHdr();
+    const keys = new Map(group.map((level) => [level, this.videoRankKey(level, hdrScreen)]));
+    group.sort((a, b) => {
+      const ka = keys.get(a);
+      const kb = keys.get(b);
+      for (let i = 0; i < ka.length; i++) {
+        if (ka[i] !== kb[i]) {
+          return kb[i] - ka[i];
+        }
+      }
+      return 0;
+    });
+    return [...group, ...rest];
   }
 
   setPrioritizedAudioCodec(codec) {
@@ -222,6 +349,11 @@ export class LevelManager {
     desiredHeight = desiredHeight || this.getDesiredVideoHeight();
     availableLevels = this.matchQuality(availableLevels, desiredHeight);
 
+    // Among the versions of that height: decoded in hardware, smooth, frame rate, codec
+    if (this.isDecodingAware()) {
+      availableLevels = this.rankHeightGroup(availableLevels);
+    }
+
     // Prioritize mp4 levels
     const containerLevels = availableLevels.filter((level) => {
       return this.isLevelContainerPrioritized(level);
@@ -231,9 +363,10 @@ export class LevelManager {
       availableLevels = containerLevels;
     }
 
-    // Prioritize codec
+    // Prioritize the codec picked by hand on this site
+    const preferredFamily = this.getPrioritizedVideoCodecFamily();
     const codecLevels = availableLevels.filter((level) => {
-      return level.videoCodec && this.prioritizedVideoCodec && level.videoCodec === this.prioritizedVideoCodec;
+      return preferredFamily && getCodecFamily(level.videoCodec) === preferredFamily;
     });
     if (codecLevels.length > 0 && codecLevels[0].height === availableLevels[0].height) {
       availableLevels = codecLevels;
@@ -258,6 +391,14 @@ export class LevelManager {
 
     // Next, pick language
     availableLevels = this.filterAudioLevelsByLanguage(availableLevels);
+
+    // Audio Firefox says it cannot play (Dolby AC-3/E-AC-3, say) only if nothing else is left
+    if (this.isDecodingAware()) {
+      const playable = availableLevels.filter((level) => level.decoding?.supported !== false);
+      if (playable.length > 0) {
+        availableLevels = playable;
+      }
+    }
 
     // Prioritize DRC levels if enabled
     if (this.shouldPreferDRCAudio) {
