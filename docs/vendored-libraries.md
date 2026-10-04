@@ -113,7 +113,7 @@ Next step if this is revisited again: offer the export change upstream.
 "Please export the demuxers" is a small ask, and if accepted the patch
 shrinks to 3 hunks.
 
-Re-run the playback checklist in `CLAUDE.md` after each step. The HLS entry
+Re-run the playback checklist in `docs/notes/playback-testing.md` after each step. The HLS entry
 covers this library.
 
 ## hls.worker.js
@@ -1241,7 +1241,7 @@ ships YouTube support anymore. Previously this file documented that
 target only, while the GitHub self-host builds still shipped an unmeasured
 ~33,000-line vendor of it with no established npm-release provenance —
 that gap is now moot everywhere, not just resolved for AMO. See
-`CLAUDE.md`'s "YouTube removal" section.
+the "YouTube removal" section of `docs/notes/history.md`.
 
 Unrelated to the removal, the AMO manifest drops the `contextualIdentities`
 permission (`build.mjs`, `buildFirefoxAmo()`). Mozilla's schema scopes that

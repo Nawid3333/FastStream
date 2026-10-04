@@ -84,7 +84,7 @@ Many thanks to the contributors of this project.
 
 ## Technical Details
 
-[CLAUDE.md](CLAUDE.md) holds the working notes (layout, conventions, tests, decisions), and [docs/](docs/) the runbooks: maintenance, patched and vendored libraries, upstream syncs.
+[CLAUDE.md](CLAUDE.md) holds the rules every change follows, [docs/notes/](docs/notes/) the working notes by area (conventions, tests, decisions), and [docs/](docs/) the runbooks: maintenance, patched and vendored libraries, upstream syncs.
 
 ## Disclaimer
 

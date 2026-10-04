@@ -1,5 +1,5 @@
 // The installed extension against real streams on the internet: the playback checklist in
-// CLAUDE.md, automated (live-specs/streams.e2e.mjs says what it covers).
+// docs/notes/playback-testing.md, automated (live-specs/streams.e2e.mjs says what it covers).
 //
 // Not part of verify or CI, on purpose: it depends on third-party servers, and an outage
 // there must not hold back a release. Run it after a change to the player, the loaders or

@@ -1,6 +1,6 @@
 // The SPLICER preprocessor that build.mjs runs on every script it copies into a build:
-// comment directives strip or inject code per build target (CLAUDE.md, "The SPLICER
-// preprocessor"). It is a module of its own so the unit tests can run it without a build;
+// comment directives strip or inject code per build target (docs/notes/build-and-release.md, "The
+// SPLICER preprocessor"). It is a module of its own so the unit tests can run it without a build;
 // build.mjs runs everything at load.
 
 import {glob} from '../miniglob.mjs';
