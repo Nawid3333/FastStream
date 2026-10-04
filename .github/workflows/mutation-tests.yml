@@ -101,19 +101,18 @@ jobs:
       - name: Put the shards' reports together
         run: |
           set -euo pipefail
-          reports=()
+          found=0
           missing=''
           for shard in core network tools; do
             if [ -f "shards/mutation-reports-$shard/mutation.json" ]; then
-              reports+=("shards/mutation-reports-$shard/mutation.json")
+              found=$((found + 1))
             else
               missing="$missing $shard"
             fi
           done
           echo "MISSING_SHARDS=${missing# }" >> "$GITHUB_ENV"
-          if [ "${#reports[@]}" -gt 0 ]; then
-            mkdir -p reports/mutation
-            node tools/mutation-report.mjs merge reports/mutation/mutation.json "${reports[@]}"
+          if [ "$found" -gt 0 ]; then
+            node tools/merge-mutation-reports.mjs
           fi
 
       - name: Write the summary

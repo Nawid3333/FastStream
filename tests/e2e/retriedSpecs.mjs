@@ -27,10 +27,15 @@ const repoRoot = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 
 function forgetSuite(outputDir, suite) {
   const file = path.join(outputDir, 'retried.jsonl');
   try {
-    if (!fs.existsSync(file)) {
-      return;
+    let text;
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch (e) {
+      // No earlier run left one.
+      if (e.code === 'ENOENT') return;
+      throw e;
     }
-    const kept = fs.readFileSync(file, 'utf8').split('\n').filter((line) => {
+    const kept = text.split('\n').filter((line) => {
       if (!line.trim()) {
         return false;
       }

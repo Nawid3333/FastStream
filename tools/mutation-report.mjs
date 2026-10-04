@@ -5,7 +5,8 @@
 //   node tools/mutation-report.mjs <mutation.json> summary
 //   node tools/mutation-report.mjs <mutation.json> issue <owner> <run url>
 //   node tools/mutation-report.mjs <mutation.json> count
-//   node tools/mutation-report.mjs merge <out.json> <in.json>...   (the shards' reports)
+//
+// merge() puts the shards' reports together (tools/merge-mutation-reports.mjs).
 //
 // "Not caught" is Survived (the tests ran and passed) and NoCoverage (no test reached it).
 // Killed and Timeout count as caught, as Stryker counts them.
@@ -118,24 +119,19 @@ export function issueBody(report, owner, runUrl) {
  * @return {Object} The first report, with every report's files.
  */
 export function merge(reports) {
-  const merged = {...(reports[0] || {}), files: {}};
+  const files = new Map();
   for (const report of reports) {
     for (const [file, entry] of Object.entries(report.files || {})) {
-      if (Object.hasOwn(merged.files, file)) {
+      if (files.has(file)) {
         throw new Error(`${file} is in two reports: each module belongs to one shard`);
       }
-      merged.files[file] = entry;
+      files.set(file, entry);
     }
   }
-  return merged;
+  return {...(reports[0] || {}), files: Object.fromEntries(files)};
 }
 
-if (process.argv[1] && import.meta.url === url.pathToFileURL(process.argv[1]).href && process.argv[2] === 'merge') {
-  //   node tools/mutation-report.mjs merge <out.json> <in.json>...
-  const [out, ...inputs] = process.argv.slice(3);
-  const reports = inputs.map((input) => JSON.parse(fs.readFileSync(input, 'utf8')));
-  fs.writeFileSync(out, JSON.stringify(merge(reports)));
-} else if (process.argv[1] && import.meta.url === url.pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === url.pathToFileURL(process.argv[1]).href) {
   const [file, what, owner, runUrl] = process.argv.slice(2);
   const report = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (what === 'summary') {

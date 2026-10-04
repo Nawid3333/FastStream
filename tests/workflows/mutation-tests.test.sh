@@ -137,7 +137,7 @@ merge() {
   rm -rf "$FIX"
   mkdir -p "$FIX/work/tools"
   : > "$GITHUB_ENV"
-  cp "$script" "$FIX/work/tools/"
+  cp "$script" "$(dirname "$script")/merge-mutation-reports.mjs" "$FIX/work/tools/"
   shift
   while [ $# -gt 0 ]; do
     mkdir -p "$FIX/work/shards/mutation-reports-$1"

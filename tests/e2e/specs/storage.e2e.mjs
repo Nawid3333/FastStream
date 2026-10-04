@@ -322,15 +322,21 @@ describe('FSBlob storage backends', function() {
       }
 
       const timeout = OPFSManager.CallTimeoutMs;
-      OPFSManager.CallTimeoutMs = 500;
       try {
         const blobStore = new FSBlob();
         await blobStore.ready();
         const before = !!blobStore.opfsManager;
+        if (!before) {
+          blobStore.close();
+          return {skipped: false, before};
+        }
         const first = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1, 2, 3])]));
         const firstOnDisk = blobStore.getBlob(first) instanceof File;
 
-        // From now on the worker takes no more messages, as one that wedged.
+        // From now on the worker takes no more messages, as one that wedged, and counts as
+        // crashed after 500 ms. Shortened only now, as each wait reads it: shortened before
+        // the setup, the worker's start took longer than that on CI's Windows runner (#334).
+        OPFSManager.CallTimeoutMs = 500;
         blobStore.opfsManager.worker.postMessage = () => {};
         const started = Date.now();
         const payload = new Uint8Array([4, 5, 6, 7]);
