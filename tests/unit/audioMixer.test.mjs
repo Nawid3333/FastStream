@@ -214,4 +214,39 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
     await settle();
     expect(ctx.edges.some((edge) => edge.to.kind === 'delay' || edge.from.kind === 'delay')).toBe(false);
   });
+
+  /**
+   * Web Audio's "speakers" up-mix of the layouts the master chain makes (the spec's
+   * channel up-mixing table): which input channel each output channel carries, or null.
+   * @param {number} from - Input channels.
+   * @param {number} to - Output channels.
+   * @return {Array<?number>}
+   */
+  function speakersUpmix(from, to) {
+    if (from === to) return [...Array(to).keys()];
+    const table = {
+      '1>2': [0, 0], '1>4': [0, 0, null, null], '1>6': [null, null, 0, null, null, null],
+      '2>4': [0, 1, null, null], '2>6': [0, 1, null, null, null, null],
+    };
+    return table[`${from}>${to}`];
+  }
+
+  it('sends master mono to the left and right speakers of a 5.1 output', async () => {
+    // Up-mixed one to six it was the centre speaker alone (#202).
+    const {mixer, ctx} = mixerOn51();
+    const profile = new AudioProfile(1);
+    profile.master.mono = true;
+    mixer.setConfig(profile);
+    await settle();
+
+    const {monoNode, gain} = mixer.masterNodes;
+    expect(monoNode.channelCount).toBe(1);
+    expect(monoNode.channelCountMode).toBe('explicit');
+    expect(gain.channelCountMode).toBe('explicit');
+    // Mono into the gain, the gain's channels into the 6 the output takes.
+    const intoGain = speakersUpmix(1, gain.channelCount);
+    const speakers = speakersUpmix(gain.channelCount, ctx.destination.maxChannelCount)
+        .map((channel) => channel === null ? null : intoGain[channel]);
+    expect(speakers.slice(0, 2)).toEqual([0, 0]);
+  });
 });

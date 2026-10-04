@@ -805,7 +805,10 @@ export class AudioChannelMixer extends AbstractAudioModule {
           this.masterNodes.monoNode.channelCountMode = 'explicit';
         }
 
-        this.masterNodes.gain.channelCount = cappedChannelCount;
+        // Web Audio up-mixes one channel to six as the centre speaker alone, so on a 5.1
+        // output "mono" came out of the centre only. Up-mixed to two first, it is the left
+        // and the right speaker, which the output takes as they are.
+        this.masterNodes.gain.channelCount = Math.min(2, cappedChannelCount);
         this.masterNodes.gain.channelCountMode = 'explicit';
       } else {
         if (this.masterNodes.monoNode) {
