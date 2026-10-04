@@ -219,6 +219,9 @@ export class TabHolder {
     this.tracker = tracker;
     this.tabId = tabId;
     this.frames = new Map();
+    // The frames of FastStream's players in the tab that play (PLAYER_PLAYING): while any
+    // does, the page's own media is held paused (background.mjs sendPageMediaHold).
+    this.playingPlayers = new Set();
     // Pages that left the tab, by the name each gave itself (FRAME_ADDED's document),
     // with what each had detected: for a page Firefox's back-forward cache gives back
     // (restoreGoneDocument), and to refuse a player still starting that names one

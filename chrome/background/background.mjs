@@ -791,8 +791,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     tab.playerCount -= playerCount;
     tab.playerCount = Math.max(0, tab.playerCount);
     checkURLMatch(frame);
+    // A page loaded in a frame while a player plays (a site's player iframe made again)
+    // holds its media too.
+    if (tab.playingPlayers.size > 0) {
+      sendPageMediaHold(tab);
+    }
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
-    tab.forgetRemovedFrame(msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame, msg.document);
+    const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
+    const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
+    tab.forgetRemovedFrame(removed, msg.document);
+    // A player that goes lets the page's media go, also one this background no longer
+    // knew to be playing (it was restarted meanwhile).
+    if (wasPlaying || BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
+      sendPageMediaHold(tab);
+    }
+  } else if (msg.type === MessageTypes.PLAYER_PLAYING) {
+    // Only FastStream's player page says so; a page cannot send the background messages.
+    if (BackgroundUtils.isUrlPlayerUrl(sender.url || '')) {
+      if (msg.playing === true) {
+        tab.playingPlayers.add(frame.frameId);
+      } else {
+        tab.playingPlayers.delete(frame.frameId);
+      }
+      sendPageMediaHold(tab);
+    }
   } else if (msg.type === MessageTypes.PLAYER_OPEN_GONE) {
     // The page took the player iframe out before its player loaded: no PLAYER_LOADED comes
     // to end the opening, and openPlayer refused this frame until the page navigated.
@@ -2490,6 +2512,29 @@ function newestOfLongest(sources, video = null) {
     }
   }
   return newest;
+}
+
+/**
+ * Tells every frame of a tab whether a FastStream player in it plays (content.js
+ * holdPageMedia): while one does, the page's own media stays paused. Opening a player
+ * pauses only what is inside the box it takes over, and a site's player outside it, or in
+ * another frame, played on under FastStream's. Frames the tab no longer has (a player
+ * whose frame went without a word) count as stopped.
+ * @param {TabHolder} tab - The tab.
+ */
+function sendPageMediaHold(tab) {
+  for (const frameId of tab.playingPlayers) {
+    if (!tab.getFrame(frameId)) {
+      tab.playingPlayers.delete(frameId);
+    }
+  }
+  chrome.tabs.sendMessage(tab.tabId, {
+    type: MessageTypes.HOLD_PAGE_MEDIA,
+    hold: tab.playingPlayers.size > 0,
+  }, () => {
+    // A frame without a content script is normal here.
+    BackgroundUtils.checkMessageError('hold_page_media', true);
+  });
 }
 
 /**

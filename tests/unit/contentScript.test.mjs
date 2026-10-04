@@ -385,3 +385,74 @@ describe('REPORT_LOADED_MEDIA', () => {
     expect(await reported(page)).toEqual(['https://cdn.example/film.m3u8']);
   });
 });
+
+// While a FastStream player in the tab plays, the background has every frame hold the
+// page's own media paused: a site's player outside the box FastStream took over, or in
+// another frame, played on under it.
+describe('HOLD_PAGE_MEDIA', () => {
+  /**
+   * A page with a video and a sound that play.
+   * @return {{page: Object, video: Object, sound: Object, play: function(Object): void}}
+   */
+  function playingPage() {
+    const page = loadContentScript();
+    const video = page.document.createElement('video');
+    const sound = page.document.createElement('audio');
+    page.document.body.appendChild(video);
+    page.document.body.appendChild(sound);
+    video.paused = false;
+    sound.paused = false;
+    // The page starts one again, as a site's player does: 'play' goes to the document's
+    // listeners, as it does through the capture phase.
+    const play = (media) => {
+      media.paused = false;
+      for (const {type, listener} of page.document.listeners) {
+        if (type === 'play') listener({isTrusted: true, target: media});
+      }
+    };
+    return {page, video, sound, play};
+  }
+
+  it('pauses the page\'s media, and pauses again what the page starts while held', async () => {
+    const {page, video, sound, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    expect([video.paused, sound.paused]).toEqual([true, true]);
+    play(video);
+    play(sound);
+    expect([video.paused, sound.paused]).toEqual([true, true]);
+  });
+
+  it('lets the page play once the hold ends', async () => {
+    const {page, video, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: false});
+    play(video);
+    expect(video.paused).toBe(false);
+  });
+
+  it('pauses nothing without a hold, and nothing on a release', async () => {
+    const {page, video, sound, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: false});
+    expect([video.paused, sound.paused]).toEqual([false, false]);
+    play(video);
+    expect(video.paused).toBe(false);
+  });
+
+  it('ends with the players: REMOVE_PLAYERS lets the page play', async () => {
+    const {page, video, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    await page.send({type: 'REMOVE_PLAYERS'});
+    play(video);
+    expect(video.paused).toBe(false);
+  });
+
+  it('leaves a play event of anything but media alone', async () => {
+    const {page, play} = playingPage();
+    await page.send({type: 'HOLD_PAGE_MEDIA', hold: true});
+    const div = page.document.createElement('div');
+    div.pause = () => {
+      throw new Error('paused a div');
+    };
+    expect(() => play(div)).not.toThrow();
+  });
+});
