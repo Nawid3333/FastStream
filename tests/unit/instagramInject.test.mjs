@@ -1,15 +1,14 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import vm from 'node:vm';
 import {describe, expect, it} from 'vitest';
+
+// The script's text, as a module of this repository (vite's ?raw), not a file read at run
+// time: running what a read returned is CodeQL's js/code-injection (local sources).
+import source from '../../chrome/custom/instagram_inject.js?raw';
 
 // instagram_inject.js runs in Instagram's page and reads every XHR response for a
 // video_dash_manifest. A response with the key but only empty values (media still being
 // processed), or one that is not an object at all, threw a TypeError inside the page's
 // own XHR handling, before the guard written for it.
-
-const source = fs.readFileSync(
-    path.resolve(import.meta.dirname, '../../chrome/custom/instagram_inject.js'), 'utf8');
 
 /**
  * Runs the script against a stand-in XMLHttpRequest.
