@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - nie otwarto strumienia: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream"
+    },
+    "options_mpv_test_outdated": {
+        "message": "Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Wysłano do mpv. Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."
+    },
     "player_mpv_content_unset": {
         "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"
     },

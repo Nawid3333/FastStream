@@ -208,6 +208,22 @@ command line and the result to `faststream-mpv-host.log` next to itself.
    icon, `MPV` badge), and detected streams are handed to mpv instead of the
    in-page player. A click cycles MPV → Off → On → MPV.
 
+## Updating the host
+
+Your PC runs the copy the setup put in `%LOCALAPPDATA%\FastStreamMpvHost\`. A
+`git pull` updates the file in this folder, and an extension update updates the
+extension; neither touches that copy. After the host changes, install it again:
+`update-local.cmd` in the repository's root checks the installed copy against
+the repository's and runs `install.ps1` for you (keeping your mpv and Node
+paths), or run `install.ps1` yourself.
+
+You do not have to remember this. The host sends its version (`HostVersion` in
+`faststream-mpv-host.mjs`) with every answer, and the extension knows which
+version it was released with. When the installed host is older, the stream still
+opens, and FastStream says the host is out of date: a `!` on the toolbar button
+in MPV mode (the reason is in its tooltip), in the player's "Sent to mpv"
+message, and in **Test mpv connection** on the options page.
+
 ## Testing the host by hand
 
 Use the **Test mpv connection** button in the extension options — it sends

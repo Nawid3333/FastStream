@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - strim tidak dibuka: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream"
+    },
+    "options_mpv_test_outdated": {
+        "message": "Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Dihantar ke mpv. Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+    },
     "player_mpv_content_unset": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"
     },

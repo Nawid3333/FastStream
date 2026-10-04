@@ -38,8 +38,24 @@ describe('the toolbar button in MPV mode', () => {
     expect(calls.icon).toEqual({path: '/icon3_128.png', tabId: 7});
   });
 
+  // The stream went to mpv, but through a host older than this extension was released
+  // with (MpvBackend's RequiredHostVersion): the copy on the PC wants installing again.
+  it('shows "!" and what to run after a hand-off through an outdated host', () => {
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
+    expect(calls.badge).toEqual({text: '!', tabId: 7});
+    expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+      'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository', tabId: 7});
+  });
+
+  it('names a failure before an outdated host', () => {
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: 'mpv executable not found',
+      mpvHostOutdated: true});
+    expect(calls.badge).toEqual({text: '!', tabId: 7});
+    expect(calls.title).toEqual({title: 'FastStream - MPV - the stream did not open: mpv executable not found', tabId: 7});
+  });
+
   it('is the plain purple icon otherwise', () => {
-    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null});
+    BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: false});
     expect(calls.badge).toEqual({text: '', tabId: 7});
     expect(calls.title).toEqual({title: 'FastStream - Playing in MPV', tabId: 7});
   });

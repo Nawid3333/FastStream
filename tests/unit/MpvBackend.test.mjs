@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {HostMaxMessageBytes, MpvBackend} from '../../chrome/background/MpvBackend.mjs';
+import {HostMaxMessageBytes, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {MaxMessageBytes} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
@@ -143,7 +143,7 @@ describe('openStream retry bookkeeping', () => {
   });
 
   it('does not resend a URL the host already accepted', async () => {
-    const host = stubNativeHost({ok: true});
+    const host = stubNativeHost({ok: true, hostVersion: RequiredHostVersion});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -185,7 +185,7 @@ describe('openStream retry bookkeeping', () => {
   });
 
   it('passes the host\'s own reason on, without noHost', async () => {
-    stubNativeHost({ok: false, error: 'mpv executable not found'});
+    stubNativeHost({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'mpv executable not found'});
   });
@@ -351,7 +351,7 @@ describe('testConnection', () => {
   }
 
   it('pings the host with the mpv path set in the options, and reports where mpv is', async () => {
-    const host = pingHost(() => ({ok: true, mpv: true, path: 'D:/tools/mpv.exe'}));
+    const host = pingHost(() => ({ok: true, mpv: true, path: 'D:/tools/mpv.exe', hostVersion: RequiredHostVersion}));
     const backend = new MpvBackend();
     backend.mpvPath = 'D:/tools/mpv.exe';
     expect(await backend.testConnection()).toEqual({ok: true, mpv: true, path: 'D:/tools/mpv.exe'});
@@ -359,7 +359,7 @@ describe('testConnection', () => {
   });
 
   it('sends no path when none is set, and says so when the host finds no mpv', async () => {
-    const host = pingHost(() => ({ok: true, mpv: false}));
+    const host = pingHost(() => ({ok: true, mpv: false, hostVersion: RequiredHostVersion}));
     expect(await new MpvBackend().testConnection()).toEqual({ok: true, mpv: false, path: undefined});
     expect(host.sent()[0].message).toEqual({type: 'ping'});
   });

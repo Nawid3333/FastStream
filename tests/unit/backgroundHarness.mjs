@@ -1,4 +1,5 @@
 import {vi} from 'vitest';
+import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 
 // Runs chrome/background/background.mjs in Node against a stand-in for the WebExtension
 // API, for what its listeners do together: a page's request, the page naming itself, a
@@ -69,7 +70,8 @@ let requestCounter = 0;
  *   the background's own reads; a 404 for everything by default.
  * @param {function({tabId: number, frameId: (number|undefined), message: Object}): *} [setup.onTabMessage] -
  *   A page's answer to a message the background sends it (tabs.sendMessage).
- * @param {function(Object): *} [setup.onNative] - The mpv host's answer; {ok: true} by default.
+ * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
+ *   {ok: true} by default.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
  *   before the background loads: to make an API fail from the start.
  * @return {Promise<Object>} The background's handle.
@@ -80,7 +82,7 @@ export async function loadBackground({
   session = {},
   fetch = async () => response('', 404),
   onTabMessage = () => undefined,
-  onNative = () => ({ok: true}),
+  onNative = () => ({ok: true, hostVersion: RequiredHostVersion}),
   beforeImport = () => {},
 } = {}) {
   vi.useFakeTimers();

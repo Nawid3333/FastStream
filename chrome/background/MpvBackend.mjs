@@ -10,6 +10,7 @@
  *   {type: 'ping', mpvPath?}                      -> {ok, mpv, path}
  *   {type: 'open', url, headers?, contentType?, pageUrl?, title?, start?, subtitles?,
  *    mpvPath?, fullscreen?, singleInstance?}      -> {ok, error?}
+ * Every answer carries the host's `hostVersion` (see RequiredHostVersion below).
  *
  * `headers` is the subset of the original request headers mpv needs to
  * fetch CDN streams. Only Referer, Origin and User-Agent are relayed --
@@ -30,6 +31,15 @@
  */
 
 const NativeHostName = 'com.faststream.mpv';
+
+// The host this extension was released with: HostVersion in
+// native-host/faststream-mpv-host.mjs at that commit (tests/unit/mpvHostVersion.test.mjs
+// keeps the two equal). The host is not part of the extension: a PC runs the copy
+// install.ps1 made, and neither an extension update nor a `git pull` changes that copy.
+// An answer with a lower version, or none (a host from before 2026-10-04), is an
+// outdated host: the stream still goes to it, and the toolbar button, the player's mpv
+// button and "Test mpv connection" say to install the host again.
+export const RequiredHostVersion = 1;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -55,6 +65,31 @@ export class MpvBackend {
     this.fullscreen = false;
     /** @type {boolean} */
     this.singleInstance = true;
+    // Whether the last answer came from an outdated host. One host serves the whole
+    // browser, so it is kept here and goes with every result, the one for a stream
+    // already sent (which asks the host nothing) included.
+    /** @type {boolean} */
+    this.hostOutdated = false;
+  }
+
+  /**
+   * Whether an answer came from a host older than this extension was released with.
+   * @param {*} response - The host's answer.
+   * @return {boolean} True for a lower version, or an answer without one.
+   */
+  static isHostOutdated(response) {
+    const version = response && typeof response === 'object' ? response.hostVersion : undefined;
+    return !(Number.isInteger(version) && version >= RequiredHostVersion);
+  }
+
+  /**
+   * A result with what is known about the host's version.
+   * @param {{ok: boolean, error?: string, mpv?: boolean, path?: string}} result - The result.
+   * @return {{ok: boolean, error?: string, mpv?: boolean, path?: string, hostOutdated?: boolean}}
+   *   The result, with hostOutdated when the host is outdated.
+   */
+  withHostState(result) {
+    return this.hostOutdated ? {...result, hostOutdated: true} : result;
   }
 
   /**
@@ -132,8 +167,9 @@ export class MpvBackend {
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
    * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>}} [extras]
    *   - Where the browser's player was, and the subtitles it shows (the player's button).
-   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean}>} Host response;
-   *   noHost when the host itself could not be reached.
+   * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}>}
+   *   Host response; noHost when the host itself could not be reached, hostOutdated when
+   *   it answered as a version older than RequiredHostVersion.
    */
   openStream(url, tab, headers, contentType, pageUrl, pageTitle, extras = {}) {
     if (!MpvBackend.isStreamUrl(url)) {
@@ -142,7 +178,7 @@ export class MpvBackend {
 
     if (tab && tab.mpvSentUrls) {
       if (tab.mpvSentUrls.has(url)) {
-        return Promise.resolve({ok: true});
+        return Promise.resolve(this.withHostState({ok: true}));
       }
       tab.mpvSentUrls.add(url);
     }
@@ -228,6 +264,8 @@ export class MpvBackend {
             return;
           }
 
+          this.hostOutdated = MpvBackend.isHostOutdated(response);
+
           if (response && response.ok === false) {
             // The host answered but mpv never started (bad path, no mpv
             // installed). Forget the URL so the user can retry it after
@@ -236,11 +274,11 @@ export class MpvBackend {
             if (tab && tab.mpvSentUrls) {
               tab.mpvSentUrls.delete(url);
             }
-            resolve({ok: false, error: response.error || 'mpv host error'});
+            resolve(this.withHostState({ok: false, error: response.error || 'mpv host error'}));
             return;
           }
 
-          resolve({ok: true});
+          resolve(this.withHostState({ok: true}));
         });
       } catch (e) {
         if (tab && tab.mpvSentUrls) {
@@ -253,7 +291,7 @@ export class MpvBackend {
 
   /**
    * Pings the native host and asks it to locate mpv.
-   * @return {Promise<{ok: boolean, mpv?: boolean, path?: string, error?: string}>}
+   * @return {Promise<{ok: boolean, mpv?: boolean, path?: string, error?: string, hostOutdated?: boolean}>}
    */
   testConnection() {
     return new Promise((resolve) => {
@@ -271,11 +309,12 @@ export class MpvBackend {
             resolve({ok: false, error: lastError.message});
             return;
           }
-          resolve({
+          this.hostOutdated = MpvBackend.isHostOutdated(response);
+          resolve(this.withHostState({
             ok: true,
             mpv: !!(response && response.mpv),
             path: response ? response.path : undefined,
-          });
+          }));
         });
       } catch (e) {
         resolve({ok: false, error: String(e)});

@@ -534,6 +534,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvAutoOpened = false;
       tab.mpvSentUrls.clear();
       tab.mpvError = null;
+      tab.mpvHostOutdated = false;
       tab.mpvPlayPendingUntil = 0;
       tab.mpvPlayedVideo = null;
       tab.mpvPlayChecking = null;
@@ -2149,9 +2150,13 @@ function autoOpenInMpv(tab, url, headers) {
 /**
  * Shows a failed MPV-mode hand-off on the tab's toolbar button ("!", and the reason in
  * its tooltip), or clears it after one that worked. Without it the page simply played
- * on in the browser, and nothing said why.
+ * on in the browser, and nothing said why. An outdated host shows the same "!" after a
+ * hand-off that worked, with a tooltip that says to install the host again: the copy a
+ * PC runs is not updated by an extension update or a `git pull`, and nothing else in
+ * MPV mode would say so (MpvBackend's RequiredHostVersion).
  * @param {Object} tab - TabHolder the stream was sent from.
- * @param {{ok: boolean, error?: string, noHost?: boolean}} result - The host's answer.
+ * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result -
+ *   The host's answer.
  */
 function setMpvError(tab, result) {
   /** @type {?string} */
@@ -2161,8 +2166,10 @@ function setMpvError(tab, result) {
       'the FastStream mpv host did not answer - is it installed?' :
       result.error;
   }
-  if (tab.mpvError !== error) {
+  const hostOutdated = result.hostOutdated === true;
+  if (tab.mpvError !== error || tab.mpvHostOutdated !== hostOutdated) {
     tab.mpvError = error;
+    tab.mpvHostOutdated = hostOutdated;
     BackgroundUtils.updateTabIcon(tab);
     Tabs.saveTabState(tab);
   }

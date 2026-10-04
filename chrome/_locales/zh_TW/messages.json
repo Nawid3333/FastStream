@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - 串流未能開啟：$1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）"
+    },
+    "options_mpv_test_outdated": {
+        "message": "這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated": {
+        "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）。"
+    },
     "player_mpv_content_unset": {
         "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"
     },

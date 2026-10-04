@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - le flux ne s'est pas ouvert : $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - l'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream"
+    },
+    "options_mpv_test_outdated": {
+        "message": "L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Envoyé vers mpv. L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."
+    },
     "player_mpv_content_unset": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
     },

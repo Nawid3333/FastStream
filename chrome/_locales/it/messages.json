@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - lo stream non si è aperto: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - l'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream"
+    },
+    "options_mpv_test_outdated": {
+        "message": "L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "Inviato a mpv. L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."
+    },
     "player_mpv_content_unset": {
         "message": "Apri questo stream in mpv (tipo di contenuto: automatico – Film a meno che il sito non sia etichettato @anime; clic destro per cambiarlo in questo video)"
     },

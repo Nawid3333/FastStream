@@ -519,6 +519,12 @@ mpvTestButton.addEventListener('click', () => {
       } else {
         mpvTestResult.textContent = window.getI18nMessage('options_mpv_test_fail');
       }
+      // The host answered as an older version than this extension was released with
+      // (MpvBackend's RequiredHostVersion): the copy on this PC was not installed again
+      // after the host changed.
+      if (response.ok && response.hostOutdated) {
+        mpvTestResult.textContent += ' ' + window.getI18nMessage('options_mpv_test_outdated');
+      }
     });
   };
   if (chrome.permissions && chrome.permissions.contains) {

@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - ストリームを開けませんでした: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください"
+    },
+    "options_mpv_test_outdated": {
+        "message": "このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+    },
+    "player_mpv_sent_outdated": {
+        "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+    },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
     },

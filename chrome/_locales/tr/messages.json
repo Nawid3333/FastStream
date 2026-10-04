@@ -1235,6 +1235,15 @@
     "extension_toggle_label_mpv_failed": {
         "message": "FastStream - MPV - akış açılmadı: $1"
     },
+    "extension_toggle_label_mpv_outdated": {
+        "message": "FastStream - MPV - bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın"
+    },
+    "options_mpv_test_outdated": {
+        "message": "Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."
+    },
+    "player_mpv_sent_outdated": {
+        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."
+    },
     "player_mpv_content_unset": {
         "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
     },

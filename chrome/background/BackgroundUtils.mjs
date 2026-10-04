@@ -75,19 +75,30 @@ export class BackgroundUtils {
     if (tab.isOn && tab.isMpv) {
       // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
       // last hand-off failed, say so: the page plays on in the browser, and nothing else
-      // would tell why. The title still names the mode ("MPV"): the tab is in it.
+      // would tell why. The title still names the mode ("MPV"): the tab is in it. An
+      // outdated host gets the "!" too, after a hand-off that worked: the tooltip says to
+      // install the host again. A failure's reason comes first.
       chrome.action.setBadgeText({
-        text: tab.mpvError ? '!' : '',
+        text: tab.mpvError || tab.mpvHostOutdated ? '!' : '',
         tabId: tab.tabId,
       });
       // Locales without a translation for this key yet still get sensible
       // English text instead of an empty tooltip (chrome.i18n.getMessage
       // returns '' when a key is missing from a locale's messages.json).
+      /** @type {string} */
+      let title;
+      if (tab.mpvError) {
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
+          'FastStream - MPV - the stream did not open: ' + tab.mpvError;
+      } else if (tab.mpvHostOutdated) {
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
+          'FastStream - MPV - the mpv host on this computer is out of date: ' +
+          'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository';
+      } else {
+        title = chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV';
+      }
       chrome.action.setTitle({
-        title: tab.mpvError ?
-          chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
-            'FastStream - MPV - the stream did not open: ' + tab.mpvError :
-          chrome.i18n.getMessage('extension_toggle_label_mpv') || 'FastStream - Playing in MPV',
+        title,
         tabId: tab.tabId,
       });
       chrome.action.setIcon({

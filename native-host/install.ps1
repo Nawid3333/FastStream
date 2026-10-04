@@ -64,7 +64,7 @@ if (Test-Path -LiteralPath $configPath) {
         Write-Warning "config.json could not be read ($($_.Exception.Message)); writing a new one."
     }
 }
-# Without -MpvPath (the host-changed reminder runs it so), a reinstall used to put the
+# Without -MpvPath (a reinstall run by hand), a reinstall used to put the
 # default back over an mpv elsewhere, and "Send to mpv" failed until it was run with the path.
 if (-not $PSBoundParameters.ContainsKey('MpvPath') -and $config['mpvPath'] -is [string] -and $config['mpvPath']) {
     $MpvPath = $config['mpvPath']
