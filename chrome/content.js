@@ -31,6 +31,7 @@
     LOADED_MEDIA: 'LOADED_MEDIA',
     PLAYER_OPEN_GONE: 'PLAYER_OPEN_GONE',
     IS_PLAYER_OPENER: 'IS_PLAYER_OPENER',
+    HOLD_PAGE_MEDIA: 'HOLD_PAGE_MEDIA',
   };
 
   const iframeMap = new Map();
@@ -120,6 +121,9 @@
       sendResponse('ok');
     } else if (request.type === MessageTypes.PAUSE_MEDIA) {
       sendResponse(pauseAllMedia());
+    } else if (request.type === MessageTypes.HOLD_PAGE_MEDIA) {
+      holdPageMedia(request.hold === true);
+      return;
     } else if (request.type === MessageTypes.MPV_REPORT_PLAYING) {
       sendResponse(reportPlayingUserVideo());
     } else if (request.type === MessageTypes.GET_VIDEO_SIZE) {
@@ -724,8 +728,35 @@
     return paused;
   }
 
+  // While a FastStream player in this tab plays, the page's own media stays paused
+  // (HOLD_PAGE_MEDIA, sent to every frame by the background). Opening the player pauses
+  // only what is inside the box it takes over (pauseAllWithin): a site's player outside
+  // it, or in another frame, played on under FastStream's, and both were heard.
+  let pageMediaHeld = false;
+
+  /**
+   * @param {boolean} hold - Whether a FastStream player in the tab plays.
+   */
+  function holdPageMedia(hold) {
+    pageMediaHeld = hold;
+    if (hold) {
+      // A play inside a shadow root reaches only that root's listeners.
+      listenInShadowRoots(document);
+      pauseAllMedia();
+    }
+  }
+
+  function pauseHeldMedia(e) {
+    const media = e.target;
+    if (pageMediaHeld && media && (media.tagName === 'VIDEO' || media.tagName === 'AUDIO')) {
+      media.pause();
+    }
+  }
+
   function removePlayers() {
     MiniplayerCooldown = Date.now() + 1000;
+    // The players go, and with them the reason to hold the page's media.
+    pageMediaHeld = false;
     OverlayGuard.releaseAll();
     iframeMap.forEach((iframeObj) => {
       unmakeMiniPlayer(iframeObj);
@@ -2076,6 +2107,7 @@
   }
 
   document.addEventListener('play', onPlay, true);
+  document.addEventListener('play', pauseHeldMedia, true);
 
   // A play inside a shadow root (a player built as a web component) never reaches the
   // document: media events are not composed. So the shortcut ignored such players. Each
@@ -2089,6 +2121,7 @@
     if (!listenedRoots.has(root)) {
       listenedRoots.add(root);
       root.addEventListener('play', onPlay, true);
+      root.addEventListener('play', pauseHeldMedia, true);
     }
   }
 

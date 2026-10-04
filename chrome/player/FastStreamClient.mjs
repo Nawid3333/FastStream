@@ -1495,6 +1495,8 @@ export class FastStreamClient extends EventEmitter {
     if (this.context) {
       this.context.destroy();
       this.context = null;
+      // Its pause, if it played, comes to no one now; the next source says when it plays.
+      this.reportPlaying(false);
     }
 
     if (this.previewContext) {
@@ -1651,11 +1653,13 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
       this.interfaceController.pause();
+      this.reportPlaying(false);
     });
 
 
     this.context.on(DefaultPlayerEvents.PLAY, (event) => {
       this.interfaceController.play();
+      this.reportPlaying(true);
     });
 
 
@@ -2158,6 +2162,23 @@ export class FastStreamClient extends EventEmitter {
     if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
     this.autoNextRequested = true;
     this.nextVideo();
+  }
+
+  /**
+   * Tells the background whether this player plays. While it does, the page around it
+   * keeps its own media paused (content.js holdPageMedia): a site's player outside the box
+   * this one took over, or in another frame, played on under it.
+   * @param {boolean} playing - Whether it plays now.
+   */
+  reportPlaying(playing) {
+    if (!EnvUtils.isExtension()) return;
+    try {
+      chrome.runtime.sendMessage({type: MessageTypes.PLAYER_PLAYING, playing}, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (e) {
+      // The extension was reloaded under this player: nothing to tell.
+    }
   }
 
   /**

@@ -30,6 +30,28 @@
   without it they skip, except on Linux CI, which has a PulseAudio null sink since
   2026-10-03 and fails them there (`tests/e2e/soundCheck.mjs`, #265).
 
+- **Nothing else in the tab plays while FastStream's player does (2026-10-04).** Opening
+  the player pauses what is inside the box it takes over (content.js `pauseAllWithin`,
+  content-cleanup.e2e.mjs). A site's player outside that box, or in another frame, played
+  on under FastStream's, and the user heard both, typically a video started before
+  FastStream was turned on. Now the player reports its play and pause (`PLAYER_PLAYING`,
+  `FastStreamClient.reportPlaying`; also "stopped" when its context goes with a source
+  change). The background keeps `tab.playingPlayers` and sends every frame
+  `HOLD_PAGE_MEDIA` (`sendPageMediaHold`). While held, a frame pauses its media and pauses
+  again whatever the page starts (`pauseHeldMedia`, a `play` capture listener on the
+  document and on the shadow roots content.js listens in). The hold ends when the player
+  pauses, when its frame goes (`FRAME_REMOVED` from the player, or from the page naming
+  its iframe), and with `REMOVE_PLAYERS`; a frame that loads meanwhile gets it too.
+  - **Fails open:** a player frame the tab no longer knows counts as stopped, and a
+    restarted background releases on the player's `FRAME_REMOVED`, so the page is never
+    left unable to play.
+  - **Not reached:** media never in the document (`new Audio()` kept detached), and Web
+    Audio. Their `play` events reach no listener, and hooking the page's
+    `HTMLMediaElement.prototype.play` was judged too intrusive.
+  - **Tests:** page-media-hold.e2e.mjs (another video in the page and a sound in a
+    cross-origin frame; it fails on the code before), backgroundPageMediaHold.test.mjs, and
+    contentScript.test.mjs `HOLD_PAGE_MEDIA`.
+
 - **Already Manifest V3.** `chrome/manifest.json` is `manifest_version: 3`
   with a `service_worker`. `build.mjs` rewrites that to `background.scripts`
   (a non-persistent event page) for Firefox. There is no MV2 migration to do.
