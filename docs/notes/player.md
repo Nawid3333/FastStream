@@ -115,6 +115,23 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
   downloader limit) while the converter reads the current one, in order; the `catch` calls
   its `cancel()`, which aborts what is still downloading for the save.
+- **A partial save keeps the time of the fragments it lacks** (2026-10-04, #224). Both
+  writers place samples one after the other, so a hole would close up. `MP4Merger` (DASH)
+  and `HLS2MP4` (HLS) stretch the last sample before a hole until the next fragment's
+  decode time. In HLS that is only within one timeline (same `cc`, a jump in `sn`): at an
+  `EXT-X-DISCONTINUITY` the clock starts over, and the pieces are written back to back. An
+  audio rendition has holes of its own, and without the padding it played out of step with
+  the video after the first one (`hls2mp4.test.mjs`, "discontinuities").
+- **Fast playback needs no bigger forward buffer** (measured 2026-10-04, #214). hls.js keeps
+  10 s ahead (`maxBufferLength`), which at 8x is 1.25 s of wall time. In the e2e Firefox on
+  the owner's PC: a 10 min 720p HLS at 3 Mbit/s with 4 s segments, a 15 s pre-buffer, then
+  30 s of wall time at 1x, 4x and 8x (the player's limit; 16x is clamped to 8x). There were
+  no `waiting` events and no time at `readyState` < 3, and the forward buffer never fell
+  below 9.1 s. With the buffer at 10 s × rate (at most 60 s), the result was the same.
+  hls.js reads the next fragment from the download manager's store, which is filled ahead
+  by `DownloadManager`, not by this buffer; on a network slower than 8x the bitrate, a
+  bigger MSE buffer would not help either. "Auto" quality stays "the highest level", as
+  decided on #316 (D5).
 - **`DownloadEntry.notifyWatchers`**: a watcher that throws neither silences the others
   nor skips the cleanup. `StandardDownloader.onSuccess` cleans up in `finally`, or the
   downloader stays busy for good.

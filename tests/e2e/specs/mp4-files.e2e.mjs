@@ -216,7 +216,12 @@ describe('MP4 files of other shapes', function() {
     expect(later.currentTime).toBeGreaterThan(451);
     // Back to where the ranges played through have been let go. Firefox sometimes stops here,
     // playing with minutes buffered ahead, until MP4Player's stall watchdog nudges it on; it
-    // must play on from about 60 s, not from where the element's clock ran on to.
+    // must play on from about 60 s, not from where the element's clock ran on to. The stall
+    // is Firefox's own: measured on 2026-09-29, the data appended and both SourceBuffers'
+    // state were the same in the runs that stalled as in those that did not, and the element
+    // sat at readyState 2 with its clock running (#265). So this checks where playback goes
+    // on from, and logs whether the watchdog had to act; StallWatchdog.test.mjs checks the
+    // watchdog itself.
     const back = await seekAndPlay(60);
     console.log('      nudged to:', await browser.execute(() => {
       const to = window.fastStream.player.stallWatchdog.nudgedTo;

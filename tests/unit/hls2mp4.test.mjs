@@ -208,19 +208,91 @@ describe('HLS2MP4: discontinuities', () => {
     }
   });
 
-  it('does not stretch the edit over a segment that is missing from a partial save', async () => {
-    // Segment 1 was never downloaded: the file has 4 s of media, the stream's clock ran 6 s.
+  it('keeps the time of a segment that is missing from a partial save, as the DASH save does', async () => {
+    // Segment 1 was never downloaded. The samples after the hole were written straight after
+    // the ones before it: a 4 s file whose third second was the stream's fifth. The last
+    // sample before the hole now lasts over it (#224).
     const {tracks} = await save([
       fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
       fragment(0, {sn: 2, cc: 0, start: 4}, muxed(5.4)),
     ]);
 
+    expect(decodedAt(tracks.vide, 50)).toBeCloseTo(4, 3);
+    expect(decodedAt(tracks.soun, 94)).toBeCloseTo(4, 3);
     for (const track of [tracks.vide, tracks.soun]) {
       expect(track.editEnd - track.firstShown).toBeCloseTo(track.mediaEnd, 2);
-      expect(track.editEnd).toBeLessThan(4.2);
+      expect(track.mediaEnd).toBeCloseTo(6, 1);
     }
   });
+
+  it('keeps the audio rendition in step with the video when only the video has a hole', async () => {
+    // The level's segment 1 is missing, the audio rendition has all three. The video after
+    // the hole came 2 s early against the audio, to the end of the file.
+    const video = (start) => muxSegment({video: {
+      type: StreamTypes.H264,
+      units: videoUnits({start: ticks(start), count: 50, frame: FRAME, picture: h264AccessUnit}),
+    }});
+    const audio = (start) => muxSegment({audio: {
+      type: StreamTypes.AAC,
+      units: audioUnits({start: ticks(start), count: 94, sampleRate: RATE}),
+    }});
+    const audioLength = 94 * AUDIO_FRAME;
+    const {tracks} = await save([
+      fragment(0, {sn: 0, cc: 0, start: 0}, video(1.4)),
+      fragment(1, {sn: 0, cc: 0, start: 0}, audio(1.4)),
+      fragment(1, {sn: 1, cc: 0, start: 2}, audio(1.4 + audioLength)),
+      fragment(0, {sn: 2, cc: 0, start: 4}, video(5.4)),
+      fragment(1, {sn: 2, cc: 0, start: 4}, audio(1.4 + 2 * audioLength)),
+    ], {audioRendition: true});
+
+    // The first picture after the hole is shown 4 s after the first, where the stream has it,
+    // and the audio frame under it plays then too.
+    expect(tracks.vide.firstShown + decodedAt(tracks.vide, 50)).toBeCloseTo(4, 3);
+    expect(tracks.soun.firstShown + decodedAt(tracks.soun, 188)).toBeCloseTo(2 * audioLength, 3);
+
+    // And the other way round: the rendition's segment 1 is missing, the level has all three.
+    const audioHole = await save([
+      fragment(0, {sn: 0, cc: 0, start: 0}, video(1.4)),
+      fragment(1, {sn: 0, cc: 0, start: 0}, audio(1.4)),
+      fragment(0, {sn: 1, cc: 0, start: 2}, video(3.4)),
+      fragment(0, {sn: 2, cc: 0, start: 4}, video(5.4)),
+      fragment(1, {sn: 2, cc: 0, start: 4}, audio(1.4 + 2 * audioLength)),
+    ], {audioRendition: true});
+    expect(audioHole.tracks.vide.firstShown + decodedAt(audioHole.tracks.vide, 100)).toBeCloseTo(4, 3);
+    expect(audioHole.tracks.soun.firstShown + decodedAt(audioHole.tracks.soun, 94)).toBeCloseTo(2 * audioLength, 3);
+  });
+
+  it('does not pad across an EXT-X-DISCONTINUITY, where the clock starts over', async () => {
+    // A segment missing just before an ad break: the break's timestamps say nothing about
+    // how long the hole was.
+    const {tracks} = await save([
+      fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
+      fragment(0, {sn: 2, cc: 1, start: 4}, muxed(9.4)),
+    ]);
+
+    expect(decodedAt(tracks.vide, 50)).toBeCloseTo(2, 3);
+    expect(tracks.vide.mediaEnd).toBeLessThan(4.2);
+  });
+
+  it('pads nothing when a fragment starts before the one before it ended', async () => {
+    // Fragments that overlap by a frame: the samples stay as they are.
+    const {tracks} = await save([
+      fragment(0, {sn: 0, cc: 0, start: 0}, muxed(1.4)),
+      fragment(0, {sn: 2, cc: 0, start: 4}, muxed(3.36)),
+    ]);
+
+    expect(decodedAt(tracks.vide, 50)).toBeCloseTo(2, 3);
+  });
 });
+
+/**
+ * @param {Object} track describeTrack() of a track
+ * @param {number} index a sample
+ * @return {number} when the sample is decoded, in seconds from the track's first sample
+ */
+function decodedAt(track, index) {
+  return track.durations.slice(0, index).reduce((sum, duration) => sum + duration, 0) / track.timescale;
+}
 
 describe('HLS2MP4: damaged input', () => {
   it('saves a segment with a damaged packet, as hls.js plays it', async () => {
