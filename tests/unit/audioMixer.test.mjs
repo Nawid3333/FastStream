@@ -215,6 +215,58 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
     expect(ctx.edges.some((edge) => edge.to.kind === 'delay' || edge.from.kind === 'delay')).toBe(false);
   });
 
+  it('keeps its equalizers and compressors, panels and all, for the next video', async () => {
+    // setupNodes runs for every video, and made all 16 again, each with its DOM (#202).
+    const {mixer} = mixerOn51();
+    const profile = new AudioProfile(1);
+    profile.channels[2].compressor.enabled = true;
+    mixer.setConfig(profile);
+    await settle();
+    const modules = (nodes) => [nodes.equalizer, nodes.compressor];
+    const before = [...mixer.channelNodes.map(modules), modules(mixer.masterNodes)];
+    const panel = mixer.channelNodes[2].compressor.getElement();
+    const rebuilt = vi.spyOn(mixer.channelNodes[2].compressor, 'setupCompressorControls');
+
+    // The next video, on an audio graph of its own.
+    const next = new FakeAudioContext({maxChannelCount: 6});
+    mixer.setupNodes(next);
+    mixer.getInputNode().connectFrom(next.node('source'));
+    mixer.getOutputNode().connect(next.destination);
+    await mixer.updateNodes();
+
+    const after = [...mixer.channelNodes.map(modules), modules(mixer.masterNodes)];
+    after.flat().forEach((module, i) => expect(module, `module ${i}`).toBe(before.flat()[i]));
+    expect(mixer.channelNodes[2].compressor.getElement()).toBe(panel);
+    expect(rebuilt).not.toHaveBeenCalled();
+    // Running on the new graph: the centre still goes through its compressor.
+    expect(mixer.channelNodes[2].compressor.audioContext).toBe(next);
+    const paths = next.channelPaths(mixer.channelSplitter, mixer.channelMerger);
+    expect(paths.map((path) => path.compressors.length)).toEqual([0, 0, 1, 0, 0, 0]);
+  });
+
+  it('rewires once for a compressor turned off after the next video', async () => {
+    // Listeners added for every video would each rewire the graph.
+    const {mixer} = mixerOn51();
+    const profile = new AudioProfile(1);
+    profile.channels[2].compressor.enabled = true;
+    mixer.setConfig(profile);
+    await settle();
+    for (let video = 0; video < 3; video++) {
+      const next = new FakeAudioContext({maxChannelCount: 6});
+      mixer.setupNodes(next);
+      mixer.getInputNode().connectFrom(next.node('source'));
+      mixer.getOutputNode().connect(next.destination);
+      await mixer.updateNodes();
+    }
+
+    const rewire = vi.spyOn(mixer, 'updateNodes');
+    profile.channels[2].compressor.enabled = false;
+    await mixer.channelNodes[2].compressor.updateCompressor();
+    mixer.channelNodes[2].compressor.emit('change');
+    await settle();
+    expect(rewire).toHaveBeenCalledTimes(1);
+  });
+
   /**
    * Web Audio's "speakers" up-mix of the layouts the master chain makes (the spec's
    * channel up-mixing table): which input channel each output channel carries, or null.
