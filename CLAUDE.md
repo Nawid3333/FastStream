@@ -556,9 +556,11 @@ to it, and the result carries `hostOutdated`. That shows as "!" on the toolbar b
 in MPV mode with what to run in the tooltip (`tab.mpvHostOutdated`, persisted like
 `mpvError`, whose reason comes first), in the player's "Sent to mpv" message, and after
 "Test mpv connection". This replaced `mpv-host-changed.yml`'s e-mail. **Every change to
-the host file raises both numbers by one**: `tests/unit/mpvHostVersion.test.mjs` records
-the host file's SHA-256 beside its version and fails until `HostVersion`,
-`RequiredHostVersion` and the recorded pair agree (the failure prints the new hash). The
+the host file or to `install.ps1` raises both numbers by one**:
+`tests/unit/mpvHostVersion.test.mjs` records both files' SHA-256 beside the version and
+fails until `HostVersion`, `RequiredHostVersion` and the record agree (the failure prints
+the new hashes). The installer counts because `update-local.ps1` tells an installed host
+from the repository's by the host file alone; a raised `HostVersion` changes that file. The
 extension changes with it, so such a push releases, Firefox updates the extension, and
 the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run. The hash check is skipped in Stryker's sandbox, whose copy of

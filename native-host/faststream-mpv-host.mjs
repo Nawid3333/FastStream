@@ -51,9 +51,10 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // a `git pull` leaves alone, so the extension compares this with the version it was
 // released with (RequiredHostVersion in chrome/background/MpvBackend.mjs) and says so
 // when the installed host is older: on the toolbar button, the player's mpv button and
-// "Test mpv connection". Raise it by one with every change to this file, together with
-// RequiredHostVersion and the hash in tests/unit/mpvHostVersion.test.mjs, which fails
-// until all three agree.
+// "Test mpv connection". Raise it by one with every change to this file or to
+// install.ps1 (what it installs is part of the host a PC has), together with
+// RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
+// until they agree.
 export const HostVersion = 1;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
