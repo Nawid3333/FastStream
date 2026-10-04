@@ -94,36 +94,70 @@ function base64Utf8(text) {
   return btoa(binary);
 }
 
-// look for script tag with "window.__playinfo__"
-const scriptTags = document.querySelectorAll('script');
-for (let i = 0; i < scriptTags.length; i++) {
-  const script = scriptTags[i];
-  if (script.textContent.includes('window.__playinfo__')) {
-    const playInfo = script.textContent.match(/window\.__playinfo__\s*=\s*(\{.*\})/);
-    if (playInfo) {
-      // Play info of another shape (FLV, data.durl, instead of data.dash), or more code
-      // after it on the line, threw here, uncaught, and nothing was detected.
-      let mpd;
-      try {
-        const playInfoObj = JSON.parse(playInfo[1]);
-        const converter = new Bilibili2Dash();
-        mpd = converter.playInfoToDash(playInfoObj);
-      } catch (e) {
-        console.error('No DASH play info', e);
-        continue;
-      }
-      const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
-      chrome.runtime.sendMessage({
-        type: 'DETECTED_SOURCE',
-        url,
-        ext: 'mpd',
-        headers: {
-          'Referer': location.href,
-          'Origin': location.origin,
-        },
-      });
+// The page's script tags already read, and the manifests already reported.
+const seenScripts = new WeakSet();
+const reported = new Set();
 
-      break;
+// Looks for "window.__playinfo__" in the script tags not read before.
+function scanScripts() {
+  const scriptTags = document.querySelectorAll('script');
+  for (let i = 0; i < scriptTags.length; i++) {
+    const script = scriptTags[i];
+    if (seenScripts.has(script)) {
+      continue;
+    }
+    seenScripts.add(script);
+    if (script.textContent.includes('window.__playinfo__')) {
+      const playInfo = script.textContent.match(/window\.__playinfo__\s*=\s*(\{.*\})/);
+      if (playInfo) {
+        // Play info of another shape (FLV, data.durl, instead of data.dash), or more code
+        // after it on the line, threw here, uncaught, and nothing was detected.
+        let mpd;
+        try {
+          const playInfoObj = JSON.parse(playInfo[1]);
+          const converter = new Bilibili2Dash();
+          mpd = converter.playInfoToDash(playInfoObj);
+        } catch (e) {
+          console.error('No DASH play info', e);
+          continue;
+        }
+        if (reported.has(mpd)) {
+          break;
+        }
+        reported.add(mpd);
+        const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
+        chrome.runtime.sendMessage({
+          type: 'DETECTED_SOURCE',
+          url,
+          ext: 'mpd',
+          headers: {
+            'Referer': location.href,
+            'Origin': location.origin,
+          },
+        });
+
+        break;
+      }
     }
   }
 }
+
+scanScripts();
+
+// Bilibili moves to another episode without loading a page, and this script runs once per
+// page load, so only the first video was found (#232). For ten seconds after the address
+// changes, the script tags that were not there before are read each second. The ones read
+// before (the first video's, still in the page) are not read again: that video would come
+// back under the new page's address.
+let lastHref = location.href;
+let rescans = 0;
+setInterval(() => {
+  if (location.href !== lastHref) {
+    lastHref = location.href;
+    rescans = 10;
+  }
+  if (rescans > 0) {
+    rescans--;
+    scanScripts();
+  }
+}, 1000);

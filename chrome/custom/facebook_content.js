@@ -34,40 +34,50 @@ function base64Utf8(text) {
   return btoa(binary);
 }
 
-// look for script tag with "window.__playinfo__"
-const scriptTags = document.querySelectorAll('script');
-let datas = [];
-for (let i = 0; i < scriptTags.length; i++) {
-  const script = scriptTags[i];
-  if (script.type !== 'application/json') {
-    continue;
-  }
+// The page's JSON script tags already read, and the manifests already reported.
+const seenScripts = new WeakSet();
+const reported = new Set();
 
-  try {
-    const playInfo = JSON.parse(script.textContent);
-    const objects = findPropertyRecursive(playInfo, 'playback_video');
-    if (objects.length > 0) {
-      objects.forEach((obj)=>{
-        datas.push(obj);
-      });
+// Looks for a video's manifest in the JSON script tags not read before.
+function scanScripts() {
+  const scriptTags = document.querySelectorAll('script');
+  let datas = [];
+  for (let i = 0; i < scriptTags.length; i++) {
+    const script = scriptTags[i];
+    if (script.type !== 'application/json' || seenScripts.has(script)) {
+      continue;
     }
-  } catch (e) {
-    console.error(e);
+    seenScripts.add(script);
+
+    try {
+      const playInfo = JSON.parse(script.textContent);
+      const objects = findPropertyRecursive(playInfo, 'playback_video');
+      if (objects.length > 0) {
+        objects.forEach((obj)=>{
+          datas.push(obj);
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
-}
 
-// Look for video in path
-datas = datas.filter((data)=>{
-  return data.stack.includes('video');
-});
+  // Look for video in path
+  datas = datas.filter((data)=>{
+    return data.stack.includes('video');
+  });
 
-// The first one with its manifest: one without (playlist) was sent as a source whose
-// manifest was the word "undefined".
-const found = datas.find((data) => typeof data.value?.playlist === 'string' && data.value.playlist);
-if (!found) {
-  console.error('No video found');
-} else {
+  // The first one with its manifest: one without (playlist) was sent as a source whose
+  // manifest was the word "undefined".
+  const found = datas.find((data) => typeof data.value?.playlist === 'string' && data.value.playlist);
+  if (!found) {
+    return;
+  }
   const mpd = found.value.playlist;
+  if (reported.has(mpd)) {
+    return;
+  }
+  reported.add(mpd);
   const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
   chrome.runtime.sendMessage({
     type: 'DETECTED_SOURCE',
@@ -81,4 +91,24 @@ if (!found) {
 
   console.log('Video found', found.value);
 }
+
+scanScripts();
+
+// Facebook moves to another video without loading a page, and this script runs once per
+// page load, so only the first video was found (#232). For ten seconds after the address
+// changes, the script tags that were not there before are read each second. The ones read
+// before (the first video's, still in the page) are not read again: that video would come
+// back under the new page's address.
+let lastHref = location.href;
+let rescans = 0;
+setInterval(() => {
+  if (location.href !== lastHref) {
+    lastHref = location.href;
+    rescans = 10;
+  }
+  if (rescans > 0) {
+    rescans--;
+    scanScripts();
+  }
+}, 1000);
 
