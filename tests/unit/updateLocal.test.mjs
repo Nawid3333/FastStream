@@ -283,17 +283,19 @@ describe('update-local.ps1', () => {
         // analysis cache is gone, and every lookup of a command that is not there
         // (Get-Command wsl.exe) scanned every installed module - hundreds on GitHub's runner,
         // 25-45 s per run (2026-10-04), against about 1 s here.
-        const modules = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules');
+        const powershellDir = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0');
+        // On PATH too, after the stand-ins (it holds no node, npm, pnpm, git or wsl), so the
+        // command below is the literal powershell.exe: built from SystemRoot, it was a command
+        // line from an environment variable to CodeQL (js/command-line-injection, #163).
         const env = {
           SystemRoot: process.env.SystemRoot, ComSpec: process.env.ComSpec, PATHEXT: '.COM;.EXE;.BAT;.CMD',
-          PATH: bin, TEMP: temp, TMP: temp, LOCALAPPDATA: temp, APPDATA: temp, USERPROFILE: dir,
-          PSModulePath: modules,
+          PATH: [bin, powershellDir].join(';'), TEMP: temp, TMP: temp, LOCALAPPDATA: temp, APPDATA: temp,
+          USERPROFILE: dir, PSModulePath: path.join(powershellDir, 'Modules'),
           ...upToDate, ...change,
         };
-        const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
         // A margin, not the expected time (about 1 s with the module path above): the run
         // gets 100 s and the test 120 s, and a hung PowerShell is ended with the run.
-        const r = spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
           '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env, timeout: 100000});
         expect(r.error).toBeUndefined();
         expect(r.stdout).not.toMatch(/failed|stand-in/);
