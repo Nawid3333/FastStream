@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {issueBody, missed, perFile, summary} from '../../tools/mutation-report.mjs';
+import {issueBody, merge, missed, perFile, summary} from '../../tools/mutation-report.mjs';
 
 // mutation-tests.yml's summary table and weekly issue, from Stryker's report.
 
@@ -52,5 +52,20 @@ describe('mutation-report', () => {
     expect(body).toContain('### Not caught (the first 100 of 150)');
     expect(body).toContain('- line 1: survived - X: `a \\| \'b\' c`');
     expect(body.match(/^- line /gm)).toHaveLength(100);
+  });
+
+  it('puts the shards\' reports together, every file of each (#253)', () => {
+    const network = {schemaVersion: '2', files: {'chrome/player/network/XHRLoader.mjs': {mutants: [mutant('Survived', 4)]}}};
+    const merged = merge([{schemaVersion: '2', ...report}, network]);
+    expect(merged.schemaVersion).toBe('2');
+    expect(Object.keys(merged.files).sort()).toEqual([
+      'chrome/background/DownloadFilename.mjs', 'chrome/player/network/XHRLoader.mjs', 'chrome/player/utils/StreamPick.mjs',
+    ]);
+    expect(missed(merged)).toHaveLength(3);
+    expect(merge([])).toEqual({files: {}});
+  });
+
+  it('refuses a module two shards both report', () => {
+    expect(() => merge([report, report])).toThrow(/is in two reports/);
   });
 });

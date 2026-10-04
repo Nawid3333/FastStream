@@ -7,13 +7,13 @@
 // gate (no break threshold).
 //
 // Only pure-logic modules with unit tests: the DOM and the player are the e2e suites'.
-// Not all of them yet (#253): the 15 first ones were 3,833 mutants on 2026-10-03, the ten
-// small ones added then 441. The rest with unit tests - the downloader (XHRLoader,
-// DownloadEntry, DownloadManager, StandardDownloader, OPFSManager), NetRequestRuleManager,
-// SecureMemory, StringUtils, BackgroundUtils, LevelManager, SyncedAudioPlayer, the HLS and
-// DASH loaders - are 2,790 more, and the tools and e2e harness modules with tests 3,084:
-// together over twice the run, past the job's 240 minutes. They wait for the first weekly
-// run's time, or for Stryker's vitest runner (per-test coverage) to support vitest 5.
+// In three shards (#253), which mutation-tests.yml runs side by side, each in a job of
+// its own (240 minutes each). Instrumented on 2026-10-04: `core`, the first 25 modules,
+// 4,738 mutants; `network`, the downloader, the loaders and what they use, 3,052; `tools`,
+// the tools and e2e harness modules with unit tests, 3,204. At about 1.2 s a mutant (see
+// the command runner below) that is 95, 61 and 64 minutes; all of them in one job were
+// past its 240. STRYKER_SHARD picks one; without it, all three run (`pnpm run
+// test:mutation`, locally).
 //
 // The weekly job runs on Linux: the mpv host's Windows-only tests (mpvHostInstall, the
 // PowerShell cases of mpvHostSecurity) are skipped there, so its PowerShell and WMI
@@ -25,30 +25,8 @@
 // predates vitest 5 and switches no mutant on there: every one "survived". Use it again
 // once a release supports vitest 5.
 
-export default {
-  testRunner: 'command',
-  commandRunner: {command: 'node node_modules/vitest/vitest.mjs run --bail=1 --reporter=dot'},
-  coverageAnalysis: 'off',
-  // What the sandbox leaves out: builds, profiles, logs and fixtures the unit tests never
-  // read, and tsconfig.json, which Stryker would rewrite through TypeScript's JS API -
-  // TypeScript 7 has none (`ts.parseConfigFileTextToJson is not a function`).
-  ignorePatterns: [
-    'tsconfig.json',
-    '/.dev-profile*',
-    '/build_firefox_*',
-    '/built',
-    '/logs',
-    '/logs-moz',
-    '/.e2e-downloads',
-    '/reports',
-    '/coverage',
-    '/tests/e2e/fixtures',
-    '/fsaunpack',
-    '/docs',
-  ],
-  // Nothing here is TypeScript, and its HTML files do not parse as Stryker expects.
-  disableTypeChecks: false,
-  mutate: [
+export const SHARDS = {
+  core: [
     'chrome/background/CustomSourcePatterns.mjs',
     'chrome/background/DownloadFilename.mjs',
     'chrome/background/KeyShortcut.mjs',
@@ -75,6 +53,82 @@ export default {
     'chrome/player/utils/URLUtils.mjs',
     'native-host/faststream-mpv-host.mjs',
   ],
+  network: [
+    'chrome/background/BackgroundUtils.mjs',
+    'chrome/background/NetRequestRuleManager.mjs',
+    'chrome/player/modules/SecureMemory.mjs',
+    'chrome/player/network/DownloadEntry.mjs',
+    'chrome/player/network/DownloadManager.mjs',
+    'chrome/player/network/OPFSManager.mjs',
+    'chrome/player/network/StandardDownloader.mjs',
+    'chrome/player/network/XHRLoader.mjs',
+    'chrome/player/players/LevelManager.mjs',
+    'chrome/player/players/SyncedAudioPlayer.mjs',
+    'chrome/player/players/dash/DashLoader.mjs',
+    'chrome/player/players/hls/HLSFragmentRequester.mjs',
+    'chrome/player/players/hls/HLSLoader.mjs',
+    'chrome/player/utils/StringUtils.mjs',
+  ],
+  tools: [
+    'tests/e2e/bidi.mjs',
+    'tests/e2e/mozLog.mjs',
+    'tests/e2e/mp4Fixture.mjs',
+    'tests/e2e/reportRetried.mjs',
+    'tests/e2e/retriedSpecs.mjs',
+    'tests/e2e/serveFile.mjs',
+    'tests/e2e/setupGuard.mjs',
+    'tests/e2e/testTimeout.mjs',
+    'tools/check-patched-updates.mjs',
+    'tools/check-toolchain.mjs',
+    'tools/check-update-path.mjs',
+    'tools/fetch-amo-signed.mjs',
+    'tools/mutation-report.mjs',
+    'tools/newest-release.mjs',
+    'tools/recut-patch.mjs',
+    'tools/sign-amo.mjs',
+    'tools/verify-linux.mjs',
+  ],
+};
+
+/**
+ * The modules a run mutates.
+ * @param {string|undefined} shard - STRYKER_SHARD: a key of SHARDS, or empty for all.
+ * @return {string[]}
+ */
+export function modulesOf(shard) {
+  if (!shard) {
+    return Object.values(SHARDS).flat();
+  }
+  if (!Object.hasOwn(SHARDS, shard)) {
+    throw new Error(`STRYKER_SHARD is ${shard}: it is one of ${Object.keys(SHARDS).join(', ')}`);
+  }
+  return SHARDS[shard];
+}
+
+export default {
+  testRunner: 'command',
+  commandRunner: {command: 'node node_modules/vitest/vitest.mjs run --bail=1 --reporter=dot'},
+  coverageAnalysis: 'off',
+  // What the sandbox leaves out: builds, profiles, logs and fixtures the unit tests never
+  // read, and tsconfig.json, which Stryker would rewrite through TypeScript's JS API -
+  // TypeScript 7 has none (`ts.parseConfigFileTextToJson is not a function`).
+  ignorePatterns: [
+    'tsconfig.json',
+    '/.dev-profile*',
+    '/build_firefox_*',
+    '/built',
+    '/logs',
+    '/logs-moz',
+    '/.e2e-downloads',
+    '/reports',
+    '/coverage',
+    '/tests/e2e/fixtures',
+    '/fsaunpack',
+    '/docs',
+  ],
+  // Nothing here is TypeScript, and its HTML files do not parse as Stryker expects.
+  disableTypeChecks: false,
+  mutate: modulesOf(process.env.STRYKER_SHARD),
   reporters: ['clear-text', 'progress', 'html', 'json'],
   htmlReporter: {fileName: 'reports/mutation/index.html'},
   jsonReporter: {fileName: 'reports/mutation/mutation.json'},
