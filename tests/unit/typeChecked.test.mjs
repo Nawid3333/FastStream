@@ -29,7 +29,6 @@ const CHECKED = [
   'chrome/player/network/DownloadEntry.mjs',
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/utils/AudioUtils.mjs',
-  'chrome/player/utils/FastStreamArchiveUtils.mjs',
   'chrome/player/utils/StreamLength.mjs',
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/URLUtils.mjs',

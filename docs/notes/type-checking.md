@@ -17,9 +17,10 @@ Opted in: `background.mjs` (2026-10-01) and the rest of `chrome/background/` but
 `StreamLength`, and the mpv host (`native-host/faststream-mpv-host.mjs`). Since
 2026-10-04 also the files of `chrome/player/enums`, `network` and `utils` that checked
 clean as they were: the six enums, `DownloadEntry`, `OpQueue`, `AudioUtils`,
-`FastStreamArchiveUtils`, `SubtitleSyncUtils` and `URLUtils` (23 files in all). The rest
-of those folders have 1 to 18 errors each, mostly values that may be null; `UpdateChecker`
-is clean but starts with a SPLICER directive and was left alone. The types are Chrome's (`@types/chrome`,
+`SubtitleSyncUtils` and `URLUtils` (22 files in all). The rest of those folders have 1 to
+18 errors each, mostly values that may be null (`FastStreamArchiveUtils` 4, which
+TypeScript 7 reports and 6 did not); `UpdateChecker` is clean but starts with a SPLICER
+directive and was left alone. The types are Chrome's (`@types/chrome`,
 which matches the `chrome.*` calls, callbacks included) plus Node's (the host, tests
 and tools), and `types/firefox-chrome.d.ts` adds the Firefox-only fields read here
 (`cookieStoreId`). background.mjs's own fixes were JSDoc, a few
