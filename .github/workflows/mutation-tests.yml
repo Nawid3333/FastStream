@@ -21,7 +21,6 @@ on:
 
 permissions:
   contents: read  # the checkout
-  issues: write   # the week's issue, and this workflow's own failure
 
 concurrency:
   group: mutation-tests
@@ -74,6 +73,10 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Only this job writes: the shards run the code under test and need nothing but the checkout.
+    permissions:
+      contents: read  # the checkout
+      issues: write   # the week's issue, and this workflow's own failure
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}

@@ -176,10 +176,13 @@ describe('HLSFragmentRequester, an init segment under the playlist\'s key', () =
     const fragments = parse(AES_128);
     HLSFragmentRequester.takeOverDecryption(fragments);
     const fragment = new HLSFragment(fragments[0].initSegment, 0, 0);
-    const cipher = createCipheriv('aes-128-cbc', randomBytes(16), Buffer.from(IV_HEX, 'hex'));
+    // Fixed keys: with two random ones, about one run in 256 decrypted to bytes that end
+    // in valid padding (a last byte of 1), and the wrong key "worked" (CI on #334). This
+    // pair fails the padding check, as most wrong keys do.
+    const cipher = createCipheriv('aes-128-cbc', Buffer.alloc(16, 0x11), Buffer.from(IV_HEX, 'hex'));
     const sent = Buffer.concat([cipher.update(Buffer.alloc(40, 7)), cipher.final()]);
 
-    await expect(download(fragment, randomBytes(16), sent)).rejects.toThrow(/not decrypted/);
+    await expect(download(fragment, Buffer.alloc(16, 0x22), sent)).rejects.toThrow(/not decrypted/);
   });
 
   it('is refused while hls.js still has its key, and is then not marked as downloading', () => {
