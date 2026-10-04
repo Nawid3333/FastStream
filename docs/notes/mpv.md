@@ -85,13 +85,18 @@ PowerShell (`tests/unit/mpvHostSecurity.test.mjs`) and the Firefox half in
 Four things here are counter-intuitive enough that each shipped broken once:
 
 - **A child of the host does not survive the browser.** Firefox runs a native
-  messaging host inside a job object with
-  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; every descendant joins that job, and
-  when the host exits after replying, Windows kills them all. `detached: true`
+  messaging host inside a job object of its own; every descendant joins that
+  job, and when the host exits after replying, Firefox terminates the job
+  (`TerminateJobObject`) and Windows kills them all. `detached: true`
   and `unref()` do not escape a job, and neither does `cmd /c start`. mpv is
   therefore created by the **WMI** service (`Win32_Process.Create`), which
   parents it to `WmiPrvSE`, outside the job. Do not "simplify" this back to a
-  plain spawn.
+  plain spawn. (Corrected 2026-10-04: this said `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
+  Firefox's `toolkit/modules/subprocess/subprocess_win.worker.js`, read on
+  mozilla-firefox/firefox `main`, starts the host with `CREATE_NO_WINDOW`, sets only
+  `JOB_OBJECT_LIMIT_BREAKAWAY_OK` on the job, and calls `TerminateJobObject` in `wait()`
+  (the host exited) and `kill()`. So a process created with `CREATE_BREAKAWAY_FROM_JOB`
+  would leave the job as well; Node's `spawn` cannot ask for it, and it is not measured.)
 - **A WMI-created process cannot take the foreground**, so mpv's own
   `--focus-on=open` is silently refused and the window opens behind the
   browser. The host grants the right and activates the window by attaching to
@@ -281,6 +286,34 @@ user to accept on update, so it is left out.
 caused more problems than it solved, and he pastes YouTube links into mpv himself.
 FastStream finds no YouTube stream, so a YouTube page in MPV sends nothing. Don't bring
 it back unless he asks.
+**Off means off, and the stability sweep (2026-10-04 night, after mpv's vulkan decoding
+lost the GPU device - the mpv repo's AGENTS.md "NO VULKAN VIDEO DECODING").**
+- *The user's Off stays.* `tab.mpvTurnedOff` (TabTracker, persisted) is set by every Off
+  the user gives (stopMpv, the toolbar turning FastStream off, Ctrl+Shift+F from MPV to the
+  in-page player) and cleared by startMpv or a hostname change. It blocks the allowlist's
+  automatic start (the auto-enable list then gives the in-page player): before, a page of
+  the site not on the allowlist wiped the Off, and the next episode went to mpv by itself.
+  Every Off also drops a play waiting for its stream and the check queue (`userTurnedOff`).
+- *Late answers.* `tab.mpvPage` is raised on every new page; a hand-off answered for an
+  older page, or for a closed tab, applies nothing (no "!", decoder question, pause or
+  latch reset), and an answer after the Off no longer pauses the page (`pauseAfterHandOff`).
+- *No thumbnails or pieces as the video.* A stream known to be a seek-bar thumbnails
+  playlist or a segment (`showsNoVideo`) is never the played video: not for a waiting play,
+  not from `newestOfLongest`, not as the allowlist's first stream when already known.
+- *A play after a background restart* in a tab with no known streams asks the page what it
+  loaded (`recoverSources`); recovered streams carry the browser's User-Agent.
+- *MPV mode off in the options* takes every tab out of MPV (`leaveMpvWhenOff`): the
+  in-page player where the auto-enable list covers the address, Off elsewhere.
+- *MPV_TEST / MPV_OPEN* wait for the options (a waking background answered with defaults).
+- *Host v3:* the open reply carries `focus`/`foreground`/`reused`, logged under `Logging`;
+  an mpv seen and gone before its window (`FOCUS=quit`) is a failure; a resolved `mpv*.com`
+  starts the `.exe` beside it.
+- *Page side:* FRAME_REMOVED stays at `beforeunload` (the next page's own load can be its
+  stream), but a page still there 2 s later (a download link, a cancelled "Leave page?")
+  names itself again and reports its leave on `pagehide`; `removePlayers` no longer ends
+  the page-media hold (the background ends it when the playing player's frame goes) and
+  releases only overlay guards whose iframe left (`releaseGone`); pauses and the hold reach
+  closed shadow roots and skip live MediaStream media (calls).
 **Ctrl+Shift+F is its own command, `toggle_player` (2026-09-28)**, not the
 toolbar button (`_execute_action`) any more. `_execute_action` fires the
 button's own `action.onClicked`, as a click does, so the background cannot
@@ -442,3 +475,27 @@ while such an mpv is open. A host from before answers "unknown message", which r
 answer. Tests: `tests/unit/mpvDecoderStatus.test.mjs`, including a socket that answers as
 mpv does (Linux) and the background end to end; not yet run against a real mpv. mpv's own
 choice of stream version is issue #330.
+
+**How raising mpv's window went, an mpv that quits at once, mpv.com (2026-10-04, host
+version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1.3.82.57):
+- **The open answer says how raising the window went.** It said `{ok: true}` and nothing
+  more, so an mpv left behind the browser looked like one in front, and only the opt-in
+  debug log knew. Now a new mpv's answer carries `focus` and `foreground` (the script's
+  FOCUS= and FGOK= values, `focusOutcome`), a reused one's `reused: true` with the same two
+  from `focusPid`; off Windows none. `MpvBackend.openStream` passes the three on as sent
+  (`focusOf`; nothing for a URL already sent), for the background to log or show. They
+  describe the moment of the 250 ms check only: the script raises the window once, when it
+  first appears (with `--force-window=immediate`, before the stream opens), and does not
+  see a window that goes behind the browser later. Tests: `MpvNativeHost` ("says how
+  raising ... went"), `MpvBackend` ("passes on how raising ..."); each fails without it.
+- **An mpv seen and then gone before it had a window is a failed launch** (`FOCUS=quit`,
+  `wmiLaunchResult`), like one never seen (`FOCUS=gone`). The first `Get-Process` runs right
+  after `Win32_Process.Create` returns, while mpv is still starting, so it nearly always saw
+  mpv; one that then quit (an option it refuses) printed `FOCUS=nowindow` and was reported
+  as started. `tests/unit/mpvHostLaunch.test.mjs` runs the real launch script in the real
+  PowerShell with `Invoke-CimMethod` and `Get-Process` stubbed (nothing starts, no window is
+  raised) and fails without the fix. Should an mpv config hand the file to another mpv and
+  quit before its window, that is now reported as a failure too.
+- **mpv.com gives way to the mpv.exe beside it** (`preferGuiBuild`, Windows only). The
+  wrapper starts the .exe as its child, so WMI's pid was the wrapper's, which has no window:
+  the focus script found none and mpv stayed behind. `mpvHostPath.test.mjs` fails without it.
