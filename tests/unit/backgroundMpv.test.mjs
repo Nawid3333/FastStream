@@ -434,3 +434,86 @@ describe('an outdated mpv host', () => {
     expect(bg.titles.get(1)).toBe('FastStream - Playing in MPV');
   });
 });
+
+// mpv's yt-dlp opens a YouTube video by its address; FastStream finds none of its streams.
+describe('the shortcut\'s MPV on YouTube', () => {
+  const VIDEO = 'https://www.youtube.com/watch?v=aaaaaaaaaaa';
+  const NEXT = 'https://www.youtube.com/watch?v=bbbbbbbbbbb';
+
+  /**
+   * The user starts the video of a YouTube page in tab 1, an MSE player's blob:.
+   * @param {string} page - The page's address, as the page has it.
+   * @return {Promise<void>}
+   */
+  async function play(page) {
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://www.youtube.com/1',
+      video: {src: '', duration: 212, playing: 'blob:https://www.youtube.com/1'}, page}, {tabId: 1, frameId: 0});
+  }
+
+  it('sends the video\'s address and pauses the page, without waiting for a stream', async () => {
+    bg = await loadBackground({options: {mpvMode: true},
+      tabs: [{id: 1, url: `${VIDEO}&list=PL0123456789&t=42s`, title: 'A video - YouTube'}],
+      fetch: playlists({[EPISODE]: 212})});
+    await bg.command('toggle_mpv', 1);
+    await play(`${VIDEO}&list=PL0123456789&t=42s`);
+    expect(bg.native.filter((m) => m.type === 'open'))
+        .toEqual([expect.objectContaining({url: VIDEO, pageUrl: VIDEO, title: 'A video - YouTube'})]);
+    expect(bg.sent('PAUSE_MEDIA')).toHaveLength(1);
+    // The play is done with: a stream the page asks for next is not taken for its video.
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([VIDEO]);
+  });
+
+  it('sends the video the page moved to without a load, not the tab\'s last one', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: VIDEO}]});
+    await bg.command('toggle_mpv', 1);
+    await play(NEXT);
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([expect.objectContaining({url: NEXT, pageUrl: NEXT})]);
+  });
+
+  it('only pauses the page again when the player starts the same video once more', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: VIDEO}]});
+    await bg.command('toggle_mpv', 1);
+    await play(VIDEO);
+    await play(VIDEO);
+    expect(bg.toMpv()).toEqual([VIDEO]);
+    expect(bg.sent('PAUSE_MEDIA')).toHaveLength(2);
+  });
+
+  it('sends nothing while the tab is not in MPV', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: VIDEO}]});
+    await play(VIDEO);
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('leaves a YouTube page that is no watch page to its streams, as any page', async () => {
+    const SHORT = 'https://www.youtube.com/shorts/aaaaaaaaaaa';
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: SHORT}],
+      fetch: playlists({[EPISODE]: 212})});
+    await bg.command('toggle_mpv', 1);
+    await play(SHORT);
+    expect(bg.toMpv()).toEqual([]);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
+  it('is the shortcut\'s only: the allowlist\'s MPV sends no page address', async () => {
+    // A play counts there on a page Back gave back, and its stream goes, the page's never.
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://www.youtube.com/']},
+      tabs: [{id: 1, url: VIDEO}]});
+    await bg.navigated(1, VIDEO);
+    await bg.frameAdded(1, 0, VIDEO, 'page-a');
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, NEXT);
+    await bg.frameAdded(1, 0, NEXT, 'page-b');
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-b'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, VIDEO);
+    await bg.frameAdded(1, 0, VIDEO, 'page-a');
+    await play(VIDEO);
+    await bg.wait(3500);
+    expect(bg.toMpv()).toEqual([]);
+  });
+});
