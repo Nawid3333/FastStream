@@ -9,6 +9,7 @@ import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {storeIndex, storeLevel} from './HLSFragmentStore.mjs';
 import {HLSFragmentRequester} from './HLSFragmentRequester.mjs';
 import {HLSLoaderFactory} from './HLSLoader.mjs';
+import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
 
 // hls.js watches for a fragment loading too slowly and drops quality
 // mid-fragment (AbrController._abandonRulesCheck). That heuristic fights
@@ -171,10 +172,12 @@ export default class HLSPlayer extends EventEmitter {
       });
     }
 
-    let cancelled = false;
+    // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
+    const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
+        this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
       options.registerCancel(() => {
-        cancelled = true;
+        fetcher.cancel();
       });
     }
 
@@ -194,24 +197,10 @@ export default class HLSPlayer extends EventEmitter {
       audioLevelInitData = await this.readInitSegment(audioFragments[-1]);
     }
 
-    zippedFragments.forEach((data) => {
+    zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
-        if (data.fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
-          while (true) {
-            if (cancelled) {
-              throw new Error('Cancelled');
-            }
-            try {
-              await this.downloadFragment(data.fragment, -1);
-              break;
-            } catch (e) {
-              if (e.message !== 'Aborted download') {
-                throw e;
-              }
-            }
-          }
-        }
+        await fetcher.get(index);
         data.fragment.removeReference(ReferenceTypes.SAVER);
         return this.client.downloadManager.getEntry(data.fragment.getContext());
       };
@@ -280,6 +269,7 @@ export default class HLSPlayer extends EventEmitter {
         };
       }
     } catch (e) {
+      fetcher.cancel();
       zippedFragments.forEach((data) => {
         data.fragment.removeReference(ReferenceTypes.SAVER);
       });

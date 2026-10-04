@@ -11,6 +11,7 @@ import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
 import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
+import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
 import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
@@ -1013,9 +1014,13 @@ export default class MP4Player extends EventEmitter {
     }
 
     let cancelled = false;
+    // Downloads the ranges a few ahead of the one being written: see SaveFragmentFetcher.
+    const fetcher = new SaveFragmentFetcher(this.fragmentRequester, frags.slice(0, lastFrag),
+        this.client.downloadManager.downloaderLimit());
     if (options?.registerCancel) {
       options.registerCancel(() => {
         cancelled = true;
+        fetcher.cancel();
       });
     }
 
@@ -1026,19 +1031,7 @@ export default class MP4Player extends EventEmitter {
         }
         const frag = frags[i];
         if (!options.partialSave) {
-          while (true) {
-            if (cancelled) {
-              throw new Error('Cancelled');
-            }
-            try {
-              await this.downloadFragment(frag, -1);
-              break;
-            } catch (e) {
-              if (e.message !== 'Aborted download') {
-                throw e;
-              }
-            }
-          }
+          await fetcher.get(i);
           frag.removeReference(ReferenceTypes.SAVER);
         }
         if (frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
@@ -1060,6 +1053,7 @@ export default class MP4Player extends EventEmitter {
         blob: null,
       };
     } catch (e) {
+      fetcher.cancel();
       for (let i = 0; i < lastFrag; i++) {
         const frag = frags[i];
         frag.removeReference(ReferenceTypes.SAVER);

@@ -10,6 +10,7 @@ const VENDORED = new Map([
   ['chrome/player/modules/mp4box/mp4box.all.mjs', 'node_modules/mp4box/dist/mp4box.all.mjs'],
   // Line endings aside (normaliseText).
   ['chrome/player/modules/remux/mediabunny.mjs', 'node_modules/mediabunny/dist/bundles/mediabunny.mjs'],
+  ['chrome/player/modules/dash.mjs', 'node_modules/dashjs/dist/modern/esm/dash.all.debug.js'],
 ].map(([copy, build]) => [path.resolve(root, copy), path.resolve(root, build)]));
 
 export default defineConfig({
