@@ -1,3 +1,4 @@
+// @ts-check
 import {PlayerModes} from '../enums/PlayerModes.mjs';
 
 const ModesMap = new Map();

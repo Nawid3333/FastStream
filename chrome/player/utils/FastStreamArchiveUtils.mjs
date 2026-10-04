@@ -1,3 +1,4 @@
+// @ts-check
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../network/DownloadEntry.mjs';
 import {RequestUtils} from './RequestUtils.mjs';

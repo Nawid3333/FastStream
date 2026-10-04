@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Runs async tasks strictly one at a time, in the order they were queued.
  *

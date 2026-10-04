@@ -1,3 +1,4 @@
+// @ts-check
 export const DownloadStatus = {
   WAITING: 0,
   ENQUEUED: 1,

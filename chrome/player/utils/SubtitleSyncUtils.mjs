@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Pure helpers for the subtitle resync tool (SubtitleSyncer). No DOM, so the
  * unit tests can import them.

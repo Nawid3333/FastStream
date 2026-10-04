@@ -1,3 +1,4 @@
+// @ts-check
 export const ReferenceTypes = {
   GRANDFATHERED: 0,
   ANALYZER: 1,
