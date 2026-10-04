@@ -655,6 +655,8 @@ export class EmbedAPI {
     this.subscribers = [];
     this.playerContext = null;
     this.started = false;
+    // The origin each embedding window first sent a command from (isEmbedder).
+    this.pinnedOrigins = new Map();
     this.onMessage = this.handleMessage.bind(this);
   }
 
@@ -693,6 +695,7 @@ export class EmbedAPI {
     this.started = false;
     window.removeEventListener('message', this.onMessage);
     this.subscribers.length = 0;
+    this.pinnedOrigins.clear();
 
     if (this.playerContext) {
       this.playerContext.destroy();
@@ -803,14 +806,20 @@ export class EmbedAPI {
    * The embedder has no other way to know: an iframe's load event fires before the
    * player's modules have run, so a command sent then would arrive before anything was
    * listening. The announcement is sent with a wildcard target because the embedder's
-   * origin is not knowable from in here, which is safe enough — it reaches only the
-   * window that embedded this one, and says nothing but what this player is.
+   * origin is not knowable from in here. It goes to the window that embedded this one or
+   * opened it, and an opener may have moved on to another site since, so it leaves out
+   * what is playing (its address and identifier, which can carry a signed token, #218):
+   * the embedder asks getState for those, and only it gets an answer.
    */
   announce() {
+    const state = this.getState();
+    if (state.source) {
+      state.source = {mode: state.source.mode};
+    }
     const message = {
       type: EVENT_TYPE,
       event: READY_EVENT,
-      state: this.getState(),
+      state,
       detail: this.describe(),
     };
 
@@ -903,6 +912,9 @@ export class EmbedAPI {
     if (!data || data.type !== COMMAND_TYPE || !event.source) {
       return;
     }
+    if (!this.isEmbedder(event.source, event.origin)) {
+      return;
+    }
 
     const sender = {source: event.source, origin: event.origin};
     const name = data.command;
@@ -919,6 +931,32 @@ export class EmbedAPI {
       console.warn(`Embed API command ${name} failed`, e);
       this.respond(sender, data.id, {ok: false, error: {message: describeError(e)}});
     }
+  }
+
+  /**
+   * Whether a command comes from the page that embeds the player (its parent) or opened it.
+   *
+   * Any window that can reach this frame can post to it: an ad in another frame of the
+   * embedding page reaches it through `parent.frames`. Taking its commands let it read the
+   * address being watched, follow every event, load another video with headers of its
+   * choosing, or pause and seek (#218). Such a window gets no answer at all. The origin a
+   * window first sends from is kept, and a later command from that window at another
+   * origin (an opener that went on to another site) is not taken either.
+   *
+   * @param {Window} source - The window a command came from.
+   * @param {string} origin - The origin it came from.
+   * @return {boolean}
+   */
+  isEmbedder(source, origin) {
+    if (source === window || (source !== window.parent && source !== window.opener)) {
+      return false;
+    }
+    const pinned = this.pinnedOrigins.get(source);
+    if (pinned === undefined) {
+      this.pinnedOrigins.set(source, origin);
+      return true;
+    }
+    return pinned === origin;
   }
 
   /**
