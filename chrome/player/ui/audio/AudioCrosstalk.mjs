@@ -60,6 +60,12 @@ export class AudioCrosstalk extends AbstractAudioModule {
     this.ui.crosstalkTitle.textContent = Localize.getMessage('audiocrosstalk_title');
     this.ui.crosstalk.appendChild(this.ui.crosstalkTitle);
 
+    // The correction works on two channels, and folds 5.1 down to them (crosstalk.mjs):
+    // the surround mix went with no sign of it.
+    this.ui.crosstalkNote = WebUtils.create('div', null, 'crosstalk_note');
+    this.ui.crosstalkNote.textContent = Localize.getMessage('audiocrosstalk_stereo_note');
+    this.ui.crosstalk.appendChild(this.ui.crosstalkNote);
+
     this.ui.crosstalkContainer = WebUtils.create('div', null, 'crosstalk_container');
     this.ui.crosstalk.appendChild(this.ui.crosstalkContainer);
 

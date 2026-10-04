@@ -15,7 +15,8 @@ import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {inChrome, clickToolbar as clickToolbarIn} from '../classic-helpers.mjs';
+import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -267,21 +268,6 @@ const shadowPage = (t) => `<!doctype html><title>shadow</title>
     '<video id="v" muted loop autoplay style="width: 320px; height: 180px" src="/clip.mp4?shadow=${t}"></video>';
 </script>`;
 
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
-
 /** Starts collecting the errors content.js reports, once per browser. */
 async function watchContentErrors() {
   await inChrome((done) => {
@@ -337,26 +323,7 @@ async function takeUnsourcedErrors() {
 }
 
 /** Clicks the extension's toolbar button for the site tab. */
-async function clickToolbar() {
-  await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        await ExtensionParent.apiManager.global.browserActionFor(extension).triggerAction(win);
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = () => clickToolbarIn(siteHandle);
 
 /** @return {Promise<?number>} The site tab's id. */
 async function siteTabId() {
@@ -742,6 +709,39 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  it('measures a hard-replaced element without putting it back into the page', async function() {
+    // Each update (a resize, the timers after opening) put the page's element back to
+    // measure it: its observers and custom-element callbacks ran each time, and a <video
+    // autoplay> in it loaded again (#228). A stand-in is measured instead.
+    await openPage('/cleanup');
+    await inPage(() => window.shrinkWhenReplaced());
+    await openPlayer();
+    await browser.waitUntil(async () => inPage(() => !document.contains(window.wrap)),
+        {timeout: 10000, timeoutMsg: 'the soft replace never turned hard'});
+    await browser.pause(1000);
+    await inPage(() => {
+      window.__wrapInserted = 0;
+      new MutationObserver((records) => {
+        for (const record of records) {
+          if (Array.from(record.addedNodes).includes(window.wrap)) window.__wrapInserted++;
+        }
+      }).observe(document.body, {childList: true, subtree: true});
+    });
+    await nudgeWindowSize();
+    await nudgeWindowSize();
+    expect(await inPage(() => ({
+      inserted: window.__wrapInserted,
+      inPage: document.contains(window.wrap),
+      // The player still takes the element's box (100 px at the least, as it always did).
+      size: (() => {
+        const r = window.playerIframe().getBoundingClientRect();
+        return [r.width, r.height].map(Math.round);
+      })(),
+      id: window.playerIframe().id,
+    }))).toEqual({inserted: 0, inPage: false, size: [100, 100], id: 'wrap'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   // The background keeps a player's frame apart: its streams are the player's own, and
   // no player opens over it. Only the player's beforeunload told it the player went, and
   // an iframe taken out of the page runs none: the page's next video was dropped as the
@@ -938,6 +938,37 @@ describe('content.js around an in-page player', function() {
         {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
     expect(await inPage(() => window.__kept === true)).toBe(true);
     await openPlayer();
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('takes down the player a page brings back from the back-forward cache', async function() {
+    // Firefox caches a page with its in-page player up, a MediaSource player and a direct
+    // one alike, and Back gives it back with the player in it (measured 2026-10-04, #286).
+    // The background had reset that page's frames on its FRAME_ADDED, the player's with
+    // them. The URL change's REMOVE_PLAYERS then takes the player down, and the page has
+    // its own video back: no player is left that the background does not know.
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => {
+      window.__kept = true;
+      window.__cachedWithPlayer = null;
+      window.addEventListener('pageshow', (e) => {
+        window.__cachedWithPlayer = e.persisted && !!window.playerIframe();
+      });
+      // A script's navigation: WebDriver's click leaves a listener that keeps a page out of
+      // the cache.
+      location.href = '/other?x=' + Date.now();
+    });
+    await browser.waitUntil(async () => inPage(() => location.pathname === '/other'),
+        {timeout: 10000, timeoutMsg: 'the other page never loaded'});
+    await browser.back();
+    await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
+        {timeout: 10000, timeoutMsg: 'Back never reached the first page'});
+    expect(await inPage(() => ({kept: window.__kept === true, withPlayer: window.__cachedWithPlayer})))
+        .toEqual({kept: true, withPlayer: true});
+    await browser.waitUntil(async () => !(await hasPlayer()),
+        {timeout: 10000, timeoutMsg: 'the player the cache gave back stayed up'});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
     expect(await takeContentErrors()).toEqual([]);
   });
 

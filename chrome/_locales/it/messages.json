@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(attuale)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Decodificato dalla scheda grafica (decodifica hardware)"
+    },
+    "player_quality_sw_title": {
+        "message": "Decodificato dal processore (decodifica software)"
+    },
     "player_quality_unknown": {
         "message": "(sconosciuto)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Distanza della Testa"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Funziona in stereo: finché è attiva, l'audio surround (5.1, 7.1) viene mixato su due canali."
+    },
     "audiocompressor_title": {
         "message": "Compressore Audio"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Mostra anteprima quando passi il mouse sulla timeline"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Preferisci la versione che la scheda grafica può decodificare (decodifica hardware), poi un frame rate più alto e codec più efficienti come AV1. Non abbassa mai la risoluzione scelta"
     },
     "options_general_analyze": {
         "message": "Analizza automaticamente i video sequenziali per le intro/outro\n(disattiva se hai problemi di prestazioni della CPU)"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - l'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Riproduzione in MPV - decodificato dalla scheda grafica: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Riproduzione in MPV - decodificato dal processore ($1): aggiungi hwdec=auto-safe a mpv.conf per decodificare sulla scheda grafica"
+    },
     "options_mpv_test_outdated": {
         "message": "L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "Il mpv aperto decodifica sulla scheda grafica: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "Il mpv aperto decodifica sul processore ($1): aggiungi hwdec=auto-safe a mpv.conf per decodificare sulla scheda grafica."
     },
     "player_mpv_sent_outdated": {
         "message": "Inviato a mpv. L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."

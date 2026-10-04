@@ -87,6 +87,10 @@ body[data-theme="default"] {
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   /* New: link color used by embedded options */
   --link-color: #4da3ff;
+  /* The mixer's buttons are dark grey in every theme, so its "configured" green stays. */
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 
@@ -199,6 +203,9 @@ body[data-theme="contrast"] {
   --tooltip-text-color: #000000;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.9);
   --link-color: #ffeb3b;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -310,6 +317,9 @@ body[data-theme="arctic"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #0a84ff;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: #cc3344;
+  --initial-play-background-color: #0b1320;
 }
 
 /* =========================
@@ -421,6 +431,9 @@ body[data-theme="ocean"] {
   --tooltip-text-color: #001421;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.85);
   --link-color: #19b7ff;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -532,6 +545,9 @@ body[data-theme="neon"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #00f0ff;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -643,6 +659,9 @@ body[data-theme="sunset"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #ff6f61;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: #cc3344;
+  --initial-play-background-color: #231514;
 }
 
 /* =========================
@@ -754,6 +773,9 @@ body[data-theme="forest"] {
   --tooltip-text-color: #06140e;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.85);
   --link-color: #2ecc71;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -865,6 +887,9 @@ body[data-theme="slate"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #4da3ff;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -976,6 +1001,9 @@ body[data-theme="amethyst"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #a78bfa;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: rgb(51, 51, 51);
 }
 
 /* =========================
@@ -1087,6 +1115,9 @@ body[data-theme="desert"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #c0843d;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: #cc3344;
+  --initial-play-background-color: #2b1f11;
 }
 
 /* =========================
@@ -1198,4 +1229,7 @@ body[data-theme="mint"] {
   --tooltip-text-color: #ffffff;
   --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #00bfa5;
+  --mixer-configured-color: rgba(80, 255, 80, 0.9);
+  --mute-icon-color: #cc3344;
+  --initial-play-background-color: #0a221d;
 }

@@ -16,6 +16,7 @@ import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
 
+import {inChrome} from '../classic-helpers.mjs';
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
@@ -95,21 +96,6 @@ let siteServer;
 let frameServer;
 let extHandle;
 let siteHandle;
-
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
 
 /**
  * Serves one test page: a focus button, the recorder, and the page's script.

@@ -21,6 +21,9 @@ export const DefaultOptions = {
   downloadAll: true,
   blockPopupsWhilePlaying: true,
   previewEnabled: true,
+  // Among versions of the chosen resolution, prefer the one Firefox decodes in hardware,
+  // then smooth, higher frame rate and the more efficient codec; playable audio first.
+  decodingAwareQuality: true,
   autoEnableBestSubtitles: false,
   storeProgress: true,
   autoplayNext: false,

@@ -161,10 +161,24 @@ function createMemorySink(filename, blobManager) {
       }
     },
     async close() {
-      const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
-      const blob = new Blob(chunks, {type: 'application/octet-stream'});
-      const url = URL.createObjectURL(blob);
-      closeWhenDownloaded(blobManager, url, await Utils.downloadURL(url, filename));
+      let url = null;
+      let download;
+      try {
+        const chunks = await Promise.all(blobs.map((blob) => blobManager.getBlob(blob)));
+        const blob = new Blob(chunks, {type: 'application/octet-stream'});
+        url = URL.createObjectURL(blob);
+        download = await Utils.downloadURL(url, filename);
+      } catch (e) {
+        // Nothing will read the file, as in the OPFS sink: the URL kept the whole video in
+        // memory, and the store its worker, until the tab closed.
+        if (url) {
+          URL.revokeObjectURL(url);
+        }
+        await blobManager.clear().catch(() => {});
+        blobManager.close();
+        throw e;
+      }
+      closeWhenDownloaded(blobManager, url, download);
     },
     async abort() {
       blobs.length = 0;

@@ -554,3 +554,29 @@ describe('FastStreamClient, autoplay of the next video', () => {
     expect(navigations()).toBe(2);
   });
 });
+
+describe('FastStreamClient, the decoding-aware quality option', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // LevelManager reads client.options.decodingAwareQuality at each pick; an options change
+  // that did not copy it would leave the option page's switch without effect.
+  it('takes the option over from an options change, on unless turned off', () => {
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
+    vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+
+    client.setOptions({decodingAwareQuality: false});
+    expect(client.options.decodingAwareQuality).toBe(false);
+    client.setOptions({decodingAwareQuality: true});
+    expect(client.options.decodingAwareQuality).toBe(true);
+    // Options saved before it existed.
+    client.setOptions({});
+    expect(client.options.decodingAwareQuality).toBe(true);
+  });
+});

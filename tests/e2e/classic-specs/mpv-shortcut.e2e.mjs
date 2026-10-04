@@ -24,6 +24,7 @@ import {browser, expect} from '@wdio/globals';
 
 import {loopedPlaylist} from '../loopedPlaylist.mjs';
 import {closeSpecMpv, hostInstalled, hostLogSince} from '../mpvTestProcesses.mjs';
+import {inChrome, clickToolbar as clickToolbarIn} from '../classic-helpers.mjs';
 import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
@@ -53,21 +54,6 @@ let testStart = 0;
 // How many of mpv's requests the preview check has looked at. Each is checked once, so a
 // request for the preview fails the test that first sees it, not every test after it.
 let mpvChecked = 0;
-
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
 
 // Each command's default key, as Firefox writes it on the extension's <key> element. Both
 // end in F, so a key is found by its modifiers as well.
@@ -153,27 +139,7 @@ async function pressShortcut(command = 'mpv') {
 }
 
 /** Clicks the extension's toolbar button for the focused window. */
-async function clickToolbar() {
-  await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        const action = ExtensionParent.apiManager.global.browserActionFor(extension);
-        await action.triggerAction(win);
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = () => clickToolbarIn(siteHandle);
 
 /**
  * Reads the site tab's mode off its toolbar button.
@@ -427,6 +393,24 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
               history.pushState({}, '', '/lazy/next');
               const main = document.getElementById('main');
               main.src = '${CDN}/clip.mp4?next=' + Date.now();
+              main.play().catch(() => {});
+            });
+          </script>`);
+        return;
+      }
+      if (req.url.startsWith('/popup')) {
+        // As many streaming sites: the play button opens a pop-up (an ad) first, then starts
+        // the video. window.open() consumes the click's activation, so the play comes with
+        // navigator.userActivation.isActive false.
+        res.end(`<!doctype html><title>mpv shortcut test, pop-up</title>
+          <video id="main" crossorigin="anonymous" style="width: 640px; height: 360px"></video>
+          <button id="play">Play</button>
+          <script>
+            document.getElementById('play').addEventListener('click', () => {
+              window.open('/away?popup=' + Date.now(), '_blank');
+              window.consumedActivation = !navigator.userActivation.isActive;
+              const main = document.getElementById('main');
+              main.src = '${CDN}/clip.mp4?popup=' + Date.now();
               main.play().catch(() => {});
             });
           </script>`);
@@ -1305,6 +1289,41 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
         await replaceSiteTab();
       }
     });
+  });
+
+  // A pop-up the play button opens first consumed the click's activation, and the play was
+  // taken for an autoplay: the video played in the page and nothing went to mpv.
+  it('sends the video a click started after the page opened a pop-up', async function() {
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/popup`);
+    await expectMode('off', 'opening a site that is not on the allowlist');
+    await pressShortcut();
+    await expectMode('mpv', 'pressing Ctrl+Shift+U');
+
+    const handles = await browser.getWindowHandles();
+    const before = mpvCount();
+    try {
+      await clickPlay();
+      await browser.waitUntil(async () => (await browser.getWindowHandles()).length > handles.length, {
+        timeout: 10000,
+        timeoutMsg: 'the page\'s pop-up never opened',
+      });
+      // The case this is about: Firefox reports no activation for the play any more.
+      await browser.switchToWindow(siteHandle);
+      expect(await browser.execute(() => window.consumedActivation)).toBe(true);
+      if (HAVE_HOST) {
+        await expectMainInMpv(before, 'clicking play on a page that opens a pop-up first');
+      }
+    } finally {
+      for (const handle of await browser.getWindowHandles()) {
+        if (!handles.includes(handle)) {
+          await browser.switchToWindow(handle);
+          await browser.closeWindow();
+        }
+      }
+      await browser.switchToWindow(siteHandle);
+      await replaceSiteTab();
+    }
   });
 
   // A site that plays its next episode in the same page: the URL change lets the page's MPV

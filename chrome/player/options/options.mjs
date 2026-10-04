@@ -58,6 +58,7 @@ const miniPos = document.getElementById('minipos');
 const daltonizerType = document.getElementById('daltonizerType');
 const daltonizerStrength = document.getElementById('daltonizerStrength');
 const previewEnabled = document.getElementById('previewenabled');
+const decodingAwareQuality = document.getElementById('decodingawarequality');
 const replaceDelay = document.getElementById('replacedelay');
 const colorTheme = document.getElementById('colortheme');
 const optionsSearchBar = document.getElementById('searchbar');
@@ -128,6 +129,8 @@ async function loadOptions(newOptions) {
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
   previewEnabled.checked = !!Options.previewEnabled;
+  // On unless turned off: options saved before it existed have no value for it.
+  decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
@@ -525,6 +528,13 @@ mpvTestButton.addEventListener('click', () => {
       if (response.ok && response.hostOutdated) {
         mpvTestResult.textContent += ' ' + window.getI18nMessage('options_mpv_test_outdated');
       }
+      // An mpv the host started is open: which decoder it plays with, as mpv says. On the
+      // processor, only a hint: mpv.conf is the user's, and FastStream never overrides it.
+      if (response.ok && response.decoder && typeof response.decoderText === 'string') {
+        const key = response.decoder.hardware ? 'options_mpv_test_decoder_hw' : 'options_mpv_test_decoder_sw';
+        const what = response.decoderText || String(response.decoder.api || '');
+        mpvTestResult.textContent += ' ' + window.getI18nMessage(key, [what]);
+      }
     });
   };
   if (chrome.permissions && chrome.permissions.contains) {
@@ -558,6 +568,11 @@ downloadAll.addEventListener('change', () => {
 
 previewEnabled.addEventListener('change', () => {
   Options.previewEnabled = previewEnabled.checked;
+  optionChanged();
+});
+
+decodingAwareQuality.addEventListener('change', () => {
+  Options.decodingAwareQuality = decodingAwareQuality.checked;
   optionChanged();
 });
 

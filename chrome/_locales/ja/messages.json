@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(現在)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "グラフィックカードでデコード（ハードウェアデコード）"
+    },
+    "player_quality_sw_title": {
+        "message": "プロセッサでデコード（ソフトウェアデコード）"
+    },
     "player_quality_unknown": {
         "message": "(不明)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "ヘッド間の距離"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "ステレオで動作します。有効な間、サラウンド音声（5.1、7.1）は2チャンネルにダウンミックスされます。"
+    },
     "audiocompressor_title": {
         "message": "オーディオコンプレッサー"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "タイムライン上でマウスを移動するとプレビューが表示されます"
+    },
+    "options_general_decodingawarequality": {
+        "message": "グラフィックカードでデコードできるバージョン（ハードウェアデコード）を優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません"
     },
     "options_general_analyze": {
         "message": "イントロ/アウトロが付いた動画を自動的に解析する\n(CPU パフォーマンスに問題がある場合は OFF にしてください)"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - MPV で再生中 - グラフィックカードでデコード: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - MPV で再生中 - プロセッサでデコード ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください"
+    },
     "options_mpv_test_outdated": {
         "message": "このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "開いている mpv はグラフィックカードでデコードしています: $1。"
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "開いている mpv はプロセッサでデコードしています ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください。"
     },
     "player_mpv_sent_outdated": {
         "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"

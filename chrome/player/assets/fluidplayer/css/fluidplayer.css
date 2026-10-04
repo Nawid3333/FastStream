@@ -207,6 +207,7 @@ body {
     height: 60px;
     border-radius: 50px;
     cursor: pointer;
+    background-color: var(--initial-play-background-color);
 }
 
 .fluid_initial_play_button {
@@ -538,6 +539,24 @@ body {
     font-weight: bold;
 }
 
+/* "HW"/"SW" after a quality: whether Firefox decodes that version in hardware. */
+.quality_decode_badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 4px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 0.75em;
+    font-weight: normal;
+    line-height: 1.4;
+    vertical-align: middle;
+    opacity: 0.8;
+}
+
+.quality_decode_badge.software {
+    opacity: 0.55;
+}
+
 .fluid_video_source_list_item:first-child,
 .fluid_audio_source_list_item:first-child {
     border-top: none;
@@ -632,6 +651,7 @@ body {
 
 .fluid_control_mute .speaker-muted {
     display: none;
+    color: var(--mute-icon-color);
 }
 
 .fluid_control_mute.muted .speaker-muted {
@@ -2349,8 +2369,9 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     background-color: rgba(0, 75, 0, 0.9);
 }
 
+/* After the .active rule, which it overrides; with !important no theme could. */
 .mixer_channel_buttons>div.mixer_channel_dyn.configured {
-    color: rgba(80, 255, 80, 0.9) !important;
+    color: var(--mixer-configured-color);
 }
 
 .mixer_channel_volume {
@@ -2493,6 +2514,20 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     bottom: 0px;
     left: 0px;
     right: 0px;
+}
+
+.crosstalk .crosstalk_container {
+    bottom: 22px;
+}
+
+.crosstalk_note {
+    position: absolute;
+    bottom: 5px;
+    left: 10px;
+    right: 10px;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
 }
 
 .convolver_container {

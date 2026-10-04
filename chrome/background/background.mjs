@@ -536,6 +536,8 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvSentUrls.clear();
       tab.mpvError = null;
       tab.mpvHostOutdated = false;
+      tab.mpvDecoder = null;
+      tab.mpvDecoderQuery = null;
       tab.mpvPlayPendingUntil = 0;
       tab.mpvPlayedVideo = null;
       tab.mpvPlayChecking = null;
@@ -653,7 +655,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }).catch((e) => console.error('Sending the new options to the tabs failed', e));
     return;
   } else if (msg.type === MessageTypes.MPV_TEST) {
-    Mpv.testConnection().then((result) => {
+    Mpv.testConnection().then(async (result) => {
+      // And, when an mpv this host started is open, which decoder it plays with.
+      if (result.ok && result.mpv) {
+        const status = await Mpv.decoderStatus(0);
+        if (status.ok && status.running && status.decoder) {
+          return {...result, decoder: status.decoder, decoderText: MpvBackend.describeDecoder(status.decoder)};
+        }
+      }
+      return result;
+    }).then((result) => {
       sendResponse(result);
     }).catch((e) => sendResponse({ok: false, error: String(e)}));
     return true;
@@ -2135,6 +2146,7 @@ function autoOpenInMpv(tab, url, headers) {
     Mpv.openStream(url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
     setMpvError(tab, result);
+    followMpvDecoder(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else {
@@ -2174,6 +2186,47 @@ function setMpvError(tab, result) {
     BackgroundUtils.updateTabIcon(tab);
     Tabs.saveTabState(tab);
   }
+}
+
+// How long the host may wait, after a hand-off, for mpv to start decoding: a slow stream
+// takes seconds to open, and until then mpv has no decoder to name.
+const MpvDecoderWaitMs = 20000;
+
+/**
+ * After a hand-off that worked, asks mpv which video decoder it plays the stream with,
+ * for the toolbar button's tooltip: the hardware API, or a hint that mpv decodes in
+ * software (with what to add to mpv.conf). Read-only: FastStream never overrides mpv.conf.
+ * Only an mpv the host started for single-instance use has the pipe to ask over.
+ * @param {Object} tab - TabHolder the stream was sent from.
+ * @param {{ok: boolean}} result - The hand-off's answer.
+ */
+function followMpvDecoder(tab, result) {
+  const query = {};
+  tab.mpvDecoderQuery = query;
+  setMpvDecoder(tab, null);
+  if (!result.ok || !Mpv.singleInstance) {
+    return;
+  }
+  Mpv.decoderStatus(MpvDecoderWaitMs).then((status) => {
+    // A later hand-off (or a new page) asks again: this answer is about an older stream.
+    if (tab.mpvDecoderQuery !== query) {
+      return;
+    }
+    setMpvDecoder(tab, status.ok && status.running ? status.decoder || null : null);
+  }).catch((e) => console.warn('Asking mpv for its decoder failed', e));
+}
+
+/**
+ * @param {Object} tab - TabHolder.
+ * @param {?Object} decoder - MpvBackend's MpvDecoder, or null.
+ */
+function setMpvDecoder(tab, decoder) {
+  if (JSON.stringify(tab.mpvDecoder ?? null) === JSON.stringify(decoder)) {
+    return;
+  }
+  tab.mpvDecoder = decoder;
+  BackgroundUtils.updateTabIcon(tab);
+  Tabs.saveTabState(tab);
 }
 
 /**
@@ -2465,6 +2518,7 @@ function sendPlayedToMpv(tab, source) {
     Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
     setMpvError(tab, result);
+    followMpvDecoder(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else if (tab.mpvLastPlaySend && tab.mpvLastPlaySend.url === source.url) {
@@ -2525,6 +2579,7 @@ function openMpvWithSources(tab) {
     Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
     setMpvError(tab, result);
+    followMpvDecoder(tab, result);
     if (result.ok) {
       pauseTabMedia(tab.tabId);
     } else {

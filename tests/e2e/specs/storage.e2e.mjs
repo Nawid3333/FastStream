@@ -307,6 +307,69 @@ describe('FSBlob storage backends', function() {
   // FSBlob's chain, not a drop to memory. The old code went straight to
   // memory - and worse, clear() then rejected, which is what left the player
   // unbuilt in private windows.
+  // The OPFS worker in Firefox, live and then silent: past its timeout it counts as crashed,
+  // and the store moves to its next backend for the rest of the session. The unit tests
+  // run this against a stand-in worker; here the real one is set up first (#266).
+  it('moves to the next backend when the OPFS worker stops answering mid-session', async function() {
+    const result = await runInPage(async () => {
+      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+      const {OPFSManager} = await import('/player/network/OPFSManager.mjs');
+      const probe = new FSBlob();
+      const opfsIsInChain = !!probe.opfsManager;
+      probe.close();
+      if (!opfsIsInChain) {
+        return {skipped: true};
+      }
+
+      const timeout = OPFSManager.CallTimeoutMs;
+      try {
+        const blobStore = new FSBlob();
+        await blobStore.ready();
+        const before = !!blobStore.opfsManager;
+        if (!before) {
+          blobStore.close();
+          return {skipped: false, before};
+        }
+        const first = await blobStore.saveBlobAsync(new Blob([new Uint8Array([1, 2, 3])]));
+        const firstOnDisk = blobStore.getBlob(first) instanceof File;
+
+        // From now on the worker takes no more messages, as one that wedged, and counts as
+        // crashed after 500 ms. Shortened only now, as each wait reads it: shortened before
+        // the setup, the worker's start took longer than that on CI's Windows runner (#334).
+        OPFSManager.CallTimeoutMs = 500;
+        blobStore.opfsManager.worker.postMessage = () => {};
+        const started = Date.now();
+        const payload = new Uint8Array([4, 5, 6, 7]);
+        const second = await blobStore.saveBlobAsync(new Blob([payload]));
+        const waited = Date.now() - started;
+        const readBack = new Uint8Array(await blobStore.getBlob(second).arrayBuffer());
+        const after = blobStore.opfsManager ? 'opfs' :
+          (blobStore.cache ? 'cache' : (blobStore.indexedDBManager ? 'indexeddb' : 'memory'));
+        blobStore.close();
+        return {
+          skipped: false, before, firstOnDisk, waited, after,
+          roundTrips: readBack.length === payload.length && readBack.every((b, i) => b === payload[i]),
+        };
+      } finally {
+        OPFSManager.CallTimeoutMs = timeout;
+      }
+    });
+
+    console.log('      silent OPFS worker:', JSON.stringify(result));
+    if (result.skipped) {
+      // eslint-disable-next-line no-invalid-this
+      this.skip();
+    }
+    expect(result.before).toBe(true);
+    expect(result.firstOnDisk).toBe(true);
+    expect(result.after).not.toBe('opfs');
+    expect(result.after).not.toBe('memory');
+    expect(result.roundTrips).toBe(true);
+    // It waited for the timeout, not for good.
+    expect(result.waited).toBeGreaterThanOrEqual(400);
+    expect(result.waited).toBeLessThan(10000);
+  });
+
   it('falls through to the next backend when OPFS setup fails, not to memory', async function() {
     const result = await runInPage(async () => {
       const {FSBlob} = await import('/player/modules/FSBlob.mjs');

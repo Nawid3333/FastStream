@@ -254,6 +254,10 @@ describe('cuesAt', () => {
     expect(textsAt(cues, 2.7)).toEqual(['b']);
     expect(textsAt(cues, 3.5)).toEqual([]);
     expect(textsAt([], 1)).toEqual([]);
+    // After a seek back, the same cues in the same order: it keeps nothing from the last
+    // time it was asked (#147).
+    expect(textsAt(cues, 2)).toEqual(['a', 'b', 'c']);
+    expect(textsAt(cues, 1.5)).toEqual(['a']);
   });
 });
 

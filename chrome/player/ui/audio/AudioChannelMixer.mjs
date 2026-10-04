@@ -41,6 +41,11 @@ export class AudioChannelMixer extends AbstractAudioModule {
 
     this.mixerChannelElements = [];
     this.masterElements = null;
+
+    // The equalizers and compressors, made once (makeModules).
+    this.channelModules = null;
+    this.masterModules = null;
+    this.settingUpNodes = false;
   }
 
   async getChannelCount() {
@@ -635,6 +640,74 @@ export class AudioChannelMixer extends AbstractAudioModule {
     });
   }
 
+  /**
+   * Makes the equalizer and the compressor of each channel and of the master, once. Each
+   * has a panel of its own (a graph, six knobs and their DOM): setupNodes() runs for every
+   * video, and made all sixteen again each time (#202). It now points these at the new
+   * audio graph.
+   */
+  makeModules() {
+    if (this.channelModules) {
+      return;
+    }
+    this.channelModules = Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => {
+      const modules = {
+        equalizer: new AudioEqualizer(`${CHANNEL_NAMES[i]} `),
+        compressor: new AudioCompressor(`${CHANNEL_NAMES[i]} `),
+        // Whether each was on, to tell a change that turns it on or off from any other.
+        equalizerOn: false,
+        compressorOn: false,
+      };
+      // Not while setupNodes() gives them their settings: the channels are half made then,
+      // and it looks at each one's state itself once they are.
+      modules.equalizer.on('change', () => {
+        const on = modules.equalizer.hasNodes();
+        if (this.settingUpNodes || on === modules.equalizerOn) {
+          return;
+        }
+        modules.equalizerOn = on;
+        this.updateDynLabels();
+        this.updateNodes();
+      });
+      modules.compressor.on('change', () => {
+        const on = modules.compressor.isEnabled();
+        if (this.settingUpNodes || on === modules.compressorOn) {
+          return;
+        }
+        modules.compressorOn = on;
+        this.updateDynLabels();
+        this.updateNodes();
+      });
+      return modules;
+    });
+    this.masterModules = {
+      equalizer: new AudioEqualizer('Master '),
+      compressor: new AudioCompressor('Master ', this.getChannelCount.bind(this)),
+    };
+    const masterChanged = () => {
+      if (!this.settingUpNodes) {
+        this.updateDynLabels();
+      }
+    };
+    this.masterModules.equalizer.on('change', masterChanged);
+    this.masterModules.compressor.on('change', masterChanged);
+  }
+
+  /**
+   * Gives an equalizer and a compressor their settings, unless they have them already: each
+   * setConfig() builds its controls again.
+   * @param {{equalizer: AudioEqualizer, compressor: AudioCompressor}} nodes
+   * @param {{equalizerNodes: Array, compressor: Object}} config - A channel's or the master's.
+   */
+  applyConfig(nodes, config) {
+    if (nodes.equalizer.equalizerConfig !== config.equalizerNodes) {
+      nodes.equalizer.setConfig(config.equalizerNodes);
+    }
+    if (nodes.compressor.compressorConfig !== config.compressor) {
+      nodes.compressor.setConfig(config.compressor);
+    }
+  }
+
   setupNodes(audioContext) {
     super.setupNodes(audioContext);
 
@@ -642,52 +715,32 @@ export class AudioChannelMixer extends AbstractAudioModule {
 
     this.channelSplitter = null;
     this.channelMerger = null;
-    this.channelNodes = Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => {
+    this.makeModules();
+    this.settingUpNodes = true;
+    this.channelNodes = this.channelModules.map((modules, i) => {
       const nodes = {
         gain: null,
         analyzer: null,
         postSplit: new VirtualAudioNode(`AudioChannelMixer postSplit ${i}`),
         preGain: new VirtualAudioNode(`AudioChannelMixer preGain ${i}`),
         preMerge: new VirtualAudioNode(`AudioChannelMixer preMerge ${i}`),
-        equalizer: new AudioEqualizer(`${CHANNEL_NAMES[i]} `),
-        compressor: new AudioCompressor(`${CHANNEL_NAMES[i]} `),
+        equalizer: modules.equalizer,
+        compressor: modules.compressor,
       };
 
       nodes.compressor.setupNodes(audioContext);
       nodes.equalizer.setupNodes(audioContext);
 
       if (this.channelConfigs && this.channelConfigs[i]) {
-        const channel = this.channelConfigs[i];
-        nodes.equalizer.setConfig(channel.equalizerNodes);
-        nodes.compressor.setConfig(channel.compressor);
+        this.applyConfig(nodes, this.channelConfigs[i]);
       }
+      modules.equalizerOn = nodes.equalizer.hasNodes();
+      modules.compressorOn = nodes.compressor.isEnabled();
 
       nodes.postSplit.connect(nodes.equalizer.getInputNode());
       nodes.equalizer.getOutputNode().connect(nodes.compressor.getInputNode());
       nodes.compressor.getOutputNode().connect(nodes.preGain);
       nodes.preGain.connect(nodes.preMerge);
-
-      let oldEqualizerState = nodes.equalizer.hasNodes();
-      let oldCompressorState = nodes.compressor.isEnabled();
-
-      nodes.equalizer.on('change', ()=>{
-        const newState = nodes.equalizer.hasNodes();
-        if (newState === oldEqualizerState) {
-          return;
-        }
-        oldEqualizerState = newState;
-        this.updateDynLabels();
-        this.updateNodes();
-      });
-      nodes.compressor.on('change', ()=>{
-        const newState = nodes.compressor.isEnabled();
-        if (newState === oldCompressorState) {
-          return;
-        }
-        oldCompressorState = newState;
-        this.updateDynLabels();
-        this.updateNodes();
-      });
 
       return nodes;
     });
@@ -695,24 +748,21 @@ export class AudioChannelMixer extends AbstractAudioModule {
       gain: null,
       analyzer: null,
       postMerge: new VirtualAudioNode('AudioChannelMixer postMerge master'),
-      equalizer: new AudioEqualizer('Master '),
-      compressor: new AudioCompressor('Master ', this.getChannelCount.bind(this)),
+      equalizer: this.masterModules.equalizer,
+      compressor: this.masterModules.compressor,
       preGain: new VirtualAudioNode(`AudioChannelMixer preGain master`),
     };
     this.masterNodes.compressor.setupNodes(audioContext);
     this.masterNodes.equalizer.setupNodes(audioContext);
 
     if (this.masterConfig) {
-      this.masterNodes.equalizer.setConfig(this.masterConfig.equalizerNodes);
-      this.masterNodes.compressor.setConfig(this.masterConfig.compressor);
+      this.applyConfig(this.masterNodes, this.masterConfig);
     }
+    this.settingUpNodes = false;
 
     this.masterNodes.postMerge.connect(this.masterNodes.equalizer.getInputNode());
     this.masterNodes.equalizer.getOutputNode().connect(this.masterNodes.compressor.getInputNode());
     this.masterNodes.compressor.getOutputNode().connect(this.masterNodes.preGain);
-
-    this.masterNodes.equalizer.on('change', this.updateDynLabels.bind(this));
-    this.masterNodes.compressor.on('change', this.updateDynLabels.bind(this));
 
     this.getInputNode().connect(this.masterNodes.postMerge);
     this.masterNodes.preGain.connect(this.getOutputNode());
@@ -805,7 +855,10 @@ export class AudioChannelMixer extends AbstractAudioModule {
           this.masterNodes.monoNode.channelCountMode = 'explicit';
         }
 
-        this.masterNodes.gain.channelCount = cappedChannelCount;
+        // Web Audio up-mixes one channel to six as the centre speaker alone, so on a 5.1
+        // output "mono" came out of the centre only. Up-mixed to two first, it is the left
+        // and the right speaker, which the output takes as they are.
+        this.masterNodes.gain.channelCount = Math.min(2, cappedChannelCount);
         this.masterNodes.gain.channelCountMode = 'explicit';
       } else {
         if (this.masterNodes.monoNode) {

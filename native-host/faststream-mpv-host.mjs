@@ -10,6 +10,8 @@
 //   {type: 'ping', mpvPath?}      -> {ok, mpv, path}
 //   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?,
 //    pageUrl?, title?, start?, subtitles?} -> {ok, error?}
+//   {type: 'status', waitMs?}    -> {ok, running, decoder: {hardware, api, requested,
+//                                    format, width, height} | null}
 // Every answer also carries hostVersion (HostVersion below).
 //
 // title is the tab's title for mpv's window, start the position to start at, subtitles
@@ -55,7 +57,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 1;
+export const HostVersion = 2;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -841,6 +843,80 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   };
 }
 
+// How long a `status` message may wait for mpv to start decoding: a slow stream takes
+// seconds to open, and until then mpv has no decoder to name.
+export const MaxStatusWaitMs = 30000;
+const StatusPollMs = 1000;
+
+// What mpv is asked about its video decoder, in this order (decoderFromReplies).
+const DecoderProperties = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'];
+
+/**
+ * Reads mpv's answers about its video decoder.
+ *
+ * `hwdec-current` is the hardware decoding API in use ("d3d11va", "vulkan", "nvdec",
+ * or "-copy" forms of them), "no" when mpv decodes in software, and unavailable while no
+ * video decoder is loaded (the stream is still opening, or it has no video).
+ *
+ * @param {Array<Object>} replies - mpvIpcRequest's replies to DecoderProperties.
+ * @return {?{hardware: boolean, api: string, requested: ?string, format: ?string,
+ *   width: ?number, height: ?number}} null while no decoder is loaded.
+ */
+export function decoderFromReplies(replies) {
+  /**
+   * @param {number} index - The property's place in DecoderProperties.
+   * @return {*} Its value, or undefined for an error or no reply.
+   */
+  const value = (index) => {
+    const reply = (replies || []).find((r) => r && r.request_id === index + 1);
+    return reply && (reply.error === undefined || reply.error === 'success') ? reply.data : undefined;
+  };
+  const api = value(0);
+  if (typeof api !== 'string' || !api) {
+    return null;
+  }
+  const text = (v) => (typeof v === 'string' && v ? v : null);
+  const size = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
+  return {
+    hardware: api !== 'no',
+    api,
+    requested: text(value(1)),
+    format: text(value(2)),
+    width: size(value(3)),
+    height: size(value(4)),
+  };
+}
+
+/**
+ * Asks the mpv this host started (the one on our pipe) which video decoder it uses,
+ * waiting up to waitMs for one to load. Only an instance started for single-instance use
+ * has the pipe, so without it the answer is "not running" even when an mpv is open.
+ *
+ * @param {number} waitMs - How long to keep asking while mpv has no decoder yet.
+ * @param {typeof mpvIpcRequest} [ipcRequest] - Injectable for tests.
+ * @param {(ms: number) => Promise<void>} [sleep] - Injectable for tests.
+ * @param {() => number} [now] - Injectable for tests.
+ * @return {Promise<{running: boolean, decoder: ?Object}>}
+ */
+export async function queryDecoder(waitMs, ipcRequest = mpvIpcRequest,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now) {
+  const wait = Math.min(Math.max(Number(waitMs) || 0, 0), MaxStatusWaitMs);
+  const commands = DecoderProperties.map((name) => ({command: ['get_property', name]}));
+  const start = now();
+  for (;;) {
+    const result = await ipcRequest(commands, 1500, 3000);
+    // No pipe: no mpv of ours. A busy one runs, and may answer next time.
+    if (!result.ok && !result.busy) {
+      return {running: false, decoder: null};
+    }
+    const decoder = result.ok ? decoderFromReplies(result.replies || []) : null;
+    if (decoder || now() - start + StatusPollMs > wait) {
+      return {running: true, decoder};
+    }
+    await sleep(StatusPollMs);
+  }
+}
+
 /**
  * Quotes one argument for a Windows command line, per the rules
  * CommandLineToArgvW uses to take it apart again.
@@ -1255,6 +1331,16 @@ async function main() {
     } else {
       await sendMessage({ok: true, mpv: false});
     }
+    process.exit(0);
+    return;
+  }
+
+  // Which video decoder the mpv this host started uses: the extension asks after a
+  // hand-off, and "Test mpv connection" asks too. Read-only: nothing is changed in mpv.
+  if (message.type === 'status') {
+    const status = await queryDecoder(message.waitMs);
+    debugLog(config, 'status', status);
+    await sendMessage({ok: true, ...status});
     process.exit(0);
     return;
   }

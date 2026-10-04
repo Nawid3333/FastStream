@@ -197,6 +197,16 @@ when the opener is that frame's page or the player frame's own
 restarted since), it asks the frame's content script (`IS_PLAYER_OPENER`). Otherwise the
 player is answered null and forgotten. mpv-shortcut's `/framed` page pins it.
 
+**A page Back brings back with its in-page player (measured 2026-10-04, #286).** Firefox
+157 caches a page whose in-page player is up, an MP4 (MediaSource) player and a direct one
+alike, and Back gives it back with the player in it (`pagehide` and `pageshow` persisted,
+the iframe there both times). Its `FRAME_ADDED` makes the background reset the page's
+frames, the player's with them. Right after the `pageshow` the player goes: the tab's URL
+changed, and the background's `REMOVE_PLAYERS` reaches the page (the only other caller of
+`removePlayers` is a click on a link, and there was none). So no player outlives the
+background's memory of it, and nothing was changed for #286; content-cleanup.e2e.mjs
+("takes down the player a page brings back ...") pins it.
+
 **Gone pages, and a page Back brings back (2026-09-30).** `TabHolder.goneDocuments`
 keeps the 16 latest pages that left a tab, by name, with what each had detected. A page
 leaves when its `FRAME_REMOVED` is taken, when another page names itself in its frame
@@ -281,6 +291,23 @@ window-level shortcuts. The helper waits for the key element's `command`
 event, because Firefox gives the command the tab active when the key's round
 trip through the page ends, and a test that switches tabs straight after
 pressing sends it to the wrong tab.
+
+**A play after a pop-up (2026-10-04).** "Only a video the user starts" was
+`navigator.userActivation.isActive` at the `play`, and a site whose play button opens a
+pop-up first broke it: `window.open()` consumes the activation (Firefox's web-platform
+tests check that `isActive` turns false), so the video the same click started played as
+if nobody had started it, nothing went to mpv, and it played on in the page. content.js
+now also counts a trusted press in the same frame within Firefox's activation time
+(`dom.user_activation.transient.timeout`, 5 s): `pointerdown`, or a `keydown` that could
+be no extension's shortcut (`couldBeExtensionShortcut`, the rule the cancelled-shortcut
+listener uses: Ctrl, Alt or Command, an F-key or a media key), not Escape and not a lone
+modifier (`playFollowsUserPress`). The MPV shortcut itself must not count, whatever it is
+bound to in about:addons: Ctrl+Shift+U by default, Alt+F on the owner's PC. An autoplay with no press behind it, a page-made event,
+or a press over 5 s old still sends nothing. Not covered: a press in a child frame and the
+play in its parent once the pop-up consumed the activation (Firefox propagates activation up
+the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.test.mjs` (3 of
+9 fail without the fix, the rest guard the autoplay cases) and mpv-shortcut's `/popup` page,
+whose mpv half runs where the host is installed (CI's e2e-windows).
 
 **A page that cancels a shortcut (2026-09-27).** Firefox lets page content
 cancel an extension's shortcut: a keydown the page calls `preventDefault()` on
@@ -379,3 +406,24 @@ The host's own functions are unit tested (`tests/unit/MpvNativeHost`, `mpvHostPa
 `mpvHostSecurity`, `mpvHostInstall`); the last two run the real PowerShell and the
 installed `.bat` on Windows only. What no suite covers is survival inside a real
 kill-on-close job object: check that by hand after a change to the launch.
+
+**Which decoder mpv uses (2026-10-04, host version 2).** FastStream never sets mpv's
+hardware decoding: a `--hwdec` on the command line would beat the user's mpv.conf (here
+gpu-next on Vulkan with shaders), so it only says what mpv does. After a hand-off that
+worked (the three automatic paths: allowlist, toolbar/shortcut, a play), the background
+sends the host `{type: 'status', waitMs: 20000}` (`followMpvDecoder`). The host
+(`queryDecoder`) asks the mpv on its pipe for `hwdec-current`, `hwdec`, `video-format`,
+`width` and `height` once a second until `hwdec-current` is there (it is unavailable while
+no video decoder is loaded, "no" in software, "d3d11va", "vulkan", "d3d11va-copy"... in
+hardware), at most `waitMs` (capped at 30 s), and answers `{running, decoder}`. Only an mpv
+the host started for single-instance use has the pipe, so with "Reuse one mpv window" off
+nothing is asked. The answer goes to `tab.mpvDecoder` (persisted like `mpvError`; cleared on a new
+page and before each hand-off's own question, and an older question's late answer is
+dropped by `tab.mpvDecoderQuery`). The tooltip then says "decoded by the graphics card:
+d3d11va, AV1 1920x1080", or "decoded by the processor (H.264 1280x720): add
+hwdec=auto-safe to mpv.conf...". The badge is unchanged: a failure's "!" and the outdated
+host's come first. "Test mpv connection" asks too (`waitMs: 0`) and adds the same sentence
+while such an mpv is open. A host from before answers "unknown message", which reads as no
+answer. Tests: `tests/unit/mpvDecoderStatus.test.mjs`, including a socket that answers as
+mpv does (Linux) and the background end to end; not yet run against a real mpv. mpv's own
+choice of stream version is issue #330.

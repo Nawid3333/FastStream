@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(当前)"
     },
+    "player_quality_hw": {
+        "message": "硬解"
+    },
+    "player_quality_sw": {
+        "message": "软解"
+    },
+    "player_quality_hw_title": {
+        "message": "由显卡解码（硬件解码）"
+    },
+    "player_quality_sw_title": {
+        "message": "由处理器解码（软件解码）"
+    },
     "player_quality_unknown": {
         "message": "(未知)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "头部距离"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "以立体声工作：开启时，环绕声（5.1、7.1）会被缩混为两个声道。"
+    },
     "audiocompressor_title": {
         "message": "音频压缩器"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "在时间轴悬停时显示预览"
+    },
+    "options_general_decodingawarequality": {
+        "message": "优先选择显卡可以解码的版本（硬件解码），其次是更高的帧率和更高效的编码（如 AV1）。绝不降低所选分辨率"
     },
     "options_general_analyze": {
         "message": "自动分析连续视频以检测片头/片尾\n（如果有 CPU 性能问题请关闭）"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 这台电脑上的 mpv 主机已过时：请在 FastStream 仓库中运行 update-local.cmd（或 native-host\\install.ps1）"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - 正在 MPV 中播放 - 由显卡解码：$1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - 正在 MPV 中播放 - 由处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码"
+    },
     "options_mpv_test_outdated": {
         "message": "这台电脑上的 mpv 主机已过时：请在 FastStream 仓库中运行 update-local.cmd（或 native-host\\install.ps1）。"
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "已打开的 mpv 正在用显卡解码：$1。"
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "已打开的 mpv 正在用处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码。"
     },
     "player_mpv_sent_outdated": {
         "message": "已发送到 mpv。这台电脑上的 mpv 主机已过时：请在 FastStream 仓库中运行 update-local.cmd（或 native-host\\install.ps1）。"

@@ -6,6 +6,8 @@
 //   node tools/mutation-report.mjs <mutation.json> issue <owner> <run url>
 //   node tools/mutation-report.mjs <mutation.json> count
 //
+// merge() puts the shards' reports together (tools/merge-mutation-reports.mjs).
+//
 // "Not caught" is Survived (the tests ran and passed) and NoCoverage (no test reached it).
 // Killed and Timeout count as caught, as Stryker counts them.
 
@@ -108,6 +110,25 @@ export function issueBody(report, owner, runUrl) {
   }
   lines.push('', 'Next week\'s issue replaces this one; a week with every mutant caught closes it.', '');
   return lines.join('\n');
+}
+
+/**
+ * One report of several: mutation-tests.yml runs the modules in shards, a job each, and
+ * each writes its own report (stryker.config.mjs, SHARDS).
+ * @param {Object[]} reports - Stryker's reports, of disjoint modules.
+ * @return {Object} The first report, with every report's files.
+ */
+export function merge(reports) {
+  const files = new Map();
+  for (const report of reports) {
+    for (const [file, entry] of Object.entries(report.files || {})) {
+      if (files.has(file)) {
+        throw new Error(`${file} is in two reports: each module belongs to one shard`);
+      }
+      files.set(file, entry);
+    }
+  }
+  return {...(reports[0] || {}), files: Object.fromEntries(files)};
 }
 
 if (process.argv[1] && import.meta.url === url.pathToFileURL(process.argv[1]).href) {

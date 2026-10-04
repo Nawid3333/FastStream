@@ -12,7 +12,8 @@ import * as url from 'node:url';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_ID, EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
+import {inChrome, clickToolbar as clickToolbarIn} from '../classic-helpers.mjs';
+import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
 import {hasExtensionApi} from '../extension-api.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
@@ -50,6 +51,38 @@ const barPage = (t) => `<!doctype html><title>bar</title>
 </div>
 <div id="topbar"></div>
 <script>
+  window.leave = () => history.pushState({}, '', location.pathname + '/next');
+</script>`;
+
+// The same player as a web component: the video, its bar and its play button are in the
+// custom element's shadow root, so FastStream's player goes in there too. The page's own
+// header and top bar are outside it.
+const shadowPage = (t) => `<!doctype html><title>shadow</title>
+<style>
+  body { margin: 0; }
+  #header { height: 60px; }
+  #topbar { position: fixed; left: 0; top: 0; width: 100%; height: 70px; z-index: 10; background: #444; }
+</style>
+<div id="header"></div>
+<test-player id="host"></test-player>
+<div id="topbar"></div>
+<script>
+  customElements.define('test-player', class extends HTMLElement {
+    constructor() {
+      super();
+      const root = this.attachShadow({mode: 'open'});
+      window.shadowPart = (id) => root.getElementById(id);
+      root.innerHTML = \`<style>
+        :host { display: block; position: relative; width: 640px; height: 400px; }
+        #media, #media video { width: 640px; height: 360px; display: block; }
+        #controls { position: absolute; left: 0; top: 320px; width: 640px; height: 40px; z-index: 5; background: #222; }
+        #play { position: absolute; left: 270px; top: 130px; width: 100px; height: 100px; z-index: 5; background: #c00; }
+      </style>
+      <div id="media"><video id="main" muted preload="auto" src="/clip.mp4?shadow=${t}"></video></div>
+      <div id="controls"></div>
+      <div id="play"></div>\`;
+    }
+  });
   window.leave = () => history.pushState({}, '', location.pathname + '/next');
 </script>`;
 
@@ -143,21 +176,6 @@ const embedPage = (t) => `<!doctype html><title>embed</title>
 </style>
 <video id="main" muted preload="auto" src="/clip.mp4?embed=${t}"></video>`;
 
-/**
- * Runs an async function in Firefox's chrome context.
- * @param {Function} fn - Called as fn(...args, done).
- * @param {...*} args - Serialisable arguments.
- * @return {Promise<*>} Whatever fn passed to done.
- */
-async function inChrome(fn, ...args) {
-  await browser.setMozContext('chrome');
-  try {
-    return await browser.executeAsync(fn, ...args);
-  } finally {
-    await browser.setMozContext('content');
-  }
-}
-
 /** Starts collecting the errors the content scripts report, once per browser. */
 async function watchContentErrors() {
   await inChrome((done) => {
@@ -193,26 +211,7 @@ async function takeContentErrors() {
 }
 
 /** Clicks the extension's toolbar button for the site tab. */
-async function clickToolbar() {
-  await browser.switchToWindow(siteHandle);
-  const result = await inChrome((extId, done) => {
-    (async () => {
-      try {
-        const {ExtensionParent} = ChromeUtils.importESModule(
-            'resource://gre/modules/ExtensionParent.sys.mjs');
-        const extension = WebExtensionPolicy.getByID(extId).extension;
-        const win = Services.wm.getMostRecentWindow('navigator:browser');
-        await ExtensionParent.apiManager.global.browserActionFor(extension).triggerAction(win);
-        done({ok: true});
-      } catch (e) {
-        done({err: String(e)});
-      }
-    })();
-  }, EXTENSION_ID);
-  if (!result || !result.ok) {
-    throw new Error('could not click the toolbar button: ' + JSON.stringify(result));
-  }
-}
+const clickToolbar = () => clickToolbarIn(siteHandle);
 
 /** @return {Promise<string>} The site tab's mode, 'on' or 'off'. */
 async function tabMode() {
@@ -296,7 +295,7 @@ describe('A site\'s overlays around an in-page player', function() {
       server.listen(port, '127.0.0.1', () => resolve(server));
     });
     servers = [
-      await serve(SITE_PORT, {'/bar': barPage, '/stage': stagePage, '/veil': veilPage, '/dialog': dialogPage, '/embedding': embeddingPage}),
+      await serve(SITE_PORT, {'/bar': barPage, '/shadow': shadowPage, '/stage': stagePage, '/veil': veilPage, '/dialog': dialogPage, '/embedding': embeddingPage}),
       await serve(EMBED_PORT, {'/embed': embedPage}),
     ];
 
@@ -351,6 +350,78 @@ describe('A site\'s overlays around an in-page player', function() {
         {timeout: 15000, timeoutMsg: 'the site\'s bar was not given back'}).catch(() => {});
     expect(await visibilities(ids)).toEqual({controls: 'visible', play: 'visible', header: 'visible', topbar: 'visible'});
     expect(await inPage(() => document.getElementById('controls').style.visibility)).toBe('');
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('hides the bar a web-component player keeps in its shadow root, while the player is up', async function() {
+    // The guard went through document.querySelectorAll('*'), which never sees a shadow
+    // root, and the page's elementsFromPoint gives the shadow root's elements as their
+    // host: the web component's own bar stayed over FastStream's player (#233).
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/shadow?t=${Date.now()}`);
+    await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
+        {timeout: 20000, timeoutMsg: 'the web component\'s video never loaded'});
+    await browser.pause(500);
+    const state = () => inPage(() => ({
+      controls: getComputedStyle(window.shadowPart('controls')).visibility,
+      play: getComputedStyle(window.shadowPart('play')).visibility,
+      header: getComputedStyle(document.getElementById('header')).visibility,
+      topbar: getComputedStyle(document.getElementById('topbar')).visibility,
+      player: !!Array.from(document.getElementById('host').shadowRoot.querySelectorAll('iframe'))
+          .find((f) => f.src.includes('player/index.html')),
+    }));
+    await clickToolbar();
+    await browser.waitUntil(async () => (await state()).controls === 'hidden',
+        {timeout: 15000, timeoutMsg: 'the web component\'s bar stayed over the player'}).catch(() => {});
+    expect(await state()).toEqual({controls: 'hidden', play: 'hidden', header: 'visible', topbar: 'visible', player: true});
+
+    await inPage(() => window.leave());
+    await browser.waitUntil(async () => (await state()).controls === 'visible',
+        {timeout: 15000, timeoutMsg: 'the web component\'s bar was not given back'}).catch(() => {});
+    expect(await state()).toMatchObject({controls: 'visible', play: 'visible', header: 'visible', topbar: 'visible'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('hides the rest of a web-component player in windowed fullscreen, and gives it back', async function() {
+    // Windowed fullscreen hides every element that does not hold the player, going through
+    // document.querySelectorAll('*'): it expanded the custom element, but the bar beside
+    // the player in its shadow root stayed (#233).
+    await browser.switchToWindow(siteHandle);
+    await browser.url(`${SITE}/shadow?t=${Date.now()}`);
+    await browser.waitUntil(async () => inPage(() => window.shadowPart?.('main')?.readyState >= 2),
+        {timeout: 20000, timeoutMsg: 'the web component\'s video never loaded'});
+    await browser.pause(500);
+    await clickToolbar();
+    const frame = await browser.$('#host').shadow$('iframe[src*="player/index.html"]');
+    await frame.waitForExist({timeout: 15000, timeoutMsg: 'no player in the web component'});
+    const toggle = async () => {
+      await browser.switchFrame(await browser.$('#host').shadow$('iframe[src*="player/index.html"]'));
+      await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.interfaceController),
+          {timeout: 15000, timeoutMsg: 'the player never started'});
+      await browser.execute(() => window.fastStream.interfaceController.toggleWindowedFullscreen());
+      await browser.switchFrame(null);
+      await browser.pause(1000);
+    };
+    const state = () => inPage(() => {
+      const iframe = Array.from(document.getElementById('host').shadowRoot.querySelectorAll('iframe'))
+          .find((f) => f.src.includes('player/index.html'));
+      const r = iframe.getBoundingClientRect();
+      return {
+        controls: getComputedStyle(window.shadowPart('controls')).display,
+        play: getComputedStyle(window.shadowPart('play')).display,
+        header: getComputedStyle(document.getElementById('header')).display,
+        player: [r.width, r.height].map(Math.round),
+        window: [window.innerWidth, window.innerHeight],
+      };
+    });
+
+    await toggle();
+    const full = await state();
+    expect(full).toMatchObject({controls: 'none', play: 'none', header: 'none'});
+    expect(full.player).toEqual(full.window);
+
+    await toggle();
+    expect(await state()).toMatchObject({controls: 'block', play: 'block', header: 'block'});
     expect(await takeContentErrors()).toEqual([]);
   });
 

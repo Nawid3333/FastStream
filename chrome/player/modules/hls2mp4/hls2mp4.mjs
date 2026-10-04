@@ -40,11 +40,22 @@ export class HLS2MP4 extends EventEmitter {
     return true;
   }
 
+  /**
+   * @param {Object} fragment
+   * @param {Object|undefined} previous the fragment of the same track before it
+   * @return {boolean} whether fragments of the same timeline are missing between the two (a
+   *     partial save): the stream's clock runs on across them, unlike at a discontinuity.
+   */
+  isAfterHole(fragment, previous) {
+    return !!previous && fragment.cc === previous.cc && fragment.sn > previous.sn + 1;
+  }
+
   async pushFragment(fragData) {
     const entry = await fragData.getEntry();
     const data = await entry.getDataFromBlob();
     const fragment = fragData.fragment;
     const isDiscontinuity = !this.prevFrag || fragment.sn !== this.prevFrag.fragment.sn + 1 || fragment.cc !== this.prevFrag.fragment.cc;
+    const afterHole = this.isAfterHole(fragment, this.prevFrag?.fragment);
 
     if (isDiscontinuity) {
       console.log('discontinuity');
@@ -73,7 +84,7 @@ export class HLS2MP4 extends EventEmitter {
         }
       });
 
-      this.pushChunk(this.videoTrack, result.video, result.initPTS);
+      this.pushChunk(this.videoTrack, result.video, result.initPTS, afterHole);
     }
 
     // With an audio rendition selected, hls.js plays that and drops whatever audio the
@@ -83,7 +94,7 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS);
+      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
@@ -92,6 +103,7 @@ export class HLS2MP4 extends EventEmitter {
     const data = await entry.getDataFromBlob();
     const fragment = fragData.fragment;
     const isDiscontinuity = !this.prevFragAudio || fragment.sn !== this.prevFragAudio.fragment.sn + 1 || fragment.cc !== this.prevFragAudio.fragment.cc;
+    const afterHole = this.isAfterHole(fragment, this.prevFragAudio?.fragment);
 
     if (isDiscontinuity) {
       console.log('discontinuity');
@@ -102,7 +114,7 @@ export class HLS2MP4 extends EventEmitter {
       if (!this.audioTrack) {
         this.audioTrack = this.makeTrack(result.audioTrack);
       }
-      this.pushChunk(this.audioTrack, result.audio, result.initPTS);
+      this.pushChunk(this.audioTrack, result.audio, result.initPTS, afterHole);
     }
   }
 
@@ -129,9 +141,13 @@ export class HLS2MP4 extends EventEmitter {
    *     seconds. The level and the audio rendition each have a transmuxer, which counts
    *     from its own stream's first timestamp: the chunks keep the stream's clock instead,
    *     the one both renditions share, so the tracks start as far apart as they played.
+   * @param {boolean} [afterHole] whether fragments are missing before this one (isAfterHole)
    */
-  pushChunk(track, remuxed, initPTS) {
+  pushChunk(track, remuxed, initPTS, afterHole = false) {
     const headerLen = 8;
+    if (afterHole && track.chunks.length) {
+      this.padHole(track, remuxed.startDTS + initPTS);
+    }
     track.chunks.push({
       id: track.nextChunkId++,
       samples: remuxed.outputSamples,
@@ -147,6 +163,28 @@ export class HLS2MP4 extends EventEmitter {
     });
     this.datas.push(this.blobManager.saveBlob(blob));
     this.datasOffset += remuxed.data2.byteLength;
+  }
+
+  /**
+   * Stretches a track's last sample over the fragments a partial save lacks, as MP4Merger
+   * does for DASH. The samples are written one after the other, so a hole was closed up:
+   * the track after it played early, and the other track, with its holes elsewhere (an audio
+   * rendition has fragments of its own) or none, was out of step with it from there on.
+   * @param {Object} track
+   * @param {number} startDTS where the fragment after the hole starts, on the stream's clock,
+   *     in seconds
+   */
+  padHole(track, startDTS) {
+    const last = track.chunks[track.chunks.length - 1];
+    const lastSample = last.samples[last.samples.length - 1];
+    if (!lastSample) {
+      return;
+    }
+    const hole = (normalizePts(startDTS * TS_CLOCK, last.endDTS * TS_CLOCK) / TS_CLOCK) - last.endDTS;
+    const ticks = Math.round(hole * track.timescale);
+    if (ticks > 0) {
+      lastSample.duration += ticks;
+    }
   }
 
   setup(level, levelInitData, audioLevel, audioInitData) {

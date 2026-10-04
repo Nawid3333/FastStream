@@ -98,13 +98,13 @@ export class OutputMeter extends AbstractAudioModule {
     if (this.channelAnalysers[0]) {
       return this.channelAnalysers[0].minDecibels;
     }
-    return -100;
+    return AudioUtils.VOLUME_FLOOR_DB;
   }
 
   get maxDecibels() {
     if (this.channelAnalysers[0]) {
       return this.channelAnalysers[0].maxDecibels;
     }
-    return -30;
+    return AudioUtils.VOLUME_CEILING_DB;
   }
 }

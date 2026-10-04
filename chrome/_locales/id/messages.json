@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(saat ini)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Didekode oleh kartu grafis (dekode perangkat keras)"
+    },
+    "player_quality_sw_title": {
+        "message": "Didekode oleh prosesor (dekode perangkat lunak)"
+    },
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Jarak Kepala"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Bekerja dalam stereo: selama aktif, suara surround (5.1, 7.1) dicampur menjadi dua saluran."
+    },
     "audiocompressor_title": {
         "message": "Kompresor Audio"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Tampilkan pratinjau saat mengarahkan kursor di atas garis waktu"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Utamakan versi yang dapat didekode oleh kartu grafis (dekode perangkat keras), lalu frame rate lebih tinggi dan codec lebih efisien seperti AV1. Tidak pernah menurunkan resolusi yang dipilih"
     },
     "options_general_analyze": {
         "message": "Secara otomatis menganalisis video berurutan untuk intro/outro\n(matikan jika Anda mengalami masalah kinerja CPU)"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Diputar di MPV - didekode oleh kartu grafis: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Diputar di MPV - didekode oleh prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis"
+    },
     "options_mpv_test_outdated": {
         "message": "Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "mpv yang terbuka mendekode di kartu grafis: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
     },
     "player_mpv_sent_outdated": {
         "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."

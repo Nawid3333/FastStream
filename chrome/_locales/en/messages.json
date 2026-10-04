@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(current)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Decoded by the graphics card (hardware decoding)"
+    },
+    "player_quality_sw_title": {
+        "message": "Decoded by the processor (software decoding)"
+    },
     "player_quality_unknown": {
         "message": "(unknown)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Head Distance"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Works in stereo: while it is on, surround sound (5.1, 7.1) is mixed down to two channels."
+    },
     "audiocompressor_title": {
         "message": "Audio Compressor"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Show preview when hovering over the timeline"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Prefer the version your graphics card can decode (hardware decoding), then a higher frame rate and more efficient codecs such as AV1. Never lowers the chosen resolution"
     },
     "options_general_analyze": {
         "message": "Automatically analyze sequential videos for intros/outros\n(turn off if you have CPU performance issues)"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - the mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Playing in MPV - decoded by the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card"
+    },
     "options_mpv_test_outdated": {
         "message": "The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "The open mpv decodes on the graphics card: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "The open mpv decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_sent_outdated": {
         "message": "Sent to mpv. The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."

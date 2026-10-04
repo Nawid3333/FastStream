@@ -487,6 +487,55 @@ describe('mpv seek keys', function() {
     });
   }
 
+  it('loads the start again after a jump from the end back to 0', async function() {
+    // What reset() does after the test below: from the end of the video back to 0, with
+    // the end's appends and a removal of everything still queued. The hop test further down
+    // starts from a freshly loaded video because this jump was once seen, about once in
+    // fifteen runs on one CPU core, to leave the player at 0 with nothing loading (#265).
+    // 60 such jumps in a row loaded the start every time on 2026-10-04. It is checked
+    // here, with the player's state in the failure, so a run that does stall says why.
+    const duration = await browser.execute(() => window.fastStream.duration);
+    const state = () => browser.execute(() => {
+      const player = window.fastStream.player;
+      const video = player.getVideo();
+      const queue = (wrapper) => wrapper ? {updating: wrapper.updating || wrapper.sourceBuffer.updating,
+        queued: wrapper.toDo.map((task) => task.type)} : null;
+      const ranges = [];
+      for (let i = 0; i < video.buffered.length; i++) {
+        ranges.push([video.buffered.start(i), video.buffered.end(i)]);
+      }
+      let current;
+      try {
+        current = player.currentFragment?.sn;
+      } catch (e) {
+        current = String(e);
+      }
+      return {
+        time: video.currentTime, seeking: video.seeking, readyState: video.readyState,
+        mediaSource: player.mediaSource?.readyState, running: player.running, loading: !!player.loader,
+        currentFragment: current, held: player.currentFragments.map((frag) => frag.sn),
+        video: queue(player.videoSourceBuffer), audio: queue(player.audioSourceBuffer), ranges,
+      };
+    });
+    for (let jump = 0; jump < 3; jump++) {
+      await seekTo(duration - 2);
+      await landsOn(duration - 2, 'the position near the end');
+      await pressKey('ArrowRight');
+      await reset();
+      let last;
+      try {
+        await browser.waitUntil(async () => {
+          last = await state();
+          const idle = (queue) => !queue || (!queue.updating && queue.queued.length === 0);
+          return idle(last.video) && idle(last.audio) && !last.seeking &&
+            last.ranges.length > 0 && last.ranges[0][0] <= 0.1 && last.ranges[0][1] >= 3;
+        }, {timeout: 20000, interval: 250});
+      } catch (e) {
+        throw new Error(`jump ${jump}: the start never loaded again: ${JSON.stringify(last)}`);
+      }
+    }
+  });
+
   it('ArrowRight and X near the end stop at the duration', async function() {
     const duration = await browser.execute(() => window.fastStream.duration);
     for (const code of ['ArrowRight', 'KeyX']) {
@@ -510,10 +559,10 @@ describe('mpv seek keys', function() {
     // reset() does after the test before this one, queues a removal of everything behind
     // appends still pending from there, so on a slow machine [0, 3] can look buffered, then
     // empty, then refill from wherever the player was when the removal ran - and a seek in
-    // between rightly resets. That jump can also leave the player at 0 with nothing loading
-    // at all (a separate bug, seen about once in fifteen runs on one CPU core), so this test
-    // starts from a freshly loaded video, and every step waits until nothing is queued, the
-    // element is not seeking, and the start really is buffered.
+    // between rightly resets. That jump is checked on its own above ("loads the start again
+    // after a jump from the end back to 0"), so this test starts from a freshly loaded
+    // video, and every step waits until nothing is queued, the element is not seeking, and
+    // the start really is buffered.
     const settled = async (what) => {
       let last;
       try {

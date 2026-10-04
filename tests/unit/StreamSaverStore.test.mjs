@@ -153,6 +153,31 @@ describe('StreamSaver: the blob store of a save', () => {
     expect(stores[0].closed).toBe(true);
   });
 
+  it('is closed, cleared and its URL revoked, when the download cannot start (memory)', async () => {
+    // The memory sink handed its URL on without a catch: a refused download kept the whole
+    // video in memory and the store open until the tab closed.
+    Utils.downloadURL.mockRejectedValue(new Error('downloads refused'));
+    const writer = streamSaver.createWriteStream('video.webm').getWriter();
+    await writer.write(new Uint8Array(4));
+    stores[0].moving.splice(0).forEach((resolve) => resolve());
+    await expect(writer.close()).rejects.toThrow('downloads refused');
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+    expect(stores[0].cleared).toBe(true);
+    expect(stores[0].closed).toBe(true);
+  });
+
+  it('is kept, with its URL, for a finished memory save handed to the download', async () => {
+    const writer = streamSaver.createWriteStream('video.webm').getWriter();
+    await writer.write(new Uint8Array(4));
+    await writer.close();
+
+    expect(Utils.revokeWhenDownloaded).toHaveBeenCalledWith(expect.stringMatching(/^blob:/), 7);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    expect(stores[0].cleared).toBe(false);
+    expect(stores[0].closed).toBe(false);
+  });
+
   it('is kept, with its URL, for a finished OPFS save handed to the download', async () => {
     globalThis.fakeOpfs = makeOpfs();
     const writer = streamSaver.createWriteStream('video.mp4').getWriter();

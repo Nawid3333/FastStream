@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(semasa)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Dinyahkod oleh kad grafik (penyahkodan perkakasan)"
+    },
+    "player_quality_sw_title": {
+        "message": "Dinyahkod oleh pemproses (penyahkodan perisian)"
+    },
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
     },
@@ -815,6 +827,9 @@
     "audiocrosstalk_headdistance": {
         "message": "Jarak Kepala"
     },
+    "audiocrosstalk_stereo_note": {
+        "message": "Berfungsi dalam stereo: semasa ia aktif, bunyi surround (5.1, 7.1) dicampurkan kepada dua saluran."
+    },
     "audiocompressor_title": {
         "message": "Pemampat Audio"
     },
@@ -997,6 +1012,9 @@
     },
     "options_general_previewenabled": {
         "message": "Tunjukkan pratonton apabila meleret di atas garis masa"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Utamakan versi yang boleh dinyahkod oleh kad grafik (penyahkodan perkakasan), kemudian kadar bingkai lebih tinggi dan codec lebih cekap seperti AV1. Tidak sekali-kali menurunkan resolusi yang dipilih"
     },
     "options_general_analyze": {
         "message": "Analisis video berturutan secara automatik untuk intro/outro\n(matikan jika anda menghadapi masalah prestasi CPU)"
@@ -1238,8 +1256,20 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream"
     },
+    "extension_toggle_label_mpv_hw": {
+        "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh kad grafik: $1"
+    },
+    "extension_toggle_label_mpv_sw": {
+        "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik"
+    },
     "options_mpv_test_outdated": {
         "message": "Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+    },
+    "options_mpv_test_decoder_hw": {
+        "message": "mpv yang terbuka menyahkod pada kad grafik: $1."
+    },
+    "options_mpv_test_decoder_sw": {
+        "message": "mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
     },
     "player_mpv_sent_outdated": {
         "message": "Dihantar ke mpv. Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
