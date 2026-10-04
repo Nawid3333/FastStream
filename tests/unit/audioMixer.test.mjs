@@ -102,7 +102,7 @@ function analyser(samples = new Float32Array(256)) {
     maxDecibels: -30,
     context: {sampleRate: 48000},
     getFloatTimeDomainData: (array) => array.set(samples.subarray(0, array.length)),
-    getByteFrequencyData: (array) => array.fill(100),
+    getFloatFrequencyData: (array) => array.fill(-60),
   };
 }
 
