@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(current)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Decoded by the graphics card (hardware decoding)"
+    },
+    "player_quality_sw_title": {
+        "message": "Decoded by the processor (software decoding)"
+    },
     "player_quality_unknown": {
         "message": "(unknown)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "Show preview when hovering over the timeline"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Prefer the version your graphics card can decode (hardware decoding), then a higher frame rate and more efficient codecs such as AV1. Never lowers the chosen resolution"
     },
     "options_general_analyze": {
         "message": "Automatically analyze sequential videos for intros/outros\n(turn off if you have CPU performance issues)"

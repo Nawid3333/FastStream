@@ -538,6 +538,24 @@ body {
     font-weight: bold;
 }
 
+/* "HW"/"SW" after a quality: whether Firefox decodes that version in hardware. */
+.quality_decode_badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 4px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 0.75em;
+    font-weight: normal;
+    line-height: 1.4;
+    vertical-align: middle;
+    opacity: 0.8;
+}
+
+.quality_decode_badge.software {
+    opacity: 0.55;
+}
+
 .fluid_video_source_list_item:first-child,
 .fluid_audio_source_list_item:first-child {
     border-top: none;

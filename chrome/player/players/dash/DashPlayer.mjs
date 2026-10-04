@@ -9,6 +9,7 @@ import {DashFragment} from './DashFragment.mjs';
 import {DashFragmentRequester} from './DashFragmentRequester.mjs';
 import {DASHLoaderFactory} from './DashLoader.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
+import {audioProbeFor, describeDashRepresentation, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
 import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
 
 export default class DashPlayer extends EventEmitter {
@@ -26,6 +27,35 @@ export default class DashPlayer extends EventEmitter {
     // Download-manager keys of the manifests this player has loaded; a second load of one
     // is a live refresh (DashLoader).
     this.loadedManifests = new Set();
+    // Level id ("video-<representation id>") to what its representation says about itself
+    // and what to ask Firefox about it; read when levels are built (DashTrackUtils).
+    this.representationDetails = new Map();
+  }
+
+  /**
+   * dash.js waits for its capability filters before it picks tracks, so the answers are
+   * in by the first pick. This one never removes anything: it always answers true, and a
+   * probe gives up after DecodingCapabilities.PROBE_TIMEOUT_MS.
+   * @param {Object} rep - A representation as dash.js parsed it.
+   * @return {Promise<boolean>}
+   */
+  async probeRepresentation(rep) {
+    try {
+      const info = describeDashRepresentation(rep);
+      if (!info.type || rep?.id === undefined || rep?.id === null) {
+        return true;
+      }
+      const probe = info.type === 'video' ? videoProbeFor(info) : audioProbeFor(info);
+      this.representationDetails.set(`${info.type}-${rep.id}`, {
+        probe,
+        frameRate: info.frameRate,
+        videoRange: info.videoRange,
+      });
+      await probeDecoding(probe);
+    } catch (e) {
+      console.warn('[DashPlayer] probing a representation failed', e);
+    }
+    return true;
   }
 
   async setup() {
@@ -69,11 +99,12 @@ export default class DashPlayer extends EventEmitter {
     // }
 
     this.dash.updateSettings(newSettings);
+    this.dash.registerCustomCapabilitiesFilter((rep) => this.probeRepresentation(rep));
 
     this.dash.setCustomInitialTrackSelectionFunction((tracks) => {
       const type = tracks[0]?.type;
       if (type === 'video') {
-        const levels = DashTrackUtils.getVideoLevelList(tracks);
+        const levels = DashTrackUtils.getVideoLevelList(tracks, this.representationDetails);
         const chosen = this.client.getLevelManager().pickVideoLevel(Array.from(levels.values()));
         if (chosen) {
           return [chosen.track];
@@ -82,7 +113,7 @@ export default class DashPlayer extends EventEmitter {
           return tracks;
         }
       } else if (type === 'audio') {
-        const levels = DashTrackUtils.getAudioLevelList(tracks);
+        const levels = DashTrackUtils.getAudioLevelList(tracks, this.representationDetails);
         const chosen = this.client.getLevelManager().pickAudioLevel(Array.from(levels.values()));
         if (chosen) {
           return [chosen.track];
@@ -97,7 +128,7 @@ export default class DashPlayer extends EventEmitter {
     this.dash.setCustomBitrateSelectionFunction((representations, bitrate, mediaInfo) => {
       const type = mediaInfo.type;
       if (type === 'video') {
-        const levels = DashTrackUtils.getVideoLevelList([mediaInfo]);
+        const levels = DashTrackUtils.getVideoLevelList([mediaInfo], this.representationDetails);
         const chosen = this.client.getLevelManager().pickVideoLevel(Array.from(levels.values()));
         const result = representations.filter((rep) => {
           return chosen && DashTrackUtils.getLevelFromRepresentation(rep) === chosen.id;
@@ -108,7 +139,7 @@ export default class DashPlayer extends EventEmitter {
           return result;
         }
       } else if (type === 'audio') {
-        const levels = DashTrackUtils.getAudioLevelList([mediaInfo]);
+        const levels = DashTrackUtils.getAudioLevelList([mediaInfo], this.representationDetails);
         const chosen = this.client.getLevelManager().pickAudioLevel(Array.from(levels.values()));
         const result = representations.filter((rep) => {
           return chosen && DashTrackUtils.getLevelFromRepresentation(rep) === chosen.id;
@@ -297,7 +328,7 @@ export default class DashPlayer extends EventEmitter {
   getVideoLevels() {
     try {
       const tracks = this.dash.getTracksFor('video');
-      return DashTrackUtils.getVideoLevelList(tracks);
+      return DashTrackUtils.getVideoLevelList(tracks, this.representationDetails);
     } catch (e) {
       console.warn(e);
       return new Map();
@@ -307,7 +338,7 @@ export default class DashPlayer extends EventEmitter {
   getAudioLevels() {
     try {
       const tracks = this.dash.getTracksFor('audio');
-      return DashTrackUtils.getAudioLevelList(tracks);
+      return DashTrackUtils.getAudioLevelList(tracks, this.representationDetails);
     } catch (e) {
       console.warn(e);
       return new Map();

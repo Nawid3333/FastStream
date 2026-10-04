@@ -1,6 +1,38 @@
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
+import {getCodecDisplayName, getDecodingLabel} from '../../players/DecodingCapabilities.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+
+const DECODING_MESSAGES = {
+  hardware: {badge: 'player_quality_hw', title: 'player_quality_hw_title'},
+  software: {badge: 'player_quality_sw', title: 'player_quality_sw_title'},
+};
+
+/**
+ * "HW" or "SW" after a quality: whether Firefox decodes that version in hardware.
+ * @param {Object} level
+ * @return {?HTMLElement} null when Firefox gave no answer.
+ */
+function makeDecodingBadge(level) {
+  const label = getDecodingLabel(level?.decoding);
+  if (!label) {
+    return null;
+  }
+  const badge = document.createElement('span');
+  badge.classList.add('quality_decode_badge', label);
+  badge.textContent = Localize.getMessage(DECODING_MESSAGES[label].badge);
+  badge.title = Localize.getMessage(DECODING_MESSAGES[label].title);
+  return badge;
+}
+
+/**
+ * @param {Object} level
+ * @return {?string} The tooltip line saying how the version is decoded.
+ */
+function decodingTitle(level) {
+  const label = getDecodingLabel(level?.decoding);
+  return label ? Localize.getMessage(DECODING_MESSAGES[label].title) : null;
+}
 
 export class VideoQualityChanger extends EventEmitter {
   constructor() {
@@ -251,8 +283,19 @@ export class VideoQualityChanger extends EventEmitter {
       if (dimensions !== '0x0') {
         titleParts.push(`Dimensions: ${dimensions}`);
       }
+      // The version a click on this quality picks (and the one playing, if it is this one).
+      const groupLevel = levels.find((level) => level.id === currentVideoLevelID) ||
+        client.getLevelManager().pickVideoLevel(levels, null, true);
+      const groupDecoding = decodingTitle(groupLevel);
+      if (groupDecoding) {
+        titleParts.push(groupDecoding);
+      }
       levelelement.title = titleParts.join('\n');
       levelelement.appendChild(text);
+      const groupBadge = makeDecodingBadge(groupLevel);
+      if (groupBadge) {
+        levelelement.appendChild(groupBadge);
+      }
 
       DOMElements.videoSourceList.appendChild(levelelement);
 
@@ -270,7 +313,10 @@ export class VideoQualityChanger extends EventEmitter {
           }
 
           const text = document.createElement('span');
-          text.textContent = `${container} @${Math.round(level.bitrate / 1000)} kbps${level.id === currentVideoLevelID ? ' ' + Localize.getMessage('player_quality_current') : ''}`;
+          // The codec tells apart versions of one size that differ only in it.
+          const codecName = getCodecDisplayName(level.videoCodec);
+          const describe = [container, codecName].filter(Boolean).join(' ');
+          text.textContent = `${describe} @${Math.round(level.bitrate / 1000)} kbps${level.id === currentVideoLevelID ? ' ' + Localize.getMessage('player_quality_current') : ''}`;
           const titleParts = [];
           titleParts.push(`ID: ${level.id}`);
           if (container) {
@@ -289,8 +335,16 @@ export class VideoQualityChanger extends EventEmitter {
           if (dimensions !== '0x0') {
             titleParts.push(`Dimensions: ${dimensions}`);
           }
+          const levelDecoding = decodingTitle(level);
+          if (levelDecoding) {
+            titleParts.push(levelDecoding);
+          }
           subLevelElement.title = titleParts.join('\n');
           subLevelElement.appendChild(text);
+          const badge = makeDecodingBadge(level);
+          if (badge) {
+            subLevelElement.appendChild(badge);
+          }
 
           subLevelElement.addEventListener('click', (e) => {
             // if already active, do nothing

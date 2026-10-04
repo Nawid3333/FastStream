@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(actual)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Decodificado por la tarjeta gráfica (decodificación por hardware)"
+    },
+    "player_quality_sw_title": {
+        "message": "Decodificado por el procesador (decodificación por software)"
+    },
     "player_quality_unknown": {
         "message": "(desconocido)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "Muestra la vista previa al pasar el cursor sobre la línea de tiempo"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Preferir la versión que tu tarjeta gráfica puede decodificar (decodificación por hardware), luego una mayor tasa de fotogramas y códecs más eficientes como AV1. Nunca baja la resolución elegida"
     },
     "options_general_analyze": {
         "message": "Analiza automáticamente videos secuenciales para intros/outros\n(desactiva si tienes problemas de rendimiento de CPU)"

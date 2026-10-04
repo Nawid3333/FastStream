@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(aktualne)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Dekodowane przez kartę graficzną (dekodowanie sprzętowe)"
+    },
+    "player_quality_sw_title": {
+        "message": "Dekodowane przez procesor (dekodowanie programowe)"
+    },
     "player_quality_unknown": {
         "message": "(nieznane)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "Pokaż podgląd po najechaniu kursorem na oś czasu"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Preferuj wersję, którą karta graficzna może dekodować (dekodowanie sprzętowe), potem wyższą liczbę klatek i wydajniejsze kodeki, takie jak AV1. Nigdy nie obniża wybranej rozdzielczości"
     },
     "options_general_analyze": {
         "message": "Automatycznie analizuj kolejne wideo pod kątem intro/outro\n(wyłącz, jeśli masz problemy z wydajnością CPU)"

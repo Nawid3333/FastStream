@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(mevcut)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Ekran kartı tarafından çözülüyor (donanımsal kod çözme)"
+    },
+    "player_quality_sw_title": {
+        "message": "İşlemci tarafından çözülüyor (yazılımsal kod çözme)"
+    },
     "player_quality_unknown": {
         "message": "(bilinmiyor)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "Zaman çizelgesinde üzerine gelince önizlemeyi göster"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Ekran kartının çözebildiği sürümü tercih et (donanımsal kod çözme), ardından daha yüksek kare hızı ve AV1 gibi daha verimli codec'ler. Seçilen çözünürlüğü asla düşürmez"
     },
     "options_general_analyze": {
         "message": "Giriş/çıkış bölümlerini tespit etmek için ardışık videoları otomatik olarak analiz et\n(CPU performansı sorunları yaşıyorsanız kapatın)"

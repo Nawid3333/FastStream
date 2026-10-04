@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(saat ini)"
     },
+    "player_quality_hw": {
+        "message": "HW"
+    },
+    "player_quality_sw": {
+        "message": "SW"
+    },
+    "player_quality_hw_title": {
+        "message": "Didekode oleh kartu grafis (dekode perangkat keras)"
+    },
+    "player_quality_sw_title": {
+        "message": "Didekode oleh prosesor (dekode perangkat lunak)"
+    },
     "player_quality_unknown": {
         "message": "(tidak diketahui)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "Tampilkan pratinjau saat mengarahkan kursor di atas garis waktu"
+    },
+    "options_general_decodingawarequality": {
+        "message": "Utamakan versi yang dapat didekode oleh kartu grafis (dekode perangkat keras), lalu frame rate lebih tinggi dan codec lebih efisien seperti AV1. Tidak pernah menurunkan resolusi yang dipilih"
     },
     "options_general_analyze": {
         "message": "Secara otomatis menganalisis video berurutan untuk intro/outro\n(matikan jika Anda mengalami masalah kinerja CPU)"

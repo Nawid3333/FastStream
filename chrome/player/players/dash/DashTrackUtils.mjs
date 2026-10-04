@@ -1,4 +1,5 @@
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
+import {cachedAnswer} from '../DecodingCapabilities.mjs';
 
 export class DashTrackUtils {
   static getLevelFromRepresentation(rep) {
@@ -32,7 +33,12 @@ export class DashTrackUtils {
     return {type, id};
   }
 
-  static getVideoLevelList(tracks) {
+  /**
+   * @param {Array<Object>} tracks - dash.js MediaInfo objects.
+   * @param {?Map<string, Object>} [details] - DashPlayer.representationDetails.
+   * @return {Map<string, VideoLevel>}
+   */
+  static getVideoLevelList(tracks, details = null) {
     // make into map
     const map = new Map();
 
@@ -54,6 +60,9 @@ export class DashTrackUtils {
           language: track.lang,
           videoCodec: this.mimeCodecToCodec(track.codec),
           track: track,
+          frameRate: details?.get(levelId)?.frameRate,
+          videoRange: details?.get(levelId)?.videoRange,
+          decoding: cachedAnswer(details?.get(levelId)?.probe ?? null),
         }));
       });
     });
@@ -77,7 +86,12 @@ export class DashTrackUtils {
     return codecStr;
   }
 
-  static getAudioLevelList(tracks) {
+  /**
+   * @param {Array<Object>} tracks - dash.js MediaInfo objects.
+   * @param {?Map<string, Object>} [details] - DashPlayer.representationDetails.
+   * @return {Map<string, AudioLevel>}
+   */
+  static getAudioLevelList(tracks, details = null) {
     // make into map
     const map = new Map();
 
@@ -97,6 +111,7 @@ export class DashTrackUtils {
           language: track.lang,
           audioCodec: this.mimeCodecToCodec(track.codec),
           track: track,
+          decoding: cachedAnswer(details?.get(levelId)?.probe ?? null),
         }));
       });
     });

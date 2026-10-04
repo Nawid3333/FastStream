@@ -620,6 +620,18 @@
     "player_quality_current": {
         "message": "(当前)"
     },
+    "player_quality_hw": {
+        "message": "硬解"
+    },
+    "player_quality_sw": {
+        "message": "软解"
+    },
+    "player_quality_hw_title": {
+        "message": "由显卡解码（硬件解码）"
+    },
+    "player_quality_sw_title": {
+        "message": "由处理器解码（软件解码）"
+    },
     "player_quality_unknown": {
         "message": "(未知)"
     },
@@ -997,6 +1009,9 @@
     },
     "options_general_previewenabled": {
         "message": "在时间轴悬停时显示预览"
+    },
+    "options_general_decodingawarequality": {
+        "message": "优先选择显卡可以解码的版本（硬件解码），其次是更高的帧率和更高效的编码（如 AV1）。绝不降低所选分辨率"
     },
     "options_general_analyze": {
         "message": "自动分析连续视频以检测片头/片尾\n（如果有 CPU 性能问题请关闭）"
