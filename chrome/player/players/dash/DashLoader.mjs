@@ -226,12 +226,20 @@ export function DASHLoaderFactory(player) {
       }
     }
 
+    // dash.js's own XHRLoader has all five; its HTTPLoader calls resetInitialSettings when
+    // a decode error resets the MediaSource. Without it the reset threw ("xhrLoader.
+    // resetInitialSettings is not a function", real-streams check, 2026-10-05) and the
+    // stream never recovered. Nothing is left to abort by then: HTTPLoader's abort() has
+    // ended every request in flight through its customData.abort, set above. There is no
+    // single XHR here for getXhr.
     return {
       load: load,
       abort: abort,
+      getXhr: () => null,
       reset: () => {
         // Reset any internal state if needed
       },
+      resetInitialSettings: () => {},
     };
   };
 }

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {DASHLoaderFactory as dashLoaderFactory} from '../../chrome/player/players/dash/DashLoader.mjs';
 
@@ -213,5 +214,35 @@ describe('DashLoader, a manifest of several periods', () => {
 
     expect(requestFragment).toHaveBeenCalledTimes(1);
     expect(getFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('DashLoader, what dash.js calls on it', () => {
+  // dash.js's HTTPLoader calls resetInitialSettings when a decode error resets the
+  // MediaSource. DashLoader had no such method: the reset threw ("xhrLoader.
+  // resetInitialSettings is not a function") and a live DASH stream stopped for good (the
+  // real-streams check on Windows, 2026-10-05). It has every method of dash.js's own
+  // XHRLoader, whose list is read from dash.mjs, so an update that adds one shows here.
+  const dash = fs.readFileSync(new URL('../../chrome/player/modules/dash.mjs', import.meta.url), 'utf8');
+  const opening = dash.indexOf('instance = {', dash.indexOf('function XHRLoader() {'));
+  const methods = dash.slice(opening + 'instance = {'.length, dash.indexOf('};', opening))
+      .split(',').map((name) => name.trim()).filter(Boolean);
+
+  it('knows the methods of dash.js\'s XHRLoader', () => {
+    expect(methods).toEqual(['load', 'abort', 'getXhr', 'reset', 'resetInitialSettings']);
+  });
+
+  it('has each of them', () => {
+    const loader = dashLoaderFactory({})();
+    for (const name of methods) {
+      expect(typeof loader[name], name).toBe('function');
+    }
+  });
+
+  it('lets dash.js reset it after a decode error', () => {
+    const loader = dashLoaderFactory({})();
+    expect(() => loader.resetInitialSettings()).not.toThrow();
+    expect(() => loader.reset()).not.toThrow();
+    expect(loader.getXhr()).toBeNull();
   });
 });
