@@ -430,12 +430,20 @@ describe('A site\'s overlays around an in-page player', function() {
       };
     });
 
+    // The toggle reaches the page's content script a message later: the fixed second above
+    // was now and then not enough (5 first attempts in a week, the page not yet hidden,
+    // #346). Waited for, then checked.
+    const settles = (display, msg) => browser.waitUntil(async () => (await state()).controls === display,
+        {timeout: 15000, timeoutMsg: msg}).catch(() => {});
+
     await toggle();
+    await settles('none', 'windowed fullscreen never hid the rest of the web component');
     const full = await state();
     expect(full).toMatchObject({controls: 'none', play: 'none', header: 'none'});
     expect(full.player).toEqual(full.window);
 
     await toggle();
+    await settles('block', 'leaving windowed fullscreen never gave the web component back');
     expect(await state()).toMatchObject({controls: 'block', play: 'block', header: 'block'});
     expect(await takeContentErrors()).toEqual([]);
   });
