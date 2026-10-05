@@ -95,7 +95,10 @@ describe('splice: the directives', () => {
   });
 });
 
-describe('spliceAndCopy', () => {
+// Real files in a temp folder: on the Windows runner a copy of nine small files once took
+// 5.7 s (CI run 37331055771) while the same file's other copies took 2-7 ms - the disk, not
+// the code. These tests check what is copied, not how fast.
+describe('spliceAndCopy', {timeout: 30000}, () => {
   let tmp;
   beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'splicer-'));
