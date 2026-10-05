@@ -33,15 +33,18 @@ permissions:
 
 jobs:
   e2e:
-    name: e2e on Firefox Beta (${{ matrix.os }})
+    name: e2e on Firefox Beta (${{ matrix.os }}, ${{ matrix.suite }})
     strategy:
       fail-fast: false
       matrix:
         # Linux as in CI, and Windows, where FastStream is used and Firefox decodes
         # through Media Foundation instead of ffmpeg.
         os: [ubuntu-latest, windows-latest]
+        # Each suite in a job of its own, side by side as in ci.yml: one after the other
+        # they took 30 minutes on Windows (run 37268302868).
+        suite: [playback, extension]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     defaults:
       run:
         shell: bash
@@ -76,16 +79,18 @@ jobs:
         run: pnpm run build:keep
 
       - name: End-to-end playback (Firefox Beta)
+        if: matrix.suite == 'playback'
         run: pnpm run test:e2e
 
       - name: End-to-end extension tests (Firefox Beta)
+        if: matrix.suite == 'extension'
         run: pnpm run test:ext
 
       - name: Upload e2e failure logs
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: firefox-beta-e2e-logs-${{ matrix.os }}
+          name: firefox-beta-e2e-logs-${{ matrix.os }}-${{ matrix.suite }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30

@@ -247,11 +247,25 @@
   That the call restarts GitHub's 60-day count is not documented by GitHub; it is what the
   former keepalive-workflow action's API mode relied on. If they are disabled anyway:
   Actions tab, each workflow, "Enable workflow". A failed run opens "Keepalive failed".
-- **Windows e2e** (2026-09-25): CI has an `e2e-windows` job (all four e2e suites on
-  windows-latest) beside `verify`, and auto-release waits for the whole workflow, so a
-  release ships only when Windows passes too. `firefox-beta.yml` and `firefox-stable.yml`
-  run their e2e job on ubuntu-latest and windows-latest; the stable version is recorded
-  as tested only when both pass (a separate `record` job). Windows Firefox decodes through
+- **Windows e2e** (2026-09-25): CI runs the e2e suites on windows-latest as well as
+  Linux, and auto-release waits for the whole workflow, so a release ships only when
+  Windows passes too. `firefox-beta.yml` and `firefox-stable.yml` run their e2e jobs on
+  ubuntu-latest and windows-latest; the stable version is recorded as tested only when
+  all pass (a separate `record` job).
+- **e2e side by side** (2026-10-05): CI ran a platform's four e2e suites one after another
+  in one job - 30 minutes on Linux, 45 on Windows (run 37347420774: Windows playback 15,
+  each extension suite 13), and the run took the Windows job's 45. Now `verify` keeps
+  lint, types, unit tests, the build, the linters and `faststream-bundles` (about 4
+  minutes), `unit-windows` runs the unit suite on Windows, and the matrix job `e2e` runs
+  os [Linux, Windows] x suite [playback, extension (with private browsing), github], six
+  jobs side by side, each with its own setup and build (about 2 minutes). The run takes
+  about its longest suite plus that: about 17 minutes. `fail-fast: false`, so one failing
+  suite does not cancel the others and their lists of retried specs. Per-job artifacts:
+  `e2e-retried-<os>-<suite>`, `e2e-logs-<os>-<suite>`; `e2e-moz-logs-windows` only from
+  the Windows playback job (the one that sets `E2E_MOZ_LOG`). firefox-beta.yml and
+  firefox-stable.yml split the same way (playback, extension). A run is 9 jobs at once
+  (was 3) of the account's 20; the weekly mutation run takes 7 for hours, so two CI runs
+  during it queue a little. Windows Firefox decodes through
   Media Foundation where Linux uses ffmpeg, so playback can differ. Both CI jobs install
   the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
   image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from
@@ -295,9 +309,10 @@
   (W5): each config's `onWorkerEnd` is `recordRetriedSpecs` (`tests/e2e/retriedSpecs.mjs`),
   which appends a spec file that was run again to `logs/retried.jsonl`; ci.yml lists them
   in the run's summary with a warning for each that passed only on its retry
-  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried`/`e2e-retried-windows`
-  (14 days), and uploads `e2e-logs` for such a green job too, so the failed attempt's driver
-  log is there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
+  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried-<os>-<suite>` (14 days;
+  `e2e-retried`/`e2e-retried-windows` before 2026-10-05), and uploads
+  `e2e-logs-<os>-<suite>` for such a green job too, so the failed attempt's driver log is
+  there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
 - **e2e harness, 2026-10-01 (F1, F4-F6):** a config's `before` hook runs its setup
   through `guardSetup` (`tests/e2e/setupGuard.mjs`): WebdriverIO only logs a hook's
   error, so a failed add-on install let every spec run without the extension (a probe
@@ -323,7 +338,7 @@
   and off for an installed release. The extension suites set
   `devtools.console.stdout.content`, so the background's and the player's console go to
   Firefox's stdout and into each spec's `geckodriver-<suite>-<spec>-<worker>-attempt<N>.log`
-  (`e2e-logs` artifact on CI): grep `console.log:` for what the background detected
+  (`e2e-logs-<os>-<suite>` artifact on CI): grep `console.log:` for what the background detected
   (`Found source`), opened, and sent to mpv. About 13 KB per spec.
   `ext-specs/background-log.e2e.mjs` fails without either half.
 - **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
@@ -374,7 +389,7 @@
   <version>" for each microsoft/WSL release, which the owner closed by hand, GitHub not
   seeing the PC). `update-local.cmd` checks WSL itself now: see "Commands".
 - **`flaky-specs.yml`** (Mondays, 06:20 UTC), 2026-10-01: the spec files CI ran again
-  (`e2e-retried` and `e2e-retried-windows` artifacts, all of this repository's branches, the
+  (every artifact named `e2e-retried*`, all of this repository's branches, the
   last 7 days; never a fork's pull request, whose CI run writes the list with its own code,
   and the texts are cut down to a path's characters, #166) in one
   issue "Flaky e2e specs: week to <date>", assigned + @mention: per spec, how often it was

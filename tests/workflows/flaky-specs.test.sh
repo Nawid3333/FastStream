@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # flaky-specs.yml: the weekly "Flaky e2e specs: week to <date>" issue it folds from the
-# last 7 days' e2e-retried artifacts, the older issues it closes, and the issue it opens
+# last 7 days' e2e-retried* artifacts, the older issues it closes, and the issue it opens
 # when it fails. Fixtures stand in for the repository's artifact list, each artifact's
 # zip and its issues; the stub gh records what the steps create, edit and close.
 source "$(dirname "$0")/lib.sh"
@@ -34,8 +34,9 @@ logbody() {
 case "$1 $2" in
   'api --paginate')
     case "$3" in
-      "repos/$GH_REPO/actions/artifacts?name=e2e-retried&per_page=100") jq -r "$jqf" "$FIX/linux.json" ;;
-      "repos/$GH_REPO/actions/artifacts?name=e2e-retried-windows&per_page=100") jq -r "$jqf" "$FIX/windows.json" ;;
+      # The repository's whole artifact list: both fixtures' entries, as one page.
+      "repos/$GH_REPO/actions/artifacts?per_page=100")
+        jq -s '{total_count: 0, artifacts: (map(.artifacts) | add)}' "$FIX/linux.json" "$FIX/windows.json" | jq -r "$jqf" ;;
       "repos/$GH_REPO/issues?state=all&per_page=100") jq -r "$jqf" "$FIX/issues.json" ;;
       *) echo "stub gh: unexpected api path $3" >&2; exit 2 ;;
     esac ;;
@@ -81,8 +82,11 @@ TITLE='Flaky specs workflow failed'
 export -n RUN_URL TITLE
 check "the job's env: gives the prefix" contains "$WORKFLOWS_DIR/flaky-specs.yml" "PREFIX: '$PREFIX'"
 check "the report step's env: gives the title" contains "$WORKFLOWS_DIR/flaky-specs.yml" "TITLE: '$TITLE'"
-check 'ci.yml uploads the Linux list' contains "$WORKFLOWS_DIR/ci.yml" 'name: e2e-retried'
-check 'ci.yml uploads the Windows list' contains "$WORKFLOWS_DIR/ci.yml" 'name: e2e-retried-windows'
+# Each e2e job of ci.yml uploads its list under a name of its own, which the step finds by
+# its start: e2e-retried and e2e-retried-windows, the names before the jobs were split
+# (2026-10-05), start the same way.
+check "ci.yml uploads each e2e job's list" contains "$WORKFLOWS_DIR/ci.yml" 'name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}'
+check 'flaky-specs.yml finds the lists by that start' contains "$WORKFLOWS_DIR/flaky-specs.yml" 'select((.name | startswith("e2e-retried"))'
 
 today=$(date -u +%F)
 recent=$(date -u -d '2 days ago' +%Y-%m-%dT%H:%M:%SZ)
@@ -90,12 +94,13 @@ old=$(date -u -d '9 days ago' +%Y-%m-%dT%H:%M:%SZ)
 bot='{"login":"github-actions[bot]"}'
 human='{"login":"Nawid3333"}'
 
-# artifact <id> <created_at> <run id> <branch> [expired] [head repository id]: one entry of
-# the artifact list, its workflow_run as the API gives it (a run of this repository's own
-# branch has head_repository_id == repository_id; a fork's pull request's, the fork's id).
+# artifact <id> <created_at> <run id> <branch> [expired] [head repository id] [name]: one
+# entry of the artifact list, its workflow_run as the API gives it (a run of this
+# repository's own branch has head_repository_id == repository_id; a fork's pull
+# request's, the fork's id).
 artifact() {
-  printf '{"id":%s,"name":"e2e-retried","expired":%s,"created_at":"%s","workflow_run":{"head_branch":"%s","head_repository_id":%s,"head_sha":"10414ba5e2b583d85f0cbc7e71dec9b980b2faae","id":%s,"repository_id":1354827019}}' \
-    "$1" "${5:-false}" "$2" "$4" "${6:-1354827019}" "$3"
+  printf '{"id":%s,"name":"%s","expired":%s,"created_at":"%s","workflow_run":{"head_branch":"%s","head_repository_id":%s,"head_sha":"10414ba5e2b583d85f0cbc7e71dec9b980b2faae","id":%s,"repository_id":1354827019}}' \
+    "$1" "${7:-e2e-retried}" "${5:-false}" "$2" "$4" "${6:-1354827019}" "$3"
 }
 # rec <spec> <suite> <os> <passed>: one line of retried.jsonl.
 rec() {
@@ -109,7 +114,7 @@ zip_list() {
     "$FIX/zip/$1.zip" "$FIX/retried.jsonl"
 }
 
-# fixtures <linux list json> <windows list json> <issues json> [open json]: a new
+# fixtures <artifacts json> <more artifacts json> <issues json> [open json]: a new
 # scenario's fixtures, before its zips; run: runs the step.
 fixtures() {
   export FIX="$here/fix" RUNNER_TEMP="$here/fix/tmp" LOG="$here/fix/log"
@@ -131,7 +136,7 @@ run() {
 }
 
 fixtures "[$(artifact 11 "$recent" 501 main),$(artifact 12 "$old" 400 main),$(artifact 13 "$recent" 502 claude/x true),$(artifact 14 "$recent" 504 main false 999)]" \
-  "[$(artifact 21 "$recent" 501 main),$(artifact 22 "$recent" 503 'claude/y')]" \
+  "[$(artifact 21 "$recent" 501 main false 1354827019 e2e-retried-windows),$(artifact 22 "$recent" 503 'claude/y' false 1354827019 e2e-retried-Windows-github),$(artifact 31 "$recent" 501 main false 1354827019 e2e-logs-Linux-playback)]" \
   "[{\"number\":5,\"state\":\"open\",\"title\":\"${PREFIX}2026-09-01\",\"user\":$bot},{\"number\":3,\"state\":\"closed\",\"title\":\"${PREFIX}2026-08-25\",\"user\":$bot},{\"number\":6,\"state\":\"open\",\"title\":\"${PREFIX}notes\",\"user\":$human},{\"number\":8,\"state\":\"open\",\"title\":\"${PREFIX}2026-09-08\",\"user\":$bot,\"pull_request\":{}}]"
 zip_list 11 "$(rec download-names ext-amo linux true)"
 zip_list 21 "$(rec download-names ext-amo win32 true)
@@ -153,6 +158,8 @@ check 'skips the half-written line' lacks "$LOG" '"sp'
 check 'opens no list from before the week' lacks "$LOG" 'ZIP [12]'
 check 'opens no expired list' lacks "$LOG" 'ZIP [13]'
 check "opens no list from a fork's pull request" lacks "$LOG" 'ZIP [14]'
+check 'opens each list, by its old name or its new one' bash -c 'grep -qF "ZIP [11]" "$0" && grep -qF "ZIP [21]" "$0" && grep -qF "ZIP [22]" "$0"' "$LOG"
+check 'opens no other artifact' lacks "$LOG" 'ZIP [31]'
 check "nothing of the fork's list in the issue" lacks "$LOG" 'ready to merge'
 check "closes last week's #5, pointing at the new one" contains "$LOG" \
   "CLOSE [5] [--reason] [completed] [--comment] [#99 lists the 7 days to $today.]"

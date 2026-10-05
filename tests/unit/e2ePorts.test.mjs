@@ -84,9 +84,9 @@ describe('e2e ports', () => {
   it('are reserved in every workflow job that runs an e2e suite', () => {
     // A step that runs a suite, not a mention of one (live-streams.yml's issue text has one).
     const e2eJobs = workflowJobs().filter(({job}) => /^ +run: pnpm run test:(e2e|ext|live|pbm)\b/m.test(job));
-    // ci.yml's two, firefox-beta, firefox-stable, live-streams: a pattern that stopped
+    // ci.yml's e2e, firefox-beta, firefox-stable, live-streams: a pattern that stopped
     // matching would make this pass on nothing.
-    expect(e2eJobs.length).toBeGreaterThanOrEqual(5);
+    expect(e2eJobs.length).toBeGreaterThanOrEqual(4);
     const withoutSetup = e2eJobs.filter(({job}) => !job.includes('uses: ./.github/actions/e2e-setup'));
     expect(withoutSetup.map(({name}) => name)).toEqual([]);
   });

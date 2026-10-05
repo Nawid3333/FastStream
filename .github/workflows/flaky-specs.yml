@@ -1,8 +1,8 @@
 name: Flaky e2e specs
 
 # A spec file that fails once and passes on its retry (specFileRetries: 1) leaves a green
-# run. ci.yml lists each one in its run's summary and uploads the list as the e2e-retried
-# and e2e-retried-windows artifacts (tests/e2e/retriedSpecs.mjs writes it). Once a week
+# run. ci.yml lists each one in its run's summary and uploads the list, one artifact an e2e
+# job, e2e-retried-<os>-<suite> (tests/e2e/retriedSpecs.mjs writes it). Once a week
 # this folds the last 7 days of those lists, all branches, into one issue, "Flaky e2e
 # specs: week to <date>", assigned to the owner and @mentioning them: each spec file, how
 # often it was run again, how often its retry passed, and the runs. A spec that keeps
@@ -45,16 +45,16 @@ jobs:
           title="$PREFIX$today"
           runs_url="$GITHUB_SERVER_URL/$GH_REPO/actions/runs"
 
-          # Both jobs' artifacts from the last 7 days: id, run and branch. The list is newest
-          # first; ci.yml keeps them 14 days, so a week's are all still there. Only runs of
-          # this repository's own branches: a fork's pull request runs CI with its own code,
-          # which writes the list, and anyone can open one.
-          : > "$RUNNER_TEMP/artifacts.tsv"
-          for name in e2e-retried e2e-retried-windows; do
-            gh api --paginate "repos/$GH_REPO/actions/artifacts?name=$name&per_page=100" \
-              --jq '.artifacts[] | select((.expired | not) and .created_at >= env.SINCE and .workflow_run.id != null and .workflow_run.head_repository_id == .workflow_run.repository_id) | [.id, .workflow_run.id, .workflow_run.head_branch] | @tsv' \
-              >> "$RUNNER_TEMP/artifacts.tsv"
-          done
+          # Every e2e job's list from the last 7 days: id, run and branch. Each job of ci.yml
+          # names its own e2e-retried-<os>-<suite>; e2e-retried and e2e-retried-windows are
+          # the names from before the jobs were split (2026-10-05). The API filters by one
+          # exact name only, so the whole list is read and filtered here. ci.yml keeps them
+          # 14 days, so a week's are all still there. Only runs of this repository's own
+          # branches: a fork's pull request runs CI with its own code, which writes the list,
+          # and anyone can open one.
+          gh api --paginate "repos/$GH_REPO/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select((.name | startswith("e2e-retried")) and (.expired | not) and .created_at >= env.SINCE and .workflow_run.id != null and .workflow_run.head_repository_id == .workflow_run.repository_id) | [.id, .workflow_run.id, .workflow_run.head_branch] | @tsv' \
+            > "$RUNNER_TEMP/artifacts.tsv"
           echo "$(wc -l < "$RUNNER_TEMP/artifacts.tsv") list(s) of retried specs since $SINCE"
 
           # Each list's records with their run and branch. A line that is not a record (a

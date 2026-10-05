@@ -83,12 +83,11 @@ jobs:
         # node and python3, which the runner has; about 20 seconds.
         run: bash tests/workflows/run.sh
 
+  # Everything but the e2e suites, which run in the `e2e` jobs beside it. About 4 minutes.
   verify:
     name: Lint, test and build
     runs-on: ${{ inputs.linux-runner || 'ubuntu-latest' }}
-    # The whole job takes about 15 minutes. A test waiting on a stream that
-    # never loads would otherwise hold the runner for GitHub's 6-hour default.
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -151,69 +150,6 @@ jobs:
       - name: fsaunpack test server
         run: pnpm run verify:fsaunpack
 
-      # ffmpeg (Firefox on Linux decodes H.264/AAC through it), the e2e ports reserved,
-      # and the current stable Firefox - the one users run - as FIREFOX_BINARY.
-      - name: e2e setup
-        uses: ./.github/actions/e2e-setup
-
-      # Real playback in a real Firefox: each case loads a stream and asserts
-      # that currentTime actually advances, which is what catches a broken or
-      # mismatched media library. This replaces a manual three-URL checklist
-      # that was never run on CI.
-      #
-      # It needs network access for the HLS and DASH streams; the MP4 fixture
-      # is fetched once and cached. Not marked continue-on-error: a library
-      # swap that stops video decoding should fail the build.
-      - name: End-to-end playback (Firefox)
-        run: pnpm run test:e2e
-
-      # The only suite that installs the real built extension (moz-extension://
-      # origin, chrome.* APIs, a background event page) rather than testing the plain
-      # web build - MPV handoff, save-to-disk transport, and UI regressions
-      # like a save dialog silently becoming unclickable only show up here.
-      - name: End-to-end extension tests (Firefox)
-        run: pnpm run test:ext
-
-      # The same suites against the GitHub self-host build, which is shipped too
-      # and differs from the AMO one (update checker, contextualIdentities).
-      - name: End-to-end extension tests, GitHub build (Firefox)
-        run: pnpm run test:ext:github
-
-      # The installed extension in a private window, where storage APIs
-      # behave differently (see tests/e2e/wdio.pbm.conf.mjs). Part of the
-      # local verify; CI ran everything but this.
-      - name: End-to-end extension tests, private browsing (Firefox)
-        run: pnpm run test:pbm
-
-      # A spec file that fails once and passes on its retry (specFileRetries) leaves the
-      # job green: each config's onWorkerEnd records it in logs/retried.jsonl
-      # (tests/e2e/retriedSpecs.mjs). This lists them in the run's summary with a warning
-      # each, and the upload keeps the file for flaky-specs.yml's weekly issue. always():
-      # a job that failed or timed out may have retried other specs too.
-      - name: Report specs that needed their retry
-        if: always()
-        run: node tests/e2e/reportRetried.mjs logs/retried.jsonl
-
-      - name: Upload the list of retried specs
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-retried
-          path: logs/retried.jsonl
-          if-no-files-found: ignore
-          retention-days: 14
-
-      # Also for a green job that retried a spec: the failed attempt's driver log
-      # (driverLogs.mjs keeps each attempt's) is what shows why it failed.
-      - name: Upload e2e failure logs
-        if: failure() || hashFiles('logs/retried.jsonl') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-logs
-          path: logs/
-          if-no-files-found: ignore
-          retention-days: 30
-
       # auto-release.yml downloads this within minutes of the run, to compare what ships
       # with the latest release; nothing reads it later. GitHub's default kept every
       # run's copy for 90 days (57 of them, 469 MB, in September 2026).
@@ -225,15 +161,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # The same e2e suites on Windows Firefox - the platform FastStream is used on.
-  # Windows decodes H.264/AAC through Media Foundation where Linux uses ffmpeg, so
-  # playback can differ between them. The platform-independent checks (lint, types,
-  # unit tests, the AMO linters) stay in `verify`. auto-release.yml waits for the whole
-  # workflow, so a release ships only when Windows passes too.
-  e2e-windows:
-    name: e2e (Windows)
+  # The unit suite on Windows (about 3 minutes there): some of its tests run only on
+  # Windows - the native host's PowerShell launch and its installer, with the real
+  # PowerShell - and `verify` runs on Linux.
+  unit-windows:
+    name: Unit tests (Windows)
     runs-on: ${{ inputs.windows-runner || 'windows-latest' }}
-    timeout-minutes: 60
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
@@ -254,25 +188,65 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The unit suite again (about 2 s): some of its tests run only on Windows - the native
-      # host's PowerShell launch and its installer, with the real PowerShell - and `verify`
-      # runs on Linux.
-      - name: Unit tests (Windows)
+      - name: Unit tests
         run: pnpm test
 
-      # ffmpeg (the e2e setup builds its video fixtures with it) and the current stable
-      # Firefox as FIREFOX_BINARY.
+  # The e2e suites in Firefox, on Linux and on Windows - the platform FastStream is used
+  # on, which decodes H.264/AAC through Media Foundation where Linux uses ffmpeg, so
+  # playback can differ between them. Each suite on each platform is a job of its own,
+  # all side by side: one after another, a platform's four took 30 minutes on Linux and
+  # 45 on Windows (CI run 37347420774, 2026-10-05: Windows playback 15, each extension
+  # suite 13); side by side the run takes about its longest suite and the setup. Each job
+  # builds the extension itself, in seconds, rather than wait for `verify`'s. fail-fast
+  # off: one failing suite would cancel the others, and with them their lists of retried
+  # specs. auto-release.yml waits for the whole workflow, so a release ships only when
+  # every one passes.
+  e2e:
+    name: e2e (${{ matrix.os }}, ${{ matrix.suite }})
+    runs-on: ${{ matrix.os == 'Windows' && (inputs.windows-runner || 'windows-latest') || (inputs.linux-runner || 'ubuntu-latest') }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [Linux, Windows]
+        # playback: real playback (wdio.conf.mjs). extension: the AMO build installed, and
+        # in a private window (seconds). github: the GitHub self-host build installed.
+        suite: [playback, extension, github]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ffmpeg (Firefox on Linux decodes H.264/AAC through it; on Windows the e2e setup
+      # builds its video fixtures with it), the e2e ports reserved, and the current stable
+      # Firefox - the one users run - as FIREFOX_BINARY.
       - name: e2e setup
         uses: ./.github/actions/e2e-setup
 
       # mpv and the FastStream native host, so the MPV-mode specs (ext-specs/mpv,
-      # classic-specs/mpv-*, toolbar-cycle-mpv) run here instead of skipping: they check
-      # the request mpv itself makes for the stream, headers included, through the real
-      # host. The mpv is shinchiro's daily x86_64-v3 Windows build, the one the maintainer
-      # runs, pinned by .github/mpv-build.json (release, asset, SHA-256). mpv-updates.yml
-      # tries each new build through CI and moves the pin once it passes. install.ps1 is
-      # the installer users run.
+      # classic-specs/mpv-*, toolbar-cycle-mpv) run on Windows instead of skipping: they
+      # check the request mpv itself makes for the stream, headers included, through the
+      # real host. The mpv is shinchiro's daily x86_64-v3 Windows build, the one the
+      # maintainer runs, pinned by .github/mpv-build.json (release, asset, SHA-256).
+      # mpv-updates.yml tries each new build through CI and moves the pin once it passes.
+      # install.ps1 is the installer users run. Seconds, so in every Windows job.
       - name: Install mpv and the native host
+        if: matrix.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -320,38 +294,59 @@ jobs:
       - name: Build all targets
         run: pnpm run build:keep
 
-      # E2E_MOZ_LOG: the specs listed in tests/e2e/mozLog.mjs run with Firefox's network
-      # log, kept only for an attempt that failed (see "Upload Firefox logs" below).
-      - name: End-to-end playback (Windows Firefox)
+      # Real playback in a real Firefox: each case loads a stream and asserts that
+      # currentTime actually advances, which is what catches a broken or mismatched media
+      # library. It needs network access for the HLS and DASH streams; the MP4 fixture is
+      # cached. E2E_MOZ_LOG (Windows): the specs listed in tests/e2e/mozLog.mjs run with
+      # Firefox's network log, kept only for an attempt that failed (see "Upload Firefox
+      # logs" below).
+      - name: End-to-end playback (${{ matrix.os }} Firefox)
+        if: matrix.suite == 'playback'
         run: pnpm run test:e2e
         env:
-          E2E_MOZ_LOG: '1'
+          E2E_MOZ_LOG: ${{ matrix.os == 'Windows' && '1' || '' }}
 
-      - name: End-to-end extension tests (Windows Firefox)
+      # The suites that install the real built extension (moz-extension:// origin,
+      # chrome.* APIs, a background event page) rather than test the plain web build -
+      # MPV handoff, save-to-disk transport, and UI regressions like a save dialog
+      # silently becoming unclickable only show up here.
+      - name: End-to-end extension tests (${{ matrix.os }} Firefox)
+        if: matrix.suite == 'extension'
         run: pnpm run test:ext
 
-      - name: End-to-end extension tests, GitHub build (Windows Firefox)
-        run: pnpm run test:ext:github
-
-      - name: End-to-end extension tests, private browsing (Windows Firefox)
+      # The installed extension in a private window, where storage APIs behave
+      # differently (see tests/e2e/wdio.pbm.conf.mjs).
+      - name: End-to-end extension tests, private browsing (${{ matrix.os }} Firefox)
+        if: matrix.suite == 'extension'
         run: pnpm run test:pbm
 
-      # As in the Linux job.
-      - name: Report specs that needed their retry (Windows)
+      # The same suites against the GitHub self-host build, which is shipped too and
+      # differs from the AMO one (update checker, contextualIdentities).
+      - name: End-to-end extension tests, GitHub build (${{ matrix.os }} Firefox)
+        if: matrix.suite == 'github'
+        run: pnpm run test:ext:github
+
+      # A spec file that fails once and passes on its retry (specFileRetries) leaves the
+      # job green: each config's onWorkerEnd records it in logs/retried.jsonl
+      # (tests/e2e/retriedSpecs.mjs). This lists them in the run's summary with a warning
+      # each, and the upload keeps the file for flaky-specs.yml's weekly issue, which reads
+      # every artifact named e2e-retried-*. always(): a job that failed or timed out may
+      # have retried other specs too.
+      - name: Report specs that needed their retry
         if: always()
         run: node tests/e2e/reportRetried.mjs logs/retried.jsonl
 
-      - name: Upload the list of retried specs (Windows)
+      - name: Upload the list of retried specs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-retried-windows
+          name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}
           path: logs/retried.jsonl
           if-no-files-found: ignore
           retention-days: 14
 
       - name: Add the native host's log
-        if: failure() || hashFiles('logs/retried.jsonl') != ''
+        if: matrix.os == 'Windows' && (failure() || hashFiles('logs/retried.jsonl') != '')
         shell: pwsh
         run: |
           $log = Join-Path $env:LOCALAPPDATA 'FastStreamMpvHost\faststream-mpv-host.log'
@@ -360,12 +355,13 @@ jobs:
             Copy-Item -LiteralPath $log -Destination logs
           }
 
-      # As in the Linux job: also for a green job that retried a spec.
+      # Also for a green job that retried a spec: the failed attempt's driver log
+      # (driverLogs.mjs keeps each attempt's) is what shows why it failed.
       - name: Upload e2e failure logs
         if: failure() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-logs-windows
+          name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
@@ -375,7 +371,7 @@ jobs:
       # green, and that failed attempt is the one whose log is wanted. A passing attempt
       # deletes its log, so on most runs there is nothing here and nothing is uploaded.
       - name: Upload Firefox logs of failed attempts
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.os == 'Windows' && matrix.suite == 'playback' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-moz-logs-windows
@@ -397,7 +393,7 @@ jobs:
   # with this run's id and branch.
   hand-off:
     name: Hand over to update-prs
-    needs: [workflows, verify, e2e-windows]
+    needs: [workflows, verify, unit-windows, e2e]
     if: >-
       !cancelled() && github.actor == 'github-actions[bot]' &&
       (startsWith(github.head_ref || github.ref_name, 'dependabot/') ||
@@ -458,7 +454,7 @@ jobs:
   # commit at a time, and the second finds the first one's bump.
   release-hand-off:
     name: Hand over to auto-release
-    needs: [workflows, verify, e2e-windows]
+    needs: [workflows, verify, unit-windows, e2e]
     if: >-
       !cancelled() && github.workflow == 'CI' && github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&

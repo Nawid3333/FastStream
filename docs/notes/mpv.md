@@ -356,7 +356,7 @@ or a press over 5 s old still sends nothing. Not covered: a press in a child fra
 play in its parent once the pop-up consumed the activation (Firefox propagates activation up
 the tree; this records presses per frame). Tests: `tests/unit/contentUserPlay.test.mjs` (3 of
 9 fail without the fix, the rest guard the autoplay cases) and mpv-shortcut's `/popup` page,
-whose mpv half runs where the host is installed (CI's e2e-windows).
+whose mpv half runs where the host is installed (CI's Windows e2e jobs).
 
 **A page that cancels a shortcut (2026-09-27).** Firefox lets page content
 cancel an extension's shortcut: a keydown the page calls `preventDefault()` on
@@ -436,7 +436,7 @@ allowlisted page, webRequest detection, native host, mpv, HTTP request —
 against two local origins, because a same-origin media request carries no
 `Origin` header. It skips rather than fails when the host is not installed,
 and so do `classic-specs/mpv-shortcut`, `mpv-suspend` and `toolbar-cycle-mpv`.
-CI's `e2e-windows` job installs the host, so there they run: shinchiro's
+CI's Windows e2e jobs install the host, so there they run: shinchiro's
 x86_64-v3 Windows build, the one the maintainer runs (release, asset and
 SHA-256 pinned in `.github/mpv-build.json`, logging through
 `portable_config`), registered by `native-host/install.ps1`, the step failing
