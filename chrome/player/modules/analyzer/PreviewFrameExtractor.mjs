@@ -104,11 +104,15 @@ export class PreviewFrameExtractor extends EventEmitter {
     let backgroundAnalyzerPlayer;
     try {
       backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
-        if (backgroundAnalyzerPlayer === this.backgroundAnalyzerPlayer) {
-          console.log('[FrameExtractor] Background analyzer finished', completed ? 'successfully' : 'with errors');
-          this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-          this.client.interfaceController.updateMarkers();
+        // Only the running player's end counts, as in AudioAnalyzer: a stale player,
+        // destroyed below, cleared the running one's place, and nothing could stop that
+        // one any more.
+        if (backgroundAnalyzerPlayer !== this.backgroundAnalyzerPlayer) {
+          return;
         }
+        console.log('[FrameExtractor] Background analyzer finished', completed ? 'successfully' : 'with errors');
+        this.backgroundAnalyzerStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+        this.client.interfaceController.updateMarkers();
         this.backgroundAnalyzerPlayer = null;
       });
     } catch (e) {

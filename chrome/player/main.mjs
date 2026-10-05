@@ -6,10 +6,9 @@ import {EmbedAPI} from './modules/EmbedAPI.mjs'; // SPLICER:EXTENSION:REMOVE_LIN
 import {Localize} from './modules/Localize.mjs';
 import {SubtitleTrack} from './SubtitleTrack.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
-import {RequestUtils} from './utils/RequestUtils.mjs';
 import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
 import {StreamPick} from './utils/StreamPick.mjs';
-import {SubtitleUtils} from './utils/SubtitleUtils.mjs';
+import {loadSubtitles} from './utils/SubtitleFetch.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
@@ -30,7 +29,11 @@ if (EnvUtils.isExtension()) {
           sendResponse(true);
           return;
         } else if (request.type === MessageTypes.SOURCES && window.fastStream) {
-          recieveSources(request, sendResponse);
+          // Answered whatever happens: the background waits for it.
+          recieveSources(request, sendResponse).catch((e) => {
+            console.error('Taking the sources failed', e);
+            sendResponse('sources_recieved');
+          });
           return true;
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
@@ -200,37 +203,6 @@ async function recieveSources(request, sendResponse) {
   }
 
   sendResponse('sources_recieved');
-}
-
-async function loadSubtitles(subs) {
-  await Promise.all(subs.map(async (sub) => {
-    if (sub && !sub.data && sub.source) {
-      const headers = sub.headers || [];
-      const customHeaderCommands = headers.filter((header) => {
-        return header.name.toLowerCase() === 'origin' || header.name.toLowerCase() === 'referer';
-      }).map((header) => {
-        return {
-          operation: 'set',
-          header: header.name.toLowerCase(),
-          value: header.value,
-        };
-      });
-
-      await chrome.runtime.sendMessage({
-        type: MessageTypes.SET_HEADERS,
-        url: sub.source,
-        commands: customHeaderCommands,
-      });
-      const xhr = await RequestUtils.requestSimple({url: sub.source, responseType: 'arraybuffer'});
-      if (xhr.status === 200 || xhr.status === 206) {
-        const body = SubtitleUtils.decodeSubtitleBytes(xhr.response, xhr.getResponseHeader('Content-Type'));
-        if (body) {
-          sub.data = body;
-        }
-      }
-    }
-  }));
-  return subs.filter((sub) => sub.data);
 }
 
 async function sortSubtitles(subs) {

@@ -92,6 +92,25 @@ describe('SyncedAudioPlayer', () => {
     expect(synced.audioPlayers).toHaveLength(2);
   });
 
+  it('destroys a player whose source failed, which the cleanup of those built did not reach', async () => {
+    // Not in audioPlayers yet: its element and audio source stayed after the failed build.
+    const made = [];
+    const client = makeClient({createPlayer: vi.fn(async () => {
+      const player = audioPlayer();
+      if (made.length === 1) {
+        player.setSource = vi.fn(async () => {
+          throw new Error('manifest failed to load');
+        });
+      }
+      made.push(player);
+      return player;
+    })});
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setVideoDelay(300);
+    expect(synced.audioPlayers).toEqual([]);
+    expect(made.map((player) => player.destroyed)).toEqual([true, true]);
+  });
+
   it('keeps resyncing after one resync threw', async () => {
     // resyncing stayed set, and the drift was never corrected again that session.
     const synced = new SyncedAudioPlayer(makeClient());

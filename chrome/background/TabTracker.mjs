@@ -599,6 +599,11 @@ export class TabTracker {
    * @return {Promise<void>}
    */
   async saveTabState(tab) {
+    // A tab closed meanwhile (an await, a timer of its own): its state was written back after
+    // removeTab had deleted it, and stayed in session storage for good.
+    if (this.tabs.get(tab.tabId) !== tab) {
+      return;
+    }
     /** @type {Object<string, *>} */
     const state = {};
     for (const field of PersistedTabFields) {

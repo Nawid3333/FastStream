@@ -688,7 +688,8 @@ export class FastStreamClient extends EventEmitter {
               frag.addReference(ReferenceTypes.GRANDFATHERED);
             }
           };
-          fragments.forEach(grandfather);
+          // The quality on now may have no fragments yet (just switched to)
+          if (fragments) fragments.forEach(grandfather);
           if (this.audioFragments) this.audioFragments.forEach(grandfather);
           const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
           this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [timestr]), 'warning', 5000);
@@ -1685,7 +1686,8 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
       // It shows something: a failure from now on is the stream's, not a wrong pick.
       this.fallbacks.sources = [];
-      this.audioConfigManager.updateChannelCount();
+      // Made only where Web Audio is (constructor), as every other use checks
+      this.audioConfigManager?.updateChannelCount();
     });
 
 

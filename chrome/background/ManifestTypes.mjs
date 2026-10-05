@@ -33,8 +33,8 @@ export function modeFromContentType(headers) {
 }
 
 // Files a media element plays that the player's MP4 mode cannot read (it reads MP4 only):
-// played as they are, as a .webm URL already is (URLUtils).
-const DIRECT_TYPES = ['video/webm', 'video/ogg'];
+// played as they are, as a .webm URL already is (URLUtils) - and an .mkv one (2026-10-05).
+const DIRECT_TYPES = ['video/webm', 'video/ogg', 'video/x-matroska', 'video/matroska'];
 
 /**
  * The player mode for a file a <video> or <audio> element loaded, whose URL names no type:

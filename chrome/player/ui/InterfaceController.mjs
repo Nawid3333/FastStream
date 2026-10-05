@@ -639,7 +639,8 @@ export class InterfaceController {
 
     const mouseUpHandler = (e) => {
       DOMElements.playerContainer.removeEventListener('mousemove', mouseMoveHandler);
-      DOMElements.playerContainer.removeEventListener('mouseup', mouseUpHandler);
+      // With capture, as it was added: without, the remove did nothing, and each drag left one more.
+      DOMElements.playerContainer.removeEventListener('mouseup', mouseUpHandler, true);
       DOMElements.playerContainer.removeEventListener('mouseleave', mouseUpHandler);
     };
 

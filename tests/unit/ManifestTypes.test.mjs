@@ -43,9 +43,12 @@ describe('modeFromMediaType', () => {
     }
   });
 
-  it('plays a WebM or Ogg video as it is', () => {
+  it('plays a WebM, Ogg or Matroska video as it is', () => {
     expect(modeFromMediaType(typed('video/webm'))).toBe(PlayerModes.DIRECT);
     expect(modeFromMediaType(typed('video/ogg'))).toBe(PlayerModes.DIRECT);
+    // The MP4 mode cannot read Matroska; an .mkv URL already played as it is.
+    expect(modeFromMediaType(typed('video/x-matroska'))).toBe(PlayerModes.DIRECT);
+    expect(modeFromMediaType(typed('video/matroska'))).toBe(PlayerModes.DIRECT);
   });
 
   it('takes anything else for an MP4, as before', () => {

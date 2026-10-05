@@ -297,6 +297,8 @@ export class AudioCompressor extends AbstractAudioModule {
     WebUtils.setupTabIndex(this.ui.compressorToggle);
 
     this.ui.compressorToggle.addEventListener('click', () => {
+      // No config yet (setConfig comes with the audio profile): nothing to switch.
+      if (!this.compressorConfig) return;
       this.compressorConfig.enabled = !this.compressorConfig.enabled;
       this.updateCompressor();
       this.emit('upscale');

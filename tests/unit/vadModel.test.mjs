@@ -29,7 +29,7 @@ const ort = {
   },
 };
 
-const {VadJS} = await import('../../chrome/player/modules/vad/vad.mjs');
+const {VadJS, frameQueue} = await import('../../chrome/player/modules/vad/vad.mjs');
 
 describe('the voice detector model', () => {
   beforeEach(() => {
@@ -127,5 +127,47 @@ describe('the voice detector model', () => {
     expect(Array.from(inputs[1].data.subarray(0, 64))).toEqual(Array.from(frame(1000).subarray(448)));
     expect(Array.from(inputs[1].data.subarray(64))).toEqual(Array.from(frame(2000)));
     expect(Array.from(inputs[2].data.subarray(0, 64))).toEqual(new Array(64).fill(0));
+  });
+});
+
+describe('frameQueue, the worklet\'s frames', () => {
+  const message = (value) => ({data: {message: 1, data: new Float32Array([value]).buffer}});
+
+  it('scores one frame at a time, in the order they came', async () => {
+    // Not awaited between messages, frames that came faster than the model scored them ran
+    // it at once on the same recurrent state, and finished out of order.
+    const done = [];
+    const gates = [];
+    let running = 0;
+    let most = 0;
+    const onmessage = frameQueue(async (frame) => {
+      running++;
+      most = Math.max(most, running);
+      await new Promise((resolve) => gates.push(resolve));
+      done.push(frame[0]);
+      running--;
+    });
+    onmessage(message(1));
+    onmessage(message(2));
+    onmessage({data: {message: 2}}); // not an audio frame
+    onmessage(message(3));
+    for (let i = 0; i < 3; i++) {
+      await vi.waitFor(() => expect(gates.length).toBe(i + 1));
+      gates[i]();
+    }
+    await vi.waitFor(() => expect(done).toEqual([1, 2, 3]));
+    expect(most).toBe(1);
+  });
+
+  it('goes on after a frame that failed', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const done = [];
+    const onmessage = frameQueue(async (frame) => {
+      if (frame[0] === 1) throw new Error('model run failed');
+      done.push(frame[0]);
+    });
+    onmessage(message(1));
+    onmessage(message(2));
+    await vi.waitFor(() => expect(done).toEqual([2]));
   });
 });

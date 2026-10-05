@@ -135,6 +135,20 @@ describe('XHRLoader', () => {
     expect(loader.stats.error).toEqual({code: 404, text: 'Not Found'});
   });
 
+  it('counts 499 as a 4xx too (it was retried: "< 499")', async () => {
+    const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 499, statusText: 'Client Closed Request'});
+    vi.stubGlobal('fetch', fetchMock);
+
+    const loader = new XHRLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig());
+    await vi.runAllTimersAsync();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+  });
+
   it('retries a 5xx up to maxRetry, doubling the backoff each time, then errors', async () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 503, statusText: 'Unavailable'});
     vi.stubGlobal('fetch', fetchMock);

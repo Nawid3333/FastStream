@@ -41,6 +41,12 @@ export class AudioAnalyzer extends EventEmitter {
 
   onVolumeFrameProcessed(time, volume) {
     const frame = Math.floor(time * this.outputRate);
+    // As for the voice detector above: the first ~20 ms come stamped just before 0, and
+    // frame -1 became a property of the array.
+    if (frame < 0) {
+      this.emit('volume', time, volume, 0);
+      return;
+    }
     this.volumeBuffer[frame] = volume;
     const interpMax = 8;
     let interp = 0;

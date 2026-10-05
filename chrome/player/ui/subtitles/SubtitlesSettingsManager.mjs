@@ -73,8 +73,10 @@ export class SubtitlesSettingsManager extends EventEmitter {
     const outlineWidth = settings.outlineWidth;
     const outlineColor = settings.outlineColor;
     const unit = 'px';
-    const outlineWidthValue = parseFloat(outlineWidth);
-    if (isNaN(outlineWidthValue) || outlineWidthValue === 0) return;
+    // A text field: "Infinity" (or 1e999) passed the check, and the loop below never ended -
+    // the player hung. A width past a few dozen pixels is no outline any more.
+    const outlineWidthValue = Math.min(parseFloat(outlineWidth), 64);
+    if (!Number.isFinite(outlineWidthValue) || outlineWidthValue <= 0) return;
 
     // This is a hack to make the outline look better
     // go around the perimeter of the text, circularly

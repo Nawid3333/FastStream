@@ -121,8 +121,9 @@ function scanScripts() {
           console.error('No DASH play info', e);
           continue;
         }
+        // Skipped, not the end of the scan: a later script can hold the next video's.
         if (reported.has(mpd)) {
-          break;
+          continue;
         }
         reported.add(mpd);
         const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;

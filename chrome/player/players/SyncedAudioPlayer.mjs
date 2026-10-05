@@ -104,36 +104,43 @@ export class SyncedAudioPlayer extends EventEmitter {
         return;
       }
 
-      await player.setup();
-      if (gone()) {
+      // A setup or a source that failed left this player, not yet in audioPlayers, out of the
+      // caller's cleanup: its element and its audio source stayed (2026-10-05).
+      try {
+        await player.setup();
+        if (gone()) {
+          player.destroy();
+          return;
+        }
+        this.client.interfaceController.addVideo(player.getVideo());
+
+        if (this.audioContext) {
+          const audioSource = this.audioContext.createMediaElementSource(player.getVideo());
+          player.audioSource = audioSource;
+          this.outputNode.connectFrom(audioSource);
+        }
+
+        player.volume = 0;
+        player.playbackRate = this.playbackRate;
+
+        player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
+          player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
+          player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
+        });
+
+        // Its error is not the video's: a segment its own loader gave up on failed the whole
+        // player, with the error banner over a video that went on playing. The video keeps its
+        // own sound instead, without the delay.
+        player.on(DefaultPlayerEvents.ERROR, (msg) => {
+          console.warn('A separate audio player failed; the video plays with its own sound', msg);
+          this.dropPlayers();
+        });
+
+        await player.setSource(source);
+      } catch (e) {
         player.destroy();
-        return;
+        throw e;
       }
-      this.client.interfaceController.addVideo(player.getVideo());
-
-      if (this.audioContext) {
-        const audioSource = this.audioContext.createMediaElementSource(player.getVideo());
-        player.audioSource = audioSource;
-        this.outputNode.connectFrom(audioSource);
-      }
-
-      player.volume = 0;
-      player.playbackRate = this.playbackRate;
-
-      player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
-        player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
-        player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
-      });
-
-      // Its error is not the video's: a segment its own loader gave up on failed the whole
-      // player, with the error banner over a video that went on playing. The video keeps its
-      // own sound instead, without the delay.
-      player.on(DefaultPlayerEvents.ERROR, (msg) => {
-        console.warn('A separate audio player failed; the video plays with its own sound', msg);
-        this.dropPlayers();
-      });
-
-      await player.setSource(source);
       if (gone()) {
         player.destroy();
         return;

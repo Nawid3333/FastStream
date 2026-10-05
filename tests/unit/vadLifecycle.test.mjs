@@ -193,6 +193,18 @@ describe('AudioAnalyzer', () => {
     expect(seen).toEqual([[-0.02, 200], [0.25, 100]]);
   });
 
+  it('writes no volume frame before 0 either', () => {
+    const analyzer = new AudioAnalyzer(client());
+    const seen = [];
+    analyzer.on('volume', (time, volume) => seen.push([time, volume]));
+
+    analyzer.onVolumeFrameProcessed(-0.02, -40);
+    analyzer.onVolumeFrameProcessed(0.25, -30);
+
+    expect(Object.keys(analyzer.getVolumeData())).toEqual(['2']);
+    expect(seen).toEqual([[-0.02, -40], [0.25, -30]]);
+  });
+
   /**
    * An analyzer whose background players load when the test says so. Each player's
    * destroy() reports its end, as a running analyzer player does.

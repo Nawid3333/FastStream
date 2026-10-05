@@ -243,11 +243,13 @@ export class VideoAnalyzer extends EventEmitter {
     for (let i = start; i < fragments.length; i++) {
       // A live stream's store has holes where it forgot what its window left (HLSFragmentStore).
       if (!fragments[i]) continue;
-      if (fragments[i].end > timeEnd) {
-        break;
-      }
       fragments[i].addReference(ReferenceTypes.ANALYZER);
       reserved.push(fragments[i]);
+      // The one that holds timeEnd too: the analyzer plays up to it, and it was the one left
+      // out (the loop stopped before it), free to be dropped under the analyzer.
+      if (fragments[i].end >= timeEnd) {
+        break;
+      }
     }
     return reserved;
   }

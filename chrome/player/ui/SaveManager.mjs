@@ -528,10 +528,15 @@ export class SaveManager {
       }
     }
 
+    // One file that cannot be read is left out: its error dropped every caption of the drop,
+    // and the video dropped with them never started.
     (await Promise.all(captions.map(async (file) => {
       const track = new SubtitleTrack(file.name);
       try {
         await track.loadURL(file.url);
+      } catch (e) {
+        console.warn('A dropped subtitle file could not be read', file.name, e);
+        return null;
       } finally {
         // loadURL() only ever fetches this once - nothing holds onto the
         // blob URL afterward, so it would otherwise leak for the tab's
@@ -539,7 +544,7 @@ export class SaveManager {
         window.URL.revokeObjectURL(file.url);
       }
       return track;
-    }))).forEach((track) => {
+    }))).filter(Boolean).forEach((track) => {
       const returnedTrack = this.client.loadSubtitleTrack(track);
       this.client.interfaceController.subtitlesManager.activateTrack(returnedTrack);
     });

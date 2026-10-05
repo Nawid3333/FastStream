@@ -188,7 +188,7 @@ export class LoopMenu extends EventEmitter {
       if (!Number.isFinite(this.loopStart)) {
         this.loopStart = 0;
       }
-      if (this.loopEnd <= 0) {
+      if (!Number.isFinite(this.loopEnd) || this.loopEnd <= 0) {
         this.loopEnd = this.client.duration;
       }
 

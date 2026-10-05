@@ -550,6 +550,12 @@ export class OpenSubtitlesSearch extends EventEmitter {
     if (info.episode) {
       this.subui.episodeInput.value = info.episode;
     }
+
+    // The search sends a season and episode only for the type "episode": filled in under
+    // "all", they went unused.
+    if (info.season || info.episode) {
+      Array.from(this.subui.typeSelector.children[1].children).find((el) => el.dataset.val === 'episode')?.click();
+    }
   }
 
   setLanguageInputValue(value) {

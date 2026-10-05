@@ -338,7 +338,7 @@ export class XHRLoader {
     // (such error cannot be recovered, retrying is useless), return error
     if (
       stats.retry >= config.maxRetry ||
-            (status >= 400 && status < 499)
+            (status >= 400 && status < 500)
     ) {
       console.error(`${status} while loading ${request.url}`);
 

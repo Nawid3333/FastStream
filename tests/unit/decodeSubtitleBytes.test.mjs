@@ -134,7 +134,7 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
     'player/SubtitleTrack.mjs': 'loadURL: dropped and opened files, an embedder\'s URLs',
     'player/ui/subtitles/SubtitlesManager.mjs': 'a file from disk; a URL typed in',
     'player/ui/subtitles/OpenSubtitlesSearch.mjs': 'an OpenSubtitles download',
-    'player/main.mjs': 'subtitle files the page loaded',
+    'player/utils/SubtitleFetch.mjs': 'subtitle files the page loaded (main.mjs)',
     'content.js': 'the page\'s <track> elements',
   };
 

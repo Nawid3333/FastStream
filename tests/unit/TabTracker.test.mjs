@@ -677,3 +677,28 @@ describe('frames and players', () => {
     }
   });
 });
+
+describe('saveTabState', () => {
+  it('writes nothing for a tab closed meanwhile', async () => {
+    // A timer or an await of the tab's own (the MPV auto-open's wait) came back after the
+    // tab was closed: its state went back into session storage, where nothing removed it.
+    const written = [];
+    globalThis.chrome.storage = {session: {set: async (entry) => written.push(Object.keys(entry)[0]), remove: async () => {}}};
+    try {
+      const tracker = new TabTracker();
+      const tab = tracker.getTabOrCreate(9);
+      await tracker.saveTabState(tab);
+      expect(written).toEqual(['tabState:9']);
+      tracker.removeTab(9);
+      await tracker.saveTabState(tab);
+      // ... nor for a holder another one has replaced under the same id
+      const replaced = tracker.getTabOrCreate(9);
+      await tracker.saveTabState(tab);
+      expect(written).toEqual(['tabState:9']);
+      await tracker.saveTabState(replaced);
+      expect(written).toEqual(['tabState:9', 'tabState:9']);
+    } finally {
+      delete globalThis.chrome.storage;
+    }
+  });
+});

@@ -235,7 +235,7 @@ async function startMpv(tab, onPlay = false) {
 
   if (await tabHasPlayer(tab)) {
     tab.resetForReload();
-    chrome.tabs.reload(tab.tabId);
+    chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
   } else if (onPlay) {
     // A fresh start: the same video may go to mpv again.
     tab.mpvSentUrls.clear();
@@ -272,7 +272,7 @@ async function stopMpv(tab) {
 
   if (await tabHasPlayer(tab)) {
     tab.resetForReload();
-    chrome.tabs.reload(tab.tabId);
+    chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
   }
 }
 
@@ -424,7 +424,7 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
           // A player still loading counts: the MPV cycle already checks it, and without
           // it an Off clicked right after On left the player on the page.
           tab.resetForReload();
-          chrome.tabs.reload(tab.tabId);
+          chrome.tabs.reload(tab.tabId, () => BackgroundUtils.checkMessageError('reload', true)); // closed meanwhile: no unhandled error
         }
       }
     } else {
@@ -2305,6 +2305,10 @@ function pauseAfterHandOff(tab, result) {
  * @param {*} headers - Its request headers, as detected.
  */
 function autoOpenInMpv(tab, url, headers) {
+  // Reached after awaits (options, a stream's length): a tab closed meanwhile sends nothing.
+  if (!isTabOpen(tab)) {
+    return;
+  }
   tab.mpvAutoOpened = true;
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
@@ -2463,7 +2467,8 @@ function autoOpenKnownLater(tab, frameId, src, video) {
   // went to mpv for this page's play.
   const documentIn = () => tab.getFrame(frameId)?.documentKey;
   const page = {url: tab.url, document: documentIn()};
-  const waiting = () => tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened &&
+  // isTabOpen: a tab closed within the wait still looked like itself, and its stream went to mpv.
+  const waiting = () => isTabOpen(tab) && tab.isOn && tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened &&
     tab.url === page.url && documentIn() === page.document;
   setTimeout(async () => {
     if (!waiting()) {
@@ -2757,6 +2762,10 @@ function sendPageMediaHold(tab) {
  * @param {Object} source - Detected source: url and request headers.
  */
 function sendPlayedToMpv(tab, source) {
+  // As autoOpenInMpv: a tab closed while its stream was looked for sends nothing.
+  if (!isTabOpen(tab)) {
+    return;
+  }
   const now = Date.now();
   const last = tab.mpvLastPlaySend;
   if (last && last.url === source.url && now - last.time < MpvPlayRepeatMs) {

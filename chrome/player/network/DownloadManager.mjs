@@ -61,10 +61,13 @@ export class DownloadManager {
   setEntry(entry) {
     const identifier = this.getIdentifier(entry);
 
+    // A save that failed (a full disk) leaves the data in memory, as before - without an
+    // unhandled rejection, which neither caller awaited.
+    const archive = (done) => this.archiveEntryData(done).catch((e) => console.warn('Could not archive a download', e));
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
-      this.archiveEntryData(entry);
+      archive(entry);
     } else {
-      entry.setTransferFunction(this.archiveEntryData.bind(this));
+      entry.setTransferFunction(archive);
     }
 
     this.storage.set(identifier, entry);
@@ -223,7 +226,10 @@ export class DownloadManager {
     this.testing = false;
     this.droppedDownloaders = 0;
     const downloader = this.downloaders.pop();
-
+    // The Minus key once more with none left threw
+    if (!downloader) {
+      return;
+    }
     downloader.abort();
   }
 

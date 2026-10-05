@@ -219,6 +219,28 @@ class FrameProcessor {
     this.reset();
   }
 }
+
+/**
+ * The worklet port's onmessage: each audio frame to `process`, one at a time and in order.
+ * The handler is not awaited between messages, so frames that came faster than the model
+ * scored them (the analyzer plays faster than real time) ran it at once on the same
+ * recurrent state, out of order - and an ONNX Runtime session takes one run at a time.
+ * @param {(frame: Float32Array) => Promise<void>} process
+ * @return {(ev: MessageEvent) => void}
+ */
+export function frameQueue(process) {
+  let frames = Promise.resolve();
+  return (ev) => {
+    if (ev.data?.message !== Message.AudioFrame) {
+      return;
+    }
+    const frame = new Float32Array(ev.data.data);
+    frames = frames.then(() => process(frame)).catch((e) => {
+      console.warn('A voice detector frame failed', e);
+    });
+  };
+}
+
 class AudioNodeVAD {
   static async new(ctx, options = {}) {
     const vad = new AudioNodeVAD(ctx, {
@@ -266,17 +288,7 @@ class AudioNodeVAD {
       preSpeechPadFrames: this.options.preSpeechPadFrames,
       minSpeechFrames: this.options.minSpeechFrames,
     });
-    vadNode.port.onmessage = async (ev) => {
-      switch (ev.data?.message) {
-        case Message.AudioFrame:
-          const buffer = ev.data.data;
-          const frame = new Float32Array(buffer);
-          await this.processFrame(frame);
-          break;
-        default:
-          break;
-      }
-    };
+    vadNode.port.onmessage = frameQueue((frame) => this.processFrame(frame));
   }
 
   getNode() {

@@ -13,11 +13,14 @@ async function updatePerms() {
       el.classList.add('has-perms');
       el.classList.remove('no-perms');
       el.textContent = window.getI18nMessage('perms_page_granted');
+      el.onclick = null;
     } else {
       el.classList.remove('no-perms');
       el.classList.add('no-perms');
       el.textContent = window.getI18nMessage('perms_page_notgranted');
-      el.addEventListener('click', () => {
+      // onclick, not a listener: updatePerms runs again at every permission change, and each
+      // run added one more - a click then asked for the permission that many times.
+      el.onclick = () => {
         if (el.dataset.perm === 'all-urls') {
           chrome.permissions.request({
             origins: ['<all_urls>'],
@@ -27,7 +30,7 @@ async function updatePerms() {
             permissions: [el.dataset.perm],
           });
         }
-      });
+      };
     }
   }
 }
