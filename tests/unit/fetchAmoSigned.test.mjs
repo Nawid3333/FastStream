@@ -1,16 +1,19 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 import {EXIT, isNetworkError, parseArgs, signingState, waitForSigned} from '../../tools/fetch-amo-signed.mjs';
+import {isMutationSandboxCopy} from './helpers/stryker.mjs';
 
 // The AMO signing failsafe acts on what signingState answers: collect the xpi, wait,
 // upload again, or tell the owner. A wrong answer either never collects a signed build
 // or uploads a version AMO already has, which it refuses.
 
 describe('authentication', () => {
-  it('uses the AMO authentication of web-ext, which every release signs with', () => {
+  const source = fs.readFileSync(new URL('../../tools/fetch-amo-signed.mjs', import.meta.url), 'utf8');
+
+  // Stryker's rewrite of the module says nothing about its imports (helpers/stryker.mjs).
+  it.skipIf(isMutationSandboxCopy(source))('uses the AMO authentication of web-ext, which every release signs with', () => {
     // A token built by hand could drift from what AMO accepts; web-ext's is proven by
     // every release.yml run.
-    const source = fs.readFileSync(new URL('../../tools/fetch-amo-signed.mjs', import.meta.url), 'utf8');
     expect(source).toMatch(/import \{JwtApiAuth\} from 'web-ext\/util\/submit-addon';/);
     expect(source).not.toMatch(/createHmac|node:crypto/);
   });

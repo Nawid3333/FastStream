@@ -4,6 +4,7 @@ import {afterEach, describe, expect, it} from 'vitest';
 import {RequestUtils} from '../../chrome/player/utils/RequestUtils.mjs';
 import {SubtitleUtils} from '../../chrome/player/utils/SubtitleUtils.mjs';
 import {installFakeDom} from './fakeCueDom.mjs';
+import {isMutationSandboxCopy} from './helpers/stryker.mjs';
 
 // Subtitle files reach the player as bytes, from six places. Read the browser's way (UTF-8
 // unless the file or the server says otherwise), an older SubRip file saved as
@@ -150,7 +151,9 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
     expect(read('player/ui/subtitles/SubtitlesManager.mjs').match(/decodeSubtitleBytes\(/g)).toHaveLength(2);
   });
 
-  it('content.js carries the same decodeSubtitleBytes', () => {
+  // Not where Stryker rewrote SubtitleUtils: its copy is no longer the text content.js
+  // carries (helpers/stryker.mjs).
+  it.skipIf(isMutationSandboxCopy(read('player/utils/SubtitleUtils.mjs')))('content.js carries the same decodeSubtitleBytes', () => {
     // content.js is a classic script and cannot import SubtitleUtils, so it has a copy.
     const body = (source, signature) => {
       const start = source.indexOf(signature);
