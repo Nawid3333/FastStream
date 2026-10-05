@@ -222,8 +222,10 @@ describe('DashLoader, what dash.js calls on it', () => {
   // MediaSource. DashLoader had no such method: the reset threw ("xhrLoader.
   // resetInitialSettings is not a function") and a live DASH stream stopped for good (the
   // real-streams check on Windows, 2026-10-05). It has every method of dash.js's own
-  // XHRLoader, whose list is read from dash.mjs, so an update that adds one shows here.
-  const dash = fs.readFileSync(new URL('../../chrome/player/modules/dash.mjs', import.meta.url), 'utf8');
+  // XHRLoader, whose list is read from dash.js, so an update that adds one shows here.
+  // The npm file, not chrome/player/modules/dash.mjs: the build copies that one from it
+  // (tools/sync-vendor.mjs), and CI runs the unit tests before the build.
+  const dash = fs.readFileSync(new URL('../../node_modules/dashjs/dist/modern/esm/dash.all.debug.js', import.meta.url), 'utf8');
   const opening = dash.indexOf('instance = {', dash.indexOf('function XHRLoader() {'));
   const methods = dash.slice(opening + 'instance = {'.length, dash.indexOf('};', opening))
       .split(',').map((name) => name.trim()).filter(Boolean);
