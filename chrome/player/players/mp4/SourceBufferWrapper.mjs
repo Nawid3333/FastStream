@@ -8,12 +8,27 @@ export class SourceBufferWrapper extends EventEmitter {
     }
     this.sourceBuffer = mediaSource.addSourceBuffer(codec);
     this.updating = false;
+    // The removal running, as its operation ({start, end}), or null (hasPendingRemove).
+    this.removing = null;
     this.toDo = [];
     this.sourceBuffer.addEventListener('updateend', () => {
       this.updating = false;
+      this.removing = null;
       this.emit('updateend');
       this.sourceBufferDo();
     });
+  }
+
+  /**
+   * Whether a removal that takes `time` away is queued here or running: until it has run,
+   * `buffered` still holds it (removalPending). Only one over `time`: the player trims its
+   * back buffer while it plays, and a seek within what stays must not count it.
+   * @param {number} time - In seconds.
+   * @return {boolean}
+   */
+  hasPendingRemove(time) {
+    const covers = (op) => !!op && time >= op.start && time <= op.end;
+    return covers(this.removing) || this.toDo.some((op) => op.type === 'remove' && covers(op));
   }
   abort() {
     this.sourceBuffer.abort();
@@ -65,6 +80,7 @@ export class SourceBufferWrapper extends EventEmitter {
       }
       current.resolve();
       this.updating = true;
+      this.removing = current.type === 'remove' ? current : null;
       this.toDo.splice(0, 1);
     }
   }
@@ -76,4 +92,20 @@ export class SourceBufferWrapper extends EventEmitter {
   get buffered() {
     return this.sourceBuffer.buffered;
   }
+}
+
+/**
+ * Whether any of a player's SourceBuffers still has a removal of `time` to run. A seek
+ * decides from `buffered` whether to start loading anew, and while such a removal is
+ * queued that answer is stale: a seek to 0 just after a jump to the end found the start
+ * still buffered (the removal of everything, queued by the jump's reload, waited behind
+ * the end's appends), did not reload, and the removal then took the start away with
+ * nothing loading it again - the player sat at 0 for good (#265, about once a week on
+ * GitHub's Windows runner).
+ * @param {Array<?SourceBufferWrapper>} wrappers - The player's video and audio wrappers.
+ * @param {number} time - The seek's target, in seconds.
+ * @return {boolean}
+ */
+export function removalPending(wrappers, time) {
+  return wrappers.some((wrapper) => !!wrapper && wrapper.hasPendingRemove(time));
 }

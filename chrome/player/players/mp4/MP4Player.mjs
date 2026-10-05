@@ -10,7 +10,7 @@ import {MP4Fragment} from './MP4Fragment.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
-import {SourceBufferWrapper} from './SourceBufferWrapper.mjs';
+import {SourceBufferWrapper, removalPending} from './SourceBufferWrapper.mjs';
 import {SaveFragmentFetcher} from '../SaveFragmentFetcher.mjs';
 import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
@@ -818,7 +818,9 @@ export default class MP4Player extends EventEmitter {
     if (Number.isFinite(duration)) {
       target = Math.min(target, duration);
     }
-    if (!VideoUtils.isBuffered(this.buffered, target)) {
+    // A removal still queued takes away what `buffered` shows (removalPending, #265).
+    if (!VideoUtils.isBuffered(this.buffered, target) ||
+        removalPending([this.videoSourceBuffer, this.audioSourceBuffer], target)) {
       this.resetHLS();
     }
   }

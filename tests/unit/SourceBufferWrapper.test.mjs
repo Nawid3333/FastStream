@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {SourceBufferWrapper} from '../../chrome/player/players/mp4/SourceBufferWrapper.mjs';
+import {SourceBufferWrapper, removalPending} from '../../chrome/player/players/mp4/SourceBufferWrapper.mjs';
 
 // SourceBufferWrapper queues MP4Player's appends and removals in front of a SourceBuffer,
 // running each once the one before it has fired updateend. An operation that throws
@@ -144,5 +144,71 @@ describe('SourceBufferWrapper', () => {
     expect(wrapper.updating).toBe(false);
 
     await Promise.all([p1, p2, p3]);
+  });
+});
+
+// MP4Player's seek decides from `buffered` whether to load anew, and a removal still queued
+// is about to take away what `buffered` shows. A seek to 0 just after a jump to the end found
+// the start buffered (the jump's removal of everything waited behind the end's appends), did
+// not reload, and the removal then took the start away: the player sat at 0 with nothing
+// loading (#265, keybinds.e2e.mjs "loads the start again after a jump from the end back to 0").
+describe('a removal still to run', () => {
+  beforeEach(() => {
+    globalThis.MediaSource = {isTypeSupported: () => true};
+  });
+
+  afterEach(() => {
+    globalThis.MediaSource = originalMediaSource;
+  });
+
+  it('is pending while it waits behind an append, and while it runs', () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    expect(wrapper.hasPendingRemove(0)).toBe(false);
+    wrapper.appendBuffer(new ArrayBuffer(8));
+    wrapper.remove(0, 160);
+    // Queued behind the append that is running.
+    expect(sourceBuffer.remove).not.toHaveBeenCalled();
+    expect(wrapper.hasPendingRemove(0)).toBe(true);
+    // The append ends; the removal runs now.
+    sourceBuffer.updateEnd();
+    expect(sourceBuffer.remove).toHaveBeenCalledWith(0, 160);
+    expect(wrapper.hasPendingRemove(0)).toBe(true);
+    // Done: `buffered` is true again.
+    sourceBuffer.updateEnd();
+    expect(wrapper.hasPendingRemove(0)).toBe(false);
+  });
+
+  it('is not pending for appends alone', () => {
+    const {sourceBuffer, wrapper} = makeWrapper();
+    wrapper.appendBuffer(new ArrayBuffer(8));
+    wrapper.appendBuffer(new ArrayBuffer(8));
+    expect(wrapper.hasPendingRemove(0)).toBe(false);
+    sourceBuffer.updateEnd();
+    expect(wrapper.hasPendingRemove(0)).toBe(false);
+  });
+
+  it('is pending for a player when either of its SourceBuffers has one', () => {
+    const video = makeWrapper();
+    const audio = makeWrapper();
+    expect(removalPending([video.wrapper, audio.wrapper], 0)).toBe(false);
+    audio.wrapper.appendBuffer(new ArrayBuffer(8));
+    audio.wrapper.remove(0, 160);
+    expect(removalPending([video.wrapper, audio.wrapper], 0)).toBe(true);
+    // A player without an audio track.
+    expect(removalPending([video.wrapper, null], 0)).toBe(false);
+  });
+
+  it('counts only a removal over the target: the back buffer trimmed while playing does not', () => {
+    // A reload for every seek while a trim was queued rebuffered each arrow press.
+    const {sourceBuffer, wrapper} = makeWrapper();
+    wrapper.appendBuffer(new ArrayBuffer(8));
+    // Behind the playhead at 100 s, as MP4Player trims it.
+    wrapper.remove(0, 70);
+    expect(wrapper.hasPendingRemove(95)).toBe(false);
+    expect(wrapper.hasPendingRemove(30)).toBe(true);
+    sourceBuffer.updateEnd();
+    // Running now.
+    expect(wrapper.hasPendingRemove(95)).toBe(false);
+    expect(wrapper.hasPendingRemove(70)).toBe(true);
   });
 });
