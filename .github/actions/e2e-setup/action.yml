@@ -6,7 +6,8 @@ description: >-
   FIREFOX_BINARY for the wdio configs. Used by ci.yml (Linux and Windows),
   firefox-beta.yml, firefox-stable.yml and live-streams.yml, which each carried their own
   copy before. The downloads come from Chocolatey, apt and Mozilla; each is tried again
-  before the job fails, because a hiccup there is not a FastStream failure.
+  before the job fails, because a hiccup there is not a FastStream failure. ffmpeg on
+  Windows comes from the Actions cache, a week at a time.
 
 inputs:
   firefox-version:
@@ -24,24 +25,82 @@ outputs:
 runs:
   using: composite
   steps:
+    # Windows: ffmpeg (and ffprobe) from the Actions cache, a week at a time. Chocolatey
+    # took 23 s a job, most of it unpacking its 7z (CI run 37382065299), and a run has nine
+    # Windows e2e jobs. The key is the ISO week, so a newer ffmpeg arrives within a week:
+    # the jobs that miss install it through Chocolatey as before, and the first to finish
+    # saves it (the others are refused the same key, a warning). Linux keeps apt: Firefox
+    # decodes through the system's libavcodec, not a program in a folder.
+    - name: This week's ffmpeg cache key
+      if: runner.os == 'Windows'
+      id: ffmpeg-key
+      shell: bash
+      run: echo "key=e2e-ffmpeg-windows-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore ffmpeg from the cache
+      if: runner.os == 'Windows'
+      id: ffmpeg-cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/ffmpeg-e2e
+        key: ${{ steps.ffmpeg-key.outputs.key }}
+
     # Linux: Firefox decodes H.264/AAC through the system ffmpeg; without it every stream
     # loads and never reaches HAVE_CURRENT_DATA, which looks exactly like a broken media
-    # library. Windows: the e2e setup builds its video fixtures with ffmpeg, and the image
-    # has Chocolatey but no ffmpeg.
+    # library. PulseAudio, for the sound step below, comes in the same apt run, and no
+    # package is installed only because one of these recommends it: the 105 MB ffmpeg
+    # pulled in took 29 s. Windows: the e2e setup builds its video fixtures with ffmpeg,
+    # and specs run ffmpeg and ffprobe; the image has Chocolatey but no ffmpeg.
     - name: Install ffmpeg
+      id: ffmpeg
       shell: bash
+      env:
+        CACHE_HIT: ${{ steps.ffmpeg-cache.outputs.cache-hit }}
       run: |
-        for attempt in 1 2 3; do
+        set -uo pipefail
+        cached="$HOME/ffmpeg-e2e"
+        if [ "$RUNNER_OS" = Windows ] && [ "$CACHE_HIT" = true ] && [ -f "$cached/ffmpeg.exe" ] && [ -f "$cached/ffprobe.exe" ]; then
+          echo "ffmpeg from the cache ($cached)."
+        else
+          for attempt in 1 2 3; do
+            if [ "$RUNNER_OS" = Windows ]; then
+              choco install ffmpeg -y --no-progress && break
+            else
+              sudo apt-get update &&
+                sudo apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils && break
+            fi
+            echo "::warning::Installing ffmpeg failed (attempt $attempt of 3); trying again in 30 s."
+            sleep 30
+          done
           if [ "$RUNNER_OS" = Windows ]; then
-            choco install ffmpeg -y --no-progress && break
-          else
-            sudo apt-get update && sudo apt-get install -y ffmpeg && break
+            # The programs themselves for the cache, not Chocolatey's shims to them, from where
+            # Chocolatey is (ChocolateyInstall, on the runner C:\ProgramData\chocolatey).
+            # -quit, not head: head would close the pipe early, and pipefail fail the step.
+            lib="$(cygpath -u "${ChocolateyInstall:-C:/ProgramData/chocolatey}")/lib/ffmpeg"
+            bin=$(dirname "$(find "$lib" -name ffmpeg.exe -path '*/bin/*' -print -quit 2> /dev/null)")
+            if [ -f "$bin/ffmpeg.exe" ] && [ -f "$bin/ffprobe.exe" ]; then
+              mkdir -p "$cached" && cp "$bin/ffmpeg.exe" "$bin/ffprobe.exe" "$cached/" &&
+                echo "save=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::warning::Chocolatey's ffmpeg.exe and ffprobe.exe were not found in its lib/ffmpeg folder; nothing is cached, its shims are used."
+            fi
           fi
-          echo "::warning::Installing ffmpeg failed (attempt $attempt of 3); trying again in 30 s."
-          sleep 30
-        done
+        fi
+        if [ "$RUNNER_OS" = Windows ] && [ -f "$cached/ffmpeg.exe" ]; then
+          cygpath -w "$cached" >> "$GITHUB_PATH"
+          export PATH="$cached:$PATH"
+        fi
         # sed, not head: head would close the pipe early, and pipefail fail the step.
         ffmpeg -hide_banner -version | sed -n 1p
+
+    - name: Save ffmpeg to the cache
+      if: runner.os == 'Windows' && steps.ffmpeg.outputs.save == 'true'
+      # Jobs that missed the same week race to save it; a refused save fails no job.
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/ffmpeg-e2e
+        key: ${{ steps.ffmpeg-key.outputs.key }}
 
     # sample.mp4, which every e2e fixture is made from, comes from test-videos.co.uk, which
     # CI cannot count on (#256). It is kept in the Actions cache under the SHA-256 it is

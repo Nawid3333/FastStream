@@ -278,7 +278,15 @@
   retried specs. Per-job artifacts: `e2e-retried-<os>-<suite>-<group>`,
   `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<group>` only from the Windows
   playback jobs (the ones that set `E2E_MOZ_LOG`). firefox-beta.yml and firefox-stable.yml
-  split the same way (playback, extension; three groups on Windows, two on Linux). Windows Firefox decodes through
+  split the same way (playback, extension; three groups on Windows, two on Linux).
+- **e2e setup, faster** (2026-10-06, `.github/actions/e2e-setup`): Linux installs ffmpeg and
+  PulseAudio in one apt run without recommended packages (the separate runs took 29 s and
+  ~5 s, 105 MB for ffmpeg); Windows takes ffmpeg.exe and ffprobe.exe from the Actions
+  cache, keyed by the ISO week (`e2e-ffmpeg-windows-<year>-W<week>`), instead of
+  Chocolatey's 23 s on each of the nine Windows jobs. Firefox, Node and pnpm stay uncached:
+  a restore costs about what their download does (the 142 MB pnpm store takes ~14 s to
+  restore on Windows). A spec's retry (about 4 minutes on Windows) costs a run more than
+  all of this; the weekly flaky-specs issue lists them. Windows Firefox decodes through
   Media Foundation where Linux uses ffmpeg, so playback can differ. Both CI jobs install
   the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
   image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from

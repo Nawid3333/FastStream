@@ -8,6 +8,8 @@
 # name. pactl, pulseaudio, sudo, apt-get and sleep are stubs; PATH holds nothing else but
 # bash and sed, so the runner's own tools (or WSL's) never answer for them.
 #
+# "Install ffmpeg": see its scenarios below.
+#
 # "Read the MP4 fixture's pin" (#256): the cache key is the SHA-256 mp4Fixture.mjs pins.
 source "$(dirname "$0")/lib.sh"
 
@@ -135,6 +137,125 @@ check 'fails' test "$status" -ne 0
 check 'tried three times' test "$(grep -c '^apt-get update' "$FIX/calls")" -eq 3
 check 'warned each time' test "$(grep -c '::warning::Installing PulseAudio failed' "$FIX/out")" -eq 3
 check 'says the daemon did not start' contains "$FIX/out" '::error::PulseAudio did not start.'
+
+# "Install ffmpeg" (2026-10-06): Linux installs ffmpeg and PulseAudio in one apt run with
+# no recommended packages; Windows takes ffmpeg.exe and ffprobe.exe from the week's cache
+# entry, and on a miss installs through Chocolatey and copies the two programs out for the
+# save step. choco, cygpath and ffmpeg are stubs as well; find, dirname and mkdir are the
+# system's.
+step_script ../actions/e2e-setup/action.yml 'Install ffmpeg' > "$here/ffmpeg.sh" || exit 1
+cat > "$here/stubs/ffmpeg" <<'EOF'
+#!/bin/bash
+echo "ffmpeg $* ($0)" >> "$FIX/calls"
+echo 'ffmpeg version 9.0.2-essentials_build-www.gyan.dev'
+EOF
+# choco "installs" ffmpeg where Chocolatey puts it, and its shim on PATH; with the flag
+# file choco-no-bin, without the programs under bin/ (a changed package layout).
+cat > "$here/stubs/choco" <<'EOF'
+#!/bin/bash
+echo "choco $*" >> "$FIX/calls"
+[ -e "$FIX/choco-fails" ] && exit 1
+bin="$ChocolateyInstall/lib/ffmpeg/tools/ffmpeg/bin"
+mkdir -p "$bin"
+[ -e "$FIX/choco-no-bin" ] || printf 'exe' > "$bin/ffmpeg.exe"
+[ -e "$FIX/choco-no-bin" ] || printf 'exe' > "$bin/ffprobe.exe"
+cp "$STUBS/ffmpeg" "$FIX/bin/ffmpeg"
+EOF
+# cygpath: -u leaves the path (the stub's ChocolateyInstall is a POSIX path already), -w
+# marks it, so the test sees which form went to GITHUB_PATH.
+cat > "$here/stubs/cygpath" <<'EOF'
+#!/bin/bash
+case "$1" in
+  -u) printf '%s\n' "$2" ;;
+  -w) printf 'WIN:%s\n' "$2" ;;
+  *) exit 2 ;;
+esac
+EOF
+chmod +x "$here/stubs/"*
+for tool in find dirname mkdir; do
+  ln -sf "$(command -v "$tool")" "$here/sys/$tool"
+done
+
+# ffmpeg_scenario <name> <Linux|Windows> <cache hit: true|empty> [flag files...]
+ffmpeg_scenario() {
+  echo "$1"
+  export FIX="$here/fix" STUBS="$here/stubs"
+  rm -rf "$FIX"
+  mkdir -p "$FIX/bin" "$FIX/home" "$FIX/choco"
+  cp "$here/stubs/sudo" "$here/stubs/apt-get" "$here/stubs/sleep" "$here/stubs/choco" "$here/stubs/cygpath" "$FIX/bin/"
+  ln -s "$(command -v cp)" "$FIX/bin/cp"
+  # apt-get's "install" gives ffmpeg too, as the package does.
+  [ "$2" = Linux ] && cp "$here/stubs/ffmpeg" "$FIX/bin/ffmpeg"
+  local os=$2 hit=$3
+  shift 3
+  for flag in "$@"; do : > "$FIX/$flag"; done
+  # A cache hit: the two programs in ~/ffmpeg-e2e, and an ffmpeg there that bash finds
+  # (on Windows it finds ffmpeg.exe by that name).
+  if [ -e "$FIX/cache-has" ]; then
+    mkdir -p "$FIX/home/ffmpeg-e2e"
+    printf 'exe' > "$FIX/home/ffmpeg-e2e/ffmpeg.exe"
+    printf 'exe' > "$FIX/home/ffmpeg-e2e/ffprobe.exe"
+    cp "$here/stubs/ffmpeg" "$FIX/home/ffmpeg-e2e/ffmpeg"
+  fi
+  # A cache entry from before ffprobe was in it: ffmpeg.exe alone.
+  if [ -e "$FIX/cache-ffmpeg-only" ]; then
+    mkdir -p "$FIX/home/ffmpeg-e2e"
+    printf 'exe' > "$FIX/home/ffmpeg-e2e/ffmpeg.exe"
+  fi
+  : > "$FIX/calls"
+  : > "$FIX/output"
+  : > "$FIX/path"
+  RUNNER_OS=$os CACHE_HIT=$hit HOME=$FIX/home ChocolateyInstall=$FIX/choco \
+    GITHUB_OUTPUT=$FIX/output GITHUB_PATH=$FIX/path PATH="$FIX/bin:$here/sys" \
+    run_step "$here/ffmpeg.sh" > "$FIX/out" 2>&1
+  status=$?
+}
+
+ffmpeg_scenario 'Linux: ffmpeg and PulseAudio, one apt run' Linux ''
+check 'succeeds' test "$status" -eq 0
+check 'updates the package lists once' test "$(grep -c '^apt-get update' "$FIX/calls")" -eq 1
+check 'installs both, nothing only recommended' contains "$FIX/calls" \
+  'sudo apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils'
+check 'logs the version' contains "$FIX/out" 'ffmpeg version'
+check 'no Chocolatey' lacks "$FIX/calls" 'choco'
+check 'adds nothing to PATH' test ! -s "$FIX/path"
+check 'saves nothing' test ! -s "$FIX/output"
+
+ffmpeg_scenario 'Windows, a cache hit: the cached programs, no Chocolatey' Windows true cache-has
+check 'succeeds' test "$status" -eq 0
+check 'says so' contains "$FIX/out" "ffmpeg from the cache ($FIX/home/ffmpeg-e2e)."
+check 'no Chocolatey' lacks "$FIX/calls" 'choco'
+check 'puts the folder on PATH for the later steps, as a Windows path' contains "$FIX/path" "WIN:$FIX/home/ffmpeg-e2e"
+check 'runs the cached ffmpeg itself' contains "$FIX/calls" "($FIX/home/ffmpeg-e2e/ffmpeg)"
+check 'saves nothing' test ! -s "$FIX/output"
+
+ffmpeg_scenario 'Windows, a hit that lacks ffprobe: installs as on a miss' Windows true cache-ffmpeg-only
+check 'succeeds' test "$status" -eq 0
+check 'installs through Chocolatey' contains "$FIX/calls" 'choco install ffmpeg -y --no-progress'
+check 'and caches both programs this time' contains "$FIX/output" 'save=true'
+
+ffmpeg_scenario 'Windows, a miss: Chocolatey, then the programs copied out for the save' Windows ''
+check 'succeeds' test "$status" -eq 0
+check 'installs through Chocolatey' contains "$FIX/calls" 'choco install ffmpeg -y --no-progress'
+check 'no apt' lacks "$FIX/calls" 'apt-get'
+check 'copies ffmpeg.exe' test -f "$FIX/home/ffmpeg-e2e/ffmpeg.exe"
+check 'copies ffprobe.exe' test -f "$FIX/home/ffmpeg-e2e/ffprobe.exe"
+check 'asks the save step to save' contains "$FIX/output" 'save=true'
+check 'puts the folder on PATH' contains "$FIX/path" "WIN:$FIX/home/ffmpeg-e2e"
+check 'logs the version' contains "$FIX/out" 'ffmpeg version'
+
+ffmpeg_scenario 'Windows, a miss where the programs are not under bin/: the shims, no save' Windows '' choco-no-bin
+check 'succeeds' test "$status" -eq 0
+check 'warns' contains "$FIX/out" "::warning::Chocolatey's ffmpeg.exe and ffprobe.exe were not found"
+check 'saves nothing' test ! -s "$FIX/output"
+check 'adds nothing to PATH' test ! -s "$FIX/path"
+check 'still runs ffmpeg (the shim)' contains "$FIX/calls" "($FIX/bin/ffmpeg)"
+
+ffmpeg_scenario 'Windows, Chocolatey that keeps failing' Windows '' choco-fails
+check 'fails' test "$status" -ne 0
+check 'tried three times' test "$(grep -c '^choco install' "$FIX/calls")" -eq 3
+check 'warned each time' test "$(grep -c '::warning::Installing ffmpeg failed' "$FIX/out")" -eq 3
+check 'saves nothing' test ! -s "$FIX/output"
 
 echo 'the MP4 fixture pin'
 pin=$(sed -n "s/^ *sha256: '\([0-9a-f]\{64\}\)',\$/\1/p" "$root/tests/e2e/mp4Fixture.mjs")
