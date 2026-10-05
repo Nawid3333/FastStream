@@ -2,7 +2,7 @@
   "name": "faststream",
   "version": "1.3.82.59",
   "description": "Stream videos without buffering. Fix bad video players on the internet.",
-  "packageManager": "pnpm@11.28.0",
+  "packageManager": "pnpm@11.28.2",
   "engines": {
     "node": ">=22"
   },
