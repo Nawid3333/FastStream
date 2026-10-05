@@ -106,11 +106,14 @@ describe('save transport on the installed extension', function() {
         };
       }
 
-      // Raced against a 6s timer so a hung transport becomes data instead of
-      // a suite-wide timeout.
+      // Raced against a timer so a hung transport becomes data instead of a suite-wide
+      // timeout. 20 s, not 6: the first write starts the save's OPFS worker, and in the
+      // Windows runner's fresh profile its init alone took 6.6-9.0 s (traces of the 5
+      // first attempts that "timed out" in the week to 2026-10-05, #346), after which every
+      // call answered within 0.3 s. A worker that never answers still fails here.
       const raced = (p) => Promise.race([
         p.then((v) => ({settled: true, value: v === undefined ? null : v})),
-        new Promise((r) => setTimeout(() => r({settled: false, timedOut: true}), 6000)),
+        new Promise((r) => setTimeout(() => r({settled: false, timedOut: true}), 20000)),
       ]);
 
       const ws = streamSaver.createWriteStream('probe-' + Date.now() + '.bin');
