@@ -85,7 +85,7 @@ check "the report step's env: gives the title" contains "$WORKFLOWS_DIR/flaky-sp
 # Each e2e job of ci.yml uploads its list under a name of its own, which the step finds by
 # its start: e2e-retried and e2e-retried-windows, the names before the jobs were split
 # (2026-10-05), start the same way.
-check "ci.yml uploads each e2e job's list" contains "$WORKFLOWS_DIR/ci.yml" 'name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}'
+check "ci.yml uploads each e2e job's list" contains "$WORKFLOWS_DIR/ci.yml" 'name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}'
 check 'flaky-specs.yml finds the lists by that start' contains "$WORKFLOWS_DIR/flaky-specs.yml" 'select((.name | startswith("e2e-retried"))'
 
 today=$(date -u +%F)

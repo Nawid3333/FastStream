@@ -193,18 +193,21 @@ jobs:
 
   # The e2e suites in Firefox, on Linux and on Windows - the platform FastStream is used
   # on, which decodes H.264/AAC through Media Foundation where Linux uses ffmpeg, so
-  # playback can differ between them. Each suite on each platform is a job of its own,
-  # all side by side: one after another, a platform's four took 30 minutes on Linux and
-  # 45 on Windows (CI run 37347420774, 2026-10-05: Windows playback 15, each extension
-  # suite 13); side by side the run takes about its longest suite and the setup. Each job
-  # builds the extension itself, in seconds, rather than wait for `verify`'s. fail-fast
-  # off: one failing suite would cancel the others, and with them their lists of retried
-  # specs. auto-release.yml waits for the whole workflow, so a release ships only when
-  # every one passes.
+  # playback can differ between them. Each suite runs in groups of its spec files, each
+  # group a job of its own, all side by side. One after another, a platform's suites took
+  # 30 minutes on Linux and 45 on Windows (CI run 37347420774); a job a suite, 17 (run
+  # 37382065299: each Windows suite about 15 minutes, the setup about 2). The groups are
+  # of about the same running time (E2E_SHARD, tests/e2e/shardSpecs.mjs): three a suite on
+  # Windows and two on Linux, where the suites take about two thirds of the time, so each
+  # job takes about 5 to 7.5 minutes. More groups would not help: a run is 18 jobs, of
+  # the account's 20 at once. Each job builds the extension itself, in seconds, rather
+  # than wait for `verify`'s. fail-fast off: one failing group would cancel the others,
+  # and with them their lists of retried specs. auto-release.yml waits for the whole
+  # workflow, so a release ships only when every one passes.
   e2e:
-    name: e2e (${{ matrix.os }}, ${{ matrix.suite }})
+    name: e2e (${{ matrix.os }}, ${{ matrix.suite }} ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 3 || 2 }})
     runs-on: ${{ matrix.os == 'Windows' && (inputs.windows-runner || 'windows-latest') || (inputs.linux-runner || 'ubuntu-latest') }}
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -212,6 +215,12 @@ jobs:
         # playback: real playback (wdio.conf.mjs). extension: the AMO build installed, and
         # in a private window (seconds). github: the GitHub self-host build installed.
         suite: [playback, extension, github]
+        shard: [1, 2, 3]
+        exclude:
+          - os: Linux
+            shard: 3
+    env:
+      E2E_SHARD: ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 3 || 2 }}
     defaults:
       run:
         shell: bash
@@ -315,9 +324,10 @@ jobs:
         run: pnpm run test:ext
 
       # The installed extension in a private window, where storage APIs behave
-      # differently (see tests/e2e/wdio.pbm.conf.mjs).
+      # differently (see tests/e2e/wdio.pbm.conf.mjs). One spec file, seconds: in the
+      # first group's job only, and not split.
       - name: End-to-end extension tests, private browsing (${{ matrix.os }} Firefox)
-        if: matrix.suite == 'extension'
+        if: matrix.suite == 'extension' && matrix.shard == 1
         run: pnpm run test:pbm
 
       # The same suites against the GitHub self-host build, which is shipped too and
@@ -340,7 +350,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}
+          name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs/retried.jsonl
           if-no-files-found: ignore
           retention-days: 14
@@ -361,7 +371,7 @@ jobs:
         if: failure() || hashFiles('logs/retried.jsonl') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}
+          name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30
@@ -374,7 +384,7 @@ jobs:
         if: ${{ !cancelled() && matrix.os == 'Windows' && matrix.suite == 'playback' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-moz-logs-windows
+          name: e2e-moz-logs-windows-${{ matrix.shard }}
           path: logs-moz/
           if-no-files-found: ignore
           retention-days: 7

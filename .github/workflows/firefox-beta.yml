@@ -33,18 +33,26 @@ permissions:
 
 jobs:
   e2e:
-    name: e2e on Firefox Beta (${{ matrix.os }}, ${{ matrix.suite }})
+    name: e2e on Firefox Beta (${{ matrix.os }}, ${{ matrix.suite }} ${{ matrix.shard }}/${{ matrix.os == 'windows-latest' && 3 || 2 }})
     strategy:
       fail-fast: false
       matrix:
         # Linux as in CI, and Windows, where FastStream is used and Firefox decodes
         # through Media Foundation instead of ffmpeg.
         os: [ubuntu-latest, windows-latest]
-        # Each suite in a job of its own, side by side as in ci.yml: one after the other
-        # they took 30 minutes on Windows (run 37268302868).
+        # Each suite in groups of about the same running time, each group a job of its own,
+        # side by side as in ci.yml (E2E_SHARD, tests/e2e/shardSpecs.mjs): three on
+        # Windows, two on Linux. One job for both suites took 30 minutes on Windows (run
+        # 37268302868); a job a suite, 15.
         suite: [playback, extension]
+        shard: [1, 2, 3]
+        exclude:
+          - os: ubuntu-latest
+            shard: 3
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 20
+    env:
+      E2E_SHARD: ${{ matrix.shard }}/${{ matrix.os == 'windows-latest' && 3 || 2 }}
     defaults:
       run:
         shell: bash
@@ -90,7 +98,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: firefox-beta-e2e-logs-${{ matrix.os }}-${{ matrix.suite }}
+          name: firefox-beta-e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs/
           if-no-files-found: ignore
           retention-days: 30

@@ -258,14 +258,25 @@
   lint, types, unit tests, the build, the linters and `faststream-bundles` (about 4
   minutes), `unit-windows` runs the unit suite on Windows, and the matrix job `e2e` runs
   os [Linux, Windows] x suite [playback, extension (with private browsing), github], six
-  jobs side by side, each with its own setup and build (about 2 minutes). The run takes
-  about its longest suite plus that: about 17 minutes. `fail-fast: false`, so one failing
-  suite does not cancel the others and their lists of retried specs. Per-job artifacts:
-  `e2e-retried-<os>-<suite>`, `e2e-logs-<os>-<suite>`; `e2e-moz-logs-windows` only from
-  the Windows playback job (the one that sets `E2E_MOZ_LOG`). firefox-beta.yml and
-  firefox-stable.yml split the same way (playback, extension). A run is 9 jobs at once
-  (was 3) of the account's 20; the weekly mutation run takes 7 for hours, so two CI runs
-  during it queue a little. Windows Firefox decodes through
+  jobs side by side, each with its own setup and build (about 2 minutes): 17 minutes (PR
+  #350's run 37382065299; each Windows suite about 15, the longest spec file,
+  content-cleanup, 127 s). Then each suite was cut into groups of about the same running
+  time, `E2E_SHARD=<i>/<n>` (`tests/e2e/shardSpecs.mjs`): three a suite on Windows, two on
+  Linux, so each job takes about 5 to 7.5 minutes, the run about 7.5. WebdriverIO's own
+  `--shard` cuts by the number of files, and the long spec files sit together (527 s and
+  402 s for the halves of the Windows extension suite); the groups here come from each
+  spec file's time on the Windows runner, `tests/e2e/specWeights.json`, the longest first,
+  each to the group with the least so far; a spec file not in it counts as the median.
+  Refresh it from a run's logs: `node tools/e2e-spec-weights.mjs <CI run id>`. Without
+  E2E_SHARD a config runs all its spec files (local `pnpm run verify`). The private
+  browsing suite (one spec file) runs in the first extension group only. A run is 18 jobs
+  at once of the account's 20, so more groups would only queue; the weekly mutation run
+  (Mondays, 7 jobs for hours) leaves 13, and a push during it runs in two waves.
+  `fail-fast: false`, so one failing group does not cancel the others and their lists of
+  retried specs. Per-job artifacts: `e2e-retried-<os>-<suite>-<group>`,
+  `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<group>` only from the Windows
+  playback jobs (the ones that set `E2E_MOZ_LOG`). firefox-beta.yml and firefox-stable.yml
+  split the same way (playback, extension; three groups on Windows, two on Linux). Windows Firefox decodes through
   Media Foundation where Linux uses ffmpeg, so playback can differ. Both CI jobs install
   the current stable Firefox (`browser-actions/setup-firefox`, `latest`) instead of the
   image's (Windows had 155.0.1 when 156.0.1 was out). Windows gets ffmpeg from
@@ -309,10 +320,10 @@
   (W5): each config's `onWorkerEnd` is `recordRetriedSpecs` (`tests/e2e/retriedSpecs.mjs`),
   which appends a spec file that was run again to `logs/retried.jsonl`; ci.yml lists them
   in the run's summary with a warning for each that passed only on its retry
-  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried-<os>-<suite>` (14 days;
-  `e2e-retried`/`e2e-retried-windows` before 2026-10-05), and uploads
-  `e2e-logs-<os>-<suite>` for such a green job too, so the failed attempt's driver log is
-  there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
+  (`tests/e2e/reportRetried.mjs`), uploads the list as `e2e-retried-<os>-<suite>-<group>`
+  (14 days; `e2e-retried`/`e2e-retried-windows` before 2026-10-05), and uploads
+  `e2e-logs-<os>-<suite>-<group>` for such a green job too, so the failed attempt's driver
+  log is there. `flaky-specs.yml` (Mondays 06:20 UTC) folds a week of lists into one issue.
 - **e2e harness, 2026-10-01 (F1, F4-F6):** a config's `before` hook runs its setup
   through `guardSetup` (`tests/e2e/setupGuard.mjs`): WebdriverIO only logs a hook's
   error, so a failed add-on install let every spec run without the extension (a probe
@@ -338,13 +349,13 @@
   and off for an installed release. The extension suites set
   `devtools.console.stdout.content`, so the background's and the player's console go to
   Firefox's stdout and into each spec's `geckodriver-<suite>-<spec>-<worker>-attempt<N>.log`
-  (`e2e-logs-<os>-<suite>` artifact on CI): grep `console.log:` for what the background detected
+  (`e2e-logs-<os>-<suite>-<group>` artifact on CI): grep `console.log:` for what the background detected
   (`Found source`), opened, and sent to mpv. About 13 KB per spec.
   `ext-specs/background-log.e2e.mjs` fails without either half.
 - **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
   step), the specs listed in `tests/e2e/mozLog.mjs` run with `MOZ_LOG` (cache2 and nsHttp),
   and an attempt with a failed test keeps its log under `logs-moz/`, uploaded as
-  `e2e-moz-logs-windows` for 7 days; a passing attempt deletes its own. For loader-retry's
+  `e2e-moz-logs-windows-<group>` for 7 days; a passing attempt deletes its own. For loader-retry's
   "stalls before its body", which failed twice on the Windows runner with every retry stalled
   before reaching the server, and never locally.
 - **e2e ports, 2026-09-27:** every fixed port a test server listens on is in

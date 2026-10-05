@@ -30,6 +30,7 @@ import path from 'node:path';
 import * as url from 'node:url';
 
 import {recordRetriedSpecs} from './retriedSpecs.mjs';
+import {shardSpecs} from './shardSpecs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {testTimeout} from './testTimeout.mjs';
@@ -122,9 +123,8 @@ export const config = {
   // specs log their page and OPFS state on the first failure). A real bug fails twice
   // and still fails the run, and so still holds back the release.
   specFileRetries: 1,
-  specs: [
-    path.join(__dirname, 'ext-specs/**/*.e2e.mjs'),
-  ],
+  // All of them, or E2E_SHARD's group (shardSpecs.mjs).
+  specs: shardSpecs(path.join(__dirname, 'ext-specs')),
   maxInstances: 1,
 
   capabilities: [{

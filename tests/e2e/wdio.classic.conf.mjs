@@ -14,6 +14,7 @@
 import path from 'node:path';
 
 import {recordRetriedSpecs} from './retriedSpecs.mjs';
+import {shardSpecs} from './shardSpecs.mjs';
 import {BUILD, config as base} from './wdio.extension.conf.mjs';
 
 const caps = structuredClone(base.capabilities);
@@ -28,6 +29,7 @@ caps[0]['moz:firefoxOptions'].prefs['ui.key.menuAccessKey'] = 0;
 export const config = {
   ...base,
   capabilities: caps,
-  specs: [path.join(import.meta.dirname, 'classic-specs/**/*.e2e.mjs')],
+  // All of them, or E2E_SHARD's group (shardSpecs.mjs).
+  specs: shardSpecs(path.join(import.meta.dirname, 'classic-specs')),
   onWorkerEnd: recordRetriedSpecs(base.outputDir, `classic-${BUILD}`),
 };
