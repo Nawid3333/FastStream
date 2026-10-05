@@ -246,22 +246,33 @@ const playerState = () => browser.execute(() => {
   if (!video) {
     return {loaded: false, source: client?.source ? `${client.source.mode} ${client.source.url}` : null, ...context};
   }
-  const ranges = [];
-  for (let i = 0; i < video.buffered.length; i++) {
-    ranges.push([+video.buffered.start(i).toFixed(2), +video.buffered.end(i).toFixed(2)]);
-  }
+  const toRanges = (list) => {
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      out.push([+list.start(i).toFixed(2), +list.end(i).toFixed(2)]);
+    }
+    return out;
+  };
+  const ranges = toRanges(video.buffered);
+  const levels = client.getVideoLevels();
+  const playing = levels.get(client.getCurrentVideoLevelID());
   return {
     loaded: true,
     mode: client.source?.mode,
     url: client.source?.url,
     time: client.currentTime,
+    // The element's own position and window: a live stream left at 0, outside its window,
+    // while its buffer filled at the live edge (#348).
+    videoTime: +video.currentTime.toFixed(2),
+    seekable: toRanges(video.seekable),
     duration: client.duration,
     paused: video.paused,
     seeking: video.seeking,
     readyState: video.readyState,
     width: video.videoWidth,
     ranges,
-    videoLevels: Array.from(client.getVideoLevels().values()).map((level) => `${level.width}x${level.height}`),
+    playingLevel: playing ? `${playing.width}x${playing.height} ${playing.videoCodec}` : null,
+    videoLevels: Array.from(levels.values()).map((level) => `${level.width}x${level.height} ${level.videoCodec}`),
     audioLanguages: Array.from(client.getAudioLevels().values()).map((level) => level.language),
     error: video.error ? video.error.message || String(video.error.code) : null,
     ...context,
