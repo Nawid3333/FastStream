@@ -500,7 +500,11 @@
   the unit tests missed mutants (survived, or no test reaches them), one issue "Mutation
   testing: week to <date>" lists them, assigned + @mention; next week's replaces it, a week
   with all caught closes it. **The command runner**, not the vitest one: every mutant runs the
-  whole unit suite (`__STRYKER_ACTIVE_MUTANT__`), about 1.2 s each with 4 workers. Stryker's
+  whole unit suite (`__STRYKER_ACTIVE_MUTANT__`), about 1.2 s each with 4 workers locally - on
+  CI a mutant the tests miss runs the whole ~18 s suite, and one job per area ran out of its
+  240 minutes at 51-74% with no report (#349, 2026-10-05): since then the three areas are
+  seven shards (`PARTS` in the config, split by file size), each in a job of 350 minutes, and
+  a shard that runs out of time (it ends cancelled) is reported as a failure. Stryker's
   vitest runner 10.0.0 (August 2026) predates vitest 5 and switched no mutant on there (every
   one "survived"); switch back once a release supports vitest 5, and per-test coverage makes
   the run far faster. The sandbox leaves out `tsconfig.json`: Stryker rewrites it through

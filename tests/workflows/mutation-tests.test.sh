@@ -115,13 +115,13 @@ check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'closes #5, saying why' contains "$LOG" "CLOSE [5] [--reason] [completed] [--comment] [The unit tests caught every mutant in the week to $today: $RUN_URL]"
 check "leaves a person's issue alone" lacks "$LOG" 'CLOSE [6]'
 
-export MISSING_SHARDS=tools
+export MISSING_SHARDS=tools-2
 run 's3b every mutant of the reports caught, but a shard wrote none -> closes nothing' "$issue_step" "$allcaught" \
   "[{\"number\":5,\"state\":\"open\",\"title\":\"${PREFIX}2026-09-01\",\"user\":$bot}]"
 check 'succeeds' test "$status" -eq 0
 check 'opens nothing' lacks "$LOG" 'CREATE'
 check 'leaves #5 open: the missing shard said nothing of its mutants' lacks "$LOG" 'CLOSE [5]'
-check 'says which shard wrote none' contains "$FIX/out" 'no report from: tools'
+check 'says which shard wrote none' contains "$FIX/out" 'no report from: tools-2'
 run 's3c mutants not caught, and a shard wrote none -> still opens the issue' "$issue_step" "$missing" '[]'
 check 'succeeds' test "$status" -eq 0
 check 'opens the week'"'"'s issue' contains "$LOG" "CREATE [--title] [${PREFIX}$today]"
@@ -148,18 +148,18 @@ merge() {
   status=$?
 }
 network="{\"files\":{\"chrome/player/network/XHRLoader.mjs\":{\"mutants\":[$(m Survived ConditionalExpression true 4)]}}}"
-merge 's6 two shards of three -> one report of both, the third named missing' core "$missing" network "$network"
+merge 's6 two shards of seven -> one report of both, the others named missing' core-1 "$missing" network-2 "$network"
 check 'succeeds' test "$status" -eq 0
-check 'names the missing shard' contains "$GITHUB_ENV" 'MISSING_SHARDS=tools'
+check 'names the missing shards' contains "$GITHUB_ENV" 'MISSING_SHARDS=core-2 network-1 network-3 tools-1 tools-2'
 check 'the report has both shards'"'"' files' contains "$FIX/work/reports/mutation/mutation.json" 'chrome/player/network/XHRLoader.mjs'
 check '... and the first shard'"'"'s' contains "$FIX/work/reports/mutation/mutation.json" 'chrome/player/utils/StreamPick.mjs'
-merge 's7 every shard -> none missing' core "$missing" network "$network" tools '{"files":{}}'
+merge 's7 every shard -> none missing' core-1 "$missing" network-2 "$network" core-2 '{"files":{}}' network-1 '{"files":{}}' network-3 '{"files":{}}' tools-1 '{"files":{}}' tools-2 '{"files":{}}'
 check 'succeeds' test "$status" -eq 0
 check 'names none missing' contains "$GITHUB_ENV" 'MISSING_SHARDS='
 check '... and no shard' lacks "$GITHUB_ENV" 'MISSING_SHARDS=core'
-merge 's8 no shard wrote a report -> no report, all three missing'
+merge 's8 no shard wrote a report -> no report, all seven missing'
 check 'succeeds' test "$status" -eq 0
-check 'names all three' contains "$GITHUB_ENV" 'MISSING_SHARDS=core network tools'
+check 'names all seven' contains "$GITHUB_ENV" 'MISSING_SHARDS=core-1 core-2 network-1 network-2 network-3 tools-1 tools-2'
 check 'writes no report' test ! -e "$FIX/work/reports/mutation/mutation.json"
 
 run 's4 failure report, none open -> opens the failure issue' "$report_step" '{}' '[]' '[{"title":"Other"}]'

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import config, {SHARDS, modulesOf} from '../../stryker.config.mjs';
+import config, {AREAS, PARTS, SHARDS, modulesOf, splitArea} from '../../stryker.config.mjs';
 
 // The weekly mutation run's modules are in shards, each run by a job of its own
 // (mutation-tests.yml), because all of them in one job were past its 240 minutes (#253).
@@ -19,7 +19,9 @@ describe('stryker.config.mjs: the shards', () => {
   });
 
   it('runs one shard\'s modules, and refuses a shard it does not have', () => {
-    expect(modulesOf('network')).toEqual(SHARDS.network);
+    expect(modulesOf('network-1')).toEqual(SHARDS['network-1']);
+    // An area's name is no shard: its modules are in its parts.
+    expect(() => modulesOf('network')).toThrow(/STRYKER_SHARD is network/);
     expect(() => modulesOf('everything')).toThrow(/STRYKER_SHARD is everything/);
   });
 
@@ -35,6 +37,28 @@ describe('stryker.config.mjs: the shards', () => {
         .map((file) => fs.readFileSync(path.join(root, 'tests/unit', file), 'utf8')).join('\n');
     const untested = modulesOf(undefined).filter((file) => !tests.includes(path.basename(file)));
     expect(untested).toEqual([]);
+  });
+
+  it('cuts each area into its parts, each module in one, none empty', () => {
+    // One job an area ran out of its 240 minutes at 51-74% on CI, and no report came (#349).
+    for (const [area, modules] of Object.entries(AREAS)) {
+      const parts = Object.keys(SHARDS).filter((name) => name.startsWith(area + '-'));
+      expect(parts).toHaveLength(PARTS[area]);
+      expect(parts.flatMap((name) => SHARDS[name]).sort()).toEqual([...modules].sort());
+      expect(parts.filter((name) => SHARDS[name].length === 0)).toEqual([]);
+    }
+  });
+
+  it('makes parts of about the same size, the same ones each time', () => {
+    const sizes = splitArea(AREAS.core, PARTS.core)
+        .map((group) => group.reduce((sum, file) => sum + fs.statSync(path.join(root, file)).size, 0));
+    expect(Math.max(...sizes) / Math.min(...sizes)).toBeLessThan(1.25);
+    expect(splitArea(AREAS.core, PARTS.core)).toEqual(splitArea(AREAS.core, PARTS.core));
+  });
+
+  it('reports a shard that ran out of its time: it ends cancelled, not failed', () => {
+    expect(workflow).toContain('needs.mutation.result == \'cancelled\'');
+    expect(workflow).toContain('timeout-minutes: 350');
   });
 
   it('has the workflow run, and report, exactly these shards', () => {

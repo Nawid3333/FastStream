@@ -10,9 +10,10 @@ name: Mutation tests
 # "Mutation testing: week to <date>", assigned to the owner and @mentioning them, lists them.
 # The next week's issue closes it, and so does a week in which every mutant was caught.
 #
-# The modules are in three shards (stryker.config.mjs, SHARDS), each run by a job of its own
-# side by side: all of them in one job were over twice its 240 minutes (#253). The report
-# job puts their reports together.
+# The modules are in three areas cut into seven shards (stryker.config.mjs, SHARDS), each run
+# by a job of its own side by side: all of them in one job were over twice its 240 minutes
+# (#253), and one job an area still ran out of them at 51-74% (#349). The report job puts
+# their reports together.
 
 on:
   schedule:
@@ -30,13 +31,14 @@ jobs:
   mutation:
     name: Stryker over the ${{ matrix.shard }} modules
     runs-on: ubuntu-latest
-    # 3,000 to 4,800 mutants a shard, each a run of the unit suite (the command runner).
-    timeout-minutes: 240
+    # 1,100 to 2,600 mutants a shard, a few hours at the rates measured on CI
+    # (stryker.config.mjs); 350 minutes leaves room, under the runners' 360.
+    timeout-minutes: 350
     strategy:
       # One shard that fails or runs out of time leaves the others' reports.
       fail-fast: false
       matrix:
-        shard: [core, network, tools]
+        shard: [core-1, core-2, network-1, network-2, network-3, tools-1, tools-2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -103,7 +105,7 @@ jobs:
           set -euo pipefail
           found=0
           missing=''
-          for shard in core network tools; do
+          for shard in core-1 core-2 network-1 network-2 network-3 tools-1 tools-2; do
             if [ -f "shards/mutation-reports-$shard/mutation.json" ]; then
               found=$((found + 1))
             else
@@ -178,9 +180,12 @@ jobs:
       # A failed run of this workflow is emailed only to whoever started it (for the schedule,
       # whoever last changed the cron line): one issue while it is open, assigned and
       # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
-      # comment to it. A shard that failed or ran out of time counts too.
+      # comment to it. A shard that failed or ran out of time counts too (the latter ends
+      # cancelled, see the condition).
       - name: Report this workflow's own failure
-        if: failure() || needs.mutation.result == 'failure'
+        # cancelled: a shard that ran out of its time ends cancelled, not failed, and such a run
+        # (no report at all, 2026-10-05) said nothing.
+        if: failure() || needs.mutation.result == 'failure' || needs.mutation.result == 'cancelled'
         env:
           TITLE: 'Mutation tests workflow failed'
         run: |

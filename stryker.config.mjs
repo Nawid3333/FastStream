@@ -7,25 +7,30 @@
 // gate (no break threshold).
 //
 // Only pure-logic modules with unit tests: the DOM and the player are the e2e suites'.
-// In three shards (#253), which mutation-tests.yml runs side by side, each in a job of
-// its own (240 minutes each). Instrumented on 2026-10-04: `core`, the first 25 modules,
-// 4,738 mutants; `network`, the downloader, the loaders and what they use, 3,052; `tools`,
-// the tools and e2e harness modules with unit tests, 3,204. At about 1.2 s a mutant (see
-// the command runner below) that is 95, 61 and 64 minutes; all of them in one job were
-// past its 240. STRYKER_SHARD picks one; without it, all three run (`pnpm run
-// test:mutation`, locally).
+// In three areas (#253): `core`, `network` (the downloader, the loaders and what they use)
+// and `tools` (the tools and e2e harness modules with unit tests), each split into
+// shards (SHARDS, below) that mutation-tests.yml runs side by side, each in a job of its
+// own. STRYKER_SHARD picks one; without it, all of them run (`pnpm run test:mutation`,
+// locally).
+//
+// How long an area takes, measured on CI (#349, run 37333779402, 2026-10-05): network 7
+// mutants a minute, core 14, tools 10 - with ~3,300, ~5,100 and ~3,200 mutants, 7.7, 6 and
+// 5.3 hours. The first estimate (1.2 s a mutant, 2026-10-04) was a local run's: on CI a
+// mutant the tests do not catch runs the whole suite (~18 s), and a third to a half of
+// them survive. One job an area ran out of its 240 minutes at 51-74%, and no report came.
+// So each area is cut into PARTS shards of about the same size, each a few hours.
 //
 // The weekly job runs on Linux: the mpv host's Windows-only tests (mpvHostInstall, the
 // PowerShell cases of mpvHostSecurity) are skipped there, so its PowerShell and WMI
 // mutants can only survive, and count against its score.
 //
 // The command runner: every mutant runs the whole unit suite, switched on through
-// __STRYKER_ACTIVE_MUTANT__, about 1.2 s each with 4 workers. Stryker's vitest runner would
-// run only the tests that reach a mutant, but its newest release (10.0.0, August 2026)
-// predates vitest 5 and switches no mutant on there: every one "survived". Use it again
-// once a release supports vitest 5.
+// __STRYKER_ACTIVE_MUTANT__. Stryker's vitest runner would run only the tests that reach a
+// mutant, but its newest release (10.0.0, August 2026) predates vitest 5 and switches no
+// mutant on there: every one "survived". Use it again once a release supports vitest 5.
+import fs from 'node:fs';
 
-export const SHARDS = {
+export const AREAS = {
   core: [
     'chrome/background/CustomSourcePatterns.mjs',
     'chrome/background/DownloadFilename.mjs',
@@ -89,6 +94,41 @@ export const SHARDS = {
     'tools/verify-linux.mjs',
   ],
 };
+
+// How many shards each area is cut into: at the rates above, each one a few hours, well
+// inside its job's 350 minutes (mutation-tests.yml).
+export const PARTS = {core: 2, network: 3, tools: 2};
+
+/**
+ * An area's modules in `parts` groups of about the same size, the size of a file standing
+ * for how many mutants it gives: the largest first, each to the group with the least so far.
+ * The same files give the same groups, so a shard's name always means the same modules.
+ * @param {string[]} modules - The area's modules.
+ * @param {number} parts - How many groups.
+ * @return {string[][]} The groups, each in the area's own order.
+ */
+export function splitArea(modules, parts) {
+  const size = (file) => {
+    try {
+      return fs.statSync(new URL(file, import.meta.url)).size;
+    } catch {
+      return 0;
+    }
+  };
+  const groups = Array.from({length: parts}, () => ({files: new Set(), size: 0}));
+  const bySize = modules.map((file) => ({file, size: size(file)}))
+      .sort((a, b) => b.size - a.size || a.file.localeCompare(b.file));
+  for (const {file, size: bytes} of bySize) {
+    const lightest = groups.reduce((min, group) => group.size < min.size ? group : min);
+    lightest.files.add(file);
+    lightest.size += bytes;
+  }
+  return groups.map((group) => modules.filter((file) => group.files.has(file)));
+}
+
+// core-1, core-2, network-1 ... : the shards mutation-tests.yml runs, one job each.
+export const SHARDS = Object.fromEntries(Object.entries(AREAS).flatMap(([area, modules]) =>
+  splitArea(modules, PARTS[area]).map((group, i) => [`${area}-${i + 1}`, group])));
 
 /**
  * The modules a run mutates.
