@@ -6,10 +6,16 @@
 //
 // Reads the logs of the run's Windows playback and extension jobs through gh (the GitHub
 // build's jobs run the same spec files again). A spec file's time is from the line before
-// its "PASSED in firefox" line - the previous spec file's, or its step's first - so the
-// browser's start is in it, as it is on every run. A spec file that needed its retry keeps
-// the time it has: its line holds both attempts. Spec files the run did not reach keep
-// theirs too, and a spec file no longer in the suites is dropped.
+// its "PASSED in firefox" line - the previous spec file's, or WebdriverIO's "Execution of N
+// workers started at", which it prints once its onPrepare (the e2e servers, the fixtures)
+// is done - so the browser's start is in it, as it is on every run, and the start of the
+// run is not. (Not from the step's first line: gh can give a job's log with every line's
+// step as "UNKNOWN STEP", and the job's whole setup then went to its first spec file: 208 s
+// for archive-roundtrip, run 37385863816.) A weight moves halfway to the run's time, so
+// one slow run (a busy runner) moves it only half; a new spec file takes the run's time.
+// A spec file that needed its retry keeps the weight it has: its line holds both attempts.
+// Spec files the run did not reach keep theirs too, and a spec file no longer in the
+// suites is dropped.
 
 import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
@@ -27,17 +33,17 @@ const SUITES = ['specs', 'ext-specs', 'classic-specs'];
  */
 export function timesFromLog(log) {
   const times = {};
-  let step = null;
-  let last = 0;
+  let last = null;
   for (const line of log.split(/\r?\n/)) {
-    const match = /^[^\t]*\t([^\t]*)\t(\d{4}-\d\d-\d\dT[\d:.]+Z) (.*)$/.exec(line);
+    const match = /^[^\t]*\t[^\t]*\t(\d{4}-\d\d-\d\dT[\d:.]+Z) (.*)$/.exec(line);
     if (!match) continue;
-    const [, stepName, stamp, text] = match;
+    const [, stamp, text] = match;
     const time = Date.parse(stamp);
-    if (stepName !== step) {
-      step = stepName;
+    if (/^Execution of \d+ workers? started at /.test(text)) {
       last = time;
+      continue;
     }
+    if (last === null) continue;
     const passed = /\] PASSED in firefox - \S*?tests\/e2e\/((?:specs|ext-specs|classic-specs)\/\S+?\.e2e\.mjs)(.*)$/.exec(text);
     if (passed) {
       if (!/retr/.test(passed[2])) times[passed[1]] = Math.max(1, Math.round((time - last) / 1000));
@@ -53,10 +59,14 @@ export function timesFromLog(log) {
  * @param {Object<string, number>} old - The weights so far.
  * @param {Object<string, number>} fresh - This run's times.
  * @param {Set<string>} existing - The spec files there are.
- * @return {Object<string, number>} By name.
+ * @return {Object<string, number>} By name: halfway between old and fresh where both have
+ *     the spec file, else whichever has it.
  */
 export function mergeWeights(old, fresh, existing) {
-  const merged = {...old, ...fresh};
+  const merged = {...old};
+  for (const [spec, seconds] of Object.entries(fresh)) {
+    merged[spec] = spec in old ? Math.round((old[spec] + seconds) / 2) : seconds;
+  }
   return Object.fromEntries(Object.entries(merged)
       .filter(([spec]) => existing.has(spec))
       .sort(([a], [b]) => a.localeCompare(b)));

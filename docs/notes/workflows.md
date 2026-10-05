@@ -267,7 +267,9 @@
   402 s for the halves of the Windows extension suite); the groups here come from each
   spec file's time on the Windows runner, `tests/e2e/specWeights.json`, the longest first,
   each to the group with the least so far; a spec file not in it counts as the median.
-  Refresh it from a run's logs: `node tools/e2e-spec-weights.mjs <CI run id>`. Without
+  Refresh it from a run's logs: `node tools/e2e-spec-weights.mjs <CI run id>` (each weight
+  moves halfway to the run's time, timed from WebdriverIO's "Execution of" line, not the step's
+  start: gh can give a log with every step "UNKNOWN STEP"). Without
   E2E_SHARD a config runs all its spec files (local `pnpm run verify`). The private
   browsing suite (one spec file) runs in the first extension group only. A run is 18 jobs
   at once of the account's 20, so more groups would only queue; the weekly mutation run
