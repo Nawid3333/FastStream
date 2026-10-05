@@ -261,3 +261,14 @@ jobs:
           fi
           report "$LATEST" "$LATEST_IMAGES" 'the image -latest now gives, so pushes fail there too until this is fixed'
           report "$NEXT" "$NEXT_IMAGES" 'the next image: -latest does not give it yet, but will (GitHub announces the date in actions/runner-images), so this is a warning before it does'
+
+          # An issue for an image set no run tests any more (a newer image took one of its
+          # places) could never close by itself, though it says it will: closed here.
+          gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title \
+            --jq '.[] | select(.title | startswith("CI fails on runner image ")) | "\(.number)\t\(.title)"' |
+          while IFS=$'\t' read -r number title; do
+            images=${title#CI fails on runner image }
+            if [ "$images" != "$LATEST_IMAGES" ] && [ "$images" != "$NEXT_IMAGES" ]; then
+              gh issue close "$number" --repo "$GITHUB_REPOSITORY" --comment "No run tests $images any more: the images tested now are $LATEST_IMAGES and $NEXT_IMAGES. $RUN_URL"
+            fi
+          done

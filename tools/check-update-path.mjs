@@ -221,7 +221,7 @@ async function main() {
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error(`${repo}: not an owner/repo pair`);
   if (!/^[\w.-]+$/.test(tag)) throw new Error(`${tag}: not a tag`);
   const id = geckoIdFromBuild(fs.readFileSync(path.join(root, 'build.mjs'), 'utf8'));
-  const version = tag.replace(/^v/, '');
+  const version = tag.replace(/^v/i, ''); // V1.2.3.4 as well (the header allows both)
   const updateUrl = `https://github.com/${repo}/releases/latest/download/updates.json`;
 
   const problems = [];

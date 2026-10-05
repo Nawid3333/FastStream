@@ -182,6 +182,21 @@ jobs:
             exit 0
           fi
 
+          # Someone's commits on the branch - the conflict resolution the PR asks for - are not
+          # pushed over: a rebuild for a main that moved force-pushed them away, without a word
+          # (until 2026-10-05). The PR records the head this workflow pushed (its body's
+          # sync-upstream-head marker); another head on the branch is someone else's work.
+          PUSHED_HEAD=$(sed -n 's/.*<!-- sync-upstream-head=\([0-9a-f]*\) -->.*/\1/p' <<< "$OPEN_BODIES")
+          PUSHED_HEAD=${PUSHED_HEAD%%$'\n'*}
+          if [ -n "$PUSHED_HEAD" ]; then
+            BRANCH_HEAD=$(authgit ls-remote origin "refs/heads/${SYNC_BRANCH}" | cut -f1)
+            if [ -n "$BRANCH_HEAD" ] && [ "$BRANCH_HEAD" != "$PUSHED_HEAD" ]; then
+              echo "${SYNC_BRANCH} holds commits pushed after this workflow's (now ${BRANCH_HEAD:0:10}): not rebuilt over them." >> "$GITHUB_STEP_SUMMARY"
+              finish none
+              exit 0
+            fi
+          fi
+
           # Upstream release tags on the incoming commits: reachable from
           # upstream/main but not yet from this project.
           RELEASES=""
@@ -209,6 +224,7 @@ jobs:
           fi
 
           authgit push -f origin "$SYNC_BRANCH"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           finish update
 
       - name: Open or update the pull request
@@ -220,6 +236,7 @@ jobs:
           UP_SHA: ${{ steps.merge.outputs.up_sha }}
           CONFLICTS: ${{ steps.merge.outputs.conflicts }}
           RELEASES: ${{ steps.merge.outputs.releases }}
+          HEAD_SHA: ${{ steps.merge.outputs.head }}
           OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
@@ -277,6 +294,8 @@ jobs:
             # fail the step on a sync of more than 40 commits.
             git log --no-merges --max-count=40 --format='- %h %s' "${WORK_BRANCH}..upstream/main"
             printf '\n<!-- sync-upstream base=%s upstream=%s -->\n' "$BASE_SHA" "$UP_SHA"
+            # The head this run pushed: another one later is someone's commits (the merge step).
+            printf '<!-- sync-upstream-head=%s -->\n' "$HEAD_SHA"
           } > "$RUNNER_TEMP/pr-body.md"
 
           EXISTING=$(gh pr list --head "$SYNC_BRANCH" --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')

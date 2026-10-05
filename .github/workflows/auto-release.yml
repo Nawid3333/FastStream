@@ -312,13 +312,19 @@ jobs:
             build=$((build + 1))
           done
           NEW="$major.$minor.$patch.$build"
+          # Four numbers, or no release: package.json's version went into the script below as
+          # code (2026-10-05), and anything else in it would have run there.
+          if ! [[ $NEW =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "package.json's version is not four numbers: $CURRENT" >&2
+            exit 1
+          fi
           echo "Bumping $CURRENT -> $NEW"
 
-          node -e "
+          NEW="$NEW" node -e "
             const fs = require('fs');
             for (const p of ['package.json', 'chrome/manifest.json']) {
               const d = JSON.parse(fs.readFileSync(p, 'utf8'));
-              d.version = '$NEW';
+              d.version = process.env.NEW;
               fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n');
             }
           "

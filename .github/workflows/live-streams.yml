@@ -76,7 +76,9 @@ jobs:
         run: pnpm run test:live
 
       - name: Upload the logs
-        if: failure()
+        # cancelled(): a run that timed out (a stream that never answered) is the one whose
+        # logs are wanted most, and failure() skipped it.
+        if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: live-streams-logs-${{ matrix.os }}
@@ -110,7 +112,8 @@ jobs:
             fi
             exit 0
           fi
-          if [ "$RESULT" != failure ]; then
+          # cancelled: a scheduled run that timed out, reported like a failure
+          if [ "$RESULT" != failure ] && [ "$RESULT" != cancelled ]; then
             echo "Result: $RESULT - nothing to report."
             exit 0
           fi
@@ -124,7 +127,7 @@ jobs:
           # shellcheck disable=SC2016
           {
             printf '@%s The weekly check against real streams and sites failed: %s\n\n' "$OWNER" "$RUN_URL"
-            printf 'Failed: %s. The run log names the case, and its logs artifact has the browser logs.\n\n' "${failed:-see the run}"
+            printf 'Failed (or timed out): %s. The run log names the case, and its logs artifact has the browser logs.\n\n' "${failed:-see the run}"
             printf 'A stream or site the check uses may just be down: run it again by hand (Actions > Real streams > Run workflow). If it fails again, a CDN or site changed how it serves video, or FastStream stopped coping with it - `pnpm run test:live` reproduces it locally.\n\n'
             printf 'This issue closes on its own once a scheduled run passes.\n'
           } > "$RUNNER_TEMP/body.md"

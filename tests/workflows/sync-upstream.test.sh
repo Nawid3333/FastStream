@@ -115,8 +115,8 @@ sync() {
   run "$merge_step"
   if [ "$status" != 0 ] || [ "$(output action)" != update ]; then return; fi
   BEHIND=$(output behind) BASE_SHA=$(output base_sha) UP_SHA=$(output up_sha) \
-    CONFLICTS=$(output conflicts) RELEASES=$(output releases)
-  export BEHIND BASE_SHA UP_SHA CONFLICTS RELEASES
+    CONFLICTS=$(output conflicts) RELEASES=$(output releases) HEAD_SHA=$(output head)
+  export BEHIND BASE_SHA UP_SHA CONFLICTS RELEASES HEAD_SHA
   run "$pr_step"
 }
 pushed() { git -C "$FIX/origin.git" rev-parse -q --verify "refs/heads/$SYNC_BRANCH" > /dev/null; }
@@ -131,6 +131,7 @@ check 'opens the PR, assigned' grep -qF 'PR_CREATE [--base] [main] [--head] [syn
 check '@mentions the owner' contains "$LOG" '@Nawid3333 Clean merge of upstream/main into main.'
 check 'lists the commit' contains "$LOG" "- $(git -C "$UPSTREAM" rev-parse --short HEAD) Bug fixes"
 check 'carries the marker' contains "$LOG" "$(marker "$(short "$FIX/work" main)" "$(short "$UPSTREAM" HEAD)")"
+check 'records the head it pushed' contains "$LOG" "<!-- sync-upstream-head=$(git -C "$FIX/origin.git" rev-parse sync/upstream) -->"
 check 'starts CI on the branch' contains "$LOG" 'DISPATCH [ci.yml] [--ref] [sync/upstream]'
 check 'starts the dependency review on the branch' contains "$LOG" 'DISPATCH [dependency-review.yml] [--ref] [sync/upstream]'
 
@@ -159,6 +160,29 @@ sync 's4 main moved, upstream did not (a body edited in the browser, CRLF) -> th
 check 'succeeds' test "$status" -eq 0
 check 'edits #5' grep -qF 'PR_EDIT [5]' "$LOG"
 check 'no comment: upstream did not move' lacks "$LOG" 'PR_COMMENT'
+
+fixtures
+up_commit chrome/b.txt b 'Bug fixes'
+# The branch as someone left it - their conflict resolution - not the head this workflow
+# recorded when it pushed.
+git -C "$FIX/work" push -q origin main:refs/heads/sync/upstream
+theirs=$(git -C "$FIX/origin.git" rev-parse sync/upstream)
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\n<!-- sync-upstream-head=0123456789abcdef0123456789abcdef01234567 -->\n\"}]"
+sync 's4b main moved, and someone pushed to the branch -> not rebuilt over their commits'
+check 'succeeds' test "$status" -eq 0
+check 'leaves their commits' test "$(git -C "$FIX/origin.git" rev-parse sync/upstream)" = "$theirs"
+check 'edits nothing' lacks "$LOG" 'PR_EDIT'
+check 'says why' grep -qF 'not rebuilt over them' "$GITHUB_STEP_SUMMARY"
+
+fixtures
+up_commit chrome/b.txt b 'Bug fixes'
+git -C "$FIX/work" push -q origin main:refs/heads/sync/upstream
+ours=$(git -C "$FIX/origin.git" rev-parse sync/upstream)
+prs "[{\"number\":5,\"state\":\"open\",\"headRefName\":\"sync/upstream\",\"isCrossRepository\":false,\"mergedAt\":null,\"body\":\"x\n\n$(marker 1111111111 "$(short "$UPSTREAM" HEAD)")\n<!-- sync-upstream-head=$ours -->\n\"}]"
+sync 's4c main moved, the branch as this workflow pushed it -> rebuilt, as before'
+check 'succeeds' test "$status" -eq 0
+check 'edits #5' grep -qF 'PR_EDIT [5]' "$LOG"
+check 'pushes the merge' bash -c 'git -C "$0" show sync/upstream:chrome/b.txt | grep -qx b' "$FIX/origin.git"
 
 fixtures
 up_commit chrome/b.txt b 'Bug fixes'

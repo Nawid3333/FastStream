@@ -274,9 +274,18 @@ function removeLocaleMessageBlock(text) {
     return text;
   }
 
+  // The block must open right after its condition: an if without braces (a reformatted
+  // upstream) found some later brace, and the transform cut out the wrong code.
+  const open = text.indexOf('{', marker);
+  if (open < 0 || text.slice(marker, open).includes(';')) {
+    throw new Error(
+        'sweetalert2 locale-message block found but it does not open with a brace - ' +
+        'refusing to ship it. Re-check this transform.',
+    );
+  }
   let depth = 0;
   let end = -1;
-  for (let i = text.indexOf('{', marker); i < text.length; i++) {
+  for (let i = open; i < text.length; i++) {
     if (text[i] === '{') depth++;
     else if (text[i] === '}' && --depth === 0) {
       end = i + 1;
