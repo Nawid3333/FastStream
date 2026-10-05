@@ -343,6 +343,13 @@ export default class DashPlayer extends EventEmitter {
     if (!this.dash || this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) {
       return;
     }
+    // An audio decoder's failure arrives as the same error, and is no reason to drop the
+    // video codec: Firefox's message names the decoder ("RemoteVideoDecoderChild::InitIPDL"
+    // for the AV1 one that failed, an "...AudioDecoder..." for audio).
+    const message = String(this.video.error.message || '');
+    if (/audio/i.test(message) && !/video/i.test(message)) {
+      return;
+    }
     // Runs before dash.js's own handler (registered first), while the failing level is still
     // the current one; a throw here would only end up in the console.
     try {
