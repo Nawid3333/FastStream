@@ -40,6 +40,7 @@ function manager({defaultQuality = 'Auto', decodingAwareQuality, source = null} 
     videoCodecFamilyBySite: {},
     prioritizedAudioCodec: null,
     shouldPreferDRCAudio: false,
+    videoDecodeFailures: new Map(),
   });
   m.savePreferences = () => {};
   return m;
@@ -368,5 +369,76 @@ describe('picking audio', () => {
       audio('aac', {bitrate: 128000}),
     ];
     expect(manager({decodingAwareQuality: false}).pickAudioLevel(levels).id).toBe('eac3');
+  });
+});
+
+// A codec Firefox answers it decodes, but cannot: dash.js resets the MediaSource after each
+// MEDIA_ERR_DECODE and picks the track again, and the hardware-first ranking picked the same
+// one every time. A live DASH stream stalled for good on AV1 where Firefox could not create
+// its decoder (the real-streams check on Windows, 2026-10-05, #348).
+describe('a video codec that fails to decode', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({matches: false}));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // The stream of that check at 720p: AV1 answered as hardware, the others not.
+  const levels = () => [
+    level('h264', {videoCodec: 'avc1.42c01f', height: 720, bitrate: 4.57e6, decoding: SW}),
+    level('vp9', {videoCodec: 'vp09.00.31.08', height: 720, bitrate: 1.23e6, decoding: SW}),
+    level('av1', {videoCodec: 'av01.0.05M.08', height: 720, bitrate: 0.73e6, decoding: HW}),
+  ];
+
+  it('is still picked after one failure: a single bad segment is no codec\'s fault', () => {
+    const m = manager();
+    expect(pick(m, levels())).toBe('av1');
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(false);
+    expect(pick(m, levels())).toBe('av1');
+  });
+
+  it('is left out after the second, for the best of the others', () => {
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(true);
+    expect(pick(m, levels())).toBe('h264');
+  });
+
+  it('is left out as a family, whatever the profile', () => {
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.04M.08');
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    expect(m.isVideoCodecFailed('av01.0.08M.10')).toBe(true);
+    expect(pick(m, levels())).not.toBe('av1');
+  });
+
+  it('is left out even when chosen in the menu', () => {
+    const m = manager();
+    m.currentVideoLevelID = 'av1';
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    expect(pick(m, levels())).toBe('h264');
+  });
+
+  it('is still picked when nothing else is there', () => {
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    expect(pick(m, [levels()[2]])).toBe('av1');
+  });
+
+  it('counts for this video only', () => {
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    m.reset();
+    expect(pick(m, levels())).toBe('av1');
+  });
+
+  it('ignores a codec it does not know', () => {
+    const m = manager();
+    expect(m.noteVideoDecodeFailure('')).toBe(false);
+    expect(m.noteVideoDecodeFailure(null)).toBe(false);
   });
 });

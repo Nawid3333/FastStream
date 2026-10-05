@@ -62,6 +62,15 @@ export default class DashPlayer extends EventEmitter {
     // eslint-disable-next-line new-cap
     this.dash = MediaPlayer().create();
 
+    // A codec that fails to decode: dash.js resets the MediaSource and picks the track
+    // again (errors.recoverAttempts below), and the second failure of one codec family
+    // leaves it out of that pick (LevelManager.noteVideoDecodeFailure). Not the preview's:
+    // it picks for itself.
+    if (!this.isPreview) {
+      this.videoErrorListener = () => this.onVideoError();
+      this.video.addEventListener('error', this.videoErrorListener);
+    }
+
     const preEvents = new EventEmitter();
     const emitterRelay = new EmitterRelay([preEvents, this]);
     VideoUtils.addPassthroughEventListenersToVideo(this.video, emitterRelay);
@@ -308,6 +317,10 @@ export default class DashPlayer extends EventEmitter {
     }
     this.dash = null;
 
+    if (this.videoErrorListener) {
+      this.video.removeEventListener('error', this.videoErrorListener);
+      this.videoErrorListener = null;
+    }
     VideoUtils.destroyVideo(this.video);
     this.video = null;
 
@@ -323,6 +336,23 @@ export default class DashPlayer extends EventEmitter {
       }
     }
     return null;
+  }
+
+  /** Counts a decode error against the video codec playing (setup). */
+  onVideoError() {
+    if (!this.dash || this.video?.error?.code !== MediaError.MEDIA_ERR_DECODE) {
+      return;
+    }
+    // Runs before dash.js's own handler (registered first), while the failing level is still
+    // the current one; a throw here would only end up in the console.
+    try {
+      const level = this.getVideoLevels().get(this.getCurrentVideoLevelID());
+      if (level && this.client.getLevelManager().noteVideoDecodeFailure(level.videoCodec)) {
+        console.warn('Video codec failed to decode, picking another:', level.videoCodec);
+      }
+    } catch (e) {
+      console.warn('Could not tell which codec failed to decode', e);
+    }
   }
 
   getVideoLevels() {

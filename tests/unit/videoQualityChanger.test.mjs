@@ -76,6 +76,7 @@ function manager(client) {
     videoCodecFamilyBySite: {},
     prioritizedAudioCodec: null,
     shouldPreferDRCAudio: false,
+    videoDecodeFailures: new Map(),
   });
   m.savePreferences = () => {};
   return m;

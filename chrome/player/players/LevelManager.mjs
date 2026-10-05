@@ -4,6 +4,11 @@ import {getCodecEfficiency, getCodecFamily, screenSupportsHdr} from './DecodingC
 // Sites whose manual codec choice is remembered; the oldest is forgotten past this.
 const MAX_CODEC_SITES = 200;
 
+// Decode errors (MEDIA_ERR_DECODE) of one video codec family before this video's picks
+// leave it out (noteVideoDecodeFailure). One is retried as before: a single bad segment
+// is no codec's fault.
+const VIDEO_DECODE_FAILURES_TO_DROP = 2;
+
 export class LevelManager {
   constructor(client) {
     this.client = client;
@@ -25,6 +30,10 @@ export class LevelManager {
     this.prioritizedAudioCodec = null;
 
     this.shouldPreferDRCAudio = true;
+
+    // Decode errors per video codec family in this video (noteVideoDecodeFailure).
+    /** @type {Map<string, number>} */
+    this.videoDecodeFailures = new Map();
 
     this.loadPreferences();
   }
@@ -73,6 +82,36 @@ export class LevelManager {
   reset() {
     this.currentVideoLevelID = null;
     this.currentAudioLevelID = null;
+    this.videoDecodeFailures.clear();
+  }
+
+  /**
+   * Counts a decode error (MEDIA_ERR_DECODE) of the video codec playing. From the second
+   * one, the codec's family is left out of this video's picks while another is there
+   * (pickVideoLevel). A codec the browser answers it can decode, but cannot, was picked
+   * again after every reset: dash.js resets the MediaSource after such an error and picks
+   * the track anew, and the hardware-first ranking chose the same one each time - a live
+   * DASH stream stalled for good on AV1 where Firefox could not create its decoder
+   * ("RemoteMediaManager is not available", the real-streams check, 2026-10-05, #348).
+   * @param {?string} codec - The video codec playing, as its level names it.
+   * @return {boolean} Whether its family is now left out.
+   */
+  noteVideoDecodeFailure(codec) {
+    const family = getCodecFamily(codec);
+    if (!family) {
+      return false;
+    }
+    this.videoDecodeFailures.set(family, (this.videoDecodeFailures.get(family) || 0) + 1);
+    return this.isVideoCodecFailed(codec);
+  }
+
+  /**
+   * @param {?string} codec - A level's video codec.
+   * @return {boolean} Whether its family failed to decode in this video (noteVideoDecodeFailure).
+   */
+  isVideoCodecFailed(codec) {
+    const family = getCodecFamily(codec);
+    return !!family && (this.videoDecodeFailures.get(family) || 0) >= VIDEO_DECODE_FAILURES_TO_DROP;
   }
 
   setCurrentVideoLevelID(levelID) {
@@ -368,7 +407,8 @@ export class LevelManager {
     // Check if current level is still valid
     if (!ignoreCurrent && this.currentVideoLevelID !== null) {
       const currentLevel = availableLevels.find((level) => level.id === this.currentVideoLevelID);
-      if (currentLevel) {
+      // Not one whose codec failed to decode here, chosen in the menu or not.
+      if (currentLevel && !this.isVideoCodecFailed(currentLevel.videoCodec)) {
         return currentLevel;
       }
     }
@@ -378,6 +418,12 @@ export class LevelManager {
       return (!level.videoCodec || this.isCodecSupported(level.videoCodec)) &&
                 (!level.audioCodec || this.isCodecSupported(level.audioCodec));
     });
+
+    // Then the codecs that failed to decode in this video, while another one is left.
+    const decodable = availableLevels.filter((level) => !this.isVideoCodecFailed(level.videoCodec));
+    if (decodable.length > 0) {
+      availableLevels = decodable;
+    }
 
     // Next, pick language
     availableLevels = this.filterVideoLevelsByLanguage(availableLevels);
