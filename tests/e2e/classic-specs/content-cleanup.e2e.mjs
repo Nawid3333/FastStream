@@ -434,6 +434,53 @@ async function openPage(pathname) {
   await browser.pause(500);
 }
 
+/**
+ * Waits until the site page's own video has loaded all of its clip and fetches nothing:
+ * what a test needs before it leaves a page that Back must give back from the
+ * back-forward cache. openPage waits for the first frame only, and the preload="auto"
+ * clip went on loading: leaving with it in flight kept the page out of the cache now and
+ * then (window.__kept gone after Back: 6 first attempts failed in a week, on Linux and
+ * Windows, #346).
+ */
+async function pageMediaIdle() {
+  await browser.waitUntil(async () => inPage(() => {
+    const video = document.getElementById('main');
+    // HAVE_ENOUGH_DATA, and NETWORK_IDLE: the download is over.
+    return !!video && video.readyState === 4 && video.networkState === 1;
+  }), {timeout: 20000, timeoutMsg: 'the page\'s video never finished loading'});
+}
+
+/**
+ * Waits for the soft replace of the /cleanup page's video to turn hard, once the page
+ * shrank it (shrinkWhenReplaced). On a slow runner it now and then did not within 10 s
+ * (4 first attempts in a week, #346), for a reason the code did not show: the failure
+ * now says what the replace left in the page, so the next one explains itself.
+ */
+async function waitForHardReplace() {
+  try {
+    await browser.waitUntil(async () => inPage(() => !document.contains(window.wrap)), {timeout: 10000});
+  } catch (e) {
+    const state = await inPage(() => {
+      const box = (el) => {
+        if (!el) return null;
+        const {width, height} = el.getBoundingClientRect();
+        return `${Math.round(width)}x${Math.round(height)}`;
+      };
+      const name = (el) => el ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
+        (el.dataset?.test ? `[data-test=${el.dataset.test}]` : '') : null;
+      const iframe = window.playerIframe();
+      return {
+        linked: window.__playerAnnounced === true, wrapInPage: document.contains(window.wrap), wrap: box(window.wrap),
+        // What hideSoft hid: width and height 0 in its style.
+        softHidden: Array.from(document.querySelectorAll('[style]'))
+            .filter((el) => el.style.width === '0px' && el.style.height === '0px').map(name),
+        iframe: box(iframe), iframeParent: name(iframe?.parentElement),
+      };
+    });
+    throw new Error(`the soft replace never turned hard: ${JSON.stringify(state)}`);
+  }
+}
+
 /** Turns FastStream on for the page, and waits for its player to be up and linked. */
 async function openPlayer() {
   await clickToolbar();
@@ -699,8 +746,7 @@ describe('content.js around an in-page player', function() {
     await openPage('/cleanup');
     await inPage(() => window.shrinkWhenReplaced());
     await openPlayer();
-    await browser.waitUntil(async () => inPage(() => !document.contains(window.wrap)),
-        {timeout: 10000, timeoutMsg: 'the soft replace never turned hard'});
+    await waitForHardReplace();
     await inPage(() => window.playerIframe().remove());
     // Each resize, and the cleanup, used to throw on the iframe that has no parent.
     await nudgeWindowSize();
@@ -716,8 +762,7 @@ describe('content.js around an in-page player', function() {
     await openPage('/cleanup');
     await inPage(() => window.shrinkWhenReplaced());
     await openPlayer();
-    await browser.waitUntil(async () => inPage(() => !document.contains(window.wrap)),
-        {timeout: 10000, timeoutMsg: 'the soft replace never turned hard'});
+    await waitForHardReplace();
     await browser.pause(1000);
     await inPage(() => {
       window.__wrapInserted = 0;
@@ -901,6 +946,7 @@ describe('content.js around an in-page player', function() {
     await inPage(() => {
       window.__kept = true;
     });
+    await pageMediaIdle();
     await openPage('/wrapper');
     await browser.back();
     await browser.waitUntil(async () => inPage(() => location.pathname === '/cleanup'),
@@ -929,6 +975,7 @@ describe('content.js around an in-page player', function() {
     await inPage(() => {
       window.__kept = true;
     });
+    await pageMediaIdle();
     // localhost is another hostname for the same server.
     await browser.url(`http://localhost:${SITE_PORT}/wrapper?t=${Date.now()}`);
     await browser.waitUntil(async () => inPage(() => location.hostname === 'localhost' &&
