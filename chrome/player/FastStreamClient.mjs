@@ -149,6 +149,8 @@ export class FastStreamClient extends EventEmitter {
     // fail before it shows anything (setSource()).
     this.sourceRequests = 0;
     this.fallbacks = {request: 0, sources: []};
+    // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
+    this.carriedDecodeFailures = null;
     this.previewPlayerSetup = null;
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
@@ -887,6 +889,7 @@ export class FastStreamClient extends EventEmitter {
 
       console.log('setSource', source);
       await this.resetPlayer();
+      this.restoreCarriedDecodeFailures(source);
       this.source = source;
       // Only once the last player is torn down: its failure is not this source's.
       this.fallbacks = fallbacks;
@@ -1442,6 +1445,38 @@ export class FastStreamClient extends EventEmitter {
    * Handles failure to load the player or fragments.
    * @param {string} reason
    */
+  /**
+   * Loads the source playing again, from scratch, once a video codec failed to decode for
+   * good (DashPlayer.takeCodecReload): the new player picks without it, as its failures are
+   * carried over the reset that would forget them (setSourceInternal). At most once per
+   * codec family (LevelManager.noteVideoDecodeFailure), so it cannot loop.
+   * @param {Object} player - The player whose error it is: no reload for one already replaced.
+   * @return {boolean} Whether it loads the source again.
+   */
+  reloadWithoutFailedCodec(player) {
+    const source = this.source;
+    if (!source || player !== this.player) {
+      return false;
+    }
+    console.warn('Loading the source again without the video codec that failed to decode');
+    this.carriedDecodeFailures = {url: source.url, failures: this.getLevelManager().getVideoDecodeFailures()};
+    this.setSource(source, this.fallbacks.sources).catch((e) => console.error(e));
+    return true;
+  }
+
+  /**
+   * After the reset of a source change: the same source again after a codec failed to
+   * decode keeps that failure (reloadWithoutFailedCodec); any other source starts with none.
+   * @param {Object} source - The source being set.
+   */
+  restoreCarriedDecodeFailures(source) {
+    const carried = this.carriedDecodeFailures;
+    this.carriedDecodeFailures = null;
+    if (carried && carried.url === source.url) {
+      this.getLevelManager().restoreVideoDecodeFailures(carried.failures);
+    }
+  }
+
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
@@ -1633,6 +1668,10 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ERROR, (event, msg) => {
       console.error('ERROR', event);
+      // A video codec that just failed to decode for good: the same source again, without it.
+      if (player.takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
+        return;
+      }
       if (this.tryNextSource()) {
         return;
       }

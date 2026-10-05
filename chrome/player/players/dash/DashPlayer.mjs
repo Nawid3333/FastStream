@@ -64,8 +64,9 @@ export default class DashPlayer extends EventEmitter {
 
     // A codec that fails to decode: dash.js resets the MediaSource and picks the track
     // again (errors.recoverAttempts below), and the second failure of one codec family
-    // leaves it out of that pick (LevelManager.noteVideoDecodeFailure). Not the preview's:
-    // it picks for itself.
+    // leaves it out of that pick (LevelManager.noteVideoDecodeFailure) - and has the
+    // client load the source again (takeCodecReload). Not the preview's: it picks for
+    // itself.
     if (!this.isPreview) {
       this.videoErrorListener = () => this.onVideoError();
       this.video.addEventListener('error', this.videoErrorListener);
@@ -356,10 +357,25 @@ export default class DashPlayer extends EventEmitter {
       const level = this.getVideoLevels().get(this.getCurrentVideoLevelID());
       if (level && this.client.getLevelManager().noteVideoDecodeFailure(level.videoCodec)) {
         console.warn('Video codec failed to decode, picking another:', level.videoCodec);
+        this.codecFailedForGood = true;
       }
     } catch (e) {
       console.warn('Could not tell which codec failed to decode', e);
     }
+  }
+
+  /**
+   * Whether a video codec just failed to decode for good (onVideoError), asked once by the
+   * client's handler of the same error. dash.js picks another codec in place, but Firefox's
+   * element then never loaded the new one's metadata: a live stream stayed at readyState 0
+   * with its buffer full (#348, Windows runner: HEVC failed, then H.264 never started). A
+   * player made anew, with its own element, plays it.
+   * @return {boolean}
+   */
+  takeCodecReload() {
+    const reload = !!this.codecFailedForGood;
+    this.codecFailedForGood = false;
+    return reload;
   }
 
   getVideoLevels() {

@@ -428,6 +428,26 @@ describe('a video codec that fails to decode', () => {
     expect(pick(m, [levels()[2]])).toBe('av1');
   });
 
+  it('says so once: a third failure does not ask for another reload', () => {
+    // The client loads the source again when this answers true (reloadWithoutFailedCodec):
+    // answering true for every later failure too would reload for ever.
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(true);
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(false);
+  });
+
+  it('is kept over a load of the same source again, and asks no second reload there', () => {
+    const m = manager();
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    m.noteVideoDecodeFailure('av01.0.05M.08');
+    const kept = m.getVideoDecodeFailures();
+    m.reset();
+    m.restoreVideoDecodeFailures(kept);
+    expect(pick(m, levels())).toBe('h264');
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(false);
+  });
+
   it('counts for this video only', () => {
     const m = manager();
     m.noteVideoDecodeFailure('av01.0.05M.08');

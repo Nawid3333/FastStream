@@ -603,3 +603,71 @@ describe('FastStreamClient, the decoding-aware quality option', () => {
     expect(client.options.decodingAwareQuality).toBe(true);
   });
 });
+
+describe('FastStreamClient, a video codec that failed to decode for good', () => {
+  // DashPlayer.takeCodecReload answers once that a codec just failed for good. dash.js's own
+  // recovery picked another codec in place, but the element then never loaded its metadata
+  // (#348: HEVC failed on the Windows runner, then H.264 stayed at readyState 0).
+  const HEVC = 'hev1.1.6.L90.b0';
+  const failTwice = (client) => {
+    client.getLevelManager().noteVideoDecodeFailure(HEVC);
+    client.getLevelManager().noteVideoDecodeFailure(HEVC);
+  };
+
+  it('loads the same source again, keeping the failure, instead of giving up', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    const source = makeSource('https://cdn.example/live.mpd');
+    const first = await setSource(client, source, (player) => {
+      player.takeCodecReload = () => true;
+    });
+    failTwice(client);
+    let second = null;
+    client.playerLoader.createPlayer = vi.fn(async () => (second = new FakePlayer(source)));
+
+    first.emit(DefaultPlayerEvents.ERROR, {}, 'decode');
+    await settle();
+
+    expect(second).not.toBe(null);
+    expect(client.player).toBe(second);
+    expect(client.source.url).toBe(source.url);
+    expect(client.getLevelManager().isVideoCodecFailed(HEVC)).toBe(true);
+    expect(client.interfaceController.failedToLoad).not.toHaveBeenCalled();
+  });
+
+  it('gives up as before when no codec failed for good', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    const first = await setSource(client, makeSource('https://cdn.example/live.mpd'), (player) => {
+      player.takeCodecReload = () => false;
+    });
+    client.playerLoader.createPlayer = vi.fn();
+
+    first.emit(DefaultPlayerEvents.ERROR, {}, 'decode');
+    await settle();
+
+    expect(client.playerLoader.createPlayer).not.toHaveBeenCalled();
+    expect(client.interfaceController.failedToLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not reload for a player already replaced', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = makeClient();
+    const first = await setSource(client, makeSource('https://cdn.example/a.mpd'), (player) => {
+      player.takeCodecReload = () => true;
+    });
+    client.player = new FakePlayer(makeSource('https://cdn.example/b.mpd'));
+    expect(client.reloadWithoutFailedCodec(first)).toBe(false);
+  });
+
+  it('carries the failure to that source only', () => {
+    const client = makeClient();
+    failTwice(client);
+    client.carriedDecodeFailures = {url: 'https://cdn.example/live.mpd', failures: client.getLevelManager().getVideoDecodeFailures()};
+    client.getLevelManager().reset();
+    client.restoreCarriedDecodeFailures({url: 'https://cdn.example/other.mpd'});
+    expect(client.getLevelManager().isVideoCodecFailed(HEVC)).toBe(false);
+    expect(client.carriedDecodeFailures).toBe(null);
+  });
+});

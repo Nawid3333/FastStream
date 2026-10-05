@@ -48,6 +48,17 @@ describe('DashPlayer, a decode error', () => {
     expect(levelManager.isVideoCodecFailed(AV1)).toBe(true);
   });
 
+  it('asks the client once, at the failure that leaves the codec out, to load the source again', () => {
+    const {player} = playing(decodeError('RemoteVideoDecoderChild::InitIPDL'));
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(true);
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+    DashPlayer.prototype.onVideoError.call(player);
+    expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+  });
+
   it('does not count an audio decoder\'s failure against the video codec', () => {
     const {player, levelManager} = playing(decodeError('FFmpegAudioDecoder: decode error'));
     DashPlayer.prototype.onVideoError.call(player);
