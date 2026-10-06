@@ -365,4 +365,42 @@ describe('Player controls', function() {
     });
     expect(message).toBe(en.player_archiver_fail.message);
   });
+
+  it('redraws a short video\'s time every frame while it plays, and not while it is paused', async function() {
+    // A video under five minutes is redrawn every frame (requestAnimationFrame), so its bar
+    // moves smoothly. The loop ran on at 60 a second while the video sat paused.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    // How often the player's time is updated in one second: the loop's frames, and the
+    // video's own timeupdate events.
+    const perSecond = () => browser.executeAsync((done) => {
+      const client = window.fastStream;
+      const updateTime = client.updateTime;
+      let calls = 0;
+      client.updateTime = function(...args) {
+        calls++;
+        return updateTime.apply(this, args);
+      };
+      setTimeout(() => {
+        delete client.updateTime;
+        done(calls);
+      }, 1000);
+    });
+    const paused = await perSecond();
+    await browser.execute(() => {
+      window.fastStream.play();
+    });
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    const playing = await perSecond();
+    await browser.execute(() => {
+      window.fastStream.pause();
+    });
+    await browser.pause(300);
+    const pausedAgain = await perSecond();
+    console.log('      time updates per second:', JSON.stringify({paused, playing, pausedAgain}));
+    expect(paused).toBeLessThan(5);
+    expect(playing).toBeGreaterThan(20);
+    expect(pausedAgain).toBeLessThan(5);
+  });
 });

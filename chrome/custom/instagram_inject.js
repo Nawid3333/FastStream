@@ -27,6 +27,10 @@
 
   // Posts the first video_dash_manifest with a value in a response, if the response is JSON.
   function readResponse(text) {
+    // Without the key there is nothing to find: most responses, which were all parsed.
+    if (typeof text !== 'string' || !text.includes('video_dash_manifest')) {
+      return;
+    }
     let data;
     try {
       data = JSON.parse(text);

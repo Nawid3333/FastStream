@@ -2873,6 +2873,12 @@ const webRequestPerms = ['requestHeaders'];
 /** @type {Array<'responseHeaders'|'extraHeaders'|'blocking'>} */
 const webRequestPerms2 = ['responseHeaders'];
 
+// Requests that never bring a stream or a subtitle file: a page's images, styles, fonts,
+// scripts, pings and prefetches. Every request of every tab went through detection - its
+// headers kept, its URL parsed and matched against the stream and the user's patterns -
+// these included, most of a page's requests.
+const NotMediaTypes = new Set(['image', 'imageset', 'stylesheet', 'font', 'script', 'ping', 'beacon', 'csp_report', 'speculative']);
+
 /**
  * Whether a response is an HTML page, by its Content-Type.
  * @param {Array<{name: string, value?: string}>} [headers] - webRequest's responseHeaders.
@@ -2911,7 +2917,7 @@ chrome.webRequest.onBeforeRequest.addListener((details) => {
 });
 
 chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
-  if (isTablessRequest(details)) return;
+  if (isTablessRequest(details) || NotMediaTypes.has(details.type)) return;
   Tabs.getTabOrCreate(details.tabId).rememberRequestHeaders(details.requestId, details.requestHeaders);
 }, {
   urls: ['<all_urls>'],
@@ -2919,7 +2925,7 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-      if (isTablessRequest(details)) {
+      if (isTablessRequest(details) || NotMediaTypes.has(details.type)) {
         return;
       }
       const url = details.url;

@@ -190,6 +190,9 @@ const OverlayGuard = (() => {
       release(iframe);
       return;
     }
+    // Nothing is painted in a hidden tab: the whole-page look waits until it shows again,
+    // the next check at most a second later.
+    if (document.hidden) return;
     const boxes = boxesOf(iframe);
     for (const el of [...guard.hidden.keys()]) {
       if (!el.isConnected || boxes.visible.area === 0 || !belongsToPlayer(el, boxes.full) || isSiteDialog(el)) {

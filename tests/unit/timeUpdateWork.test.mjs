@@ -116,3 +116,48 @@ describe('updateSkipSegments', () => {
     expect(sponsor.style).toMatchObject({left: '70%', width: '10%', backgroundColor: ''});
   });
 });
+
+describe('updateMarkers', () => {
+  // The analyzers call it on every animation frame while they run (the preview frames' one
+  // by default); it rewrote the left and display of all five markers each time.
+  it('writes a marker only when it moves, shows or hides', () => {
+    const writes = [];
+    const marker = (name) => ({style: new Proxy({}, {
+      set: (style, key, value) => {
+        writes.push(name + '.' + key);
+        style[key] = value;
+        return true;
+      },
+    })});
+    let position = 10;
+    const bar = {
+      seekMarker: marker('seek'), unseekMarker: marker('unseek'), videoAnalyzerMarker: marker('video'),
+      audioAnalyzerMarker: marker('audio'), frameExtractorMarker: marker('frames'),
+      placeMarker: ProgressBar.prototype.placeMarker,
+      client: {
+        duration: 100, pastSeeks: [], pastUnseeks: [],
+        videoAnalyzer: {getMarkerPosition: () => null}, audioAnalyzer: {getMarkerPosition: () => null},
+        frameExtractor: {getMarkerPosition: () => position},
+      },
+    };
+    const update = () => ProgressBar.prototype.updateMarkers.call(bar);
+    update();
+    expect(writes).toHaveLength(6);
+    expect(bar.frameExtractorMarker.style).toEqual({left: '10%', display: ''});
+    writes.length = 0;
+    update();
+    update();
+    expect(writes).toEqual([]);
+    position = 20;
+    update();
+    expect(writes).toEqual(['frames.left', 'frames.display']);
+    expect(bar.frameExtractorMarker.style.left).toBe('20%');
+    position = null;
+    bar.client.pastSeeks = [50];
+    writes.length = 0;
+    update();
+    expect(writes.sort()).toEqual(['frames.display', 'seek.display', 'seek.left']);
+    expect(bar.frameExtractorMarker.style.display).toBe('none');
+    expect(bar.seekMarker.style).toEqual({left: '50%', display: ''});
+  });
+});

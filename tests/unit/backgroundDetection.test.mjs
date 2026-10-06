@@ -179,3 +179,19 @@ describe('request headers', () => {
     expect(sources[0].headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
   });
 });
+
+describe('requests that never bring a stream', () => {
+  it('are not looked at: a manifest URL fetched as an image, a script, a style or a font is none', async () => {
+    // Every request of every tab went through detection, its headers kept and its URL
+    // parsed and matched; most of a page's requests are its images, styles and scripts.
+    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    for (const type of ['image', 'script', 'stylesheet', 'font']) {
+      await bg.request({tabId: 1, url: `https://cdn.test/${type}/master.m3u8`, type});
+    }
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/master.m3u8', type: 'xmlhttprequest'});
+    await bg.request({tabId: 1, url: 'https://cdn.test/v/clip.mp4', type: 'media'});
+    const sources = await sourcesForPlayer();
+    expect(sources.map((s) => s.url)).toEqual(['https://cdn.test/v/master.m3u8', 'https://cdn.test/v/clip.mp4']);
+  });
+});
