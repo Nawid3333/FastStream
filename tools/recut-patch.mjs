@@ -49,7 +49,9 @@ import {spawnSync} from 'node:child_process';
 import {LOCKSTEP, patchedDependencies} from './check-patched-updates.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
-const root = process.env.RECUT_ROOT ? path.resolve(process.env.RECUT_ROOT) : path.resolve(__dirname, '..');
+// This repository, always. An environment variable could point it elsewhere until 2026-10-06;
+// nothing set it, and CodeQL traced every file path from it (js/path-injection).
+const root = path.resolve(__dirname, '..');
 
 // --- arguments -------------------------------------------------------------------
 
