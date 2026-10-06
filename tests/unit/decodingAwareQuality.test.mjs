@@ -405,6 +405,18 @@ describe('a video codec that fails to decode', () => {
     expect(pick(m, levels())).toBe('h264');
   });
 
+  it('is left out at once when its decoder could not be made, and said so once', () => {
+    const m = manager();
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08', true)).toBe(true);
+    expect(pick(m, levels())).toBe('h264');
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08', true)).toBe(false);
+    expect(m.noteVideoDecodeFailure('av01.0.05M.08')).toBe(false);
+    // After one ordinary failure, a decoder that could not be made is the one that tells.
+    const n = manager();
+    expect(n.noteVideoDecodeFailure('av01.0.05M.08')).toBe(false);
+    expect(n.noteVideoDecodeFailure('av01.0.05M.08', true)).toBe(true);
+  });
+
   it('is left out as a family, whatever the profile', () => {
     const m = manager();
     m.noteVideoDecodeFailure('av01.0.04M.08');

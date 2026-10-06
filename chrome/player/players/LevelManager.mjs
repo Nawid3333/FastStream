@@ -94,17 +94,20 @@ export class LevelManager {
    * DASH stream stalled for good on AV1 where Firefox could not create its decoder
    * ("RemoteMediaManager is not available", the real-streams check, 2026-10-05, #348).
    * @param {?string} codec - The video codec playing, as its level names it.
+   * @param {boolean} [cannotStart] - Firefox could not create the decoder at all: no retry
+   *     makes it, so this one failure leaves the family out.
    * @return {boolean} Whether this failure is the one that leaves its family out: true once
    *     per family, so what follows it (the player loaded again without it) happens once.
    */
-  noteVideoDecodeFailure(codec) {
+  noteVideoDecodeFailure(codec, cannotStart = false) {
     const family = getCodecFamily(codec);
     if (!family) {
       return false;
     }
-    const count = (this.videoDecodeFailures.get(family) || 0) + 1;
+    const before = this.videoDecodeFailures.get(family) || 0;
+    const count = cannotStart ? Math.max(before + 1, VIDEO_DECODE_FAILURES_TO_DROP) : before + 1;
     this.videoDecodeFailures.set(family, count);
-    return count === VIDEO_DECODE_FAILURES_TO_DROP;
+    return before < VIDEO_DECODE_FAILURES_TO_DROP && count >= VIDEO_DECODE_FAILURES_TO_DROP;
   }
 
   /**

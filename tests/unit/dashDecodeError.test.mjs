@@ -40,8 +40,7 @@ describe('DashPlayer, a decode error', () => {
   });
 
   it('counts against the video codec of the level playing', () => {
-    // The real-streams check's message, 2026-10-05.
-    const {player, levelManager} = playing(decodeError('RemoteVideoDecoderChild::InitIPDL: RemoteMediaManager is not available.'));
+    const {player, levelManager} = playing(decodeError('Decode error: NS_ERROR_DOM_MEDIA_DECODE_ERR'));
     DashPlayer.prototype.onVideoError.call(player);
     expect(levelManager.isVideoCodecFailed(AV1)).toBe(false);
     DashPlayer.prototype.onVideoError.call(player);
@@ -49,7 +48,7 @@ describe('DashPlayer, a decode error', () => {
   });
 
   it('asks the client once, at the failure that leaves the codec out, to load the source again', () => {
-    const {player} = playing(decodeError('RemoteVideoDecoderChild::InitIPDL'));
+    const {player} = playing(decodeError('Decode error: NS_ERROR_DOM_MEDIA_DECODE_ERR'));
     DashPlayer.prototype.onVideoError.call(player);
     expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
     DashPlayer.prototype.onVideoError.call(player);
@@ -57,6 +56,23 @@ describe('DashPlayer, a decode error', () => {
     expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
     DashPlayer.prototype.onVideoError.call(player);
     expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+  });
+
+  it('leaves out at once a codec whose decoder could not be made, and asks for one reload', () => {
+    // Firefox's message names InitIPDL, the step that creates the decoder: a retry does not
+    // make it. One failure is enough; the second did not always come (2026-10-06: a live
+    // DASH stream sat at "Failed to load video!" with HEVC on a GPU-less Windows Firefox).
+    for (const message of [
+      'RemoteVideoDecoderChild::InitIPDL: RemoteMediaManager is not available.', // 2026-10-05, AV1
+      'NS_ERROR_DOM_MEDIA_FATAL_ERR (0x806e0005) - MediaResult __cdecl mozilla::RemoteVideoDecoderChild::InitIPDL(const VideoInfo &)', // 2026-10-06, HEVC
+    ]) {
+      const {player, levelManager} = playing(decodeError(message));
+      DashPlayer.prototype.onVideoError.call(player);
+      expect(levelManager.isVideoCodecFailed(AV1), message).toBe(true);
+      expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(true);
+      DashPlayer.prototype.onVideoError.call(player);
+      expect(DashPlayer.prototype.takeCodecReload.call(player)).toBe(false);
+    }
   });
 
   it('does not count an audio decoder\'s failure against the video codec', () => {
