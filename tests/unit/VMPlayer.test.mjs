@@ -7,7 +7,9 @@ import {RequestUtils} from '../../chrome/player/utils/RequestUtils.mjs';
 // background gives it only player.vimeo.com addresses, but a source's mode can also come
 // from the player's address (faststream-mode=accelerated_vm) or the Sources browser, so it
 // could be pointed at any host (CodeQL js/client-side-request-forgery, 2026-10-06). It now
-// asks player.vimeo.com only, on an address rebuilt on that host.
+// asks player.vimeo.com only, and there only a video's player page or config: an address
+// rebuilt from the video's number and the query, since a path of the source's choosing could
+// reach any other endpoint on Vimeo's host with those headers.
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -45,6 +47,24 @@ describe('VMPlayer.vimeoRequestUrl', () => {
     }
   });
 
+  it('asks for a video\'s player page or config only, not another path on Vimeo\'s host', () => {
+    const cases = {
+      'https://player.vimeo.com/video/840742166/config/': 'https://player.vimeo.com/video/840742166/config',
+      'https://player.vimeo.com/video/840742166/': 'https://player.vimeo.com/video/840742166',
+      'https://player.vimeo.com/video/1?a=1/../x&b=%2F': 'https://player.vimeo.com/video/1?a=1/../x&b=%2F',
+      'https://player.vimeo.com/video/1?': 'https://player.vimeo.com/video/1',
+      'https://player.vimeo.com/video/abc/config': null,
+      'https://player.vimeo.com/video/1/config/request': null,
+      'https://player.vimeo.com/video/1/other': null,
+      'https://player.vimeo.com/api/v2/me': null,
+      'https://player.vimeo.com/video%2F1/config': null,
+      'https://player.vimeo.com/': null,
+    };
+    for (const [input, expected] of Object.entries(cases)) {
+      expect(VMPlayer.vimeoRequestUrl(input), input).toBe(expected);
+    }
+  });
+
   it('gives an address on player.vimeo.com whatever the parser makes of the input', () => {
     const cases = {
       'https://player.vimeo.com./video/1': null,
@@ -53,8 +73,8 @@ describe('VMPlayer.vimeoRequestUrl', () => {
       'https:\\\\evil.example\\player.vimeo.com\\video': null,
       'https://player.vimeo.com:8443/video/1?a=b': 'https://player.vimeo.com/video/1?a=b',
       'https://user:pass@player.vimeo.com/video/1': 'https://player.vimeo.com/video/1',
-      'https://player.vimeo.com//evil.example/video/1': 'https://player.vimeo.com//evil.example/video/1',
-      'https://player.vimeo.com/video/../../evil.example/1': 'https://player.vimeo.com/evil.example/1',
+      'https://player.vimeo.com//evil.example/video/1': null,
+      'https://player.vimeo.com/video/../../evil.example/1': null,
       'https://PLAYER.Vimeo.COM/video/1': 'https://player.vimeo.com/video/1',
     };
     for (const [input, expected] of Object.entries(cases)) {

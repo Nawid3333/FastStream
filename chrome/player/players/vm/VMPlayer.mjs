@@ -9,13 +9,14 @@ export default class VMPlayer extends HLSPlayer {
   }
 
   /**
-   * The address to ask for a Vimeo source's player page or config: only on
-   * player.vimeo.com, where the background finds them. A source's mode can also come from
-   * the player's address (faststream-mode) or the Sources browser, and this request carries
-   * the source's headers, so another host is refused rather than fetched. Rebuilt on the
-   * fixed host, not passed through.
+   * The address to ask for a Vimeo source's player page or config: only a video's player
+   * page (/video/<number>) or config (/video/<number>/config) on player.vimeo.com, where
+   * the background finds them. A source's mode can also come from the player's address
+   * (faststream-mode) or the Sources browser, and this request carries the source's
+   * headers, so anything else is refused rather than fetched: another host, or another
+   * path on Vimeo's. Rebuilt from the video's number and the query, not passed through.
    * @param {string} url - The source's URL.
-   * @return {string|null} The address, or null for any other host.
+   * @return {string|null} The address, or null for anything else.
    */
   static vimeoRequestUrl(url) {
     let parsed;
@@ -27,7 +28,12 @@ export default class VMPlayer extends HLSPlayer {
     if (!['https:', 'http:'].includes(parsed.protocol) || parsed.hostname !== 'player.vimeo.com') {
       return null;
     }
-    return 'https://player.vimeo.com/' + parsed.pathname.slice(1) + parsed.search;
+    const path = /^\/video\/(\d+)(\/config)?\/?$/.exec(parsed.pathname);
+    if (!path) {
+      return null;
+    }
+    const query = parsed.search ? '?' + parsed.search.slice(1) : '';
+    return 'https://player.vimeo.com/video/' + encodeURIComponent(path[1]) + (path[2] ? '/config' : '') + query;
   }
 
   async setSource(source) {
