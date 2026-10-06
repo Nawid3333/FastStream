@@ -206,6 +206,11 @@ export class DownloadManager {
 
       storedEntry.status = DownloadStatus.ENQUEUED;
       this.queueNext();
+    } else if (storedEntry.status === DownloadStatus.ENQUEUED) {
+      // Joined in the queue: started if a downloader is free. An entry queued while there
+      // were none (during reset) was waiting for a queueNext that nothing called: the
+      // manifest a new player asked for again joined it, and never loaded.
+      this.queueNext();
     }
 
     return watcher;
@@ -444,6 +449,12 @@ export class DownloadManager {
     for (let i = 0; i < start; i++) {
       this.downloaders?.push(new StandardDownloader(this));
     }
+    // What was asked for while there were no downloaders (the reset's await): a player set
+    // up meanwhile - a seek preview's build still running - queued its manifest then, and
+    // nothing started it. The queue holding it, the client asked for nothing more
+    // (canGetFile), and the next player's request for the same manifest joined it: a live
+    // DASH stream reloaded without a failed codec never loaded (2026-10-06).
+    if (this.downloaders) this.queueNext();
   }
 
   async setup() {
