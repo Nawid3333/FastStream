@@ -58,7 +58,7 @@
     "@stryker-mutator/vitest-runner": "10.0.0",
     "@types/chrome": "^0.3.4",
     "@types/node": "^26.6.3",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "@wdio/cli": "^9.32.0",
     "@wdio/globals": "^9.31.3",
     "@wdio/local-runner": "^9.32.0",
@@ -85,7 +85,7 @@
     "sortablejs": "1.15.7",
     "sweetalert2": "11.26.25",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.2",
+    "vitest": "^5.0.3",
     "web-ext": "^10.7.0"
   }
 }
