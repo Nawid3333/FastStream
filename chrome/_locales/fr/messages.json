@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "Attention : Votre navigateur ne prend pas entièrement en charge les fonctionnalités de stockage de fichiers. Cela peut être dû au fait que votre navigateur a manqué d'espace de stockage ou n'a pas été redémarré depuis longtemps. Certaines fonctionnalités peuvent ne pas fonctionner comme prévu."
+    },
+    "player_vpn_allow": {
+        "message": "Lire via Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Cette page obtient sa vidéo via Firefox VPN, qui exclut les requêtes de FastStream, et le site peut les refuser. Cliquez pour autoriser FastStream à utiliser la même connexion (une fois, sur la page des autorisations de FastStream)."
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "Proxy (facultatif)"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Utilisée uniquement avec Firefox VPN. Firefox l'indique comme contrôle des paramètres de proxy du navigateur, mais FastStream ne modifie aucun paramètre : il envoie ses propres requêtes pour une vidéo de la même manière que les requêtes de la page elle-même, via le VPN. Sans elle, un site qui lie sa vidéo à l'adresse du VPN refuse FastStream. Le lecteur la demande la première fois qu'elle est nécessaire."
     }
 }

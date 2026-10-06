@@ -14,7 +14,8 @@ const manifest = JSON.parse(fs.readFileSync(path.join(chromeDir, 'manifest.json'
 describe('The permissions page', () => {
   it('explains every permission the manifest asks for', () => {
     const explained = [...html.matchAll(/data-perm="([^"]+)"/g)].map((match) => match[1]);
-    const asked = [...manifest.permissions];
+    // The optional ones too: a row's click asks for them (proxy, for Firefox VPN).
+    const asked = [...manifest.permissions, ...(manifest.optional_permissions || [])];
     if (manifest.host_permissions.includes('<all_urls>')) asked.push('all-urls');
     expect(asked.length).toBeGreaterThanOrEqual(8);
     expect(asked.filter((permission) => !explained.includes(permission))).toEqual([]);

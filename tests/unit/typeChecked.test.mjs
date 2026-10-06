@@ -19,6 +19,7 @@ const CHECKED = [
   'chrome/background/MultiRegexMatcher.mjs',
   'chrome/background/TabTracker.mjs',
   'chrome/background/UrlMatchList.mjs',
+  'chrome/background/VpnProxyMirror.mjs',
   'chrome/background/background.mjs',
   'chrome/player/enums/AnalyzerEvents.mjs',
   'chrome/player/enums/DefaultPlayerEvents.mjs',

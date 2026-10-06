@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "警告: お使いのブラウザはファイルストレージ機能を完全にはサポートしていません。これは、ブラウザのストレージ容量が不足しているか、長時間再起動されていないためです。一部の機能が期待通りに動作しない場合があります。"
+    },
+    "player_vpn_allow": {
+        "message": "Firefox VPN で再生"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "このページは Firefox VPN 経由で動画を取得しています。FastStream のリクエストは除外され、サイトがそれらを拒否する可能性があります。クリックすると、FastStream が同じ接続を使用できるようになります（1回のみ、FastStream の権限ページで）。"
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "プロキシ（任意）"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
     }
 }

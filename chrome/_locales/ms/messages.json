@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "Amaran: Pelayar anda tidak menyokong sepenuhnya ciri penyimpanan fail. Ini mungkin kerana pelayar anda kehabisan ruang simpanan atau tidak dimulakan semula dalam jangka masa yang lama. Sesetengah ciri mungkin tidak berfungsi seperti yang dijangkakan."
+    },
+    "player_vpn_allow": {
+        "message": "Main melalui Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, yang tidak menyertakan permintaan FastStream, dan laman mungkin menolaknya. Klik untuk membenarkan FastStream menggunakan sambungan yang sama (sekali, pada halaman kebenaran FastStream)."
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "Proxy (opsyenal)"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Hanya digunakan dengan Firefox VPN. Firefox menyenaraikannya sebagai kawalan tetapan proksi pelayar, tetapi FastStream tidak mengubah sebarang tetapan: ia menghantar permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, tapak yang mengikat videonya pada alamat VPN menolak FastStream. Pemain memintanya apabila pertama kali diperlukan."
     }
 }

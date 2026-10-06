@@ -35,6 +35,8 @@ if (EnvUtils.isExtension()) {
             sendResponse('sources_recieved');
           });
           return true;
+        } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
+          window.fastStream.vpnPrompt.onAllowed();
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;

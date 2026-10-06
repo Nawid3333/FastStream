@@ -37,5 +37,21 @@ async function updatePerms() {
 
 updatePerms();
 
+// Opened from the player's Firefox VPN button (VpnPrompt.mjs): the proxy row is the one,
+// and once it is granted the tab goes, back to the video, whose player loads again.
+if (location.hash === '#proxy') {
+  const status = document.querySelector('.permstatus[data-perm="proxy"]');
+  const row = status?.closest('h4');
+  if (row) {
+    row.classList.add('asked');
+    row.scrollIntoView({block: 'center'});
+  }
+  chrome.permissions.onAdded.addListener(async (added) => {
+    if (!added.permissions?.includes('proxy')) return;
+    const tab = await chrome.tabs.getCurrent();
+    if (tab?.id !== undefined) chrome.tabs.remove(tab.id);
+  });
+}
+
 chrome.permissions.onAdded.addListener(updatePerms);
 chrome.permissions.onRemoved.addListener(updatePerms);
