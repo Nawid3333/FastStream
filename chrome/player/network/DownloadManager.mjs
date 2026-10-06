@@ -7,6 +7,19 @@ export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
   static FailureRecoveryMs = 10000;
 
+  // The speed test. A video started with one downloader and added one each time three
+  // speed samples showed a gain: on a Vimeo video at 15 MB/s it took 3.3 s, a third of
+  // the video, to reach six (2026-10-06). It starts with three now and decides after two
+  // samples; a server that asks to slow down (SlowDownStatuses) halves them at once.
+  /** Downloaders a video starts with, the limit allowing; one after a server throttled. */
+  static StartDownloaders = 3;
+  /** Speed samples averaged before the test adds a downloader. */
+  static SamplesPerStep = 2;
+  /** HTTP answers that ask to slow down: too many requests, overloaded. */
+  static SlowDownStatuses = [429, 503];
+  /** The longest a server's Retry-After holds every download back. */
+  static MaxRetryAfterMs = 30000;
+
   constructor(client) {
     this.client = client;
     this.queue = [];
@@ -23,6 +36,10 @@ export class DownloadManager {
     this.lastFailed = 0;
     // Downloaders taken away after failed downloads, and not back yet.
     this.droppedDownloaders = 0;
+    // A server answered 429 or 503: this player stays careful, for the next video too.
+    this.throttled = false;
+    // Until when a server's Retry-After holds downloads back (Date.now() time).
+    this.holdUntil = 0;
 
     this.failed = 0;
 
@@ -222,6 +239,27 @@ export class DownloadManager {
     this.queueNext();
   }
 
+  /**
+   * A server answered 429 or 503: half the downloaders go (one stays), the speed test
+   * stops, none come back by themselves, and every download waits for the server's
+   * Retry-After (up to MaxRetryAfterMs), or the usual second after a failure. The player
+   * starts its next video with one downloader too.
+   * @param {number} [retryAfter] - The wait the server asked for, in ms.
+   */
+  slowDown(retryAfter) {
+    this.throttled = true;
+    this.testing = false;
+    this.droppedDownloaders = 0;
+    this.lastFailed = Date.now();
+    // Those taken out finish their download; queueNext gives them no other.
+    this.downloaders.length = Math.max(1, Math.floor(this.downloaders.length / 2));
+    if (retryAfter > 0) {
+      this.holdUntil = Math.max(this.holdUntil, Date.now() + Math.min(retryAfter, DownloadManager.MaxRetryAfterMs));
+    }
+    this.client?.resetFailed?.();
+    console.log('The server asked to slow down: ' + this.downloaders.length + ' downloader(s) now');
+  }
+
   removeDownloader() {
     this.testing = false;
     this.droppedDownloaders = 0;
@@ -262,7 +300,11 @@ export class DownloadManager {
   onDownloaderFinished(downloader, entry) {
     if (this.paused) return;
 
-    if (navigator.onLine && entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted) {
+    const slowDown = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted &&
+      DownloadManager.SlowDownStatuses.includes(downloader.stats?.error?.code);
+    if (slowDown) {
+      this.slowDown(downloader.stats.error.retryAfter);
+    } else if (navigator.onLine && entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted) {
       this.lastFailed = Date.now();
 
       if (this.downloaders.length > 1) {
@@ -306,7 +348,7 @@ export class DownloadManager {
             this.speedTestSeen = [];
             this.speedTestCount = 0;
 
-            if (this.speedTestBuffer.length >= 3) {
+            if (this.speedTestBuffer.length >= DownloadManager.SamplesPerStep) {
               speed = this.speedTestBuffer.reduce((a, b) => a + b, 0) / this.speedTestBuffer.length;
               this.speedTestBuffer = [];
 
@@ -347,11 +389,12 @@ export class DownloadManager {
       }
 
       const failCooldown = 1000;
-      if (this.lastFailed + failCooldown > Date.now()) {
+      const waitUntil = Math.max(this.lastFailed + failCooldown, this.holdUntil);
+      if (waitUntil > Date.now()) {
         if (this.failCooldown) clearTimeout(this.failCooldown);
         this.failCooldown = setTimeout(() => {
           this.queueNext();
-        }, failCooldown + 100);
+        }, waitUntil - Date.now() + 100);
         return;
       }
 
@@ -386,12 +429,16 @@ export class DownloadManager {
     this.lastSpeed = 0;
 
     this.failed = 0;
+    this.holdUntil = 0;
 
     if (!this.dontClearStorage) {
       await this.clearStorage();
     }
 
-    this.downloaders?.push(new StandardDownloader(this));
+    const start = this.throttled ? 1 : Math.min(DownloadManager.StartDownloaders, this.downloaderLimit());
+    for (let i = 0; i < start; i++) {
+      this.downloaders?.push(new StandardDownloader(this));
+    }
   }
 
   async setup() {

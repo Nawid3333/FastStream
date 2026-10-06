@@ -6,6 +6,21 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 // timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read. It was
 // XHRLoader until 2026-10-06, named for the XMLHttpRequest it wrapped before it moved to
 // fetch(). (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
+
+/**
+ * How long a Retry-After header asks to wait: a number of seconds or an HTTP date.
+ * @param {string|null} value - The header.
+ * @param {number} [now] - The time, for a date.
+ * @return {number|null} Milliseconds, or null for no usable header.
+ */
+export function retryAfterMs(value, now = Date.now()) {
+  if (!value) return null;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) return parseInt(text, 10) * 1000;
+  const date = Date.parse(text);
+  return Number.isFinite(date) ? Math.max(date - now, 0) : null;
+}
+
 export class FetchLoader {
   constructor() {
     this.callbacks = [];
@@ -203,7 +218,7 @@ export class FetchLoader {
 
     const status = response.status;
     if (status < 200 || status >= 300) {
-      this.handleLoadFailure(status, response.statusText);
+      this.handleLoadFailure(status, response.statusText, retryAfterMs(response.headers.get('retry-after')));
       return;
     }
 
@@ -341,8 +356,11 @@ export class FetchLoader {
    * both failure paths in loadInternal().
    * @param {number} status - HTTP status, or 0 for a network-level failure.
    * @param {string} statusText - status text / error message to report.
+   * @param {number|null} [retryAfter] - The wait the server asked for (Retry-After), in ms:
+   *   a retry waits at least that long (up to maxRetryDelay), and a final error carries it
+   *   for the DownloadManager, which holds every download back for it.
    */
-  handleLoadFailure(status, statusText) {
+  handleLoadFailure(status, statusText, retryAfter = null) {
     const {stats, config, request} = this;
     // Stop the current attempt's stall timer regardless of outcome: retry()
     // below re-arms its own via teardownAttempt(), and a final give-up must
@@ -357,11 +375,15 @@ export class FetchLoader {
       console.error(`${status} while loading ${request.url}`);
 
       this.stats.error = {code: status, text: statusText};
+      if (retryAfter !== null) this.stats.error.retryAfter = retryAfter;
       this.callbacks?.forEach((callbacks) => {
         callbacks?.onError(this.stats, request, null);
       });
     } else {
-      // retry
+      // retry, no sooner than the server asked
+      if (retryAfter !== null) {
+        this.retryDelay = Math.max(this.retryDelay, Math.min(retryAfter, config.maxRetryDelay));
+      }
       console.warn(
           `${status} while loading ${request.url}, retrying in ${this.retryDelay}...`,
       );
