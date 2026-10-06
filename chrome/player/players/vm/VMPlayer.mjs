@@ -8,8 +8,34 @@ export default class VMPlayer extends HLSPlayer {
     super(client, options);
   }
 
+  /**
+   * The address to ask for a Vimeo source's player page or config: only on
+   * player.vimeo.com, where the background finds them. A source's mode can also come from
+   * the player's address (faststream-mode) or the Sources browser, and this request carries
+   * the source's headers, so another host is refused rather than fetched. Rebuilt on the
+   * fixed host, not passed through.
+   * @param {string} url - The source's URL.
+   * @return {string|null} The address, or null for any other host.
+   */
+  static vimeoRequestUrl(url) {
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (e) {
+      return null;
+    }
+    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.hostname !== 'player.vimeo.com') {
+      return null;
+    }
+    return 'https://player.vimeo.com/' + parsed.pathname.slice(1) + parsed.search;
+  }
+
   async setSource(source) {
     try {
+      const requestUrl = VMPlayer.vimeoRequestUrl(source.url);
+      if (!requestUrl) {
+        throw new Error('Not a Vimeo player address: ' + source.url);
+      }
       const isEmbed = !source.url.includes('config?');
       const hc = [];
       if (Array.isArray(source.headers)) {
@@ -33,7 +59,7 @@ export default class VMPlayer extends HLSPlayer {
       }
 
       const xhr = await RequestUtils.request({
-        url: source.url,
+        url: requestUrl,
         header_commands: hc,
         responseType: isEmbed ? 'text' : 'json',
       });
