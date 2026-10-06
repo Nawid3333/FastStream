@@ -62,6 +62,21 @@ describe('OverlayGuard', () => {
     expect(visibility(layer)).toBe('');
   });
 
+  it('looks at nothing while the tab is hidden, and catches up once it shows', () => {
+    // Each check goes through the whole page (10 ms on a page of 20,000 elements), once a
+    // second, and it did so in a hidden tab too, where nothing is painted.
+    const {page, iframe} = pageWithPlayerAt(PLAYER);
+    const layer = addLayer(page, page.document.body, VIEWPORT);
+    page.document.hidden = true;
+    page.overlayGuard.guard(iframe);
+    page.runIntervals();
+    expect(visibility(layer)).toBe('');
+    // Shown again: looked at at once, before the next check.
+    page.document.hidden = false;
+    page.dispatchDocument('visibilitychange');
+    expect(visibility(layer)).toBe('hidden');
+  });
+
   it('hides a bar on the player', () => {
     const {page, iframe} = pageWithPlayerAt(PLAYER);
     const bar = addLayer(page, page.document.body, {x: 0, y: 320, width: 640, height: 40});

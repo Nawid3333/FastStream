@@ -355,7 +355,12 @@ export default class DashPlayer extends EventEmitter {
     // the current one; a throw here would only end up in the console.
     try {
       const level = this.getVideoLevels().get(this.getCurrentVideoLevelID());
-      if (level && this.client.getLevelManager().noteVideoDecodeFailure(level.videoCodec)) {
+      // A decoder Firefox could not even create - its message names InitIPDL, the step that
+      // makes it - is not made by a retry: that one failure leaves the codec out. The second
+      // the count waits for did not always come: a live DASH stream sat at "Failed to load
+      // video!" with HEVC on a GPU-less Windows Firefox (the real-streams check, 2026-10-06).
+      const cannotStart = /InitIPDL/.test(message);
+      if (level && this.client.getLevelManager().noteVideoDecodeFailure(level.videoCodec, cannotStart)) {
         console.warn('Video codec failed to decode, picking another:', level.videoCodec);
         this.codecFailedForGood = true;
       }

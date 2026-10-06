@@ -102,6 +102,45 @@ describe('DownloadManager', () => {
     expect(new DownloadManager(null).downloaderLimit()).toBe(6);
   });
 
+  // A seek preview's build still running when a source was set again queued its manifest
+  // during the reset, while there were no downloaders. reset() added them without starting
+  // the queue, the client asked for nothing more while the queue held something
+  // (canGetFile), and the next player's request for the same manifest joined that entry:
+  // a live DASH stream reloaded without a failed codec never loaded (the real-streams
+  // check, 2026-10-06, 1 run in 4).
+  describe('a request made while a reset has no downloaders', () => {
+    const details = {url: 'https://cdn.example/live.mpd', responseType: 'text'};
+    const callbacks = () => ({onSuccess() {}, onFail() {}, onAbort() {}});
+
+    it('starts once the reset has its downloaders', async () => {
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      try {
+        const manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
+        const resetting = manager.reset();
+        expect(manager.downloaders).toHaveLength(0);
+        const watcher = manager.getFile(details, callbacks());
+        expect(watcher.entry.status).toBe(DownloadStatus.ENQUEUED);
+        await resetting;
+        expect(watcher.entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('starts when another request joins it', () => {
+      const manager = new DownloadManager(null);
+      manager.downloaders = [];
+      const stranded = manager.getFile(details, callbacks());
+      // Downloaders back, and no queueNext: as reset() left it.
+      manager.downloaders = [idleDownloader()];
+      const joined = manager.getFile(details, callbacks());
+      expect(joined.entry).toBe(stranded.entry);
+      expect(manager.downloaders[0].entry).toBe(stranded.entry);
+      expect(manager.queue).toHaveLength(0);
+    });
+  });
+
   // The speed test started a video with one downloader and added one per three speed
   // samples: 3.3 s, a third of a Vimeo video, before it had six (2026-10-06). It starts
   // with three and decides per two samples; a server that answers 429 or 503 gets half.

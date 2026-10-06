@@ -13,10 +13,11 @@ import source from '../../chrome/custom/instagram_inject.js?raw';
 /**
  * Runs the script against a stand-in XMLHttpRequest, and the page's fetch.
  * @param {function(...*): Promise<Response>} [fetch] - The page's fetch.
+ * @param {Object} [json] - The page's JSON, to watch what is parsed.
  * @return {{posted: Array<Object>, errors: Array<Array<*>>, respond: function(string): void,
  *   window: {fetch: function(...*): Promise<Response>}, XHR: Function}}
  */
-function load(fetch) {
+function load(fetch, json) {
   const posted = [];
   const errors = [];
   class FakeXHR {
@@ -35,6 +36,7 @@ function load(fetch) {
     XMLHttpRequest: FakeXHR,
     window: {postMessage: (data) => posted.push(data), fetch},
     console: {error: (...args) => errors.push(args), log() {}},
+    ...(json ? {JSON: json} : {}),
   };
   vm.runInNewContext(source, context);
   return {
@@ -53,6 +55,22 @@ function load(fetch) {
 }
 
 describe('instagram_inject.js', () => {
+  it('parses no response that cannot hold a manifest', () => {
+    // Every text response of Instagram's was parsed, for a key few of them hold.
+    let parsed = 0;
+    const page = load(undefined, {parse: (text) => {
+      parsed++;
+      return JSON.parse(text);
+    }, stringify: JSON.stringify});
+    page.respond(JSON.stringify({data: {user: {name: 'x', posts: [1, 2, 3]}}}));
+    page.respond('<html>not json</html>');
+    expect(parsed).toBe(0);
+    page.respond(JSON.stringify({b: [{video_dash_manifest: '<MPD/>'}]}));
+    expect(parsed).toBe(1);
+    expect(page.posted).toEqual([{type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'}]);
+  });
+
+
   it('posts the first manifest that has a value', () => {
     const page = load();
     page.respond(JSON.stringify({a: {video_dash_manifest: ''}, b: [{video_dash_manifest: '<MPD/>'}]}));

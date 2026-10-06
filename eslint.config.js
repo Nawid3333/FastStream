@@ -36,6 +36,9 @@ module.exports = [
       '.claude/',
       // Stryker's copies of the repo; one outlives a run that could not delete it.
       '.stryker-tmp/',
+      // The e2e fixtures are all generated (gitignored): the media buildFixtures makes, and the
+      // hls.js and dash.js releases the live suite downloads (live-libs), 136,000 errors.
+      'tests/e2e/fixtures/',
     ],
   },
   ...google,

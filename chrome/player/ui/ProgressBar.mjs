@@ -651,48 +651,35 @@ export class ProgressBar extends EventEmitter {
     DOMElements.seekPreviewTip.style.display = 'none';
   }
 
+  /**
+   * Puts a marker at a time on the bar, or hides it (null). The analyzers call
+   * updateMarkers on every animation frame while they run: a marker's style is written
+   * only when it moved or showed or hid.
+   * @param {HTMLElement} marker
+   * @param {?number} time - Seconds, or null for none.
+   * @param {number} duration
+   */
+  placeMarker(marker, time, duration) {
+    const left = time === null ? null : (time / duration * 100) + '%';
+    this.markerPlaces ??= new Map();
+    if (this.markerPlaces.has(marker) && this.markerPlaces.get(marker) === left) return;
+    this.markerPlaces.set(marker, left);
+    if (left === null) {
+      marker.style.display = 'none';
+    } else {
+      marker.style.left = left;
+      marker.style.display = '';
+    }
+  }
+
   updateMarkers() {
-    const pastSeeks = this.client.pastSeeks;
     const duration = this.client.duration;
-    if (pastSeeks.length) {
-      const time = pastSeeks[pastSeeks.length - 1];
-      this.seekMarker.style.left = (time / duration * 100) + '%';
-      this.seekMarker.style.display = '';
-    } else {
-      this.seekMarker.style.display = 'none';
-    }
-
+    const pastSeeks = this.client.pastSeeks;
+    this.placeMarker(this.seekMarker, pastSeeks.length ? pastSeeks[pastSeeks.length - 1] : null, duration);
     const pastUnseeks = this.client.pastUnseeks;
-    if (pastUnseeks.length) {
-      const time = pastUnseeks[pastUnseeks.length - 1];
-      this.unseekMarker.style.left = (time / duration * 100) + '%';
-      this.unseekMarker.style.display = '';
-    } else {
-      this.unseekMarker.style.display = 'none';
-    }
-
-    const videoAnalyzerMarkerPosition = this.client.videoAnalyzer.getMarkerPosition();
-    if (videoAnalyzerMarkerPosition !== null) {
-      this.videoAnalyzerMarker.style.left = (videoAnalyzerMarkerPosition / duration * 100) + '%';
-      this.videoAnalyzerMarker.style.display = '';
-    } else {
-      this.videoAnalyzerMarker.style.display = 'none';
-    }
-
-    const audioAnalyzerMarkerPosition = this.client.audioAnalyzer.getMarkerPosition();
-    if (audioAnalyzerMarkerPosition !== null) {
-      this.audioAnalyzerMarker.style.left = (audioAnalyzerMarkerPosition / duration * 100) + '%';
-      this.audioAnalyzerMarker.style.display = '';
-    } else {
-      this.audioAnalyzerMarker.style.display = 'none';
-    }
-
-    const frameExtractorMarkerPosition = this.client.frameExtractor.getMarkerPosition();
-    if (frameExtractorMarkerPosition !== null) {
-      this.frameExtractorMarker.style.left = (frameExtractorMarkerPosition / duration * 100) + '%';
-      this.frameExtractorMarker.style.display = '';
-    } else {
-      this.frameExtractorMarker.style.display = 'none';
-    }
+    this.placeMarker(this.unseekMarker, pastUnseeks.length ? pastUnseeks[pastUnseeks.length - 1] : null, duration);
+    this.placeMarker(this.videoAnalyzerMarker, this.client.videoAnalyzer.getMarkerPosition(), duration);
+    this.placeMarker(this.audioAnalyzerMarker, this.client.audioAnalyzer.getMarkerPosition(), duration);
+    this.placeMarker(this.frameExtractorMarker, this.client.frameExtractor.getMarkerPosition(), duration);
   }
 }

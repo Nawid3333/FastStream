@@ -190,6 +190,9 @@ const OverlayGuard = (() => {
       release(iframe);
       return;
     }
+    // Nothing is painted in a hidden tab: the whole-page look waits until it shows again
+    // (visibilitychange, below).
+    if (document.hidden) return;
     const boxes = boxesOf(iframe);
     for (const el of [...guard.hidden.keys()]) {
       if (!el.isConnected || boxes.visible.area === 0 || !belongsToPlayer(el, boxes.full) || isSiteDialog(el)) {
@@ -207,6 +210,13 @@ const OverlayGuard = (() => {
     guards.delete(iframe);
     for (const el of [...guard.hidden.keys()]) show(guard, el);
   }
+
+  // A tab shown again is looked at at once, not at the next check: what a site laid over
+  // the player while the tab was hidden goes before it is seen.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    for (const iframe of [...guards.keys()]) check(iframe);
+  });
 
   return {
     // The iframe holds FastStream's player, or a frame that does.

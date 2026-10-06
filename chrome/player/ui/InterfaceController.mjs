@@ -902,7 +902,11 @@ export class InterfaceController {
   }
 
   progressLoop() {
-    if (!this.shouldRunProgressLoop) {
+    // Every frame, so a short video's bar moves smoothly: while it plays, or while the fine
+    // time controls are open. A paused video's time moves only by a seek, and its
+    // timeupdate shows that; the loop ran on at 60 a second while it sat paused. play()
+    // starts it again.
+    if (!this.shouldRunProgressLoop || (!this.state.playing && !this.fineTimeControls.started)) {
       this.isRunningProgressLoop = false;
       return;
     }
@@ -1076,7 +1080,12 @@ export class InterfaceController {
       // previous video's progress on the bar.
       DOMElements.currentProgress.style.width = (duration > 0 ? Utils.clamp(this.state.currentTime / duration, 0, 1) * 100 : 0) + '%';
     }
-    DOMElements.duration.textContent = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
+    // Written only when it changes: a short video's time is updated every frame (up to 144
+    // times a second), its text once a second.
+    const timeText = StringUtils.formatTime(this.state.currentTime) + ' / ' + StringUtils.formatTime(duration);
+    if (DOMElements.duration.textContent !== timeText) {
+      DOMElements.duration.textContent = timeText;
+    }
 
     const chapters = this.client.chapters;
     if (chapters.length > 0) {
@@ -1162,6 +1171,10 @@ export class InterfaceController {
   play() {
     const previousValue = this.state.playing;
     this.state.playing = true;
+    // progressLoop stops while paused.
+    if (this.shouldRunProgressLoop) {
+      this.runProgressLoop();
+    }
     this.hideBigPlayButton();
     this.updatePlayPauseButton();
     if (!previousValue) {

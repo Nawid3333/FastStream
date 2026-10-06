@@ -10,6 +10,7 @@ const mp4Url = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/sample.mp4`
 const hlsUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/hls-ts/index.m3u8`;
 // An HLS source whose manifest never loads, so its video never gets a duration.
 const missingUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/missing/stream.m3u8`;
+const dashUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/dash-template/manifest.mpd`;
 const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 
 /**
@@ -364,5 +365,73 @@ describe('Player controls', function() {
       }).catch((e) => done('failed: ' + e));
     });
     expect(message).toBe(en.player_archiver_fail.message);
+  });
+
+  it('loads a source set again whose manifest was asked for while the reset had no downloaders', async function() {
+    // The real-streams check, 2026-10-06 (1 run in 4): a live DASH stream reloaded without
+    // a codec that failed never loaded. The seek preview's build, still running, asked for
+    // the manifest in the reset's gap - no downloaders while it cleared storage - and the
+    // request sat in the queue: the reset added downloaders without starting it, and the new
+    // player's request for the same manifest joined it. Made to happen here: the same
+    // source set again, as reloadWithoutFailedCodec does, and that request in the gap.
+    await openEmptyPlayer();
+    await addSource(dashUrl());
+    await waitForPicture();
+    const playable = () => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2);
+    for (let i = 0; i < 2; i++) {
+      const gap = await browser.execute((url) => {
+        const client = window.fastStream;
+        const downloads = client.downloadManager;
+        client.setSource(client.source, []).catch(() => {});
+        const downloaders = downloads.downloaders.length;
+        // dash.js asks for a manifest with responseType ''.
+        downloads.getFile({url, responseType: ''}, {onSuccess() {}, onFail() {}, onAbort() {}});
+        return {downloaders, queued: downloads.queue.length};
+      }, dashUrl());
+      // The gap the request has to land in, or this checks nothing.
+      expect(gap).toEqual({downloaders: 0, queued: 1});
+      const loaded = await settle(playable, (value) => value === true, 15000);
+      const queue = await browser.execute(() => window.fastStream.downloadManager.queue.length);
+      console.log(`      reload ${i + 1}:`, JSON.stringify({loaded, queue}));
+      expect(loaded).toBe(true);
+    }
+  });
+
+  it('redraws a short video\'s time every frame while it plays, and not while it is paused', async function() {
+    // A video under five minutes is redrawn every frame (requestAnimationFrame), so its bar
+    // moves smoothly. The loop ran on at 60 a second while the video sat paused.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    // How often the player's time is updated in one second: the loop's frames, and the
+    // video's own timeupdate events.
+    const perSecond = () => browser.executeAsync((done) => {
+      const client = window.fastStream;
+      const updateTime = client.updateTime;
+      let calls = 0;
+      client.updateTime = function(...args) {
+        calls++;
+        return updateTime.apply(this, args);
+      };
+      setTimeout(() => {
+        delete client.updateTime;
+        done(calls);
+      }, 1000);
+    });
+    const paused = await perSecond();
+    await browser.execute(() => {
+      window.fastStream.play();
+    });
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    const playing = await perSecond();
+    await browser.execute(() => {
+      window.fastStream.pause();
+    });
+    await browser.pause(300);
+    const pausedAgain = await perSecond();
+    console.log('      time updates per second:', JSON.stringify({paused, playing, pausedAgain}));
+    expect(paused).toBeLessThan(5);
+    expect(playing).toBeGreaterThan(20);
+    expect(pausedAgain).toBeLessThan(5);
   });
 });
