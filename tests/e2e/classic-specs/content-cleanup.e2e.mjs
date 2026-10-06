@@ -290,8 +290,12 @@ async function watchContentErrors() {
                 !(message.flags & Ci.nsIScriptError.warningFlag) &&
                 // Firefox's note that a message's answer came after its page had gone: the
                 // unload handler's FRAME_REMOVED, when a case loads the next page. Nothing
-                // content.js threw, and it comes or not with the timing.
-                !(message.errorMessage || '').startsWith('Promise resolved while context is inactive')) {
+                // content.js threw, and it comes or not with the timing. Its extension
+                // framework writes it four ways (ExtensionCommon's wrapPromise): resolved or
+                // rejected, for a page in the back-forward cache ("while context is
+                // inactive") or one unloaded ("after context unloaded" - the retried
+                // content-cleanup runs of 2026-10-05 and 06, content.js:346).
+                !/^Promise (resolved|rejected) (while context is inactive|after context unloaded)/.test(message.errorMessage || '')) {
               win.__fsContentErrors.push(`${message.errorMessage} (content.js:${message.lineNumber})`);
             }
           } catch (e) {

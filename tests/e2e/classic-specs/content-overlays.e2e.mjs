@@ -188,8 +188,9 @@ async function watchContentErrors() {
             if (message instanceof Ci.nsIScriptError &&
                 /^moz-extension:\/\/[^/]+\/(content|overlay-guard)\.js/.test(message.sourceName || '') &&
                 !(message.flags & Ci.nsIScriptError.warningFlag) &&
-                // Firefox's note that a message's answer came after its page had gone.
-                !(message.errorMessage || '').startsWith('Promise resolved while context is inactive')) {
+                // Firefox's note that a message's answer came after its page had gone, in any
+                // of the four ways its extension framework writes it (as in content-cleanup).
+                !/^Promise (resolved|rejected) (while context is inactive|after context unloaded)/.test(message.errorMessage || '')) {
               win.__fsOverlayErrors.push(`${message.errorMessage} (${message.sourceName.split('/').pop()}:${message.lineNumber})`);
             }
           } catch (e) {
