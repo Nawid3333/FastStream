@@ -240,19 +240,24 @@ export class DownloadManager {
   }
 
   /**
-   * A server answered 429 or 503: half the downloaders go (one stays), the speed test
-   * stops, none come back by themselves, and every download waits for the server's
-   * Retry-After (up to MaxRetryAfterMs), or the usual second after a failure. The player
-   * starts its next video with one downloader too.
+   * A server answered 429 or 503: half the downloaders stop at once (one stays), their
+   * downloads going back to wait, the speed test stops, none come back by themselves, and
+   * every download waits for the server's Retry-After (up to MaxRetryAfterMs), or the
+   * usual second after a failure. The player starts its next video with one downloader too.
    * @param {number} [retryAfter] - The wait the server asked for, in ms.
    */
   slowDown(retryAfter) {
+    if (!this.downloaders) return; // destroyed
     this.throttled = true;
     this.testing = false;
     this.droppedDownloaders = 0;
     this.lastFailed = Date.now();
-    // Those taken out finish their download; queueNext gives them no other.
-    this.downloaders.length = Math.max(1, Math.floor(this.downloaders.length / 2));
+    // Stopped, not left to finish: none of them is still downloading, untracked, when the
+    // player pauses or goes, and none can answer a 429 later and halve the rest again.
+    const keep = Math.max(1, Math.floor(this.downloaders.length / 2));
+    for (const cut of this.downloaders.splice(keep)) {
+      cut.abort();
+    }
     if (retryAfter > 0) {
       this.holdUntil = Math.max(this.holdUntil, Date.now() + Math.min(retryAfter, DownloadManager.MaxRetryAfterMs));
     }
@@ -298,7 +303,7 @@ export class DownloadManager {
   }
 
   onDownloaderFinished(downloader, entry) {
-    if (this.paused) return;
+    if (this.paused || !this.downloaders) return;
 
     const slowDown = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted &&
       DownloadManager.SlowDownStatuses.includes(downloader.stats?.error?.code);

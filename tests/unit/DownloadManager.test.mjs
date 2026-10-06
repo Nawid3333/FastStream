@@ -11,6 +11,7 @@ vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
 }));
 
 const {DownloadManager} = await import('../../chrome/player/network/DownloadManager.mjs');
+const {StandardDownloader} = await import('../../chrome/player/network/StandardDownloader.mjs');
 
 describe('DownloadManager', () => {
   beforeEach(() => {
@@ -41,6 +42,9 @@ describe('DownloadManager', () => {
       canHandle: () => !downloader.entry,
       run: (entry) => {
         downloader.entry = entry;
+      },
+      abort: () => {
+        downloader.entry = null;
       },
     };
     return downloader;
@@ -107,7 +111,7 @@ describe('DownloadManager', () => {
     });
     /** A downloader that finished a download, failed with an HTTP status or not. */
     const finished = (code, retryAfter) => Object.assign(idleDownloader(), {
-      getSpeed: () => 1e6,
+      getSpeed: () => 1e6, abort: vi.fn(),
       stats: code ? {error: {code, text: '', ...(retryAfter !== undefined ? {retryAfter} : {})}} : {},
     });
     const failedEntry = {status: DownloadStatus.DOWNLOAD_FAILED};
@@ -133,6 +137,12 @@ describe('DownloadManager', () => {
       expect(await start(2)).toBe(2);
       expect(await start(1)).toBe(1);
       expect(await start(6, true)).toBe(1);
+
+      // A Retry-After held the last video's downloads; the next video's server is asked anew.
+      const held = new DownloadManager(client());
+      held.holdUntil = Date.now() + 20000;
+      await held.reset();
+      expect(held.holdUntil).toBe(0);
     });
 
     it('adds a downloader after two speed samples that show a gain', () => {
@@ -148,9 +158,12 @@ describe('DownloadManager', () => {
     it('halves the downloaders on a 429 or 503, stops the test, and gives none back', () => {
       const c = client();
       const manager = new DownloadManager(c);
-      manager.downloaders = Array.from({length: 6}, () => finished(429));
+      const six = Array.from({length: 6}, () => finished(429));
+      manager.downloaders = [...six];
       manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
-      expect(manager.downloaders).toHaveLength(3);
+      expect(manager.downloaders).toEqual(six.slice(0, 3));
+      // The others stop at once, not after their download.
+      expect(six.map((downloader) => downloader.abort.mock.calls.length)).toEqual([0, 0, 0, 1, 1, 1]);
       expect(manager.testing).toBe(false);
       expect(manager.throttled).toBe(true);
       expect(c.resetFailed).toHaveBeenCalled();
@@ -166,6 +179,39 @@ describe('DownloadManager', () => {
       manager.downloaders[0] = finished(429);
       manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
       expect(manager.downloaders).toHaveLength(1);
+    });
+
+    it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'}})));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const manager = new DownloadManager(client());
+      manager.downloaders = Array.from({length: 4}, () => new StandardDownloader(manager));
+      const entry = {
+        details: {url: 'https://cdn.example/1.ts'},
+        getRequest: async () => ({url: 'https://cdn.example/1.ts', responseType: 'arraybuffer', headers: {}}),
+        onFail() {
+          this.status = DownloadStatus.DOWNLOAD_FAILED;
+        },
+        onAbort() {
+          this.status = DownloadStatus.DOWNLOAD_FAILED;
+        },
+        onProgress() {},
+      };
+      const start = Date.now();
+      manager.downloaders[0].run(entry);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(manager.downloaders).toHaveLength(2);
+      expect(manager.throttled).toBe(true);
+      expect(manager.holdUntil - start).toBeGreaterThanOrEqual(4000);
+      expect(manager.holdUntil - start).toBeLessThan(4100);
+    });
+
+    it('does not read the last download\'s error as the next one\'s', () => {
+      const downloader = new StandardDownloader({onDownloaderFinished: vi.fn()});
+      downloader.stats = {error: {code: 429, text: ''}};
+      downloader.run({getRequest: () => new Promise(() => {})});
+      expect(downloader.stats).toBe(null);
     });
 
     it('keeps the one-downloader drop for other failures', () => {
