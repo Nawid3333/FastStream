@@ -33,6 +33,9 @@ export class StandardDownloader {
       },
     };
     this.entry = entry;
+    // The last download's stats, its error among them, are not this one's: the manager
+    // reads a 429 or 503 from them (DownloadManager.slowDown).
+    this.stats = null;
 
     entry.downloader = this;
     entry.status = DownloadStatus.DOWNLOAD_INITIATED;

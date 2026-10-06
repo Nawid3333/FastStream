@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {FetchLoader} from '../../chrome/player/network/FetchLoader.mjs';
+import {FetchLoader, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
 
 // FetchLoader is the single network primitive shared by HLS, DASH and MP4
 // fragment/playlist loading (via DownloadManager -> StandardDownloader). It
@@ -533,5 +533,67 @@ describe('FetchLoader', () => {
       const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
       expect(new Uint8Array(response.data)).toEqual(file);
     });
+  });
+});
+
+// A server that is overloaded or limits its clients answers 503 or 429 with a Retry-After:
+// how long to wait. The retry of a 503 waits at least that (up to maxRetryDelay), and a
+// final error hands it to the DownloadManager, which holds every download back for it.
+describe('FetchLoader and Retry-After', () => {
+  beforeEach(() => {
+    globalThis.self = globalThis;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const failing = (status, statusText, retryAfter) => vi.fn(async () =>
+    new Response(new ArrayBuffer(0), {status, statusText, headers: {'Retry-After': retryAfter}}));
+
+  it('reads a number of seconds or a date, and nothing else', () => {
+    const now = Date.parse('2026-10-06T12:00:00Z');
+    expect(retryAfterMs('5', now)).toBe(5000);
+    expect(retryAfterMs(' 0 ', now)).toBe(0);
+    expect(retryAfterMs('Tue, 06 Oct 2026 12:00:30 GMT', now)).toBe(30000);
+    expect(retryAfterMs('Tue, 06 Oct 2026 11:00:00 GMT', now)).toBe(0);
+    for (const value of [null, '', 'soon', 'later today']) expect(retryAfterMs(value, now), value).toBe(null);
+  });
+
+  it('retries a 503 no sooner than its Retry-After', async () => {
+    const fetchMock = failing(503, 'Unavailable', '3');
+    vi.stubGlobal('fetch', fetchMock);
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({maxRetry: 1, retryDelay: 100, maxRetryDelay: 5000}));
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits no longer than maxRetryDelay, whatever the 503 asks', async () => {
+    const fetchMock = failing(503, 'Unavailable', '3600');
+    vi.stubGlobal('fetch', fetchMock);
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({maxRetry: 1, retryDelay: 100, maxRetryDelay: 800}));
+    await vi.advanceTimersByTimeAsync(900);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('hands a 429 and its Retry-After over with the error, without retrying', async () => {
+    const fetchMock = failing(429, 'Too Many Requests', '7');
+    vi.stubGlobal('fetch', fetchMock);
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig());
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
+    expect(loader.stats.error).toEqual({code: 429, text: 'Too Many Requests', retryAfter: 7000});
   });
 });

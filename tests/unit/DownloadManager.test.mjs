@@ -6,10 +6,12 @@ import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
     close() {}
+    async clear() {}
   },
 }));
 
 const {DownloadManager} = await import('../../chrome/player/network/DownloadManager.mjs');
+const {StandardDownloader} = await import('../../chrome/player/network/StandardDownloader.mjs');
 
 describe('DownloadManager', () => {
   beforeEach(() => {
@@ -40,6 +42,9 @@ describe('DownloadManager', () => {
       canHandle: () => !downloader.entry,
       run: (entry) => {
         downloader.entry = entry;
+      },
+      abort: () => {
+        downloader.entry = null;
       },
     };
     return downloader;
@@ -95,5 +100,151 @@ describe('DownloadManager', () => {
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
     expect([0, undefined, null, NaN, -2, 1, 3, 6, 9, 2.7].map(limit)).toEqual([6, 6, 6, 6, 6, 1, 3, 6, 6, 2]);
     expect(new DownloadManager(null).downloaderLimit()).toBe(6);
+  });
+
+  // The speed test started a video with one downloader and added one per three speed
+  // samples: 3.3 s, a third of a Vimeo video, before it had six (2026-10-06). It starts
+  // with three and decides per two samples; a server that answers 429 or 503 gets half.
+  describe('a fast start that backs off when a server asks', () => {
+    const client = (maximumDownloaders = 6) => ({
+      options: {maximumDownloaders}, resetFailed: vi.fn(), predownloadFragments: vi.fn(),
+    });
+    /** A downloader that finished a download, failed with an HTTP status or not. */
+    const finished = (code, retryAfter) => Object.assign(idleDownloader(), {
+      getSpeed: () => 1e6, abort: vi.fn(),
+      stats: code ? {error: {code, text: '', ...(retryAfter !== undefined ? {retryAfter} : {})}} : {},
+    });
+    const failedEntry = {status: DownloadStatus.DOWNLOAD_FAILED};
+
+    beforeEach(() => {
+      vi.stubGlobal('navigator', {onLine: true});
+      vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    it('starts a video with three downloaders, the limit allowing, and one once a server throttled', async () => {
+      const start = async (limit, throttled = false) => {
+        const manager = new DownloadManager(client(limit));
+        manager.throttled = throttled;
+        await manager.reset();
+        return manager.downloaders.length;
+      };
+      expect(await start(6)).toBe(3);
+      expect(await start(2)).toBe(2);
+      expect(await start(1)).toBe(1);
+      expect(await start(6, true)).toBe(1);
+
+      // A Retry-After held the last video's downloads; the next video's server is asked anew.
+      const held = new DownloadManager(client());
+      held.holdUntil = Date.now() + 20000;
+      await held.reset();
+      expect(held.holdUntil).toBe(0);
+    });
+
+    it('adds a downloader after two speed samples that show a gain', () => {
+      const manager = new DownloadManager(client());
+      manager.downloaders = [finished(), finished(), finished()];
+      const round = () => manager.downloaders.slice(0, 3).forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
+      round();
+      expect(manager.downloaders).toHaveLength(3);
+      round();
+      expect(manager.downloaders).toHaveLength(4);
+    });
+
+    it('halves the downloaders on a 429 or 503, stops the test, and gives none back', () => {
+      const c = client();
+      const manager = new DownloadManager(c);
+      const six = Array.from({length: 6}, () => finished(429));
+      manager.downloaders = [...six];
+      manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
+      expect(manager.downloaders).toEqual(six.slice(0, 3));
+      // The others stop at once, not after their download.
+      expect(six.map((downloader) => downloader.abort.mock.calls.length)).toEqual([0, 0, 0, 1, 1, 1]);
+      expect(manager.testing).toBe(false);
+      expect(manager.throttled).toBe(true);
+      expect(c.resetFailed).toHaveBeenCalled();
+
+      // Successes long after it bring nothing back, unlike after another failure.
+      vi.advanceTimersByTime(DownloadManager.FailureRecoveryMs * 2);
+      manager.onDownloaderFinished(manager.downloaders[1], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.downloaders).toHaveLength(3);
+
+      manager.downloaders[0] = finished(503);
+      manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
+      expect(manager.downloaders).toHaveLength(1);
+      manager.downloaders[0] = finished(429);
+      manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
+      expect(manager.downloaders).toHaveLength(1);
+    });
+
+    it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'}})));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const manager = new DownloadManager(client());
+      manager.downloaders = Array.from({length: 4}, () => new StandardDownloader(manager));
+      const entry = {
+        details: {url: 'https://cdn.example/1.ts'},
+        getRequest: async () => ({url: 'https://cdn.example/1.ts', responseType: 'arraybuffer', headers: {}}),
+        onFail() {
+          this.status = DownloadStatus.DOWNLOAD_FAILED;
+        },
+        onAbort() {
+          this.status = DownloadStatus.DOWNLOAD_FAILED;
+        },
+        onProgress() {},
+      };
+      const start = Date.now();
+      manager.downloaders[0].run(entry);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(manager.downloaders).toHaveLength(2);
+      expect(manager.throttled).toBe(true);
+      expect(manager.holdUntil - start).toBeGreaterThanOrEqual(4000);
+      expect(manager.holdUntil - start).toBeLessThan(4100);
+    });
+
+    it('does not read the last download\'s error as the next one\'s', () => {
+      const downloader = new StandardDownloader({onDownloaderFinished: vi.fn()});
+      downloader.stats = {error: {code: 429, text: ''}};
+      downloader.run({getRequest: () => new Promise(() => {})});
+      expect(downloader.stats).toBe(null);
+    });
+
+    it('keeps the one-downloader drop for other failures', () => {
+      const manager = new DownloadManager(client());
+      manager.testing = false;
+      manager.downloaders = Array.from({length: 4}, () => finished(500));
+      manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
+      expect(manager.downloaders).toHaveLength(3);
+      expect(manager.throttled).toBe(false);
+    });
+
+    it('starts no download before the server\'s Retry-After is over, and waits 30 s at most', () => {
+      const run = (retryAfter) => {
+        const manager = new DownloadManager(client());
+        manager.downloaders = [finished(429, retryAfter), idleDownloader()];
+        manager.onDownloaderFinished(manager.downloaders[0], failedEntry);
+        manager.queue.push({status: DownloadStatus.ENQUEUED, details: {}});
+        manager.queueNext();
+        return manager;
+      };
+      const started = (manager) => manager.downloaders.some((downloader) => downloader.entry);
+
+      const asked = run(5000);
+      vi.advanceTimersByTime(4900);
+      expect(started(asked)).toBe(false);
+      vi.advanceTimersByTime(300);
+      expect(started(asked)).toBe(true);
+
+      const tooLong = run(600000);
+      vi.advanceTimersByTime(DownloadManager.MaxRetryAfterMs - 200);
+      expect(started(tooLong)).toBe(false);
+      vi.advanceTimersByTime(400);
+      expect(started(tooLong)).toBe(true);
+    });
   });
 });
