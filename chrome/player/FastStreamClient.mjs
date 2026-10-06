@@ -34,6 +34,7 @@ import {SyncedAudioPlayer} from './players/SyncedAudioPlayer.mjs';
 import {AlertPolyfill} from './utils/AlertPolyfill.mjs';
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
+import {VpnPrompt} from './ui/VpnPrompt.mjs';
 
 
 /**
@@ -120,6 +121,7 @@ export class FastStreamClient extends EventEmitter {
     this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
     this.sourcesBrowser = new SourcesBrowser(this);
+    this.vpnPrompt = new VpnPrompt(this);
     this.videoAnalyzer = new VideoAnalyzer(this);
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
@@ -894,6 +896,8 @@ export class FastStreamClient extends EventEmitter {
       this.source = source;
       // Only once the last player is torn down: its failure is not this source's.
       this.fallbacks = fallbacks;
+      // Came it through Firefox VPN, which leaves FastStream's requests out? (VpnPrompt.mjs)
+      this.vpnPrompt?.check(source);
 
       if (source.defaultLevelInfo?.level !== undefined) {
         this.getLevelManager().setCurrentVideoLevelID(source.defaultLevelInfo.level);

@@ -151,6 +151,10 @@ export const config = {
         'media.autoplay.default': 0,
         'media.autoplay.blocking_policy': 0,
         'media.volume_scale': '0.0',
+        // An optional permission asked for from a click (the player's Firefox VPN button,
+        // firefox-vpn.e2e.mjs) is granted without the doorhanger, which WebDriver cannot
+        // answer. The click is still required: Firefox refuses a request without one.
+        'extensions.webextOptionalPermissionPrompts': false,
         // Pins the extension origin so the specs can address its pages.
         'extensions.webextensions.uuids':
           JSON.stringify({[EXTENSION_ID]: EXTENSION_UUID}),

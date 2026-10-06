@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "Ostrzeżenie: Twoja przeglądarka nie obsługuje w pełni funkcji przechowywania plików. Może to być spowodowane brakiem miejsca na dysku lub brakiem ponownego uruchomienia przeglądarki przez długi czas. Niektóre funkcje mogą nie działać zgodnie z oczekiwaniami."
+    },
+    "player_vpn_allow": {
+        "message": "Odtwarzaj przez Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Ta strona otrzymuje swoje wideo przez Firefox VPN, który pomija żądania FastStream, a witryna może je odrzucić. Kliknij, aby FastStream mógł korzystać z tego samego połączenia (jednorazowo, na stronie uprawnień FastStream)."
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "Proxy (opcjonalnie)"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Używane tylko z Firefox VPN. Firefox wymienia je jako kontrolę ustawień proxy przeglądarki, ale FastStream nie zmienia żadnych ustawień: wysyła własne żądania dotyczące wideo w taki sam sposób, w jaki przechodziły żądania samej strony, przez VPN. Bez tego witryna, która wiąże swoje wideo z adresem VPN, odrzuca FastStream. Odtwarzacz prosi o nie, gdy jest potrzebne po raz pierwszy."
     }
 }

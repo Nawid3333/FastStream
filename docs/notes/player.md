@@ -222,3 +222,45 @@ frame rate, codec efficiency (AV1 > VP9 = HEVC > H.264), bitrate.
   check a stream with AV1 and H.264 at one height, the menu's labels against
   `about:support`'s codec table, and the start-up delay the probes add.
 - mpv still picks its own version (`--hls-bitrate`, highest): issue #330.
+
+## Firefox VPN (2026-10-06)
+
+Reported on a VOE page: "Failed to load video!" in the player and "could not open the stream"
+in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's built-in
+"IP protection", 149+), not FastStream's downloads: with the VPN off, the same build played.
+
+- **What Firefox does.** Its channel filter proxies a request only when the loading
+  principal is http(s) (or a null principal): `IPPExceptionsManager.getPrincipalRule`
+  returns EXCLUDED for every other scheme, moz-extension:// among them (Firefox 157,
+  `toolkit/components/ipprotection`). So the page reaches the CDN through the VPN, and
+  FastStream's player and background reach it from the user's own address.
+- **Why the site refuses.** VOE ties the stream URL to the address that asked for the page:
+  `…&i=63.245&asn=54113` with the VPN (Fastly's network), `i=95.91&asn=3209` without. The
+  mpv host's debug log showed the VPN-bound URL handed to mpv, which asks from the user's
+  address too.
+- **The fix** (`chrome/background/VpnProxyMirror.mjs`): FastStream's own requests to a host go
+  the way the page's latest request to it went. Measured in Firefox 157: webRequest's
+  `details.proxyInfo` reports type, host, port, `proxyAuthorizationHeader` and
+  `connectionIsolationKey` (not `masqueTemplate`), and `proxy.onRequest` applies to an
+  extension's own requests. The VPN's servers are CONNECT proxies over TLS (Remote Settings'
+  `vpn-serverlist` names no other protocol), so the copy is exact; a MASQUE proxy would not be
+  copied. Firefox gives every proxied channel one `proxyInfo` (one token, one isolation key),
+  so the newest seen on any page request is the one to use.
+- **Only where needed.** Hosts are added when FastStream fetches them (a detected source, its
+  own request in a tab whose page went through the VPN), at most 200; the listener asks for
+  those hosts only. A host goes off the list once its tab's page, loaded again, reaches it
+  directly (the VPN off, or off for the site); a content script's fetch, which always goes
+  direct, does not count, nor does another tab.
+- **The permission.** `proxy` is optional. A player in a page has no `chrome.permissions`
+  (undefined there, measured), so its "Play through Firefox VPN" button opens
+  `perms.html#proxy`; once granted, the page closes itself and the background sends
+  `VPN_ALLOWED` to the tabs, and the player loads the source again.
+- **Limits.** The mirror lives in the background's memory. An open player keeps the event
+  page running (measured 2026-09-28), but a background that is terminated or crashes while a
+  video plays starts with nothing, and the player's requests go direct until the page asks
+  again. A plain http proxy gets no `Proxy-Authorization` from Firefox (only https proxies
+  do, measured), which is why the e2e stand-in has no token. mpv cannot use Firefox VPN at
+  all.
+- **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
+  (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
+  answers). With `proxyFor` disabled, its two playback tests fail.

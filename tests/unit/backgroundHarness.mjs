@@ -151,7 +151,8 @@ export async function loadBackground({
     extension: {inIncognitoContext: false},
     management: {getSelf: async () => ({installType: 'normal'})},
     i18n: {getMessage: () => ''},
-    permissions: {contains: (query, callback) => answer(callback, true)},
+    // onAdded/onRemoved: the optional "proxy" permission (Firefox VPN, VpnProxyMirror.mjs).
+    permissions: {contains: (query, callback) => answer(callback, true), onAdded: event(), onRemoved: event()},
     storage: {
       local: {
         get: (key, callback) => answer(callback, {[key]: key === 'options' ? JSON.stringify(bg.options) : undefined}),

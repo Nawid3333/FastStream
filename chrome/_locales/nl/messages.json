@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "Waarschuwing: Uw browser ondersteunt de bestandsopslagfuncties niet volledig. Dit kan komen doordat uw browser geen opslagruimte meer heeft of al lange tijd niet is herstart. Sommige functies werken mogelijk niet zoals verwacht."
+    },
+    "player_vpn_allow": {
+        "message": "Afspelen via Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Deze pagina krijgt zijn video via Firefox VPN, waarbij de verzoeken van FastStream niet worden meegenomen, en de site kan ze weigeren. Klik om FastStream dezelfde verbinding te laten gebruiken (eenmalig, op de machtigingenpagina van FastStream)."
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "Proxy (optioneel)"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Alleen gebruikt met Firefox VPN. Firefox vermeldt deze als beheer van de proxy-instellingen van de browser, maar FastStream wijzigt geen enkele instelling: het verstuurt zijn eigen verzoeken voor een video op dezelfde manier als de verzoeken van de pagina zelf, via de VPN. Zonder deze machtiging weigert een site die haar video aan het adres van de VPN koppelt FastStream. De speler vraagt erom wanneer deze voor het eerst nodig is."
     }
 }

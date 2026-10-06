@@ -1339,5 +1339,17 @@
     },
     "player_outofstorage": {
         "message": "Aviso: Seu navegador não suporta totalmente os recursos de armazenamento de arquivos. Isso pode ser porque seu navegador ficou sem espaço de armazenamento ou não foi reiniciado por um longo tempo. Alguns recursos podem não funcionar como esperado."
+    },
+    "player_vpn_allow": {
+        "message": "Reproduzir via Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Esta página obtém seu vídeo pelo Firefox VPN, que deixa de fora as solicitações do FastStream, e o site pode recusá-las. Clique para permitir que o FastStream use a mesma conexão (uma vez, na página de permissões do FastStream)."
+    },
+    "perms_page_breakdown_perm9h": {
+        "message": "Proxy (opcional)"
+    },
+    "perms_page_breakdown_perm9d": {
+        "message": "Usada apenas com o Firefox VPN. O Firefox a lista como controle das configurações de proxy do navegador, mas o FastStream não altera nenhuma configuração: ele envia suas próprias solicitações para um vídeo da mesma forma que as solicitações da própria página passaram, através da VPN. Sem ela, um site que vincula seu vídeo ao endereço da VPN recusa o FastStream. O player a solicita na primeira vez em que é necessária."
     }
 }
