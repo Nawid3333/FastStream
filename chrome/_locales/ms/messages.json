@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Hanya digunakan dengan Firefox VPN. Firefox menyenaraikannya sebagai kawalan tetapan proksi pelayar, tetapi FastStream tidak mengubah sebarang tetapan: ia menghantar permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, tapak yang mengikat videonya pada alamat VPN menolak FastStream. Pemain memintanya apabila pertama kali diperlukan."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN membawa video ini, dan mpv tidak boleh menggunakannya: tapak akan menolak mpv. Untuk menontonnya dalam mpv, matikan Firefox VPN untuk tapak ini dan muat semula halaman."
     }
 }

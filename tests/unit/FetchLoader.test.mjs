@@ -584,16 +584,39 @@ describe('FetchLoader and Retry-After', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('hands a 429 and its Retry-After over with the error, without retrying', async () => {
+  // A 429 was a final error at once, like any 4xx: the player saw a failed piece at the
+  // server's first "slow down". It is retried after its Retry-After now, as a 503 is, and
+  // each such answer is told at once (onSlowDown) - DownloadManager.slowDown.
+  it('retries a 429 after its Retry-After, telling each answer at once, and hands the last one over', async () => {
     const fetchMock = failing(429, 'Too Many Requests', '7');
     vi.stubGlobal('fetch', fetchMock);
     const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
+    const slowDowns = [];
+    recorder.onSlowDown = (retryAfter) => slowDowns.push(retryAfter);
     loader.addCallbacks(recorder);
-    loader.load(makeRequest(), makeConfig());
-    await vi.runAllTimersAsync();
+    loader.load(makeRequest(), makeConfig({maxRetry: 1, retryDelay: 100, maxRetryDelay: 64000}));
+    await vi.advanceTimersByTimeAsync(6900);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(slowDowns).toEqual([7000]);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(slowDowns).toEqual([7000, 7000]);
     expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
     expect(loader.stats.error).toEqual({code: 429, text: 'Too Many Requests', retryAfter: 7000});
+  });
+
+  it('neither retries nor reports an answer whose slow-down took the loader away', async () => {
+    const fetchMock = failing(503, 'Unavailable', '2');
+    vi.stubGlobal('fetch', fetchMock);
+    const loader = new FetchLoader();
+    const recorder = makeCallbackRecorder();
+    // The manager halves, and this loader's downloader is one of those that go (retire).
+    recorder.onSlowDown = () => loader.abort();
+    loader.addCallbacks(recorder);
+    loader.load(makeRequest(), makeConfig({maxRetry: 3, retryDelay: 100}));
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(recorder.calls).toEqual([]);
   });
 });

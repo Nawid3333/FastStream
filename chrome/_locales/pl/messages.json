@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Używane tylko z Firefox VPN. Firefox wymienia je jako kontrolę ustawień proxy przeglądarki, ale FastStream nie zmienia żadnych ustawień: wysyła własne żądania dotyczące wideo w taki sam sposób, w jaki przechodziły żądania samej strony, przez VPN. Bez tego witryna, która wiąże swoje wideo z adresem VPN, odrzuca FastStream. Odtwarzacz prosi o nie, gdy jest potrzebne po raz pierwszy."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN przesyła ten film, a mpv nie może go użyć: witryna odrzuciłaby mpv. Aby obejrzeć go w mpv, wyłącz Firefox VPN dla tej witryny i odśwież stronę."
     }
 }

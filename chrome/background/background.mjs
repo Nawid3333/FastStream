@@ -878,7 +878,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // Once the options are read, as for MPV_TEST: the mpv path, fullscreen, one window,
     // and the allowlist's @anime tag.
-    ensureOptions().then(() => Mpv.openStream(msg.url, null, headers,
+    ensureOptions().then(() => openInMpv(sender.tab?.id, msg.url, null, headers,
         resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url), sender.tab && sender.tab.url,
         sender.tab && sender.tab.title, {startTime: msg.startTime, subtitles: msg.subtitles})).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
@@ -2377,7 +2377,7 @@ function autoOpenInMpv(tab, url, headers) {
   const page = tab.mpvPage;
   if (Logging) console.log('[MPV] forwarding detected stream to mpv:', url);
   tabTitle(tab.tabId).then((title) =>
-    Mpv.openStream(url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    openInMpv(tab.tabId, url, tab, headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] forward result:', url, JSON.stringify(result));
     if (!isHandOffPage(tab, page)) {
       return;
@@ -2840,7 +2840,7 @@ function sendPlayedToMpv(tab, source) {
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
   tabTitle(tab.tabId).then((title) =>
-    Mpv.openStream(source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
     if (!isHandOffPage(tab, page)) {
       return;
@@ -2907,7 +2907,7 @@ function openMpvWithSources(tab) {
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
   tabTitle(tab.tabId).then((title) =>
-    Mpv.openStream(source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    openInMpv(tab.tabId, source.url, tab, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
     if (Logging) console.log('[MPV] openStream result:', source.url, JSON.stringify(result));
     if (!isHandOffPage(tab, page)) {
       return;
@@ -2928,6 +2928,40 @@ function openMpvWithSources(tab) {
     }
   });
   return true;
+}
+
+/**
+ * Hands a stream to mpv, unless the page's request for it went through Firefox VPN: mpv
+ * runs outside Firefox, asks from the user's own address, and a site that ties its stream
+ * to the VPN's refuses it ("could not open the stream", VOE, 2026-10-06). Then mpv is not
+ * started, and the answer says why, where a failed hand-off shows (the toolbar button's
+ * "!" and tooltip, the player's status line). After the tab, arguments as
+ * MpvBackend.openStream.
+ * @param {number|undefined} tabId - The tab the stream is from: whether it is a private
+ *   window decides which of the VPN's hosts count (VpnProxyMirror.throughBrowserVpn).
+ * @param {string} url - The stream.
+ * @param {...*} rest - openStream's other arguments.
+ * @return {Promise<Object>} openStream's answer, or {ok: false, vpn: true, error}.
+ */
+async function openInMpv(tabId, url, ...rest) {
+  let incognito;
+  if (tabId !== undefined && tabId >= 0) {
+    try {
+      incognito = !!(await chrome.tabs.get(tabId))?.incognito;
+    } catch (e) {
+      // The tab went: both kinds of window count.
+    }
+  }
+  if (VpnMirror.throughBrowserVpn(url, incognito)) {
+    if (Logging) console.log('[MPV] not handed off, Firefox VPN carries it:', url);
+    return Promise.resolve({
+      ok: false,
+      vpn: true,
+      error: chrome.i18n.getMessage('player_mpv_vpn') ||
+        'Firefox VPN carries this video, and mpv cannot use it. Turn Firefox VPN off for this site and reload the page.',
+    });
+  }
+  return Mpv.openStream(url, ...rest);
 }
 
 /** @type {Array<'requestHeaders'|'extraHeaders'|'blocking'>} */

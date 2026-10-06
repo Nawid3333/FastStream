@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Alleen gebruikt met Firefox VPN. Firefox vermeldt deze als beheer van de proxy-instellingen van de browser, maar FastStream wijzigt geen enkele instelling: het verstuurt zijn eigen verzoeken voor een video op dezelfde manier als de verzoeken van de pagina zelf, via de VPN. Zonder deze machtiging weigert een site die haar video aan het adres van de VPN koppelt FastStream. De speler vraagt erom wanneer deze voor het eerst nodig is."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN draagt deze video en mpv kan die niet gebruiken: de site zou mpv weigeren. Om het in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."
     }
 }

@@ -168,14 +168,14 @@ describe('VpnProxyMirror', () => {
   });
 
   it('does not copy a proxy whose settings webRequest does not give in full', () => {
-    const {mirror} = setup();
+    const {mirror, current} = setup();
     // MASQUE needs its URI template, which webRequest does not report.
     mirror.noteRequest(pageRequest(PAGE, {...vpn(), type: 'masque'}, {type: 'main_frame'}));
     mirror.noteSource(pageRequest(CDN, {...vpn(), type: 'masque'}));
     expect(mirror.status(CDN, false, 3)).toEqual({proxied: true, copyable: false, permitted: true});
     expect(mirror.proxyFor(ownRequest(CDN))).toBeUndefined();
     // Nor is its host listened for: its requests would wait on the background for nothing.
-    expect(mirror.hosts.size).toBe(0);
+    expect(current()).toBeNull();
   });
 
   it('keeps private windows apart', () => {
@@ -183,6 +183,43 @@ describe('VpnProxyMirror', () => {
     mirror.noteSource(pageRequest(CDN, vpn(), {incognito: true}));
     expect(mirror.proxyFor(ownRequest(CDN, {incognito: true}))).toBeDefined();
     expect(mirror.proxyFor(ownRequest(CDN, {incognito: false}))).toBeUndefined();
+  });
+
+  it('tells a stream that came through Firefox VPN (a bearer token) from one through another proxy', () => {
+    const {mirror} = setup();
+    mirror.noteSource(pageRequest(CDN, vpn()));
+    expect(mirror.throughBrowserVpn(CDN)).toBe(true);
+    // A proxy set in Firefox's network settings carries no token: mpv may use one too.
+    mirror.noteSource(pageRequest('https://other.example/a.m3u8', {type: 'http', host: 'proxy.lan', port: 3128}));
+    expect(mirror.throughBrowserVpn('https://other.example/a.m3u8')).toBe(false);
+    expect(mirror.throughBrowserVpn('https://direct.example/a.m3u8')).toBe(false);
+    // Firefox VPN may carry private windows only: a host seen through it there does not
+    // count for a normal window's stream; a tab that is gone, either does.
+    mirror.noteSource(pageRequest('https://private.example/a.m3u8', vpn(), {incognito: true}));
+    expect(mirror.throughBrowserVpn('https://private.example/a.m3u8', true)).toBe(true);
+    expect(mirror.throughBrowserVpn('https://private.example/a.m3u8', false)).toBe(false);
+    expect(mirror.throughBrowserVpn('https://private.example/a.m3u8')).toBe(true);
+  });
+
+  it('marks the tab only from its top frame\'s requests', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest('https://embed.example/player', vpn(), {type: 'sub_frame', frameId: 5}));
+    expect(mirror.tabs.has(3)).toBe(false);
+    // The top frame's own requests mark it, not only its load.
+    mirror.noteRequest(pageRequest('https://video.example/api', vpn(), {type: 'xmlhttprequest', frameId: 0}));
+    expect(mirror.tabs.has(3)).toBe(true);
+  });
+
+  it('lets the hosts behind a proxy it cannot copy go first when the list is full', () => {
+    const {mirror} = setup();
+    mirror.noteSource(pageRequest('https://keep.example/a.m3u8', vpn()));
+    for (let i = 0; i < 199; i++) {
+      mirror.noteSource(pageRequest(`https://m${i}.example/a.m3u8`, {...vpn(), type: 'masque'}));
+    }
+    mirror.noteSource(pageRequest('https://new.example/a.m3u8', vpn()));
+    expect(mirror.hosts.size).toBe(200);
+    expect(mirror.proxyFor(ownRequest('https://keep.example/a.m3u8'))).toBeDefined();
+    expect(mirror.proxyFor(ownRequest('https://new.example/a.m3u8'))).toBeDefined();
   });
 
   it('remembers a bounded number of hosts', () => {

@@ -168,7 +168,8 @@ export class VpnProxyMirror {
       }
       return;
     }
-    if (details.tabId >= 0) this.tabs.set(details.tabId, key);
+    // The top frame's: a frame of another site may be on the VPN when the page is not.
+    if (details.tabId >= 0 && (details.frameId ?? 0) === 0) this.tabs.set(details.tabId, key);
     const entry = this.hosts.get(hostKey);
     if (entry) {
       entry.key = key;
@@ -207,15 +208,17 @@ export class VpnProxyMirror {
    * @param {number} tabId - The tab it was seen in.
    */
   addHost(hostKey, key, tabId) {
-    // A proxy FastStream cannot copy would only hold the host's requests up for nothing.
-    if (!CopyableTypes.includes(this.proxies.get(key)?.type || '')) return;
     const known = this.hosts.has(hostKey);
     // Re-inserted, so the most recently used host is the last to go.
     this.hosts.delete(hostKey);
     this.hosts.set(hostKey, {key, tabId});
     if (known) return;
     while (this.hosts.size > MaxHosts) {
-      this.hosts.delete(this.hosts.keys().next().value);
+      // The oldest host behind a proxy FastStream cannot copy goes first (kept only for
+      // throughBrowserVpn): a run of them must not push out the hosts the mirror serves.
+      const uncopyable = Array.from(this.hosts).find(([, entry]) =>
+        !CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''));
+      this.hosts.delete(uncopyable ? uncopyable[0] : this.hosts.keys().next().value);
     }
     this.updateListener();
   }
@@ -277,6 +280,27 @@ export class VpnProxyMirror {
   }
 
   /**
+   * Whether the page's request for this stream went through Firefox VPN, whose proxy
+   * carries a bearer token (IPProtection's pass.asBearerToken(), Firefox 157). Nothing
+   * outside Firefox can use it: mpv asks from the user's own address, and a site that ties
+   * its stream to the VPN's refuses it. A proxy without one (one set in Firefox's network
+   * settings, say) does not count.
+   * @param {string} url - The stream.
+   * @param {boolean} [incognito] - Its tab's private-window flag: Firefox VPN can carry
+   *   private windows only (IPPMode.MODE_PB). Unknown (a closed tab), either counts.
+   * @return {boolean}
+   */
+  throughBrowserVpn(url, incognito) {
+    const host = hostOf(url);
+    if (!host) return false;
+    return (incognito === undefined ? [false, true] : [incognito]).some((incognito) => {
+      const entry = this.hosts.get(VpnProxyMirror.hostKey(incognito, host));
+      const header = entry ? this.proxies.get(entry.key)?.proxyAuthorizationHeader : '';
+      return /^Bearer\s/i.test(header || '');
+    });
+  }
+
+  /**
    * proxy.onRequest's answer: for FastStream's own request to a host the page reached
    * through a proxy, that proxy with its newest token; for anything else, no change.
    * @param {{url: string, tabId?: number, incognito?: boolean, originUrl?: string,
@@ -313,7 +337,10 @@ export class VpnProxyMirror {
    */
   updateListener() {
     const api = this.permitted ? this.getProxyApi() : null;
-    const urls = Array.from(new Set(Array.from(this.hosts.keys(), (k) => `*://${k.slice(2)}/*`)));
+    // A proxy FastStream cannot copy (MASQUE) would only hold its host's requests up.
+    const urls = Array.from(new Set(Array.from(this.hosts)
+        .filter(([, entry]) => CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''))
+        .map(([hostKey]) => `*://${hostKey.slice(2)}/*`)));
     const same = this.listener && urls.length === this.listenerUrls.length &&
       urls.every((u, i) => u === this.listenerUrls[i]);
     if (same && api) return;

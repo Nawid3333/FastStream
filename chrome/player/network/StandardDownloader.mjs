@@ -9,10 +9,22 @@ export class StandardDownloader {
     this.loader = null;
     this.entry = null;
     this.stats = null;
+    // True while entry.onSuccess is awaited: a slow-down must not take this downloader
+    // away mid-delivery, or the finished data would be discarded.
+    this.delivering = false;
   }
 
   canHandle(details) {
     return this.loader === null;
+  }
+
+  /**
+   * A server answered 429 or 503: tell the manager to slow down. It may cut this very
+   * downloader; retire() then hands the entry back without notifying the watchers.
+   * @param {number|null} retryAfter - The wait the server asked for, in ms.
+   */
+  onSlowDown(retryAfter) {
+    this.manager.slowDown?.(retryAfter);
   }
 
   getSpeed() {
@@ -71,6 +83,24 @@ export class StandardDownloader {
     this.cleanup();
   }
 
+  /**
+   * Takes this downloader away from a running download after a slow-down, without telling
+   * the entry's watchers (they hear nothing). If it is already delivering a finished
+   * download, it finishes that instead: it is already out of manager.downloaders.
+   */
+  retire() {
+    if (this.delivering) return;
+    if (!this.entry) return;
+    // Stop the loader without notifying the entry: FetchLoader.abort clears its callbacks
+    // and timers, the pre-FetchLoader stub's abort/destroy stops the pending request.
+    this.loader?.abort();
+    this.loader = null;
+    const entry = this.entry;
+    this.entry = null;
+    entry.downloader = null;
+    this.manager.requeueEntry(entry);
+  }
+
   cleanup() {
     if (this.entry) {
       this.loader.destroy();
@@ -95,10 +125,12 @@ export class StandardDownloader {
 
   async onSuccess(response, stats, entry, xhr) {
     this.updateSpeed(stats);
+    this.delivering = true;
     try {
       await this.entry.onSuccess(response, stats, this.entry, xhr);
     } finally {
       // Whatever went wrong in there, a downloader left busy would never download again.
+      this.delivering = false;
       this.cleanup();
     }
   }

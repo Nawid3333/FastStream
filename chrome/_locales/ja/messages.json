@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPNがこの動画を中継しており、mpvはそれを使用できません。サイトはmpvを拒否するでしょう。mpvで視聴するには、このサイトでFirefox VPNをオフにして、ページを再読み込みしてください。"
     }
 }

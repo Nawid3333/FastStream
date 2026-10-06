@@ -31,9 +31,16 @@
   - Downloads (#359): a video starts with three downloaders and the speed test decides per
     two samples: playable 0.45 s after the player appears instead of 0.68 s, six
     connections at 1.8 s instead of 3.3 s, the full preload no faster (the line is the
-    limit). An HTTP 429 or 503 halves the downloaders for good (one stays), stops the test
-    and holds every download for its Retry-After (30 s at most); the player starts its next
-    video with one.
+    limit). An HTTP 429 or 503 halves the downloaders (one stays), stops the test and holds
+    every download for its Retry-After (30 s at most); the player starts its next video with
+    one. Changed the same evening (the user: "as fast as the server allows"): FetchLoader
+    retries a 429 too and tells each 429/503 at once (onSlowDown); answers of one burst
+    (2 s) halve once; a downloader taken away mid-fetch hands its download back to the
+    queue, one delivering a finished download finishes first (StandardDownloader.retire -
+    before, the player heard "aborted" and a finished piece was thrown away); after a calm
+    period (15 s or the Retry-After, doubling per slow-down in a row, 2 min at most) the
+    speed test probes again, and a probe that climbs without a slow-down ends the caution.
+    The next video's speed test after a slow-down is such a probe.
   - A decoder Firefox cannot create (its error names InitIPDL) leaves its codec out after
     one decode error, not two (LevelManager.noteVideoDecodeFailure): HEVC on a GPU-less
     Windows Firefox left a live DASH stream at "Failed to load video!".
@@ -259,8 +266,14 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
   page running (measured 2026-09-28), but a background that is terminated or crashes while a
   video plays starts with nothing, and the player's requests go direct until the page asks
   again. A plain http proxy gets no `Proxy-Authorization` from Firefox (only https proxies
-  do, measured), which is why the e2e stand-in has no token. mpv cannot use Firefox VPN at
-  all.
+  do, measured), which is why the e2e stand-in has no token.
+- **mpv** cannot use Firefox VPN at all: it runs outside Firefox (confirmed by the user on
+  1.3.82.67). So a stream whose page request went through the VPN - a proxy with a bearer
+  token, as IPProtection's `pass.asBearerToken()` makes it - is not handed off
+  (`openInMpv` in background.mjs, every hand-off path); the toolbar's "!" and the player's
+  status line say to turn the VPN off for the site. Which hosts count follows the tab's
+  private-window flag (the VPN can be on for private windows only). A proxy without a token
+  (one set in Firefox's network settings) does not block mpv.
 - **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
   (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
   answers). With `proxyFor` disabled, its two playback tests fail.

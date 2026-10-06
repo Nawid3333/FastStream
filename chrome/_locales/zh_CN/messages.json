@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。"
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN 正在传输此视频，而 mpv 无法使用它：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"
     }
 }
