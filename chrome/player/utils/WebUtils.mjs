@@ -3,6 +3,30 @@
  */
 export class WebUtils {
   /**
+   * Copies text to the clipboard with navigator.clipboard, or where the browser refuses it
+   * (no secure context, or no click to answer: the web build on a plain-http page) the old
+   * way, a selected input and document.execCommand('copy').
+   * @param {string} text
+   * @param {HTMLElement} container - Where the fallback's input goes, for a moment.
+   * @return {Promise<void>}
+   */
+  static async copyText(text, container) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (e) {
+      // The old way below.
+    }
+    const input = document.createElement('input');
+    input.value = text;
+    container.appendChild(input);
+    input.focus();
+    input.select();
+    document.execCommand('copy');
+    container.removeChild(input);
+  }
+
+  /**
    * Creates a DOM element with optional style and class.
    * @param {string} [type='div'] - The type of element to create.
    * @param {string} [style] - The style to apply to the element.

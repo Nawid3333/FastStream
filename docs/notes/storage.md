@@ -7,7 +7,7 @@
 
 ## Network layer: fetch() + OPFS (2026-09-10)
 
-`chrome/player/network/XHRLoader.mjs` — the single loader shared by HLS,
+`chrome/player/network/FetchLoader.mjs` — the single loader shared by HLS,
 DASH and MP4 fragment/playlist/manifest fetching (`DownloadManager.mjs` →
 `StandardDownloader.mjs` → this file) — was rewritten from `XMLHttpRequest`
 to `fetch()` + a `response.body.getReader()` loop. Same public interface
@@ -18,7 +18,7 @@ progressing body — armed once per `readyState` transition, not per byte).
 Fixed along the way: a latent bug where tearing down an attempt to retry it
 (`retry()`) also permanently marked `stats.aborted = true`, silently
 swallowing the retried attempt's own outcome. 13 unit tests in
-`tests/unit/XHRLoader.test.mjs` (the file had zero coverage before).
+`tests/unit/FetchLoader.test.mjs` (the file had zero coverage before).
 
 `chrome/player/modules/FSBlob.mjs` gained an OPFS backend
 (`chrome/player/network/OPFSManager.mjs` + a dedicated module worker,

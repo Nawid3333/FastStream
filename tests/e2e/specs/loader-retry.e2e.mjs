@@ -1,6 +1,6 @@
-// XHRLoader's stall retry, against Firefox's own fetch().
+// FetchLoader's stall retry, against Firefox's own fetch().
 //
-// Every fragment, playlist and manifest goes through XHRLoader. When a request stalls, the
+// Every fragment, playlist and manifest goes through FetchLoader. When a request stalls, the
 // stall timer calls retry(), which aborts the attempt's AbortController and schedules the
 // next one. Firefox's fetch() then rejects the stalled attempt with an AbortError. That
 // rejection used to be counted as a second failure of the load: retry() ran again, so one
@@ -8,7 +8,7 @@
 // already scheduled. With the default six retries a stalled fragment got two stall
 // retries instead of three before it was given up on.
 //
-// tests/unit/XHRLoader.test.mjs covers the same with a stubbed fetch(); this checks that a
+// tests/unit/FetchLoader.test.mjs covers the same with a stubbed fetch(); this checks that a
 // real one behaves the way the stub claims.
 
 import http from 'node:http';
@@ -22,7 +22,7 @@ let server;
 let requests = [];
 const openResponses = new Set();
 
-describe('XHRLoader stall retry in Firefox', function() {
+describe('FetchLoader stall retry in Firefox', function() {
   before(async function() {
     server = http.createServer((req, res) => {
       const headers = {
@@ -70,15 +70,15 @@ describe('XHRLoader stall retry in Firefox', function() {
   });
 
   /**
-   * Loads one URL through XHRLoader in the page, with a short stall timeout.
+   * Loads one URL through FetchLoader in the page, with a short stall timeout.
    * @param {string} url - What to load.
    * @return {Promise<Object>} The callbacks it made and its retry count.
    */
   async function loadInPage(url) {
     await browser.execute((target) => {
       window.__loaderResult = undefined;
-      import('/player/network/XHRLoader.mjs').then(({XHRLoader}) => {
-        const loader = new XHRLoader();
+      import('/player/network/FetchLoader.mjs').then(({FetchLoader}) => {
+        const loader = new FetchLoader();
         const calls = [];
         const finish = () => {
           window.__loaderResult = {calls, retry: loader.stats.retry, retryDelay: loader.retryDelay};

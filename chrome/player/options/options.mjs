@@ -189,6 +189,10 @@ async function loadOptions(newOptions) {
     document.getElementById('dev').style.display = '';
   }
   initsearch();
+  // initsearch() shows every row again; a query still in the box applies again.
+  if (optionsSearchBar.value) {
+    searchWithQuery(optionsSearchBar.value);
+  }
 }
 
 function createSelectMenu(container, options, selected, localPrefix, callback) {
@@ -702,30 +706,27 @@ importButton.addEventListener('click', () => {
   picker.accept = '.json';
   picker.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      let newOptionsObj;
-      try {
-        newOptionsObj = JSON.parse(e.target.result);
-      } catch (err) {
-        newOptionsObj = null;
-      }
-      // Valid JSON that is no settings object (null, a list, a number) threw further down,
-      // and the import failed without a word.
-      if (!newOptionsObj || typeof newOptionsObj !== 'object' || Array.isArray(newOptionsObj)) {
-        alert(Localize.getMessage('options_import_invalid'));
-        return;
-      }
-      const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
-      const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
-      const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
-      loadOptions(newOptions);
-      optionChanged();
+    if (!file) return;
+    let newOptionsObj;
+    try {
+      newOptionsObj = JSON.parse(await file.text());
+    } catch (err) {
+      newOptionsObj = null;
+    }
+    // Valid JSON that is no settings object (null, a list, a number) threw further down,
+    // and the import failed without a word.
+    if (!newOptionsObj || typeof newOptionsObj !== 'object' || Array.isArray(newOptionsObj)) {
+      alert(Localize.getMessage('options_import_invalid'));
+      return;
+    }
+    const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
+    const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
+    const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
+    loadOptions(newOptions);
+    optionChanged();
 
-      Utils.setConfig('subtitlesSettings', JSON.stringify(subtitlesSettings));
-      Utils.setConfig('toolSettings', JSON.stringify(toolSettings));
-    };
-    reader.readAsText(file);
+    Utils.setConfig('subtitlesSettings', JSON.stringify(subtitlesSettings));
+    Utils.setConfig('toolSettings', JSON.stringify(toolSettings));
   });
   document.body.appendChild(picker);
   picker.click();

@@ -1035,7 +1035,7 @@ export class InterfaceController {
    * Copies a link to the source at the current time (a click on the time readout), with
    * its headers but not its login ones (VideoSource.toCopyURL).
    */
-  copySourceLink() {
+  async copySourceLink() {
     let copyURL = '';
     if (this.client.source) {
       try {
@@ -1046,13 +1046,7 @@ export class InterfaceController {
       }
     }
 
-    const input = document.createElement('input');
-    input.value = copyURL;
-    DOMElements.playerContainer.appendChild(input);
-    input.focus();
-    input.select();
-    document.execCommand('copy');
-    DOMElements.playerContainer.removeChild(input);
+    await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 
     this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);
   }

@@ -66,6 +66,33 @@ describe('SCRAPE_CAPTIONS', () => {
     expect(await page.send({type: 'SCRAPE_CAPTIONS'})).toEqual([]);
   });
 
+  it('leaves out a track whose request does not answer 200', async () => {
+    const page = loadContentScript({responses: {'https://cdn.example/en.vtt': 'WEBVTT'}});
+    addTrack(page, 'https://cdn.example/missing.vtt');
+    addTrack(page, 'https://cdn.example/en.vtt');
+    const tracks = await page.send({type: 'SCRAPE_CAPTIONS'});
+    expect(tracks.map((track) => track.source)).toEqual(['https://cdn.example/en.vtt']);
+  });
+
+  it('stops a track whose body stalls, and answers with the others', async () => {
+    // Three bytes, then nothing: the request is stopped when nothing has come for 2 s.
+    const stalling = (init) => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('WEB'));
+        init.signal.addEventListener('abort', () => controller.error(init.signal.reason));
+      },
+    }), {status: 200});
+    const page = loadContentScript({responses: {'https://cdn.example/slow.vtt': stalling, 'https://cdn.example/en.vtt': 'WEBVTT'}});
+    addTrack(page, 'https://cdn.example/slow.vtt');
+    addTrack(page, 'https://cdn.example/en.vtt');
+    const answer = page.send({type: 'SCRAPE_CAPTIONS'});
+    // Let both requests start and read what they can, then let 2 s pass on the page's clock.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    page.advance(2000);
+    const tracks = await answer;
+    expect(tracks.map((track) => track.source)).toEqual(['https://cdn.example/en.vtt']);
+  });
+
   it('leaves out tracks that are not text to read', async () => {
     const page = loadContentScript({responses: {'https://cdn.example/ch.vtt': 'WEBVTT', 'https://cdn.example/cc.vtt': 'WEBVTT'}});
     addTrack(page, 'https://cdn.example/ch.vtt', 'chapters');

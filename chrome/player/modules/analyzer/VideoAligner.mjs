@@ -322,11 +322,7 @@ export class VideoAligner extends EventEmitter {
   }
 
   stringifyBuffer(buffer) {
-    const result = [];
-    for (let i = 0; i < buffer.length; i++) {
-      result.push(String.fromCharCode(buffer[i]));
-    }
-    return btoa(result.join(''));
+    return buffer.toBase64();
   }
   getMemoryForSave() {
     const memory = {};
@@ -376,8 +372,8 @@ export class VideoAligner extends EventEmitter {
     const memory = this.memory;
     for (const identifier in saved) {
       if (!Object.hasOwn(saved, identifier)) continue;
-      const hashBuffer = new Uint32Array(inflate(Uint8Array.from(atob(saved[identifier].hashBuffer), (c) => c.charCodeAt(0))).buffer);
-      const timeBuffer = new Uint16Array(inflate(Uint8Array.from(atob(saved[identifier].timeBuffer), (c) => c.charCodeAt(0))).buffer);
+      const hashBuffer = new Uint32Array(inflate(Uint8Array.fromBase64(saved[identifier].hashBuffer)).buffer);
+      const timeBuffer = new Uint16Array(inflate(Uint8Array.fromBase64(saved[identifier].timeBuffer)).buffer);
 
       const sequence = [];
       let startTime = saved[identifier].startTime;

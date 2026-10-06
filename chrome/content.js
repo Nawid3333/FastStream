@@ -1460,48 +1460,61 @@
       callback = args[1];
       bust = args[2];
     }
+    // fetch() since 2026-10-06 (XMLHttpRequest before). The whole request has
+    // HttpRequestTimeoutMs; it stops when nothing has come for HttpRequestStallMs, before
+    // the headers or between pieces of the body. A failed or stopped request calls back
+    // as a status other than 200 did, with no response.
+    const stall = new AbortController();
+    let stallTimer;
+    const armStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => stall.abort(), HttpRequestStallMs);
+    };
+    const init = {
+      method: post ? 'POST' : 'GET',
+      signal: AbortSignal.any([stall.signal, AbortSignal.timeout(HttpRequestTimeoutMs)]),
+    };
     try {
-      const xhr = new XMLHttpRequest();
-      xhr.open(post ? 'POST' : 'GET', url + (bust ? ('?' + Date.now()) : ''));
-      xhr.responseType = 'arraybuffer';
-      // A timed-out or aborted request still reaches readyState 4, with status 0.
-      xhr.timeout = HttpRequestTimeoutMs;
-      let stallTimer;
-      const armStallTimer = () => {
-        clearTimeout(stallTimer);
-        stallTimer = setTimeout(() => xhr.abort(), HttpRequestStallMs);
-      };
-      xhr.onprogress = armStallTimer;
-      xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4) {
-          armStallTimer();
-          return;
-        }
-        clearTimeout(stallTimer);
-        if (xhr.status === 200) {
-          callback(undefined, xhr, decodeSubtitleBytes(xhr.response, xhr.getResponseHeader('Content-Type')));
-        } else {
-          callback(true, xhr, false);
-        }
-      };
       if (post) {
-        xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-
         const toPost = [];
         for (const i in post) {
           if (Object.hasOwn(post, i)) {
             toPost.push(encodeURIComponent(i) + '=' + encodeURIComponent(post[i]));
           }
         }
-
-        post = toPost.join('&');
+        init.headers = {'Content-type': 'application/x-www-form-urlencoded'};
+        init.body = toPost.join('&');
       }
-
-      xhr.send(post);
-      armStallTimer();
     } catch (e) {
       callback(e);
+      return;
     }
+
+    const load = async () => {
+      armStallTimer();
+      const response = await fetch(url + (bust ? ('?' + Date.now()) : ''), init);
+      if (response.status !== 200) {
+        response.body?.cancel().catch(() => {});
+        return [true, response, false];
+      }
+      const chunks = [];
+      if (response.body) {
+        const reader = response.body.getReader();
+        for (;;) {
+          armStallTimer();
+          const {done, value} = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+      }
+      const bytes = await new Blob(chunks).arrayBuffer();
+      return [undefined, response, decodeSubtitleBytes(bytes, response.headers.get('Content-Type'))];
+    };
+    // The callback runs outside the catch: one that throws is not a failed request.
+    load().catch(() => [true, undefined, false]).then(([err, response, text]) => {
+      clearTimeout(stallTimer);
+      callback(err, response, text);
+    }).catch((e) => console.error('FastStream: a subtitle answer failed', e));
   }
 
   /**

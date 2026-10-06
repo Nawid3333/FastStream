@@ -182,7 +182,8 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
     const rect = container.getBoundingClientRect();
     knob.setPosition(rect.left, rect.top);
 
-    const delta = -Utils.clamp(e.wheelDelta, -1, 1);
+    // deltaY, the standard one (wheelDelta is not): negative for wheel up, as -wheelDelta was.
+    const delta = Utils.clamp(e.deltaY, -1, 1);
     knob.doMouseScroll(delta, e.timeStamp, rect.left, rect.top);
 
     e.preventDefault();

@@ -11,6 +11,8 @@ const VENDORED = new Map([
   // Line endings aside (normaliseText).
   ['chrome/player/modules/remux/mediabunny.mjs', 'node_modules/mediabunny/dist/bundles/mediabunny.mjs'],
   ['chrome/player/modules/dash.mjs', 'node_modules/dashjs/dist/modern/esm/dash.all.debug.js'],
+  // The options page's search (utils/SearchUtils.mjs).
+  ['chrome/player/modules/fuse.mjs', 'node_modules/fuse.js/dist/fuse.mjs'],
 ].map(([copy, build]) => [path.resolve(root, copy), path.resolve(root, build)]));
 
 export default defineConfig({

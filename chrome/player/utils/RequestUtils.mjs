@@ -19,6 +19,76 @@ export const SpecialHeaders = [
 ];
 
 /**
+ * What RequestUtils.request() resolves with: the parts of an XMLHttpRequest its callers
+ * read, filled from a fetch() (it was an XMLHttpRequest until 2026-10-06). status is 0 when
+ * the request failed outright - a network error, a refused request, a body cut off - as an
+ * XMLHttpRequest's was.
+ */
+export class RequestResult {
+  /** @param {string} responseType - '' or 'text', 'json', 'arraybuffer' or 'blob'. */
+  constructor(responseType) {
+    this.responseType = responseType;
+    this.status = 0;
+    this.statusText = '';
+    this.responseURL = '';
+    this.response = null;
+    /** @type {?Headers} */
+    this.headers = null;
+  }
+
+  /**
+   * The body as text, for a text response; like XMLHttpRequest's, it throws for any other
+   * responseType.
+   * @return {string}
+   */
+  get responseText() {
+    if (this.responseType !== '' && this.responseType !== 'text') {
+      throw new DOMException(`responseText is only for a text response, not "${this.responseType}"`, 'InvalidStateError');
+    }
+    return this.response ?? '';
+  }
+
+  /**
+   * @param {string} name
+   * @return {?string} The header's value, null when there is none.
+   */
+  getResponseHeader(name) {
+    return this.headers ? this.headers.get(name) : null;
+  }
+
+  /**
+   * @return {string} Every header as XMLHttpRequest gives them: "name: value" lines, CRLF.
+   */
+  getAllResponseHeaders() {
+    if (!this.headers) return '';
+    let text = '';
+    for (const [name, value] of this.headers) text += `${name}: ${value}\r\n`;
+    return text;
+  }
+}
+
+/**
+ * Reads a response's body piece by piece, telling onProgress how far it got.
+ * @param {Response} response
+ * @param {function({loaded: number, total: number, lengthComputable: boolean})} onProgress
+ * @return {Promise<Response>} The whole body, readable as text, ArrayBuffer or Blob again.
+ */
+async function readWithProgress(response, onProgress) {
+  const total = Number(response.headers.get('Content-Length')) || 0;
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+    onProgress({loaded, total, lengthComputable: total > 0});
+  }
+  return new Response(new Blob(chunks), {headers: response.headers});
+}
+
+/**
  * Utility functions for HTTP requests and header manipulation.
  */
 export class RequestUtils {
@@ -46,66 +116,28 @@ export class RequestUtils {
     return {customHeaderCommands, regularHeaders};
   }
   /**
-   * Makes an HTTP request using XMLHttpRequest with various options.
+   * Makes an HTTP request with fetch() and various options.
    * @param {Object} options - Request options.
    * @param {string} options.url - The request URL.
    * @param {string} [options.method] - HTTP method (GET, POST, etc.).
    * @param {Object} [options.headers] - Headers to set.
    * @param {Object} [options.query] - Query parameters.
-   * @param {string} [options.responseType] - Response type.
+   * @param {string} [options.responseType] - Response type: '' or 'text', 'json',
+   *   'arraybuffer' or 'blob'.
    * @param {Object} [options.range] - Byte range for partial requests.
-   * @param {Function} [options.onProgress] - Progress callback.
+   * @param {Function} [options.onProgress] - Progress callback, with {loaded, total,
+   *   lengthComputable} for each piece of the body.
    * @param {boolean} [options.usePlusForSpaces] - Use plus for spaces in query.
    * @param {any} [options.data] - Data to send in the request body.
    * @param {any} [options.body] - Alias for data.
    * @param {Array} [options.header_commands] - Custom header commands for extension.
-   * @return {Promise<XMLHttpRequest>} Resolves with the XMLHttpRequest object.
+   * @return {Promise<RequestResult>} Resolves with what the request got, failed or not.
    */
-  static request(options) {
-    return new Promise((resolve, reject) => {
-      try {
-        RequestUtils.performRequest(options, resolve, reject);
-      } catch (e) {
-        reject(e);
-      }
-    });
-  }
-
-  /**
-   * @param {object} options
-   * @param {(xmlHttp: XMLHttpRequest) => void} resolve
-   * @param {(error: Error) => void} reject
-   */
-  static performRequest(options, resolve, reject) {
-    const xmlHttp = new XMLHttpRequest();
-    options.xmlHttp = xmlHttp;
-    if (options.responseType !== undefined) xmlHttp.responseType = options.responseType;
-    let sent = false;
-    xmlHttp.addEventListener('load', function() {
-      if (sent) return;
-      sent = true;
-      resolve(xmlHttp);
-    });
-    xmlHttp.addEventListener('error', () => {
-      if (sent) return;
-      sent = true;
-      resolve(xmlHttp);
-    });
-    xmlHttp.addEventListener('timeout', () => {
-      if (sent) return;
-      sent = true;
-      resolve(xmlHttp);
-    });
-    xmlHttp.addEventListener('abort', () => {
-      if (sent) return;
-      sent = true;
-      resolve(xmlHttp);
-    });
-
-    xmlHttp.addEventListener('progress', (e) => {
-      if (options.onProgress) options.onProgress(e);
-    });
-
+  static async request(options) {
+    const responseType = options.responseType || '';
+    if (!['', 'text', 'json', 'arraybuffer', 'blob'].includes(responseType)) {
+      throw new Error(`RequestUtils.request: no responseType "${responseType}"`);
+    }
     let query = '';
     if (options.query) {
       query = '?' + Object.keys(options.query).filter((key) => {
@@ -117,43 +149,73 @@ export class RequestUtils {
         return encodeURIComponent(key) + '=' + encodeURIComponent(options.query[key]);
       }).join('&');
     }
-    const method = options.method || options.type || 'GET';
-
-    xmlHttp.open(method, options.url + query, true); // true for asynchronous
+    const headers = new Headers();
     if (options.range !== undefined) {
-      xmlHttp.setRequestHeader('Range', 'bytes=' + options.range.start + '-' + options.range.end);
+      headers.set('Range', 'bytes=' + options.range.start + '-' + options.range.end);
     }
-
-    // xmlHttp.setRequestHeader('Origin', '');
     if (options.headers) {
       for (const name in options.headers) {
         if (Object.hasOwn(options.headers, name)) {
-          xmlHttp.setRequestHeader(name, options.headers[name]);
+          headers.append(name, options.headers[name]);
         }
       }
     }
 
-    const sendRequest = () => {
-      xmlHttp.send(options.data || options.body);
-    };
-
     if (options.header_commands && EnvUtils.isExtension()) {
-      chrome.runtime.sendMessage({
+      // A refusal rejects request(), as it did.
+      await chrome.runtime.sendMessage({
         type: MessageTypes.SET_HEADERS,
         url: options.url,
         commands: options.header_commands,
-      }).then(sendRequest).catch(reject);
-    } else {
-      sendRequest();
+      });
     }
-  }
 
+    const method = options.method || options.type || 'GET';
+    const result = new RequestResult(responseType);
+    try {
+      const response = await fetch(options.url + query, {
+        method,
+        headers,
+        // XMLHttpRequest dropped a body for GET and HEAD; fetch() refuses one.
+        body: /^(GET|HEAD)$/i.test(method) ? undefined : (options.data || options.body),
+      });
+      result.status = response.status;
+      result.statusText = response.statusText;
+      result.responseURL = response.url;
+      result.headers = response.headers;
+      const body = options.onProgress && response.body ? await readWithProgress(response, options.onProgress) : response;
+      if (responseType === 'arraybuffer') {
+        result.response = await body.arrayBuffer();
+      } else if (responseType === 'blob') {
+        result.response = await body.blob();
+      } else {
+        const text = await body.text();
+        if (responseType === 'json') {
+          // As XMLHttpRequest's: null for a body that is not JSON.
+          try {
+            result.response = JSON.parse(text);
+          } catch (e) {
+            result.response = null;
+          }
+        } else {
+          result.response = text;
+        }
+      }
+    } catch (e) {
+      // A network error, a refused request or a body cut off: what XMLHttpRequest gave, a
+      // status of 0 and no response, for the caller to check like any other status.
+      result.status = 0;
+      result.response = null;
+    }
+    return result;
+  }
   /**
-   * Makes a simple HTTP request and returns the XMLHttpRequest object.
+   * Makes a simple HTTP request and returns what it got.
    * @param {Object|string} details - Request details or URL string.
    * @param {Function} [callback] - Optional callback(error, xhr, body): body is the
    *   responseText, or with a details.responseType other than text, the response.
-   * @return {Promise<XMLHttpRequest>} Resolves with the XMLHttpRequest object.
+   * @return {Promise<RequestResult|undefined>} Resolves with request()'s result, undefined when
+   *   request() threw.
    */
   static async requestSimple(details, callback) {
     if (typeof details === 'string') {

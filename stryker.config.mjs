@@ -76,7 +76,7 @@ export const AREAS = {
     'chrome/player/network/DownloadManager.mjs',
     'chrome/player/network/OPFSManager.mjs',
     'chrome/player/network/StandardDownloader.mjs',
-    'chrome/player/network/XHRLoader.mjs',
+    'chrome/player/network/FetchLoader.mjs',
     'chrome/player/players/LevelManager.mjs',
     'chrome/player/players/SyncedAudioPlayer.mjs',
     'chrome/player/players/dash/DashLoader.mjs',

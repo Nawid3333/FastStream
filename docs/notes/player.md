@@ -103,9 +103,9 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
   `onSuccess`/`onError`/`onTimeout`). `HLSLoader` reports a failed playlist with `onError`
-  and `XHRLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
+  and `FetchLoader`'s `stats.error` (`{code, text}`). A fragment or key that fails gets
   `onAbort` after 1 s, and hls.js picks it again: upstream's design, on top of
-  `XHRLoader`'s own six retries. From the third failure in a row of the same one it gets
+  `FetchLoader`'s own six retries. From the third failure in a row of the same one it gets
   `onError` (`SEGMENT_FAILURES_BEFORE_ERROR`), so hls.js retries it by its own policy and
   fails the player once it gives up; for good, a dead segment (an expired token's 403) spun
   forever. `DashLoader` counts the same way and then gives dash.js `onFail` and the player an

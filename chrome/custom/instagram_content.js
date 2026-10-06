@@ -1,12 +1,7 @@
 // btoa takes Latin-1 only: a manifest with any other character (a title, an address)
 // threw. This is the manifest's UTF-8, in base64.
 function base64Utf8(text) {
-  const bytes = new TextEncoder().encode(text);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += 0x2000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x2000));
-  }
-  return btoa(binary);
+  return new TextEncoder().encode(text).toBase64();
 }
 
 // Listen for messages

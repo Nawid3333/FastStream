@@ -2,7 +2,11 @@ import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
 
-export class XHRLoader {
+// Every fragment, playlist, manifest and MP4 range the player loads: fetch() with stall
+// timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read. It was
+// XHRLoader until 2026-10-06, named for the XMLHttpRequest it wrapped before it moved to
+// fetch(). (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
+export class FetchLoader {
   constructor() {
     this.callbacks = [];
     this.stats = {
@@ -165,6 +169,16 @@ export class XHRLoader {
         headers: fetchHeaders,
         body: request.body,
         credentials: 'same-origin',
+        // Not through Firefox's HTTP cache. FastStream keeps what it loads itself, a live
+        // playlist must come fresh, and an attempt that goes through the cache first waits
+        // for its cache entry: on a busy disk, behind the cache's own writes, before it
+        // reaches the network. On the Windows CI runner every attempt of a stalled load,
+        // retries included, waited 2 to 5 s that way while the cache wrote a page's ~150
+        // module files, and the stall timer fired again before any reached the server
+        // (loader-retry.e2e.mjs, Firefox's cache2 log of CI run 37018281037). With
+        // 'no-store' Firefox opens no cache entry at all (INHIBIT_CACHING and
+        // LOAD_BYPASS_CACHE; nsHttpChannel::OpenCacheEntryInternal returns before it).
+        cache: 'no-store',
         signal: controller.signal,
       });
     } catch (e) {

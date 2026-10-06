@@ -55,11 +55,11 @@ describe('mutation-report', () => {
   });
 
   it('puts the shards\' reports together, every file of each (#253)', () => {
-    const network = {schemaVersion: '2', files: {'chrome/player/network/XHRLoader.mjs': {mutants: [mutant('Survived', 4)]}}};
+    const network = {schemaVersion: '2', files: {'chrome/player/network/FetchLoader.mjs': {mutants: [mutant('Survived', 4)]}}};
     const merged = merge([{schemaVersion: '2', ...report}, network]);
     expect(merged.schemaVersion).toBe('2');
     expect(Object.keys(merged.files).sort()).toEqual([
-      'chrome/background/DownloadFilename.mjs', 'chrome/player/network/XHRLoader.mjs', 'chrome/player/utils/StreamPick.mjs',
+      'chrome/background/DownloadFilename.mjs', 'chrome/player/network/FetchLoader.mjs', 'chrome/player/utils/StreamPick.mjs',
     ]);
     expect(missed(merged)).toHaveLength(3);
     expect(merge([])).toEqual({files: {}});
