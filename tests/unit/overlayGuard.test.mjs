@@ -71,8 +71,9 @@ describe('OverlayGuard', () => {
     page.overlayGuard.guard(iframe);
     page.runIntervals();
     expect(visibility(layer)).toBe('');
+    // Shown again: looked at at once, before the next check.
     page.document.hidden = false;
-    page.runIntervals();
+    page.dispatchDocument('visibilitychange');
     expect(visibility(layer)).toBe('hidden');
   });
 

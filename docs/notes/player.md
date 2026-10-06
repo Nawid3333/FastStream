@@ -15,11 +15,28 @@
     a stream of a type nobody thought of.
   - **PF2:** overlay-guard.js's check took 1.3 ms a second on a 1,500-element page,
     2.3 ms on 5,000, 9.5 ms on 20,000 and 23 ms on 50,000; dropping its per-element
-    array spread saved only 5-25%.
+    array spread saved only 5-25%. Since 2026-10-06 it rests while the tab is hidden and
+    looks at once when the tab shows (visibilitychange).
   - **PF3:** content.js sends 3 messages per frame per page load, 9-12 on those pages.
   - **PF4:** `querySelectorAllIncludingShadows` took 0.2-3 ms per call, and one-walk
     rewrites were no faster. What it did have was a bug (searching an element's own
     shadow root), fixed and tested in content-cleanup.e2e.mjs.
+  - PF1 was looked at again on 2026-10-06 and still left alone, for the same reasons.
+
+- **Measured and changed (2026-10-06).**
+  - A video under five minutes is redrawn every animation frame (`progressLoop`); the loop
+    ran on while the video was paused, 144 times a second on a 144 Hz screen. It stops
+    while paused (unless the fine time controls are open), and `play()` starts it again
+    (player-controls.e2e.mjs counts the updates).
+  - Downloads (#359): a video starts with three downloaders and the speed test decides per
+    two samples: playable 0.45 s after the player appears instead of 0.68 s, six
+    connections at 1.8 s instead of 3.3 s, the full preload no faster (the line is the
+    limit). An HTTP 429 or 503 halves the downloaders for good (one stays), stops the test
+    and holds every download for its Retry-After (30 s at most); the player starts its next
+    video with one.
+  - A decoder Firefox cannot create (its error names InitIPDL) leaves its codec out after
+    one decode error, not two (LevelManager.noteVideoDecodeFailure): HEVC on a GPU-less
+    Windows Firefox left a live DASH stream at "Failed to load video!".
 
 - **`play()` does not wait for the audio (2026-10-01).** With no sound device (CI's Linux
   runner) the player's AudioContext stays suspended and `resume()` never settles; `play()`
