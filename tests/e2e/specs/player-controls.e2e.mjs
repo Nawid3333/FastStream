@@ -280,21 +280,30 @@ describe('Player controls', function() {
     }, mp4Url());
     expect(error).toBe(null);
     await waitForPicture();
-    const copied = await browser.execute(() => {
-      let text = null;
+    // The copy goes through navigator.clipboard (WebUtils.copyText), asynchronously; caught
+    // there, and at the old execCommand way it falls back to, should the first refuse.
+    const {copied, via} = await browser.executeAsync((done) => {
+      const clipboard = navigator.clipboard;
+      const writeText = clipboard.writeText;
       const execCommand = document.execCommand;
-      document.execCommand = (command) => {
-        text = document.activeElement.value;
-        return command === 'copy';
-      };
-      try {
-        document.querySelector('.mainplayer .fluid_control_duration').click();
-      } finally {
+      let finished = false;
+      const finish = (result) => {
+        if (finished) return;
+        finished = true;
+        clipboard.writeText = writeText;
         document.execCommand = execCommand;
-      }
-      return text;
+        done(result);
+      };
+      clipboard.writeText = async (text) => finish({copied: text, via: 'clipboard'});
+      document.execCommand = (command) => {
+        finish({copied: document.activeElement.value, via: command});
+        return true;
+      };
+      setTimeout(() => finish({copied: null, via: 'nothing within 5 s'}), 5000);
+      document.querySelector('.mainplayer .fluid_control_duration').click();
     });
-    console.log('      copied:', copied);
+    console.log('      copied:', copied, 'via', via);
+    expect(via).toBe('clipboard');
     const headers = JSON.parse(new URL(copied).searchParams.get('faststream-headers'));
     expect(headers).toEqual({referer: 'https://site.example/'});
     expect(copied).not.toContain('secret');

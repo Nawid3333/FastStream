@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {WebUtils} from '../../chrome/player/utils/WebUtils.mjs';
 import {fakeDocument} from './fakeCueDom.mjs';
@@ -60,5 +60,51 @@ describe('replaceChildrenPerformant', () => {
     WebUtils.replaceChildrenPerformant(parent, [a, b]);
     expect(moves).toBe(0);
     expect(names(parent)).toEqual(['a', 'b']);
+  });
+});
+
+describe('copyText', () => {
+  // The copy-link buttons copied with a selected input and document.execCommand('copy'),
+  // which browsers deprecate; since 2026-10-06 navigator.clipboard, the old way kept for
+  // where it refuses (no secure context or no click to answer: the web build on http).
+  const fallback = () => {
+    const calls = [];
+    const input = {value: '', focus: () => calls.push('focus'), select: () => calls.push('select')};
+    const container = {
+      appendChild: (child) => calls.push(['append', child.value]),
+      removeChild: (child) => calls.push(['remove', child.value]),
+    };
+    vi.stubGlobal('document', {
+      createElement: () => input,
+      execCommand: (command) => calls.push(['exec', command, input.value]),
+    });
+    return {calls, container};
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('copies with navigator.clipboard, and leaves the page alone', async () => {
+    const {calls, container} = fallback();
+    const writeText = vi.fn(async () => {});
+    vi.stubGlobal('navigator', {clipboard: {writeText}});
+    await WebUtils.copyText('https://example.com/v.m3u8', container);
+    expect(writeText).toHaveBeenCalledWith('https://example.com/v.m3u8');
+    expect(calls).toEqual([]);
+  });
+
+  it('copies the old way when navigator.clipboard refuses, or is not there', async () => {
+    for (const navigator of [{clipboard: {writeText: async () => {
+      throw new DOMException('Clipboard write was blocked', 'NotAllowedError');
+    }}}, {}]) {
+      const {calls, container} = fallback();
+      vi.stubGlobal('navigator', navigator);
+      await WebUtils.copyText('https://example.com/v.mp4', container);
+      expect(calls).toEqual([
+        ['append', 'https://example.com/v.mp4'], 'focus', 'select',
+        ['exec', 'copy', 'https://example.com/v.mp4'], ['remove', 'https://example.com/v.mp4'],
+      ]);
+    }
   });
 });

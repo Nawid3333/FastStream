@@ -3,13 +3,6 @@
  */
 export class WebUtils {
   /**
-   * Creates a DOM element with optional style and class.
-   * @param {string} [type='div'] - The type of element to create.
-   * @param {string} [style] - The style to apply to the element.
-   * @param {string} [cl] - The class name to apply to the element.
-  * @return {HTMLElement} The created element.
-   */
-  /**
    * Copies text to the clipboard with navigator.clipboard, or where the browser refuses it
    * (no secure context, or no click to answer: the web build on a plain-http page) the old
    * way, a selected input and document.execCommand('copy').
@@ -33,6 +26,13 @@ export class WebUtils {
     container.removeChild(input);
   }
 
+  /**
+   * Creates a DOM element with optional style and class.
+   * @param {string} [type='div'] - The type of element to create.
+   * @param {string} [style] - The style to apply to the element.
+   * @param {string} [cl] - The class name to apply to the element.
+  * @return {HTMLElement} The created element.
+   */
   static create(type, style, cl) {
     const el = document.createElement(type || 'div');
     if (style) el.style = style;
