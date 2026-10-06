@@ -62,6 +62,14 @@ runs:
         if [ "$RUNNER_OS" = Windows ] && [ "$CACHE_HIT" = true ] && [ -f "$cached/ffmpeg.exe" ] && [ -f "$cached/ffprobe.exe" ]; then
           echo "ffmpeg from the cache ($cached)."
         else
+          if [ "$RUNNER_OS" != Windows ]; then
+            # A mirror that stopped sending mid-download (2026-10-06, azure.archive.ubuntu.com:
+            # 19 minutes on one package) held this step until the job's 20-minute limit, and
+            # the attempts below never came. apt now gives up on a download after 30 s without
+            # data, and retries it; then the next attempt runs. The sound step's apt too.
+            printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "3";\n' |
+              sudo tee /etc/apt/apt.conf.d/99-faststream-e2e-timeouts > /dev/null
+          fi
           for attempt in 1 2 3; do
             if [ "$RUNNER_OS" = Windows ]; then
               choco install ffmpeg -y --no-progress && break

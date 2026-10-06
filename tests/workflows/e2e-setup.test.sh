@@ -171,6 +171,12 @@ case "$1" in
   *) exit 2 ;;
 esac
 EOF
+# tee "writes" the apt settings file: kept in the scenario's folder, by its name.
+cat > "$here/stubs/tee" <<'EOF'
+#!/bin/bash
+echo "tee $*" >> "$FIX/calls"
+cat > "$FIX/tee-${1##*/}"
+EOF
 chmod +x "$here/stubs/"*
 for tool in find dirname mkdir; do
   ln -sf "$(command -v "$tool")" "$here/sys/$tool"
@@ -182,8 +188,9 @@ ffmpeg_scenario() {
   export FIX="$here/fix" STUBS="$here/stubs"
   rm -rf "$FIX"
   mkdir -p "$FIX/bin" "$FIX/home" "$FIX/choco"
-  cp "$here/stubs/sudo" "$here/stubs/apt-get" "$here/stubs/sleep" "$here/stubs/choco" "$here/stubs/cygpath" "$FIX/bin/"
+  cp "$here/stubs/sudo" "$here/stubs/apt-get" "$here/stubs/sleep" "$here/stubs/choco" "$here/stubs/cygpath" "$here/stubs/tee" "$FIX/bin/"
   ln -s "$(command -v cp)" "$FIX/bin/cp"
+  ln -sf "$(command -v cat)" "$FIX/bin/cat"
   # apt-get's "install" gives ffmpeg too, as the package does.
   [ "$2" = Linux ] && cp "$here/stubs/ffmpeg" "$FIX/bin/ffmpeg"
   local os=$2 hit=$3
@@ -220,6 +227,11 @@ check 'logs the version' contains "$FIX/out" 'ffmpeg version'
 check 'no Chocolatey' lacks "$FIX/calls" 'choco'
 check 'adds nothing to PATH' test ! -s "$FIX/path"
 check 'saves nothing' test ! -s "$FIX/output"
+# A mirror that stopped sending held the step for 19 minutes (2026-10-06).
+check 'sets apt to give up on a stalled download' contains "$FIX/calls" 'sudo tee /etc/apt/apt.conf.d/99-faststream-e2e-timeouts'
+check '... after 30 s without data' contains "$FIX/tee-99-faststream-e2e-timeouts" 'Acquire::http::Timeout "30";'
+check '... and to retry it' contains "$FIX/tee-99-faststream-e2e-timeouts" 'Acquire::Retries "3";'
+check '... before apt runs' test "$(grep -n -m1 '^tee ' "$FIX/calls" | cut -d: -f1)" -lt "$(grep -n -m1 '^apt-get update' "$FIX/calls" | cut -d: -f1)"
 
 ffmpeg_scenario 'Windows, a cache hit: the cached programs, no Chocolatey' Windows true cache-has
 check 'succeeds' test "$status" -eq 0
@@ -238,6 +250,7 @@ ffmpeg_scenario 'Windows, a miss: Chocolatey, then the programs copied out for t
 check 'succeeds' test "$status" -eq 0
 check 'installs through Chocolatey' contains "$FIX/calls" 'choco install ffmpeg -y --no-progress'
 check 'no apt' lacks "$FIX/calls" 'apt-get'
+check 'no apt settings' lacks "$FIX/calls" 'tee '
 check 'copies ffmpeg.exe' test -f "$FIX/home/ffmpeg-e2e/ffmpeg.exe"
 check 'copies ffprobe.exe' test -f "$FIX/home/ffmpeg-e2e/ffprobe.exe"
 check 'asks the save step to save' contains "$FIX/output" 'save=true'
