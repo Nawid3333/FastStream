@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Solo se usa con Firefox VPN. Firefox la muestra como control de la configuración del proxy del navegador, pero FastStream no cambia ninguna configuración: envía sus propias solicitudes para un vídeo de la misma manera que lo hacían las solicitudes de la propia página, a través de la VPN. Sin ella, un sitio que vincula su vídeo a la dirección de la VPN rechaza FastStream. El reproductor la pide la primera vez que se necesita."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN transmite este video y mpv no puede usarlo: el sitio rechazaría a mpv. Para verlo en mpv, desactiva Firefox VPN para este sitio y recarga la página."
     }
 }

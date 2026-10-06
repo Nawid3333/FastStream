@@ -8116,5 +8116,23 @@
         "tr": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister.",
         "zh_CN": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。",
         "zh_TW": "僅與 Firefox VPN 一起使用。Firefox 將其列為瀏覽器代理設定的控制項，但 FastStream 不會變更任何設定：它會以頁面自身請求所經過的相同方式，透過 VPN 傳送自己針對影片的請求。沒有它，將影片綁定到 VPN 位址的網站會拒絕 FastStream。播放器在首次需要它時要求它。"
+    },
+    "player_mpv_vpn": {
+        "en": "Firefox VPN carries this video, and mpv cannot use it: the site would refuse mpv. To watch it in mpv, turn Firefox VPN off for this site and reload the page.",
+        "de": "Firefox VPN überträgt dieses Video, und mpv kann das VPN nicht nutzen: Die Seite würde mpv ablehnen. Um es in mpv anzusehen, Firefox VPN für diese Seite ausschalten und die Seite neu laden.",
+        "es": "Firefox VPN transmite este video y mpv no puede usarlo: el sitio rechazaría a mpv. Para verlo en mpv, desactiva Firefox VPN para este sitio y recarga la página.",
+        "fr": "Firefox VPN transporte cette vidéo, et mpv ne peut pas l'utiliser : le site refuserait mpv. Pour la regarder dans mpv, désactivez Firefox VPN pour ce site et rechargez la page.",
+        "id": "Firefox VPN membawa video ini, dan mpv tidak dapat menggunakannya: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman.",
+        "it": "Firefox VPN trasporta questo video e mpv non può usarlo: il sito rifiuterebbe mpv. Per guardarlo in mpv, disattiva Firefox VPN per questo sito e ricarica la pagina.",
+        "ja": "Firefox VPNがこの動画を中継しており、mpvはそれを使用できません。サイトはmpvを拒否するでしょう。mpvで視聴するには、このサイトでFirefox VPNをオフにして、ページを再読み込みしてください。",
+        "ko": "Firefox VPN이 이 비디오를 전송하고 있으며, mpv는 이를 사용할 수 없습니다: 사이트에서 mpv를 거부할 것입니다. mpv에서 시청하려면 이 사이트에 대해 Firefox VPN을 끄고 페이지를 새로 고침하세요.",
+        "ms": "Firefox VPN membawa video ini, dan mpv tidak boleh menggunakannya: tapak akan menolak mpv. Untuk menontonnya dalam mpv, matikan Firefox VPN untuk tapak ini dan muat semula halaman.",
+        "nl": "Firefox VPN draagt deze video en mpv kan die niet gebruiken: de site zou mpv weigeren. Om het in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina.",
+        "pl": "Firefox VPN przesyła ten film, a mpv nie może go użyć: witryna odrzuciłaby mpv. Aby obejrzeć go w mpv, wyłącz Firefox VPN dla tej witryny i odśwież stronę.",
+        "pt_BR": "O Firefox VPN carrega este vídeo, e o mpv não pode usá-lo: o site recusaria o mpv. Para assistir no mpv, desative o Firefox VPN para este site e recarregue a página.",
+        "ru": "Firefox VPN передаёт это видео, и mpv не может его использовать: сайт откажет mpv. Чтобы посмотреть его в mpv, отключите Firefox VPN для этого сайта и перезагрузите страницу.",
+        "tr": "Firefox VPN bu videoyu taşıyor ve mpv bunu kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu site için Firefox VPN'i kapatın ve sayfayı yeniden yükleyin.",
+        "zh_CN": "Firefox VPN 正在传输此视频，而 mpv 无法使用它：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。",
+        "zh_TW": "Firefox VPN 正在傳輸此影片，而 mpv 無法使用它：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"
     }
 }

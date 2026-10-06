@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Firefox VPN에서만 사용됩니다. Firefox는 이를 브라우저의 프록시 설정 제어로 표시하지만, FastStream은 어떤 설정도 변경하지 않습니다. 동영상에 대한 자체 요청을 페이지 자체 요청이 지나간 것과 같은 방식으로 VPN을 통해 보냅니다. 이것이 없으면 동영상을 VPN 주소에 묶는 사이트는 FastStream을 거부합니다. 플레이어는 처음 필요할 때 이를 요청합니다."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN이 이 비디오를 전송하고 있으며, mpv는 이를 사용할 수 없습니다: 사이트에서 mpv를 거부할 것입니다. mpv에서 시청하려면 이 사이트에 대해 Firefox VPN을 끄고 페이지를 새로 고침하세요."
     }
 }

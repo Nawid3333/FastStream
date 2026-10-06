@@ -1351,5 +1351,8 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister."
+    },
+    "player_mpv_vpn": {
+        "message": "Firefox VPN bu videoyu taşıyor ve mpv bunu kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu site için Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
     }
 }

@@ -114,6 +114,10 @@ export class SaveManager {
       // busy..."); "is the host installed?" only when the host itself was not reached.
       const reason = response && !response.ok && !response.noHost && typeof response.error === 'string' ?
         response.error : '';
+      if (response && response.vpn) {
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_vpn'), 'warning', 12000);
+        return;
+      }
       if (response && response.ok) {
         // An outdated host still got the stream; say that it wants installing again.
         if (response.hostOutdated) {

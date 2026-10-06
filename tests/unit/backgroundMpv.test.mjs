@@ -1175,3 +1175,41 @@ describe('after the user turned MPV off', () => {
     expect(bg.session['tabState:3']?.isMpv).not.toBe(true);
   });
 });
+
+describe('a stream that came through Firefox VPN', () => {
+  // Firefox VPN carries the page's requests, not mpv's: mpv asks from the user's own
+  // address, and a site that ties its stream to the VPN's refuses it (VOE, 2026-10-06).
+  // Nothing is handed off then, and the reason shows where a failed hand-off does.
+  // webRequest's proxyInfo as Firefox VPN's requests have it (Firefox 157).
+  const VPN = {type: 'https', host: 'muc139.m1.fastly-masque.net', port: 2499,
+    proxyAuthorizationHeader: 'Bearer token', connectionIsolationKey: 'iso', failoverTimeout: 10};
+
+  it('is not handed to mpv by the allowlist, and the toolbar says why', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE, proxyInfo: VPN});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toContain('Firefox VPN');
+  });
+
+  it('is not sent by the player\'s mpv button, whose answer says why', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.request({tabId: 1, url: EPISODE, proxyInfo: VPN});
+    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    expect(await answer).toMatchObject({ok: false, vpn: true});
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+  });
+
+  it('still goes to mpv through a proxy that is not Firefox VPN\'s (one in the network settings)', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE, proxyInfo: {type: 'http', host: 'proxy.lan', port: 3128}});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+});
