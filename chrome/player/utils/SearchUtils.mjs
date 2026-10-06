@@ -39,6 +39,14 @@ class Search {
 
 // Initializer function to make sure that keybinds are loaded properly after being generated
 export function initsearch() {
+  // The new instance takes each row's display as its own. Built while a query hides rows,
+  // it took their hiding for it, and no later search showed them again: the options page
+  // rebuilds the search whenever it reloads its options (an IntersectionObserver, a change
+  // from another tab), and on the Windows CI runner that came during a search
+  // (options-mpv.e2e.mjs, 2026-10-03 and 05). The page goes back to unsearched first.
+  if (Search.SearchInstance) {
+    resetSearch();
+  }
   Search.SearchInstance = new Search();
   // Forces a style recompute due to CSS issues
   resetSearch();

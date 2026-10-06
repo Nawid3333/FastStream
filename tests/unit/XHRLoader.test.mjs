@@ -120,6 +120,22 @@ describe('XHRLoader', () => {
     expect(response.headers['content-type']).toBe('video/mp2t');
   });
 
+  it('fetches past Firefox\'s HTTP cache, every attempt', async () => {
+    // Through the cache, an attempt first waits for its cache entry: on the Windows CI
+    // runner 2 to 5 s behind the cache's own writes, so a stalled load's retries stalled
+    // too before reaching the server (loader-retry.e2e.mjs). 'no-store' opens none.
+    const fetchMock = fetchHangingUntilAborted();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const loader = new XHRLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({timeout: 100, maxRetry: 1}));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const [, init] of fetchMock.mock.calls) expect(init.cache).toBe('no-store');
+  });
+
   it('reports a 4xx as a final error without retrying', async () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 404, statusText: 'Not Found'});
     vi.stubGlobal('fetch', fetchMock);

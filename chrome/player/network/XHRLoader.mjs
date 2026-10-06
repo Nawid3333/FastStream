@@ -165,6 +165,16 @@ export class XHRLoader {
         headers: fetchHeaders,
         body: request.body,
         credentials: 'same-origin',
+        // Not through Firefox's HTTP cache. FastStream keeps what it loads itself, a live
+        // playlist must come fresh, and an attempt that goes through the cache first waits
+        // for its cache entry: on a busy disk, behind the cache's own writes, before it
+        // reaches the network. On the Windows CI runner every attempt of a stalled load,
+        // retries included, waited 2 to 5 s that way while the cache wrote a page's ~150
+        // module files, and the stall timer fired again before any reached the server
+        // (loader-retry.e2e.mjs, Firefox's cache2 log of CI run 37018281037). With
+        // 'no-store' Firefox opens no cache entry at all (INHIBIT_CACHING and
+        // LOAD_BYPASS_CACHE; nsHttpChannel::OpenCacheEntryInternal returns before it).
+        cache: 'no-store',
         signal: controller.signal,
       });
     } catch (e) {

@@ -189,6 +189,10 @@ async function loadOptions(newOptions) {
     document.getElementById('dev').style.display = '';
   }
   initsearch();
+  // initsearch() shows every row again; a query still in the box applies again.
+  if (optionsSearchBar.value) {
+    searchWithQuery(optionsSearchBar.value);
+  }
 }
 
 function createSelectMenu(container, options, selected, localPrefix, callback) {
