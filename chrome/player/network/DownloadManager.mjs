@@ -55,6 +55,10 @@ export class DownloadManager {
     this.lastSlowDown = 0;
     // True while the speed test is probing after a calm period, not an ordinary start.
     this.probing = false;
+    // Downloaders a slow-down took away while they delivered a finished download: out of
+    // this.downloaders, but a reset, pause or destroy must still stop them, or an old
+    // video's piece reaches a player torn down meanwhile.
+    this.retiring = new Set();
 
     this.failed = 0;
 
@@ -155,6 +159,7 @@ export class DownloadManager {
     // queueNext's retry after a failure would find no downloaders left.
     clearTimeout(this.failCooldown);
     this.failCooldown = null;
+    this.abortRetiring();
     this.downloaders.forEach((downloader) => {
       downloader.destroy();
     });
@@ -303,6 +308,7 @@ export class DownloadManager {
     // one being delivered was thrown away).
     const keep = Math.max(1, Math.floor(this.downloaders.length / 2));
     for (const cut of this.downloaders.splice(keep)) {
+      if (cut.delivering) this.retiring.add(cut);
       cut.retire();
     }
     this.client?.resetFailed?.();
@@ -365,6 +371,7 @@ export class DownloadManager {
   pause() {
     if (this.paused) return;
     this.paused = true;
+    this.abortRetiring();
     this.downloaders.forEach((downloader) => {
       downloader.abort();
     });
@@ -382,13 +389,22 @@ export class DownloadManager {
   removeAllDownloaders() {
     this.testing = false;
     this.droppedDownloaders = 0;
+    this.abortRetiring();
     this.downloaders.forEach((downloader) => {
       downloader.abort();
     });
     this.downloaders.length = 0;
   }
 
+  /** Stops the downloaders a slow-down took away that are still delivering. */
+  abortRetiring() {
+    const retiring = Array.from(this.retiring);
+    this.retiring.clear();
+    retiring.forEach((downloader) => downloader.abort());
+  }
+
   onDownloaderFinished(downloader, entry) {
+    this.retiring.delete(downloader);
     if (this.paused || !this.downloaders) return;
 
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
@@ -421,7 +437,8 @@ export class DownloadManager {
     // After a slow-down the player stays careful; once the calm period is over, a successful
     // download starts the speed test again, from the small number of downloaders left.
     if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.downloaders.includes(downloader) &&
-        this.throttled && !this.testing && this.calmUntil && Date.now() >= this.calmUntil) {
+        this.throttled && !this.testing && this.calmUntil &&
+        Date.now() >= Math.max(this.calmUntil, this.holdUntil)) {
       this.probing = true;
       this.testing = true;
       this.failed = 0;
@@ -541,10 +558,11 @@ export class DownloadManager {
     this.failed = 0;
     this.holdUntil = 0;
     this.lastSlowDown = 0;
-    this.calmUntil = 0;
     // After a server throttled, the next video starts with one downloader, and its speed
-    // test is a probe: one that climbs without another 429 or 503 ends the caution.
+    // test is a probe: one that climbs without another 429 or 503 ends the caution. One
+    // stopped short (the add/remove downloader keys) probes again after a calm period.
     this.probing = this.throttled;
+    this.calmUntil = this.throttled ? Date.now() + DownloadManager.CalmPeriodMs : 0;
 
     if (!this.dontClearStorage) {
       await this.clearStorage();
@@ -580,6 +598,7 @@ export class DownloadManager {
       entry.abort();
     });
     this.queue.length = 0;
+    this.abortRetiring();
 
     this.downloaders.forEach((downloader) => {
       downloader.abort();

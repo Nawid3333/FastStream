@@ -397,6 +397,59 @@ describe('DownloadManager', () => {
       expect(delivering.delivering).toBe(false);
       expect(delivering.entry).toBe(null);
       expect(entry.downloader).toBe(null);
+      expect(manager.retiring.size).toBe(0);
+    });
+
+    it('still stops a downloader that was taken away while delivering when the player resets', async () => {
+      const manager = new DownloadManager(client());
+      const delivering = new StandardDownloader(manager);
+      manager.downloaders = [idleDownloader(), delivering];
+      const entry = {
+        getRequest: () => new Promise(() => {}),
+        onSuccess: () => new Promise(() => {}), // still delivering
+        onAbort: vi.fn(), onFail: vi.fn(), onProgress: vi.fn(),
+      };
+      delivering.run(entry);
+      delivering.onSuccess(new Response(''), {loaded: 1, loading: {start: 0}}, entry, null);
+      await Promise.resolve();
+      manager.slowDown(0);
+      expect(manager.retiring.has(delivering)).toBe(true);
+
+      // A new video: an old piece must not reach the player torn down for it.
+      await manager.reset();
+      expect(entry.onAbort).toHaveBeenCalled();
+      expect(manager.retiring.size).toBe(0);
+    });
+
+    it('probes no sooner than the Retry-After hold is over', () => {
+      const manager = new DownloadManager(client());
+      manager.downloaders = [finished(), finished()];
+      manager.slowDown(0);
+      // A later answer of the same burst asks for longer than the calm period.
+      manager.slowDown(DownloadManager.MaxRetryAfterMs);
+      vi.advanceTimersByTime(DownloadManager.CalmPeriodMs);
+      manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.probing).toBe(false);
+      vi.advanceTimersByTime(DownloadManager.MaxRetryAfterMs - DownloadManager.CalmPeriodMs);
+      manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.probing).toBe(true);
+    });
+
+    it('probes again after a calm period when the next video\'s probe was stopped short', async () => {
+      const manager = new DownloadManager(client());
+      manager.throttled = true;
+      await manager.reset();
+      expect(manager.probing).toBe(true);
+      // The add-downloader key ends the speed test by hand.
+      manager.addDownloader();
+      expect(manager.testing).toBe(false);
+      manager.downloaders.forEach((d) => {
+        d.getSpeed = () => 1e6;
+      });
+      vi.advanceTimersByTime(DownloadManager.CalmPeriodMs);
+      manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.testing).toBe(true);
+      expect(manager.probing).toBe(true);
     });
 
     it('comes back only after the calm period, probes, and calms down when the speed stops improving', () => {

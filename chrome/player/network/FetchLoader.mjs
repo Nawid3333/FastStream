@@ -374,7 +374,7 @@ export class FetchLoader {
       });
       // onSlowDown can synchronously slow down and abort this loader (DownloadManager.slowDown
       // -> StandardDownloader.retire): do not retry or report a stopped loader.
-      if (this.callbacks === null) return;
+      if (!this.callbacks) return;
     }
     // if max nb of retries reached or if http status between 400 and 499
     // (such error cannot be recovered, retrying is useless), return error
