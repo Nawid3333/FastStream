@@ -36,7 +36,7 @@ function setup({permitted = true} = {}) {
 }
 
 const pageRequest = (url, proxyInfo, extra = {}) => ({
-  url, tabId: 3, type: 'xmlhttprequest', incognito: false, originUrl: PAGE, documentUrl: PAGE,
+  url, tabId: 3, frameId: 0, type: 'xmlhttprequest', incognito: false, originUrl: PAGE, documentUrl: PAGE,
   proxyInfo, ...extra,
 });
 const ownRequest = (url, extra = {}) => ({
@@ -109,6 +109,20 @@ describe('VpnProxyMirror', () => {
     expect(mirror.proxyFor(ownRequest(CDN))).toBeDefined();
   });
 
+  it('keeps the tab on the VPN when a frame of a site left out of it loads its parts directly', () => {
+    const {mirror} = setup();
+    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    mirror.noteRequest(pageRequest('https://widget.example/w.js', null, {type: 'script', frameId: 12}));
+    expect(mirror.tabs.has(3)).toBe(true);
+  });
+
+  it('keeps no host from a request outside any tab', () => {
+    const {mirror, current} = setup();
+    mirror.noteSource(pageRequest(CDN, vpn(), {tabId: -1}));
+    expect(mirror.hosts.size).toBe(0);
+    expect(current()).toBeNull();
+  });
+
   it('keeps the host when another tab\'s site, left out of the VPN, reaches it directly', () => {
     const {mirror} = setup();
     mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
@@ -156,9 +170,12 @@ describe('VpnProxyMirror', () => {
   it('does not copy a proxy whose settings webRequest does not give in full', () => {
     const {mirror} = setup();
     // MASQUE needs its URI template, which webRequest does not report.
+    mirror.noteRequest(pageRequest(PAGE, {...vpn(), type: 'masque'}, {type: 'main_frame'}));
     mirror.noteSource(pageRequest(CDN, {...vpn(), type: 'masque'}));
     expect(mirror.status(CDN, false, 3)).toEqual({proxied: true, copyable: false, permitted: true});
     expect(mirror.proxyFor(ownRequest(CDN))).toBeUndefined();
+    // Nor is its host listened for: its requests would wait on the background for nothing.
+    expect(mirror.hosts.size).toBe(0);
   });
 
   it('keeps private windows apart', () => {

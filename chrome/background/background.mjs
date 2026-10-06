@@ -51,7 +51,8 @@ async function refreshProxyPermission() {
   return permitted;
 }
 refreshProxyPermission();
-chrome.permissions.onAdded.addListener(async () => {
+chrome.permissions.onAdded.addListener(async (added) => {
+  if (!added.permissions?.includes(/** @type {any} */ ('proxy'))) return;
   const permitted = await refreshProxyPermission();
   if (!permitted) return;
   // A player that offered to follow the VPN loads its source again, now through it.
@@ -810,6 +811,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       create.index = sender.tab.index + 1;
     }
     chrome.tabs.create(create).catch((e) => console.error('Opening the permissions page failed', e));
+    sendResponse(true);
     return;
   } else if (msg.type === MessageTypes.LOAD_OPTIONS) {
     // The allowlist as this background had it, when it had one (none yet right after a wake).

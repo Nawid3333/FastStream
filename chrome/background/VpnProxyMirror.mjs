@@ -146,7 +146,7 @@ export class VpnProxyMirror {
    * direct by itself, and so may another tab's site. Hosts are added only where FastStream
    * fetches (noteSource, own requests): with the VPN on, every page request has a proxy,
    * and a listener for all their hosts would hold up every request.
-   * @param {{url: string, tabId: number, type?: string, incognito?: boolean,
+   * @param {{url: string, tabId: number, frameId?: number, type?: string, incognito?: boolean,
    *   originUrl?: string, documentUrl?: string, proxyInfo?: ?Object}} details
    */
   noteRequest(details) {
@@ -159,7 +159,8 @@ export class VpnProxyMirror {
     const hostKey = VpnProxyMirror.hostKey(details.incognito, host);
     const key = this.rememberProxy(details.proxyInfo);
     if (!key) {
-      if (PageLoadTypes.includes(details.type || '')) this.tabs.delete(details.tabId);
+      // The top frame's: a frame of a site left out of the VPN loads its parts directly.
+      if (details.frameId === 0 && PageLoadTypes.includes(details.type || '')) this.tabs.delete(details.tabId);
       const entry = this.hosts.get(hostKey);
       if (entry && details.tabId >= 0 && entry.tabId === details.tabId && !this.tabs.has(details.tabId)) {
         this.hosts.delete(hostKey);
@@ -182,7 +183,7 @@ export class VpnProxyMirror {
    */
   noteSource(details) {
     const host = hostOf(details.url);
-    if (!host || this.isOwnRequest(details)) return;
+    if (!host || details.tabId < 0 || this.isOwnRequest(details)) return;
     const key = this.rememberProxy(details.proxyInfo);
     if (key) this.addHost(VpnProxyMirror.hostKey(details.incognito, host), key, details.tabId);
   }
@@ -206,6 +207,8 @@ export class VpnProxyMirror {
    * @param {number} tabId - The tab it was seen in.
    */
   addHost(hostKey, key, tabId) {
+    // A proxy FastStream cannot copy would only hold the host's requests up for nothing.
+    if (!CopyableTypes.includes(this.proxies.get(key)?.type || '')) return;
     const known = this.hosts.has(hostKey);
     // Re-inserted, so the most recently used host is the last to go.
     this.hosts.delete(hostKey);

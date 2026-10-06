@@ -4,7 +4,7 @@ async function updatePerms() {
   for (const el of permsEl) {
     let hasPerms = false;
     if (el.dataset.perm === 'all-urls') {
-      hasPerms = perms.origins[0] === '<all_urls>';
+      hasPerms = perms.origins.includes('<all_urls>');
     } else {
       hasPerms = perms.permissions.includes(el.dataset.perm);
     }
@@ -15,7 +15,7 @@ async function updatePerms() {
       el.textContent = window.getI18nMessage('perms_page_granted');
       el.onclick = null;
     } else {
-      el.classList.remove('no-perms');
+      el.classList.remove('has-perms');
       el.classList.add('no-perms');
       el.textContent = window.getI18nMessage('perms_page_notgranted');
       // onclick, not a listener: updatePerms runs again at every permission change, and each
