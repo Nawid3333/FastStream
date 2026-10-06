@@ -214,7 +214,11 @@ export class VpnProxyMirror {
     this.hosts.set(hostKey, {key, tabId});
     if (known) return;
     while (this.hosts.size > MaxHosts) {
-      this.hosts.delete(this.hosts.keys().next().value);
+      // The oldest host behind a proxy FastStream cannot copy goes first (kept only for
+      // throughBrowserVpn): a run of them must not push out the hosts the mirror serves.
+      const uncopyable = Array.from(this.hosts).find(([, entry]) =>
+        !CopyableTypes.includes(this.proxies.get(entry.key)?.type || ''));
+      this.hosts.delete(uncopyable ? uncopyable[0] : this.hosts.keys().next().value);
     }
     this.updateListener();
   }
@@ -282,12 +286,14 @@ export class VpnProxyMirror {
    * its stream to the VPN's refuses it. A proxy without one (one set in Firefox's network
    * settings, say) does not count.
    * @param {string} url - The stream.
+   * @param {boolean} [incognito] - Its tab's private-window flag: Firefox VPN can carry
+   *   private windows only (IPPMode.MODE_PB). Unknown (a closed tab), either counts.
    * @return {boolean}
    */
-  throughBrowserVpn(url) {
+  throughBrowserVpn(url, incognito) {
     const host = hostOf(url);
     if (!host) return false;
-    return [false, true].some((incognito) => {
+    return (incognito === undefined ? [false, true] : [incognito]).some((incognito) => {
       const entry = this.hosts.get(VpnProxyMirror.hostKey(incognito, host));
       const header = entry ? this.proxies.get(entry.key)?.proxyAuthorizationHeader : '';
       return /^Bearer\s/i.test(header || '');

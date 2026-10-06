@@ -193,8 +193,11 @@ describe('VpnProxyMirror', () => {
     mirror.noteSource(pageRequest('https://other.example/a.m3u8', {type: 'http', host: 'proxy.lan', port: 3128}));
     expect(mirror.throughBrowserVpn('https://other.example/a.m3u8')).toBe(false);
     expect(mirror.throughBrowserVpn('https://direct.example/a.m3u8')).toBe(false);
-    // A private window's stream counts too.
+    // Firefox VPN may carry private windows only: a host seen through it there does not
+    // count for a normal window's stream; a tab that is gone, either does.
     mirror.noteSource(pageRequest('https://private.example/a.m3u8', vpn(), {incognito: true}));
+    expect(mirror.throughBrowserVpn('https://private.example/a.m3u8', true)).toBe(true);
+    expect(mirror.throughBrowserVpn('https://private.example/a.m3u8', false)).toBe(false);
     expect(mirror.throughBrowserVpn('https://private.example/a.m3u8')).toBe(true);
   });
 
@@ -202,8 +205,21 @@ describe('VpnProxyMirror', () => {
     const {mirror} = setup();
     mirror.noteRequest(pageRequest('https://embed.example/player', vpn(), {type: 'sub_frame', frameId: 5}));
     expect(mirror.tabs.has(3)).toBe(false);
-    mirror.noteRequest(pageRequest(PAGE, vpn(), {type: 'main_frame'}));
+    // The top frame's own requests mark it, not only its load.
+    mirror.noteRequest(pageRequest('https://video.example/api', vpn(), {type: 'xmlhttprequest', frameId: 0}));
     expect(mirror.tabs.has(3)).toBe(true);
+  });
+
+  it('lets the hosts behind a proxy it cannot copy go first when the list is full', () => {
+    const {mirror} = setup();
+    mirror.noteSource(pageRequest('https://keep.example/a.m3u8', vpn()));
+    for (let i = 0; i < 199; i++) {
+      mirror.noteSource(pageRequest(`https://m${i}.example/a.m3u8`, {...vpn(), type: 'masque'}));
+    }
+    mirror.noteSource(pageRequest('https://new.example/a.m3u8', vpn()));
+    expect(mirror.hosts.size).toBe(200);
+    expect(mirror.proxyFor(ownRequest('https://keep.example/a.m3u8'))).toBeDefined();
+    expect(mirror.proxyFor(ownRequest('https://new.example/a.m3u8'))).toBeDefined();
   });
 
   it('remembers a bounded number of hosts', () => {

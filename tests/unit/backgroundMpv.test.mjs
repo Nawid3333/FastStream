@@ -1204,6 +1204,43 @@ describe('a stream that came through Firefox VPN', () => {
     expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
   });
 
+  it('is not sent by the shortcut\'s MPV when the user plays it', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await playWithShortcutMpv(600);
+    await bg.request({tabId: 1, url: EPISODE, proxyInfo: VPN});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.titles.get(1)).toContain('Firefox VPN');
+  });
+
+  it('is not sent when the toolbar button enters MPV mode', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE, proxyInfo: VPN});
+    await bg.wait(1000);
+    // Off, On, then MPV again: the tab's known streams go to mpv (openMpvWithSources).
+    await bg.click(1);
+    await bg.click(1);
+    await bg.click(1);
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([]);
+  });
+
+  it('is not held back in a normal window by what a private window reached through the VPN', async () => {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    // Firefox VPN for private windows only: the same CDN, seen through it in a private
+    // window, and reached directly here.
+    await bg.request({tabId: 9, url: EPISODE, proxyInfo: VPN, incognito: true});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
   it('still goes to mpv through a proxy that is not Firefox VPN\'s (one in the network settings)', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
     await bg.navigated(1, PAGE);

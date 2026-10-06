@@ -366,11 +366,22 @@ export class FetchLoader {
     // below re-arms its own via teardownAttempt(), and a final give-up must
     // not leave a stale timer around to fire loadtimeout() again later.
     self.clearTimeout(this.requestTimeout);
+    // 429 and 503 ask the player to slow down: half the downloaders stop at once. Do this
+    // before deciding to retry or give up, so the manager knows even when the answer is final.
+    if (status === 429 || status === 503) {
+      this.callbacks?.forEach((callbacks) => {
+        callbacks?.onSlowDown?.(retryAfter);
+      });
+      // onSlowDown can synchronously slow down and abort this loader (DownloadManager.slowDown
+      // -> StandardDownloader.retire): do not retry or report a stopped loader.
+      if (this.callbacks === null) return;
+    }
     // if max nb of retries reached or if http status between 400 and 499
     // (such error cannot be recovered, retrying is useless), return error
+    // 429 is retryable like 503: the Retry-After waits below respect the server.
     if (
       stats.retry >= config.maxRetry ||
-            (status >= 400 && status < 500)
+            ((status >= 400 && status < 500) && status !== 429)
     ) {
       console.error(`${status} while loading ${request.url}`);
 

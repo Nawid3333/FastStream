@@ -19,6 +19,13 @@ export class DownloadManager {
   static SlowDownStatuses = [429, 503];
   /** The longest a server's Retry-After holds every download back. */
   static MaxRetryAfterMs = 30000;
+  /** Base calm period after a slow-down, before the player probes the server speed again. */
+  static CalmPeriodMs = 15000;
+  /** The longest calm period, even after several slow-downs in a row. */
+  static MaxCalmPeriodMs = 120000;
+  /** Answers within this time of the last halving belong to the same burst: they extend
+   * the Retry-After hold but do not halve again. */
+  static SlowDownSettleMs = 2000;
 
   constructor(client) {
     this.client = client;
@@ -40,6 +47,14 @@ export class DownloadManager {
     this.throttled = false;
     // Until when a server's Retry-After holds downloads back (Date.now() time).
     this.holdUntil = 0;
+    // Slow-downs in a row, for the doubling calm period.
+    this.slowDowns = 0;
+    // Until when the player waits before probing the server speed again (Date.now() time).
+    this.calmUntil = 0;
+    // Date.now() of the last halving, to group answers from the same burst.
+    this.lastSlowDown = 0;
+    // True while the speed test is probing after a calm period, not an ordinary start.
+    this.probing = false;
 
     this.failed = 0;
 
@@ -245,29 +260,95 @@ export class DownloadManager {
   }
 
   /**
-   * A server answered 429 or 503: half the downloaders stop at once (one stays), their
-   * downloads going back to wait, the speed test stops, none come back by themselves, and
-   * every download waits for the server's Retry-After (up to MaxRetryAfterMs), or the
-   * usual second after a failure. The player starts its next video with one downloader too.
+   * A server answered 429 or 503 (FetchLoader tells at once, before it retries): half the
+   * downloaders go (one stays) - one mid-fetch hands its download back to the queue, one
+   * delivering a finished download finishes it first (StandardDownloader.retire) - the
+   * speed test stops, and every download waits for the server's Retry-After (up to
+   * MaxRetryAfterMs), or the usual second after a failure. Answers of the same burst
+   * (SlowDownSettleMs) halve once. After a calm period, at least the Retry-After and
+   * doubling with each slow-down in a row (CalmPeriodMs, up to MaxCalmPeriodMs), the speed
+   * test probes again (onDownloaderFinished): downloads go as fast as the server allows.
+   * It went "for good" until 2026-10-06; the user wanted the speed back. A next video
+   * starts with one downloader until a probe ends without one.
    * @param {number} [retryAfter] - The wait the server asked for, in ms.
    */
   slowDown(retryAfter) {
     if (!this.downloaders) return; // destroyed
+    const now = Date.now();
+    // Hold every download back for at least the server's Retry-After, as before. An answer
+    // in the same burst still extends this, even if it does not halve again.
+    if (retryAfter > 0) {
+      this.holdUntil = Math.max(this.holdUntil, now + Math.min(retryAfter, DownloadManager.MaxRetryAfterMs));
+    }
+    // Answers within this time of the last halving belong to the same burst: they extend
+    // the Retry-After hold but do not halve again.
+    if (now - this.lastSlowDown < DownloadManager.SlowDownSettleMs) {
+      return;
+    }
+    this.lastSlowDown = now;
     this.throttled = true;
     this.testing = false;
+    this.probing = false;
     this.droppedDownloaders = 0;
-    this.lastFailed = Date.now();
-    // Stopped, not left to finish: none of them is still downloading, untracked, when the
-    // player pauses or goes, and none can answer a 429 later and halve the rest again.
+    this.lastFailed = now;
+    this.slowDowns++;
+    // The calm period doubles with each slow-down in a row, up to MaxCalmPeriodMs.
+    this.calmUntil = now + Math.min(
+        Math.max(DownloadManager.CalmPeriodMs, retryAfter || 0) * Math.pow(2, this.slowDowns - 1),
+        DownloadManager.MaxCalmPeriodMs,
+    );
+    // Taken off their downloads, none still running untracked when the player pauses or
+    // goes, nor answering a 429 later to halve the rest again; retire() hands a download
+    // back to the queue without its watchers hearing of it (it went "aborted" to them, and
+    // one being delivered was thrown away).
     const keep = Math.max(1, Math.floor(this.downloaders.length / 2));
     for (const cut of this.downloaders.splice(keep)) {
-      cut.abort();
-    }
-    if (retryAfter > 0) {
-      this.holdUntil = Math.max(this.holdUntil, Date.now() + Math.min(retryAfter, DownloadManager.MaxRetryAfterMs));
+      cut.retire();
     }
     this.client?.resetFailed?.();
     console.log('The server asked to slow down: ' + this.downloaders.length + ' downloader(s) now');
+  }
+
+  /**
+   * The speed test that probed after a calm period ended. Without a slow-down it found
+   * the rate the server takes: careful no more, the slow-downs in a row forgotten. Ended
+   * by failures, it waits another calm period before it probes again, or every next
+   * success would start it at once.
+   * @param {boolean} found - It ended on the speed (no gain, or the limit), not failures.
+   */
+  endProbe(found) {
+    if (!this.probing) return;
+    this.probing = false;
+    if (found) {
+      this.throttled = false;
+      this.slowDowns = 0;
+      console.log('The server takes this rate');
+    } else {
+      this.calmUntil = Date.now() + DownloadManager.CalmPeriodMs;
+    }
+  }
+
+  /**
+   * Puts an entry handed back by StandardDownloader.retire() into the queue again, so a
+   * download cut by a slow-down resumes without its watchers hearing anything. An entry
+   * whose watchers gave up meanwhile (failed or complete) is left alone.
+   * @param {DownloadEntry} entry - The entry to requeue.
+   */
+  requeueEntry(entry) {
+    if (!this.downloaders) return; // destroyed
+    if (entry.status === DownloadStatus.DOWNLOAD_FAILED || entry.status === DownloadStatus.DOWNLOAD_COMPLETE) {
+      return;
+    }
+    entry.status = DownloadStatus.ENQUEUED;
+    const priority = entry.priority || 0;
+    entry.priority = priority;
+    // Insert by priority exactly like getFile: after entries of equal or higher priority.
+    let ind = this.queue.length;
+    while (ind > 0 && this.queue[ind - 1].priority < priority) {
+      ind--;
+    }
+    this.queue.splice(ind, 0, entry);
+    this.queueNext();
   }
 
   removeDownloader() {
@@ -310,11 +391,13 @@ export class DownloadManager {
   onDownloaderFinished(downloader, entry) {
     if (this.paused || !this.downloaders) return;
 
-    const slowDown = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted &&
-      DownloadManager.SlowDownStatuses.includes(downloader.stats?.error?.code);
-    if (slowDown) {
-      this.slowDown(downloader.stats.error.retryAfter);
-    } else if (navigator.onLine && entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted) {
+    const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
+    // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
+    // slowDown). It is not an ordinary failure: no lastFailed and no downloader dropped.
+    const slowDownStatus = failed && DownloadManager.SlowDownStatuses.includes(downloader.stats?.error?.code);
+    if (slowDownStatus) {
+      // handled by slowDown() when the answer arrived
+    } else if (navigator.onLine && failed) {
       this.lastFailed = Date.now();
 
       if (this.downloaders.length > 1) {
@@ -335,6 +418,20 @@ export class DownloadManager {
       this.downloaders.push(new StandardDownloader(this));
     }
 
+    // After a slow-down the player stays careful; once the calm period is over, a successful
+    // download starts the speed test again, from the small number of downloaders left.
+    if (entry.status === DownloadStatus.DOWNLOAD_COMPLETE && this.downloaders.includes(downloader) &&
+        this.throttled && !this.testing && this.calmUntil && Date.now() >= this.calmUntil) {
+      this.probing = true;
+      this.testing = true;
+      this.failed = 0;
+      this.speedTestBuffer = [];
+      this.speedTestSeen = [];
+      this.speedTestCount = 0;
+      this.lastSpeed = 0;
+      console.log('Calm period over, probing the server speed');
+    }
+
     if (this.testing) {
       const ind = this.downloaders.indexOf(downloader);
       if (ind !== -1) {
@@ -343,6 +440,7 @@ export class DownloadManager {
           if (this.failed >= 4) {
             console.log('Speed test failed');
             this.testing = false;
+            this.endProbe(false);
           }
         } else {
           if (!this.speedTestSeen[ind] && downloader.getSpeed()) {
@@ -369,11 +467,13 @@ export class DownloadManager {
                   this.lastSpeed = speed;
                 } else {
                   this.testing = false;
+                  this.endProbe(true);
                   console.log('Speed test finished (maxed out), speed: ' + this.getSpeed());
                 }
               } else {
                 console.log('Speed test finished, speed: ' + speed);
                 this.testing = false;
+                this.endProbe(true);
               }
             }
           }
@@ -440,6 +540,11 @@ export class DownloadManager {
 
     this.failed = 0;
     this.holdUntil = 0;
+    this.lastSlowDown = 0;
+    this.calmUntil = 0;
+    // After a server throttled, the next video starts with one downloader, and its speed
+    // test is a probe: one that climbs without another 429 or 503 ends the caution.
+    this.probing = this.throttled;
 
     if (!this.dontClearStorage) {
       await this.clearStorage();
