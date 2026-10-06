@@ -7,10 +7,10 @@
 // gate (no break threshold).
 //
 // Only pure-logic modules with unit tests: the DOM and the player are the e2e suites'.
-// In three areas (#253): `core`, `network` (the downloader, the loaders and what they use)
-// and `tools` (the tools and e2e harness modules with unit tests), each split into
-// shards (SHARDS, below) that mutation-tests.yml runs side by side, each in a job of its
-// own. STRYKER_SHARD picks one; without it, all of them run (`pnpm run test:mutation`,
+// In four areas (#253): `core`, `network` (the downloader, the loaders and what they use),
+// `tools` (the tools and e2e harness modules with unit tests) and `host` (the mpv host, on
+// the command runner), each split into shards (SHARDS, below) that mutation-tests.yml runs
+// side by side, each in a job of its own. STRYKER_SHARD picks one; without it, all of them run (`pnpm run test:mutation`,
 // locally).
 //
 // How long an area took with the command runner, measured on CI (#349, run 37333779402,
@@ -36,8 +36,9 @@
 // (LOCKSTEP in tools/check-patched-updates.mjs).
 //
 // A mutant is switched on inside the test worker, so a test that runs a module as a process
-// of its own (mpvHostVersion's host, the Windows-only installer and update-local tests)
-// does not see it there; those tests still kill what they reach in-process.
+// of its own does not see it there. For the mpv host that left its message loop untested,
+// so the host keeps the command runner (COMMAND_AREAS); the tools' tests that start their
+// tool as a process only reach its entry line, where the vitest runner sees a crashed run.
 import fs from 'node:fs';
 
 export const AREAS = {
@@ -66,7 +67,6 @@ export const AREAS = {
     'chrome/player/utils/SubtitleSyncUtils.mjs',
     'chrome/player/utils/SubtitleUtils.mjs',
     'chrome/player/utils/URLUtils.mjs',
-    'native-host/faststream-mpv-host.mjs',
   ],
   network: [
     'chrome/background/BackgroundUtils.mjs',
@@ -105,12 +105,25 @@ export const AREAS = {
     'tools/sign-amo.mjs',
     'tools/verify-linux.mjs',
   ],
+  // The mpv host, with the command runner (COMMAND_AREAS, below).
+  host: ['native-host/faststream-mpv-host.mjs'],
 };
 
-// How many shards each area is cut into: at the command runner's rates above, each one a few
-// hours, well inside its job's 350 minutes (mutation-tests.yml); fewer may do with the vitest
-// runner once its CI times are known.
-export const PARTS = {core: 2, network: 3, tools: 2};
+// The areas Stryker runs with the command runner, every mutant against the whole unit suite
+// in a process of its own, which hands the active mutant to the processes a test starts
+// (__STRYKER_ACTIVE_MUTANT__). The vitest runner switches a mutant on inside the test worker
+// only, and the mpv host's message loop - main() and sendMessage(), which run only in the
+// host process mpvHostVersion.test.mjs starts and talks to - had no test reaching it there:
+// 24 of its mutants the command runner caught were "no coverage" (CI runs 37384050152 and
+// 37393654214, compared mutant by mutant, 2026-10-06). Every other module came out the same
+// (11,313 of 11,370 alike; the rest a crashed run for a caught one, or two swapped on a line).
+export const COMMAND_AREAS = ['host'];
+
+// How many shards each area is cut into. With the vitest runner one each: on CI the seven
+// shards of 2026-10-06 took 2 to 10 minutes (core 7 and 10, network 2 to 3, tools 2 to 3).
+// The host, on the command runner, about an hour and a half at core's 14 mutants a minute,
+// inside its job's 350 minutes (mutation-tests.yml).
+export const PARTS = {core: 1, network: 1, tools: 1, host: 1};
 
 /**
  * An area's modules in `parts` groups of about the same size, the size of a file standing
@@ -139,7 +152,7 @@ export function splitArea(modules, parts) {
   return groups.map((group) => modules.filter((file) => group.files.has(file)));
 }
 
-// core-1, core-2, network-1 ... : the shards mutation-tests.yml runs, one job each.
+// core-1, network-1, tools-1, host-1: the shards mutation-tests.yml runs, one job each.
 export const SHARDS = Object.fromEntries(Object.entries(AREAS).flatMap(([area, modules]) =>
   splitArea(modules, PARTS[area]).map((group, i) => [`${area}-${i + 1}`, group])));
 
@@ -158,12 +171,32 @@ export function modulesOf(shard) {
   return SHARDS[shard];
 }
 
+/**
+ * The test runner settings for a shard: the command runner for one of COMMAND_AREAS, the
+ * vitest runner otherwise - and for a run of everything at once (`pnpm run test:mutation`
+ * with no STRYKER_SHARD), where the host's message loop then shows as no coverage.
+ * @param {string|undefined} shard - STRYKER_SHARD.
+ * @return {Object}
+ */
+export function runnerOf(shard) {
+  if (shard && COMMAND_AREAS.some((area) => shard.startsWith(`${area}-`))) {
+    return {
+      testRunner: 'command',
+      commandRunner: {command: 'node node_modules/vitest/vitest.mjs run --bail=1 --reporter=dot'},
+      coverageAnalysis: 'off',
+    };
+  }
+  return {
+    testRunner: 'vitest',
+    // pnpm's layout: Stryker looks for @stryker-mutator/* plugins beside its own core only.
+    plugins: ['@stryker-mutator/vitest-runner'],
+    vitest: {configFile: 'vitest.config.mjs'},
+    coverageAnalysis: 'perTest',
+  };
+}
+
 export default {
-  testRunner: 'vitest',
-  // pnpm's layout: Stryker looks for @stryker-mutator/* plugins beside its own core only.
-  plugins: ['@stryker-mutator/vitest-runner'],
-  vitest: {configFile: 'vitest.config.mjs'},
-  coverageAnalysis: 'perTest',
+  ...runnerOf(process.env.STRYKER_SHARD),
   // What the sandbox leaves out: builds, profiles, logs and fixtures the unit tests never
   // read, and tsconfig.json, which Stryker would rewrite through TypeScript's JS API -
   // TypeScript 7 has none (`ts.parseConfigFileTextToJson is not a function`).

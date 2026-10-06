@@ -10,10 +10,12 @@ name: Mutation tests
 # "Mutation testing: week to <date>", assigned to the owner and @mentioning them, lists them.
 # The next week's issue closes it, and so does a week in which every mutant was caught.
 #
-# The modules are in three areas cut into seven shards (stryker.config.mjs, SHARDS), each run
-# by a job of its own side by side: all of them in one job were over twice its 240 minutes
-# (#253), and one job an area still ran out of them at 51-74% (#349). The report job puts
-# their reports together.
+# The modules are in four areas, one shard each (stryker.config.mjs, SHARDS), each run by a
+# job of its own side by side; the report job puts their reports together. With the command
+# runner every mutant ran the whole unit suite, and seven shards took 2 to 4.7 hours (#349);
+# with the vitest runner, a mutant runs only the tests that reach it, and the same seven took
+# 2 to 10 minutes (2026-10-06). The mpv host keeps the command runner (its message loop runs
+# in a process its tests start), about an hour and a half.
 
 on:
   schedule:
@@ -31,14 +33,14 @@ jobs:
   mutation:
     name: Stryker over the ${{ matrix.shard }} modules
     runs-on: ubuntu-latest
-    # 1,100 to 2,600 mutants a shard, a few hours at the rates measured on CI
-    # (stryker.config.mjs); 350 minutes leaves room, under the runners' 360.
+    # Minutes for a vitest-runner shard; the host's command-runner shard about an hour and a
+    # half (stryker.config.mjs). 350 minutes leaves room, under the runners' 360.
     timeout-minutes: 350
     strategy:
       # One shard that fails or runs out of time leaves the others' reports.
       fail-fast: false
       matrix:
-        shard: [core-1, core-2, network-1, network-2, network-3, tools-1, tools-2]
+        shard: [core-1, network-1, tools-1, host-1]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -105,7 +107,7 @@ jobs:
           set -euo pipefail
           found=0
           missing=''
-          for shard in core-1 core-2 network-1 network-2 network-3 tools-1 tools-2; do
+          for shard in core-1 network-1 tools-1 host-1; do
             if [ -f "shards/mutation-reports-$shard/mutation.json" ]; then
               found=$((found + 1))
             else

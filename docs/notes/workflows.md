@@ -552,8 +552,13 @@
   requires its core's exact version) and hands both back to Dependabot, whose `stryker` group
   then keeps all of Stryker's packages in one pull request. A test that runs a module as a
   process of its own (mpvHostVersion's host; the Windows-only installer and update-local
-  tests) does not see a mutant there. The first fast run was compared mutant by mutant with
-  the last command-runner run (7 shards, CI run 37384050152). The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
+  tests) does not see a mutant there. Compared mutant by mutant (command-runner run
+  37384050152, 4.7 hours; vitest-runner run 37393654214, 10 minutes): 11,313 of 11,370 alike.
+  The rest: each tool's entry line (`if (process.argv[1] ...`) a crashed run where the command
+  runner caught, two swapped on one line of SubtitleUtils - and the mpv host's message loop
+  (`main()`, `sendMessage()`), 24 mutants with no test reaching them. So the host is an area of
+  its own on the command runner (`COMMAND_AREAS`, `host-1`, about an hour and a half), and core,
+  network and tools are one vitest-runner shard each: four jobs. The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
   TypeScript's JS API, which TypeScript 7 does not have. `tests/workflows/mutation-tests.test.sh`.
   Baseline, 2026-10-01 (73 min locally): 71.8% of 3,614 mutants caught; the weakest are the
   mpv host (47.7%), MpvBackend (58.4%), SubtitleUtils (63.2%) and TabTracker (68.4%), the

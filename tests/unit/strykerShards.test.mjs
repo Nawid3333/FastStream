@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {describe, expect, it} from 'vitest';
-import config, {AREAS, PARTS, SHARDS, modulesOf, splitArea} from '../../stryker.config.mjs';
+import config, {AREAS, COMMAND_AREAS, PARTS, SHARDS, modulesOf, runnerOf, splitArea} from '../../stryker.config.mjs';
 
 // The weekly mutation run's modules are in shards, each run by a job of its own
 // (mutation-tests.yml), because all of them in one job were past its 240 minutes (#253).
@@ -66,5 +66,32 @@ describe('stryker.config.mjs: the shards', () => {
     expect(workflow).toContain(`shard: [${names.join(', ')}]`);
     expect(workflow).toContain(`for shard in ${names.join(' ')}; do`);
     expect(workflow).toContain('STRYKER_SHARD: ${{ matrix.shard }}');
+  });
+});
+
+// The vitest runner switches a mutant on inside the test worker; the mpv host's message loop
+// runs only in the host process its tests start, so the host keeps the command runner,
+// which hands the mutant to that process. Compared mutant by mutant on CI (2026-10-06), the
+// host was the one module the vitest runner left untested where the command runner caught.
+describe('stryker.config.mjs: the test runner a shard gets', () => {
+  it('runs the mpv host, alone, with the command runner and the whole suite a mutant', () => {
+    expect(COMMAND_AREAS).toEqual(['host']);
+    expect(AREAS.host).toEqual(['native-host/faststream-mpv-host.mjs']);
+    expect(Object.values(AREAS).flat().filter((m) => m === 'native-host/faststream-mpv-host.mjs')).toHaveLength(1);
+    const host = runnerOf('host-1');
+    expect(host.testRunner).toBe('command');
+    expect(host.coverageAnalysis).toBe('off');
+    expect(host.commandRunner.command).toContain('vitest.mjs run');
+  });
+
+  it('runs every other shard, and a run of everything, with the vitest runner and per-test coverage', () => {
+    for (const shard of [...Object.keys(SHARDS).filter((name) => !name.startsWith('host-')), undefined, '']) {
+      const runner = runnerOf(shard);
+      expect(runner.testRunner, String(shard)).toBe('vitest');
+      expect(runner.coverageAnalysis).toBe('perTest');
+      // Without it Stryker finds no runner under pnpm's layout.
+      expect(runner.plugins).toEqual(['@stryker-mutator/vitest-runner']);
+    }
+    expect(config.testRunner).toBe(runnerOf(process.env.STRYKER_SHARD).testRunner);
   });
 });
