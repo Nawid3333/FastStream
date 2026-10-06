@@ -338,10 +338,9 @@ export class MP4Merger extends EventEmitter {
         segment_duration: Math.round(Math.max(end - start, presented) * movieTimescale),
       });
 
-      track.samples = [];
-      track.chunks.forEach((chunk) => {
-        track.samples.push(...chunk.samples);
-      });
+      // flatMap, not push(...samples): a spread of a very long chunk's samples can pass the
+      // engine's argument limit and throw a RangeError.
+      track.samples = track.chunks.flatMap((chunk) => chunk.samples);
     });
     let initSeg;
     try {

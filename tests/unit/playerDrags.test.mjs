@@ -143,11 +143,13 @@ describe('an audio knob', () => {
   it('turns the value up for wheel up, wherever the pointer is on it', () => {
     for (const pageX of [610, 640]) {
       const {knob, turnable} = make();
-      const event = {wheelDelta: 120, timeStamp: 0, pageX, pageY: 320, preventDefault() {}};
+      // As Firefox fires them: deltaY negative for wheel up (the knob reads it), and the
+      // old wheelDelta the other way round.
+      const event = {deltaY: -3, wheelDelta: 120, timeStamp: 0, pageX, pageY: 320, preventDefault() {}};
       turnable.fire('wheel', event);
       expect(knob.knob.val(), `wheel up at x = ${pageX}`).toBeGreaterThan(50);
-      turnable.fire('wheel', {...event, wheelDelta: -120});
-      turnable.fire('wheel', {...event, wheelDelta: -120});
+      turnable.fire('wheel', {...event, deltaY: 3, wheelDelta: -120});
+      turnable.fire('wheel', {...event, deltaY: 3, wheelDelta: -120});
       expect(knob.knob.val(), `wheel down at x = ${pageX}`).toBeLessThan(50);
     }
   });

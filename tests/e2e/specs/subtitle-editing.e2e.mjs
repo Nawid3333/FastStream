@@ -222,7 +222,7 @@ describe('Subtitle editing', function() {
       dataTransfer.items.add(new File(['1\n00:00:01,000 --> 00:00:03,000\nA line\n\n'], 'lines.srt'));
       input.files = dataTransfer.files;
       input.dispatchEvent(new Event('change'));
-      // The file is read on its own time (FileReader), up to 5 s.
+      // The file is read on its own time (file.arrayBuffer()), up to 5 s.
       const started = Date.now();
       const read = () => {
         const tracks = window.fastStream.interfaceController.subtitlesManager.tracks.length;

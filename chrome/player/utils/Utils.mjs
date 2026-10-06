@@ -294,8 +294,7 @@ export class Utils {
    *     reads from (a save's OPFS session) can be let go then too.
    */
   static revokeWhenDownloaded(url, download) {
-    let revoked;
-    const over = new Promise((resolve) => (revoked = resolve));
+    const {promise: over, resolve: revoked} = Promise.withResolvers();
     const revoke = () => {
       URL.revokeObjectURL(url);
       revoked();

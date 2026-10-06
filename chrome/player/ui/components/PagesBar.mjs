@@ -35,7 +35,7 @@ export function createPagesBar(page, totalPages, callback) {
         el.contentEditable = true;
         el.addEventListener('blur', () => {
           el.textContent = i;
-          window.getSelection().empty();
+          window.getSelection().removeAllRanges();
         });
         el.addEventListener('focus', () => {
           window.getSelection().selectAllChildren(el);

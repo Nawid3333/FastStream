@@ -81,15 +81,15 @@ export class SaveFragmentFetcher {
         throw new Error('Cancelled');
       }
       try {
-        await new Promise((resolve, reject) => {
-          download.reject = reject;
-          download.loader = this.requester.requestFragment(fragment, {
-            skipProcess: true,
-            onSuccess: () => resolve(),
-            onFail: () => reject(new Error('Failed to download fragment')),
-            onAbort: () => reject(new Error('Aborted download')),
-          }, null, -1);
-        });
+        const {promise, resolve, reject} = Promise.withResolvers();
+        download.reject = reject;
+        download.loader = this.requester.requestFragment(fragment, {
+          skipProcess: true,
+          onSuccess: () => resolve(),
+          onFail: () => reject(new Error('Failed to download fragment')),
+          onAbort: () => reject(new Error('Aborted download')),
+        }, null, -1);
+        await promise;
         return;
       } catch (e) {
         // A download the manager gave up (a downloader taken away) is asked for again, as

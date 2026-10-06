@@ -118,7 +118,7 @@ export class SourcesBrowser {
     const sourceCopyBtn = WebUtils.create('div', null, 'linkui-source-copy-button');
     sourceCopyBtn.textContent = Localize.getMessage('player_source_copybtn');
     sourceCopyBtn.title = Localize.getMessage('player_source_copybtn_label');
-    sourceCopyBtn.addEventListener('click', (e) => {
+    sourceCopyBtn.addEventListener('click', async (e) => {
       let copyURL = '';
       try {
         // With its headers, but not its login ones (VideoSource.toCopyURL).
@@ -126,13 +126,7 @@ export class SourcesBrowser {
       } catch (e) {
       }
 
-      const input = document.createElement('input');
-      input.value = copyURL;
-      DOMElements.playerContainer.appendChild(input);
-      input.focus();
-      input.select();
-      document.execCommand('copy');
-      DOMElements.playerContainer.removeChild(input);
+      await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 
       sourceCopyBtn.textContent = Localize.getMessage('player_source_copybtn_copied');
       setTimeout(() => {

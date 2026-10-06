@@ -286,13 +286,7 @@ export class PreviewFrameExtractor extends EventEmitter {
         const url = this.extractorCanvas.toDataURL('image/png');
         if (SHOULD_STORE_AS_BLOB) {
           // convert to blob
-          const byteString = atob(url.split(',')[1]);
-          const buffer = new ArrayBuffer(byteString.length);
-          const array = new Uint8Array(buffer);
-          for (let i = 0; i < byteString.length; i++) {
-            array[i] = byteString.charCodeAt(i);
-          }
-          const blob = new Blob([buffer], {type: 'image/png'});
+          const blob = new Blob([Uint8Array.fromBase64(url.slice(url.indexOf(',') + 1))], {type: 'image/png'});
           this.frameBuffer[frame] = {
             blob,
             url: URL.createObjectURL(blob),

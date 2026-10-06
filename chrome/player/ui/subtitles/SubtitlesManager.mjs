@@ -222,21 +222,17 @@ export class SubtitlesManager extends EventEmitter {
       const name = file.name;
       //  var ext = name.substring(name.length - 4);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        // A file that is no subtitles, or one that failed to parse, vanished without a word:
-        // the URL and OpenSubtitles paths say so.
-        try {
-          const track = new SubtitleTrack(name, null);
-          track.loadText(SubtitleUtils.decodeSubtitleBytes(reader.result));
-          track.checkHasCues();
+      // A file that is no subtitles, or one that failed to parse, vanished without a word:
+      // the URL and OpenSubtitles paths say so.
+      file.arrayBuffer().then((bytes) => {
+        const track = new SubtitleTrack(name, null);
+        track.loadText(SubtitleUtils.decodeSubtitleBytes(bytes));
+        track.checkHasCues();
 
-          this.addTrack(track);
-        } catch (e) {
-          AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
-        }
-      };
-      reader.readAsArrayBuffer(file);
+        this.addTrack(track);
+      }).catch((e) => {
+        AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
+      });
       // Picking the file the input still holds fires no change, so the same file could not
       // be added again (after removing it, say).
       filechooser.value = '';

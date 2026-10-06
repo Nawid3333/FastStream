@@ -19,22 +19,17 @@ export class BlobManager {
    * @return {Promise<ArrayBuffer|string>} The data from the blob.
    */
   static async getDataFromBlob(blob, type) {
-    const reader = new FileReader();
-
     if (type === 'arraybuffer') {
-      reader.readAsArrayBuffer(blob);
-    } else {
-      reader.readAsText(blob);
+      return blob.arrayBuffer();
     }
-
+    // Text through FileReader, not blob.text(): readAsText decodes with the charset the
+    // blob's type names (a playlist served as text/plain;charset=iso-8859-1), a byte order
+    // mark overriding it; blob.text() reads every blob as UTF-8.
+    const reader = new FileReader();
+    reader.readAsText(blob);
     return new Promise((resolve, reject) => {
-      reader.onload = () => {
-        resolve(reader.result);
-      };
-
-      reader.onerror = () => {
-        reject(reader.error);
-      };
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
     });
   }
 }

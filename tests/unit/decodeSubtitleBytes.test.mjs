@@ -88,34 +88,10 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
   });
 
   it('gets the bytes of a URL typed in from requestSimple, which read responseText', async () => {
-    // responseText throws for an 'arraybuffer' request, as it does in the browser.
-    const xhrBefore = globalThis.XMLHttpRequest;
-    globalThis.XMLHttpRequest = class {
-      constructor() {
-        this.listeners = {};
-        this.responseType = '';
-        this.status = 0;
-      }
-      addEventListener(type, listener) {
-        this.listeners[type] = listener;
-      }
-      open() {}
-      setRequestHeader() {}
-      getResponseHeader() {
-        return null;
-      }
-      send() {
-        this.status = 200;
-        this.response = this.responseType === 'arraybuffer' ? windows1252(SRT).buffer : null;
-        setTimeout(() => this.listeners.load(), 0);
-      }
-      get responseText() {
-        if (this.responseType !== '' && this.responseType !== 'text') {
-          throw new DOMException('responseText is only for text', 'InvalidStateError');
-        }
-        return '';
-      }
-    };
+    // responseText throws for an 'arraybuffer' request, as XMLHttpRequest's did; request()
+    // uses fetch() since 2026-10-06.
+    const fetchBefore = globalThis.fetch;
+    globalThis.fetch = async () => new Response(windows1252(SRT), {status: 200});
     try {
       let body = null;
       await RequestUtils.requestSimple({url: 'https://subs.example/de.srt', responseType: 'arraybuffer'}, (err, xhr, bytes) => {
@@ -123,7 +99,7 @@ describe('decodeSubtitleBytes at the places subtitle files come in', () => {
       });
       expect(SubtitleUtils.decodeSubtitleBytes(body)).toBe(SRT);
     } finally {
-      globalThis.XMLHttpRequest = xhrBefore;
+      globalThis.fetch = fetchBefore;
     }
   });
 
