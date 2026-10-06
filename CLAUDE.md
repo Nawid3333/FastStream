@@ -31,7 +31,7 @@ all in this file: 128 KB, read into every session.)
 |---|---|
 | keyboard shortcuts, the options page's keybind menu, locale strings | `docs/notes/keybinds.md` |
 | the player, `MP4Player`, the HLS/DASH loaders, saving a video | `docs/notes/player.md` |
-| `XHRLoader`, `FSBlob`, OPFS, IndexedDB, anything in a private window | `docs/notes/storage.md` |
+| `FetchLoader`, `FSBlob`, OPFS, IndexedDB, anything in a private window | `docs/notes/storage.md` |
 | MPV mode, `native-host/`, the toolbar button's states, `TabTracker`, shortcuts a page cancels | `docs/notes/mpv.md` |
 | `build.mjs`, SPLICER directives, build targets, releases, AMO signing and lint | `docs/notes/build-and-release.md` |
 | anything under `.github/`, the e2e harness and its configs, `tests/workflows` | `docs/notes/workflows.md` |

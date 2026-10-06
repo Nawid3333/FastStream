@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {XHRLoader} from '../../chrome/player/network/XHRLoader.mjs';
+import {FetchLoader} from '../../chrome/player/network/FetchLoader.mjs';
 
-// XHRLoader is the single network primitive shared by HLS, DASH and MP4
+// FetchLoader is the single network primitive shared by HLS, DASH and MP4
 // fragment/playlist loading (via DownloadManager -> StandardDownloader). It
 // used to wrap XMLHttpRequest; this suite pins the fetch()-based rewrite's
 // retry/backoff/timeout/abort state machine, since it previously had zero
@@ -31,7 +31,7 @@ function makeRequest(overrides) {
   };
 }
 
-/** Collects every callback invocation XHRLoader makes, in order. */
+/** Collects every callback invocation FetchLoader makes, in order. */
 function makeCallbackRecorder() {
   const calls = [];
   return {
@@ -61,7 +61,7 @@ function fetchHangingUntilAborted() {
   }));
 }
 
-describe('XHRLoader', () => {
+describe('FetchLoader', () => {
   beforeEach(() => {
     globalThis.self = globalThis;
     vi.useFakeTimers();
@@ -77,7 +77,7 @@ describe('XHRLoader', () => {
     const bytes = new Uint8Array([1, 2, 3, 4, 5]);
     vi.stubGlobal('fetch', fetchResolving(bytes.buffer, {status: 200, headers: {'content-length': '5'}}));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -94,7 +94,7 @@ describe('XHRLoader', () => {
   it('decodes text responses when responseType is not arraybuffer', async () => {
     vi.stubGlobal('fetch', fetchResolving('hello world', {status: 200}));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest({responseType: 'text'}), makeConfig());
@@ -110,7 +110,7 @@ describe('XHRLoader', () => {
       headers: {'Content-Type': 'video/mp2t'},
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -127,7 +127,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchHangingUntilAborted();
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     loader.addCallbacks(makeCallbackRecorder());
     loader.load(makeRequest(), makeConfig({timeout: 100, maxRetry: 1}));
     await vi.advanceTimersByTimeAsync(1000);
@@ -140,7 +140,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 404, statusText: 'Not Found'});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -155,7 +155,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 499, statusText: 'Client Closed Request'});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -169,7 +169,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 503, statusText: 'Unavailable'});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     // retryDelay starts at 100, doubles each retry, capped at maxRetryDelay 800.
@@ -183,7 +183,7 @@ describe('XHRLoader', () => {
   });
 
   it('grows retryDelay exponentially up to the configured cap', () => {
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     loader.request = makeRequest();
     loader.config = makeConfig({retryDelay: 100, maxRetryDelay: 800});
     loader.retryDelay = 100;
@@ -209,7 +209,7 @@ describe('XHRLoader', () => {
       return new Response(new Uint8Array([9]).buffer, {status: 200, headers: {'content-length': '1'}});
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -239,7 +239,7 @@ describe('XHRLoader', () => {
       }));
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 3, retryDelay: 50}));
@@ -268,7 +268,7 @@ describe('XHRLoader', () => {
       return Promise.resolve(new Response(new Uint8Array([7]).buffer, {status: 200}));
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 6, retryDelay: 50, maxRetryDelay: 800}));
@@ -294,7 +294,7 @@ describe('XHRLoader', () => {
       return Promise.resolve(new Response(new Uint8Array([7]).buffer, {status: 200}));
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 1, retryDelay: 50}));
@@ -325,7 +325,7 @@ describe('XHRLoader', () => {
       return Promise.resolve(new Response(new Uint8Array([1, 2, 3]).buffer, {status: 200}));
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig({timeout: 500, maxRetry: 6, retryDelay: 50}));
@@ -340,7 +340,7 @@ describe('XHRLoader', () => {
   it('gives up with onTimeout once retry.maxRetry/2 stall-retries are exhausted', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     // maxRetry/2 = 1: one stall-retry is allowed, the second timeout gives up.
@@ -354,7 +354,7 @@ describe('XHRLoader', () => {
   it('abort() during an in-flight request suppresses every later callback', async () => {
     vi.stubGlobal('fetch', fetchHangingUntilAborted());
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest(), makeConfig());
@@ -382,7 +382,7 @@ describe('XHRLoader', () => {
       return new Response(new ArrayBuffer(0), {status: 200});
     }));
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest({headers: {referer: 'https://origin.example/'}}), makeConfig());
@@ -405,7 +405,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 200});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest({headers: {referer: 'https://origin.example/'}}), makeConfig());
@@ -424,7 +424,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 200});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest({headers: {referer: 'https://origin.example/'}}), makeConfig());
@@ -438,7 +438,7 @@ describe('XHRLoader', () => {
     const fetchMock = fetchResolving(new ArrayBuffer(0), {status: 200});
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     loader.addCallbacks(makeCallbackRecorder());
     loader.load(makeRequest({rangeStart: 100, rangeEnd: 200}), makeConfig());
     await vi.runAllTimersAsync();
@@ -456,7 +456,7 @@ describe('XHRLoader', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const loader = new XHRLoader();
+    const loader = new FetchLoader();
     const recorder = makeCallbackRecorder();
     loader.addCallbacks(recorder);
     loader.load(makeRequest({headers: {'x-bad name': 'value'}}), makeConfig());
@@ -475,7 +475,7 @@ describe('XHRLoader', () => {
     /** The data a range of `file` came back as. */
     async function loadRange(rangeStart, rangeEnd, body = file, headers = {}) {
       vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status: 200, headers})));
-      const loader = new XHRLoader();
+      const loader = new FetchLoader();
       const recorder = makeCallbackRecorder();
       loader.addCallbacks(recorder);
       loader.load(makeRequest({rangeStart, rangeEnd}), makeConfig());

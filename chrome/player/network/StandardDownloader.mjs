@@ -1,6 +1,6 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {SpeedTracker} from './SpeedTracker.mjs';
-import {XHRLoader} from './XHRLoader.mjs';
+import {FetchLoader} from './FetchLoader.mjs';
 
 export class StandardDownloader {
   constructor(manager) {
@@ -49,7 +49,7 @@ export class StandardDownloader {
       if (!shouldContinue) {
         return;
       }
-      this.loader = new XHRLoader();
+      this.loader = new FetchLoader();
       this.loader.addCallbacks(this);
       this.loader.load(request, defaultConfig);
     }).catch((err) => {

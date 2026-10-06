@@ -1,6 +1,6 @@
 // How MP4Player loads a file, range by range, when things go wrong or the file is unusual.
 //
-// - A range that fails. XHRLoader retries a request itself, but not a 4xx (an expired
+// - A range that fails. FetchLoader retries a request itself, but not a 4xx (an expired
 //   token's 403), and once a range had failed, MP4Player stopped loading at it for good:
 //   the video played up to it, then spun with no error, unless several downloaders ran.
 //   Now it asks for the range again after 2, 4 and 8 s, and shows the error once

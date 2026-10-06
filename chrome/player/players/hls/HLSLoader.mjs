@@ -2,7 +2,7 @@ import {storeIndex} from './HLSFragmentStore.mjs';
 
 // How many times in a row one segment may fail before hls.js hears an error. Until then a
 // failure is reported as an abort, and hls.js asks for the segment again: FastStream's way
-// of riding out a failure that passes, on top of XHRLoader's own retries. For good, it hid
+// of riding out a failure that passes, on top of FetchLoader's own retries. For good, it hid
 // a dead segment (a 403 from an expired token) behind a spinner: hls.js asked for it
 // forever, and the player never showed an error.
 const SEGMENT_FAILURES_BEFORE_ERROR = 3;

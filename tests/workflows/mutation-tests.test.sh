@@ -147,11 +147,11 @@ merge() {
   (cd "$FIX/work" && run_step "$merge_step") > "$FIX/out" 2>&1
   status=$?
 }
-network="{\"files\":{\"chrome/player/network/XHRLoader.mjs\":{\"mutants\":[$(m Survived ConditionalExpression true 4)]}}}"
+network="{\"files\":{\"chrome/player/network/FetchLoader.mjs\":{\"mutants\":[$(m Survived ConditionalExpression true 4)]}}}"
 merge 's6 two shards of four -> one report of both, the others named missing' core-1 "$missing" network-1 "$network"
 check 'succeeds' test "$status" -eq 0
 check 'names the missing shards' contains "$GITHUB_ENV" 'MISSING_SHARDS=tools-1 host-1'
-check 'the report has both shards'"'"' files' contains "$FIX/work/reports/mutation/mutation.json" 'chrome/player/network/XHRLoader.mjs'
+check 'the report has both shards'"'"' files' contains "$FIX/work/reports/mutation/mutation.json" 'chrome/player/network/FetchLoader.mjs'
 check '... and the first shard'"'"'s' contains "$FIX/work/reports/mutation/mutation.json" 'chrome/player/utils/StreamPick.mjs'
 merge 's7 every shard -> none missing' core-1 "$missing" network-1 "$network" tools-1 '{"files":{}}' host-1 '{"files":{}}'
 check 'succeeds' test "$status" -eq 0

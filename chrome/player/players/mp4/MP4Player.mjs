@@ -16,7 +16,7 @@ import {StallWatchdog, bufferedAhead} from './StallWatchdog.mjs';
 const FRAGMENT_SIZE = 1000000;
 // How far past the back buffer a SourceBuffer may run before it is trimmed, in seconds.
 const BACK_BUFFER_SLACK = 1;
-// A range that failed (after XHRLoader's own retries, or at once for a 4xx) is asked for
+// A range that failed (after FetchLoader's own retries, or at once for a 4xx) is asked for
 // again after each of these waits, in ms. Still failing, it is the player's error once
 // playback has reached it.
 const RANGE_RETRY_DELAYS_MS = [2000, 4000, 8000];

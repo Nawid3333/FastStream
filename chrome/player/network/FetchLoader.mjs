@@ -2,7 +2,11 @@ import {MessageTypes} from '../enums/MessageTypes.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {RequestUtils} from '../utils/RequestUtils.mjs';
 
-export class XHRLoader {
+// Every fragment, playlist, manifest and MP4 range the player loads: fetch() with stall
+// timeouts, retries with backoff, byte ranges and the stats hls.js and dash.js read. It was
+// XHRLoader until 2026-10-06, named for the XMLHttpRequest it wrapped before it moved to
+// fetch(). (dash.js has an XHRLoader of its own, which DashPlayer replaces by that name.)
+export class FetchLoader {
   constructor() {
     this.callbacks = [];
     this.stats = {
