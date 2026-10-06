@@ -13,21 +13,31 @@
 // own. STRYKER_SHARD picks one; without it, all of them run (`pnpm run test:mutation`,
 // locally).
 //
-// How long an area takes, measured on CI (#349, run 37333779402, 2026-10-05): network 7
-// mutants a minute, core 14, tools 10 - with ~3,300, ~5,100 and ~3,200 mutants, 7.7, 6 and
-// 5.3 hours. The first estimate (1.2 s a mutant, 2026-10-04) was a local run's: on CI a
+// How long an area took with the command runner, measured on CI (#349, run 37333779402,
+// 2026-10-05): network 7 mutants a minute, core 14, tools 10 - with ~3,300, ~5,100 and
+// ~3,200 mutants, 7.7, 6 and 5.3 hours. The first estimate (1.2 s a mutant, 2026-10-04) was a local run's: on CI a
 // mutant the tests do not catch runs the whole suite (~18 s), and a third to a half of
 // them survive. One job an area ran out of its 240 minutes at 51-74%, and no report came.
-// So each area is cut into PARTS shards of about the same size, each a few hours.
+// So each area was cut into PARTS shards of about the same size, each a few hours; with the
+// vitest runner (below) a shard should take minutes, measured on its first CI run.
 //
 // The weekly job runs on Linux: the mpv host's Windows-only tests (mpvHostInstall, the
 // PowerShell cases of mpvHostSecurity) are skipped there, so its PowerShell and WMI
 // mutants can only survive, and count against its score.
 //
-// The command runner: every mutant runs the whole unit suite, switched on through
-// __STRYKER_ACTIVE_MUTANT__. Stryker's vitest runner would run only the tests that reach a
-// mutant, but its newest release (10.0.0, August 2026) predates vitest 5 and switches no
-// mutant on there: every one "survived". Use it again once a release supports vitest 5.
+// Stryker's vitest runner, with per-test coverage: a mutant runs only the tests that reached
+// its code, in a Vitest that stays up between mutants - 143 mutants in 31 s on a PC
+// (2026-10-06), where the command runner ran the whole unit suite for each, ~18 s a mutant
+// on CI, the hours above. Its 10.0.0 release (August 2026) predates Vitest 5, which joins a
+// test's suite chain with ' > ': its test filter matched nothing and every mutant
+// "survived" (stryker-js #6210). FastStream carries the fix, stryker-js PR #6214, as a pnpm
+// patch (patches/@stryker-mutator__vitest-runner@10.0.0.patch); the Patched libraries
+// workflow drops it once a release has it, and moves @stryker-mutator/core with the runner
+// (LOCKSTEP in tools/check-patched-updates.mjs).
+//
+// A mutant is switched on inside the test worker, so a test that runs a module as a process
+// of its own (mpvHostVersion's host, the Windows-only installer and update-local tests)
+// does not see it there; those tests still kill what they reach in-process.
 import fs from 'node:fs';
 
 export const AREAS = {
@@ -97,8 +107,9 @@ export const AREAS = {
   ],
 };
 
-// How many shards each area is cut into: at the rates above, each one a few hours, well
-// inside its job's 350 minutes (mutation-tests.yml).
+// How many shards each area is cut into: at the command runner's rates above, each one a few
+// hours, well inside its job's 350 minutes (mutation-tests.yml); fewer may do with the vitest
+// runner once its CI times are known.
 export const PARTS = {core: 2, network: 3, tools: 2};
 
 /**
@@ -148,9 +159,11 @@ export function modulesOf(shard) {
 }
 
 export default {
-  testRunner: 'command',
-  commandRunner: {command: 'node node_modules/vitest/vitest.mjs run --bail=1 --reporter=dot'},
-  coverageAnalysis: 'off',
+  testRunner: 'vitest',
+  // pnpm's layout: Stryker looks for @stryker-mutator/* plugins beside its own core only.
+  plugins: ['@stryker-mutator/vitest-runner'],
+  vitest: {configFile: 'vitest.config.mjs'},
+  coverageAnalysis: 'perTest',
   // What the sandbox leaves out: builds, profiles, logs and fixtures the unit tests never
   // read, and tsconfig.json, which Stryker would rewrite through TypeScript's JS API -
   // TypeScript 7 has none (`ts.parseConfigFileTextToJson is not a function`).

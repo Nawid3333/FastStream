@@ -49,6 +49,13 @@ updates:
       shipped-minor-and-patch:
         patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
+      # Stryker's packages come out together, and each requires the others at its own
+      # version exactly (@stryker-mutator/vitest-runner's peerDependencies): one pull
+      # request for all of them, majors included. Before tooling-minor-and-patch, which
+      # would take them otherwise. While the vitest runner carries a patch, both are
+      # ignored below and move together through the Patched libraries workflow.
+      stryker:
+        patterns: ['@stryker-mutator/*']
       tooling-minor-and-patch:
         exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
         update-types: ['minor', 'patch']
@@ -59,8 +66,14 @@ updates:
     # from the Patched libraries workflow instead, which re-cuts the patch with
     # tools/recut-patch.mjs and opens the pull request itself when that is clean
     # (docs/updating-patched-libraries.md). Keep this list in step with
-    # patchedDependencies.
+    # patchedDependencies, and the packages that move with a patched one (LOCKSTEP in
+    # tools/check-patched-updates.mjs: @stryker-mutator/core with the vitest runner, which
+    # requires its exact version). When every change of a patch has landed upstream,
+    # tools/recut-patch.mjs drops the patch and takes the library and those packages off
+    # this list in the same pull request.
     ignore:
+      - dependency-name: '@stryker-mutator/core'
+      - dependency-name: '@stryker-mutator/vitest-runner'
       - dependency-name: 'Coloris'
       - dependency-name: 'dashjs'
       - dependency-name: 'gif.js'

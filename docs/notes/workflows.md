@@ -540,10 +540,20 @@
   CI a mutant the tests miss runs the whole ~18 s suite, and one job per area ran out of its
   240 minutes at 51-74% with no report (#349, 2026-10-05): since then the three areas are
   seven shards (`PARTS` in the config, split by file size), each in a job of 350 minutes, and
-  a shard that runs out of time (it ends cancelled) is reported as a failure. Stryker's
-  vitest runner 10.0.0 (August 2026) predates vitest 5 and switched no mutant on there (every
-  one "survived"); switch back once a release supports vitest 5, and per-test coverage makes
-  the run far faster. The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
+  a shard that runs out of time (it ends cancelled) is reported as a failure. **Since
+  2026-10-06 the vitest runner** with per-test coverage: a mutant runs only the tests that
+  reached its code, in a Vitest that stays up (143 mutants in 31 s locally, ~12.5 tests a
+  mutant). Its 10.0.0 release (August 2026) predates vitest 5, which joins a test's suite
+  chain with ' > ', so its test filter matched nothing and every mutant "survived"
+  (stryker-js #6210); FastStream carries the fix, stryker-js PR #6214, as a pnpm patch
+  (`patches/@stryker-mutator__vitest-runner@10.0.0.patch`, the compiled files). When a
+  release has it, the Patched libraries workflow opens the pull request that drops the patch,
+  moves @stryker-mutator/core along (LOCKSTEP in `tools/check-patched-updates.mjs`: the runner
+  requires its core's exact version) and hands both back to Dependabot, whose `stryker` group
+  then keeps all of Stryker's packages in one pull request. A test that runs a module as a
+  process of its own (mpvHostVersion's host; the Windows-only installer and update-local
+  tests) does not see a mutant there. The first fast run was compared mutant by mutant with
+  the last command-runner run (7 shards, CI run 37384050152). The sandbox leaves out `tsconfig.json`: Stryker rewrites it through
   TypeScript's JS API, which TypeScript 7 does not have. `tests/workflows/mutation-tests.test.sh`.
   Baseline, 2026-10-01 (73 min locally): 71.8% of 3,614 mutants caught; the weakest are the
   mpv host (47.7%), MpvBackend (58.4%), SubtitleUtils (63.2%) and TabTracker (68.4%), the

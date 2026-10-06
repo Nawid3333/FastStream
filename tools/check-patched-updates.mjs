@@ -21,6 +21,16 @@ import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
+ * Packages that must stay at a patched library's exact version, by the library's name. They
+ * move with it: its update pull request bumps them too (tools/recut-patch.mjs), and
+ * Dependabot leaves them alone while the library is patched (.github/dependabot.yml), where
+ * it would bump them alone. @stryker-mutator/vitest-runner requires the @stryker-mutator/core
+ * of its own version, exactly (its peerDependencies).
+ * @type {Object<string, string[]>}
+ */
+export const LOCKSTEP = {'@stryker-mutator/vitest-runner': ['@stryker-mutator/core']};
+
+/**
  * @param {string} yaml - pnpm-workspace.yaml.
  * @return {Array<{name: string, version: string}>} The patched libraries.
  */

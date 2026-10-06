@@ -46,7 +46,7 @@ import path from 'node:path';
 import * as url from 'node:url';
 import {spawnSync} from 'node:child_process';
 
-import {patchedDependencies} from './check-patched-updates.mjs';
+import {LOCKSTEP, patchedDependencies} from './check-patched-updates.mjs';
 
 const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 const root = process.env.RECUT_ROOT ? path.resolve(process.env.RECUT_ROOT) : path.resolve(__dirname, '..');
@@ -577,17 +577,55 @@ async function main() {
   return applyUpdate(opts, cur, result, work);
 }
 
+/**
+ * Takes names off .github/dependabot.yml's ignore list, so Dependabot updates them again:
+ * a library whose patch is dropped, and the packages that moved with it (LOCKSTEP).
+ * @param {string[]} names
+ * @param {string} [file] - The Dependabot config.
+ * @return {string[]} The names that were on the list.
+ */
+function dropDependabotIgnores(names, file = path.join(root, '.github/dependabot.yml')) {
+  const dropped = [];
+  const kept = fs.readFileSync(file, 'utf8').split('\n').filter((line) => {
+    const entry = /^\s*- dependency-name: '([^']+)'\s*$/.exec(line);
+    if (!entry || !names.includes(entry[1])) return true;
+    dropped.push(entry[1]);
+    return false;
+  });
+  fs.writeFileSync(file, kept.join('\n'));
+  return dropped;
+}
+
+/**
+ * package.json with a library moved from one version to another, and the packages that must
+ * stay at its version with it (LOCKSTEP).
+ * @param {string} text - package.json.
+ * @param {string} pkg
+ * @param {string} from
+ * @param {string} to
+ * @return {string}
+ */
+function bumpPackageJson(text, pkg, from, to) {
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A registry range keeps its prefix (hls.js was "^1.7.3"); a git spec moves to the new
+  // version's tag.
+  const verRe = new RegExp(`("${esc(pkg)}":\\s*"(?:[~^]?|(?:github:|git\\+|git:)[^#"]+#v?))${esc(from)}"`);
+  if (!verRe.test(text)) throw new Error(`package.json has no "${pkg}" at ${from}`);
+  let out = text.replace(verRe, `$1${to}"`);
+  for (const companion of LOCKSTEP[pkg] || []) {
+    const companionRe = new RegExp(`("${esc(companion)}":\\s*")[^"]+"`);
+    if (!companionRe.test(out)) throw new Error(`package.json has no "${companion}", which moves with ${pkg}`);
+    out = out.replace(companionRe, `$1${to}"`);
+  }
+  return out;
+}
+
 function applyUpdate(opts, cur, result, work) {
   const {pkg, to} = opts;
   const from = cur.version;
-  // package.json: keep the range prefix (hls.js is "^1.7.3").
   const pj = path.join(root, 'package.json');
   const pjText = fs.readFileSync(pj, 'utf8');
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // A registry range keeps its prefix; a git spec moves to the new version's tag.
-  const verRe = new RegExp(`("${esc(pkg)}":\\s*"(?:[~^]?|(?:github:|git\\+|git:)[^#"]+#v?))${esc(from)}"`);
-  if (!verRe.test(pjText)) throw new Error(`package.json has no "${pkg}" at ${from}`);
-  fs.writeFileSync(pj, pjText.replace(verRe, `$1${to}"`));
+  fs.writeFileSync(pj, bumpPackageJson(pjText, pkg, from, to));
 
   const ws = path.join(root, 'pnpm-workspace.yaml');
   const wsText = fs.readFileSync(ws, 'utf8');
@@ -617,8 +655,11 @@ function applyUpdate(opts, cur, result, work) {
     fs.copyFileSync(path.join(work, 'merged', f.file), path.join(edit, f.file));
   }
   if (result.files.every((f) => f.landed)) {
-    console.log(`Every change has landed in ${pkg} ${to}: the patch is dropped. ` +
-      `Remove the \`patched: true\` marks in tools/sync-vendor.mjs and ${pkg} from .github/dependabot.yml's ignore list.`);
+    // Dependabot takes the library back, and what moves with it.
+    const handedBack = dropDependabotIgnores([pkg, ...(LOCKSTEP[pkg] || [])]);
+    console.log(`Every change has landed in ${pkg} ${to}: the patch is dropped` +
+      (handedBack.length ? `, and Dependabot updates ${handedBack.join(' and ')} again (.github/dependabot.yml)` : '') +
+      `. Remove any \`patched: true\` marks for ${pkg} in tools/sync-vendor.mjs.`);
   } else {
     must('pnpm', ['patch-commit', edit], {cwd: root});
   }
@@ -639,7 +680,7 @@ function applyUpdate(opts, cur, result, work) {
   return 0;
 }
 
-export {applyHunks, parseDiff, patchedFiles, renamedCounterpart, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
+export {applyHunks, bumpPackageJson, dropDependabotIgnores, parseDiff, patchedFiles, renamedCounterpart, mergeText, splitWebpack, mergeWebpack, spliceOnto, checkJavaScript};
 
 // Run as a command; imported (tests/unit/recutPatch.test.mjs), it only exports the above.
 if (process.argv[1] && path.resolve(process.argv[1]) === url.fileURLToPath(import.meta.url)) {

@@ -179,7 +179,9 @@ jobs:
             if [ "$status" = 3 ]; then
               echo "$name $latest is too new to install yet; the next run tries again."
             elif [ "$status" = 0 ]; then
-              git add -A -- package.json pnpm-lock.yaml pnpm-workspace.yaml patches tools/sync-vendor.mjs
+              # .github/dependabot.yml: a patch dropped hands the library (and what moves
+              # with it) back to Dependabot (tools/recut-patch.mjs).
+              git add -A -- package.json pnpm-lock.yaml pnpm-workspace.yaml patches tools/sync-vendor.mjs .github/dependabot.yml
               # Anything else changed would be a surprise worth stopping for, not committing.
               stray=$(git status --porcelain | grep -v '^[MADR] ' || true)
               if [ -n "$stray" ]; then

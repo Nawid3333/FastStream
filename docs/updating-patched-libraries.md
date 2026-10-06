@@ -62,8 +62,15 @@ regenerated files in `chrome/player/modules/`. Then commit on a branch and open 
 request (the regenerated files are git-ignored, so they are not part of the commit).
 
 When every one of FastStream's changes has landed upstream, `--apply` drops the
-patch instead of committing one, and says to remove the `patched: true` marks in
-`tools/sync-vendor.mjs` and the library from `.github/dependabot.yml`'s ignore list.
+patch instead of committing one, takes the library (and what moves with it, below) off
+`.github/dependabot.yml`'s ignore list, and says to remove any `patched: true` marks in
+`tools/sync-vendor.mjs`.
+
+Some packages must stay at a patched library's exact version: `LOCKSTEP` in
+`tools/check-patched-updates.mjs` (`@stryker-mutator/core` with
+`@stryker-mutator/vitest-runner`, which requires its core's version exactly). `--apply`
+moves them to the library's new version in the same pull request, and Dependabot ignores
+them while the library is patched, where it would bump them alone.
 If `tools/sync-vendor.mjs` then fails (an unpatched file renamed too), the tool
 exits 2 with the version, lockfile and patch already changed: fix `sync-vendor.mjs`,
 then run `pnpm run verify`.

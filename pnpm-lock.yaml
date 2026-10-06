@@ -14,6 +14,7 @@ overrides:
   basic-ftp: ^6.2.1
 
 patchedDependencies:
+  '@stryker-mutator/vitest-runner@10.0.0': c5d635178da5a48e07051030a6d2eb3f33f4b31a71f4232c05f099e8e90f3dc2
   Coloris@0.25.0: d8a066fa49aa80466d054aad0f7a2c767b2f62cf365492c155bb9b4ce30fb2ec
   dashjs@5.2.1: f09c7ddbd4aedea040b042bfc600ab65b3b6131d6bfdd8dbfaf3ea580fd20ffc
   gif.js@0.2.0: 7f90135cc94c36690ec1e9725f81b9ec0386d2b62e08e8e6defbd864d58cc1ae
@@ -31,6 +32,9 @@ importers:
       '@stryker-mutator/core':
         specifier: 10.0.0
         version: 10.0.0(@types/node@26.6.3)
+      '@stryker-mutator/vitest-runner':
+        specifier: 10.0.0
+        version: 10.0.0(patch_hash=c5d635178da5a48e07051030a6d2eb3f33f4b31a71f4232c05f099e8e90f3dc2)(@stryker-mutator/core@10.0.0(@types/node@26.6.3))(vitest@5.0.2)
       '@types/chrome':
         specifier: ^0.3.4
         version: 0.3.4
@@ -1107,6 +1111,13 @@ packages:
 
   '@stryker-mutator/util@10.0.0':
     resolution: {integrity: sha512-LzOpHiJaCp2ABQgnPMlrQQcsK43bd5Vo/2FGL78aN62yDoeRQ+4j3tzeuXxK5OAHdC3fUz6TDoy4IsoAuLAd3w==}
+
+  '@stryker-mutator/vitest-runner@10.0.0':
+    resolution: {integrity: sha512-SHK2/vfvRUpiz7jXPnQMBnr6zLdm69DK03Mo5mPhaZWcRSygrKUqYsPqWsXsK+5ySHzlMTfCyFK5NQ/X9sJFFw==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@stryker-mutator/core': 10.0.0
+      vitest: '>=2.0.0'
 
   '@svta/cml-608@1.0.2':
     resolution: {integrity: sha512-ZEJ68330gcLKfvVv6Qifr1HR7+GldDUxzkjqSbqRK7jHtHSLSV1JAyDwlYe8+C7ABuY1bp8MpgJ4/Gg+jl+pLQ==}
@@ -5020,6 +5031,15 @@ snapshots:
       weapon-regex: 2.0.5
 
   '@stryker-mutator/util@10.0.0': {}
+
+  '@stryker-mutator/vitest-runner@10.0.0(patch_hash=c5d635178da5a48e07051030a6d2eb3f33f4b31a71f4232c05f099e8e90f3dc2)(@stryker-mutator/core@10.0.0(@types/node@26.6.3))(vitest@5.0.2)':
+    dependencies:
+      '@stryker-mutator/api': 10.0.0
+      '@stryker-mutator/core': 10.0.0(@types/node@26.6.3)
+      '@stryker-mutator/util': 10.0.0
+      semver: 7.8.5
+      tslib: 2.8.1
+      vitest: 5.0.2(@types/node@26.6.3)(@vitest/coverage-v8@5.0.2)(vite@8.2.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
 
   '@svta/cml-608@1.0.2': {}
 
