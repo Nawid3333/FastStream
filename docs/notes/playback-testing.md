@@ -58,7 +58,7 @@ against real streams: Shaka Player's demo assets on storage.googleapis.com (HLS 
 angel-one: 5 qualities, 5 audio languages; DASH Sintel, 888 s, seeked 10 minutes in; a
 live DASH stream) and a progressive MP4 on raw.githubusercontent.com. The pages are local
 and embed them the way sites do: the site's own hls.js/dash.js (the official releases of
-the versions `package.json` pins, from the npm registry, cached in the gitignored `tests/e2e/fixtures/live-libs`), a
+the versions `package.json` pins, from the npm registry, held in memory for the run), a
 plain `<video src>`, a cross-origin iframe that may go fullscreen (player laid over it)
 and one that may not (the frame is sent to the player page), plus a manifest opened
 directly (`playStreamURLs`). Not in `verify` or CI: a third-party outage must not block a
@@ -73,8 +73,10 @@ on the first fix. A test that switches into a frame must switch back before
 the same `test:live` run and the same weekly workflow. Most sites play through a player
 library, not bare hls.js or dash.js, and each wraps, moves or hides the `<video>` in its
 own way. 11 libraries, each the official release at an exact version pinned in the spec
-(from the npm registry, checked against the registry's integrity and cached as a tarball
-in `tests/e2e/fixtures/live-libs`): video.js (HLS, DASH, MP4), Shaka (HLS, DASH), Plyr,
+(from the npm registry, checked against the registry's integrity and held in memory for the
+run, about 66 MB of tarballs; until 2026-10-07 they were cached on disk in
+`tests/e2e/fixtures/live-libs`, read back unchecked, and CodeQL js/http-to-file-access
+flagged the write): video.js (HLS, DASH, MP4), Shaka (HLS, DASH), Plyr,
 Clappr, MediaElement, Vidstack (a web component), Media Chrome with `<hls-video>` (its
 `<video>` in a shadow root, as Mux's players have it), DPlayer, Artplayer, xgplayer (its
 own HLS code, not hls.js), OpenPlayerJS - HLS on all, DASH on two, MP4 on nine: 22 cases.

@@ -108,9 +108,9 @@ export async function ensureMp4Fixture() {
     );
   }
   if (stale) {
-    // Made from the other file. live-libs is the live suite's npm cache, made from nothing here.
+    // Made from the other file.
     for (const name of fs.readdirSync(fixturesDir)) {
-      if (name !== path.basename(MP4_FIXTURE) && name !== 'live-libs') {
+      if (name !== path.basename(MP4_FIXTURE)) {
         fs.rmSync(path.join(fixturesDir, name), {recursive: true, force: true});
       }
     }

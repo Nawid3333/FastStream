@@ -35,51 +35,10 @@ export const STREAMS = {
 };
 
 // The registry host is pinned, and a package name and version must have exactly npm's
-// shape before either reaches a URL or a cache path (CodeQL js/request-forgery,
-// js/file-access-to-http, js/http-to-file-access).
+// shape before either reaches a URL (CodeQL js/request-forgery).
 const REGISTRY = 'https://registry.npmjs.org';
 const PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/;
 const SEMVER = /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/;
-// The cache lives in the e2e suites' gitignored fixtures directory, not in the OS temp
-// root whose fixed paths are world-readable and pre-createable (CodeQL
-// js/insecure-temporary-file). (It was once put in a fixtures directory of live-specs'
-// own, which nothing ignored: a `git add -A` after a live run took the libraries into the
-// tree.)
-const CACHE = path.join(__dirname, '..', 'fixtures', 'live-libs');
-
-/**
- * Writes a cache entry unless another process just did: 'wx' fails then, and that entry
- * holds the same bytes (CodeQL js/file-system-race). Its directory is made first.
- * @param {string} file - The cache path.
- * @param {Buffer} data - What to write.
- */
-function writeCache(file, data) {
-  fs.mkdirSync(path.dirname(file), {recursive: true});
-  let fd;
-  try {
-    fd = fs.openSync(file, 'wx');
-    fs.writeFileSync(fd, data);
-  } catch (e) {
-    if (e.code !== 'EEXIST') throw e;
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd);
-  }
-}
-
-/**
- * Reads a cache entry, or null when there is none. No existsSync first: gone-in-between
- * is the catch's case (CodeQL js/file-system-race).
- * @param {string} file - The cache path.
- * @return {?Buffer}
- */
-function readCache(file) {
-  try {
-    return fs.readFileSync(file);
-  } catch (e) {
-    if (e.code !== 'ENOENT') throw e;
-    return null;
-  }
-}
 
 /**
  * Splits a tar archive into its files: a run of 512-byte headers, each followed by its
@@ -110,8 +69,9 @@ const packages = new Map();
 
 /**
  * Returns every file of one npm package version, downloading its tarball from the
- * registry the first time (checked against the integrity the registry gives for it) and
- * caching the tarball in tests/e2e/fixtures/live-libs (gitignored).
+ * registry the first time in a run (checked against the integrity the registry gives for
+ * it). Kept in memory only: a tarball cached on disk was read back unchecked, and
+ * writing a download to disk is CodeQL js/http-to-file-access. About 66 MB a run.
  * @param {string} pkg - The package name, scoped or not.
  * @param {string} version - An exact version.
  * @return {Promise<Map<string, Buffer>>} Path inside the package -> contents.
@@ -124,28 +84,23 @@ export async function npmPackage(pkg, version) {
   if (packages.has(key)) {
     return packages.get(key);
   }
-  const cached = path.join(CACHE, `${key}.tgz`);
-  let tgz = readCache(cached);
-  if (!tgz) {
-    const metaRes = await fetch(`${REGISTRY}/${pkg}/${version}`);
-    if (!metaRes.ok) {
-      throw new Error(`could not look up ${key}: HTTP ${metaRes.status}`);
-    }
-    const {dist} = await metaRes.json();
-    const tarball = new URL(dist.tarball);
-    if (tarball.origin !== REGISTRY) {
-      throw new Error(`${key}: the registry named a tarball on another host: ${tarball.origin}`);
-    }
-    const res = await fetch(tarball);
-    if (!res.ok) {
-      throw new Error(`could not download ${key}: HTTP ${res.status}`);
-    }
-    tgz = Buffer.from(await res.arrayBuffer());
-    const [algorithm, expected] = String(dist.integrity).split('-');
-    if (algorithm !== 'sha512' || crypto.createHash('sha512').update(tgz).digest('base64') !== expected) {
-      throw new Error(`${key}: the tarball does not match the registry's integrity ${dist.integrity}`);
-    }
-    writeCache(cached, tgz);
+  const metaRes = await fetch(`${REGISTRY}/${pkg}/${version}`);
+  if (!metaRes.ok) {
+    throw new Error(`could not look up ${key}: HTTP ${metaRes.status}`);
+  }
+  const {dist} = await metaRes.json();
+  const tarball = new URL(dist.tarball);
+  if (tarball.origin !== REGISTRY) {
+    throw new Error(`${key}: the registry named a tarball on another host: ${tarball.origin}`);
+  }
+  const res = await fetch(tarball);
+  if (!res.ok) {
+    throw new Error(`could not download ${key}: HTTP ${res.status}`);
+  }
+  const tgz = Buffer.from(await res.arrayBuffer());
+  const [algorithm, expected] = String(dist.integrity).split('-');
+  if (algorithm !== 'sha512' || crypto.createHash('sha512').update(tgz).digest('base64') !== expected) {
+    throw new Error(`${key}: the tarball does not match the registry's integrity ${dist.integrity}`);
   }
   const files = untar(zlib.gunzipSync(tgz));
   packages.set(key, files);

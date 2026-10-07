@@ -307,8 +307,12 @@ describe('Websites\' own players', function() {
         res.writeHead(200, {'Content-Type': type});
         res.end(body);
       } catch (e) {
+        // The page gets the status only, never the error's text (CodeQL
+        // js/stack-trace-exposure, js/xss-through-exception); the run's log gets the error,
+        // as one JSON string so nothing in it can start a log line of its own.
+        console.error('site server:', JSON.stringify(String(e && e.stack || e)));
         res.writeHead(500);
-        res.end(String(e));
+        res.end();
       }
     });
     await new Promise((resolve, reject) => {
