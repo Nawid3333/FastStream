@@ -336,7 +336,7 @@
         "message": "Yıl"
     },
     "player_opensubtitles_sortby": {
-        "message": "Sırala"
+        "message": "Sıralama ölçütü"
     },
     "player_opensubtitles_sortby_downloads": {
         "message": "İndirmeler"
@@ -378,7 +378,7 @@
         "message": "Sonuç bulunamadı!"
     },
     "player_opensubtitles_quota": {
-        "message": "OpenSubtitles altyazı indirme sınırı uyguluyor! Artık indirmeniz yok! Kotanız $1 içinde sıfırlanacak"
+        "message": "OpenSubtitles altyazı indirme sınırı uyguluyor! Artık indirme hakkınız kalmadı! Kotanız $1 içinde sıfırlanacak"
     },
     "player_opensubtitles_askopen": {
         "message": "Altyazı dosyasını manuel indirmek için OpenSubtitles web sitesini açmak ister misiniz?"
@@ -480,7 +480,7 @@
         "message": "Ayarlar penceresini kapat"
     },
     "player_savevideo_label": {
-        "message": "Videoyu kaydet. Kısmi videoyu kaydetmek için ALT tuşunu basılı tut. Arabelleği boşaltmak için SHIFT tuşunu basılı tut."
+        "message": "Videoyu kaydet. Kısmi videoyu kaydetmek için ALT tuşunu basılı tut. Arabelleği arşiv olarak kaydetmek için SHIFT tuşunu basılı tut."
     },
     "player_screenshot_label": {
         "message": "Ekran görüntüsü al"
@@ -531,7 +531,7 @@
         "message": "GIF kaydı iptal edildi!"
     },
     "loop_menu_gif_progress": {
-        "message": "GIF kaydediliyor $1%"
+        "message": "GIF kaydediliyor %$1"
     },
     "loop_menu_gif_finished": {
         "message": "GIF kaydedildi!"
@@ -546,7 +546,7 @@
         "message": "$1 parça başarısız oldu! Tekrar denemek için tıklayın."
     },
     "player_fragment_allbuffered": {
-        "message": "100% Önbelleğe alındı"
+        "message": "%100 önbelleğe alındı"
     },
     "player_welcometext": {
         "message": "FastStream v$1'e hoş geldiniz!"
@@ -555,7 +555,7 @@
         "message": "Kaynak yüklenmedi!"
     },
     "player_archive_loading": {
-        "message": "Arşiv yükleniyor... $1%"
+        "message": "Arşiv yükleniyor... %$1"
     },
     "player_archive_loaded": {
         "message": "Arşiv yüklendi!"
@@ -582,10 +582,10 @@
         "message": "Bu video için kaydetme desteklenmiyor!"
     },
     "player_savevideo_partial_confirm": {
-        "message": "Video henüz tamamen indirilmedi! Yine de kaydetmek istediğinize emin misiniz?"
+        "message": "Video henüz tamamen indirilmedi! Yine de kaydetmek istediğinizden emin misiniz?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "Gizli Mod videoları tamponlamak için RAM kullanır. Bilgisayarınızda tüm videoyu kaydetmek için yeterli bellek olmayabilir!\nDevam etmek istediğinize emin misiniz?"
+        "message": "Gizli Mod videoları tamponlamak için RAM kullanır. Bilgisayarınızda tüm videoyu kaydetmek için yeterli bellek olmayabilir!\nDevam etmek istediğinizden emin misiniz?"
     },
     "player_savevideo_cancelling": {
         "message": "Kaydetme iptal ediliyor..."
@@ -597,7 +597,7 @@
         "message": "Kaydetme başlatılıyor..."
     },
     "player_savevideo_progress": {
-        "message": "$1% kaydediliyor"
+        "message": "%$1 kaydediliyor"
     },
     "player_savevideo_fail": {
         "message": "Video kaydedilemedi!"
@@ -609,7 +609,7 @@
         "message": "Kaydetme tamamlandı!"
     },
     "player_archiver_progress": {
-        "message": "$1% arşivleniyor"
+        "message": "%$1 arşivleniyor"
     },
     "player_archiver_saved": {
         "message": "Arşiv kaydedildi!"
@@ -1035,7 +1035,7 @@
         "message": "Ok tuşlarıyla sarma adımı (saniye)"
     },
     "options_general_replace_delay": {
-        "message": "Otomatik oynatıcıyı değiştirmeden önce gecikme (ms)"
+        "message": "Oynatıcıyı otomatik değiştirmeden önce gecikme (ms)"
     },
     "options_general_maxdownloaders": {
         "message": "En fazla indirici sayısı (1–6)"
@@ -1143,7 +1143,7 @@
         "message": "Taze Nane"
     },
     "options_general_vischangeaction_pip": {
-        "message": "Resim içinde resmi aç/kapat"
+        "message": "Resim içinde resim aç/kapa"
     },
     "options_export_header": {
         "message": "Ayarları İçe/Dışa Aktar"
@@ -1227,7 +1227,7 @@
         "message": "mpv bulundu: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv bulundu: $1 (yukarıda ayarlanan yol bulunamadı, bu yüzden ana bilgisayar bunu kullanıyor)"
+        "message": "mpv bulundu: $1 (yukarıda ayarlanan yol bulunamadı, bu yüzden host bunu kullanıyor)"
     },
     "options_mpv_test_nompv": {
         "message": "Host'a ulaşıldı, ancak mpv bulunamadı"
@@ -1287,7 +1287,7 @@
         "message": "Yardım"
     },
     "options_help_welcome": {
-        "message": "Hoş Geldiniz"
+        "message": "Hoş Geldiniz Sayfası"
     },
     "options_help_issues": {
         "message": "Hata İzleyici"

@@ -165,7 +165,7 @@
         "message": "Identifier le plus grand élément vidéo visible pour le remplacer par le lecteur."
     },
     "perms_page_breakdown_perm1r2": {
-        "message": "Activer le mode plein écran lorsque le lecteur est injecté dans une iframe."
+        "message": "Activer les autorisations de plein écran lorsque le lecteur est injecté dans une iframe."
     },
     "perms_page_breakdown_perm1r3": {
         "message": "Récupérer les éléments <track> de sous-titres de la page."
@@ -414,10 +414,10 @@
         "message": "Téléchargement de la piste de sous-titres..."
     },
     "player_subtitles_addtrack_success": {
-        "message": "Piste de sous-titres chargée!"
+        "message": "Piste de sous-titres chargée !"
     },
     "player_subtitles_addtrack_error": {
-        "message": "Impossible de charger la piste de sous-titres!"
+        "message": "Impossible de charger la piste de sous-titres !"
     },
     "player_subtitles_nocues": {
         "message": "Aucun sous-titre trouvé dedans."
@@ -480,7 +480,7 @@
         "message": "Fermer les paramètres"
     },
     "player_savevideo_label": {
-        "message": "Enregistrer la vidéo. Maintenez ALT pour enregistrer une partie de la vidéo. Maintenez SHIFT pour vider le tampon."
+        "message": "Enregistrer la vidéo. Maintenez ALT pour enregistrer une partie de la vidéo. Maintenez SHIFT pour enregistrer le tampon dans une archive."
     },
     "player_screenshot_label": {
         "message": "Prendre une capture d'écran"
@@ -1113,7 +1113,7 @@
         "message": "Sombre (par défaut)"
     },
     "options_general_color_theme_arctic": {
-        "message": "Arctic (clair)"
+        "message": "Arctique (clair)"
     },
     "options_general_color_theme_ocean": {
         "message": "Océan bleu"

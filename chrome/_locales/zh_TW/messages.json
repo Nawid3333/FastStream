@@ -378,7 +378,7 @@
         "message": "找不到結果！"
     },
     "player_opensubtitles_quota": {
-        "message": "OpenSubtitles 限制字幕下載！您已無剩餘下載次數！您的配額將於 $1 重置"
+        "message": "OpenSubtitles 限制字幕下載！您已無剩餘下載次數！您的配額將於 $1 後重置"
     },
     "player_opensubtitles_askopen": {
         "message": "要開啟 OpenSubtitles 網站手動下載字幕檔嗎？"
@@ -507,7 +507,7 @@
         "message": "更多工具"
     },
     "player_loop_label": {
-        "message": "重播"
+        "message": "循環播放"
     },
     "loop_menu_start": {
         "message": "起點"
@@ -516,10 +516,10 @@
         "message": "終點"
     },
     "loop_menu_toggle_enabled": {
-        "message": "已啟用重播"
+        "message": "已啟用循環播放"
     },
     "loop_menu_toggle_disabled": {
-        "message": "已停用重播"
+        "message": "已停用循環播放"
     },
     "loop_menu_gif_start": {
         "message": "正在以 4 倍速錄製 GIF..."
@@ -717,7 +717,7 @@
         "message": "未列出任何來源"
     },
     "player_source_onelisted": {
-        "message": "列出 1 個來源"
+        "message": "已列出 1 個來源"
     },
     "player_source_multilisted": {
         "message": "已列出 $1 個來源"
@@ -729,7 +729,7 @@
         "message": "清除來源"
     },
     "player_audioconfig_duplicate_profile": {
-        "message": "(已從檔案 $1 載入)"
+        "message": "(已於 $1 從檔案載入)"
     },
     "player_audioconfig_create_profile": {
         "message": "建立新設定檔"
@@ -810,7 +810,7 @@
         "message": "衰減"
     },
     "audiocrosstalk_colorgain": {
-        "message": "最大著色"
+        "message": "最大音染"
     },
     "audiocrosstalk_microdelay": {
         "message": "時間差"
@@ -1347,10 +1347,10 @@
         "message": "此頁面透過 Firefox VPN 取得影片，這會將 FastStream 的請求排除在外，網站可能會拒絕這些請求。點擊以允許 FastStream 使用相同連線（僅一次，在 FastStream 的權限頁面上）。"
     },
     "perms_page_breakdown_perm9h": {
-        "message": "Proxy（選用）"
+        "message": "代理（選用）"
     },
     "perms_page_breakdown_perm9d": {
-        "message": "僅與 Firefox VPN 一起使用。Firefox 將其列為瀏覽器代理設定的控制項，但 FastStream 不會變更任何設定：它會以頁面自身請求所經過的相同方式，透過 VPN 傳送自己針對影片的請求。沒有它，將影片綁定到 VPN 位址的網站會拒絕 FastStream。播放器在首次需要它時要求它。"
+        "message": "僅與 Firefox VPN 一起使用。Firefox 將其列為瀏覽器代理設定的控制項，但 FastStream 不會變更任何設定：它會以頁面自身請求所經過的相同方式，透過 VPN 傳送自己針對影片的請求。沒有它，將影片綁定到 VPN 位址的網站會拒絕 FastStream。播放器會在首次需要時請求此權限。"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN 正在傳輸此影片，而 mpv 無法使用它：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"

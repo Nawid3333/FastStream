@@ -216,7 +216,7 @@
         "message": "Pobieranie plików"
     },
     "perms_page_breakdown_perm7d": {
-        "message": "FastStream zapisuje pliki w pobranych, gdy o to poprosisz: wideo, zrzut ekranu, plik napisów lub wyeksportowane ustawienia."
+        "message": "FastStream zapisuje pliki w folderze Pobrane, gdy o to poprosisz: wideo, zrzut ekranu, plik napisów lub wyeksportowane ustawienia."
     },
     "perms_page_breakdown_perm8h": {
         "message": "Dostęp do API plików cookie"
@@ -543,7 +543,7 @@
         "message": "$1 fragment nie powiódł się! Kliknij, aby spróbować ponownie."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 fragmentów nie powiodło się! Kliknij, aby spróbować ponownie."
+        "message": "Nieudane fragmenty: $1! Kliknij, aby spróbować ponownie."
     },
     "player_fragment_allbuffered": {
         "message": "100% zbuforowane"
@@ -675,7 +675,7 @@
         "message": "Przyspieszone DASH"
     },
     "player_source_accelvm": {
-        "message": "Przyspieszony Vimeo"
+        "message": "Przyspieszone Vimeo"
     },
     "player_source_mode": {
         "message": "Tryb"
@@ -720,7 +720,7 @@
         "message": "1 źródło"
     },
     "player_source_multilisted": {
-        "message": "$1 źródeł"
+        "message": "Liczba źródeł: $1"
     },
     "player_source_addbtn": {
         "message": "Dodaj źródło"
@@ -729,7 +729,7 @@
         "message": "Wyczyść źródła"
     },
     "player_audioconfig_duplicate_profile": {
-        "message": "(załadowano z pliku $1)"
+        "message": "(załadowano z pliku w dniu $1)"
     },
     "player_audioconfig_create_profile": {
         "message": "Utwórz nowy profil"
@@ -780,10 +780,10 @@
         "message": "Mikser kanałów audio"
     },
     "audiomixer_volume_master_handle_label": {
-        "message": "$1 wzmocnienie wynosi $2 dB ($3%). Użyj klawiszy strzałek, aby dostosować. Naciśnij M, aby przełączyć mono"
+        "message": "$1: wzmocnienie wynosi $2 dB ($3%). Użyj klawiszy strzałek, aby dostosować. Naciśnij M, aby przełączyć mono"
     },
     "audiomixer_volume_handle_label": {
-        "message": "$1 wzmocnienie wynosi $2 dB ($3%). Użyj klawiszy strzałek, aby dostosować. Naciśnij M, aby przełączyć wyciszenie"
+        "message": "$1: wzmocnienie wynosi $2 dB ($3%). Użyj klawiszy strzałek, aby dostosować. Naciśnij M, aby przełączyć wyciszenie"
     },
     "audiomixer_solo_label": {
         "message": "Solo"
@@ -936,7 +936,7 @@
         "message": "Zignoruj tę aktualizację"
     },
     "options_reset_search": {
-        "message": "Nastawić"
+        "message": "Resetuj"
     },
     "options_video_header": {
         "message": "Opcje wideo"
@@ -996,7 +996,7 @@
         "message": "Wstępnie pobierz całe wideo w tle, jeśli to możliwe"
     },
     "options_general_targetspeed": {
-        "message": "Docelowa prędkość pobierania predownloadera"
+        "message": "Docelowa prędkość wstępnego pobierania"
     },
     "options_general_maxsize": {
         "message": "Maksymalny rozmiar wstępnie pobranego wideo"
@@ -1197,7 +1197,7 @@
         "message": "Otwieraj wykryte strumienie w mpv (zewnętrznym odtwarzaczu)"
     },
     "options_mpv_body": {
-        "message": "Gdy tryb MPV jest włączony, przycisk na pasku narzędzi przełącza się między Wyłączony, Włączony (wbudowany odtwarzacz) i MPV. Na witrynach z listy dozwolonych wykryte strumienie otwierają się bezpośrednio w mpv na twoim komputerze zamiast w odtwarzaczu przeglądarki. Wymaga hosta mpv FastStream – instrukcje konfiguracji znajdziesz w folderze native-host w repozytorium."
+        "message": "Gdy tryb MPV jest włączony, przycisk na pasku narzędzi przełącza się między trybami: Wyłączony, Włączony (wbudowany odtwarzacz) i MPV. Na witrynach z listy dozwolonych wykryte strumienie otwierają się bezpośrednio w mpv na twoim komputerze zamiast w odtwarzaczu przeglądarki. Wymaga hosta mpv FastStream – instrukcje konfiguracji znajdziesz w folderze native-host w repozytorium."
     },
     "options_mpv_allowlist": {
         "message": "Lista dozwolonych witryn dla MPV"
@@ -1206,7 +1206,7 @@
         "message": "Witryny z tej listy otwierają wykryte strumienie w mpv. Jeden adres URL na wiersz; strony zaczynające się od tego adresu też pasują. Użyj ~ dla wyrażeń regularnych i ! do wykluczania. Witryny bez znacznika domyślnie używają Filmu do wyboru shaderów mpv – dodaj @anime na końcu wiersza dla witryn, do których to nie ma zastosowania. @movie też jest akceptowany, jeśli chcesz to zapisać wprost. Przycisk mpv w odtwarzaczu może to nadpisać dla każdego wideo."
     },
     "options_mpv_path": {
-        "message": "Ścieżka do mpv (opcjonalna, używana przez hosta natywnego, gdy mpv nie ma w PATH)"
+        "message": "Ścieżka do mpv (opcjonalna, używana przez hosta natywnego, gdy mpv nie znajduje się w PATH)"
     },
     "options_mpv_fullscreen": {
         "message": "Otwieraj mpv na pełnym ekranie"

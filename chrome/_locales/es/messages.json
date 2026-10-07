@@ -39,7 +39,7 @@
         "message": "Mantén el reproductor abierto en una nueva pestaña y recogerá fuentes mientras navegas en otros lugares."
     },
     "welcome_page_usage_end": {
-        "message": "Gracias por instalar FastStream! Háganos saber si tiene algún problema o sugerencia."
+        "message": "¡Gracias por instalar FastStream! Háganos saber si tiene algún problema o sugerencia."
     },
     "welcome_page_keybinds_header": {
         "message": "Controles de Teclado Predeterminados"
@@ -168,7 +168,7 @@
         "message": "Habilitar permisos de pantalla completa cuando el reproductor se inyecta en un marco."
     },
     "perms_page_breakdown_perm1r3": {
-        "message": "Extraer los subtítulos <track> elementos de la página."
+        "message": "Extraer los elementos <track> de subtítulos de la página."
     },
     "perms_page_breakdown_perm2h": {
         "message": "Accede a la API de webRequest"
@@ -279,7 +279,7 @@
         "message": "Silenciar el audio"
     },
     "player_timestamp_label": {
-        "message": "Marca de tiempo"
+        "message": "Copiar URL con marca de tiempo"
     },
     "player_sourcesbrowser_title": {
         "message": "Navegador de Fuentes"
@@ -312,7 +312,7 @@
         "message": "Buscar"
     },
     "player_opensubtitles_seasonnum": {
-        "message": "Estación #"
+        "message": "Temporada #"
     },
     "player_opensubtitles_episodenum": {
         "message": "Episodio #"
@@ -447,10 +447,10 @@
         "message": "Eliminar pista de subtítulos"
     },
     "player_subtitlesmenu_shifttool_label": {
-        "message": "Cambiar subtítulos $1s"
+        "message": "Desplazar subtítulos $1s"
     },
     "player_subtitlesmenu_shifttool_message": {
-        "message": "Subtítulos cambiados $1s"
+        "message": "Subtítulos desplazados $1s"
     },
     "player_testsubtitle": {
         "message": "Este es un subtítulo de prueba"
@@ -480,7 +480,7 @@
         "message": "Cerrar ventana de configuración"
     },
     "player_savevideo_label": {
-        "message": "Guardar video. mantén presionado ALT para guardar un video parcial. mantén presionado SHIFT para vaciar el búfer."
+        "message": "Guardar video. Mantén presionado ALT para guardar un video parcial. Mantén presionado SHIFT para guardar el búfer como archivo."
     },
     "player_screenshot_label": {
         "message": "Tomar captura de pantalla"
@@ -495,7 +495,7 @@
         "message": "¡Permisos de pantalla completa denegados!"
     },
     "player_windowed_fullscreen_label": {
-        "message": "Pantalla completa de ventana"
+        "message": "Alternar pantalla completa en ventana"
     },
     "player_skip_forward_label": {
         "message": "Saltar adelante 10s"
@@ -516,10 +516,10 @@
         "message": "Fin"
     },
     "loop_menu_toggle_enabled": {
-        "message": "Repetir Habilitado"
+        "message": "Repetición habilitada"
     },
     "loop_menu_toggle_disabled": {
-        "message": "Repetir Deshabilitado"
+        "message": "Repetición deshabilitada"
     },
     "loop_menu_gif_start": {
         "message": "Grabando GIF a velocidad 4x..."
@@ -546,7 +546,7 @@
         "message": "¡$1 fragmentos fallidos! Haz clic para reintentar."
     },
     "player_fragment_allbuffered": {
-        "message": "100% en Buffer"
+        "message": "100% en búfer"
     },
     "player_welcometext": {
         "message": "¡Bienvenido a FastStream v$1!"
@@ -576,7 +576,7 @@
         "message": "¡Error al tomar la captura de pantalla!"
     },
     "player_savevideo_inprogress_alert": {
-        "message": "¡Ya guardando!"
+        "message": "¡Ya se está guardando!"
     },
     "player_savevideo_unsupported": {
         "message": "¡No se admite guardar este video!"
@@ -603,7 +603,7 @@
         "message": "¡Error al guardar el video!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Error al guardar el video!\n¿Le gustaría archivar el almacenamiento en búfer del reproductor en su lugar?\n- Arrastre y suelte los archivos de archivo en el reproductor para cargarlo"
+        "message": "¡Error al guardar el video!\n¿Le gustaría archivar el almacenamiento en búfer del reproductor en su lugar?\n- Arrastre y suelte los archivos de archivo en el reproductor para cargarlos"
     },
     "player_savevideo_complete": {
         "message": "¡Guardado completo!"
@@ -660,7 +660,7 @@
         "message": "¡Copiado!"
     },
     "player_source_autodetect": {
-        "message": "Detección Auto"
+        "message": "Detección automática"
     },
     "player_source_direct": {
         "message": "Directo"
@@ -729,7 +729,7 @@
         "message": "Borrar Fuentes"
     },
     "player_audioconfig_duplicate_profile": {
-        "message": "(cargado desde el archivo en $1)"
+        "message": "(cargado desde el archivo el $1)"
     },
     "player_audioconfig_create_profile": {
         "message": "Crear nuevo perfil"
@@ -780,10 +780,10 @@
         "message": "Mezclador de Canales de Audio"
     },
     "audiomixer_volume_master_handle_label": {
-        "message": "Ganancia de $1 es $2 dB ($3%). Usa las flechas para ajustar. Presiona M para alternar mono"
+        "message": "La ganancia de $1 es $2 dB ($3%). Usa las flechas para ajustar. Presiona M para alternar mono"
     },
     "audiomixer_volume_handle_label": {
-        "message": "Ganancia de $1 es $2 dB ($3%). Usa las flechas para ajustar. Presiona M para alternar silencio"
+        "message": "La ganancia de $1 es $2 dB ($3%). Usa las flechas para ajustar. Presiona M para alternar silencio"
     },
     "audiomixer_solo_label": {
         "message": "Solo"
@@ -822,7 +822,7 @@
         "message": "Bypass Alto"
     },
     "audiocrosstalk_speakerdistance": {
-        "message": "Distancia Entre Altavoz"
+        "message": "Distancia entre altavoces"
     },
     "audiocrosstalk_headdistance": {
         "message": "Distancia de la Cabeza"
@@ -969,7 +969,7 @@
         "message": "Invertir"
     },
     "options_video_hue": {
-        "message": "Tono Rotar"
+        "message": "Rotación de tono"
     },
     "options_video_daltonizer_type": {
         "message": "Corrección del daltonismo"
@@ -1035,13 +1035,13 @@
         "message": "Salto de las teclas de flecha (segundos)"
     },
     "options_general_replace_delay": {
-        "message": "Retraso antes de reemplazar auto (ms)"
+        "message": "Retraso antes de reemplazar automáticamente el reproductor (ms)"
     },
     "options_general_maxdownloaders": {
         "message": "Máximo de descargadores (1 a 6)"
     },
     "options_general_autoplaynext": {
-        "message": "Reproducir automáticamente el siguiente video"
+        "message": "Reproducir automáticamente el siguiente video cuando termine el actual"
     },
     "options_general_quality": {
         "message": "Calidad de video predeterminada"
@@ -1176,7 +1176,7 @@
         "message": "Activar URLs Automáticamente"
     },
     "options_autourl_body": {
-        "message": "Activará automáticamente la extensión al visitar estas URL y la desactivará al salir. Una URL por línea, también coincidirán las páginas que comiencen con esa URL. Para regex, prepone con una tilde (~). Una regex por línea. Para dejar un sitio entero de lado - sin activación automática, y sin abrir sus enlaces de stream en el reproductor - antepón un signo menos (-) a su dominio."
+        "message": "Activará automáticamente la extensión al visitar estas URL y la desactivará al salir. Una URL por línea, también coincidirán las páginas que comiencen con esa URL. Para regex, antepón una tilde (~). Una regex por línea. Para excluir sitios, antepón un signo de exclamación (!). Para dejar un sitio entero de lado - sin activación automática, y sin abrir sus enlaces de stream en el reproductor - antepón un signo menos (-) a su dominio."
     },
     "options_autourl_hint": {
         "message": "Sugerencia: Prueba regex en"

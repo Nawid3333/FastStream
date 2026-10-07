@@ -450,7 +450,7 @@
         "message": "Sposta i sottotitoli di $1s"
     },
     "player_subtitlesmenu_shifttool_message": {
-        "message": "Sposta i sottotitoli di $1s"
+        "message": "Sottotitoli spostati di $1s"
     },
     "player_testsubtitle": {
         "message": "Questo è un sottotitolo di prova"
@@ -729,7 +729,7 @@
         "message": "Cancella Sorgenti"
     },
     "player_audioconfig_duplicate_profile": {
-        "message": "(caricato dal file su $1)"
+        "message": "(caricato dal file il $1)"
     },
     "player_audioconfig_create_profile": {
         "message": "Crea un nuovo profilo"
@@ -783,10 +783,10 @@
         "message": "Il guadagno di $1 è $2 dB ($3%). Usa le frecce per regolarlo. Premi M per attivare/disattivare il mono"
     },
     "audiomixer_volume_handle_label": {
-        "message": "Il guadagno di $1 è $2 dB ($3%). Usa le frecce per regolarlo. Premi M per disattivare/disattivare il muto"
+        "message": "Il guadagno di $1 è $2 dB ($3%). Usa le frecce per regolarlo. Premi M per attivare/disattivare il muto"
     },
     "audiomixer_solo_label": {
-        "message": "Singolo"
+        "message": "Solo"
     },
     "audiomixer_mute_label": {
         "message": "Muto"
@@ -843,7 +843,7 @@
         "message": "Soglia"
     },
     "audiocompressor_knee": {
-        "message": "Passaggio"
+        "message": "Knee"
     },
     "audiocompressor_ratio": {
         "message": "Rapporto"
@@ -969,7 +969,7 @@
         "message": "Inverti"
     },
     "options_video_hue": {
-        "message": "Ruotazione della Tonalità"
+        "message": "Rotazione della tonalità"
     },
     "options_video_daltonizer_type": {
         "message": "Correzione per il daltonismo"
@@ -1266,10 +1266,10 @@
         "message": "L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."
     },
     "options_mpv_test_decoder_hw": {
-        "message": "Il mpv aperto decodifica sulla scheda grafica: $1."
+        "message": "L'mpv aperto decodifica sulla scheda grafica: $1."
     },
     "options_mpv_test_decoder_sw": {
-        "message": "Il mpv aperto decodifica sul processore ($1): aggiungi hwdec=auto-safe a mpv.conf per decodificare sulla scheda grafica."
+        "message": "L'mpv aperto decodifica sul processore ($1): aggiungi hwdec=auto-safe a mpv.conf per decodificare sulla scheda grafica."
     },
     "player_mpv_sent_outdated": {
         "message": "Inviato a mpv. L'host mpv di questo computer non è aggiornato: esegui update-local.cmd (o native-host\\install.ps1) nel repository di FastStream."

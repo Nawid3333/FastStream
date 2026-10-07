@@ -3,10 +3,10 @@
         "message": "FastStream Video Player"
     },
     "extension_description": {
-        "message": "バッファリングなしでストリーム。インターネット上の悪質なビデオプレーヤーを修正します。"
+        "message": "バッファリングなしでストリーム。インターネット上の質の悪いビデオプレーヤーを修正します。"
     },
     "extension_toggle_label": {
-        "message": "FastStream に切り替える"
+        "message": "FastStream のオン/オフを切り替える"
     },
     "extension_toggle_label_mpv": {
         "message": "FastStream - MPV で再生中"
@@ -162,7 +162,7 @@
         "message": "FastStream はプレーヤーを Web サイトに直接挿入ができるようにするため、すべての Web サイトにアクセスできるようにする必要があります。次の目的でアクセスをした Web サイトにコンテンツスクリプトを挿入します:"
     },
     "perms_page_breakdown_perm1r1": {
-        "message": "プレーヤーの置き換え、表示されている最大の動画の要素を特定。"
+        "message": "プレーヤーに置き換えるため、表示されている最大の動画要素を特定。"
     },
     "perms_page_breakdown_perm1r2": {
         "message": "プレーヤーがフレームに挿入されるときに全画面の権限を有効化。"
@@ -174,7 +174,7 @@
         "message": "webRequest API にアクセス"
     },
     "perms_page_breakdown_perm2d": {
-        "message": "FastStream は動画ソースへの HTTP リクエストをインターセプトを可能にする必要があります:"
+        "message": "FastStream は動画ソースへの HTTP リクエストをインターセプトできるようにする必要があります:"
     },
     "perms_page_breakdown_perm2r1": {
         "message": "動画のソースを特定"
@@ -228,7 +228,7 @@
         "message": "許可"
     },
     "perms_page_notgranted": {
-        "message": "許可がされていません、クリックで許可をします"
+        "message": "許可されていません。クリックして許可"
     },
     "player_needs_interaction": {
         "message": "ダウンロードの高速化を有効にするには、動画を再生してください"
@@ -279,7 +279,7 @@
         "message": "オーディオを消音"
     },
     "player_timestamp_label": {
-        "message": "タイムスタンプ"
+        "message": "タイムスタンプ付き URL をコピー"
     },
     "player_sourcesbrowser_title": {
         "message": "ソースの参照"
@@ -336,7 +336,7 @@
         "message": "年"
     },
     "player_opensubtitles_sortby": {
-        "message": "ソート順"
+        "message": "並べ替え基準"
     },
     "player_opensubtitles_sortby_downloads": {
         "message": "ダウンロード"
@@ -354,10 +354,10 @@
         "message": "ソート"
     },
     "player_opensubtitles_sort_desc": {
-        "message": "下り順"
+        "message": "降順"
     },
     "player_opensubtitles_sort_asc": {
-        "message": "上り順"
+        "message": "昇順"
     },
     "player_opensubtitles_searching": {
         "message": "検索中..."
@@ -447,10 +447,10 @@
         "message": "字幕トラックを削除"
     },
     "player_subtitlesmenu_shifttool_label": {
-        "message": "$1 の字幕をシフト"
+        "message": "字幕を $1s シフト"
     },
     "player_subtitlesmenu_shifttool_message": {
-        "message": "字幕を $1s シフト"
+        "message": "字幕を $1s シフトしました"
     },
     "player_testsubtitle": {
         "message": "これはテストの字幕です"
@@ -480,7 +480,7 @@
         "message": "設定ウィンドウを閉じる"
     },
     "player_savevideo_label": {
-        "message": "動画を保存します。ALT を押しながらで動画の一部を保存します。SHIFT を押しながらでバッファーをダンプします。"
+        "message": "動画を保存します。ALT を押しながらクリックすると動画の一部を保存します。SHIFT を押しながらクリックするとバッファーをダンプします。"
     },
     "player_screenshot_label": {
         "message": "スクリーンショットを撮る"
@@ -567,7 +567,7 @@
         "message": "ファイル名を入力"
     },
     "player_screenshot_saving": {
-        "message": "スクリーンショットを撮る..."
+        "message": "スクリーンショットを撮影中..."
     },
     "player_screenshot_saved": {
         "message": "スクリーンショットを保存しました!"
@@ -576,7 +576,7 @@
         "message": "スクリーンショットの撮影に失敗しました!"
     },
     "player_savevideo_inprogress_alert": {
-        "message": "すでに保存済みです!"
+        "message": "すでに保存中です!"
     },
     "player_savevideo_unsupported": {
         "message": "この動画は保存に対応していません!"
@@ -690,7 +690,7 @@
         "message": "ヘッダーを上書き ($1)"
     },
     "player_source_headerbtn_label": {
-        "message": "ヘッダー上書き入力へ切り替え"
+        "message": "ヘッダー上書き入力の表示を切り替え"
     },
     "player_source_headerbtn_disabled": {
         "message": "ヘッダーを上書き (拡張機能のみ)"
@@ -729,7 +729,7 @@
         "message": "ソースをクリア"
     },
     "player_audioconfig_duplicate_profile": {
-        "message": "($1 のファイルから読み込み済み)"
+        "message": "($1 にファイルから読み込み済み)"
     },
     "player_audioconfig_create_profile": {
         "message": "新規プロファイルを作成"
@@ -810,7 +810,7 @@
         "message": "減衰"
     },
     "audiocrosstalk_colorgain": {
-        "message": "色付け"
+        "message": "最大色付け"
     },
     "audiocrosstalk_microdelay": {
         "message": "Delta T"
@@ -981,13 +981,13 @@
         "message": "なし"
     },
     "options_video_daltonizer_protanomaly": {
-        "message": "Protanomaly"
+        "message": "1型色覚異常"
     },
     "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomaly"
+        "message": "2型色覚異常"
     },
     "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomaly"
+        "message": "3型色覚異常"
     },
     "options_general_header": {
         "message": "一般設定"
@@ -999,7 +999,7 @@
         "message": "プリダウンローダーのターゲット速度"
     },
     "options_general_maxsize": {
-        "message": "プリダウンローダーの最大サイズ"
+        "message": "プリダウンロードする動画の最大サイズ"
     },
     "options_general_bufferahead": {
         "message": "再生位置より先をバッファーに保持する秒数（事前ダウンロードが停止した後または容量が尽きた後に使用）"
@@ -1017,7 +1017,7 @@
         "message": "グラフィックカードでデコードできるバージョン（ハードウェアデコード）を優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません"
     },
     "options_general_analyze": {
-        "message": "イントロ/アウトロが付いた動画を自動的に解析する\n(CPU パフォーマンスに問題がある場合は OFF にしてください)"
+        "message": "連続する動画のイントロ/アウトロを自動的に解析する\n(CPU パフォーマンスに問題がある場合は OFF にしてください)"
     },
     "options_general_storeprogress": {
         "message": "最後に視聴した位置から動画を再生する"
@@ -1044,7 +1044,7 @@
         "message": "次の動画の自動再生"
     },
     "options_general_quality": {
-        "message": "動画の品質"
+        "message": "デフォルトの動画品質"
     },
     "options_general_clickaction": {
         "message": "シングルクリック時のアクション"
@@ -1059,16 +1059,16 @@
         "message": "何もしない"
     },
     "options_general_clickaction_playpause": {
-        "message": "再生/一時停止に切り替え"
+        "message": "再生/一時停止を切り替え"
     },
     "options_general_clickaction_fullscreen": {
-        "message": "フルスクリーンに切り替え"
+        "message": "フルスクリーンを切り替え"
     },
     "options_general_clickaction_windowedfullscreen": {
-        "message": "ウィンドウド フルスクリーンに切り替え"
+        "message": "ウィンドウド フルスクリーンを切り替え"
     },
     "options_general_clickaction_pip": {
-        "message": "ピクチャー イン ピクチャー (PiP) に切り替え"
+        "message": "ピクチャー イン ピクチャー (PiP) を切り替え"
     },
     "options_general_clickaction_hidecontrols": {
         "message": "コントロールを非表示"
@@ -1083,10 +1083,10 @@
         "message": "何もしない"
     },
     "options_general_vischangeaction_playpause": {
-        "message": "再生/一時停止に切り替え"
+        "message": "再生/一時停止を切り替え"
     },
     "options_general_vischangeaction_miniplayer": {
-        "message": "ミニプレーヤーに切り替え"
+        "message": "ミニプレーヤーを切り替え"
     },
     "options_general_minipos": {
         "message": "ミニプレーヤーの位置"
@@ -1143,7 +1143,7 @@
         "message": "フレッシュミント"
     },
     "options_general_vischangeaction_pip": {
-        "message": "ピクチャー イン ピクチャー (PiP) に切り替え"
+        "message": "ピクチャー イン ピクチャー (PiP) を切り替え"
     },
     "options_export_header": {
         "message": "設定のインポート/エクスポート"
@@ -1161,7 +1161,7 @@
         "message": "キーボードショートカット"
     },
     "options_keybinds_body": {
-        "message": "キーバインドはプレーヤーをフォーカス時のみ有効です。"
+        "message": "キーバインドはプレーヤーがフォーカスされているときのみ有効です。"
     },
     "options_keybinds_reset": {
         "message": "デフォルトにリセット"
@@ -1176,7 +1176,7 @@
         "message": "URL で自動的に有効化"
     },
     "options_autourl_body": {
-        "message": "これらの URL にアクセスすると自動的に拡張機能が有効化され、離れる事で無効化されます。1 行に 1 つの URL があり、その URL で始まるページも一致します。正規表現の場合は、先頭にチルダ (~) を付けます。1 行に 1 つの正規表現となります。サイト全体をそのままにするには - 自動有効化なし、そのサイトのストリームリンクもプレイヤーで開かれません - ドメインの先頭にマイナス記号 (-) を付けます。"
+        "message": "これらの URL にアクセスすると自動的に拡張機能が有効化され、離れる事で無効化されます。1 行に 1 つの URL があり、その URL で始まるページも一致します。正規表現の場合は、先頭にチルダ (~) を付けます。1 行に 1 つの正規表現となります。サイトを除外するには、先頭に感嘆符 (!) を付けます。サイト全体をそのままにするには - 自動有効化なし、そのサイトのストリームリンクもプレイヤーで開かれません - ドメインの先頭にマイナス記号 (-) を付けます。"
     },
     "options_autourl_hint": {
         "message": "ヒント: 正規表現のテストができます"
@@ -1287,7 +1287,7 @@
         "message": "ヘルプ"
     },
     "options_help_welcome": {
-        "message": "ようこそのページ"
+        "message": "ウェルカムページ"
     },
     "options_help_issues": {
         "message": "問題を報告"

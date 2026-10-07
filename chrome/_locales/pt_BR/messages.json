@@ -33,7 +33,7 @@
         "message": "Você pode ir para uma nova guia e pressionar o ícone da extensão para ir para o tocador."
     },
     "welcome_page_usage_content3": {
-        "message": "Se a opção estiver ativada, acesse um URL mp4/mpd/m3u8 e o player o reproduzirá."
+        "message": "Se a opção estiver ativada, acesse uma URL mp4/mpd/m3u8 e o player a reproduzirá."
     },
     "welcome_page_usage_content4": {
         "message": "Mantenha o player aberto em uma nova guia e ele coletará fontes enquanto você navega em outro lugar."
@@ -51,7 +51,7 @@
         "message": "Setas do teclado - 5 segundos de busca para frente/trás"
     },
     "welcome_page_keybinds_content2": {
-        "message": "Tecla - 10 segundo de busca para frente/trás"
+        "message": "Teclas - 10 segundos de busca para frente/trás"
     },
     "welcome_page_keybinds_content3": {
         "message": "Tecla - Desfazer busca"
@@ -69,7 +69,7 @@
         "message": "- Forçar nova tentativa - use-a para tentar novamente os downloads que falharam"
     },
     "welcome_page_keybinds_content8": {
-        "message": "- Pular a introdução/outro, se for o caso"
+        "message": "- Pular a introdução/encerramento, se for o caso"
     },
     "welcome_page_keybinds_content9": {
         "message": "- Ocultar/mostrar o player"
@@ -81,7 +81,7 @@
         "message": "- Definir a velocidade para 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x ou 16x - pressione a mesma tecla novamente para reverter"
     },
     "welcome_page_keybinds_content12": {
-        "message": "Tecla - 60 segundo de busca para frente/trás"
+        "message": "Teclas - 60 segundos de busca para frente/trás"
     },
     "welcome_page_keybinds_content13": {
         "message": "- Reproduzir/pausar"
@@ -153,7 +153,7 @@
         "message": "Aqui está um detalhamento das permissões exigidas pelo FastStream e por que ele precisa delas."
     },
     "perms_page_breakdown_content1": {
-        "message": "Observação: os exemplos vinculados podem se referir a uma versão mais antiga do programa, mas a essência é a mesma em geral. A lista não é grande, os itens estão ordenados por importância."
+        "message": "Observação: os exemplos vinculados podem se referir a uma versão mais antiga do programa, mas a essência é a mesma em geral. A lista não é exaustiva, os itens estão ordenados por importância."
     },
     "perms_page_breakdown_perm1h": {
         "message": "Poder acessar e modificar todos os sites"
@@ -162,10 +162,10 @@
         "message": "O FastStream precisa acessar todos os sites para que possa injetar o player diretamente no site. Ele injeta um script de conteúdo nos sites que você visita para:"
     },
     "perms_page_breakdown_perm1r1": {
-        "message": "Identifique o maior elemento de vídeo visível a ser substituído pelo player."
+        "message": "Identificar o maior elemento de vídeo visível a ser substituído pelo player."
     },
     "perms_page_breakdown_perm1r2": {
-        "message": "Habilite as permissões de tela cheia quando o player for injetado em um quadro separado."
+        "message": "Habilitar as permissões de tela cheia quando o player for injetado em um quadro separado."
     },
     "perms_page_breakdown_perm1r3": {
         "message": "Extrair elementos de subtítulo <track> da página."
@@ -183,7 +183,7 @@
         "message": "Acessar a API declarativeNetRequest"
     },
     "perms_page_breakdown_perm3d": {
-        "message": "O FastStream precisa de modificar os cabeçalhos HTTP de solicitações selecionadas para:"
+        "message": "O FastStream precisa modificar os cabeçalhos HTTP de solicitações selecionadas para:"
     },
     "perms_page_breakdown_perm3r1": {
         "message": "Substituir cabeçalhos para fontes de vídeo."
@@ -204,7 +204,7 @@
         "message": "O FastStream precisa enviar mensagens entre os tocadores e os scripts de conteúdo em cada guia."
     },
     "perms_page_breakdown_perm5r1": {
-        "message": "Envio de fontes para os tocadores partir do script em segundo plano.."
+        "message": "Enviar fontes para os players a partir do script em segundo plano."
     },
     "perms_page_breakdown_perm6h": {
         "message": "Trocar mensagens com outros programas além do Firefox"
@@ -228,7 +228,7 @@
         "message": "Concedida"
     },
     "perms_page_notgranted": {
-        "message": "Não Concedida, click para conceder"
+        "message": "Não concedida, clique para conceder"
     },
     "player_needs_interaction": {
         "message": "Interagir para ativar a aceleração de download"
@@ -237,7 +237,7 @@
         "message": "Pular Intro"
     },
     "player_skipoutro": {
-        "message": "Pular Outro"
+        "message": "Pular encerramento"
     },
     "player_nextvideoin": {
         "message": "Próximo vídeo em $1s"
@@ -258,7 +258,7 @@
         "message": "Clique"
     },
     "player_nosource_instruction2p2": {
-        "message": "carregar fontes detectadas em outras guias."
+        "message": "para carregar fontes detectadas em outras guias."
     },
     "player_play_label": {
         "message": "Reproduzir vídeo"
@@ -285,7 +285,7 @@
         "message": "Navegador de fontes"
     },
     "player_sourcesbrowser_open_label": {
-        "message": "Navegador de fontes abertas"
+        "message": "Abrir navegador de fontes"
     },
     "player_sourcesbrowser_close_label": {
         "message": "Fechar o navegador de fontes"
@@ -306,7 +306,7 @@
         "message": "Fechar a janela de pesquisa do OpenSubtitles"
     },
     "player_opensubtitles_search_placeholder": {
-        "message": "Pesquisar por título, nome de arquivo, etc...."
+        "message": "Pesquisar por título, nome de arquivo, etc..."
     },
     "player_opensubtitles_searchbtn": {
         "message": "Buscar"
@@ -447,7 +447,7 @@
         "message": "Remover faixa de legenda"
     },
     "player_subtitlesmenu_shifttool_label": {
-        "message": "Mudar as legendas $1s"
+        "message": "Deslocar as legendas $1s"
     },
     "player_subtitlesmenu_shifttool_message": {
         "message": "Legendas deslocadas $1s"
@@ -480,13 +480,13 @@
         "message": "Fechar janela de configurações"
     },
     "player_savevideo_label": {
-        "message": "Salve o vídeo. mantenha pressionada a tecla ALT para salvar o vídeo parcialmente. mantenha pressionada a tecla SHIFT para despejar o que estiver armazenado.."
+        "message": "Salve o vídeo. Mantenha pressionada a tecla ALT para salvar o vídeo parcialmente. Mantenha pressionada a tecla SHIFT para salvar o buffer como arquivo."
     },
     "player_screenshot_label": {
         "message": "Tirar captura de tela"
     },
     "player_pip_label": {
-        "message": "Imagem sob imagem (pip)"
+        "message": "Imagem em imagem (PiP)"
     },
     "player_fullscreen_label": {
         "message": "Alternar tela cheia"
@@ -495,7 +495,7 @@
         "message": "Permissões de tela cheia negadas!"
     },
     "player_windowed_fullscreen_label": {
-        "message": "Alternar entre janela e tela cheia"
+        "message": "Alternar tela cheia em janela"
     },
     "player_skip_forward_label": {
         "message": "Avançar 10s"
@@ -534,7 +534,7 @@
         "message": "Salvando GIF $1%"
     },
     "loop_menu_gif_finished": {
-        "message": "Terminado de salvar GIF!"
+        "message": "GIF salvo!"
     },
     "player_download_paused": {
         "message": "Download pausado"
@@ -543,7 +543,7 @@
         "message": "$1 Fragmento com erro! Clique para tentar novamente."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 Fragmento com erro! Clique para tentar novamente."
+        "message": "$1 Fragmentos com erro! Clique para tentar novamente."
     },
     "player_fragment_allbuffered": {
         "message": "100% Armazenado"
@@ -576,7 +576,7 @@
         "message": "Falha na captura de tela!"
     },
     "player_savevideo_inprogress_alert": {
-        "message": "Salvando!"
+        "message": "Já está salvando!"
     },
     "player_savevideo_unsupported": {
         "message": "Não há suporte para salvar este vídeo!"
@@ -639,7 +639,7 @@
         "message": "Não há espaço suficiente para fazer o download prévio no modo incógnito, o buffer será de $1"
     },
     "player_buffer_storage_warning": {
-        "message": "O tamanho do vídeo excede os limites, será armazenado em $1"
+        "message": "O tamanho do vídeo excede os limites, o buffer será de $1"
     },
     "player_error_drm": {
         "message": "Falha ao carregar! DRM não é suportado!"
@@ -648,19 +648,19 @@
         "message": "Falha ao carregar o vídeo!"
     },
     "source_copied": {
-        "message": "URL copiado na área de transferência!"
+        "message": "URL copiada para a área de transferência!"
     },
     "player_source_copybtn": {
         "message": "Copiar"
     },
     "player_source_copybtn_label": {
-        "message": "Copiar URL de origem, cabeçalhos para a área de transferência"
+        "message": "Copiar URL de origem, cabeçalhos e modo para a área de transferência"
     },
     "player_source_copybtn_copied": {
         "message": "Copiado!"
     },
     "player_source_autodetect": {
-        "message": "Auto detectado"
+        "message": "Detecção automática"
     },
     "player_source_direct": {
         "message": "Direto"
@@ -720,7 +720,7 @@
         "message": "1 Fonte listada"
     },
     "player_source_multilisted": {
-        "message": "Fontes de $1 listadas"
+        "message": "$1 fontes listadas"
     },
     "player_source_addbtn": {
         "message": "Adicionar fonte"
@@ -762,7 +762,7 @@
         "message": "Perfil salvo!"
     },
     "player_audioconfig_profile_download": {
-        "message": "Perfil baixado"
+        "message": "Baixar perfil"
     },
     "player_audioconfig_profile_downloaded": {
         "message": "Baixado!"
@@ -780,10 +780,10 @@
         "message": "Mixer de canal de áudio"
     },
     "audiomixer_volume_master_handle_label": {
-        "message": "O ganho de $1 é de $2 dB ($3%). Use as setas para ajustar. Pressione M para alternar entre mono"
+        "message": "O ganho de $1 é de $2 dB ($3%). Use as setas para ajustar. Pressione M para ativar/desativar o mono"
     },
     "audiomixer_volume_handle_label": {
-        "message": "O ganho de $1 é de $2 dB ($3%). Use as setas para ajustar. Pressione M para alternar o mudo"
+        "message": "O ganho de $1 é de $2 dB ($3%). Use as setas para ajustar. Pressione M para ativar/desativar o som"
     },
     "audiomixer_solo_label": {
         "message": "Solo"
@@ -825,7 +825,7 @@
         "message": "Distância do alto-falante"
     },
     "audiocrosstalk_headdistance": {
-        "message": "Distância"
+        "message": "Distância da cabeça"
     },
     "audiocrosstalk_stereo_note": {
         "message": "Funciona em estéreo: enquanto estiver ativada, o som surround (5.1, 7.1) é mixado em dois canais."
@@ -936,7 +936,7 @@
         "message": "Ignorar esta atualização"
     },
     "options_reset_search": {
-        "message": "Reiniciar"
+        "message": "Redefinir"
     },
     "options_video_header": {
         "message": "Opções de vídeo"
@@ -951,7 +951,7 @@
         "message": "Atraso de vídeo"
     },
     "options_video_brightness": {
-        "message": "Briho"
+        "message": "Brilho"
     },
     "options_video_contrast": {
         "message": "Contraste"
@@ -963,10 +963,10 @@
         "message": "Escala de cinza"
     },
     "options_video_sepia": {
-        "message": "Sepia"
+        "message": "Sépia"
     },
     "options_video_invert": {
-        "message": "Invertido"
+        "message": "Inverter"
     },
     "options_video_hue": {
         "message": "Rotação de matiz"
@@ -1029,7 +1029,7 @@
         "message": "Use o player para reproduzir transmissões no formato HLS/DASH ao abrir URLs de listas de reprodução (.m3u8/.mpd)"
     },
     "options_general_mp4": {
-        "message": "Use o player para reproduzir transmissões no formato HLS/DASH ao abrir URLs de de listas de reprodução (.mp4)"
+        "message": "Use o player para reproduzir vídeos MP4 ao abrir URLs de vídeo (.mp4)"
     },
     "options_general_seekstep": {
         "message": "Salto das setas do teclado (segundos)"
@@ -1089,7 +1089,7 @@
         "message": "Alternar miniplayer"
     },
     "options_general_minipos": {
-        "message": "Posição do tocador"
+        "message": "Posição do miniplayer"
     },
     "options_general_minipos_topleft": {
         "message": "Canto superior esquerdo"
@@ -1176,7 +1176,7 @@
         "message": "Habilitar URLs automaticamente"
     },
     "options_autourl_body": {
-        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validados. Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!). Para deixar um site inteiro de lado - sem ativação automática, e seus links de streaming não são abertos no player - coloque um sinal de menos (-) na frente do domínio."
+        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validadas. Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!). Para deixar um site inteiro de lado - sem ativação automática, e seus links de streaming não são abertos no player - coloque um sinal de menos (-) na frente do domínio."
     },
     "options_autourl_hint": {
         "message": "Dica: Teste a expressão regular em"
@@ -1332,7 +1332,7 @@
         "message": "Erro: $1"
     },
     "error_popup_body": {
-        "message": "Informe esse erro aos desenvolvedores em https://github.com/Nawid3333/FastStream/issues com o rastreamento de detalhes a seguir:"
+        "message": "Informe esse erro aos desenvolvedores em https://github.com/Nawid3333/FastStream/issues com o rastreamento de pilha a seguir:"
     },
     "error_popup_send": {
         "message": "Relatar erro"

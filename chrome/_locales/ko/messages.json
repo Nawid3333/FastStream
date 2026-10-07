@@ -33,7 +33,7 @@
         "message": "새 탭을 열고 확장 기능 아이콘을 눌러 플레이어로 이동할 수 있습니다."
     },
     "welcome_page_usage_content3": {
-        "message": "옵션을 활성화하면 mp4/mpd/m3u8 URL로 이동했을 때 플레이어가 재생됩니다."
+        "message": "옵션을 활성화하면 mp4/mpd/m3u8 URL로 이동했을 때 플레이어에서 재생됩니다."
     },
     "welcome_page_usage_content4": {
         "message": "플레이어를 새 탭으로 열어둔 상태에서 다른 곳을 탐색하면 플레이어가 소스를 수집합니다."
@@ -138,7 +138,7 @@
         "message": "확장 기능이 작동하려면 특정 권한이 필요합니다. 이 권한들은 기본 기능에만 사용됩니다."
     },
     "perms_page_about_content1": {
-        "message": "FastStream는 사용자로부터 어떠한 데이터도 수집하지 않으며 사용자를 추적하지 않습니다. 자체 서버도 없습니다. 재생하는 영상의 사이트, 자막을 검색할 때의 OpenSubtitles, 업데이트를 확인하기 위한 GitHub에만 연결합니다."
+        "message": "FastStream은 사용자로부터 어떠한 데이터도 수집하지 않으며 사용자를 추적하지 않습니다. 자체 서버도 없습니다. 재생하는 영상의 사이트, 자막을 검색할 때의 OpenSubtitles, 업데이트를 확인하기 위한 GitHub에만 연결합니다."
     },
     "perms_page_about_content2": {
         "message": "믿기 어렵나요? FastStream의 소스 코드는 다음에서 확인할 수 있습니다"
@@ -159,7 +159,7 @@
         "message": "모든 웹사이트 접근 및 수정"
     },
     "perms_page_breakdown_perm1d": {
-        "message": "FastStream는 플레이어를 웹사이트에 직접 삽입하려면 모든 웹사이트에 접근할 수 있어야 합니다. 방문한 웹사이트에 콘텐츠 스크립트를 삽입하여 다음을 수행합니다:"
+        "message": "FastStream은 플레이어를 웹사이트에 직접 삽입하려면 모든 웹사이트에 접근할 수 있어야 합니다. 방문한 웹사이트에 콘텐츠 스크립트를 삽입하여 다음을 수행합니다:"
     },
     "perms_page_breakdown_perm1r1": {
         "message": "플레이어로 교체할 가장 큰 비디오 요소를 식별합니다."
@@ -174,7 +174,7 @@
         "message": "webRequest API 접근"
     },
     "perms_page_breakdown_perm2d": {
-        "message": "FastStream는 비디오 소스에 대한 HTTP 요청을 가로챌 수 있어야 하며, 그 목적은 다음과 같습니다:"
+        "message": "FastStream은 비디오 소스에 대한 HTTP 요청을 가로챌 수 있어야 하며, 그 목적은 다음과 같습니다:"
     },
     "perms_page_breakdown_perm2r1": {
         "message": "비디오 소스 식별"
@@ -183,7 +183,7 @@
         "message": "declarativeNetRequest API 접근"
     },
     "perms_page_breakdown_perm3d": {
-        "message": "FastStream는 일부 요청의 HTTP 헤더를 수정할 수 있어야 하며, 그 목적은 다음과 같습니다:"
+        "message": "FastStream은 일부 요청의 HTTP 헤더를 수정할 수 있어야 하며, 그 목적은 다음과 같습니다:"
     },
     "perms_page_breakdown_perm3r1": {
         "message": "비디오 소스의 헤더 재정의."
@@ -192,7 +192,7 @@
         "message": "브라우저에 데이터 저장"
     },
     "perms_page_breakdown_perm4d": {
-        "message": "FastStream는 설정을 기억하기 위해 브라우저에 데이터를 저장할 수 있어야 합니다."
+        "message": "FastStream은 설정을 기억하기 위해 브라우저에 데이터를 저장할 수 있어야 합니다."
     },
     "perms_page_breakdown_perm4r1": {
         "message": "일반 확장 옵션."
@@ -201,7 +201,7 @@
         "message": "tabs API 접근"
     },
     "perms_page_breakdown_perm5d": {
-        "message": "FastStream는 각 탭의 플레이어와 콘텐츠 스크립트 사이에 메시지를 보낼 수 있어야 합니다."
+        "message": "FastStream은 각 탭의 플레이어와 콘텐츠 스크립트 사이에 메시지를 보낼 수 있어야 합니다."
     },
     "perms_page_breakdown_perm5r1": {
         "message": "백그라운드 스크립트에서 플레이어로 소스 전송."
@@ -210,19 +210,19 @@
         "message": "Firefox가 아닌 다른 프로그램과 메시지 교환"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "mpv 전용입니다. 영상을 mpv로 보낼 때 FastStream는 사용자의 컴퓨터에 있는 FastStream mpv 호스트에 영상을 넘기고, 호스트가 mpv에서 엽니다. 이 호스트가 없으면 이 권한은 사용되지 않습니다."
+        "message": "mpv 전용입니다. 영상을 mpv로 보낼 때 FastStream은 사용자의 컴퓨터에 있는 FastStream mpv 호스트에 영상을 넘기고, 호스트가 mpv에서 엽니다. 이 호스트가 없으면 이 권한은 사용되지 않습니다."
     },
     "perms_page_breakdown_perm7h": {
         "message": "파일 다운로드"
     },
     "perms_page_breakdown_perm7d": {
-        "message": "FastStream는 요청할 때 파일을 다운로드 폴더에 저장합니다: 영상, 스크린샷, 자막 파일 또는 내보낸 설정."
+        "message": "FastStream은 요청할 때 파일을 다운로드 폴더에 저장합니다: 영상, 스크린샷, 자막 파일 또는 내보낸 설정."
     },
     "perms_page_breakdown_perm8h": {
         "message": "cookies API 접근"
     },
     "perms_page_breakdown_perm8d": {
-        "message": "탭이 어느 Firefox 컨테이너에 있는지 확인하는 데만 사용하며, 컨테이너 탭에서 시작한 다운로드가 같은 컨테이너에서 이루어지게 합니다. FastStream는 쿠키를 읽거나 변경하거나 전송하지 않습니다."
+        "message": "탭이 어느 Firefox 컨테이너에 있는지 확인하는 데만 사용하며, 컨테이너 탭에서 시작한 다운로드가 같은 컨테이너에서 이루어지게 합니다. FastStream은 쿠키를 읽거나 변경하거나 전송하지 않습니다."
     },
     "perms_page_granted": {
         "message": "허용됨"
@@ -480,7 +480,7 @@
         "message": "설정 창 닫기"
     },
     "player_savevideo_label": {
-        "message": "비디오 저장. ALT를 누르면 부분 비디오 저장. SHIFT를 누르면 버퍼를 덤프."
+        "message": "비디오 저장. ALT를 누른 채로 클릭하면 부분 비디오 저장. SHIFT를 누른 채로 클릭하면 버퍼를 덤프."
     },
     "player_screenshot_label": {
         "message": "스크린샷 찍기"
@@ -936,7 +936,7 @@
         "message": "이 업데이트 무시"
     },
     "options_reset_search": {
-        "message": "다시 놓기"
+        "message": "초기화"
     },
     "options_video_header": {
         "message": "비디오 옵션"
