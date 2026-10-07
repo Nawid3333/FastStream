@@ -1,8 +1,8 @@
 // Regression coverage for the keybinds in the player.
 //
 // Most presses are synthetic: a KeyboardEvent on document, turned into a key string by
-// WebUtils.getKeyString ('Shift+' while shiftKey is held, then e.code) and matched
-// exactly against the keybinds, so no window focus is needed. A few go through the
+// WebUtils.getKeyString (the modifiers, then the key named by the character e.key types)
+// and matched exactly against the keybinds, so no window focus is needed. A few go through the
 // WebDriver keyboard instead, which is the path a real press takes. The video stays
 // paused throughout; nothing here depends on playback, only on seeks and on the playback
 // rate read back.
@@ -43,12 +43,15 @@ async function openPlayer(fixture) {
 
 // Dispatches a synthetic keydown on document, where the KeybindManager listens.
 // Dispatching on document itself means only the document listener handles the
-// event, so each press acts exactly once. e.key only has to be plausible:
-// WebUtils.getKeyString matches on e.code, so the digit for DigitN and the bare
-// letter for KeyN are enough.
-const pressKey = (code, {shift} = {}) => browser.execute((code, shift) => {
+// event, so each press acts exactly once. e.key is what counts for a letter, a digit or
+// US punctuation (WebUtils.getKeyString names the key by the character typed), so it is
+// the US layout's: the digit for DigitN, the letter for KeyN; other keys go by e.code.
+// key: what the layout types, when it is not the US one (a German Z is KeyY, key 'z').
+const pressKey = (code, {shift, key: typed} = {}) => browser.execute((code, shift, typed) => {
   let key;
-  if (code.startsWith('Digit')) {
+  if (typed) {
+    key = typed;
+  } else if (code.startsWith('Digit')) {
     key = code.slice(5);
   } else if (code === 'Space') {
     key = ' ';
@@ -64,7 +67,7 @@ const pressKey = (code, {shift} = {}) => browser.execute((code, shift) => {
     bubbles: true,
     cancelable: true,
   }));
-}, code, !!shift);
+}, code, !!shift, typed || '');
 
 const rate = () => browser.execute(() => window.fastStream.playbackRate);
 const time = () => browser.execute(() => window.fastStream.currentTime);
@@ -487,6 +490,20 @@ describe('mpv seek keys', function() {
       await landsOn(80 + delta, code);
     });
   }
+
+  // A German (QWERTZ) keyboard: the key labelled Z sits where a US one has Y and sends
+  // KeyY, typing 'z'; Y the other way round. The shortcuts follow the letter typed, as
+  // mpv's input.conf does: by position, Y seeked back 60 s and Z set 5x.
+  it('on a German keyboard Z seeks -60 s and Y sets the 5x preset', async function() {
+    await seekTo(80);
+    await landsOn(80, 'the start position');
+    await pressKey('KeyY', {key: 'z'});
+    await landsOn(20, 'the German Z');
+    await pressKey('KeyZ', {key: 'y'});
+    expect(await rate()).toBe(5);
+    await pressKey('KeyZ', {key: 'y'});
+    expect(await rate()).toBe(1);
+  });
 
   it('Z near the start stops at 0 rather than handing on a negative time', async function() {
     await seekTo(20);

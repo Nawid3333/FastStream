@@ -66,6 +66,33 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
   field, text area, select or editable element, unless Ctrl, Alt or Meta is held (Right Alt hides
   the player). Ranges, checkboxes and buttons still pass keys through.
+- **Keys follow the keyboard's layout** (2026-10-07). `WebUtils.getKeyString`, which
+  `KeybindManager` and the options page's keybind recorder both use, named every key by
+  `e.code`, its place on a US keyboard. On a German QWERTZ keyboard the key labelled Y is `KeyZ`
+  and the one labelled Z is `KeyY`, so Nawid's Y seeked back 60 s (Z's `SeekBackward60s`) and
+  his Z set the 5x preset (`SpeedPreset5` on `KeyY`); its '-' is the US '/', '=' is Shift+0 and
+  '[' AltGr+8, so the welcome page's "=/-" and "[" were other keys, and 'ß' was '-'. mpv's
+  `input.conf` goes by the character typed, and so does this now, with the bindings' names
+  kept (no migration): a Latin letter is `Key<LETTER>` from `e.key`, Shift counted; a digit or
+  one of the 12 US punctuation characters is its US key's name (`TypedKeyNames`), the Shift or
+  AltGr it took dropped (German Shift+0 is `Equal`, AZERTY Shift+1 is `Digit1`, a numpad digit
+  is the digit); another character on such a key (ß, ü, ö, @, €, Shift+1's '!') is named by
+  itself and a dead key is `Dead`, so neither is a default any more; a non-Latin letter
+  (Cyrillic) keeps its place, as those keycaps carry the Latin letters too; named keys
+  (arrows, Space, Backspace, Right Alt) as before. AltGr is Control+Alt on Windows:
+  `getModifierState('AltGraph')`, or Control+Alt with a non-letter character, is no modifier.
+  Left: ` (ResetFailed) is a dead key on German, Swiss, French and Spanish layouts and cannot
+  be typed (the reset button can); a custom binding a user recorded on a non-US layout to a
+  punctuation key by its place may need recording again. Not changed: `content.js`'s fallback
+  for shortcuts a page cancels (`KeyShortcut.mjs` already matches the typed character first)
+  and the subtitle resync tool's own keys (D, R, brackets, Delete/Backspace by `e.code`).
+  Tests: `tests/unit/keyboardLayouts.test.mjs` presses every default binding the way US, UK,
+  German, Swiss German, French, Spanish, Dvorak and Russian layouts type its character and
+  wants the binding back, and keys that type other characters (ß, ü, dead keys, @, &, б, Dvorak
+  ' and /) no default (a letters-only mutant fails all seven layouts measured before Dvorak
+  came in; naming every key by `e.code` again fails all but US and UK, Dvorak included);
+  `WebUtils.test.mjs` "getKeyString"; `keybinds.e2e.mjs` "on a German keyboard Z seeks -60 s
+  and Y sets the 5x preset" (`pressKey` takes an optional `key`, what the layout types).
 - **Layout version.** `mergeOptions` only fills missing keys, so nothing in saved options said
   which layout they were written for. Options now carry `keybindsVersion` (`KEYBINDS_VERSION`
   in KeybindUtils). `Utils.getOptionsFromStorage()` reads the saved options, merges the

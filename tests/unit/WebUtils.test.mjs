@@ -108,3 +108,41 @@ describe('copyText', () => {
     }
   });
 });
+
+describe('getKeyString', () => {
+  /**
+   * A keydown as Firefox reports it.
+   * @param {string} code - Where the key sits (US positions).
+   * @param {string} key - What the layout types.
+   * @param {Object} [mods] - shiftKey, ctrlKey, altKey, metaKey.
+   * @return {Object}
+   */
+  const press = (code, key, mods = {}) => ({code, key, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, ...mods});
+
+  it('names a letter by what the layout types, so a German keyboard\'s Y and Z are Y and Z', () => {
+    // QWERTZ: the key labelled Y sits where US has Z, and the other way round.
+    expect(WebUtils.getKeyString(press('KeyZ', 'y'))).toBe('KeyY');
+    expect(WebUtils.getKeyString(press('KeyY', 'z'))).toBe('KeyZ');
+    expect(WebUtils.getKeyString(press('KeyY', 'Z', {shiftKey: true}))).toBe('Shift+KeyZ');
+    // AZERTY: the key labelled A sits at US Q.
+    expect(WebUtils.getKeyString(press('KeyQ', 'a'))).toBe('KeyA');
+    // A US keyboard is unchanged.
+    expect(WebUtils.getKeyString(press('KeyZ', 'z'))).toBe('KeyZ');
+  });
+
+  it('names a digit or US punctuation by the character, and anything else so it is no other key', () => {
+    // German '-' is on US '/', '=' is Shift+0: the character is the key, Shift was only
+    // what it took to type it.
+    expect(WebUtils.getKeyString(press('Slash', '-'))).toBe('Minus');
+    expect(WebUtils.getKeyString(press('Digit0', '=', {shiftKey: true}))).toBe('Equal');
+    expect(WebUtils.getKeyString(press('Comma', ','))).toBe('Comma');
+    // A character no US key types alone is named by itself, so it is not that key's
+    // binding: Shift+1's '!', and AltGr+Q's '@' (Windows reports AltGr as Control+Alt).
+    expect(WebUtils.getKeyString(press('Digit1', '!', {shiftKey: true}))).toBe('!');
+    expect(WebUtils.getKeyString(press('KeyQ', '@', {ctrlKey: true, altKey: true}))).toBe('@');
+    // A layout without Latin letters keeps the letters by position (Russian Ya on US Z).
+    expect(WebUtils.getKeyString(press('KeyZ', 'я'))).toBe('KeyZ');
+    expect(WebUtils.getKeyString(press('Space', ' '))).toBe('Space');
+    expect(WebUtils.getKeyString(press('ArrowLeft', 'ArrowLeft'))).toBe('ArrowLeft');
+  });
+});

@@ -1,4 +1,16 @@
 /**
+ * The US key each digit and US punctuation character is on, the name a binding to it has
+ * (getKeyString): a press that types the character is that key, on any layout.
+ * @type {Object<string, string>}
+ */
+const TypedKeyNames = {
+  '0': 'Digit0', '1': 'Digit1', '2': 'Digit2', '3': 'Digit3', '4': 'Digit4',
+  '5': 'Digit5', '6': 'Digit6', '7': 'Digit7', '8': 'Digit8', '9': 'Digit9',
+  '-': 'Minus', '=': 'Equal', '[': 'BracketLeft', ']': 'BracketRight', '\\': 'Backslash',
+  ';': 'Semicolon', '\'': 'Quote', '`': 'Backquote', ',': 'Comma', '.': 'Period', '/': 'Slash',
+};
+
+/**
  * Utility functions for DOM and web operations.
  */
 export class WebUtils {
@@ -89,11 +101,45 @@ export class WebUtils {
   * @return {string} The key combination string.
    */
   static getKeyString(e) {
+    // A key goes by the character the keyboard's layout types, as mpv's input.conf does,
+    // not by where it sits on a US keyboard (e.code): on a German one the key labelled Y
+    // is KeyZ, so it seeked back 60 s (Z's binding) and the key labelled Z set 5x (Y's); its
+    // '-' is the US '/' and its '=' is Shift+0. A binding keeps its name: 'KeyZ', 'Minus'.
+    // - A Latin letter is 'Key<LETTER>', Shift counted (Shift+Z is its own binding).
+    // - A digit or one of the US punctuation characters is that key's US name, however the
+    //   layout makes it: the Shift or AltGr it took is part of the character, not a modifier.
+    // - Another character on such a key (German ß, ü, ´) is named by itself, and a dead key
+    //   is 'Dead': neither is the US key's binding any more.
+    // - A non-Latin letter (Cyrillic) goes by position: those keyboards carry the Latin
+    //   letters too. Named keys (arrows, Enter, F1) go by position as before.
+    const char = e.key && e.key.length === 1 && e.key !== ' ' ? e.key : null;
+    // AltGr is Control+Alt on Windows; with it a key types a character, it is no shortcut.
+    const altGraph = (typeof e.getModifierState === 'function' && e.getModifierState('AltGraph')) ||
+      (e.ctrlKey && e.altKey && char !== null && !/^[a-z]$/i.test(char));
+    let key;
+    let typed = false;
+    if (e.key === ' ') {
+      key = 'Space';
+    } else if (char && /^[a-z]$/i.test(char)) {
+      key = 'Key' + char.toUpperCase();
+    } else if (char && TypedKeyNames[char]) {
+      key = TypedKeyNames[char];
+      typed = true;
+    } else if (char && /^Key[A-Z]$/.test(e.code) && /\p{L}/u.test(char)) {
+      key = e.code;
+    } else if (char) {
+      key = char;
+      typed = true;
+    } else if (e.key === 'Dead') {
+      key = 'Dead';
+    } else {
+      key = e.code;
+    }
+
     const metaPressed = e.metaKey && e.key !== 'Meta';
-    const ctrlPressed = e.ctrlKey && e.key !== 'Control';
-    const altPressed = e.altKey && e.key !== 'Alt';
-    const shiftPressed = e.shiftKey && e.key !== 'Shift';
-    const key = e.key === ' ' ? 'Space' : e.code;
+    const ctrlPressed = e.ctrlKey && e.key !== 'Control' && !altGraph;
+    const altPressed = e.altKey && e.key !== 'Alt' && !altGraph;
+    const shiftPressed = e.shiftKey && e.key !== 'Shift' && !typed;
 
     return (metaPressed ? 'Meta+' : '') + (ctrlPressed ? 'Control+' : '') + (altPressed ? 'Alt+' : '') + (shiftPressed ? 'Shift+' : '') + key;
   }
