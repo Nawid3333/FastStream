@@ -48,6 +48,19 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   a tone is at full level at 8x and silent at 10x and 16x, while the picture still runs at the
   requested pace. `tests/e2e/specs/firefox.e2e.mjs` pins it, so a Firefox that plays faster audio
   shows up as a failure and the cap can move.
+- **Speed shown on screen** (2026-10-07), like mpv's OSD. Every speed key
+  (`IncreasePlaybackRate`, `DecreasePlaybackRate`, `ResetPlaybackRate`, the `SpeedPreset` keys)
+  calls `KeybindManager.showSpeed()`, which shows the rate now in effect top left over the
+  video; it stays 1 s, then fades out over 0.3 s, and a new press replaces the text and starts
+  the time over. `ui/OnScreenDisplay.mjs` drives `.mainplayer .osd` (in `player/index.html`,
+  outside the control bar's container so it shows with the controls hidden; white bold text on
+  rgba(0,0,0,0.6) in `fluidplayer.css`), `aria-hidden` because the rate button carries the
+  label. The text comes from `formatPlaybackRate` in KeybindUtils ("2×", "2.5×"), rounded to 2
+  decimals so the 0.1 steps' float leftovers show as "1.2×". A preset clamped to
+  `maxPlaybackRate` shows the real rate (the 16x key shows "8×"). Nawid chose speed only (not
+  volume or seeks) and top left. Tests: `KeybindUtils.test.mjs` "formatPlaybackRate" and
+  `keybinds.e2e.mjs` "a speed key shows the speed top left over the video for a moment" (text,
+  opacity, position; a mutant without `showSpeed` in the preset handler fails it).
 - Six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
   PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text

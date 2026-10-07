@@ -1,11 +1,12 @@
 import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
 import {
-  FIXED_SEEKS, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset,
+  FIXED_SEEKS, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, formatPlaybackRate,
   isTextEntryTarget, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../options/KeybindUtils.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
+import {OnScreenDisplay} from './OnScreenDisplay.mjs';
 import {Utils} from '../utils/Utils.mjs';
 
 export class KeybindManager extends EventEmitter {
@@ -123,19 +124,26 @@ export class KeybindManager extends EventEmitter {
     this.on('SeekBackward60s', (e) => this.seekBy(FIXED_SEEKS.SeekBackward60s));
     this.on('SeekForward60s', (e) => this.seekBy(FIXED_SEEKS.SeekForward60s));
 
+    // Every speed key shows the speed it left, top left over the video, as mpv does: the
+    // control bar's rate button alone was easy to miss (and the bar may be hidden).
+    this.osd = new OnScreenDisplay();
+
     this.on('IncreasePlaybackRate', (e) => {
       this.client.playbackRate = Math.min(this.client.playbackRate + 0.1, this.client.options.maxPlaybackRate);
       this.client.interfaceController.showControlBarTemporarily();
+      this.showSpeed();
     });
 
     this.on('DecreasePlaybackRate', (e) => {
       this.client.playbackRate = Math.max(this.client.playbackRate - 0.1, 0.1);
       this.client.interfaceController.showControlBarTemporarily();
+      this.showSpeed();
     });
 
     this.on('ResetPlaybackRate', (e) => {
       this.client.playbackRate = 1;
       this.client.interfaceController.showControlBarTemporarily();
+      this.showSpeed();
     });
 
     // mpv-style speed presets (a port of the user's speed-presets.lua): a preset key
@@ -157,6 +165,7 @@ export class KeybindManager extends EventEmitter {
           this.client.playbackRate = rate;
         }
         this.client.interfaceController.showControlBarTemporarily();
+        this.showSpeed();
       });
     }
 
@@ -271,6 +280,13 @@ export class KeybindManager extends EventEmitter {
     this.on('keybind', (keybind, e) => {
       // console.log("Keybind", keybind);
     });
+  }
+
+  /**
+   * Shows the playback speed now in effect on screen (OnScreenDisplay), as "2×".
+   */
+  showSpeed() {
+    this.osd.show(formatPlaybackRate(this.client.playbackRate));
   }
 
   seekBy(seconds) {

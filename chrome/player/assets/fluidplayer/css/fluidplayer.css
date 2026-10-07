@@ -285,6 +285,30 @@ body {
     bottom: 120px;
 }
 
+/* OnScreenDisplay.mjs: a change made from the keyboard (the speed), top left over the
+   video as mpv's OSD; shown at once, fading out when the text goes. */
+.osd {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.osd.visible {
+    opacity: 1;
+    transition: none;
+}
+
 .fluid_subtitles_container .subtitle-track {
     color: white;
     font-size: 1em;

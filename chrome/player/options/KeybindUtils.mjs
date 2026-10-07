@@ -341,3 +341,13 @@ export function migrateKeybinds(options, stored) {
   options.keybindsVersion = Math.max(storedVersion, KEYBINDS_VERSION);
   return options;
 }
+
+/**
+ * A playback rate as the on-screen indicator shows it: "2×", "2.5×", "1.1×". A rate the
+ * 0.1 steps left as 1.2000000000000002 shows as "1.2×".
+ * @param {number} rate - The playback rate.
+ * @return {string}
+ */
+export function formatPlaybackRate(rate) {
+  return `${Math.round(rate * 100) / 100}×`;
+}

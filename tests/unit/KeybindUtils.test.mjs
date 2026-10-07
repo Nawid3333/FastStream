@@ -4,7 +4,7 @@ import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOption
 import {
   ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
   MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
-  keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
+  formatPlaybackRate, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
@@ -146,6 +146,20 @@ describe('applySpeedPreset', () => {
     for (const maxRate of [undefined, NaN, null]) {
       expect(applySpeedPreset(16, 1, maxRate, undefined).rate).toBe(16);
     }
+  });
+});
+
+describe('formatPlaybackRate', () => {
+  it('shows a rate the way the on-screen indicator does', () => {
+    expect(formatPlaybackRate(1)).toBe('1×');
+    expect(formatPlaybackRate(2)).toBe('2×');
+    expect(formatPlaybackRate(2.5)).toBe('2.5×');
+    expect(formatPlaybackRate(0.1)).toBe('0.1×');
+  });
+
+  it('shows what the 0.1 steps add up to, not their floating-point leftovers', () => {
+    expect(formatPlaybackRate(1 + 0.1 + 0.1)).toBe('1.2×');
+    expect(formatPlaybackRate(0.30000000000000004)).toBe('0.3×');
   });
 });
 

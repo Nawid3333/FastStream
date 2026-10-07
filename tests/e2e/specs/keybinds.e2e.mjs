@@ -141,6 +141,36 @@ describe('Keybinds', function() {
     expect(await rate()).toBe(1);
   });
 
+  it('a speed key shows the speed top left over the video for a moment', async function() {
+    // The indicator as it shows: its text, whether it is opaque, and where it sits in the
+    // player.
+    const osd = () => browser.execute(() => {
+      const element = document.querySelector('.mainplayer .osd');
+      const player = document.querySelector('.mainplayer').getBoundingClientRect();
+      const box = element.getBoundingClientRect();
+      return {
+        text: element.textContent,
+        opacity: Number(getComputedStyle(element).opacity),
+        left: box.left - player.left,
+        top: box.top - player.top,
+      };
+    });
+    await pressKey('KeyQ');
+    let shown = await osd();
+    expect(shown.text).toBe('3×');
+    expect(shown.opacity).toBe(1);
+    expect(shown.left).toBeLessThan(40);
+    expect(shown.top).toBeLessThan(40);
+    // It goes after a second (and a 0.3 s fade).
+    await browser.waitUntil(async () => (await osd()).opacity === 0,
+        {timeout: 4000, interval: 100, timeoutMsg: 'the speed indicator never went'});
+    // The same key reverts, and shows the speed it went back to.
+    await pressKey('KeyQ');
+    shown = await osd();
+    expect(shown.text).toBe('1×');
+    expect(shown.opacity).toBe(1);
+  });
+
   it('KeyY reverts to the rate KeyQ set, the preset memory is per key', async function() {
     await pressKey('KeyQ');
     expect(await rate()).toBe(3);

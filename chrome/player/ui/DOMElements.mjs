@@ -47,6 +47,7 @@ export const DOMElements = {
   subtitlesOptions: document.querySelector('.mainplayer .subtitles_options'),
   subtitlesList: document.querySelector('.mainplayer .subtitles_list'),
   subtitlesContainer: document.querySelector('.mainplayer .fluid_subtitles_container'),
+  osd: document.querySelector('.mainplayer .osd'),
 
   subtitlesOptionsBackButton: document.querySelector('.mainplayer .subtitles_options_back'),
   subtitlesOptionsList: document.querySelector('.mainplayer .subtitles_options_list'),
