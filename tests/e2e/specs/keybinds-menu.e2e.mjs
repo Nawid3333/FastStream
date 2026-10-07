@@ -24,12 +24,13 @@ async function openOptions() {
 }
 
 // Presses a key in a row's box the way the page listens for it: a keydown on the box.
-const assignKey = (action, code, {shift} = {}) => browser.execute((selector, code, shift) => {
+// key: what the layout types, when it is not the US one (a German Z is KeyY, key 'z').
+const assignKey = (action, code, {shift, key: typed} = {}) => browser.execute((selector, code, shift, typed) => {
   const box = document.querySelector(`${selector} .keybind-input`);
-  const key = code.startsWith('Digit') ? code.slice(5) : code.slice(3).toLowerCase();
+  const key = typed || (code.startsWith('Digit') ? code.slice(5) : code.slice(3).toLowerCase());
   box.focus();
   box.dispatchEvent(new KeyboardEvent('keydown', {code, key, shiftKey: shift, bubbles: true, cancelable: true}));
-}, row(action), code, !!shift);
+}, row(action), code, !!shift, typed || '');
 
 const rowState = (action) => browser.execute((selector) => {
   const container = document.querySelector(selector);
@@ -164,6 +165,19 @@ describe('Keybinding menu', function() {
     // Shift+KeyQ is the default of ToggleVisualFilters, so this one does clash.
     expect((await rowState('Mute')).conflict).toBe(true);
     expect((await rowState('SpeedPreset3')).conflict).toBe(false);
+  });
+
+  // A German (QWERTZ) keyboard: the key labelled Z sends KeyY and types 'z'. Until
+  // 1.3.82.71 the box showed it as KeyY, clashing with the 5x preset, and a user had to
+  // bind the 60 s seek to "Y" to have it on the Z key.
+  it('records what a German keyboard types: its Z is KeyZ, its - is Minus', async function() {
+    await assignKey('Mute', 'KeyY', {key: 'z'});
+    expect((await rowState('Mute')).key).toBe('KeyZ');
+    // KeyZ is the 60 s seek back's default, KeyY the 5x preset's.
+    expect((await rowState('SeekBackward60s')).conflict).toBe(true);
+    expect((await rowState('SpeedPreset5')).conflict).toBe(false);
+    await assignKey('Mute', 'Slash', {key: '-'});
+    expect((await rowState('Mute')).key).toBe('Minus');
   });
 
   it('restores the defaults, and the clash goes with them', async function() {
