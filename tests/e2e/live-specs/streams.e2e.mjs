@@ -20,119 +20,23 @@
 // after a change to the player, the loaders or the vendored libraries:
 //   pnpm run build:keep && pnpm run test:live
 
-import fs from 'node:fs';
 import http from 'node:http';
-import path from 'node:path';
-import * as url from 'node:url';
-import zlib from 'node:zlib';
 
 import {browser, expect} from '@wdio/globals';
 
-import {EXTENSION_UUID, OPENER_URL} from '../wdio.extension.conf.mjs';
-import {inExtensionPage} from '../extension-page.mjs';
+import {OPENER_URL} from '../wdio.extension.conf.mjs';
+import {
+  ORIGIN, STREAMS, enterPlayer, npmFile, playFor, seekAndPlay, setOptions, waitPlayable,
+} from './liveSite.mjs';
 
-const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
-const root = path.resolve(__dirname, '../../..');
-
-const ORIGIN = `moz-extension://${EXTENSION_UUID}`;
 const SITE_PORT = 41987;
 // Two origins on one server: the player-in-an-iframe case needs the frame to be
 // cross-origin to the page around it, as a video host's embed is.
 const SITE = `http://127.0.0.1:${SITE_PORT}`;
 const OTHER_SITE = `http://localhost:${SITE_PORT}`;
 
-const SHAKA = 'https://storage.googleapis.com/shaka-demo-assets';
-const STREAMS = {
-  // 60 s, 5 H.264 levels, 6 audio renditions in 5 languages, 4 WebVTT subtitle renditions.
-  hls: `${SHAKA}/angel-one-hls/hls.m3u8`,
-  // The same title as DASH (SegmentBase, on-demand profile).
-  dash: `${SHAKA}/angel-one/dash.mpd`,
-  // 888 s, for a seek far into a long title.
-  dashLong: `${SHAKA}/sintel/dash.mpd`,
-  // A live stream: type="dynamic", a SegmentTimeline that grows every 4 s.
-  dashLive: 'https://storage.googleapis.com/shaka-live-assets/player-source.mpd',
-  // Progressive MP4 served as application/octet-stream, as file hosts often do.
-  mp4: 'https://raw.githubusercontent.com/mediaelement/mediaelement-files/master/big_buck_bunny.mp4',
-};
-
 let siteServer;
 const libs = {};
-
-/**
- * Returns one file of an npm package, downloading the package from the registry the first
- * time and caching it in tests/e2e/fixtures/live-libs (gitignored).
- * @param {string} pkg - The package name.
- * @param {string} file - The file's path inside the package.
- * @return {Promise<Buffer>} The file.
- */
-async function npmFile(pkg, file) {
-  const pkgJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  const version = String(pkgJson.devDependencies[pkg]).replace(/^[\^~]/, '');
-  // The version read from package.json never reaches the fetch URL unvalidated: a
-  // semver must be exactly this shape, so a hand-edited or corrupt lockfile value
-  // cannot point the request anywhere else (CodeQL js/file-access-to-http).
-  if (!/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(version)) {
-    throw new Error(`package.json has ${pkg} at ${version}, which is not a semver`);
-  }
-  // The registry host is pinned: the version comes from this repo's own package.json,
-  // and both the fetch and the cache land under it (CodeQL js/request-forgery,
-  // js/http-to-file-access). The cache lives in the e2e suites' gitignored fixtures
-  // directory, not in the OS temp root whose fixed paths are world-readable and
-  // pre-createable (CodeQL js/insecure-temporary-file). (It was once put in a fixtures
-  // directory of live-specs' own, which nothing ignored: a `git add -A` after a live run
-  // took both libraries into the tree.)
-  const registry = 'https://registry.npmjs.org';
-  const cacheDir = path.join(__dirname, '..', 'fixtures', 'live-libs', `${pkg}@${version}`);
-  const cached = path.join(cacheDir, file);
-  // Read without a preceding existsSync: gone-in-between is handled by the catch
-  // (CodeQL js/file-system-race).
-  try {
-    return fs.readFileSync(cached);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      throw e;
-    }
-  }
-  if (!file.startsWith('/') && file.includes('..')) {
-    throw new Error(`${pkg}: refusing a file path that climbs out of the package: ${file}`);
-  }
-
-  const res = await fetch(`${registry}/${pkg}/-/${pkg}-${version}.tgz`);
-  if (!res.ok) {
-    throw new Error(`could not download ${pkg}@${version}: HTTP ${res.status}`);
-  }
-  const tar = zlib.gunzipSync(Buffer.from(await res.arrayBuffer()));
-  const field = (start, length) => tar.toString('utf8', start, start + length).replace(/\0[\s\S]*$/, '');
-  // A tar archive is a run of 512-byte headers, each followed by its file padded to 512.
-  for (let offset = 0; offset + 512 <= tar.length;) {
-    const name = field(offset, 100);
-    if (!name) {
-      break;
-    }
-    const size = parseInt(field(offset + 124, 12).trim() || '0', 8);
-    const prefix = field(offset + 345, 155);
-    if ((prefix ? prefix + '/' : '') + name === 'package/' + file) {
-      const data = tar.subarray(offset + 512, offset + 512 + size);
-      // 'wx' fails when another process wrote the cache entry in between, and reading
-      // it back then gives the same bytes (CodeQL js/file-system-race). The entry's
-      // own directory (dist/ inside the package) is made too: a recursive mkdir on
-      // cacheDir alone leaves it missing (this broke the first CI run of the change).
-      fs.mkdirSync(path.dirname(cached), {recursive: true});
-      let fd;
-      try {
-        fd = fs.openSync(cached, 'wx');
-        fs.writeFileSync(fd, data);
-      } catch (e) {
-        if (e.code !== 'EEXIST') throw e;
-      } finally {
-        if (fd !== undefined) fs.closeSync(fd);
-      }
-      return data;
-    }
-    offset += 512 + Math.ceil(size / 512) * 512;
-  }
-  throw new Error(`${pkg}@${version} has no ${file}`);
-}
 
 /**
  * The pages of the test sites. A page names its stream by a key into STREAMS, not by URL:
@@ -181,165 +85,6 @@ function sitePage(pathname, query) {
                 ${query.get('fullscreen') === 'no' ? '' : 'allow="autoplay; fullscreen" allowfullscreen'}></iframe>`;
   }
   return null;
-}
-
-/**
- * Saves options the way the options page does, and has the background reload them.
- * @param {Object} options - The options to save; everything else takes its default.
- */
-async function setOptions(options) {
-  await inExtensionPage((options, done) => {
-    chrome.storage.local.set({options: JSON.stringify(options)}, () => {
-      chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
-        void chrome.runtime.lastError;
-        setTimeout(() => done(true), 500);
-      });
-    });
-  }, options);
-}
-
-/**
- * Waits for FastStream's player to replace the page's video, then switches into it,
- * through the site's own iframe when the video is in one.
- * @param {number} timeout - How long to wait, in ms.
- */
-async function enterPlayer(timeout = 60000) {
-  const selector = 'iframe[src*="player/index.html"]';
-  await browser.switchFrame(null);
-  let nested = false;
-  await browser.waitUntil(async () => {
-    await browser.switchFrame(null);
-    if (await browser.$(selector).isExisting()) {
-      nested = false;
-      return true;
-    }
-    for (const frame of await browser.$$('iframe')) {
-      await browser.switchFrame(null);
-      await browser.switchFrame(frame);
-      if (await browser.$(selector).isExisting()) {
-        nested = true;
-        return true;
-      }
-    }
-    return false;
-  }, {timeout, interval: 500, timeoutMsg: 'FastStream never replaced the page\'s player'});
-  if (!nested) {
-    await browser.switchFrame(null);
-  }
-  await browser.switchFrame(await browser.$(selector));
-}
-
-/**
- * Reads the player's state.
- * @return {Promise<Object>} The state.
- */
-const playerState = () => browser.execute(() => {
-  const client = window.fastStream;
-  const video = client?.player?.getVideo?.();
-  // What the player was given and what it shows, for a failure message.
-  const context = {
-    sources: (client?.sourcesBrowser?.sources || []).filter((source) => source.url)
-        .map((source) => `${source.mode} ${source.url}`),
-    status: Array.from(document.querySelectorAll('.mainplayer .status_message'))
-        .map((element) => element.textContent.trim()).filter(Boolean),
-  };
-  if (!video) {
-    return {loaded: false, source: client?.source ? `${client.source.mode} ${client.source.url}` : null, ...context};
-  }
-  const toRanges = (list) => {
-    const out = [];
-    for (let i = 0; i < list.length; i++) {
-      out.push([+list.start(i).toFixed(2), +list.end(i).toFixed(2)]);
-    }
-    return out;
-  };
-  const ranges = toRanges(video.buffered);
-  const levels = client.getVideoLevels();
-  const playing = levels.get(client.getCurrentVideoLevelID());
-  return {
-    loaded: true,
-    mode: client.source?.mode,
-    url: client.source?.url,
-    time: client.currentTime,
-    // The element's own position and window: a live stream left at 0, outside its window,
-    // while its buffer filled at the live edge (#348).
-    videoTime: +video.currentTime.toFixed(2),
-    seekable: toRanges(video.seekable),
-    duration: client.duration,
-    paused: video.paused,
-    seeking: video.seeking,
-    readyState: video.readyState,
-    width: video.videoWidth,
-    ranges,
-    playingLevel: playing ? `${playing.width}x${playing.height} ${playing.videoCodec}` : null,
-    videoLevels: Array.from(levels.values()).map((level) => `${level.width}x${level.height} ${level.videoCodec}`),
-    audioLanguages: Array.from(client.getAudioLevels().values()).map((level) => level.language),
-    error: video.error ? video.error.message || String(video.error.code) : null,
-    ...context,
-  };
-});
-
-/**
- * Waits until the player has data to play at its position, and returns its state.
- * @param {string} what - For the error message.
- * @return {Promise<Object>} The state.
- */
-async function waitPlayable(what) {
-  let last;
-  try {
-    await browser.waitUntil(async () => {
-      last = await playerState();
-      return last.loaded && !last.seeking && last.readyState >= 3 && last.width > 0;
-    }, {timeout: 60000, interval: 500});
-  } catch (e) {
-    throw new Error(`${what} never became playable: ${JSON.stringify(last)}`);
-  }
-  return last;
-}
-
-/**
- * Plays until the position has advanced by `seconds`, and pauses.
- * @param {number} seconds - How far.
- * @param {string} what - For the error message.
- * @return {Promise<Object>} The state at the end.
- */
-async function playFor(seconds, what) {
-  const start = (await playerState()).time;
-  await browser.execute(() => {
-    window.fastStream.play().catch((e) => {
-      window.__playError = String(e);
-    });
-  });
-  let last;
-  try {
-    await browser.waitUntil(async () => {
-      last = await playerState();
-      return last.time >= start + seconds;
-    }, {timeout: 30000 + seconds * 3000, interval: 500});
-  } catch (e) {
-    const playError = await browser.execute(() => window.__playError || null);
-    throw new Error(`${what}: playback did not advance ${seconds} s from ${start}: ` +
-      JSON.stringify({...last, playError}));
-  } finally {
-    await browser.execute(() => {
-      window.fastStream.pause();
-    });
-  }
-  return last;
-}
-
-/**
- * Seeks, waits for the new position to play, and plays on from it.
- * @param {number} target - Where to, in seconds.
- * @param {string} what - For the error message.
- */
-async function seekAndPlay(target, what) {
-  await browser.execute((target) => {
-    window.fastStream.currentTime = target;
-  }, target);
-  const state = await waitPlayable(`${what} after a seek to ${target} s`);
-  expect(Math.abs(state.time - target)).toBeLessThan(2);
-  await playFor(2, `${what} after a seek to ${target} s`);
 }
 
 describe('Real streams on the internet', function() {

@@ -3,9 +3,12 @@ name: Real streams
 # The playback checklist against real streams and sites, once a week: `pnpm run test:live`
 # (tests/e2e/live-specs/streams.e2e.mjs) - HLS and DASH pages with the sites' own players,
 # a long DASH title, a live stream, a progressive MP4, both kinds of iframe embed, and a
-# manifest opened directly. Every other suite plays files from 127.0.0.1, so what only real
-# servers do - a CDN's HTTP/2, CORS and range answers, a live manifest that moves - is
-# checked nowhere else. Its first runs found two bugs (#40, #41).
+# manifest opened directly; and (live-specs/players.e2e.mjs) the player libraries sites are
+# built with - video.js, Shaka, Plyr, Clappr, MediaElement, Vidstack, Media Chrome,
+# DPlayer, Artplayer, xgplayer, OpenPlayerJS - each playing on its own, then taken over by
+# FastStream. Every other suite plays files from 127.0.0.1, so what only real servers do -
+# a CDN's HTTP/2, CORS and range answers, a live manifest that moves - is checked nowhere
+# else. Its first runs found three bugs (#40, #41, a file played without a request).
 #
 # Not part of CI, on purpose: it depends on third-party servers, and an outage there must
 # not hold back a release. A scheduled failure opens one issue, assigned to the owner with
