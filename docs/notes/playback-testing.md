@@ -69,6 +69,49 @@ name their stream by key (`/hls?stream=hls`), never by URL, so the suite does no
 on the first fix. A test that switches into a frame must switch back before
 `browser.url()`, which navigates the frame WebDriver is in.
 
+**The player libraries sites use** (2026-10-07): `tests/e2e/live-specs/players.e2e.mjs`, in
+the same `test:live` run and the same weekly workflow. Most sites play through a player
+library, not bare hls.js or dash.js, and each wraps, moves or hides the `<video>` in its
+own way. 11 libraries, each the official release at an exact version pinned in the spec
+(from the npm registry, checked against the registry's integrity and cached as a tarball
+in `tests/e2e/fixtures/live-libs`): video.js (HLS, DASH, MP4), Shaka (HLS, DASH), Plyr,
+Clappr, MediaElement, Vidstack (a web component), Media Chrome with `<hls-video>` (its
+`<video>` in a shadow root, as Mux's players have it), DPlayer, Artplayer, xgplayer (its
+own HLS code, not hls.js), OpenPlayerJS - HLS on all, DASH on two, MP4 on nine: 22 cases.
+Each page starts its player muted, as a visitor's click does. Two passes, so a failure
+says whose it is: each page first plays on its own with FastStream not enabled there
+(the page and the library are right), then, auto-enabled, FastStream must replace each
+player, play, seek and play on. `LIVE_PLAYERS=plyr,mp4` (substrings of "name format")
+and `LIVE_PHASE=own|faststream` narrow a run to look into one failure. The shared steps
+(the npm cache, entering the player, its state, play and seek) are in
+`live-specs/liveSite.mjs`, which `streams.e2e.mjs` uses too. Its first run (one Windows
+pass, about 9 minutes): every page played on its own, FastStream took over all of them
+for HLS and DASH (the shadow-root `<hls-video>` included), and missed the MP4 in 5 of 9
+(the bug below). VHS, video.js's engine, plays DASH only from fMP4: Shaka's angel-one
+also offers WebM, so video.js gets the DASH-IF reference vector on Akamai instead.
+
+**A file Firefox plays without a request** (2026-10-07, found by the run above). The
+background learns of a stream from the request for it (`onHeadersReceived`). A page that
+plays a file an earlier page of the same site had played got it from Firefox with no
+request at all - none reached the extension (not even `onBeforeSendHeaders`), none reached
+the server - with the file served `no-store` and with the earlier page kept out of the
+back-forward cache by an `unload` listener, so neither the HTTP cache nor the bfcache;
+measured with `ext-specs/same-video-file.e2e.mjs` (the server counts the requests with
+`Sec-Fetch-Dest: video`). On a site FastStream was already on for, nothing asked the page
+either: `recoverSources` runs when FastStream is turned on, and the tab already was. So
+the second page's player never opened (the same video opened again from a link). Seen
+alone, each of those pages passed; one after another, every MP4 page after the first
+failed, and one passed now and then (the background unloaded in a 60 s wait, its state
+gone). content.js now reports a `<video>`'s http(s) `currentSrc` on `loadedmetadata`
+(capture, document and the shadow roots it listens in), once per URL per page, as a
+`LOADED_MEDIA` of one resource: the background takes it like a recovered stream
+(`recoverFrameSources`), and a URL it knows already changes nothing. Same reach as the
+request: a preview or ad video counts, as its request always did; a video in a shadow root
+content.js has not found yet is not heard (media events stay in their root; roots are found
+as the user acts), and turning FastStream on still finds it (`loadedMedia`). The wrong leads, for
+the record: the HTTP cache (`max-age=300` on the test MP4; the same misses with the cache
+off), and the bfcache (the same misses with the earlier page out of it).
+
 Direct manifests for testing the redirect path instead (all verified
 `200 application/dash+xml`), which need `playStreamURLs` enabled first:
 

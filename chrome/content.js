@@ -2178,6 +2178,41 @@
   document.addEventListener('play', onPlay, true);
   document.addEventListener('play', pauseHeldMedia, true);
 
+  // A video's own file, told to the background once the video has it. The background learns
+  // of a stream from the request for it (onHeadersReceived), and Firefox can play a file
+  // without one: a page that plays a file an earlier page of the site played got it with no
+  // request at all, served no-store and the earlier page not in the back-forward cache
+  // (measured, same-video-file.e2e.mjs). On a site FastStream was already on for, nothing
+  // asked the page either (recoverSources runs when it is turned on), so the player never
+  // opened. A URL the background knows already changes nothing there (recoverFrameSources);
+  // a blob: one is no file. Not heard: a video in a shadow root not found yet (media events
+  // stay in their root, and roots are found as the user acts); turning FastStream on still
+  // finds it (loadedMedia).
+  const reportedVideoFiles = new Set();
+
+  function onLoadedMetadata(e) {
+    if (!e.isTrusted) return;
+    const video = e.target;
+    if (!video || video.tagName !== 'VIDEO') return;
+    const src = video.currentSrc || '';
+    if (!/^https?:\/\//i.test(src) || reportedVideoFiles.has(src)) return;
+    reportedVideoFiles.add(src);
+    try {
+      chrome.runtime.sendMessage({
+        type: MessageTypes.LOADED_MEDIA,
+        url: window.location.href,
+        document: DocumentKey,
+        resources: [{url: src, media: true, time: Date.now()}],
+      }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (err) {
+      // The extension was reloaded under this page: nothing to report to.
+    }
+  }
+
+  document.addEventListener('loadedmetadata', onLoadedMetadata, true);
+
   // A play inside a shadow root (a player built as a web component) never reaches the
   // document: media events are not composed. So the shortcut ignored such players. Each
   // open shadow root gets the listener too, found as the user acts, since a play the user
@@ -2191,6 +2226,7 @@
       listenedRoots.add(root);
       root.addEventListener('play', onPlay, true);
       root.addEventListener('play', pauseHeldMedia, true);
+      root.addEventListener('loadedmetadata', onLoadedMetadata, true);
     }
   }
 
