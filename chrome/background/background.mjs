@@ -1027,8 +1027,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.LOADED_MEDIA) {
     if (msg.live) {
       // A file played with no request is taken in after the wait; one with a request has
-      // been detected by then, and this changes nothing (LiveMediaReportWaitMs).
-      setTimeout(() => recoverFrameSources(frame, msg), LiveMediaReportWaitMs);
+      // been detected by then, and this changes nothing (LiveMediaReportWaitMs). Only by
+      // the page that told it, still shown: a tab gone on to the next page within the wait
+      // had the frame emptied (FRAME_REMOVED), whose unnamed page took the last page's file
+      // as its first stream, and that went to mpv again instead of its own (mpv.e2e.mjs).
+      setTimeout(() => {
+        if (frame.isTracked() && frame.documentKey === msg.document) {
+          recoverFrameSources(frame, msg);
+        }
+      }, LiveMediaReportWaitMs);
     } else {
       recoverFrameSources(frame, msg);
     }

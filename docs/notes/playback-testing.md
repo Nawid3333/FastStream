@@ -112,8 +112,12 @@ taken at once, it lost `mpv.e2e.mjs`'s crossorigin video its `Origin` on the han
 report marked `live` waits `LiveMediaReportWaitMs` (1 s) in the background, and
 `onSourceRecieved` takes a source in before its first await (two detections of one URL both
 passed the check while waiting); the report's `cors` (the video's `crossorigin`) gives the
-stand-ins an `Origin` where the request would have had one. Unit tests in
-`backgroundMpv.test.mjs` (a mutant taking the page's word at once fails). Same reach as the
+stand-ins an `Origin` where the request would have had one. After the wait, only the page
+that told it, still shown, takes the file in (`isTracked()` and the same `documentKey`): a
+tab gone on to the next site within the second had the frame emptied by `FRAME_REMOVED`,
+and its unnamed page took the last page's file as its first stream - mpv got that one again
+instead of the new page's (mpv.e2e.mjs step 8). Unit tests in `backgroundMpv.test.mjs` (a
+mutant taking the page's word at once fails; one without the page check fails). Same reach as the
 request: a preview or ad video counts, as its request always did; a video in a shadow root
 content.js has not found yet is not heard (media events stay in their root; roots are found
 as the user acts), and turning FastStream on still finds it (`loadedMedia`). The wrong leads, for

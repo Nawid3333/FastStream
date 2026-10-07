@@ -1288,3 +1288,32 @@ describe('a file the page tells as its video loads, before the request for it is
     expect(open.headers).toContainEqual({name: 'Origin', value: 'https://site.test'});
   });
 });
+
+describe('a page\'s word about its video, when the tab went on to another site meanwhile', () => {
+  it('is not taken in by the next page, whose own stream goes to mpv', async () => {
+    // The page's word waits LiveMediaReportWaitMs. mpv.e2e.mjs went on to another
+    // allowlisted site within that wait: the hostname change reset the tab's frames, the
+    // word came after, the reset frame had no page named yet, and the last page's file
+    // was taken in as the new page's first stream - it went to mpv again, and the new
+    // page's own stream, found next, never did (one auto-open a page).
+    const SITE = 'http://127.0.0.1:41993';
+    const SITE_B = 'http://localhost:41993';
+    const CDN = 'http://127.0.0.1:41994';
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: [SITE, SITE_B]}, tabs: [{id: 1, url: SITE + '/watch2'}]});
+    await bg.navigated(1, SITE + '/watch2');
+    await bg.frameAdded(1, 0, SITE + '/watch2', 'page-2');
+    await bg.request({tabId: 1, url: `${CDN}/clip2.mp4`, type: 'media'});
+    await bg.message({type: 'LOADED_MEDIA', live: true, url: SITE + '/watch2', document: 'page-2',
+      resources: [{url: `${CDN}/clip2.mp4`, media: true, cors: true, time: Date.now()}]}, {tabId: 1, frameId: 0});
+    // The tab goes on to the other site before the word's wait is over; the page going
+    // tells so (content.js on pagehide), which empties its frame.
+    await bg.wait(200);
+    await bg.message({type: 'FRAME_REMOVED', document: 'page-2'}, {tabId: 1, frameId: 0});
+    await bg.navigated(1, SITE_B + '/watch3');
+    await bg.wait(1500);
+    await bg.frameAdded(1, 0, SITE_B + '/watch3', 'page-3');
+    await bg.request({tabId: 1, url: `${CDN}/clip3.mp4`, type: 'media'});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([`${CDN}/clip2.mp4`, `${CDN}/clip3.mp4`]);
+  });
+});
