@@ -105,7 +105,15 @@ failed, and one passed now and then (the background unloaded in a 60 s wait, its
 gone). content.js now reports a `<video>`'s http(s) `currentSrc` on `loadedmetadata`
 (capture, document and the shadow roots it listens in), once per URL per page, as a
 `LOADED_MEDIA` of one resource: the background takes it like a recovered stream
-(`recoverFrameSources`), and a URL it knows already changes nothing. Same reach as the
+(`recoverFrameSources`), and a URL it knows already changes nothing. The request comes
+first: its own headers (an `Origin`) are the ones to keep, not the page's stand-ins
+(`pageHeaders`), and the page's word could beat its `onHeadersReceived` from a fast server -
+taken at once, it lost `mpv.e2e.mjs`'s crossorigin video its `Origin` on the hand-off. So a
+report marked `live` waits `LiveMediaReportWaitMs` (1 s) in the background, and
+`onSourceRecieved` takes a source in before its first await (two detections of one URL both
+passed the check while waiting); the report's `cors` (the video's `crossorigin`) gives the
+stand-ins an `Origin` where the request would have had one. Unit tests in
+`backgroundMpv.test.mjs` (a mutant taking the page's word at once fails). Same reach as the
 request: a preview or ad video counts, as its request always did; a video in a shadow root
 content.js has not found yet is not heard (media events stay in their root; roots are found
 as the user acts), and turning FastStream on still finds it (`loadedMedia`). The wrong leads, for

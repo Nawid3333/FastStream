@@ -164,6 +164,12 @@ const SourceLengthWaitMs = 2500;
 // The page answers within milliseconds unless its own scripts keep it busy; then the
 // longest decides, as before the question.
 const PlayedVideoWaitMs = 1000;
+// How long a video's file the page told as it loaded (content.js on loadedmetadata, a
+// LOADED_MEDIA with live set) waits before it is taken in. The request for it, when there
+// was one, is the one to keep: its own headers (an Origin), not the page's stand-ins. It
+// came before the video had any data, and its onHeadersReceived could still come after the
+// page's word (a fast server; mpv.e2e.mjs, whose crossorigin video's Origin was lost).
+const LiveMediaReportWaitMs = 1000;
 
 
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
@@ -1019,7 +1025,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.REQUEST_SOURCES) {
     sendSources(frame);
   } else if (msg.type === MessageTypes.LOADED_MEDIA) {
-    recoverFrameSources(frame, msg);
+    if (msg.live) {
+      // A file played with no request is taken in after the wait; one with a request has
+      // been detected by then, and this changes nothing (LiveMediaReportWaitMs).
+      setTimeout(() => recoverFrameSources(frame, msg), LiveMediaReportWaitMs);
+    } else {
+      recoverFrameSources(frame, msg);
+    }
   } else if (msg.type === MessageTypes.CLEAR_SOURCES) {
     // The SourcesBrowser's "Clear Sources" button empties its own list, but
     // that list is only a mirror: this background's per-frame stores are the
@@ -1765,7 +1777,8 @@ function recoverFrameSources(frame, msg) {
     const url = resource && typeof resource.url === 'string' ? resource.url : '';
     if (!/^https?:\/\//i.test(url)) continue;
     const media = !!resource.media;
-    const headers = pageHeaders(typeof msg.url === 'string' ? msg.url : frame.url, url, media);
+    // A media element sends no Origin, unless it loads CORS (crossorigin), as content.js says.
+    const headers = pageHeaders(typeof msg.url === 'string' ? msg.url : frame.url, url, media && !resource.cors);
     const ext = urlType(url);
     if (BackgroundUtils.isSubtitles(ext)) {
       handleSubtitles(url, frame, headers);
@@ -2174,14 +2187,17 @@ async function onSourceRecieved(details, frame, mode) {
   // undefined and the Referer/Origin the CDN needs is lost.
   const customHeaders = details.customHeaders || frame.tab.requestHeaders.get(details.requestId);
 
-  await ensureOptions();
-
   const url = details.url;
 
+  // Taken before the first await too: the same stream told by the page (content.js on
+  // loadedmetadata, recoverFrameSources) came in while this one waited, and the page's
+  // stand-in headers won over the request's own (an Origin lost: mpv.e2e.mjs).
   if (getSourceFromURL(frame, url)) return;
 
   // A stream recovered from the page (recoverFrameSources) keeps when the page asked for it.
   addSource(frame, url, mode, customHeaders, details.time);
+
+  await ensureOptions();
   // Its length, read now: by the time a player asks for the page's streams, it is known.
   if (frame.tab.isOn) {
     Lengths.probe({url, mode, headers: customHeaders});

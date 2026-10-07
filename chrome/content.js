@@ -2200,9 +2200,12 @@
     try {
       chrome.runtime.sendMessage({
         type: MessageTypes.LOADED_MEDIA,
+        // Told as it loaded: the background lets the request's own detection come first.
+        live: true,
         url: window.location.href,
         document: DocumentKey,
-        resources: [{url: src, media: true, time: Date.now()}],
+        // cors: a crossorigin video's request carries an Origin (pageHeaders).
+        resources: [{url: src, media: true, cors: video.crossOrigin !== null, time: Date.now()}],
       }, () => {
         void chrome.runtime.lastError;
       });

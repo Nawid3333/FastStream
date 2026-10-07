@@ -1250,3 +1250,41 @@ describe('a stream that came through Firefox VPN', () => {
     expect(bg.toMpv()).toEqual([EPISODE]);
   });
 });
+
+describe('a file the page tells as its video loads, before the request for it is seen', () => {
+  it('goes to mpv with the request\'s own headers, not the page\'s stand-ins', async () => {
+    // content.js tells a video's file on loadedmetadata (for a file Firefox plays with no
+    // request). Here there was a request, and the page's word came first, as it can from a
+    // fast server: the page's stand-in headers, with no Origin for a media element, went to
+    // mpv (mpv.e2e.mjs, a crossorigin video). The page's word now waits
+    // (LiveMediaReportWaitMs), and the request's detection comes first.
+    const FILE = 'https://cdn.test/clip.mp4';
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    const sent = bg.requestSent({tabId: 1, url: FILE, type: 'media',
+      requestHeaders: [{name: 'Referer', value: PAGE}, {name: 'Origin', value: 'https://site.test'}]});
+    await bg.message({type: 'LOADED_MEDIA', live: true, url: PAGE, document: 'page-1',
+      resources: [{url: FILE, media: true, cors: false, time: Date.now()}]}, {tabId: 1, frameId: 0});
+    await bg.wait(100);
+    await bg.responded(sent, {responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([FILE]);
+    const open = bg.native.find((m) => m.type === 'open');
+    expect(open.headers).toContainEqual({name: 'Origin', value: 'https://site.test'});
+  });
+
+  it('takes the file in after the wait when no request came (Firefox played it without one)', async () => {
+    const FILE = 'https://cdn.test/clip.mp4';
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'page-1');
+    await bg.message({type: 'LOADED_MEDIA', live: true, url: PAGE, document: 'page-1',
+      resources: [{url: FILE, media: true, cors: true, time: Date.now()}]}, {tabId: 1, frameId: 0});
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([FILE]);
+    // A crossorigin video's request carries an Origin: so do the page's stand-ins.
+    const open = bg.native.find((m) => m.type === 'open');
+    expect(open.headers).toContainEqual({name: 'Origin', value: 'https://site.test'});
+  });
+});
