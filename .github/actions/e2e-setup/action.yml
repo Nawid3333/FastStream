@@ -67,6 +67,11 @@ runs:
             # 19 minutes on one package) held this step until the job's 20-minute limit, and
             # the attempts below never came. apt now gives up on a download after 30 s without
             # data, and retries it; then the next attempt runs. The sound step's apt too.
+            # That was not enough: on 2026-10-07 apt-get update fell silent in both Linux
+            # playback jobs right after archive.ubuntu.com's noble-security index and stayed
+            # so for 19 minutes, with no download to time out. So each apt run has a hard
+            # limit too (a whole update and install takes about 80 s), and a run that hits
+            # it is a failed attempt like any other.
             printf 'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "3";\n' |
               sudo tee /etc/apt/apt.conf.d/99-faststream-e2e-timeouts > /dev/null
           fi
@@ -74,8 +79,8 @@ runs:
             if [ "$RUNNER_OS" = Windows ]; then
               choco install ffmpeg -y --no-progress && break
             else
-              sudo apt-get update &&
-                sudo apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils && break
+              sudo timeout -k 10 120 apt-get update &&
+                sudo timeout -k 10 300 apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils && break
             fi
             echo "::warning::Installing ffmpeg failed (attempt $attempt of 3); trying again in 30 s."
             sleep 30
@@ -159,7 +164,9 @@ runs:
         else
           if ! command -v pulseaudio > /dev/null || ! command -v pactl > /dev/null; then
             for attempt in 1 2 3; do
-              sudo apt-get update && sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils && break
+              # The same hard limits as "Install ffmpeg" (a mirror that falls silent).
+              sudo timeout -k 10 120 apt-get update &&
+                sudo timeout -k 10 300 apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils && break
               echo "::warning::Installing PulseAudio failed (attempt $attempt of 3); trying again in 30 s."
               sleep 30
             done

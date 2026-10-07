@@ -58,6 +58,20 @@ cat > "$here/stubs/sudo" <<'EOF'
 echo "sudo $*" >> "$FIX/calls"
 "$@"
 EOF
+# timeout runs the command, past its options; with apt-hangs-once, the first apt-get
+# update is one that fell silent: timeout kills it at the limit and exits 124.
+cat > "$here/stubs/timeout" <<'EOF'
+#!/bin/bash
+echo "timeout $*" >> "$FIX/calls"
+[ "$1" = -k ] && shift 2
+shift
+if [ -e "$FIX/apt-hangs-once" ] && [ ! -e "$FIX/hung" ] && [ "$1 $2" = 'apt-get update' ]; then
+  : > "$FIX/hung"
+  echo 'apt-get update (fell silent, killed at the limit)' >> "$FIX/calls"
+  exit 124
+fi
+"$@"
+EOF
 # apt-get "installs" pulseaudio and pactl: copies their stubs into the scenario's bin.
 cat > "$here/stubs/apt-get" <<'EOF'
 #!/bin/bash
@@ -79,7 +93,7 @@ scenario() {
   export FIX="$here/fix" STUBS="$here/stubs"
   rm -rf "$FIX"
   mkdir -p "$FIX/bin"
-  cp "$here/stubs/sudo" "$here/stubs/apt-get" "$here/stubs/sleep" "$FIX/bin/"
+  cp "$here/stubs/sudo" "$here/stubs/timeout" "$here/stubs/apt-get" "$here/stubs/sleep" "$FIX/bin/"
   case "$2" in
     installed) cp "$here/stubs/pulseaudio" "$here/stubs/pactl" "$FIX/bin/" ;;
     running) cp "$here/stubs/pulseaudio" "$here/stubs/pactl" "$FIX/bin/"; : > "$FIX/running" ;;
@@ -97,7 +111,9 @@ scenario() {
 
 scenario 'a runner with no sound server: GitHub Ubuntu' none
 check 'succeeds' test "$status" -eq 0
-check 'installs PulseAudio and pactl' contains "$FIX/calls" 'sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils'
+check 'installs PulseAudio and pactl' contains "$FIX/calls" 'apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils'
+check '... each apt run under a hard limit' contains "$FIX/calls" 'sudo timeout -k 10 300 apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils'
+check '... the update too' contains "$FIX/calls" 'sudo timeout -k 10 120 apt-get update'
 check 'starts the daemon, with no idle exit' contains "$FIX/calls" 'pulseaudio --start --exit-idle-time=-1'
 check 'loads the null sink' contains "$FIX/calls" 'pactl load-module module-null-sink sink_name=faststream_e2e sink_properties=device.description=FastStream-e2e'
 check 'makes it the default' contains "$FIX/calls" 'pactl set-default-sink faststream_e2e'
@@ -188,7 +204,7 @@ ffmpeg_scenario() {
   export FIX="$here/fix" STUBS="$here/stubs"
   rm -rf "$FIX"
   mkdir -p "$FIX/bin" "$FIX/home" "$FIX/choco"
-  cp "$here/stubs/sudo" "$here/stubs/apt-get" "$here/stubs/sleep" "$here/stubs/choco" "$here/stubs/cygpath" "$here/stubs/tee" "$FIX/bin/"
+  cp "$here/stubs/sudo" "$here/stubs/timeout" "$here/stubs/apt-get" "$here/stubs/sleep" "$here/stubs/choco" "$here/stubs/cygpath" "$here/stubs/tee" "$FIX/bin/"
   ln -s "$(command -v cp)" "$FIX/bin/cp"
   ln -sf "$(command -v cat)" "$FIX/bin/cat"
   # apt-get's "install" gives ffmpeg too, as the package does.
@@ -222,7 +238,12 @@ ffmpeg_scenario 'Linux: ffmpeg and PulseAudio, one apt run' Linux ''
 check 'succeeds' test "$status" -eq 0
 check 'updates the package lists once' test "$(grep -c '^apt-get update' "$FIX/calls")" -eq 1
 check 'installs both, nothing only recommended' contains "$FIX/calls" \
-  'sudo apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils'
+  'apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils'
+# A mirror that fell silent with nothing to time out held both Linux playback jobs for 19
+# minutes (2026-10-07).
+check 'each apt run under a hard limit' contains "$FIX/calls" \
+  'sudo timeout -k 10 300 apt-get install -y --no-install-recommends ffmpeg pulseaudio pulseaudio-utils'
+check '... the update too' contains "$FIX/calls" 'sudo timeout -k 10 120 apt-get update'
 check 'logs the version' contains "$FIX/out" 'ffmpeg version'
 check 'no Chocolatey' lacks "$FIX/calls" 'choco'
 check 'adds nothing to PATH' test ! -s "$FIX/path"
@@ -232,6 +253,15 @@ check 'sets apt to give up on a stalled download' contains "$FIX/calls" 'sudo te
 check '... after 30 s without data' contains "$FIX/tee-99-faststream-e2e-timeouts" 'Acquire::http::Timeout "30";'
 check '... and to retry it' contains "$FIX/tee-99-faststream-e2e-timeouts" 'Acquire::Retries "3";'
 check '... before apt runs' test "$(grep -n -m1 '^tee ' "$FIX/calls" | cut -d: -f1)" -lt "$(grep -n -m1 '^apt-get update' "$FIX/calls" | cut -d: -f1)"
+
+ffmpeg_scenario 'Linux: an apt update that falls silent is cut off, and the next attempt runs' Linux '' apt-hangs-once
+check 'succeeds' test "$status" -eq 0
+check 'the first update was killed at its limit' contains "$FIX/calls" 'apt-get update (fell silent, killed at the limit)'
+check 'warned once' test "$(grep -c '::warning::Installing ffmpeg failed' "$FIX/out")" -eq 1
+check 'waited 30 s' contains "$FIX/calls" 'sleep 30'
+check 'then updated again' test "$(grep -c '^apt-get update$' "$FIX/calls")" -eq 1
+check 'installed once' test "$(grep -c '^apt-get install' "$FIX/calls")" -eq 1
+check 'logs the version' contains "$FIX/out" 'ffmpeg version'
 
 ffmpeg_scenario 'Windows, a cache hit: the cached programs, no Chocolatey' Windows true cache-has
 check 'succeeds' test "$status" -eq 0
