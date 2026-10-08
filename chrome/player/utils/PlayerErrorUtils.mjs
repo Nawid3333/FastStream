@@ -14,7 +14,13 @@ const MAX_LENGTH = 160;
  * @return {string}
  */
 export function describePlayerError(reason) {
-  return clip(describe(reason));
+  // The client calls failedToLoad() with what this returns: a throw here (a getter that
+  // throws, a Symbol where a string was expected) would leave the player spinning instead.
+  try {
+    return clip(describe(reason));
+  } catch (e) {
+    return '';
+  }
 }
 
 /**
@@ -41,7 +47,8 @@ function describe(reason) {
     return reason.details + (code ? ' (HTTP ' + code + ')' : '');
   }
 
-  // dash.js: an event with {error: {code, message}}.
+  // dash.js: an event with {error: {code, message}}, or now and then {error: 'text'}.
+  if (typeof reason.error === 'string') return reason.error;
   if (reason.error && typeof reason.error === 'object') {
     const error = reason.error;
     if (error.message) return String(error.message);

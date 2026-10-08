@@ -27,6 +27,15 @@ describe('describePlayerError', () => {
   it('reads dash.js\'s error', () => {
     expect(describePlayerError({error: {code: 25, message: 'Manifest is not valid'}})).toBe('Manifest is not valid');
     expect(describePlayerError({error: {code: 10}})).toBe('dash.js error 10');
+    expect(describePlayerError({error: 'Segment not found'})).toBe('Segment not found');
+  });
+
+  it('never throws: the load error must still show', () => {
+    const hostile = {get target() {
+      throw new Error('getter');
+    }};
+    expect(describePlayerError(hostile)).toBe('');
+    expect(describePlayerError({error: {code: Symbol('x')}})).toBe('');
   });
 
   it('reads an Error', () => {

@@ -561,6 +561,9 @@ export default class HLSPlayer extends EventEmitter {
     const time = this.currentTime;
     const atTime = fragments?.find((fragment) => fragment && time >= fragment.start && time < fragment.end);
     if (atTime) return atTime;
+    // At the very end, or in a gap: the last one before the time, still not the old place.
+    const before = fragments?.findLast((fragment) => fragment && fragment.start <= time);
+    if (before) return before;
     const index = storeIndex(fragments, frag.sn);
     return index === null ? null : this.client.getFragment(identifier, index);
   }

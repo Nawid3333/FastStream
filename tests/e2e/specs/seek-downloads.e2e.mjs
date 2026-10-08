@@ -96,5 +96,7 @@ describe('Downloads after a seek', function() {
     const oldPlace = after.filter((place) => place < SEEK_PLACE - 1);
     expect(after.length).toBeGreaterThan(2);
     expect(oldPlace).toEqual([]);
+    // And what the seek needs was asked for.
+    expect(requests.some((request) => request.at >= seekAt - 100 && request.place === SEEK_PLACE)).toBe(true);
   });
 });
