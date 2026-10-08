@@ -35,6 +35,8 @@ export class DownloadManager {
 
     this.downloaders = [];
     this.paused = false;
+    // The next reset() keeps the downloads (keepStorageOnce).
+    this.keepStorageNext = false;
     this.speedTestBuffer = [];
     this.speedTestSeen = [];
     this.speedTestCount = 0;
@@ -96,6 +98,14 @@ export class DownloadManager {
 
   setEntry(entry) {
     const identifier = this.getIdentifier(entry);
+    // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
+    // so the next request for it downloads it again.
+    entry.onDataLost = (error) => {
+      if (this.storage?.get(identifier) !== entry) return;
+      console.warn('A stored download could not be read, it will be downloaded again', error);
+      this.storage.delete(identifier);
+      this.blobStore?.deleteBlob(identifier);
+    };
 
     // A save that failed (a full disk) leaves the data in memory, as before - without an
     // unhandled rejection, which neither caller awaited.
@@ -569,7 +579,10 @@ export class DownloadManager {
     this.probing = this.throttled;
     this.calmUntil = this.throttled ? Date.now() + DownloadManager.CalmPeriodMs : 0;
 
-    if (!this.dontClearStorage) {
+    // keepStorageOnce() asks for this reset only; resetOverride() for as long as it is on.
+    const keep = this.dontClearStorage || this.keepStorageNext;
+    this.keepStorageNext = false;
+    if (!keep) {
       await this.clearStorage();
     }
 
@@ -591,6 +604,15 @@ export class DownloadManager {
 
   resetOverride(value) {
     this.dontClearStorage = value;
+  }
+
+  /**
+   * The next reset() keeps what was downloaded, and only that one (the player built again
+   * for its source after an error, FastStreamClient.recoverPlayer). Not resetOverride(), the
+   * save manager's switch for a loaded archive: one turned it off under the other.
+   */
+  keepStorageOnce() {
+    this.keepStorageNext = true;
   }
 
   async clearStorage() {

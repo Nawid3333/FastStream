@@ -3,6 +3,9 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {BlobManager} from '../utils/BlobManager.mjs';
 import {Utils} from '../utils/Utils.mjs';
 
+// What getDataFromBlob throws when the stored data is not there at all.
+const DATA_GONE = new Error('The stored download is gone');
+
 export class DownloadEntry {
   constructor(details) {
     this.status = DownloadStatus.WAITING;
@@ -30,6 +33,11 @@ export class DownloadEntry {
     this.transferFile = null;
 
     this.responseURL = null;
+
+    // Told when its stored data cannot be read any more (getDataFromBlob): the download
+    // manager drops the entry then, so it is downloaded again.
+    /** @type {((error: *) => void)|null} */
+    this.onDataLost = null;
   }
 
   addWatcher(watcher) {
@@ -181,9 +189,34 @@ export class DownloadEntry {
     return typeof this.data === 'function' ? await this.data() : this.data;
   }
 
+  /**
+   * The stored data, as the type asked for. Data that was stored and can no longer be read
+   * (an OPFS file deleted or rewritten under its File - a File from getFile() reads the
+   * file as it is on disk now -, a Cache API entry that went) is reported to onDataLost,
+   * which drops this entry, so the fragment is downloaded again when it is next asked for
+   * instead of failing the same way every time.
+   * @param {string} [type] - 'arraybuffer' or text; the response type by default.
+   * @return {Promise<ArrayBuffer|string>}
+   */
   async getDataFromBlob(type) {
-    type = type || this.responseType;
-    return BlobManager.getDataFromBlob(await this.getData(), type);
+    // Anything but arraybuffer is read as text (BlobManager), as with no type at all.
+    const as = type || this.responseType || 'text';
+    try {
+      const data = await this.getData();
+      if (data === undefined || data === null) {
+        throw DATA_GONE;
+      }
+      return await BlobManager.getDataFromBlob(data, as);
+    } catch (e) {
+      // Only storage that lost it: data that is not there, or the browser refusing to read
+      // it (a DOMException: NotFoundError, NotReadableError, AbortError for a File whose
+      // file went). A mistake in reading it (a TypeError) would fail the same way after
+      // a new download, and dropping it each time would download it over and over.
+      if (this.status === DownloadStatus.DOWNLOAD_COMPLETE && (e === DATA_GONE || e instanceof DOMException)) {
+        this.onDataLost?.(e);
+      }
+      throw e;
+    }
   }
 
   getDataSize() {

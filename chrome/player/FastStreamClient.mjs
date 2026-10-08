@@ -44,6 +44,12 @@ import {describePlayerError} from './utils/PlayerErrorUtils.mjs';
  */
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
 
+// How often recoverPlayer builds the player again for one source: at most RECOVERY_LIMIT
+// times in RECOVERY_WINDOW_MS. A stream that fails again at once after each rebuild ends in
+// the load error within seconds; one that plays on between rare errors keeps recovering.
+const RECOVERY_LIMIT = 3;
+const RECOVERY_WINDOW_MS = 120000;
+
 export class FastStreamClient extends EventEmitter {
   /**
    * Constructs a FastStreamClient instance.
@@ -154,6 +160,10 @@ export class FastStreamClient extends EventEmitter {
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
+    // The source that has shown something (LOADEDDATA), and when the player was built again
+    // for it after an error (recoverPlayer).
+    this.playedSource = null;
+    this.recoveries = {url: null, times: []};
     this.previewPlayerSetup = null;
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
@@ -1483,6 +1493,87 @@ export class FastStreamClient extends EventEmitter {
     }
   }
 
+  /**
+   * Builds the player again for the source it plays, at the time it was at, keeping every
+   * fragment already downloaded: for an error after the source has shown something. Each
+   * such error ended the video for good ("Failed to load video!"), and only reloading the
+   * tab - which threw away everything downloaded - played it again. A seek is the usual
+   * trigger: Firefox can fail to decode what a seek appends late (bug 2069633), and only a
+   * new MediaSource plays again (hls.js's recoverMediaError, Shaka's resetMediaSource do the
+   * same). At most RECOVERY_LIMIT times in RECOVERY_WINDOW_MS, so a stream that is really
+   * broken still ends in the error, with its reason.
+   * @param {Object} player - The player whose error it is.
+   * @param {*} reason - The error.
+   * @return {boolean} Whether it builds the player again.
+   */
+  recoverPlayer(player, reason) {
+    const source = this.source;
+    if (!source || player !== this.player || this.playedSource !== source ||
+        this.fallbacks.request !== this.sourceRequests) {
+      return false;
+    }
+    const url = this.recoverySourceURL(source.url);
+    const now = Date.now();
+    if (this.recoveries.url !== url) {
+      this.recoveries = {url, times: []};
+    }
+    this.recoveries.times = this.recoveries.times.filter((time) => now - time < RECOVERY_WINDOW_MS);
+    if (this.recoveries.times.length >= RECOVERY_LIMIT) {
+      return false;
+    }
+    this.recoveries.times.push(now);
+
+    const time = this.currentTime;
+    // What the user wants, not what the element says: an error can leave it paused.
+    const wasPlaying = !!this.state.playing || !this.paused;
+    console.warn('Building the player again at ' + time + ' after an error:', reason);
+
+    const again = source.copy();
+    // The time goes the way a page's does, as the faststream-timestamp parameter that
+    // setSourceInternal reads and takes off again (whole seconds). Not for a live stream,
+    // which joins at its live edge again, nor for a blob: or data: URL, which takes none.
+    if (!this.isLive() && /^https?:/i.test(again.url)) {
+      try {
+        const withTime = new URL(again.url);
+        withTime.searchParams.set('faststream-timestamp', String(Math.floor(time)));
+        again.url = withTime.toString();
+      } catch (e) {
+        // Not a URL after all: from the start, still with everything downloaded.
+      }
+    }
+    // The quality and the audio track the user had.
+    again.defaultLevelInfo = {
+      level: this.getCurrentVideoLevelID() ?? undefined,
+      audioLevel: this.getCurrentAudioLevelID() ?? undefined,
+    };
+
+    // The next reset keeps what was downloaded: the new player asks for the same
+    // fragments, and the stored ones answer at once.
+    this.downloadManager.keepStorageOnce();
+    this.setSource(again, this.fallbacks.sources).then(() => {
+      if (wasPlaying && this.recoverySourceURL(this.source?.url || '') === url) {
+        return this.play();
+      }
+    }).catch((e) => console.warn('Could not resume after building the player again', e));
+    return true;
+  }
+
+  /**
+   * A source's URL without the time recoverPlayer gives it, so its recoveries count as one
+   * source's.
+   * @param {string} url
+   * @return {string}
+   */
+  recoverySourceURL(url) {
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.delete('faststream-timestamp');
+      return parsed.toString();
+    } catch (e) {
+      return url;
+    }
+  }
+
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
@@ -1681,6 +1772,11 @@ export class FastStreamClient extends EventEmitter {
       if (this.tryNextSource()) {
         return;
       }
+      // After it has shown something: the same source again, at the same time, with what it
+      // downloaded (recoverPlayer).
+      if (this.recoverPlayer(player, reason)) {
+        return;
+      }
       // With what went wrong: the reason is the event's only argument, and the second one
       // this read instead was never passed, so every failure said only "Failed to load video!".
       const detail = describePlayerError(reason);
@@ -1695,6 +1791,10 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
       // It shows something: a failure from now on is the stream's, not a wrong pick.
       this.fallbacks.sources = [];
+      // This player's: an old one's late event is not the new source's.
+      if (player === this.player) {
+        this.playedSource = this.source;
+      }
       // Made only where Web Audio is (constructor), as every other use checks
       this.audioConfigManager?.updateChannelCount();
     });

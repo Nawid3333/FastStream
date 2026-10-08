@@ -64,3 +64,47 @@ describe('DownloadEntry watchers', () => {
     });
   }
 });
+
+describe('DownloadEntry: stored data that can no longer be read', () => {
+  // An OPFS file deleted or rewritten under its File, a Cache API entry that went: the
+  // fragment is downloaded again when next asked for, instead of failing the same way.
+  it('tells onDataLost when its data is gone, and still fails this read', async () => {
+    const entry = new DownloadEntry({url: 'https://example.com/a.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => undefined;
+    entry.onDataLost = vi.fn();
+    await expect(entry.getDataFromBlob()).rejects.toThrow('gone');
+    expect(entry.onDataLost).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells onDataLost when its stored file cannot be read', async () => {
+    const entry = new DownloadEntry({url: 'https://example.com/a.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => ({arrayBuffer: async () => {
+      throw new DOMException('The file was deleted', 'NotFoundError');
+    }});
+    entry.onDataLost = vi.fn();
+    await expect(entry.getDataFromBlob()).rejects.toThrow('deleted');
+    expect(entry.onDataLost).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps its data when reading it fails for another reason', async () => {
+    // A TypeError is a mistake in reading it, not storage that lost it: a new download
+    // would fail the same way.
+    const entry = new DownloadEntry({url: 'https://example.com/a.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => new ArrayBuffer(3);
+    entry.onDataLost = vi.fn();
+    await expect(entry.getDataFromBlob()).rejects.toThrow(TypeError);
+    expect(entry.onDataLost).not.toHaveBeenCalled();
+  });
+
+  it('reads data that is there as before', async () => {
+    const entry = new DownloadEntry({url: 'https://example.com/a.ts', responseType: 'arraybuffer'});
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => new Blob([new Uint8Array([1, 2, 3])]);
+    entry.onDataLost = vi.fn();
+    expect([...new Uint8Array(await entry.getDataFromBlob())]).toEqual([1, 2, 3]);
+    expect(entry.onDataLost).not.toHaveBeenCalled();
+  });
+});

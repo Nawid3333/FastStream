@@ -112,6 +112,26 @@ describe('DownloadManager', () => {
     expect(entry.priority).toBe(1000);
   });
 
+  it('downloads again a fragment whose stored data can no longer be read', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const manager = new DownloadManager(null);
+    manager.blobStore = {deleteBlob: vi.fn(), close() {}};
+    manager.downloaders = [idleDownloader()];
+    const details = {url: 'https://example.com/a.ts', responseType: 'arraybuffer'};
+    const entry = manager.getFile(details, {}, 0).entry;
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => undefined;
+
+    await expect(entry.getDataFromBlob()).rejects.toThrow();
+
+    expect(manager.getEntry(details)).toBeUndefined();
+    expect(manager.blobStore.deleteBlob).toHaveBeenCalledTimes(1);
+    // The next request makes a new download of it.
+    const again = manager.getFile(details, {}, 1000).entry;
+    expect(again).not.toBe(entry);
+    vi.restoreAllMocks();
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
