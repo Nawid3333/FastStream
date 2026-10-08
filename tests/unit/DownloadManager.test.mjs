@@ -95,6 +95,23 @@ describe('DownloadManager', () => {
     vi.restoreAllMocks();
   });
 
+  it('raises the priority of a download playback starts waiting for while it runs', () => {
+    // A download ahead (priority 0) that the player now needs (1000): a retry of it must
+    // go out first in Firefox's queue (StandardDownloader asks entry.priority each attempt).
+    const manager = new DownloadManager(null);
+    manager.downloaders = [idleDownloader()];
+    const details = {url: 'https://example.com/a.ts', responseType: 'arraybuffer'};
+    const entry = manager.getFile(details, {}, 0).entry;
+    expect(manager.downloaders[0].entry).toBe(entry);
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED; // as StandardDownloader.run() leaves it
+
+    manager.getFile(details, {}, 1000);
+    expect(entry.priority).toBe(1000);
+    // A lower one leaves it.
+    manager.getFile(details, {}, 0);
+    expect(entry.priority).toBe(1000);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();

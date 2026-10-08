@@ -2,6 +2,9 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {SpeedTracker} from './SpeedTracker.mjs';
 import {FetchLoader} from './FetchLoader.mjs';
 
+// The priority the playback libraries' requests have (HLSLoader, DashLoader, MP4Player).
+const PLAYBACK_PRIORITY = 1000;
+
 export class StandardDownloader {
   constructor(manager) {
     this.speedTracker = new SpeedTracker();
@@ -58,6 +61,10 @@ export class StandardDownloader {
       retryDelay: 1000,
       maxRetryDelay: 64000,
       ...entry.config,
+      // What playback waits for (a library's request, priority 1000: HLSLoader, DashLoader,
+      // MP4Player) goes first in Firefox's queue for the host; asked at each attempt, so a
+      // retry has the priority of a request that joined the download meanwhile.
+      fetchPriority: () => (entry.priority >= PLAYBACK_PRIORITY ? 'high' : 'auto'),
     };
 
     entry.getRequest().then((request)=>{

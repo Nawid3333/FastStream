@@ -6,6 +6,30 @@ import {StandardDownloader} from '../../chrome/player/network/StandardDownloader
 // left the downloader busy for good: DownloadManager never gave it another download.
 
 describe('StandardDownloader', () => {
+  it('asks for what playback waits for first, and for the rest as usual', async () => {
+    // Playback's requests (HLSLoader, DashLoader, MP4Player) have priority 1000; the
+    // client's downloads ahead have 0. Firefox sends a host's queued requests by priority.
+    globalThis.self = globalThis;
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      for (const priority of [1000, 0]) {
+        const downloader = new StandardDownloader({onDownloaderFinished: vi.fn()});
+        downloader.run({
+          priority,
+          config: {},
+          onAbort: vi.fn(),
+          getRequest: async () => ({url: 'https://example.com/a.ts', responseType: 'arraybuffer', headers: {}}),
+        });
+        await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(priority ? 1 : 2));
+        downloader.abort();
+      }
+      expect(fetchMock.mock.calls.map(([, init]) => init.priority)).toEqual(['high', 'auto']);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('is free again after a download whose entry failed to take the response', async () => {
     const manager = {onDownloaderFinished: vi.fn()};
     const downloader = new StandardDownloader(manager);

@@ -231,6 +231,11 @@ export class DownloadManager {
       // were none (during reset) was waiting for a queueNext that nothing called: the
       // manifest a new player asked for again joined it, and never loaded.
       this.queueNext();
+    } else if (storedEntry.status === DownloadStatus.DOWNLOAD_INITIATED && storedEntry.priority < priority) {
+      // Joined while it downloads (playback now waits for what was a download ahead): a
+      // retry goes out with the higher priority (StandardDownloader's fetchPriority). The
+      // request already sent keeps its own.
+      storedEntry.priority = priority;
     }
 
     return watcher;

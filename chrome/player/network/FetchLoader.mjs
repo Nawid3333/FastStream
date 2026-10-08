@@ -21,6 +21,17 @@ export function retryAfterMs(value, now = Date.now()) {
   return Number.isFinite(date) ? Math.max(date - now, 0) : null;
 }
 
+/**
+ * The Fetch Priority a load asks for: config.fetchPriority, a value or a function asked at
+ * each attempt (a retry goes out with the priority the download has by then).
+ * @param {Object} config - The load's config.
+ * @return {string} 'high', 'low' or 'auto'.
+ */
+export function fetchPriorityOf(config) {
+  const priority = typeof config.fetchPriority === 'function' ? config.fetchPriority() : config.fetchPriority;
+  return priority === 'high' || priority === 'low' ? priority : 'auto';
+}
+
 export class FetchLoader {
   constructor() {
     this.callbacks = [];
@@ -194,6 +205,12 @@ export class FetchLoader {
         // 'no-store' Firefox opens no cache entry at all (INHIBIT_CACHING and
         // LOAD_BYPASS_CACHE; nsHttpChannel::OpenCacheEntryInternal returns before it).
         cache: 'no-store',
+        // Firefox opens six connections to a host, for all tabs together, and the rest of
+        // their requests wait in its queue in the order of their priority. The fragment
+        // playback waits for goes out 'high' (StandardDownloader), so it is not stuck
+        // behind what this or another FastStream tab loads ahead (Fetch Priority, Firefox
+        // 132).
+        priority: fetchPriorityOf(config),
         signal: controller.signal,
       });
     } catch (e) {
