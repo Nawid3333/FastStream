@@ -35,6 +35,7 @@ import {AlertPolyfill} from './utils/AlertPolyfill.mjs';
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
+import {describePlayerError} from './utils/PlayerErrorUtils.mjs';
 
 
 /**
@@ -1671,8 +1672,8 @@ export class FastStreamClient extends EventEmitter {
       this.autoplayNextVideo();
     });
 
-    this.context.on(DefaultPlayerEvents.ERROR, (event, msg) => {
-      console.error('ERROR', event);
+    this.context.on(DefaultPlayerEvents.ERROR, (reason) => {
+      console.error('ERROR', reason);
       // A video codec that just failed to decode for good: the same source again, without it.
       if (player.takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
         return;
@@ -1680,7 +1681,11 @@ export class FastStreamClient extends EventEmitter {
       if (this.tryNextSource()) {
         return;
       }
-      this.failedToLoad(msg || Localize.getMessage('player_error_load'));
+      // With what went wrong: the reason is the event's only argument, and the second one
+      // this read instead was never passed, so every failure said only "Failed to load video!".
+      const detail = describePlayerError(reason);
+      const message = Localize.getMessage('player_error_load');
+      this.failedToLoad(detail ? message + ' (' + detail + ')' : message);
     });
 
     this.context.on(DefaultPlayerEvents.NEED_KEY, (event) => {

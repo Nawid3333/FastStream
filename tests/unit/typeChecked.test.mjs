@@ -31,6 +31,7 @@ const CHECKED = [
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/players/DecodingCapabilities.mjs',
   'chrome/player/utils/AudioUtils.mjs',
+  'chrome/player/utils/PlayerErrorUtils.mjs',
   'chrome/player/utils/StreamLength.mjs',
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/URLUtils.mjs',
