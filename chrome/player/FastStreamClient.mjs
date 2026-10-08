@@ -36,6 +36,8 @@ import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
 import {describePlayerError} from './utils/PlayerErrorUtils.mjs';
+import {PlayerPeers} from './network/PlayerPeers.mjs';
+import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 
 
 /**
@@ -127,6 +129,17 @@ export class FastStreamClient extends EventEmitter {
     this.keybindManager = new KeybindManager(this);
     this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
+    // The other FastStream players: one the user watches and that is short of video gets
+    // the network (PlayerPeers.shouldYield, DownloadManager.setYield).
+    this.peers = new PlayerPeers({
+      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(), ramBytes: 0}),
+      onChange: () => {
+        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield());
+      },
+    });
+    this.peers.start();
+    this.onPeersVisibility = () => this.updatePeers();
+    document.addEventListener('visibilitychange', this.onPeersVisibility);
     this.sourcesBrowser = new SourcesBrowser(this);
     this.vpnPrompt = new VpnPrompt(this);
     this.videoAnalyzer = new VideoAnalyzer(this);
@@ -324,6 +337,8 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
+    document.removeEventListener('visibilitychange', this.onPeersVisibility);
+    this.peers.stop();
     this.resetPlayer();
     this.downloadManager.destroy();
     this.videoAnalyzer.destroy();
@@ -1244,6 +1259,8 @@ export class FastStreamClient extends EventEmitter {
       this.interfaceController.setStatusMessage(StatusTypes.REQINTERACTION, null);
     }
 
+    this.updatePeers();
+
     if (this.player) {
       this.updatePreview();
       this.predownloadFragments();
@@ -1264,10 +1281,37 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Seconds of video this player has ahead of the playhead, without a hole.
+   * @return {number}
+   */
+  getVideoAhead() {
+    return aheadOfPlayhead({
+      video: this.fragments,
+      audio: this.audioFragments,
+      buffered: this.player?.buffered,
+      time: this.state.currentTime,
+    });
+  }
+
+  /**
+   * Tells the other players how this one is doing, and steps aside for them or not.
+   */
+  updatePeers() {
+    if (this.destroyed) return;
+    this.peers.announce();
+    this.downloadManager.setYield(this.peers.shouldYield());
+  }
+
+  /**
    * Pre-downloads fragments for smooth playback.
    * @return {boolean} True if any fragments were downloaded.
    */
   predownloadFragments() {
+    // Another player that the user watches needs the network (DownloadManager.setYield).
+    if (this.downloadManager.yielding) {
+      return false;
+    }
+
     // Don't pre-download if user is offline
     if (!navigator.onLine) {
       return false;
@@ -1808,12 +1852,14 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
       this.interfaceController.pause();
       this.reportPlaying(false);
+      this.updatePeers();
     });
 
 
     this.context.on(DefaultPlayerEvents.PLAY, (event) => {
       this.interfaceController.play();
       this.reportPlaying(true);
+      this.updatePeers();
     });
 
 
@@ -2108,6 +2154,8 @@ export class FastStreamClient extends EventEmitter {
     if (this.player) {
       this.player.currentTime = value;
     }
+    this.peers?.noteSeek();
+    this.updatePeers();
     if (this.syncedAudioPlayer) this.syncedAudioPlayer.setCurrentTime(value);
   }
 

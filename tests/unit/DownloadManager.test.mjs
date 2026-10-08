@@ -132,6 +132,38 @@ describe('DownloadManager', () => {
     vi.restoreAllMocks();
   });
 
+  it('yielding cancels the downloads ahead, not what playback waits for, nor one nearly done', () => {
+    // Another player the user watches is short of video (PlayerPeers.shouldYield).
+    const client = {predownloadFragments: vi.fn()};
+    const manager = new DownloadManager(client);
+    const running = (priority, loaded, total, delivering = false) => {
+      const entry = {priority, abort: vi.fn()};
+      return {entry, delivering, stats: total ? {loaded, total} : null};
+    };
+    const ahead = running(0, 100, 1000);
+    const unknownSize = running(0, 0, 0);
+    const playback = running(1000, 0, 1000);
+    const nearlyDone = running(0, 600, 1000);
+    const delivering = running(0, 0, 1000, true);
+    manager.downloaders = [ahead, unknownSize, playback, nearlyDone, delivering, {entry: null}];
+
+    manager.setYield(true);
+    expect(manager.yielding).toBe(true);
+    expect(ahead.entry.abort).toHaveBeenCalledTimes(1);
+    expect(unknownSize.entry.abort).toHaveBeenCalledTimes(1);
+    expect(playback.entry.abort).not.toHaveBeenCalled();
+    expect(nearlyDone.entry.abort).not.toHaveBeenCalled();
+    expect(delivering.entry.abort).not.toHaveBeenCalled();
+    // Once, not on every tick.
+    manager.setYield(true);
+    expect(ahead.entry.abort).toHaveBeenCalledTimes(1);
+
+    // Taking the network back starts the downloads ahead again.
+    manager.setYield(false);
+    expect(manager.yielding).toBe(false);
+    expect(client.predownloadFragments).toHaveBeenCalledTimes(1);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();

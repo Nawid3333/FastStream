@@ -25,6 +25,18 @@ describe('StandardDownloader', () => {
         downloader.abort();
       }
       expect(fetchMock.mock.calls.map(([, init]) => init.priority)).toEqual(['high', 'auto']);
+
+      // While its player leaves the network to a watched one, the rest goes 'low'.
+      const yielding = new StandardDownloader({onDownloaderFinished: vi.fn(), yielding: true});
+      yielding.run({
+        priority: 0,
+        config: {},
+        onAbort: vi.fn(),
+        getRequest: async () => ({url: 'https://example.com/b.ts', responseType: 'arraybuffer', headers: {}}),
+      });
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      yielding.abort();
+      expect(fetchMock.mock.calls[2][1].priority).toBe('low');
     } finally {
       vi.unstubAllGlobals();
     }

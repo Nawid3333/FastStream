@@ -1,7 +1,7 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
-import {StandardDownloader} from './StandardDownloader.mjs';
+import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
 export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
@@ -37,6 +37,8 @@ export class DownloadManager {
     this.paused = false;
     // The next reset() keeps the downloads (keepStorageOnce).
     this.keepStorageNext = false;
+    // Leaving the network to a watched player that is short of video (setYield).
+    this.yielding = false;
     this.speedTestBuffer = [];
     this.speedTestSeen = [];
     this.speedTestCount = 0;
@@ -398,6 +400,34 @@ export class DownloadManager {
     this.client.predownloadFragments();
     for (let i = 0; i < this.downloaders.length; i++) {
       this.queueNext();
+    }
+  }
+
+  /**
+   * Leaves the network to another FastStream player that the user watches and that is short
+   * of video (PlayerPeers.shouldYield), or takes it back. While yielding the client starts no
+   * downloads ahead (predownloadFragments), what still goes out asks Firefox for 'low'
+   * priority (StandardDownloader), and the downloads ahead that are running are cancelled -
+   * not those this player's own playback waits for (priority 1000 and up), nor one at least
+   * half done, nor one being delivered. A cancelled one is downloaded again later, from the
+   * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
+   * user's, and stops everything.
+   * @param {boolean} yielding
+   */
+  setYield(yielding) {
+    if (!this.downloaders || this.yielding === yielding) return;
+    this.yielding = yielding;
+    if (!yielding) {
+      this.client?.predownloadFragments?.();
+      this.queueNext();
+      return;
+    }
+    for (const downloader of this.downloaders.slice()) {
+      const entry = downloader.entry;
+      if (!entry || downloader.delivering || (entry.priority || 0) >= PLAYBACK_PRIORITY) continue;
+      const stats = downloader.stats;
+      if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
+      entry.abort();
     }
   }
 
