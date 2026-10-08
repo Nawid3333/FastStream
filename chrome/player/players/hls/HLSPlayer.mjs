@@ -544,11 +544,24 @@ export default class HLSPlayer extends EventEmitter {
     return !!level?.details?.live;
   }
 
+  /**
+   * The fragment at the playhead, in the level that is playing. The client downloads ahead
+   * from it (FastStreamClient.getNextToDownload). hls.js's currentFrag is the fragment that
+   * plays, and after a seek it stays the old one until the first fragment at the new time
+   * plays: the downloads went on from the old place meanwhile, three segments there before
+   * the one the seek needed. So the level comes from hls.js, the fragment from the time, as
+   * currentAudioFragment and DashPlayer's do.
+   * @return {Object|null}
+   */
   get currentFragment() {
     const frag = this.hls.streamController.currentFrag;
     if (!frag) return null;
     const identifier = this.getIdentifier(0, frag.level);
-    const index = storeIndex(this.client.getFragments(identifier), frag.sn);
+    const fragments = this.client.getFragments(identifier);
+    const time = this.currentTime;
+    const atTime = fragments?.find((fragment) => fragment && time >= fragment.start && time < fragment.end);
+    if (atTime) return atTime;
+    const index = storeIndex(fragments, frag.sn);
     return index === null ? null : this.client.getFragment(identifier, index);
   }
 
