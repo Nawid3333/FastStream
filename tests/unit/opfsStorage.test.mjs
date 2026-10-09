@@ -121,7 +121,34 @@ class FakeDir {
  * @param {FakeDir} root
  * @return {Promise<Object>} the worker, as OPFSManager uses one
  */
-async function startWorker(root) {
+/**
+ * navigator.locks as far as opfs-worker.mjs uses it: an exclusive lock held until its
+ * callback's promise settles, and an ifAvailable request that gets null while it is held.
+ */
+class FakeLocks {
+  constructor() {
+    this.held = new Set();
+  }
+
+  async request(name, options, callback) {
+    if (typeof options === 'function') {
+      callback = options;
+      options = {};
+    }
+    if (this.held.has(name)) {
+      if (options.ifAvailable) return callback(null);
+      throw new Error('this stand-in does not queue');
+    }
+    this.held.add(name);
+    try {
+      return await callback({name});
+    } finally {
+      this.held.delete(name);
+    }
+  }
+}
+
+async function startWorker(root, locks = new FakeLocks()) {
   let onMessage;
   const worker = {
     answer: () => {},
@@ -134,7 +161,7 @@ async function startWorker(root) {
     },
     postMessage: (message) => worker.answer(message),
   });
-  vi.stubGlobal('navigator', {storage: {getDirectory: async () => root}});
+  vi.stubGlobal('navigator', {storage: {getDirectory: async () => root}, locks});
   vi.resetModules();
   await import('../../chrome/player/network/opfs-worker.mjs');
   return worker;
@@ -145,8 +172,8 @@ async function startWorker(root) {
  * @param {FakeDir} root
  * @return {Promise<OPFSManager>}
  */
-async function startManager(root) {
-  const worker = await startWorker(root);
+async function startManager(root, locks) {
+  const worker = await startWorker(root, locks);
   const manager = new OPFSManager();
   manager.worker = worker;
   worker.answer = (message) => manager.handleMessage(message);
@@ -290,6 +317,35 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
         `fsblob-${now - 60000}-5`,
         manager.sessionName,
       ].sort());
+    } finally {
+      await manager.close();
+    }
+  });
+});
+
+describe('opfs-worker: a live session by its lock', () => {
+  it('keeps a session whose worker holds its lock, however late its heartbeat', async () => {
+    // A late heartbeat (a busy worker, a computer back from sleep) had a live player's
+    // whole stored video deleted by the next player that started.
+    const now = Date.now();
+    const root = new FakeDir();
+    const fsblob = await root.getDirectoryHandle('fsblob', {create: true});
+    const live = `fsblob-${now - 60000}-7`;
+    const gone = `fsblob-${now - 60000}-8`;
+    for (const name of [live, gone]) {
+      const dir = new FakeDir();
+      dir.children.set('_meta.json', new FakeFile(JSON.stringify({updated_time: now - 60000})));
+      fsblob.children.set(name, dir);
+    }
+    const locks = new FakeLocks();
+    locks.held.add('faststream-fsblob:' + live);
+
+    const manager = await startManager(root, locks);
+    try {
+      expect(fsblob.children.has(live)).toBe(true);
+      expect(fsblob.children.has(gone)).toBe(false);
+      // And the new session holds its own.
+      expect(locks.held.has('faststream-fsblob:' + manager.sessionName)).toBe(true);
     } finally {
       await manager.close();
     }
