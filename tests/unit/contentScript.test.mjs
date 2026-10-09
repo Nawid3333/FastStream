@@ -680,6 +680,37 @@ describe('a player put in a shadow root', () => {
   });
 });
 
+// A player over the whole page pauses the page's media, and again on every play, while it
+// is up (pauseAllWithin). A call's live stream too: a watch party's voice chat fell silent,
+// the case every other pause leaves alone (playsLiveStream).
+describe('a player over the whole page', () => {
+  it('leaves a call\'s live stream alone', async () => {
+    const page = loadContentScript();
+    page.document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.document.body.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.window.MediaStream = class MediaStream {};
+    const film = page.document.createElement('audio');
+    const call = page.document.createElement('audio');
+    call.srcObject = new page.window.MediaStream();
+    page.document.body.appendChild(film);
+    page.document.body.appendChild(call);
+    film.paused = false;
+    call.paused = false;
+    // No video on the page: opened with force (the toolbar on a page with only a stream).
+    await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true});
+    expect(page.document.querySelectorAll('iframe')).toHaveLength(1);
+    expect([film.paused, call.paused]).toEqual([true, false]);
+
+    // The page starts both again.
+    for (const media of [film, call]) {
+      media.paused = false;
+      media.listeners.filter((l) => l.type === 'play').forEach((l) => l.listener.call(media, {target: media}));
+    }
+    expect([film.paused, call.paused]).toEqual([true, false]);
+  });
+});
+
 // The resize observer updated the player at most every 100 ms and dropped the changes in
 // between: after a box that kept changing (a sidebar sliding shut), the player kept a size
 // from the middle of it until the next resize.

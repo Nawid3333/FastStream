@@ -1303,8 +1303,9 @@
   }
 
   function pauseOnPlay() {
+    // A call's live stream plays on (playsLiveStream), also one given its stream later.
     // eslint-disable-next-line no-invalid-this
-    this.pause();
+    if (!playsLiveStream(this)) this.pause();
   }
 
   function pauseAllWithin(element) {
@@ -1314,7 +1315,9 @@
     const hooked = new Set();
     const hook = (media) => {
       try {
-        media.pause();
+        // Not a call's live stream: a watch party's voice chat fell silent under a player
+        // over the whole page, as every other pause here already knew (playsLiveStream).
+        if (!playsLiveStream(media)) media.pause();
       } catch (e) {
         console.error(e);
       }
