@@ -185,6 +185,8 @@ describe('MP4 from a server without proper ranges', function() {
       loader: !!player.loader,
       mediaSource: player.mediaSource?.readyState,
       tracks: player.mp4box?.fragmentedTracks?.map((track) => [track.id, track.trak.nextSample, track.trak.samples.length]),
+      // More moofs than the file has: a range parsed twice, its samples listed twice.
+      moofs: [player.mp4box?.moofs?.length, player.mp4box?.lastMoofIndex],
       video: wrapper(player.videoSourceBuffer),
       audio: wrapper(player.audioSourceBuffer),
       readyState: player.getVideo().readyState,
