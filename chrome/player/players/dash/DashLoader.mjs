@@ -198,7 +198,17 @@ export function DASHLoaderFactory(player) {
         },
       }, {
         onSuccess: async (entry, xhr) => {
-          const data = await entry.getDataFromBlob();
+          let data;
+          try {
+            data = await entry.getDataFromBlob();
+          } catch (e) {
+            // Stored, and no longer there to read (DownloadEntry.onDataLost drops it, so the
+            // next request downloads it again): a failure dash.js retries. The rejection went
+            // nowhere, and dash.js waited for the answer for ever.
+            console.warn('Could not read a stored download', e);
+            httpRequest.customData.onFail(entry);
+            return;
+          }
           httpRequest.customData.onSuccess(data, entry.responseURL);
         },
         onProgress: (stats, context, data, xhr)=> {
