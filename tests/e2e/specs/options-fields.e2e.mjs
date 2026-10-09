@@ -322,6 +322,31 @@ describe('Options page size fields, typed by hand', function() {
     await savedAs('maxSpeed', -1);
   });
 
+  // A limit of 0 Mbit/s held back reading ahead whenever anything downloaded, and a size of
+  // 0 was read as no limit while the field said 0 (review, 2026-10-09).
+  it('reads 0, as an empty field, as no limit, and a number too big to save as none', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    await typeInto('maxspeed', '0');
+    await browser.keys(['Tab']);
+    await savedAs('maxSpeed', -1);
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '0');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+    expect(await shown('maxsize')).toEqual(['', 'GB']);
+
+    // 1e308 GB is no number JSON keeps: it was saved as null.
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '1e308');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+  });
+
   it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
