@@ -184,8 +184,11 @@ them.
 1. Copy `faststream-mpv-host.mjs` somewhere permanent, e.g.
    `%LOCALAPPDATA%\FastStreamMpvHost\`.
 2. Create a wrapper `com.faststream.mpv.bat` next to it (Windows won't start
-   a `.mjs` as a program). Save it as UTF-8: `chcp 65001` makes cmd read its
-   paths that way, or a user name with an accent (José, Müller) breaks them:
+   a `.mjs` as a program). Save it as UTF-8 without a BOM (Notepad: "UTF-8",
+   not "UTF-8 with BOM"): a BOM breaks its first line, and cmd then writes its
+   commands where Firefox expects the helper's answers. `chcp 65001` makes cmd
+   read its paths as UTF-8, or a user name with an accent (José, Müller) breaks
+   them:
 
    ```bat
    @echo off

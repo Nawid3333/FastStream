@@ -138,12 +138,14 @@ into mpv yourself, which opens it with yt-dlp.
 
 ## When something does not work
 
-Turn on the helper's log. Add `"debug": true` to
-`%LOCALAPPDATA%\FastStreamMpvHost\config.json`, and keep what is already in it
-(your `mpvPath`, and `ipcToken`, the name of the helper's pipe to mpv):
+Turn on the helper's log. Open `%LOCALAPPDATA%\FastStreamMpvHost\config.json` in a
+text editor and add one entry at its end: a comma after the last value, then
+`"debug": true` before the closing `}`. Keep the rest as it is (your `mpvPath`,
+and `ipcToken`, the name of the helper's pipe to mpv). The end of the file then
+reads:
 
 ```json
-{"mpvPath": "(as it was)", "ipcToken": "(as it was)", "debug": true}
+..., "debug": true}
 ```
 
 No reinstall or restart needed — it is read on every message. It then writes
