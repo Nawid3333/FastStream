@@ -85,6 +85,10 @@ async function skipWithoutSound(test, played) {
  * @return {Promise<boolean>} False when it was to play and no sound flowed.
  */
 async function openAudioTools({play = false} = {}) {
+  // From the default audio settings: they are saved by themselves (AudioConfigManager
+  // saveChanges), and one test's master compressor, left on, was the next one's.
+  await browser.url(`/player/index.html?t=${Date.now()}`);
+  await browser.execute(() => ['audioProfiles', 'currentAudioProfile', 'loadedDefaultAudioProfiles'].forEach((key) => localStorage.removeItem(key)));
   await browser.url(`/player/index.html?t=${Date.now()}`);
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream),
       {timeout: 30000, timeoutMsg: 'the player never started'});
@@ -270,6 +274,24 @@ describe('Audio tools', function() {
       console.log(`      master compressor on ${query}:`, JSON.stringify(state));
       expect(state).toEqual({enabled: true, built: true, threshold: -40});
     }
+  });
+
+  // There is no Save button any more: without a click on it, a change was gone when the
+  // player was opened again.
+  it('keeps a change when the player is opened again', async function() {
+    await openAudioTools();
+    await browser.execute(() => {
+      window.fastStream.audioConfigManager.currentProfile.master.compressor.threshold = -33;
+    });
+    // Saved on the player's next tick.
+    await browser.waitUntil(async () => browser.execute(() =>
+      JSON.parse(localStorage.getItem('audioProfiles') || '[]').some((profile) => profile.master?.compressor?.threshold === -33)),
+    {timeout: 10000, timeoutMsg: 'the change was never saved'});
+    await browser.url(`/player/index.html?t=${Date.now()}`);
+    const threshold = await settle(() => browser.execute(() =>
+      window.fastStream?.audioConfigManager?.currentProfile?.master?.compressor?.threshold ?? null),
+    (value) => value === -33);
+    expect(threshold).toBe(-33);
   });
 
   it('rebuilds the master compressor with its settings when the channel count changes', async function() {
