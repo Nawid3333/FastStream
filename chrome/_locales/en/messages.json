@@ -1164,7 +1164,13 @@
         "message": "Open detected streams in mpv (external player)"
     },
     "options_mpv_body": {
-        "message": "When MPV mode is on, the toolbar button toggles between Off, On (built-in player) and MPV. On allowlisted sites, detected streams open directly in mpv on your computer instead of the browser player. Requires the FastStream mpv host - see the repository's native-host folder for setup instructions."
+        "message": "When MPV mode is on, the toolbar button toggles between Off, On (built-in player) and MPV. On allowlisted sites, detected streams open directly in mpv on your computer instead of the browser player. Requires mpv and the FastStream mpv host on your computer: on Windows, the one-click setup (first link below) installs both; the manual setup (second link) is for developers and other systems."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "One-click setup for Windows (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Manual setup"
     },
     "options_mpv_allowlist": {
         "message": "MPV Allowlist"
@@ -1200,7 +1206,22 @@
         "message": "host reachable, but mpv was not found"
     },
     "options_mpv_test_fail": {
-        "message": "mpv host not available"
+        "message": "mpv host not available - is it installed? See the setup links at the top of this section."
+    },
+    "options_mpv_suggest_text": {
+        "message": "The mpv helper is installed - open videos in mpv?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "Turn on MPV mode"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Dismiss"
+    },
+    "options_mpv_suggest_done": {
+        "message": "MPV mode is on. Add the sites whose videos should open in mpv to the MPV Allowlist (under MPV Mode below). On any other site, press Alt+F (the MPV shortcut) and start the video, or use the mpv button in FastStream's player."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Close"
     },
     "player_mpv_label": {
         "message": "Open this stream in mpv"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - the stream did not open: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - the mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository"
+        "message": "FastStream - MPV - the mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - Playing in MPV - decoded by the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card"
     },
     "options_mpv_test_outdated": {
-        "message": "The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."
+        "message": "The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "The open mpv decodes on the graphics card: $1."
@@ -1239,7 +1260,7 @@
         "message": "The open mpv decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_sent_outdated": {
-        "message": "Sent to mpv. The mpv host on this computer is out of date: run update-local.cmd (or native-host\\install.ps1) in the FastStream repository."
+        "message": "Sent to mpv. The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"

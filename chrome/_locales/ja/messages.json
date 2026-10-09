@@ -1164,7 +1164,13 @@
         "message": "検出したストリームを mpv（外部プレーヤー）で開く"
     },
     "options_mpv_body": {
-        "message": "MPV モードが有効なとき、ツールバーのボタンは「オフ」「オン（内蔵プレーヤー）」「MPV」を切り替えます。許可リストのサイトでは、検出されたストリームはブラウザーのプレーヤーではなく、コンピューター上の mpv で直接開かれます。FastStream mpv ホストが必要です。セットアップ手順はリポジトリーの native-host フォルダーを参照してください。"
+        "message": "MPV モードが有効なとき、ツールバーのボタンは「オフ」「オン（内蔵プレーヤー）」「MPV」を切り替えます。許可リストのサイトでは、検出されたストリームはブラウザーのプレーヤーではなく、コンピューター上の mpv で直接開かれます。コンピューターに mpv と FastStream mpv ホストが必要です。Windows では、ワンクリックセットアップ（下の最初のリンク）で両方をインストールできます。手動セットアップ（2 番目のリンク）は開発者やその他のシステム向けです。"
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Windows 用ワンクリックセットアップ（mpv-config）"
+    },
+    "options_mpv_setup_manual": {
+        "message": "手動セットアップ"
     },
     "options_mpv_allowlist": {
         "message": "MPV 許可リスト"
@@ -1200,7 +1206,22 @@
         "message": "ホストには到達できましたが、mpv が見つかりません"
     },
     "options_mpv_test_fail": {
-        "message": "mpv ホストを利用できません"
+        "message": "mpv ホストを利用できません。インストールされていますか？このセクションの先頭にあるセットアップのリンクを参照してください。"
+    },
+    "options_mpv_suggest_text": {
+        "message": "mpv ヘルパーがインストールされています。動画を mpv で開きますか？"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "MPV モードをオンにする"
+    },
+    "options_mpv_suggest_no": {
+        "message": "今後表示しない"
+    },
+    "options_mpv_suggest_done": {
+        "message": "MPV モードがオンになりました。動画を mpv で開きたいサイトを MPV 許可リスト（下の「MPV モード」内）に追加してください。その他のサイトでは、Alt+F（MPV のショートカット）を押してから動画を再生するか、FastStream のプレーヤーの mpv ボタンを使ってください。"
+    },
+    "options_mpv_suggest_close": {
+        "message": "閉じる"
     },
     "player_mpv_label": {
         "message": "このストリームを mpv で開く"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - ストリームを開けませんでした: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください"
+        "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV で再生中 - グラフィックカードでデコード: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - MPV で再生中 - プロセッサでデコード ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください"
     },
     "options_mpv_test_outdated": {
-        "message": "このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+        "message": "このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
     },
     "options_mpv_test_decoder_hw": {
         "message": "開いている mpv はグラフィックカードでデコードしています: $1。"
@@ -1239,7 +1260,7 @@
         "message": "開いている mpv はプロセッサでデコードしています ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください。"
     },
     "player_mpv_sent_outdated": {
-        "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: FastStream リポジトリで update-local.cmd（または native-host\\install.ps1）を実行してください。"
+        "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
     },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"

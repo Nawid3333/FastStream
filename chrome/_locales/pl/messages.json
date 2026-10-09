@@ -1164,7 +1164,13 @@
         "message": "Otwieraj wykryte strumienie w mpv (zewnętrznym odtwarzaczu)"
     },
     "options_mpv_body": {
-        "message": "Gdy tryb MPV jest włączony, przycisk na pasku narzędzi przełącza się między trybami: Wyłączony, Włączony (wbudowany odtwarzacz) i MPV. Na witrynach z listy dozwolonych wykryte strumienie otwierają się bezpośrednio w mpv na twoim komputerze zamiast w odtwarzaczu przeglądarki. Wymaga hosta mpv FastStream – instrukcje konfiguracji znajdziesz w folderze native-host w repozytorium."
+        "message": "Gdy tryb MPV jest włączony, przycisk na pasku narzędzi przełącza się między trybami: Wyłączony, Włączony (wbudowany odtwarzacz) i MPV. Na witrynach z listy dozwolonych wykryte strumienie otwierają się bezpośrednio w mpv na twoim komputerze zamiast w odtwarzaczu przeglądarki. Wymaga mpv i hosta mpv FastStream na twoim komputerze: w systemie Windows instalacja jednym kliknięciem (pierwszy link poniżej) instaluje oba; instalacja ręczna (drugi link) jest dla programistów i innych systemów."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Instalacja jednym kliknięciem dla Windows (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Instalacja ręczna"
     },
     "options_mpv_allowlist": {
         "message": "Lista dozwolonych witryn dla MPV"
@@ -1200,7 +1206,22 @@
         "message": "Host osiągalny, ale nie znaleziono mpv"
     },
     "options_mpv_test_fail": {
-        "message": "Host mpv niedostępny"
+        "message": "Host mpv niedostępny – czy jest zainstalowany? Zobacz linki instalacyjne na początku tej sekcji."
+    },
+    "options_mpv_suggest_text": {
+        "message": "Pomocnik mpv jest zainstalowany – otwierać filmy w mpv?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "Włącz tryb MPV"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Odrzuć"
+    },
+    "options_mpv_suggest_done": {
+        "message": "Tryb MPV jest włączony. Dodaj witryny, których filmy mają się otwierać w mpv, do listy dozwolonych witryn dla MPV (niżej, w sekcji Tryb MPV). Na innych witrynach naciśnij Alt+F (skrót MPV) i uruchom film albo użyj przycisku mpv w odtwarzaczu FastStream."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Zamknij"
     },
     "player_mpv_label": {
         "message": "Otwórz ten strumień w mpv"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - nie otwarto strumienia: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream"
+        "message": "FastStream - MPV - host mpv na tym komputerze jest nieaktualny: uruchom „Update mpv” z menu Start (w kopii repozytorium FastStream: update-local.cmd lub native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Odtwarzanie w MPV - dekodowane przez kartę graficzną: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - Odtwarzanie w MPV - dekodowane przez procesor ($1): dodaj hwdec=auto-safe do mpv.conf, aby dekodować na karcie graficznej"
     },
     "options_mpv_test_outdated": {
-        "message": "Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."
+        "message": "Host mpv na tym komputerze jest nieaktualny: uruchom „Update mpv” z menu Start (w kopii repozytorium FastStream: update-local.cmd lub native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "Otwarty mpv dekoduje na karcie graficznej: $1."
@@ -1239,7 +1260,7 @@
         "message": "Otwarty mpv dekoduje na procesorze ($1): dodaj hwdec=auto-safe do mpv.conf, aby dekodować na karcie graficznej."
     },
     "player_mpv_sent_outdated": {
-        "message": "Wysłano do mpv. Host mpv na tym komputerze jest nieaktualny: uruchom update-local.cmd (lub native-host\\install.ps1) w repozytorium FastStream."
+        "message": "Wysłano do mpv. Host mpv na tym komputerze jest nieaktualny: uruchom „Update mpv” z menu Start (w kopii repozytorium FastStream: update-local.cmd lub native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Otwórz ten strumień w mpv (typ treści: automatycznie – Film, chyba że witryna ma znacznik @anime; kliknij prawym przyciskiem myszy, aby zmienić to dla tego wideo)"

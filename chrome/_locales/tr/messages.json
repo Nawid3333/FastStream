@@ -1164,7 +1164,13 @@
         "message": "Algılanan akışları mpv'de (dış oynatıcı) aç"
     },
     "options_mpv_body": {
-        "message": "MPV modu açıkken araç çubuğu düğmesi Kapalı, Açık (yerleşik oynatıcı) ve MPV arasında geçiş yapar. İzin listesindeki sitelerde algılanan akışlar tarayıcı oynatıcısı yerine bilgisayarınızdaki mpv'de doğrudan açılır. FastStream mpv host'u gerekir – kurulum yönergeleri için depodaki native-host klasörüne bakın."
+        "message": "MPV modu açıkken araç çubuğu düğmesi Kapalı, Açık (yerleşik oynatıcı) ve MPV arasında geçiş yapar. İzin listesindeki sitelerde algılanan akışlar tarayıcı oynatıcısı yerine bilgisayarınızdaki mpv'de doğrudan açılır. Bilgisayarınızda mpv ve FastStream mpv host'u gerekir: Windows'ta tek tıklamalı kurulum (aşağıdaki ilk bağlantı) ikisini de kurar; elle kurulum (ikinci bağlantı) geliştiriciler ve diğer sistemler içindir."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Windows için tek tıklamalı kurulum (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Elle kurulum"
     },
     "options_mpv_allowlist": {
         "message": "MPV izin listesi"
@@ -1200,7 +1206,22 @@
         "message": "Host'a ulaşıldı, ancak mpv bulunamadı"
     },
     "options_mpv_test_fail": {
-        "message": "mpv host'u kullanılamıyor"
+        "message": "mpv host'u kullanılamıyor – kurulu mu? Bu bölümün başındaki kurulum bağlantılarına bakın."
+    },
+    "options_mpv_suggest_text": {
+        "message": "mpv yardımcısı kurulu – videolar mpv'de açılsın mı?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "MPV modunu aç"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Yok say"
+    },
+    "options_mpv_suggest_done": {
+        "message": "MPV modu açık. Videoları mpv'de açılacak siteleri MPV izin listesine ekleyin (aşağıda, MPV modu bölümünde). Diğer sitelerde Alt+F'ye (MPV kısayolu) basıp videoyu başlatın veya FastStream oynatıcısındaki mpv düğmesini kullanın."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Kapat"
     },
     "player_mpv_label": {
         "message": "Bu akışı mpv'de aç"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - akış açılmadı: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın"
+        "message": "FastStream - MPV - bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV'de oynatılıyor - ekran kartı tarafından çözülüyor: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - MPV'de oynatılıyor - işlemci tarafından çözülüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin"
     },
     "options_mpv_test_outdated": {
-        "message": "Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."
+        "message": "Bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "Açık mpv ekran kartında çözüyor: $1."
@@ -1239,7 +1260,7 @@
         "message": "Açık mpv işlemcide çözüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin."
     },
     "player_mpv_sent_outdated": {
-        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv host'u güncel değil: FastStream deposunda update-local.cmd (veya native-host\\install.ps1) dosyasını çalıştırın."
+        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"

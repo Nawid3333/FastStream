@@ -1164,7 +1164,13 @@
         "message": "在 mpv（外部播放器）中開啟偵測到的串流"
     },
     "options_mpv_body": {
-        "message": "開啟 MPV 模式時，工具列按鈕會在關閉、開啟（內建播放器）與 MPV 之間切換。在允許清單中的網站會將偵測到的串流直接交給電腦上的 mpv，而不是使用瀏覽器播放器。需要 FastStream mpv 主機，設定說明請見儲存庫中的 native-host 資料夾。"
+        "message": "開啟 MPV 模式時，工具列按鈕會在關閉、開啟（內建播放器）與 MPV 之間切換。在允許清單中的網站會將偵測到的串流直接交給電腦上的 mpv，而不是使用瀏覽器播放器。電腦上需要安裝 mpv 與 FastStream mpv 主機：在 Windows 上，一鍵安裝（下方第一個連結）會同時安裝兩者；手動安裝（第二個連結）適用於開發人員和其他系統。"
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Windows 一鍵安裝（mpv-config）"
+    },
+    "options_mpv_setup_manual": {
+        "message": "手動安裝"
     },
     "options_mpv_allowlist": {
         "message": "MPV 允許清單"
@@ -1200,7 +1206,22 @@
         "message": "主機可連線，但找不到 mpv"
     },
     "options_mpv_test_fail": {
-        "message": "mpv 主機無法使用"
+        "message": "mpv 主機無法使用——是否已安裝？請參閱本節頂端的安裝連結。"
+    },
+    "options_mpv_suggest_text": {
+        "message": "mpv 輔助程式已安裝——要在 mpv 中開啟影片嗎？"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "開啟 MPV 模式"
+    },
+    "options_mpv_suggest_no": {
+        "message": "不再提示"
+    },
+    "options_mpv_suggest_done": {
+        "message": "MPV 模式已開啟。請將需要在 mpv 中開啟影片的網站加入 MPV 允許清單（見下方「MPV 模式」）。在其他網站上，先按 Alt+F（MPV 快速鍵）再播放影片，或使用 FastStream 播放器中的 mpv 按鈕。"
+    },
+    "options_mpv_suggest_close": {
+        "message": "關閉"
     },
     "player_mpv_label": {
         "message": "在 mpv 中開啟此串流"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - 串流未能開啟：$1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）"
+        "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - 正在 MPV 中播放 - 由顯示卡解碼：$1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - 正在 MPV 中播放 - 由處理器解碼（$1）：在 mpv.conf 中加入 hwdec=auto-safe 即可由顯示卡解碼"
     },
     "options_mpv_test_outdated": {
-        "message": "這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）。"
+        "message": "這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
     },
     "options_mpv_test_decoder_hw": {
         "message": "已開啟的 mpv 正在用顯示卡解碼：$1。"
@@ -1239,7 +1260,7 @@
         "message": "已開啟的 mpv 正在用處理器解碼（$1）：在 mpv.conf 中加入 hwdec=auto-safe 即可由顯示卡解碼。"
     },
     "player_mpv_sent_outdated": {
-        "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請在 FastStream 儲存庫中執行 update-local.cmd（或 native-host\\install.ps1）。"
+        "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"

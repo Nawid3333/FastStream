@@ -428,7 +428,7 @@ describe('a failed hand-off', () => {
 // now the button does, where MPV mode is used.
 describe('an outdated mpv host', () => {
   const OUTDATED = 'FastStream - MPV - the mpv host on this computer is out of date: ' +
-    'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository';
+    'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
 
   it('gets the stream, and the toolbar says to install the host again', async () => {
     bg = await loadBackground({

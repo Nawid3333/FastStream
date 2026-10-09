@@ -19,13 +19,49 @@ Everything else in FastStream works without any of this.
 
 ## 1. What you need
 
-- **mpv** — https://mpv.io/installation/
-  The helper looks in `C:\Program Files\mpv\`, then `C:\Program Files (x86)\mpv\`,
-  then on `PATH`. Anywhere else works too; you just tell it where in step 3.
-- **Node.js 22 or newer** for the helper, as for building this repo. CI tests the helper
-  with the version in `.nvmrc`.
+- **On Windows 10 or 11 (64-bit): nothing.** The one-click setup in step 2
+  brings mpv, the helper and a private copy of Node.js for it.
+- **Setting it up by hand** (developers, other systems):
+  - **mpv** — https://mpv.io/installation/
+    The helper looks in `C:\Program Files\mpv\`, then `C:\Program Files (x86)\mpv\`,
+    then on `PATH`. Anywhere else works too; you just tell it where in step 3.
+  - **Node.js 22 or newer** for the helper, as for building this repo. CI tests the helper
+    with the version in `.nvmrc`.
 
 ## 2. Install the helper
+
+### One click (Windows)
+
+The companion mpv setup, [mpv-config](https://github.com/Nawid3333/mpv-config),
+installs everything in one go. Open **PowerShell** (Start menu, type
+`PowerShell`, Enter), paste this line and press Enter:
+
+```powershell
+irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex
+```
+
+Or download mpv-config as a ZIP (**Code ▸ Download ZIP**), extract it and
+double-click **`install.bat`**. No admin rights, Git or Node.js are needed. It:
+
+- installs mpv with mpv-config's configuration into `%LOCALAPPDATA%\Programs\mpv`;
+- installs this fork's helper from its latest release (this repository's
+  `native-host\install.ps1` and `faststream-mpv-host.mjs`, run with that
+  `mpv.exe` and a private `node.exe` in `%LOCALAPPDATA%\FastStreamMpvHost\node\`)
+  and registers it for Firefox;
+- opens the signed FastStream add-on in Firefox: click **Add**;
+- adds a Start menu folder **mpv** with *mpv*, *Update mpv* and *Uninstall mpv*.
+
+Details are in mpv-config's README, under
+[Install](https://github.com/Nawid3333/mpv-config#install).
+
+**Then restart Firefox** and turn MPV mode on (step 3). FastStream's settings
+offer it too: once the helper answers, a banner at the top asks *"The mpv
+helper is installed - open videos in mpv?"*, and its button turns MPV mode on.
+
+To update later: Start menu ▸ mpv ▸ *Update mpv* (or run the line above
+again). It also brings the helper to the newest FastStream release.
+
+### By hand (developers, other setups)
 
 From the repo, in PowerShell:
 
@@ -53,8 +89,8 @@ FastStream settings → **MPV Mode**:
 2. Click **Test mpv connection**. You want **"mpv found"**.
    - *"host reachable, but mpv was not found"* → mpv is installed somewhere
      unusual; put its full path in **mpv path** and test again.
-   - *"mpv host not available"* → the helper is not registered, or you have
-     not restarted the browser since installing it.
+   - *"mpv host not available - is it installed?"* → the helper is not
+     registered, or you have not restarted the browser since installing it.
 3. Fill in the **MPV Allowlist** — one site per line. mpv is only used on
    these sites; everywhere else FastStream behaves normally.
 
@@ -120,11 +156,18 @@ Common cases:
 |---|---|
 | Nothing at all happens | Site is not on the allowlist, or MPV mode is off. The log will be empty. |
 | **Test mpv connection** fails | Browser not restarted after installing, or the helper is not registered. |
+| The toolbar's `!` says the mpv host is out of date | The helper on this PC is older than the add-on. One-click install: Start menu ▸ mpv ▸ *Update mpv*. By hand: `update-local.cmd` in your checkout, or `native-host\install.ps1` again. |
 | mpv opens and closes instantly | The stream itself was refused — an expired token, or a site that needs cookies. Cookies are deliberately **not** sent to mpv. |
 | mpv plays but nothing switches | Log will show whether a second URL arrived at all. |
 | The toolbar tooltip says "decoded by the processor" | mpv decodes in software. FastStream never changes your mpv settings; add `hwdec=auto-safe` to `mpv.conf` for the graphics card. The tooltip (and **Test mpv connection**, while an mpv FastStream started is open) say what mpv uses; this needs **Reuse one mpv window** on (the default). |
 
 ## Uninstall
+
+**Installed with the one-click setup:** Start menu ▸ mpv ▸ *Uninstall mpv*.
+It removes the helper it installed too. The add-on itself is removed in
+`about:addons`.
+
+**Installed by hand:**
 
 ```powershell
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"

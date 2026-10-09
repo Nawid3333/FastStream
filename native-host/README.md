@@ -1,8 +1,12 @@
 # FastStream mpv native host
 
 > Just want to set this up? Start with [`../README-MPV.md`](../README-MPV.md).
+> On Windows, the one-click setup of
+> [mpv-config](https://github.com/Nawid3333/mpv-config#install) installs mpv,
+> this host and the add-on with one line in PowerShell; nothing below is needed
+> for it.
 > This file is the reference: how the host works, why mpv is launched the
-> way it is, manual setup for non-Windows, and how to test it by hand.
+> way it is, manual setup for developers and non-Windows, and how to test it by hand.
 
 Lets the FastStream extension open detected video streams directly in
 [mpv](https://mpv.io/) on your computer, instead of the built-in browser
@@ -103,6 +107,8 @@ install) is reported as not started.
 
 ## Requirements
 
+The one-click setup (below) brings both; by hand you need:
+
 - Node.js 22 or newer, as for building this repository. CI tests the host with
   the version in the repository's `.nvmrc`.
 - mpv 0.38 or newer on your machine (e.g. `C:\Program Files\mpv\mpv.exe`): a
@@ -111,9 +117,30 @@ install) is reported as not started.
 
 ## Setup
 
-There are two ways to register the host. **Pick one.**
+### One-click setup (Windows, recommended)
 
-### Option A — install script (recommended, Windows only)
+In PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex
+```
+
+(or `install.bat` from a downloaded ZIP of
+[mpv-config](https://github.com/Nawid3333/mpv-config#install)). It needs no
+admin rights, Git or Node.js. It installs mpv with mpv-config's configuration
+into `%LOCALAPPDATA%\Programs\mpv`, then installs this host from the fork's
+latest release: this folder's `install.ps1` and `faststream-mpv-host.mjs`, run
+with `-MpvPath` set to that `mpv.exe` and `-NodePath` to a private `node.exe`
+in `%LOCALAPPDATA%\FastStreamMpvHost\node\`. So Option A's table below says
+what it does to the host. It also opens the signed add-on in Firefox (click
+**Add**) and adds a Start menu folder **mpv** with *mpv*, *Update mpv* and
+*Uninstall mpv*. Restart Firefox afterwards, and turn on MPV mode in
+FastStream's settings.
+
+**By hand** (developers, other setups), there are two ways to register the
+host. **Pick one.**
+
+### Option A — install script (Windows)
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File native-host\install.ps1
@@ -227,7 +254,9 @@ command line and the result to `faststream-mpv-host.log` next to itself.
 ## Extension-side setup
 
 1. Open FastStream settings.
-2. Enable **Open detected streams in mpv (external player)**.
+2. Enable **Open detected streams in mpv (external player)**. While it is
+   off and the host finds mpv, the page also offers this in a banner at the
+   top (*"The mpv helper is installed - open videos in mpv?"*).
 3. Fill the **MPV Allowlist** with the sites whose streams should open in
    mpv (same syntax as Auto-enable URLs: one URL per line, `~regex`, `!` to
    exclude).
@@ -240,9 +269,13 @@ command line and the result to `faststream-mpv-host.log` next to itself.
 Your PC runs the copy the setup put in `%LOCALAPPDATA%\FastStreamMpvHost\`. A
 `git pull` updates the file in this folder, and an extension update updates the
 extension; neither touches that copy. After the host changes, install it again:
-`update-local.cmd` in the repository's root checks the installed copy against
-the repository's and runs `install.ps1` for you (keeping your mpv and Node
-paths), or run `install.ps1` yourself.
+
+- **One-click setup:** Start menu ▸ mpv ▸ *Update mpv* (or the setup line
+  again). It also brings a host the setup installed to the newest FastStream
+  release.
+- **From a checkout:** `update-local.cmd` in the repository's root checks the
+  installed copy against the repository's and runs `install.ps1` for you
+  (keeping your mpv and Node paths), or run `install.ps1` yourself.
 
 You do not have to remember this. The host sends its version (`HostVersion` in
 `faststream-mpv-host.mjs`) with every answer, and the extension knows which
@@ -258,6 +291,12 @@ the same `{type: 'ping'}` through the browser and reports whether mpv was
 found (with its path).
 
 ## Uninstall
+
+Installed with the one-click setup: Start menu ▸ mpv ▸ *Uninstall mpv*. It
+removes the host it installed too. The add-on itself is removed in
+`about:addons`.
+
+Installed by hand:
 
 ```powershell
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"

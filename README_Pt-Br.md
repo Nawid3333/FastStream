@@ -10,7 +10,7 @@ Este é um fork só para Firefox de [Andrews54757/FastStream](https://github.com
 3. Dinâmica de áudio ajustável (equalizador, compressor, mixer, modo mono, amplificador de volume) e configurações de vídeo (brilho, contraste, matiz, daltonização LMS para daltonismo) para suas preferências audiovisuais únicas.
 4. Mais de 60 atalhos de teclado remapeáveis (entre eles saltos, avanço quadro a quadro e predefinições de velocidade no estilo do mpv) e botões acessíveis para facilitar o controle do player. A página de boas-vindas lista os atalhos padrão.
 5. Disponível em 16 idiomas.
-6. Opcional: envie um stream para o [mpv](https://mpv.io/) no seu computador em vez de reproduzi-lo no navegador. É preciso instalar uma vez um pequeno programa auxiliar; veja [README-MPV.md](README-MPV.md) (em inglês).
+6. Opcional: envie um stream para o [mpv](https://mpv.io/) no seu computador em vez de reproduzi-lo no navegador. É preciso instalar uma vez um pequeno programa auxiliar. No Windows, uma linha no PowerShell instala o mpv, o auxiliar e este complemento: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (do [mpv-config](https://github.com/Nawid3333/mpv-config#install), sem direitos de administrador, Git ou Node.js). Depois reinicie o Firefox e ative o Modo MPV nas configurações do FastStream. O jeito manual, para desenvolvedores e outras configurações, está em [README-MPV.md](README-MPV.md) (em inglês).
 
 O player atualmente suporta:
 - Vídeos MP4 (.mp4)

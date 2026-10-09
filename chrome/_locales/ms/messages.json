@@ -1164,7 +1164,13 @@
         "message": "Buka strim yang dikesan dalam mpv (pemain luaran)"
     },
     "options_mpv_body": {
-        "message": "Apabila Mod MPV dihidupkan, butang bar alat bertukar antara Mati, Hidup (pemain terbina dalam) dan MPV. Pada tapak dalam senarai dibenarkan, strim yang dikesan dibuka terus dalam mpv pada komputer anda dan bukan pemain pelayar. Memerlukan hos mpv FastStream – lihat folder native-host dalam repositori untuk arahan persediaan."
+        "message": "Apabila Mod MPV dihidupkan, butang bar alat bertukar antara Mati, Hidup (pemain terbina dalam) dan MPV. Pada tapak dalam senarai dibenarkan, strim yang dikesan dibuka terus dalam mpv pada komputer anda dan bukan pemain pelayar. Memerlukan mpv dan hos mpv FastStream pada komputer anda: pada Windows, persediaan satu klik (pautan pertama di bawah) memasang kedua-duanya; persediaan manual (pautan kedua) adalah untuk pembangun dan sistem lain."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Persediaan satu klik untuk Windows (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Persediaan manual"
     },
     "options_mpv_allowlist": {
         "message": "Senarai Dibenarkan MPV"
@@ -1200,7 +1206,22 @@
         "message": "Hos boleh dihubungi, tetapi mpv tidak ditemui"
     },
     "options_mpv_test_fail": {
-        "message": "Hos mpv tidak tersedia"
+        "message": "Hos mpv tidak tersedia – adakah ia dipasang? Lihat pautan persediaan di bahagian atas seksyen ini."
+    },
+    "options_mpv_suggest_text": {
+        "message": "Pembantu mpv telah dipasang – buka video dalam mpv?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "Hidupkan Mod MPV"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Abaikan"
+    },
+    "options_mpv_suggest_done": {
+        "message": "Mod MPV dihidupkan. Tambah tapak yang videonya patut dibuka dalam mpv ke Senarai Dibenarkan MPV (di bawah, dalam Mod MPV). Pada tapak lain, tekan Alt+F (pintasan MPV) dan mulakan video, atau gunakan butang mpv dalam pemain FastStream."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Tutup"
     },
     "player_mpv_label": {
         "message": "Buka strim ini dalam mpv"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - strim tidak dibuka: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream"
+        "message": "FastStream - MPV - hos mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh kad grafik: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik"
     },
     "options_mpv_test_outdated": {
-        "message": "Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+        "message": "Hos mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "mpv yang terbuka menyahkod pada kad grafik: $1."
@@ -1239,7 +1260,7 @@
         "message": "mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
     },
     "player_mpv_sent_outdated": {
-        "message": "Dihantar ke mpv. Hos mpv pada komputer ini sudah lapuk: jalankan update-local.cmd (atau native-host\\install.ps1) dalam repositori FastStream."
+        "message": "Dihantar ke mpv. Hos mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"
