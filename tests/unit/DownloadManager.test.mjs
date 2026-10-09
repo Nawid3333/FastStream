@@ -771,6 +771,9 @@ describe('DownloadManager stopping every download (a new source, a failed load)'
     expect(manager.lastFailed).toBe(0);
     expect(manager.droppedDownloaders).toBe(0);
     expect(manager.downloaders).toHaveLength(4);
+    // ... and starts no download in the middle of the stop (the stopping flag): each stopped
+    // one asked for the next fragment of the video being torn down.
+    expect(manager.client.predownloadFragments).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 
