@@ -35,11 +35,13 @@ class Bilibili2Dash {
     Representation.setAttribute('id', id);
     Representation.setAttribute('codecs', codecs);
     Representation.setAttribute('bandwidth', bandwidth);
-    Representation.setAttribute('width', width);
-    Representation.setAttribute('height', height);
+    // Only what the track has: an audio track has no width or height, and the manifest read
+    // width="undefined" (review).
+    if (width) Representation.setAttribute('width', width);
+    if (height) Representation.setAttribute('height', height);
     if (frameRate) Representation.setAttribute('frameRate', frameRate);
     if (sar) Representation.setAttribute('sar', sar);
-    Representation.setAttribute('startWithSAP', startWithSap);
+    if (startWithSap !== undefined) Representation.setAttribute('startWithSAP', startWithSap);
     Representation.setAttribute('mimeType', mimeType);
 
     const BaseURL = this.document.createElement('BaseURL');
@@ -89,6 +91,34 @@ function base64Utf8(text) {
   return new TextEncoder().encode(text).toBase64();
 }
 
+/**
+ * The JSON object that starts at `start` (a "{"), up to its own closing brace: the play
+ * info, whatever follows it. A regex to the line's last "}" took the next statement along
+ * ("...};window.__INITIAL_STATE__={...}") and stopped at a line break, and the video was
+ * not detected (review).
+ * @param {string} text
+ * @param {number} start
+ * @return {?string}
+ */
+function jsonObjectAt(text, start) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      if (char === '\\') i++;
+      else if (char === '"') inString = false;
+    } else if (char === '"') {
+      inString = true;
+    } else if (char === '{') {
+      depth++;
+    } else if (char === '}' && --depth === 0) {
+      return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 // The page's script tags already read, and the manifests already reported.
 const seenScripts = new WeakSet();
 const reported = new Set();
@@ -103,13 +133,14 @@ function scanScripts() {
     }
     seenScripts.add(script);
     if (script.textContent.includes('window.__playinfo__')) {
-      const playInfo = script.textContent.match(/window\.__playinfo__\s*=\s*(\{.*\})/);
+      const assignment = /window\.__playinfo__\s*=\s*\{/.exec(script.textContent);
+      const playInfo = assignment && jsonObjectAt(script.textContent, assignment.index + assignment[0].length - 1);
       if (playInfo) {
-        // Play info of another shape (FLV, data.durl, instead of data.dash), or more code
-        // after it on the line, threw here, uncaught, and nothing was detected.
+        // Play info of another shape (FLV, data.durl, instead of data.dash) threw here,
+        // uncaught, and nothing was detected.
         let mpd;
         try {
-          const playInfoObj = JSON.parse(playInfo[1]);
+          const playInfoObj = JSON.parse(playInfo);
           const converter = new Bilibili2Dash();
           mpd = converter.playInfoToDash(playInfoObj);
         } catch (e) {
