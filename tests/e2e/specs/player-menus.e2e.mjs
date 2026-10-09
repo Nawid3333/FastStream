@@ -257,23 +257,23 @@ describe('Player menus', function() {
     expect(label).toBe('Mode: Beta');
   });
 
-  it('labels the subtitle search\'s type filter in the player\'s language', async function() {
-    // Its label was the English "Type" in every language.
+  it('labels the subtitle search\'s fields in the player\'s language', async function() {
+    // The type filter's label was the English "Type" in every language (the filter is gone
+    // since 2026-10-09: a season or episode filled in makes an episode's search).
     await openEmptyPlayer();
     const shown = await browser.executeAsync((done) => {
       // The web player takes its language from the browser; the search is built again
       // with the browser in German.
       Object.defineProperty(navigator, 'language', {value: 'de', configurable: true});
       import('/player/ui/subtitles/OpenSubtitlesSearch.mjs').then(({OpenSubtitlesSearch}) => {
-        const selector = new OpenSubtitlesSearch(window.fastStream.version).subui.typeSelector;
-        done({label: selector.ariaLabel, text: selector.textContent});
+        const {subui} = new OpenSubtitlesSearch(window.fastStream.version);
+        done({season: subui.seasonInput.ariaLabel, episode: subui.episodeInput.placeholder, year: subui.yearInput.placeholder});
       }).catch((e) => done({error: String(e)}));
     });
-    console.log('      type filter:', JSON.stringify(shown));
-    const title = de.player_opensubtitles_type.message;
-    expect(title).not.toBe('Type');
-    expect(shown.label).toBe(`${title}: ${de.player_opensubtitles_type_all.message}`);
-    expect(shown.text.startsWith(`${title}: `)).toBe(true);
+    console.log('      fields:', JSON.stringify(shown));
+    expect(shown).toEqual({season: de.player_opensubtitles_seasonnum.message, episode: de.player_opensubtitles_episodenum.message,
+      year: de.player_opensubtitles_year.message});
+    expect(shown.season).not.toBe('Season #');
   });
 
   it('keeps a knob\'s value when its field is emptied and left', async function() {

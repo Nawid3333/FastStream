@@ -1,0 +1,1655 @@
+{
+ "path": "subtitles",
+ "query": {
+  "languages": "en",
+  "query": "mission impossible - dead reckoning part one"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 40,
+ "total_count": 1975,
+ "page": 1,
+ "data": [
+  {
+   "id": "634255",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1259,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission.Impossible.III.XviD-WAF",
+    "uploader": {
+     "name": "trodas (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-iii-xvid-waf",
+    "files": [
+     {
+      "file_id": 700740
+     },
+     {
+      "file_id": 700744
+     },
+     {
+      "file_id": 700742
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "634261",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 572,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission.Impossible.III.DVDRip.XviD-WAF",
+    "uploader": {
+     "name": "trodas (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-iii-dvdrip-xvid-waf",
+    "files": [
+     {
+      "file_id": 700750
+     },
+     {
+      "file_id": 700756
+     },
+     {
+      "file_id": 700753
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4405902",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 6377,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible",
+    "uploader": {
+     "name": "luke_s (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/139321-mission-impossible",
+    "files": [
+     {
+      "file_id": 4511295
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "4404616",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 3108,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible",
+    "uploader": {
+     "name": "huh (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/18231-mission-impossible",
+    "files": [
+     {
+      "file_id": 4509798
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "4406143",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 30761,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission impossible",
+    "uploader": {
+     "name": "kentr2002 (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/151995-mission-impossible",
+    "files": [
+     {
+      "file_id": 4511583
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "634269",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 852,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible III",
+    "uploader": {
+     "name": "trodas (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3082371-mission-impossible-iii",
+    "files": [
+     {
+      "file_id": 700763
+     },
+     {
+      "file_id": 700765
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4406292",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2043,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission.Impossible.1996.DVD.XviD.iNTERNAL.AC3-TiDE",
+    "uploader": {
+     "name": "EL-Toro (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/171655-mission-impossible-1996-dvd-xvid-internal-ac3-tide",
+    "files": [
+     {
+      "file_id": 4511758
+     },
+     {
+      "file_id": 4511766
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "634562",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 7169,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.98,
+    "release": "Mission.Impossible.III.2006.DVDRip.XviD-CuriousJotos",
+    "uploader": {
+     "name": "raze72 (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3086210-mission-impossible-iii-2006-dvdrip-xvid-curiousjotos",
+    "files": [
+     {
+      "file_id": 701082
+     },
+     {
+      "file_id": 701092
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "634249",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1619,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible III",
+    "uploader": {
+     "name": "trodas (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3082326-mission-impossible-iii",
+    "files": [
+     {
+      "file_id": 700734
+     },
+     {
+      "file_id": 700736
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "7836496",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 178,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "second",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/10122758-second",
+    "files": [
+     {
+      "file_id": 8760320
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4537136",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2284,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "Todorov (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/113224-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4656187
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4537280",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1504,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 29.97,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "tomkins (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/126421-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4656347
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4536647",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2323,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "inman (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/99592-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4655632
+     },
+     {
+      "file_id": 4655634
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Επικίνδυνη Αποστολή 2",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4537904",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2395,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission: Impossible 2",
+    "uploader": {
+     "name": "ricko (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/226994-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4657077
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4404830",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 20745,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission: Impossible (1996)",
+    "uploader": {
+     "name": "CdinT (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/57431-mission-impossible-1996",
+    "files": [
+     {
+      "file_id": 4510056
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "4536760",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 10095,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "sY-VeNoM (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/108772-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4655756
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4537656",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1079,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "math3d (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/150813-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4656800
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4414963",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 29355,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible (1996)",
+    "uploader": {
+     "name": "TommyWelle"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/6218472-mission-impossible-1996",
+    "files": [
+     {
+      "file_id": 4521453
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "4539482",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 6029,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible Trilogy",
+    "uploader": {
+     "name": "gorgias"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3368889-mission-impossible-trilogy",
+    "files": [
+     {
+      "file_id": 4658887
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4535731",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 5011,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission impossible 2",
+    "uploader": {
+     "name": "SiDi (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/18261-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4654573
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "643620",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 3895,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible III",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/4258709-mission-impossible-iii",
+    "files": [
+     {
+      "file_id": 711014
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "638709",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 9574,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission Impossible Trilogy",
+    "uploader": {
+     "name": "gorgias"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-trilogy",
+    "files": [
+     {
+      "file_id": 705613
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4407596",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 9694,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible Trilogy",
+    "uploader": {
+     "name": "gorgias"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3368887-mission-impossible-trilogy",
+    "files": [
+     {
+      "file_id": 4513223
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "634518",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 5134,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible III",
+    "uploader": {
+     "name": "rineone (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3084993-mission-impossible-iii",
+    "files": [
+     {
+      "file_id": 701035
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4537515",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1025,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible 2",
+    "uploader": {
+     "name": "bossanova (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/139342-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4656629
+     },
+     {
+      "file_id": 4656633
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4404735",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2584,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission: Impossible (1996)",
+    "uploader": {
+     "name": "Avengers (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/29569-mission-impossible-1996",
+    "files": [
+     {
+      "file_id": 4509938
+     },
+     {
+      "file_id": 4509949
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "4535744",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4019,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission impossible 2",
+    "uploader": {
+     "name": "pit (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/18887-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4654585
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4535736",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2112,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission impossible 2",
+    "uploader": {
+     "name": "Boomerang (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/18510-mission-impossible-2",
+    "files": [
+     {
+      "file_id": 4654578
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "10564963",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 35028,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "1080p.AMZN.WEB-DL.DDP5.1.H.264-RDNYB",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13228619-1080p-amzn-web-dl-ddp5-1-h-264-rdnyb",
+    "files": [
+     {
+      "file_id": 11468810
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10564960",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 10851,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "1080p.AMZN.WEB-DL.DDP5.1.H.264-RDNYB",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/1080p-amzn-web-dl-ddp5-1-h-264-rdnybforced",
+    "files": [
+     {
+      "file_id": 11468807
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "4405822",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4810,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission.Impossible.DVDRip.XviD-BGR",
+    "uploader": {
+     "name": "Climax69 (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-dvdrip-xvid-bgr",
+    "files": [
+     {
+      "file_id": 4511216
+     },
+     {
+      "file_id": 4511230
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646671,
+     "feature_type": "Movie",
+     "year": 1996,
+     "title": "Mission: Impossible",
+     "movie_name": "1996 - Mission: Impossible",
+     "imdb_id": 117060,
+     "tmdb_id": 954
+    }
+   }
+  },
+  {
+   "id": "10672544",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2930,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.1080p.BluRay.x265-YAWNTiC_eng SDH",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-1080p-bluray-x265-yawntic_eng-sdh",
+    "files": [
+     {
+      "file_id": 11577273
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10665854",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1929,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.IMAX.1080p.10bit.BluRay.8CH.x265.HEVC-PSA",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-imax-1080p-10bit-bluray-8ch-x265-hevc-psa",
+    "files": [
+     {
+      "file_id": 11570659
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10568236",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 7283,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "MULTi.TRUEFRENCH.VF2.1080p.WEB.H264-SUPPLY",
+    "uploader": {
+     "name": "epongebob"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13232579-mission-impossible-the-final-reckoning-2025-multi-truefrench-vf2-1080p-web-h264-supply",
+    "files": [
+     {
+      "file_id": 11472179
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10567718",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 7360,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Hybrid.2160p.WEB-DL.DV.HDR.DDP5.1.Atmos.H265-AOC",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/hybrid-2160p-web-dl-dv-hdr-ddp5-1-atmos-h265-aoc",
+    "files": [
+     {
+      "file_id": 11471655
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10564962",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 594790,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "1080p.AMZN.WEB-DL.DDP5.1.H.264-RDNYB",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/1080p-amzn-web-dl-ddp5-1-h-264-rdnyb",
+    "files": [
+     {
+      "file_id": 11468809
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10549307",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 64106,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.1080p.AMZN.WEB-DL.DDP5.1.Atmos.H.264",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-1080p-amzn-web-dl-ddp5-1-atmos-h-264",
+    "files": [
+     {
+      "file_id": 11452936
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10549308",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 14382,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.1080p.AMZN.WEB-DL.DDP5.1.Atmos.H.264",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13212959-mission-impossible-the-final-reckoning-2025-1080p-amzn-web-dl-ddp5-1-atmos-h-264",
+    "files": [
+     {
+      "file_id": 11452937
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "11749381",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 329,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible The Final Reckoning (2025) {imdb-tt9603208} - [AMZN][WEBDL-1080p][EAC3 Atmos 5.1][h264]-BYNDR",
+    "uploader": {
+     "name": "uruguen"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-imdb-tt9603208-amzn-webdl-1080p-eac3-atmos-5-1-h264-byndr",
+    "files": [
+     {
+      "file_id": 12658630
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10672545",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 6212,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.1080p.BluRay.x265-YAWNTiC_eng",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-1080p-bluray-x265-yawntic_eng",
+    "files": [
+     {
+      "file_id": 11577274
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10570470",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 19360,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "1080p WEBRip 264 AAC51 -YTSMX",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/1080p-webrip-264-aac51-ytsmx",
+    "files": [
+     {
+      "file_id": 11474428
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "10220662",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 0,
+    "hearing_impaired": false,
+    "ai_translated": true,
+    "machine_translated": false,
+    "from_trusted": null,
+    "fps": 24,
+    "release": "Mission.Impossible.The.Final.Reckoning.2025.V2.1080p.TS.READNFO.x265.AAC-AOC",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-the-final-reckoning-2025-v2-1080p-ts-readnfo-x265-aac-aoc-9a467fed-e3c6-4088-8789-59c02fdfbb00",
+    "files": [
+     {
+      "file_id": 11127841
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2467651,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Mission: Impossible - The Final Reckoning",
+     "movie_name": "2024 - Mission: Impossible - The Final Reckoning",
+     "imdb_id": 9603208,
+     "tmdb_id": 575265
+    }
+   }
+  },
+  {
+   "id": "4536546",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2457,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 30,
+    "release": "Mission: Impossible II (2000)",
+    "uploader": {
+     "name": "ShooCat (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/71608-mission-impossible-ii-2000",
+    "files": [
+     {
+      "file_id": 4655521
+     },
+     {
+      "file_id": 4655531
+     },
+     {
+      "file_id": 4655528
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "639998",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 23891,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.98,
+    "release": "Mission Impossible-3.avi",
+    "uploader": {
+     "name": "by_agentsmith"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-3-avi",
+    "files": [
+     {
+      "file_id": 707012
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4538178",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 5982,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission Impossible 2 (2000)",
+    "uploader": {
+     "name": "preetkamal"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3164095-mission-impossible-2-2000",
+    "files": [
+     {
+      "file_id": 4657411
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "4991537",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4978,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Mission Impossible-Rogue Nation_2015_FPS_25000_IMPROVED",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-rogue-nation_2015_fps_25000_improved",
+    "files": [
+     {
+      "file_id": 5114703
+     }
+    ],
+    "feature_details": {
+     "feature_id": 599211,
+     "feature_type": "Movie",
+     "year": 2015,
+     "title": "Mission: Impossible - Rogue Nation",
+     "movie_name": "2015 - Mission: Impossible - Rogue Nation",
+     "imdb_id": 2381249,
+     "tmdb_id": 177677
+    }
+   }
+  },
+  {
+   "id": "639651",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 10250,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 30,
+    "release": "Mission-Impossible.3[2006]DvDrip[Eng]-aXXo",
+    "uploader": {
+     "name": "oriongrimm"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3490096-mission-impossible-3-2006-dvdrip-eng-axxo",
+    "files": [
+     {
+      "file_id": 706634
+     }
+    ],
+    "feature_details": {
+     "feature_id": 522732,
+     "feature_type": "Movie",
+     "year": 2006,
+     "title": "Mission: Impossible III",
+     "movie_name": "2006 - Mission: Impossible III",
+     "imdb_id": 317919,
+     "tmdb_id": 956
+    }
+   }
+  },
+  {
+   "id": "4536025",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2522,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Mission: Impossible II (2000)",
+    "uploader": {
+     "name": "Bibi40k (a)"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/25166-mission-impossible-ii-2000",
+    "files": [
+     {
+      "file_id": 4654910
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  },
+  {
+   "id": "761485",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 12832,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Ghost Protocol 2011-SW -Self Sync to Fit",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/ghost-protocol-2011-sw-self-sync-to-fit",
+    "files": [
+     {
+      "file_id": 836402
+     }
+    ],
+    "feature_details": {
+     "feature_id": 568859,
+     "feature_type": "Movie",
+     "year": 2011,
+     "title": "Mission: Impossible - Ghost Protocol",
+     "movie_name": "2011 - Mission: Impossible - Ghost Protocol",
+     "imdb_id": 1229238,
+     "tmdb_id": 56292
+    }
+   }
+  },
+  {
+   "id": "4540272",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 19306,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 30,
+    "release": "Mission.Impossible.II.2000.1080p.HDDVD.x264.mkv",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/mission-impossible-ii-2000-1080p-hddvd-x264-mkv",
+    "files": [
+     {
+      "file_id": 4659785
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646538,
+     "feature_type": "Movie",
+     "year": 2000,
+     "title": "Mission: Impossible II",
+     "movie_name": "2000 - Mission: Impossible II",
+     "imdb_id": 120755,
+     "tmdb_id": 955
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,1011 @@
+{
+ "path": "subtitles",
+ "query": {
+  "languages": "de",
+  "query": "dune part two"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 1,
+ "total_count": 31,
+ "page": 1,
+ "data": [
+  {
+   "id": "9300742",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 736,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune - Part One.2021.UHDRip.2160p.HDR-DV.Ger-Full",
+    "uploader": {
+     "name": "collect0r"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 10216480
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "9300743",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 291,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune - Part One.2021.UHDRip.2160p.HDR-DV.Ger-SDH",
+    "uploader": {
+     "name": "collect0r"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 10216481
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "9300671",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 216,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune - Part One.2021.UHDRip.2160p.HDR-DV.Ger-Forced",
+    "uploader": {
+     "name": "collect0r"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 10216408
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "6113261",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 8606,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.2021.German.DL.EAC3.Dubbed.1080p.WEB.h264-PsO",
+    "uploader": {
+     "name": "schweinekopf"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7057833
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "285325",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1359,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "dune (1984) [theatrical cut] 720p bluray [deutsch]",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-1984-theatrical-cut-720p-bluray-deutsch",
+    "files": [
+     {
+      "file_id": 305867
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "278694",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 5497,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Dune",
+    "uploader": {
+     "name": "arne (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/106819-dune",
+    "files": [
+     {
+      "file_id": 7338450
+     },
+     {
+      "file_id": 7338452
+     },
+     {
+      "file_id": 7338451
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "6965770",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 95,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV SRF color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9376282-dtv-srf-color",
+    "files": [
+     {
+      "file_id": 7916089
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "5757220",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 259,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "Dune-Der Wüstenplanet-Extended Edition (1984)",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-der-wustenplanet-extended-edition-1984",
+    "files": [
+     {
+      "file_id": 6778280
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "4602131",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 949,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.1984.German.Collectors.Edition.Extended.1080p.DL.DTS.BluRay.x264-HQE",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-1984-german-collectors-edition-extended-1080p-dl-dts-bluray-x264-hqe",
+    "files": [
+     {
+      "file_id": 4724918
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "7661135",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 624,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "DUNE 1 [Denis Villeneuve] (2021)(DEU_ENGf)(avc-aac)(24fps)(1280x0544).mp4",
+    "uploader": {
+     "name": "jogoo"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8586841
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "6335895",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1852,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.2021.German.DL.1080p.BluRay.x264-DETAiLS",
+    "uploader": {
+     "name": "redoxid"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7221394
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "6335894",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1011,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.2021.German.DL.1080p.BluRay.x264-DETAiLS",
+    "uploader": {
+     "name": "redoxid"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7221393
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "6109668",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 17273,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.2021.1080p.HMAX.WEB-DL.DDP5.1.Atmos.x264-EVO",
+    "uploader": {
+     "name": "silverstark"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7055066
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "6102749",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 16749,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Dune",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7049656
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1275717,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Dune",
+     "movie_name": "2021 - Dune",
+     "imdb_id": 1160419,
+     "tmdb_id": 438631
+    }
+   }
+  },
+  {
+   "id": "7780166",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 66,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Dune (1984) Alternative Edition Redux edited by Spicediver 1080p Edition",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-1984-alternative-edition-redux-edited-by-spicediver-1080p-edition",
+    "files": [
+     {
+      "file_id": 8704088
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "7015102",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 175,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune 1984 REMASTERED HD BluRay.x264",
+    "uploader": {
+     "name": "crashmike"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-1984-remastered-hd-bluray-x264",
+    "files": [
+     {
+      "file_id": 7962286
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "5757210",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 503,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Dune (1984) dTV 2h10min",
+    "uploader": {
+     "name": "bergert_"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dune-1984-dtv-2h10min",
+    "files": [
+     {
+      "file_id": 6778270
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515513,
+     "feature_type": "Movie",
+     "year": 1984,
+     "title": "Dune",
+     "movie_name": "1984 - Dune",
+     "imdb_id": 87182,
+     "tmdb_id": 841
+    }
+   }
+  },
+  {
+   "id": "7720172",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1259,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Dune.Part.Two.2024.2160p.AMZN.WEB-DL.DDP5.1.Atmos.H.265-FLUX",
+    "uploader": {
+     "name": "oakislandtk"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8645462
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "7719491",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 552,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune.Part.Two.2024.REPACK.2160p.AMZN.WEB-DL.DDP5.1.Atmos.H.265-FLUX",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8644816
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "7704878",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 6666,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Dune: Part Two (2024) 1080p",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8630343
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "7661877",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 17691,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Dune.Part.Two.2024.1080p.HDTS.CLEAN.X264.COLLECTIVE",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8587622
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "7661122",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 7721,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "DUNE 2 [Denis Villeneuve] (2023)(DEU_ESPf)(avc-aac)(24fpsc)(1552x0720).mp4",
+    "uploader": {
+     "name": "jogoo"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8586829
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "7720168",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 4012,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Dune.Part.Two.2024.2160p.AMZN.WEB-DL.DDP5.1.Atmos.H.265-FLUX",
+    "uploader": {
+     "name": "oakislandtk"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8645459
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1779906,
+     "feature_type": "Movie",
+     "year": 2024,
+     "title": "Dune: Part Two",
+     "movie_name": "2024 - Dune: Part Two",
+     "imdb_id": 15239678,
+     "tmdb_id": 693134
+    }
+   }
+  },
+  {
+   "id": "1030424",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 47,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "La.disparue.du.Pyla.2014.GERMAN.dTV",
+    "uploader": {
+     "name": "Ralle1"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/la-disparue-du-pyla-2014-german-dtv",
+    "files": [
+     {
+      "file_id": 1117949
+     }
+    ],
+    "feature_details": {
+     "feature_id": 597546,
+     "feature_type": "Movie",
+     "year": 2014,
+     "title": "Meurtres sur la dune du Pyla",
+     "movie_name": "2014 - Meurtres sur la dune du Pyla",
+     "imdb_id": 3355064,
+     "tmdb_id": 326026
+    }
+   }
+  },
+  {
+   "id": "6180176",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 733,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Planet.Dune.2021.German.720p.BluRay.x264-ROCKEFELLER",
+    "uploader": {
+     "name": "melkfett"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/planet-dune-2021-german-720p-bluray-x264-rockefeller",
+    "files": [
+     {
+      "file_id": 7109708
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1309435,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Planet Dune",
+     "movie_name": "2021 - Planet Dune",
+     "imdb_id": 15331462,
+     "tmdb_id": 881460
+    }
+   }
+  },
+  {
+   "id": "979575",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 28377,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Jodorowskys Dune 2013",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/5867788-jodorowskys-dune-2013",
+    "files": [
+     {
+      "file_id": 1065177
+     }
+    ],
+    "feature_details": {
+     "feature_id": 592331,
+     "feature_type": "Movie",
+     "year": 2013,
+     "title": "Jodorowsky's Dune",
+     "movie_name": "2013 - Jodorowsky's Dune",
+     "imdb_id": 1935156,
+     "tmdb_id": 191720
+    }
+   }
+  },
+  {
+   "id": "7806854",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 559,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "North.Sea.Texas.2011.720p.BluRay.AC3.x264-ELK",
+    "uploader": {
+     "name": "vgallotti"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/10065201-north-sea-texas-2011-720p-bluray-ac3-x264-elk",
+    "files": [
+     {
+      "file_id": 8730280
+     }
+    ],
+    "feature_details": {
+     "feature_id": 574406,
+     "feature_type": "Movie",
+     "year": 2011,
+     "title": "North Sea Texas",
+     "movie_name": "2011 - North Sea Texas",
+     "imdb_id": 1625150,
+     "tmdb_id": 100898
+    }
+   }
+  },
+  {
+   "id": "803675",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1419,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Noordzee,.Texas.(2011)",
+    "uploader": {
+     "name": "sagitta46"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/4572398-noordzee-texas-2011",
+    "files": [
+     {
+      "file_id": 880891
+     }
+    ],
+    "feature_details": {
+     "feature_id": 574406,
+     "feature_type": "Movie",
+     "year": 2011,
+     "title": "North Sea Texas",
+     "movie_name": "2011 - North Sea Texas",
+     "imdb_id": 1625150,
+     "tmdb_id": 100898
+    }
+   }
+  },
+  {
+   "id": "11902010",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 7,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Dans.lombre.des.dunes.2022.1080p.DSNP.WEB-DL.AAC2.0.H.264-playWEB",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/13811547-dans-lombre-des-dunes-2022-1080p-dsnp-web-dl-aac2-0-h-264-playweb",
+    "files": [
+     {
+      "file_id": 12786802
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2987924,
+     "feature_type": "Movie",
+     "year": 2022,
+     "title": "Dans l'ombre des dunes",
+     "movie_name": "2022 - Dans l'ombre des dunes",
+     "imdb_id": 19882638,
+     "tmdb_id": 970173
+    }
+   }
+  },
+  {
+   "id": "358963",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 660,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "suna no onna",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/3683419-suna-no-onna",
+    "files": [
+     {
+      "file_id": 7366872
+     }
+    ],
+    "feature_details": {
+     "feature_id": 518802,
+     "feature_type": "Movie",
+     "year": 1964,
+     "title": "Woman in the Dunes",
+     "movie_name": "1964 - Woman in the Dunes",
+     "imdb_id": 58625,
+     "tmdb_id": 16672
+    }
+   }
+  },
+  {
+   "id": "359158",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1179,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Die.Frau.in.den.Duenen.1964.German.DVDRip.Retail",
+    "uploader": {
+     "name": "Ralle1"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-frau-in-den-duenen-1964-german-dvdrip-retail",
+    "files": [
+     {
+      "file_id": 7366928
+     }
+    ],
+    "feature_details": {
+     "feature_id": 518802,
+     "feature_type": "Movie",
+     "year": 1964,
+     "title": "Woman in the Dunes",
+     "movie_name": "1964 - Die Frau in den Dünen",
+     "imdb_id": 58625,
+     "tmdb_id": 16672
+    }
+   }
+  }
+ ]
+}

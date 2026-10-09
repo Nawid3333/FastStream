@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Bölüm #"
     },
-    "player_opensubtitles_type": {
-        "message": "Tür"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Tümü"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Film"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Bölüm"
-    },
     "player_opensubtitles_language": {
         "message": "Dil"
     },
     "player_opensubtitles_year": {
         "message": "Yıl"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Sıralama ölçütü"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "İndirmeler"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Yükleme Tarihi"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Puan"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Oylar"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Sırala"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Azalan"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Artan"
     },
     "player_opensubtitles_searching": {
         "message": "Aranıyor..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Sonuç bulunamadı!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Diğer başlıklar:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Bu başlık için $1 dilinde hiç yok: tüm diller gösteriliyor."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 indirme"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Sağır ve işitme güçlüğü olanlar için"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Makine çevirisi"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Güvenilir bir yükleyiciden"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles altyazı indirme sınırı uyguluyor! Artık indirme hakkınız kalmadı! Kotanız $1 içinde sıfırlanacak"

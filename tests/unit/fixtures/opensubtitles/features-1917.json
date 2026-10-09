@@ -1,0 +1,780 @@
+{
+ "path": "features",
+ "query": {
+  "query": "1917"
+ },
+ "recorded": "2026-10-09",
+ "data": [
+  {
+   "id": "1768713",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1768713",
+    "feature_type": "Episode",
+    "title": "jack (1917-1940)",
+    "original_title": "Jack (1917-1940)",
+    "year": "1917",
+    "imdb_id": 13931558,
+    "tmdb_id": 4823952,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 2,
+     "he": 1,
+     "hr": 1,
+     "pt-BR": 1,
+     "pt-PT": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1372743",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1372743",
+    "feature_type": "Episode",
+    "title": "1917 patrol",
+    "original_title": "1917 Patrol",
+    "year": "2021",
+    "imdb_id": 14539554,
+    "tmdb_id": 3179648,
+    "subtitles_counts": {
+     "ar": 2,
+     "da": 1,
+     "en": 6,
+     "es": 2,
+     "et": 1,
+     "fa": 2,
+     "fi": 1,
+     "fr": 1,
+     "he": 1,
+     "hr": 1,
+     "hu": 1,
+     "id": 2,
+     "it": 2,
+     "nl": 1,
+     "pl": 1,
+     "pt-BR": 1,
+     "pt-PT": 1,
+     "ro": 2,
+     "ru": 1,
+     "sl": 1,
+     "sv": 1,
+     "th": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "142480",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "142480",
+    "feature_type": "Episode",
+    "title": "breaking the deadlock (1915-1917)",
+    "original_title": "Breaking the Deadlock (1915-1917)",
+    "year": "2003",
+    "imdb_id": 1718031,
+    "tmdb_id": 878258,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "en": 3,
+     "es": 1,
+     "he": 1,
+     "nl": 2,
+     "pt-BR": 2,
+     "ro": 2,
+     "sr": 2,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "142487",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "142487",
+    "feature_type": "Episode",
+    "title": "blockade (1916-1917)",
+    "original_title": "Blockade (1916-1917)",
+    "year": "2003",
+    "imdb_id": 1718030,
+    "tmdb_id": 878259,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "bs": 1,
+     "en": 2,
+     "es": 2,
+     "he": 1,
+     "nl": 3,
+     "pt-BR": 1,
+     "ro": 2,
+     "sr": 2,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "142478",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "142478",
+    "feature_type": "Episode",
+    "title": "revolution (1917)",
+    "original_title": "Revolution (1917)",
+    "year": "2003",
+    "imdb_id": 1718034,
+    "tmdb_id": 878260,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "en": 4,
+     "es": 1,
+     "he": 1,
+     "nl": 2,
+     "pt-BR": 1,
+     "ro": 1,
+     "sr": 2,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "590424",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "590424",
+    "feature_type": "Movie",
+    "title": "the great martian war 1913 - 1917",
+    "original_title": "The Great Martian War 1913 - 1917",
+    "year": "2013",
+    "imdb_id": 3199240,
+    "tmdb_id": 247845,
+    "subtitles_counts": {
+     "en": 2,
+     "fr": 1,
+     "hr": 1,
+     "it": 2,
+     "pt-BR": 2,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "177744",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "177744",
+    "feature_type": "Episode",
+    "title": "barcelona, may 1917",
+    "original_title": "Barcelona, May 1917",
+    "year": "1992",
+    "imdb_id": 752170,
+    "tmdb_id": 1174416,
+    "subtitles_counts": {
+     "da": 1,
+     "en": 1,
+     "es": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "103584",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "103584",
+    "feature_type": "Episode",
+    "title": "comrades (1917-1945)",
+    "original_title": "Comrades (1917-1945)",
+    "year": "1998",
+    "imdb_id": 1282631,
+    "tmdb_id": 500172,
+    "subtitles_counts": {
+     "ar": 1,
+     "bs": 1,
+     "en": 1,
+     "es": 1,
+     "pt-BR": 1,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "158277",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "158277",
+    "feature_type": "Episode",
+    "title": "ferrari fix part 2/1917 reo",
+    "original_title": "Ferrari Fix Part 2/1917 REO",
+    "year": "2013",
+    "imdb_id": 2992388,
+    "tmdb_id": 914094,
+    "subtitles_counts": {
+     "da": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "274683",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "274683",
+    "feature_type": "Episode",
+    "title": "gumbo: beginnings to 1917",
+    "original_title": "Gumbo: Beginnings to 1917",
+    "year": "2001",
+    "imdb_id": 1067628,
+    "tmdb_id": 590902,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 4,
+     "es": 2,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "177755",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "177755",
+    "feature_type": "Episode",
+    "title": "petrograd, july 1917",
+    "original_title": "Princeton, February 1916",
+    "year": "1993",
+    "imdb_id": 752186,
+    "tmdb_id": 1174422,
+    "subtitles_counts": {
+     "da": 1,
+     "pl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "446942",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "446942",
+    "feature_type": "Episode",
+    "title": "october 1916 - april 1917",
+    "original_title": "October 1916 - April 1917",
+    "year": "2014",
+    "imdb_id": 2522456,
+    "tmdb_id": 1239193,
+    "subtitles_counts": {
+     "en": 1,
+     "nl": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "446944",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "446944",
+    "feature_type": "Episode",
+    "title": "december 1917 - june 1918",
+    "original_title": "December 1917 - June 1918",
+    "year": "2014",
+    "imdb_id": 2522460,
+    "tmdb_id": 1239195,
+    "subtitles_counts": {
+     "en": 1,
+     "nl": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "446940",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "446940",
+    "feature_type": "Episode",
+    "title": "april 1917 - november 1917",
+    "original_title": "April 1917 - November 1917",
+    "year": "2014",
+    "imdb_id": 2522464,
+    "tmdb_id": 1239194,
+    "subtitles_counts": {
+     "en": 1,
+     "nl": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "177748",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "177748",
+    "feature_type": "Episode",
+    "title": "austria, march 1917",
+    "original_title": "Austria, March 1927",
+    "year": "1992",
+    "imdb_id": 752169,
+    "tmdb_id": 1174409,
+    "subtitles_counts": {
+     "da": 1,
+     "hr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "274696",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "274696",
+    "feature_type": "Episode",
+    "title": "the gift: 1917-1924",
+    "original_title": "The Gift: 1917-1924",
+    "year": "2001",
+    "imdb_id": 1067633,
+    "tmdb_id": 590903,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 6,
+     "es": 1,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1540109",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1540109",
+    "feature_type": "Episode",
+    "title": "congo, january 1917",
+    "original_title": "Congo, January 1917",
+    "year": "1992",
+    "imdb_id": 752173,
+    "tmdb_id": 1111400,
+    "subtitles_counts": {
+     "en": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1540369",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1540369",
+    "feature_type": "Episode",
+    "title": "prague, august 1917",
+    "original_title": "Prague, August 1917",
+    "year": "1993",
+    "imdb_id": 752190,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2896371",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2896371",
+    "feature_type": "Episode",
+    "title": "\"roberto leoni movie reviews\" 1917",
+    "original_title": null,
+    "year": "2020",
+    "imdb_id": 11717432,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2913549",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2913549",
+    "feature_type": "Episode",
+    "title": "\"collider movie talk\" 1917 movie review",
+    "original_title": null,
+    "year": "2019",
+    "imdb_id": 11373834,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "ar": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "621924",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "621924",
+    "feature_type": "Movie",
+    "title": "russia 1917: countdown to revolution",
+    "original_title": "Russia 1917: Countdown to Revolution",
+    "year": "2017",
+    "imdb_id": 7487410,
+    "tmdb_id": 510263,
+    "subtitles_counts": {
+     "da": 1,
+     "en": 1,
+     "pt-BR": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2628112",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2628112",
+    "feature_type": "Episode",
+    "title": "rodin 1840-1917",
+    "original_title": "Rodin 1840-1917",
+    "year": "1986",
+    "imdb_id": 4059312,
+    "tmdb_id": 6228495,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1573905",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1573905",
+    "feature_type": "Episode",
+    "title": "1917: red flag",
+    "original_title": "1917: Red Flag",
+    "year": "1995",
+    "imdb_id": 1158563,
+    "tmdb_id": 405305,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1700356",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1700356",
+    "feature_type": "Episode",
+    "title": "episode 1917",
+    "original_title": "Episode 1917",
+    "year": "1997",
+    "imdb_id": 975163,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2731903",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2731903",
+    "feature_type": "Episode",
+    "title": "show #1917",
+    "original_title": "Show #1917",
+    "year": "",
+    "imdb_id": 2169330,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2717895",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2717895",
+    "feature_type": "Movie",
+    "title": "\"familie\" episode 1917",
+    "original_title": null,
+    "year": "",
+    "imdb_id": 4496410,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1571068",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1571068",
+    "feature_type": "Episode",
+    "title": "episode 1917",
+    "original_title": "Episode 1917",
+    "year": "2021",
+    "imdb_id": 15182326,
+    "tmdb_id": 3132105,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1059419",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1059419",
+    "feature_type": "Episode",
+    "title": "\"chris stuckmann movie reviews\" 1917",
+    "original_title": null,
+    "year": "2019",
+    "imdb_id": 11373736,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2309285",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2309285",
+    "feature_type": "Movie",
+    "title": "1917: the making of a revolution",
+    "original_title": "Lénine, Gorki: la révolution à contretemps",
+    "year": "2017",
+    "imdb_id": 11006786,
+    "tmdb_id": 486654,
+    "subtitles_counts": {
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2323368",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2323368",
+    "feature_type": "Episode",
+    "title": "\"la galerie france 5\" j'ai deux amours 1917-1931",
+    "original_title": null,
+    "year": "2016",
+    "imdb_id": 6180100,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1468674",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1468674",
+    "feature_type": "Movie",
+    "title": "1917: one year, two revolutions",
+    "original_title": "1917: One Year, Two Revolutions",
+    "year": "2017",
+    "imdb_id": 11139354,
+    "tmdb_id": 887057,
+    "subtitles_counts": {
+     "el": 1,
+     "en": 1,
+     "fr": 1,
+     "hr": 1,
+     "pt-PT": 1,
+     "ro": 1,
+     "vi": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1076390",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1076390",
+    "feature_type": "Movie",
+    "title": "1917",
+    "original_title": "1917",
+    "year": "1970",
+    "imdb_id": 65362,
+    "tmdb_id": 547729,
+    "subtitles_counts": {
+     "pt-BR": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2320522",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2320522",
+    "feature_type": "Episode",
+    "title": "america's great war 1917-1918",
+    "original_title": "Les Américains dans la Grande Guerre : 1917-1918",
+    "year": "2017",
+    "imdb_id": 7035820,
+    "tmdb_id": 704984,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2517209",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2517209",
+    "feature_type": "Episode",
+    "title": "\"criticar\" 1917",
+    "original_title": null,
+    "year": "2020",
+    "imdb_id": 13371608,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2014915",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2014915",
+    "feature_type": "Movie",
+    "title": "1917 - der wahre oktober",
+    "original_title": "1917 - Der wahre Oktober",
+    "year": "2017",
+    "imdb_id": 6489962,
+    "tmdb_id": 462130,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2320521",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2320521",
+    "feature_type": "Episode",
+    "title": "\"la case du siecle\" 1917, révolutions",
+    "original_title": null,
+    "year": "2017",
+    "imdb_id": 7636598,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1771784",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1771784",
+    "feature_type": "Tvshow",
+    "title": "davos 1917",
+    "original_title": "Davos 1917",
+    "year": "2023",
+    "imdb_id": 12934800,
+    "tmdb_id": 237108,
+    "subtitles_counts": {
+     "de": 12,
+     "en": 1,
+     "fr": 5,
+     "nl": 6,
+     "ro": 11
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "2983094",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2983094",
+    "feature_type": "Episode",
+    "title": "\"cyn's corner\" 1917 | collab movie review",
+    "original_title": null,
+    "year": "2020",
+    "imdb_id": 36818645,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "954191",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "954191",
+    "feature_type": "Movie",
+    "title": "1917",
+    "original_title": "1917",
+    "year": "2019",
+    "imdb_id": 8579674,
+    "tmdb_id": 530915,
+    "subtitles_counts": {
+     "ar": 9,
+     "bg": 13,
+     "bn": 5,
+     "ca": 1,
+     "cs": 4,
+     "da": 3,
+     "de": 7,
+     "el": 9,
+     "en": 21,
+     "es": 15,
+     "et": 3,
+     "fa": 38,
+     "fi": 3,
+     "fr": 6,
+     "he": 11,
+     "hi": 2,
+     "hr": 17,
+     "hu": 5,
+     "id": 4,
+     "is": 1,
+     "it": 6,
+     "ja": 3,
+     "ko": 2,
+     "lt": 1,
+     "ml": 4,
+     "ms": 3,
+     "my": 1,
+     "nl": 9,
+     "no": 2,
+     "pl": 6,
+     "pt-BR": 13,
+     "pt-PT": 15,
+     "ro": 8,
+     "ru": 4,
+     "si": 1,
+     "sk": 2,
+     "sl": 4,
+     "sq": 2,
+     "sr": 8,
+     "sv": 3,
+     "th": 2,
+     "tr": 13,
+     "uk": 3,
+     "vi": 5,
+     "ze": 3,
+     "zh-CN": 4,
+     "zh-TW": 5
+    },
+    "seasons_count": 0
+   }
+  }
+ ]
+}

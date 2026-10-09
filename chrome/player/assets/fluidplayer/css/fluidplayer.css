@@ -1420,22 +1420,6 @@ body {
     padding: 0px 5px;
 }
 
-.subtitle-type-selector,
-.subtitle-sort-selector,
-.subtitle-sort-direction-selector {
-    margin-right: 4px;
-    font-size: 14px;
-    min-width: 120px;
-    height: 25px;
-    line-height: 25px;
-    border-radius: 4px;
-    margin-bottom: 5px;
-}
-
-.subtitle-sort-selector {
-    min-width: 160px;
-}
-
 .text_input {
     color: var(--popwindow-button-text-color);
     background-color: transparent;
@@ -1817,10 +1801,39 @@ body {
     padding-bottom: 5px;
 }
 
+.subtitle-search-title {
+    padding: 4px 0 6px;
+}
+
+.subtitle-search-title-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--menu-text-color);
+}
+
+.subtitle-other-titles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+    font-size: 13px;
+}
+
+.subtitle-other-titles .textbutton {
+    height: auto;
+    line-height: 20px;
+    font-size: 13px;
+}
+
+.subtitle-search-message {
+    padding: 10px 0;
+}
+
 .subtitle-result-container {
     display: grid;
     column-gap: 5px;
-    grid-template-columns: 50px 1fr 150px 50px;
+    grid-template-columns: 50px 1fr;
     position: relative;
     user-select: none;
     cursor: pointer;
@@ -1839,19 +1852,30 @@ body {
     text-align: center;
 }
 
-.subtitle-result-title {
+.subtitle-result-text {
     grid-column: 2;
+    min-width: 0;
 }
 
-.subtitle-result-user {
-    grid-column: 3;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
+/* The release name: which version of the video the subtitle was made for. */
+.subtitle-result-title {
+    overflow-wrap: anywhere;
 }
 
-.subtitle-result-rank {
-    grid-column: 4;
+.subtitle-result-meta {
+    margin-top: 3px;
+    font-size: 13px;
+    opacity: 0.75;
+}
+
+.subtitle-result-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 4px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 11px;
+    line-height: 15px;
 }
 
 .subtitle-track-element {

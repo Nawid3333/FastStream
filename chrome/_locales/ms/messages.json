@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Episod #"
     },
-    "player_opensubtitles_type": {
-        "message": "Jenis"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Semua"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Filem"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Episod"
-    },
     "player_opensubtitles_language": {
         "message": "Bahasa"
     },
     "player_opensubtitles_year": {
         "message": "Tahun"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Susun mengikut"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Muat turun"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Tarikh Muat naik"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Penilaian"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Undian"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Susun"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Menurun"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Menaik"
     },
     "player_opensubtitles_searching": {
         "message": "Mencari..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Tiada keputusan dijumpai!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Tajuk lain:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Tiada dalam $1 untuk tajuk ini: semua bahasa dipaparkan."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 muat turun"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Untuk pekak dan kurang pendengaran"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Terjemahan mesin"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Daripada pengunggah dipercayai"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles mengehadkan muat turun sarikata! Anda tiada lagi muat turun yang tinggal! Kuota anda ditetapkan semula dalam $1"

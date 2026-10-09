@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "에피소드 #"
     },
-    "player_opensubtitles_type": {
-        "message": "유형"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "전체"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "영화"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "에피소드"
-    },
     "player_opensubtitles_language": {
         "message": "언어"
     },
     "player_opensubtitles_year": {
         "message": "연도"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "정렬 기준"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "다운로드 수"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "업로드 날짜"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "평점"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "투표 수"
-    },
-    "player_opensubtitles_sort": {
-        "message": "정렬"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "내림차순"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "오름차순"
     },
     "player_opensubtitles_searching": {
         "message": "검색 중..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "검색 결과가 없습니다!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "다른 제목:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "이 제목에는 $1 자막이 없습니다: 모든 언어를 표시합니다."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1회 다운로드"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "청각 장애인 및 난청자용"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "기계 번역"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "신뢰할 수 있는 업로더가 업로드함"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles는 자막 다운로드에 제한을 둡니다! 더 이상 다운로드할 수 없습니다! 할당량은 $1 후에 초기화됩니다"

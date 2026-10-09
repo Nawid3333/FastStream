@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Серия #"
     },
-    "player_opensubtitles_type": {
-        "message": "Тип"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Все"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Фильм"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Серия"
-    },
     "player_opensubtitles_language": {
         "message": "Язык"
     },
     "player_opensubtitles_year": {
         "message": "Год"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Сортировать по"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Скачиваниям"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Дате загрузки"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Рейтингу"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Голосам"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Сортировать"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "По убыванию"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "По возрастанию"
     },
     "player_opensubtitles_searching": {
         "message": "Поиск…"
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Ничего не найдено!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Другие названия:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Нет на $1 для этого названия: показаны все языки."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 скачиваний"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Для глухих и слабослышащих"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Машинный перевод"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "От проверенного загрузчика"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles ограничивает загрузку субтитров! У вас не осталось загрузок! Ваша квота обнулится через $1"

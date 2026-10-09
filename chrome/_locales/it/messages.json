@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Episodio #"
     },
-    "player_opensubtitles_type": {
-        "message": "Tipo"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Tutti"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Film"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Episodio"
-    },
     "player_opensubtitles_language": {
         "message": "Lingua"
     },
     "player_opensubtitles_year": {
         "message": "Anno"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Ordina per"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Download"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Data di Caricamento"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Valutazione"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Voti"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Ordina"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Decrescente"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Crescente"
     },
     "player_opensubtitles_searching": {
         "message": "Ricerca in corso..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Nessun risultato trovato!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Altri titoli:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Nessuno in $1 per questo titolo: vengono mostrate tutte le lingue."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 download"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Per non udenti e ipoudenti"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Tradotto automaticamente"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Da un uploader affidabile"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles limita i download dei sottotitoli! Non hai più download rimasti! La tua quota si azzera tra $1"

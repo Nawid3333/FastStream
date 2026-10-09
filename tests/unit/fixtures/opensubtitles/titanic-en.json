@@ -1,0 +1,1612 @@
+{
+ "query": {
+  "languages": "en",
+  "query": "titanic"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 12,
+ "total_count": 559,
+ "page": 1,
+ "data": [
+  {
+   "id": "6105864",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 14177,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titane.2021.1080p.WEB-DL.DD5.1.H.264-CMRG",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7052079
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "6656816",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 6945,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "titane.2021.1080p.bluray.x264-eubds",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7626043
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "6167212",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 10657,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "Titane - Julia Ducournau (2021 France)",
+    "uploader": {
+     "name": "k-mad"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7100312
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "10604185",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1535,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titane (2021) 1080p BluRay x265 hevc 10bit AAC 5.1 - HeVK",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 11508271
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "9913260",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2134,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "Titane.2021.1080p.BluRay.DD+5.1.x264-PTer",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 10822672
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "6103455",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 52555,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Titane.2021.1080p.WEB-DL.DD5.1.H.264-CMRG",
+    "uploader": {
+     "name": "explosiveskull"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 7050061
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1306858,
+     "feature_type": "Movie",
+     "year": 2021,
+     "title": "Titane",
+     "movie_name": "2021 - Titane",
+     "imdb_id": 10944760,
+     "tmdb_id": 630240
+    }
+   }
+  },
+  {
+   "id": "10541434",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4794,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "The.Titan.2018.1080p.BluRay.x264-[YTS.AM]",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13197674-the-titan-2018-1080p-bluray-x264-yts-am",
+    "files": [
+     {
+      "file_id": 11444983
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150785",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 38658,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 24,
+    "release": "The.Titan.2018.720p.BluRay.x264-GETiT",
+    "uploader": {
+     "name": "Luis-subs"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7349731-the-titan-2018-720p-bluray-x264-getit",
+    "files": [
+     {
+      "file_id": 1242260
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150752",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4089,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "The.Titan.2018.720p.BluRay.x264-GETiT",
+    "uploader": {
+     "name": "goldenstark"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7349559-the-titan-2018-720p-bluray-x264-getit",
+    "files": [
+     {
+      "file_id": 1242228
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150164",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4601,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "The.Titan.2018.1080p.NF.WEBRip.DD5.1.x264-NTG",
+    "uploader": {
+     "name": "scooby74"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7310017-the-titan-2018-1080p-nf-webrip-dd5-1-x264-ntg",
+    "files": [
+     {
+      "file_id": 1241632
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1149689",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 164055,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "The.Titan.2018.1080p.NF.WEBRip.DD5.1.x264-NTG",
+    "uploader": {
+     "name": "GoldenBeard"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7309104-the-titan-2018-1080p-nf-webrip-dd5-1-x264-ntg",
+    "files": [
+     {
+      "file_id": 1241152
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1149628",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2773,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "The.Titan.2017.NF.WEB-DL.DDP2.0.x264-NTG",
+    "uploader": {
+     "name": "wild-thing"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7308967-the-titan-2017-nf-web-dl-ddp2-0-x264-ntg",
+    "files": [
+     {
+      "file_id": 1241088
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "10282872",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2236,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titan.The.OceanGate.Submersible.Disaster.2025.720p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX.Hi",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titan-the-oceangate-submersible-disaster-2025-720p-nf-web-dl-ddp5-1-atmos-h-264-flux-hi",
+    "files": [
+     {
+      "file_id": 11189245
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2562502,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titan: The OceanGate Disaster",
+     "movie_name": "2025 - Titan: The OceanGate Disaster",
+     "imdb_id": 35628853,
+     "tmdb_id": 1426306
+    }
+   }
+  },
+  {
+   "id": "1149611",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 5687,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "The.Titan.2017.NF.WEB-DL.DDP2.0.x264-NTG",
+    "uploader": {
+     "name": "wild-thing"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-titan-2017-nf-web-dl-ddp2-0-x264-ntg",
+    "files": [
+     {
+      "file_id": 1241069
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1149566",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 21130,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "The Titan (2018) 720p NF WEB-DL 700MB - MoviesWbb",
+    "uploader": {
+     "name": "wild-thing"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-titan-2018-720p-nf-web-dl-700mb-movieswbb",
+    "files": [
+     {
+      "file_id": 1241023
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150768",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 13558,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 24,
+    "release": "The.Titan.2018.720p.BluRay.x264-GETiT",
+    "uploader": {
+     "name": "Luis-subs"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7349730-the-titan-2018-720p-bluray-x264-getit",
+    "files": [
+     {
+      "file_id": 1242243
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150742",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4997,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "The.Titan.2018.720p.BluRay.x264-GETiT",
+    "uploader": {
+     "name": "ghostwalker"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-titan-2018-720p-bluray-x264-getit",
+    "files": [
+     {
+      "file_id": 1242216
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150605",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 5248,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "The.Titan.2018.1080p.NF.WEBRip.DD5.1.x264-NTG",
+    "uploader": {
+     "name": "8ffho_"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/7316892-the-titan-2018-1080p-nf-webrip-dd5-1-x264-ntg",
+    "files": [
+     {
+      "file_id": 1242076
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1150149",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 3225,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "The.Titan.2018.1080p.NF.WEBRip.DD5.1.x264-NTG (CHI)",
+    "uploader": {
+     "name": "scooby74"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-titan-2018-1080p-nf-webrip-dd5-1-x264-ntg-chi",
+    "files": [
+     {
+      "file_id": 1241615
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "1149662",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 29691,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 24,
+    "release": "The.Titan.2018.1080p.NF.WEBRip.DD5.1.x264-NTG",
+    "uploader": {
+     "name": "GoldenBeard"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-titan-2018-1080p-nf-webrip-dd5-1-x264-ntg",
+    "files": [
+     {
+      "file_id": 1241123
+     }
+    ],
+    "feature_details": {
+     "feature_id": 625897,
+     "feature_type": "Movie",
+     "year": 2018,
+     "title": "The Titan",
+     "movie_name": "2018 - The Titan",
+     "imdb_id": 4986098,
+     "tmdb_id": 476926
+    }
+   }
+  },
+  {
+   "id": "696160",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 32103,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.II.2010.DVDRip.XviD-ECSTASY",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3914757-titanic-ii-2010-dvdrip-xvid-ecstasy",
+    "files": [
+     {
+      "file_id": 767615
+     }
+    ],
+    "feature_details": {
+     "feature_id": 561553,
+     "feature_type": "Movie",
+     "year": 2010,
+     "title": "Titanic 2",
+     "movie_name": "2010 - Titanic 2",
+     "imdb_id": 1640571,
+     "tmdb_id": 44918
+    }
+   }
+  },
+  {
+   "id": "696884",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 8000,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.II.2010.DvdRip.Xvid",
+    "uploader": {
+     "name": "masterbroken"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-ii-2010-dvdrip-xvid",
+    "files": [
+     {
+      "file_id": 768374
+     }
+    ],
+    "feature_details": {
+     "feature_id": 561553,
+     "feature_type": "Movie",
+     "year": 2010,
+     "title": "Titanic 2",
+     "movie_name": "2010 - Titanic 2",
+     "imdb_id": 1640571,
+     "tmdb_id": 44918
+    }
+   }
+  },
+  {
+   "id": "696774",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 30188,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.II.2010.DVDRip.XviD-ECSTASY",
+    "uploader": {
+     "name": "cupid421"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/4085599-titanic-ii-2010-dvdrip-xvid-ecstasy",
+    "files": [
+     {
+      "file_id": 768263
+     }
+    ],
+    "feature_details": {
+     "feature_id": 561553,
+     "feature_type": "Movie",
+     "year": 2010,
+     "title": "Titanic 2",
+     "movie_name": "2010 - Titanic 2",
+     "imdb_id": 1640571,
+     "tmdb_id": 44918
+    }
+   }
+  },
+  {
+   "id": "11749608",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 52,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titan The OceanGate Submersible Disaster (2025) {imdb-tt35628853} [NF][WEBDL-1080p][EAC3 Atmos 5.1][x264]-FLUX",
+    "uploader": {
+     "name": "uruguen"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titan-the-oceangate-submersible-disaster-2025-imdb-tt35628853-nf-webdl-1080p-eac3-atmos-5-1-x264-flux",
+    "files": [
+     {
+      "file_id": 12658862
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2562502,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titan: The OceanGate Disaster",
+     "movie_name": "2025 - Titan: The OceanGate Disaster",
+     "imdb_id": 35628853,
+     "tmdb_id": 1426306
+    }
+   }
+  },
+  {
+   "id": "10278059",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 27415,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "720p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13143292-720p-nf-web-dl-ddp5-1-atmos-h-264-flux",
+    "files": [
+     {
+      "file_id": 11184476
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2562502,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titan: The OceanGate Disaster",
+     "movie_name": "2025 - Titan: The OceanGate Disaster",
+     "imdb_id": 35628853,
+     "tmdb_id": 1426306
+    }
+   }
+  },
+  {
+   "id": "10278065",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1271,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "720p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13143294-720p-nf-web-dl-ddp5-1-atmos-h-264-flux",
+    "files": [
+     {
+      "file_id": 11184482
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2562502,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titan: The OceanGate Disaster",
+     "movie_name": "2025 - Titan: The OceanGate Disaster",
+     "imdb_id": 35628853,
+     "tmdb_id": 1426306
+    }
+   }
+  },
+  {
+   "id": "10278064",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2386,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "720p.NF.WEB-DL.DDP5.1.Atmos.H.264-FLUX",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13143293-720p-nf-web-dl-ddp5-1-atmos-h-264-flux",
+    "files": [
+     {
+      "file_id": 11184481
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2562502,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titan: The OceanGate Disaster",
+     "movie_name": "2025 - Titan: The OceanGate Disaster",
+     "imdb_id": 35628853,
+     "tmdb_id": 1426306
+    }
+   }
+  },
+  {
+   "id": "6289814",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 972,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Drain.the.Titanic.2015.1080p.WEB-DL.x264-NTG",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/drain-the-titanic-2015-1080p-web-dl-x264-ntg",
+    "files": [
+     {
+      "file_id": 7188752
+     }
+    ],
+    "feature_details": {
+     "feature_id": 609972,
+     "feature_type": "Movie",
+     "year": 2015,
+     "title": "Drain the Titanic",
+     "movie_name": "2015 - Drain the Titanic",
+     "imdb_id": 4743564,
+     "tmdb_id": 428950
+    }
+   }
+  },
+  {
+   "id": "5176242",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4113,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Back.to.the.Titanic.2020.720p.WEB.x264-CAFFEiNE",
+    "uploader": {
+     "name": "Nipan_Grilli"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/back-to-the-titanic-2020-720p-web-x264-caffeine-en",
+    "files": [
+     {
+      "file_id": 5285862
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1099333,
+     "feature_type": "Movie",
+     "year": 2020,
+     "title": "Back To The Titanic",
+     "movie_name": "2020 - Back To The Titanic",
+     "imdb_id": 12100782,
+     "tmdb_id": 682666
+    }
+   }
+  },
+  {
+   "id": "10610413",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1426,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "Titanic.the.Digital.Resurrection.2025.1080p.DSNP.WEB-DL.DDP5.1.H.264-playWEB",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-the-digital-resurrection-2025-1080p-dsnp-web-dl-ddp5-1-h-264-playweb",
+    "files": [
+     {
+      "file_id": 11514429
+     }
+    ],
+    "feature_details": {
+     "feature_id": 2508441,
+     "feature_type": "Movie",
+     "year": 2025,
+     "title": "Titanic: The Digital Resurrection",
+     "movie_name": "2025 - Titanic: The Digital Resurrection",
+     "imdb_id": 36462222,
+     "tmdb_id": 1457124
+    }
+   }
+  },
+  {
+   "id": "5686692",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 440,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 29.97,
+    "release": "[WEBRip][YTS]",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/8532776-webrip-yts",
+    "files": [
+     {
+      "file_id": 6717215
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1203309,
+     "feature_type": "Movie",
+     "year": 2012,
+     "title": "Titanic's Final Mystery",
+     "movie_name": "2012 - Titanic's Final Mystery",
+     "imdb_id": 2133359,
+     "tmdb_id": 256490
+    }
+   }
+  },
+  {
+   "id": "6226584",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2230,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Back.to.the.Titanic.2020.1080p.WEB-DL.x264-NTG",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/back-to-the-titanic-2020-1080p-web-dl-x264-ntg",
+    "files": [
+     {
+      "file_id": 7142114
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1099333,
+     "feature_type": "Movie",
+     "year": 2020,
+     "title": "Back To The Titanic",
+     "movie_name": "2020 - Back To The Titanic",
+     "imdb_id": 12100782,
+     "tmdb_id": 682666
+    }
+   }
+  },
+  {
+   "id": "5176222",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1131,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Back.to.the.Titanic.2020.720p.WEB.x264-CAFFEiNE",
+    "uploader": {
+     "name": "Nipan_Grilli"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/back-to-the-titanic-2020-720p-web-x264-caffeine",
+    "files": [
+     {
+      "file_id": 5285855
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1099333,
+     "feature_type": "Movie",
+     "year": 2020,
+     "title": "Back To The Titanic",
+     "movie_name": "2020 - Back To The Titanic",
+     "imdb_id": 12100782,
+     "tmdb_id": 682666
+    }
+   }
+  },
+  {
+   "id": "9898060",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Saving the Titanic (2012).DVD.NonHI.en.PBS",
+    "uploader": {
+     "name": "mrtinkles"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/saving-the-titanic-2012-dvd-nonhi-en-pbs",
+    "files": [
+     {
+      "file_id": 10807462
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1299922,
+     "feature_type": "Movie",
+     "year": 2012,
+     "title": "Saving the Titanic",
+     "movie_name": "2012 - Saving the Titanic",
+     "imdb_id": 2084931,
+     "tmdb_id": 102370
+    }
+   }
+  },
+  {
+   "id": "9898062",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 25,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Saving the Titanic (2012).DVD.HI.en.PBS",
+    "uploader": {
+     "name": "mrtinkles"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/saving-the-titanic-2012-dvd-hi-en-pbs",
+    "files": [
+     {
+      "file_id": 10807464
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1299922,
+     "feature_type": "Movie",
+     "year": 2012,
+     "title": "Saving the Titanic",
+     "movie_name": "2012 - Saving the Titanic",
+     "imdb_id": 2084931,
+     "tmdb_id": 102370
+    }
+   }
+  },
+  {
+   "id": "6044435",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 711,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Saving.the.Titanic.2012.WEBRip.x264-RARBG",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/saving-the-titanic-2012-webrip-x264-rarbg",
+    "files": [
+     {
+      "file_id": 7004439
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1299922,
+     "feature_type": "Movie",
+     "year": 2012,
+     "title": "Saving the Titanic",
+     "movie_name": "2012 - Saving the Titanic",
+     "imdb_id": 2084931,
+     "tmdb_id": 102370
+    }
+   }
+  },
+  {
+   "id": "9898072",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 661,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Titanic (1953).DVD.HI.pcc.en.20FOX",
+    "uploader": {
+     "name": "mrtinkles"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-dvd-hi-pcc-en-20fox",
+    "files": [
+     {
+      "file_id": 10807475
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231870",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 8660,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.1953.proper.1080p.bluray.2xRus.Eng.x264-psychd",
+    "uploader": {
+     "name": "jtpk01"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/4694777-titanic-1953-proper-1080p-bluray-2xrus-eng-x264-psychd",
+    "files": [
+     {
+      "file_id": 4319318
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "6705862",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 1005,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "The.Chambermaid.On.The.Titanic.1997.720p.WEBRip.x264",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-chambermaid-on-the-titanic-1997-720p-webrip-x264",
+    "files": [
+     {
+      "file_id": 7675099
+     }
+    ],
+    "feature_details": {
+     "feature_id": 559024,
+     "feature_type": "Movie",
+     "year": 1997,
+     "title": "The Chambermaid on the Titanic",
+     "movie_name": "1997 - The Chambermaid on the Titanic",
+     "imdb_id": 129923,
+     "tmdb_id": 115872
+    }
+   }
+  },
+  {
+   "id": "6462515",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 401,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.1953.WEB-DL.TUBI",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-web-dl-tubi",
+    "files": [
+     {
+      "file_id": 7438427
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231980",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 8524,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.1953.720p.BluRay.x264.YIFY",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-720p-bluray-x264-yify",
+    "files": [
+     {
+      "file_id": 4319458
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231875",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 4510,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.1953.720p.BluRay.DTS.x264-7SinS",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-720p-bluray-dts-x264-7sins",
+    "files": [
+     {
+      "file_id": 4319337
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231802",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2169,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Titanic (1953)",
+    "uploader": {
+     "name": "giann"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3418650-titanic-1953",
+    "files": [
+     {
+      "file_id": 4319246
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "11149593",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 50,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titanic.1953.1080p.BluRay.x265-RARBG.en",
+    "uploader": {
+     "name": "classiclover"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-1080p-bluray-x265-rarbg-en",
+    "files": [
+     {
+      "file_id": 12045567
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "9898073",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 565,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 29.97,
+    "release": "Titanic (1953).DVD.NonHI.pcc.en.20FOX",
+    "uploader": {
+     "name": "mrtinkles"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-1953-dvd-nonhi-pcc-en-20fox",
+    "files": [
+     {
+      "file_id": 10807474
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231902",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2105,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic.1953.720p.BluRay.DTS.x264-7SinS",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/4957080-titanic-1953-720p-bluray-dts-x264-7sins",
+    "files": [
+     {
+      "file_id": 4319364
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "4231810",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 3381,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Titanic (1953)",
+    "uploader": {
+     "name": "buah06"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/3527168-titanic-1953",
+    "files": [
+     {
+      "file_id": 4319254
+     }
+    ],
+    "feature_details": {
+     "feature_id": 549033,
+     "feature_type": "Movie",
+     "year": 1953,
+     "title": "Titanic",
+     "movie_name": "1953 - Titanic",
+     "imdb_id": 46435,
+     "tmdb_id": 16535
+    }
+   }
+  },
+  {
+   "id": "11565778",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 17,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titanic 25 Years Later with James Cameron 2023 1080p HULU WEB-DL DDP5 1 H 264-FLUX",
+    "uploader": {
+     "name": "donnie373"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/13684262-titanic-25-years-later-with-james-cameron-2023-1080p-hulu-web-dl-ddp5-1-h-264-flux",
+    "files": [
+     {
+      "file_id": 12472751
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1500120,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Titanic: 25 Years Later with James Cameron",
+     "movie_name": "2023 - Titanic: 25 Years Later with James Cameron",
+     "imdb_id": 26690633,
+     "tmdb_id": 1080916
+    }
+   }
+  },
+  {
+   "id": "11565777",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 8,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Titanic 25 Years Later with James Cameron 2023 1080p HULU WEB-DL DDP5 1 H 264-FLUX",
+    "uploader": {
+     "name": "donnie373"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/titanic-25-years-later-with-james-cameron-2023-1080p-hulu-web-dl-ddp5-1-h-264-flux",
+    "files": [
+     {
+      "file_id": 12472750
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1500120,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Titanic: 25 Years Later with James Cameron",
+     "movie_name": "2023 - Titanic: 25 Years Later with James Cameron",
+     "imdb_id": 26690633,
+     "tmdb_id": 1080916
+    }
+   }
+  },
+  {
+   "id": "6764861",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 285,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "S.O.S.Titanic.Theatrical.1979.1080p.WEB.AAC.x264-LYCANTROPE",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/9279649-s-o-s-titanic-theatrical-1979-1080p-web-aac-x264-lycantrope",
+    "files": [
+     {
+      "file_id": 7734304
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646765,
+     "feature_type": "Movie",
+     "year": 1979,
+     "title": "S.O.S. Titanic",
+     "movie_name": "1979 - S.O.S. Titanic",
+     "imdb_id": 79836,
+     "tmdb_id": 86938
+    }
+   }
+  }
+ ]
+}
