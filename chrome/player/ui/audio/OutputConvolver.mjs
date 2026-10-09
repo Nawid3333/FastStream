@@ -3,6 +3,7 @@ import {IndexedDBManager} from '../../network/IndexedDBManager.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {StringUtils} from '../../utils/StringUtils.mjs';
+import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {createDropdown, renameDropdownChoice} from '../components/Dropdown.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
@@ -523,19 +524,8 @@ export class OutputConvolver extends AbstractAudioModule {
 
           // if shift is held, then download current file
           if (e.shiftKey && channel.fileName) {
-            const name = this.getImpulseNameForChannel(this.currentProfile.id, i);
-            const file = await this.db.getFile(name).catch((e) => null);
-            if (file) {
-              const url = URL.createObjectURL(file);
-              const a = WebUtils.create('a');
-              a.href = url;
-              a.download = channel.fileName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-            }
             e.stopPropagation();
+            await this.downloadImpulse(i, channel.fileName);
             return;
           }
 
@@ -579,7 +569,7 @@ export class OutputConvolver extends AbstractAudioModule {
                 this.updateNodes();
               } catch (err) {
                 console.error('Error storing impulse response:', err);
-                alert(Localize.getMessage('audioconvolver_fileerror'));
+                AlertPolyfill.alert(Localize.getMessage('audioconvolver_fileerror'), 'error');
               }
             }
             document.body.removeChild(input);
@@ -589,6 +579,21 @@ export class OutputConvolver extends AbstractAudioModule {
         });
       })(i);
     }
+  }
+
+  /**
+   * Saves a channel's stored impulse file (shift-click on its button), as every other save
+   * does: a link clicked in the player's frame is refused for a blob URL (Utils.downloadURL),
+   * and its URL was revoked before the download could read it (review).
+   * @param {number} channelId
+   * @param {string} fileName - What the file was called.
+   * @return {Promise<void>}
+   */
+  async downloadImpulse(channelId, fileName) {
+    const file = await this.db.getFile(this.getImpulseNameForChannel(this.currentProfile.id, channelId)).catch(() => null);
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    Utils.revokeWhenDownloaded(url, await Utils.downloadURL(url, fileName));
   }
 
   getImpulseNameForChannel(profileId, channelId) {

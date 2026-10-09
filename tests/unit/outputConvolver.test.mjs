@@ -16,6 +16,7 @@ vi.mock('../../chrome/player/ui/components/Dropdown.mjs', () => ({}));
 
 const {OutputConvolver} = await import('../../chrome/player/ui/audio/OutputConvolver.mjs');
 const {AbstractAudioModule} = await import('../../chrome/player/ui/audio/AbstractAudioModule.mjs');
+const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
 const {AudioConvolverControl, AudioConvolverProfile} = await import('../../chrome/player/ui/audio/config/AudioConvolverControl.mjs');
 
 /**
@@ -43,6 +44,22 @@ function stereoConvolver() {
 }
 
 describe('OutputConvolver', () => {
+  // A link clicked in the player's frame is refused for a blob URL, and the URL was revoked
+  // at once (review): the stored impulse file is saved as every other file is.
+  it('saves a stored impulse file through the downloads, its URL revoked once it is read', async () => {
+    const {convolver} = stereoConvolver();
+    convolver.db = {getFile: async () => new Blob([new Uint8Array([1, 2])])};
+    const download = vi.spyOn(Utils, 'downloadURL').mockResolvedValue(7);
+    const revoke = vi.spyOn(Utils, 'revokeWhenDownloaded').mockImplementation(() => {});
+    try {
+      await convolver.downloadImpulse(1, 'room.wav');
+      expect(download).toHaveBeenCalledWith(expect.stringMatching(/^blob:/), 'room.wav');
+      expect(revoke).toHaveBeenCalledWith(download.mock.calls[0][0], 7);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it('gives each convolver its impulse response only when it changes', async () => {
     const {convolver, ctx} = stereoConvolver();
     await convolver.updateNodes();
