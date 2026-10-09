@@ -601,7 +601,7 @@ function showSpeed(bytesPerSecond) {
 
 /**
  * Shows a size in its number field and MB/GB picker, to three decimals; nothing (∞) for no
- * limit. Loaded, in GB from 1 GB up and in MB below; after a change, in the unit the user
+ * limit. Loaded, in GB from 1 GB up (in whole MB) and in MB below; after a change, in the unit the user
  * has picked: switched under them, "3000" typed in MB became "3 GB" when the field was left,
  * and picking GB after it changed nothing.
  * @param {HTMLInputElement} input
@@ -610,7 +610,8 @@ function showSpeed(bytesPerSecond) {
  * @param {boolean} [keepUnit] - Whether the unit picked stays.
  */
 function showSize(input, unit, bytes, keepUnit = false) {
-  if (!keepUnit) unit.value = String(!(bytes >= 0) || bytes >= GB ? GB : GB / 1000);
+  // GB only when its three decimals hold the size: 1234.4 MB came back as 1.234 GB.
+  if (!keepUnit) unit.value = String(!(bytes >= 0) || (bytes >= GB && bytes % (GB / 1000) === 0) ? GB : GB / 1000);
   input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
 }
 

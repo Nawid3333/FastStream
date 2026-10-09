@@ -271,6 +271,14 @@ describe('Options page size fields, typed by hand', function() {
     await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
         {timeout: 30000});
     expect(await shown('maxsize')).toEqual(['1.5', 'GB']);
+    // A size GB's three decimals do not hold comes back in MB: it came back as 1.234 GB.
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '1234.4');
+    await savedAs('maxVideoSize', 1234.4e6);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['1234.4', 'MB']);
     // Emptied, it is no limit.
     await typeInto('maxsize', '');
     await browser.keys(['Backspace', 'Tab']);
