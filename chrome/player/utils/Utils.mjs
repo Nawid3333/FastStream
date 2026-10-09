@@ -14,7 +14,21 @@ export class Utils {
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored);
+    return Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored));
+  }
+
+  /**
+   * A maximum size saved below 1 MB was a bare number read as bytes, before #378 made it
+   * megabytes: "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded.
+   * Read as megabytes. Changed in place; a size of 1 MB or more is left alone.
+   * @param {Object} options - Saved options merged over the defaults.
+   * @return {Object} The same options.
+   */
+  static migrateSizes(options) {
+    if (options.maxVideoSize > 0 && options.maxVideoSize < 1000000) {
+      options.maxVideoSize *= 1000000;
+    }
+    return options;
   }
 
   /**

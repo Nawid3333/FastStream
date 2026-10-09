@@ -260,16 +260,42 @@ describe('Options page size fields, typed by hand', function() {
     await pickUnit('maxsize', 'MB');
     await savedAs('maxVideoSize', 2e6);
     expect(await shown('maxsize')).toEqual(['2', 'MB']);
-    // 1500 MB stays as typed while it is typed, and reads as 1.5 GB once the field is left.
+    // 1500 MB stays in MB, also once the field is left (the unit is the user's), and reads
+    // as 1.5 GB when the page loads again.
     await typeInto('maxsize', '1500');
     await savedAs('maxVideoSize', 1.5e9);
     expect(await shown('maxsize')).toEqual(['1500', 'MB']);
     await browser.keys(['Tab']);
+    expect(await shown('maxsize')).toEqual(['1500', 'MB']);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
     expect(await shown('maxsize')).toEqual(['1.5', 'GB']);
     // Emptied, it is no limit.
     await typeInto('maxsize', '');
     await browser.keys(['Backspace', 'Tab']);
     await savedAs('maxVideoSize', -1);
+  });
+
+  // Before #378 a bare "10" was saved as 10 bytes: such a size is megabytes now.
+  it('shows a size saved as a bare number before as megabytes', async function() {
+    await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxVideoSize: 10})));
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['10', 'MB']);
+  });
+
+  it('keeps the unit that is picked, also for an empty size', async function() {
+    await typeInto('maxsize', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('maxVideoSize', -1);
+    await pickUnit('maxsize', 'MB');
+    expect(await shown('maxsize')).toEqual(['', 'MB']);
+    await typeInto('maxsize', '3000');
+    await pickUnit('maxsize', 'GB');
+    await savedAs('maxVideoSize', 3e12);
+    expect(await shown('maxsize')).toEqual(['3000', 'GB']);
   });
 
   it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {

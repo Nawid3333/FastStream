@@ -596,20 +596,22 @@ const GB = 1000 ** 3;
  * @param {number} bytesPerSecond
  */
 function showSpeed(bytesPerSecond) {
-  maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 100) / 100) : '';
+  maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 1000) / 1000) : '';
 }
 
 /**
- * Shows a size in its number field and MB/GB picker: in GB from 1 GB up, in MB below, to
- * two decimals; nothing (∞) and GB for no limit.
+ * Shows a size in its number field and MB/GB picker, to three decimals; nothing (∞) for no
+ * limit. Loaded, in GB from 1 GB up and in MB below; after a change, in the unit the user
+ * has picked: switched under them, "3000" typed in MB became "3 GB" when the field was left,
+ * and picking GB after it changed nothing.
  * @param {HTMLInputElement} input
  * @param {HTMLSelectElement} unit
  * @param {number} bytes
+ * @param {boolean} [keepUnit] - Whether the unit picked stays.
  */
-function showSize(input, unit, bytes) {
-  const multiplier = !(bytes >= 0) || bytes >= GB ? GB : GB / 1000;
-  unit.value = String(multiplier);
-  input.value = bytes >= 0 ? String(Math.round(bytes / multiplier * 100) / 100) : '';
+function showSize(input, unit, bytes, keepUnit = false) {
+  if (!keepUnit) unit.value = String(!(bytes >= 0) || bytes >= GB ? GB : GB / 1000);
+  input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
 }
 
 /**
@@ -624,8 +626,8 @@ function readAmount(input, multiplier) {
   return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * multiplier) : NaN;
 }
 
-// Written back only when the field is left (a trusted change), not on a save while typing:
-// "1500 MB" became "1.5 GB" under the typing, and the next keys went into the wrong unit.
+// Written back (in the unit picked: showSize) when the field is left or a unit picked - a
+// trusted change - not on a save while typing, where it fought the keys being typed.
 maxSpeed.addEventListener('change', (e) => {
   const value = readAmount(maxSpeed, BYTES_PER_MBIT_PER_S);
   Options.maxSpeed = Number.isNaN(value) ? -1 : value;
@@ -636,7 +638,7 @@ maxSpeed.addEventListener('change', (e) => {
 const onMaxSizeChange = (e) => {
   const value = readAmount(maxSize, Number(maxSizeUnit.value));
   Options.maxVideoSize = Number.isNaN(value) ? -1 : value;
-  if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
+  if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize, true);
   optionChanged();
 };
 maxSize.addEventListener('change', onMaxSizeChange);
@@ -649,7 +651,7 @@ const MIN_RAM_BUDGET = 256000000;
 const onRamBudgetChange = (e) => {
   const value = readAmount(ramBudget, Number(ramBudgetUnit.value));
   Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
-  if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
+  if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
   optionChanged();
 };
 ramBudget.addEventListener('change', onRamBudgetChange);
@@ -826,7 +828,7 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
-    const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
+    const newOptions = Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj));
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);
