@@ -21,7 +21,12 @@ export class OptionsStore {
     this.#initialized ??= (async () => {
       this.#options = await Utils.getOptionsFromStorage();
       this.#wireExternalUpdates();
-    })();
+    })().catch((e) => {
+      // Not kept: the next call reads the storage again, where one failed read failed every
+      // later init() on the page.
+      this.#initialized = null;
+      throw e;
+    });
     await this.#initialized;
     // The options as they are now: a save since the first load replaced the object.
     return this.#options;

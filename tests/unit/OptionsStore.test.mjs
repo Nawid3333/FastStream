@@ -31,6 +31,17 @@ describe('OptionsStore.init', () => {
     expect((await second).maxSpeed).toBe(5);
   });
 
+  it('reads the storage again after a read that failed', async () => {
+    const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
+    Utils.getOptionsFromStorage.mockImplementationOnce(async () => {
+      throw new Error('storage');
+    });
+    await expect(OptionsStore.init()).rejects.toThrow('storage');
+    const again = OptionsStore.init();
+    resolveLoad({maxSpeed: 3});
+    expect((await again).maxSpeed).toBe(3);
+  });
+
   it('gives the options as they are now after a save', async () => {
     const first = OptionsStore.init();
     resolveLoad({maxSpeed: 5});
