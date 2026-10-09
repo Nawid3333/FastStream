@@ -63,6 +63,19 @@ describe('the toolbar button in MPV mode', () => {
     tabId: 7});
   });
 
+  // Firefox's word (EnvUtils.os) over navigator.platform, which says "Win32" on every system
+  // with privacy.resistFingerprinting on.
+  it('names them on Linux where navigator.platform says Windows', async () => {
+    const {EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs');
+    EnvUtils.knownOs = 'linux';
+    try {
+      BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
+      expect(calls.title.title).toContain('update the faststream-mpv-host.mjs');
+    } finally {
+      EnvUtils.knownOs = null;
+    }
+  });
+
   it('names a failure before an outdated host', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: 'mpv executable not found',
       mpvHostOutdated: true});

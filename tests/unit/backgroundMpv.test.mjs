@@ -452,6 +452,27 @@ describe('an outdated mpv host', () => {
     expect(bg.titles.get(1)).toBe(OUTDATED);
   });
 
+  // Firefox's word for the system, not navigator.platform: that says "Win32" on every system
+  // with privacy.resistFingerprinting on, and Linux was told to use the Start menu.
+  it('names the Linux and macOS steps there, whatever navigator.platform says', async () => {
+    vi.stubGlobal('navigator', {userAgent: navigator.userAgent, platform: 'Win32'});
+    try {
+      bg = await loadBackground({
+        options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+        tabs: [{id: 1, url: PAGE}],
+        onNative: () => ({ok: true}),
+        os: 'linux',
+      });
+      await bg.navigated(1, PAGE);
+      await bg.request({tabId: 1, url: EPISODE});
+      expect(bg.titles.get(1)).toBe('FastStream - MPV - the mpv helper on this computer is out of date: ' +
+        'update the faststream-mpv-host.mjs that your native messaging manifest points to ' +
+        '(git pull in your FastStream checkout; see native-host/README.md)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('shows the reason first when the hand-off failed as well', async () => {
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},

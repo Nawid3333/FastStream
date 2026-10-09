@@ -5,6 +5,7 @@ import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
+import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
@@ -126,10 +127,12 @@ function resolveMpvContentType(explicit, url) {
 let OptionsLoadPromise = null;
 function ensureOptions() {
   if (!OptionsLoadPromise) {
-    OptionsLoadPromise = Promise.all([
+    // Firefox's word for the system first: the toolbar states restored name the mpv helper's
+    // steps for it (EnvUtils.isWindows).
+    OptionsLoadPromise = EnvUtils.os().then(() => Promise.all([
       loadOptions(),
       Tabs.restoreTabStates(),
-    ]).then(() => leaveMpvWhenOff()).catch((e) => {
+    ])).then(() => leaveMpvWhenOff()).catch((e) => {
       console.error('Loading the options failed', e);
       // The next event tries again. Kept, the failure stood until the event page unloaded,
       // and every event acted on no options: MPV mode and both URL lists off.
@@ -569,7 +572,8 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
  */
 async function onCancelledShortcut(press, tabobj) {
   const commands = await chrome.commands.getAll();
-  const isMac = navigator.platform.startsWith('Mac');
+  // Firefox's word: navigator.platform says "Win32" with privacy.resistFingerprinting on.
+  const isMac = (await EnvUtils.os()) === 'mac';
   const command = commands.find((c) => KeyShortcut.matches(c.shortcut || '', press, isMac));
   if (!command) {
     return;

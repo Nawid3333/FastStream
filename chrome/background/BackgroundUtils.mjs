@@ -1,4 +1,5 @@
 // @ts-check
+import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
 
@@ -71,14 +72,6 @@ export class BackgroundUtils {
     });
   }
 
-  /**
-   * Whether this is Windows, where the mpv host's setup and update steps differ.
-   * @return {boolean}
-   */
-  static isWindows() {
-    return String(globalThis.navigator?.platform || '').startsWith('Win');
-  }
-
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
@@ -102,7 +95,7 @@ export class BackgroundUtils {
       } else if (tab.mpvHostOutdated) {
         // What to run differs: on Windows the setup installed a copy (Start menu "Update
         // mpv"); on Linux and macOS the manifest names the host file itself.
-        title = BackgroundUtils.isWindows() ?
+        title = EnvUtils.isWindows() ?
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
             'FastStream - MPV - the mpv helper on this computer is out of date: ' +
             'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)' :

@@ -102,6 +102,8 @@ const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   },
 }) : null;
 let pageSeen = false;
+// Firefox's word for the system, for the mpv helper's steps (EnvUtils.isWindows).
+EnvUtils.os();
 const offerMpvWhenReady = () => {
   if (mpvSuggestion && optionsLoaded && pageSeen) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
@@ -548,7 +550,7 @@ mpvTestButton.addEventListener('click', () => {
       // after the host changed.
       if (response.ok && response.hostOutdated) {
         // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
-        mpvTestResult.textContent += ' ' + window.getI18nMessage(navigator.platform.startsWith('Win') ?
+        mpvTestResult.textContent += ' ' + window.getI18nMessage(EnvUtils.isWindows() ?
           'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
       }
       // An mpv the host started is open: which decoder it plays with, as mpv says. On the
