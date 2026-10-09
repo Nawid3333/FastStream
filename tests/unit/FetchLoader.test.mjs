@@ -542,6 +542,27 @@ describe('FetchLoader', () => {
       expect(cancelled).toBe(true);
     });
 
+    // Only the range is kept as it comes (the bytes before it were held in RAM, and the
+    // whole again, to cut it out): the cut must be right wherever the chunks break.
+    it('cuts the range out of chunks that break anywhere', async () => {
+      for (const size of [1, 3, 7, 64]) {
+        let sent = 0;
+        const chunked = new ReadableStream({
+          pull(controller) {
+            if (sent >= file.length) {
+              controller.close();
+              return;
+            }
+            controller.enqueue(file.slice(sent, sent + size));
+            sent += size;
+          },
+        });
+        const {recorder} = await loadRange(33, 71, chunked);
+        const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+        expect([...new Uint8Array(response.data)]).toEqual([...file.slice(33, 71)]);
+      }
+    });
+
     it('fails a range that starts past the end of the file', async () => {
       const {recorder, loader} = await loadRange(200, 300);
       expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);

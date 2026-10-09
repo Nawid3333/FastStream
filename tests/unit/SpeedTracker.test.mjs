@@ -93,6 +93,16 @@ describe('SpeedTracker', () => {
     vi.restoreAllMocks();
   });
 
+  // The two entries kept were counted over an ever longer time: after the last download the
+  // speed went down slowly, never to 0 (review, 2026-10-09).
+  it('reports 0 once nothing has come for the whole window', () => {
+    const now = performance.now();
+    const t = trackerWith(now - 17000, now - 15000);
+    expect(t.getSpeed()).toBe(0);
+    const recent = trackerWith(now - 17000, now - 2000);
+    expect(recent.getSpeed()).toBeGreaterThan(0);
+  });
+
   it('does not prune recent entries', () => {
     const now = performance.now();
     const t = new SpeedTracker();
