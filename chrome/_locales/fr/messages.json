@@ -1164,7 +1164,13 @@
         "message": "Ouvrir les flux détectés dans mpv (lecteur externe)"
     },
     "options_mpv_body": {
-        "message": "Lorsque le mode MPV est activé, le bouton de la barre d'outils bascule entre Désactivé, Activé (lecteur intégré) et MPV. Sur les sites de la liste d'autorisation, les flux détectés s'ouvrent directement dans mpv sur votre ordinateur au lieu du lecteur du navigateur. Nécessite l'hôte mpv FastStream – voir le dossier native-host du dépôt pour les instructions d'installation."
+        "message": "Lorsque le mode MPV est activé, le bouton de la barre d'outils bascule entre Désactivé, Activé (lecteur intégré) et MPV. Sur les sites de la liste d'autorisation, les flux détectés s'ouvrent directement dans mpv sur votre ordinateur au lieu du lecteur du navigateur. Nécessite mpv et l'hôte mpv FastStream sur votre ordinateur : sous Windows, l'installation en un clic (premier lien ci-dessous) installe les deux ; l'installation manuelle (second lien) s'adresse aux développeurs et aux autres systèmes."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Installation en un clic pour Windows (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Installation manuelle"
     },
     "options_mpv_allowlist": {
         "message": "Liste d'autorisation MPV"
@@ -1200,7 +1206,22 @@
         "message": "Hôte joignable, mais mpv introuvable"
     },
     "options_mpv_test_fail": {
-        "message": "Hôte mpv indisponible"
+        "message": "Hôte mpv indisponible – est-il installé ? Voir les liens d'installation en haut de cette section."
+    },
+    "options_mpv_suggest_text": {
+        "message": "L'assistant mpv est installé – ouvrir les vidéos dans mpv ?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "Activer le mode MPV"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Ignorer"
+    },
+    "options_mpv_suggest_done": {
+        "message": "Le mode MPV est activé. Ajoutez à la liste d'autorisation MPV (plus bas, dans Mode MPV) les sites dont les vidéos doivent s'ouvrir dans mpv. Sur les autres sites, appuyez sur Alt+F (le raccourci MPV) puis lancez la vidéo, ou utilisez le bouton mpv du lecteur FastStream."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Fermer"
     },
     "player_mpv_label": {
         "message": "Ouvrir ce flux dans mpv"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - le flux ne s'est pas ouvert : $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - l'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream"
+        "message": "FastStream - MPV - l'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Lecture dans MPV - décodé par la carte graphique : $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - Lecture dans MPV - décodé par le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique"
     },
     "options_mpv_test_outdated": {
-        "message": "L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."
+        "message": "L'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "Le mpv ouvert décode sur la carte graphique : $1."
@@ -1239,7 +1260,7 @@
         "message": "Le mpv ouvert décode sur le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique."
     },
     "player_mpv_sent_outdated": {
-        "message": "Envoyé vers mpv. L'hôte mpv de cet ordinateur est obsolète : exécutez update-local.cmd (ou native-host\\install.ps1) dans le dépôt FastStream."
+        "message": "Envoyé vers mpv. L'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"

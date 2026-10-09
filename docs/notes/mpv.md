@@ -500,3 +500,32 @@ version 3).** From the review of the owner's "mpv opens behind Firefox" (since 1
 - **mpv.com gives way to the mpv.exe beside it** (`preferGuiBuild`, Windows only). The
   wrapper starts the .exe as its child, so WMI's pid was the wrapper's, which has no window:
   the focus script found none and mpv stayed behind. `mpvHostPath.test.mjs` fails without it.
+
+**Users without a checkout: mpv-config's one-click setup (2026-10-09).** The companion repo
+(github.com/Nawid3333/mpv-config, public) installs on Windows, with no admin, Git or Node.js:
+`irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex`
+(or `install.bat` from its ZIP). It puts mpv and its config in `%LOCALAPPDATA%\Programs\mpv`,
+runs this fork's `native-host/install.ps1` and host file from the latest release tag with
+`-MpvPath` (that mpv.exe) and `-NodePath` (a private node.exe in
+`%LOCALAPPDATA%\FastStreamMpvHost\node\`), opens the signed .xpi in Firefox, and adds a Start
+menu folder "mpv" with "mpv", "Update mpv" (updater.bat; it also brings a host the setup
+installed to the newest release) and "Uninstall mpv" (removes that host too). Such a user has
+no repository, so:
+- The outdated-host texts (`extension_toggle_label_mpv_outdated`, `options_mpv_test_outdated`,
+  `player_mpv_sent_outdated`, and BackgroundUtils' English fallback) name "Update mpv" in the
+  Start menu first, and `update-local.cmd`/`install.ps1` for a checkout second.
+  `options_mpv_body` and two links under it point to mpv-config's README ("Install") first and
+  README-MPV.md second; `options_mpv_test_fail` asks "is it installed?".
+- The setup leaves MPV mode off. The options page offers it (`MpvSuggestion.mjs`, banner
+  `#mpvsuggestbox`): MPV mode off and the host answering `MPV_TEST` with `ok` and `mpv`
+  shows "The mpv helper is installed - open videos in mpv?", a button that turns `mpvMode`
+  on as its checkbox does (then the text points to the MPV Allowlist, Alt+F and the player's
+  mpv button), and a dismiss link. Dismissed or taken, `mpvSuggestionDismissed` in
+  storage.local stops it for good. The host is asked once per page and only after the page
+  was seen (the IntersectionObserver options.mjs already had): the options page is an iframe
+  in every player, and asking for each would start the host for nothing. The banner is
+  outside the update banner's `SPLICER:NO_UPDATE_CHECKER` block, so the AMO build has it.
+  `tests/unit/optionsMpvSuggestion.test.mjs` runs the real options.mjs in a stand-in
+  extension; each case was checked to fail on its break (no visibility gate, the `mpv` flag
+  ignored, the dismissal not stored). Found writing it: the page's own save does not come
+  back through `loadOptions`, so `mpvModeChanged` closes the offer itself.

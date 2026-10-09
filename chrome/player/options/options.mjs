@@ -17,6 +17,7 @@ import {DefaultSubtitlesSettings} from './defaults/DefaultSubtitlesSettings.mjs'
 import {DefaultToolSettings} from './defaults/ToolSettings.mjs';
 import {DefaultQualities} from './defaults/DefaultQualities.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
+import {MpvSuggestion} from './MpvSuggestion.mjs';
 
 let Options = {};
 const analyzeVideos = document.getElementById('analyzevideos');
@@ -84,9 +85,31 @@ customSourcePatterns.placeholder = '# This is a comment. Use the following forma
 // Until the saved options are read, OptionsStore.get() gives the defaults. Showing those, even
 // for a moment, would let a change made then save the defaults over the user's options.
 let optionsLoaded = false;
+// The offer to turn MPV mode on (MpvSuggestion.mjs): extension only, outside the update
+// banner's SPLICER block so the AMO build has it too. The host is asked once the saved
+// options are read (MPV mode may be on) and the page was seen (the options page is an
+// iframe in every player too, and most of those are never opened).
+const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
+  box: document.getElementById('mpvsuggestbox'),
+  text: document.getElementById('mpvsuggesttext'),
+  enableButton: document.getElementById('mpvsuggestyes'),
+  dismissLink: document.getElementById('mpvsuggestno'),
+  isMpvModeOn: () => !!Options.mpvMode,
+  turnOnMpvMode: () => {
+    mpvModeToggle.checked = true;
+    mpvModeChanged();
+  },
+}) : null;
+let pageSeen = false;
+const offerMpvWhenReady = () => {
+  if (mpvSuggestion && optionsLoaded && pageSeen) {
+    mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
+  }
+};
 OptionsStore.init().then(() => {
   optionsLoaded = true;
   loadOptions(OptionsStore.get());
+  offerMpvWhenReady();
   // Lets the e2e specs wait for the saved options instead of guessing when they arrived.
   document.documentElement.dataset.optionsLoaded = 'true';
 }).catch((e) => console.error('Loading the saved options failed', e));
@@ -179,6 +202,10 @@ async function loadOptions(newOptions) {
 
   if (Options.dev) {
     document.getElementById('dev').style.display = '';
+  }
+  // MPV mode turned on another way ends the offer.
+  if (mpvSuggestion) {
+    mpvSuggestion.optionsChanged();
   }
   initsearch();
   // initsearch() shows every row again; a query still in the box applies again.
@@ -438,6 +465,10 @@ const mpvModeChanged = () => {
   Options.mpvMode = mpvModeToggle.checked;
   mpvModeSectionToggle.checked = Options.mpvMode;
   optionChanged();
+  // The page's own save does not come back through loadOptions.
+  if (mpvSuggestion) {
+    mpvSuggestion.optionsChanged();
+  }
 };
 
 mpvModeToggle.addEventListener('change', mpvModeChanged);
@@ -772,6 +803,10 @@ if (EnvUtils.isExtension()) {
   // Also refresh when becoming visible to catch recent changes
   const o = new IntersectionObserver(([entry]) => {
     if (entry.isIntersecting && optionsLoaded) loadOptions(OptionsStore.get());
+    if (entry.isIntersecting) {
+      pageSeen = true;
+      offerMpvWhenReady();
+    }
   });
   o.observe(document.body);
 

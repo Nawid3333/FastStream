@@ -94,7 +94,7 @@ export class BackgroundUtils {
       } else if (tab.mpvHostOutdated) {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
           'FastStream - MPV - the mpv host on this computer is out of date: ' +
-          'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository';
+          'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
       } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
         // What mpv itself said about its decoder (MpvBackend.decoderStatus).
         const what = MpvBackend.describeDecoder(tab.mpvDecoder);

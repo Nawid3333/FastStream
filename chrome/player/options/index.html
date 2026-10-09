@@ -28,6 +28,13 @@
         <button id="noupdate" data-i18n="options_update_no"></button>
     </div>
 
+    <!-- MpvSuggestion.mjs: shown when MPV mode is off and the mpv host found mpv. -->
+    <div id="mpvsuggestbox" role="status" hidden>
+        <p id="mpvsuggesttext" data-i18n="options_mpv_suggest_text"></p>
+        <button id="mpvsuggestyes" data-i18n="options_mpv_suggest_yes"></button>
+        <a href="#" id="mpvsuggestno" role="button" data-i18n="options_mpv_suggest_no"></a>
+    </div>
+
     <main class="options-layout">
         <section class="options-section" data-search-section="video">
             <div class="section-heading">
@@ -386,6 +393,14 @@
                 <span class="section-count" aria-live="polite"></span>
             </div>
             <p data-i18n="options_mpv_body"></p>
+            <p>
+                <a target="_blank" rel="noopener noreferrer" href="https://github.com/Nawid3333/mpv-config#install"
+                    data-i18n="options_mpv_setup_oneclick"></a>
+                &middot;
+                <a target="_blank" rel="noopener noreferrer"
+                    href="https://github.com/Nawid3333/FastStream/blob/main/README-MPV.md"
+                    data-i18n="options_mpv_setup_manual"></a>
+            </p>
             <div class="search-target-remove">
                 <br>
                 <div class="option grid1">

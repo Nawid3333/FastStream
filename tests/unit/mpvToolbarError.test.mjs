@@ -44,7 +44,8 @@ describe('the toolbar button in MPV mode', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
     expect(calls.badge).toEqual({text: '!', tabId: 7});
     expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv host on this computer is out of date: ' +
-      'run update-local.cmd (or native-host\\install.ps1) in the FastStream repository', tabId: 7});
+      'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)',
+    tabId: 7});
   });
 
   it('names a failure before an outdated host', () => {

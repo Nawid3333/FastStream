@@ -1164,7 +1164,13 @@
         "message": "Buka stream yang terdeteksi di mpv (pemutar eksternal)"
     },
     "options_mpv_body": {
-        "message": "Saat Mode MPV aktif, tombol bilah alat bergantian antara Nonaktif, Aktif (pemutar bawaan), dan MPV. Di situs yang ada dalam daftar izin, stream yang terdeteksi langsung dibuka di mpv pada komputer Anda, bukan di pemutar browser. Membutuhkan host mpv FastStream – lihat folder native-host di repositori untuk petunjuk penyiapan."
+        "message": "Saat Mode MPV aktif, tombol bilah alat bergantian antara Nonaktif, Aktif (pemutar bawaan), dan MPV. Di situs yang ada dalam daftar izin, stream yang terdeteksi langsung dibuka di mpv pada komputer Anda, bukan di pemutar browser. Membutuhkan mpv dan host mpv FastStream di komputer Anda: di Windows, penyiapan sekali klik (tautan pertama di bawah) memasang keduanya; penyiapan manual (tautan kedua) untuk pengembang dan sistem lain."
+    },
+    "options_mpv_setup_oneclick": {
+        "message": "Penyiapan sekali klik untuk Windows (mpv-config)"
+    },
+    "options_mpv_setup_manual": {
+        "message": "Penyiapan manual"
     },
     "options_mpv_allowlist": {
         "message": "Daftar Izin MPV"
@@ -1200,7 +1206,22 @@
         "message": "Host dapat dijangkau, tetapi mpv tidak ditemukan"
     },
     "options_mpv_test_fail": {
-        "message": "Host mpv tidak tersedia"
+        "message": "Host mpv tidak tersedia – apakah sudah dipasang? Lihat tautan penyiapan di awal bagian ini."
+    },
+    "options_mpv_suggest_text": {
+        "message": "Pembantu mpv sudah terpasang – buka video di mpv?"
+    },
+    "options_mpv_suggest_yes": {
+        "message": "Aktifkan Mode MPV"
+    },
+    "options_mpv_suggest_no": {
+        "message": "Abaikan"
+    },
+    "options_mpv_suggest_done": {
+        "message": "Mode MPV aktif. Tambahkan situs yang videonya harus dibuka di mpv ke Daftar Izin MPV (di bagian Mode MPV di bawah). Di situs lain, tekan Alt+F (pintasan MPV) lalu mulai videonya, atau gunakan tombol mpv di pemutar FastStream."
+    },
+    "options_mpv_suggest_close": {
+        "message": "Tutup"
     },
     "player_mpv_label": {
         "message": "Buka stream ini di mpv"
@@ -1221,7 +1242,7 @@
         "message": "FastStream - MPV - stream tidak terbuka: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream"
+        "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Diputar di MPV - didekode oleh kartu grafis: $1"
@@ -1230,7 +1251,7 @@
         "message": "FastStream - Diputar di MPV - didekode oleh prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis"
     },
     "options_mpv_test_outdated": {
-        "message": "Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+        "message": "Host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "mpv yang terbuka mendekode di kartu grafis: $1."
@@ -1239,7 +1260,7 @@
         "message": "mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
     },
     "player_mpv_sent_outdated": {
-        "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan update-local.cmd (atau native-host\\install.ps1) di repositori FastStream."
+        "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"
