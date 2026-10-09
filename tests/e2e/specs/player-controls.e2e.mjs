@@ -435,3 +435,78 @@ describe('Player controls', function() {
     expect(pausedAgain).toBeLessThan(5);
   });
 });
+
+// #383: "sometimes the progress bar stays visible for a long time or forever; pausing and
+// playing a few times makes it go." The hide was decided once, when its timer fired, from
+// flags that can be stale.
+describe('Player controls, hiding by themselves', function() {
+  const controlsVisible = () => browser.execute(() =>
+    document.querySelector('.mainplayer').classList.contains('controls_visible'));
+
+  /**
+   * An empty player whose bar may hide (as if a video played), with the pointer over the
+   * video at its top left, away from the bar at the bottom.
+   * @return {Promise<void>}
+   */
+  async function playerWithPointerAway() {
+    await openEmptyPlayer();
+    await browser.execute(() => {
+      window.fastStream.interfaceController.hideBigPlayButton();
+      window.fastStream.state.playing = true;
+    });
+    const player = await browser.$('.mainplayer');
+    const {width, height} = await player.getSize();
+    await browser.action('pointer')
+        .move({origin: player, x: -Math.floor(width / 2) + 10, y: -Math.floor(height / 2) + 10})
+        .perform();
+  }
+
+  it('hides the bar when the pointer left it without a mouseleave', async function() {
+    await playerWithPointerAway();
+    // The pointer move's own hide goes first.
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
+    // The pointer came onto the bar, and the bar never heard it go (a mouseleave that did
+    // not come): it refused every hide after it, and with no mouse move over the video
+    // after that, nothing asked again.
+    await browser.execute(() => window.fastStream.interfaceController.onControlsMouseEnter());
+    expect(await controlsVisible()).toBe(true);
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar stayed up for a pointer that had left it'});
+  });
+
+  it('still keeps the bar up while the pointer is over it', async function() {
+    await playerWithPointerAway();
+    const bar = await browser.$('.mainplayer .fluid_controls_container');
+    await bar.moveTo();
+    await browser.execute(() => window.fastStream.interfaceController.queueControlsHide(50));
+    await browser.pause(2600);
+    expect(await controlsVisible()).toBe(true);
+  });
+
+  it('hides the bar shown by a way that asks for no hide (the show-controls key)', async function() {
+    await playerWithPointerAway();
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
+    await browser.execute(() => window.fastStream.interfaceController.toggleControlBar());
+    expect(await controlsVisible()).toBe(true);
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar the key showed stayed up'});
+  });
+
+  it('hides the bar once it may, after a hide was refused', async function() {
+    await playerWithPointerAway();
+    // Refused while paused; then played on by a way that asks for no hide.
+    await browser.execute(() => {
+      window.fastStream.state.playing = false;
+      window.fastStream.interfaceController.queueControlsHide(50);
+    });
+    await browser.pause(300);
+    expect(await controlsVisible()).toBe(true);
+    await browser.execute(() => {
+      window.fastStream.state.playing = true;
+    });
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar stayed up after the refused hide'});
+  });
+});

@@ -206,7 +206,9 @@ export class InterfaceController {
     this.state.playing = false;
     this.updatePlayPauseButton();
     DOMElements.playPauseButtonBigCircle.style.display = '';
-    DOMElements.playerContainer.classList.add('controls_visible');
+    // Shown the way every other show is, with its hide check (showControlBar): only the
+    // class was added, nothing checked, and the bar could stay up after the next video.
+    this.showControlBar();
     this.updateToolVisibility();
     this.fineTimeControls.reset();
     this.playbackRateChanger.reset();
@@ -372,6 +374,9 @@ export class InterfaceController {
     DOMElements.controlsContainer.addEventListener('focusin', ()=>{
       this.focusingControls = true;
       this.showControlBar();
+      // Kept while focus is there (queueControlsHide looks again until it may go): focus
+      // can leave without a focusout (isFocusInControls), and then nothing else asked (#383).
+      this.queueControlsHide();
     });
     DOMElements.controlsContainer.addEventListener('focusout', ()=>{
       this.focusingControls = false;
@@ -898,6 +903,9 @@ export class InterfaceController {
   }
 
   destroy() {
+    // Its hide check looks again for as long as the bar is up (queueControlsHide).
+    this.destroyed = true;
+    clearTimeout(this.hideControlBarTimeout);
     this.saveManager.destroy();
   }
 
@@ -951,6 +959,9 @@ export class InterfaceController {
   onControlsMouseEnter() {
     this.showControlBar();
     this.mouseOverControls = true;
+    // Kept while the pointer is over the bar (queueControlsHide looks again until it may
+    // go), so the bar does not hang on a mouseleave alone (#383).
+    this.queueControlsHide();
   }
   onControlsMouseLeave() {
     this.mouseOverControls = false;
@@ -980,17 +991,40 @@ export class InterfaceController {
     return this.focusingControls;
   }
 
+  /**
+   * Whether the pointer is over the control bar. mouseOverControls follows mouseenter and
+   * mouseleave; should a mouseleave ever not come, the flag would keep the bar up for good,
+   * so it is checked against what Firefox finds under the pointer, as isFocusInControls
+   * does for focus. (Leaving the player's frame straight from the bar does send one:
+   * measured on Firefox 157 for #383.)
+   * @return {boolean}
+   */
+  isPointerOverControls() {
+    if (this.mouseOverControls && !DOMElements.controlsContainer.matches(':hover')) {
+      this.mouseOverControls = false;
+    }
+    return this.mouseOverControls;
+  }
+
   queueControlsHide(time) {
     clearTimeout(this.hideControlBarTimeout);
+    this.hideControlBarTimeout = null;
+    if (this.destroyed) return;
     this.hideControlBarTimeout = setTimeout(() => {
-      if (!this.isFocusInControls() && !this.mouseOverControls && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
+      this.hideControlBarTimeout = null;
+      if (!this.isFocusInControls() && !this.isPointerOverControls() && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
         this.hideControlBar();
+      } else if (this.controlsVisible && !this.destroyed) {
+        // Asked once, the bar stayed for as long as nothing asked again: a hide refused
+        // while the video was paused or a menu open, then played or closed by a way that
+        // queues no hide (#383). It looks again until it may go.
+        this.queueControlsHide();
       }
     }, time || 2000);
   }
 
   hideControlBarOnAction(cooldown) {
-    if (!this.mouseOverControls && !this.isFocusInControls()) {
+    if (!this.isPointerOverControls() && !this.isFocusInControls()) {
       this.mouseActivityCooldown = Date.now() + (cooldown || 500);
       if (!this.isBigPlayButtonVisible()) {
         this.hideControlBar();
@@ -1008,6 +1042,7 @@ export class InterfaceController {
 
   hideControlBar() {
     clearTimeout(this.hideControlBarTimeout);
+    this.hideControlBarTimeout = null;
     this.controlsVisible = false;
     DOMElements.playerContainer.classList.remove('controls_visible');
     DOMElements.controlsContainer.classList.remove('fade_in');
@@ -1028,6 +1063,10 @@ export class InterfaceController {
     DOMElements.playerContainer.classList.add('controls_visible');
     DOMElements.controlsContainer.classList.remove('fade_out');
     DOMElements.controlsContainer.classList.add('fade_in');
+    // Every bar shown has a hide check (#383): a pause, the show-controls key, a new video,
+    // a closed menu or a tab come back to showed it without one, and it stayed up until
+    // something else asked. One already waiting keeps its own time.
+    if (!this.hideControlBarTimeout) this.queueControlsHide();
   }
 
   showControlBarTemporarily(timeout = 1000) {
