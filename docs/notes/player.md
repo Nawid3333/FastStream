@@ -330,9 +330,11 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   the player again three times in 1.5 s at the same place, then "Failed to load video!". Now the
   first decode error (`MEDIA_ERR_DECODE` on the element) builds it again at the same time - right
   for Firefox's late-append bug 2069633, where the segment is fine - and the same place failing
-  again right after (within 1.5 s, same source) builds it past that segment
+  again right after (within 1.5 s of video and 20 s of time, same source; not an audio decoder's
+  failure) builds it past that segment
   (`BrokenMedia.pastBrokenMedia`: the end of the segment that begins within 1 s, else of the one
-  playing; whole seconds rounded up): it plays on from 6 s. For every player kind; not live.
+  playing; whole seconds rounded up): it plays on from 6 s. Measured for DASH and HLS (fMP4):
+  main ended both after three rebuilds (3.66 s, 3.9 s). For every player kind; not live.
   dash.js's own recovery skips a segment only when the SourceBuffer reports the error (it
   blacklists the segment appended last); a decode error on the element only resets its
   MediaSource, and the same segment failed again. Garbage inside a NAL unit Firefox decodes as
@@ -341,8 +343,9 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   stuck after one sat behind a spinner for ever. `DashErrors.stuckAfterStart` names those it stays
   stuck after (a download out of retries, an unusable manifest, no stream, a muxed track, a type
   MSE refuses, no usable key): DashPlayer reports them; the downloads count as network failures
-  (`isNetworkFailure`, no rebuild). Left to dash.js: a live refresh that did not parse, the clock
-  sync, a subtitle. FastStream's own segment loader reports a dead segment itself
+  (`isNetworkFailure`, no rebuild); before the start too (a manifest that loads but has no usable
+  stream waited for ever). Left to dash.js: a live refresh that did not parse or load (the next
+  may), the clock sync, a subtitle. FastStream's own segment loader reports a dead segment itself
   (`DashLoader`, after three tries). The seek preview, with no client to rebuild it, gives dash.js's
   decode recovery 5 tries instead of a million.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of

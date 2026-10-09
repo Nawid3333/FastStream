@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {BLIND_SKIP_S, isDecodeError, isSamePlace, pastBrokenMedia} from '../../chrome/player/utils/BrokenMedia.mjs';
+import {AGAIN_WITHIN_MS, BLIND_SKIP_S, isDecodeError, isSamePlace, pastBrokenMedia} from '../../chrome/player/utils/BrokenMedia.mjs';
 import {stuckAfterStart} from '../../chrome/player/players/dash/DashErrors.mjs';
 
 // A segment that does not decode, and the player built again for it (FastStreamClient.
@@ -14,6 +14,9 @@ const fragment = (start, end) => ({start, end});
 describe('BrokenMedia', () => {
   it('knows the <video> element\'s decode error, and nothing else', () => {
     expect(isDecodeError({target: {error: {code: 3}}})).toBe(true);
+    expect(isDecodeError({target: {error: {code: 3, message: 'RemoteVideoDecoderChild::InitIPDL'}}})).toBe(true);
+    // An audio decoder's failure: no reason to skip video.
+    expect(isDecodeError({target: {error: {code: 3, message: 'RemoteAudioDecoder failed'}}})).toBe(false);
     for (const reason of [{target: {error: {code: 2}}}, {target: {error: null}}, 'Segment 1 failed to load',
       {type: 'mediaError', details: 'bufferAppendError'}, null, undefined]) {
       expect(isDecodeError(reason)).toBe(false);
@@ -24,14 +27,18 @@ describe('BrokenMedia', () => {
     expect(isDecodeError(throwing)).toBe(false);
   });
 
-  it('takes two decode errors of a source within 1.5 s of each other for the same place', () => {
-    const last = {url: 'https://a/x.mpd', time: 3.64};
-    expect(isSamePlace(last, 'https://a/x.mpd', 3.64)).toBe(true);
-    expect(isSamePlace(last, 'https://a/x.mpd', 3.1)).toBe(true);
-    expect(isSamePlace(last, 'https://a/x.mpd', 5.5)).toBe(false);
-    expect(isSamePlace(last, 'https://a/y.mpd', 3.64)).toBe(false);
-    expect(isSamePlace(null, 'https://a/x.mpd', 3.64)).toBe(false);
-    expect(isSamePlace(last, 'https://a/x.mpd', NaN)).toBe(false);
+  it('takes two decode errors of a source within 1.5 s of each other, soon after, for the same place', () => {
+    const at = 1000000;
+    const last = {url: 'https://a/x.mpd', time: 3.64, at};
+    const soon = at + 700;
+    expect(isSamePlace(last, 'https://a/x.mpd', 3.64, soon)).toBe(true);
+    expect(isSamePlace(last, 'https://a/x.mpd', 3.1, soon)).toBe(true);
+    expect(isSamePlace(last, 'https://a/x.mpd', 5.5, soon)).toBe(false);
+    expect(isSamePlace(last, 'https://a/y.mpd', 3.64, soon)).toBe(false);
+    expect(isSamePlace(null, 'https://a/x.mpd', 3.64, soon)).toBe(false);
+    expect(isSamePlace(last, 'https://a/x.mpd', NaN, soon)).toBe(false);
+    // A seek back there much later: a new failure, not the same one again.
+    expect(isSamePlace(last, 'https://a/x.mpd', 3.64, at + AGAIN_WITHIN_MS + 1)).toBe(false);
   });
 
   it('plays on past the segment Firefox was decoding ahead into', () => {
@@ -76,6 +83,13 @@ describe('DashErrors', () => {
     expect([...stuck].sort((a, b) => a - b)).toEqual([11, 25, 26, 27, 28, 29, 31, 32, 34, 35, 36]);
     // A live refresh that did not parse, the clock sync, a subtitle: dash.js plays on.
     for (const code of [10, 16, 33]) expect(stuck.has(code)).toBe(false);
+  });
+
+  it('leaves the manifest refresh failures of a live stream to dash.js: the next refresh may load', () => {
+    const live = stuckAfterStart(errors, true);
+    expect(live.has(11)).toBe(false);
+    expect(live.has(25)).toBe(false);
+    expect(live.has(27)).toBe(true);
   });
 
   it('reads the codes from dash.js, and skips a name it does not have', () => {

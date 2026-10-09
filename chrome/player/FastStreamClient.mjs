@@ -1693,13 +1693,14 @@ export class FastStreamClient extends EventEmitter {
     // The same place failing to decode again, right after the player was built again for it:
     // the media there is broken. Built once more, it starts past that segment (BrokenMedia.mjs).
     let skip = false;
-    if (isDecodeError(reason) && !this.isLive()) {
-      if (isSamePlace(this.lastDecodeFailure, url, time)) {
+    // Only where the new player takes a time (not live, an http(s) source).
+    if (isDecodeError(reason) && !this.isLive() && /^https?:/i.test(source.url)) {
+      if (isSamePlace(this.lastDecodeFailure, url, time, now)) {
         skip = true;
         time = pastBrokenMedia(this.fragments, time);
         this.lastDecodeFailure = null;
       } else {
-        this.lastDecodeFailure = {url, time};
+        this.lastDecodeFailure = {url, time, at: now};
       }
     }
     // What the user wants, not what the element says: an error can leave it paused.

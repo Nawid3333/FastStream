@@ -11,8 +11,12 @@
 // (it blacklists the segment appended last); a decode error on the <video> element only
 // resets its MediaSource, and the same segment fails again.
 
-// Two decode errors this close (seconds of the video) are at the same place.
+// Two decode errors this close (seconds of the video) are at the same place...
 export const SAME_PLACE_S = 1.5;
+// ...when the second comes this soon after the first (the rebuilt player fails within about a
+// second). Later, it is a new failure there: a seek back to a place Firefox's late-append bug
+// once hit is no broken segment.
+export const AGAIN_WITHIN_MS = 20000;
 // Firefox decodes a little ahead: the segment that failed may begin this soon after the time
 // the error came at (3.64 s for a segment from 4 s on, measured).
 export const DECODED_AHEAD_S = 1;
@@ -20,28 +24,35 @@ export const DECODED_AHEAD_S = 1;
 export const BLIND_SKIP_S = 2;
 
 /**
- * Whether an error is the <video> element's decode error (MEDIA_ERR_DECODE), as the players
- * pass it on: the element's error event. Never throws.
+ * Whether an error is the <video> element's decode error (MEDIA_ERR_DECODE) of the video, as
+ * the players pass it on: the element's error event. An audio decoder's failure comes as the
+ * same error, its message naming the decoder (DashPlayer.onVideoError): skipping video for it
+ * would lose good video. Never throws.
  * @param {*} reason
  * @return {boolean}
  */
 export function isDecodeError(reason) {
   try {
-    return reason?.target?.error?.code === 3;
+    const error = reason?.target?.error;
+    if (error?.code !== 3) return false;
+    const message = String(error.message || '');
+    return !(/audio/i.test(message) && !/video/i.test(message));
   } catch (e) {
     return false;
   }
 }
 
 /**
- * Whether a decode error is again at the place of the one before, for the same source.
- * @param {?{url: string, time: number}} last - The decode error before.
+ * Whether a decode error is again at the place of the one before, for the same source, soon after.
+ * @param {?{url: string, time: number, at: number}} last - The decode error before.
  * @param {string} url - The source's URL.
  * @param {number} time - This error's time.
+ * @param {number} now - Date.now().
  * @return {boolean}
  */
-export function isSamePlace(last, url, time) {
-  return !!last && last.url === url && Number.isFinite(time) && Math.abs(time - last.time) <= SAME_PLACE_S;
+export function isSamePlace(last, url, time, now) {
+  return !!last && last.url === url && Number.isFinite(time) && Math.abs(time - last.time) <= SAME_PLACE_S &&
+    now - last.at <= AGAIN_WITHIN_MS;
 }
 
 /**

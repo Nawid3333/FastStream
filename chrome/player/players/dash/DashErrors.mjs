@@ -24,14 +24,18 @@ const STUCK_AFTER_START = [
   'MEDIASOURCE_TYPE_UNSUPPORTED_CODE',
   'NO_SUPPORTED_KEY_IDS',
 ];
+// A live stream's manifest refresh that did not load: the next refresh may.
+const LIVE_REFRESH = ['MANIFEST_LOADER_LOADING_FAILURE_ERROR_CODE', 'DOWNLOAD_ERROR_ID_MANIFEST_CODE'];
 
 /**
  * @param {Object<string, *>} errors - dash.js's MediaPlayer.errors.
+ * @param {boolean} [live] - A live (dynamic) stream: its manifest refresh failures stay dash.js's.
  * @return {Set<number>} The codes to report as the player's error once the stream is up.
  */
-export function stuckAfterStart(errors) {
+export function stuckAfterStart(errors, live = false) {
   const codes = new Set();
   for (const name of STUCK_AFTER_START) {
+    if (live && LIVE_REFRESH.includes(name)) continue;
     const code = errors?.[name];
     if (Number.isFinite(code)) codes.add(code);
   }

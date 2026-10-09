@@ -194,9 +194,18 @@ export default class DashPlayer extends EventEmitter {
       MediaPlayer.errors.DOWNLOAD_ERROR_ID_MANIFEST_CODE,
     ];
     const stuck = stuckAfterStart(MediaPlayer.errors);
+    const stuckLive = stuckAfterStart(MediaPlayer.errors, true);
     this.dash.on('error', (e) => {
       const code = e.error?.code;
-      if (initAlready ? stuck.has(code) : manifestErrors.includes(code)) {
+      let live = false;
+      try {
+        live = initAlready && this.dash.isDynamic();
+      } catch (err) {
+        // Not known yet: as for a video on demand.
+      }
+      // Before the start, a manifest that loads but cannot be used (no stream, a muxed track,
+      // a type MSE refuses) waited for ever as well.
+      if (initAlready ? (live ? stuckLive : stuck).has(code) : (manifestErrors.includes(code) || stuck.has(code))) {
         this.emit(DefaultPlayerEvents.ERROR, e);
       }
     });
