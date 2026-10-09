@@ -1317,3 +1317,33 @@ describe('a page\'s word about its video, when the tab went on to another site m
     expect(bg.toMpv()).toEqual([`${CDN}/clip2.mp4`, `${CDN}/clip3.mp4`]);
   });
 });
+
+// mpv started at 0:00, and the page, paused at the user's place, kept it (review,
+// 2026-10-09). The page's video says where it is when it plays (content.js playedVideo).
+describe('the shortcut\'s MPV, where mpv starts', () => {
+  /** What the open message to the host said of the start, for a video played at a time. */
+  async function startFor(video) {
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', ...video}},
+        {tabId: 1, frameId: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    const opens = bg.native.filter((m) => m.type === 'open');
+    expect(opens).toHaveLength(1);
+    return opens[0].start;
+  }
+
+  it('starts mpv where the page\'s video was', async () => {
+    expect(await startFor({duration: 1400, time: 612.4})).toBe(612.4);
+  });
+
+  it('starts at the start a play from the start, and a live video', async () => {
+    expect(await startFor({duration: 1400, time: 0.2})).toBe(undefined);
+    expect(await startFor({duration: null, time: 612.4})).toBe(undefined);
+  });
+});

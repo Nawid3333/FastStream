@@ -84,6 +84,21 @@ describe('the streams a player tab lists from other tabs', () => {
     expect(listed(2)).toEqual([]);
     expect(listed(3)).toEqual(['https://cdn.test/private/master.m3u8']);
   });
+
+  // One container's streams, with its cookies, went to another container's player tab
+  // (review, 2026-10-09).
+  it('stay in their container', async () => {
+    bg = await loadBackground({tabs: [
+      {id: 1, url: PAGE, cookieStoreId: 'firefox-container-1'},
+      {id: 2, url: PLAYER, cookieStoreId: 'firefox-default'},
+      {id: 3, url: PLAYER, cookieStoreId: 'firefox-container-1'},
+    ]});
+    await openPlayerTab(2);
+    await openPlayerTab(3);
+    await bg.request({tabId: 1, url: 'https://cdn.test/work/master.m3u8'});
+    expect(listed(2)).toEqual([]);
+    expect(listed(3)).toEqual(['https://cdn.test/work/master.m3u8']);
+  });
 });
 
 // A player that loads again in its frame ("Reload Frame") gets what it was handed (#288),

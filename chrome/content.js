@@ -2034,6 +2034,8 @@
       src: /^https?:\/\//i.test(src) ? src : '',
       duration: video.duration > 0 ? video.duration : null,
       playing: src,
+      // Where it is: mpv starts there (background sendPlayedToMpv).
+      time: Number.isFinite(video.currentTime) ? video.currentTime : 0,
     };
   }
 
