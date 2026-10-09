@@ -192,3 +192,14 @@ describe('SaveManager: a streamed save that fails', () => {
     expect(manager.makingDownload).toBe(false);
   });
 });
+
+describe('SaveManager.hasPicture', () => {
+  // A size from the metadata alone: drawImage draws nothing before a frame is decoded, and the
+  // screenshot was an empty file that said "saved" (review).
+  it('needs a decoded frame, not only the size', () => {
+    expect(SaveManager.hasPicture({videoWidth: 640, videoHeight: 360, readyState: 2})).toBe(true);
+    expect(SaveManager.hasPicture({videoWidth: 640, videoHeight: 360, readyState: 1})).toBe(false);
+    expect(SaveManager.hasPicture({videoWidth: 0, videoHeight: 0, readyState: 4})).toBe(false);
+    expect(SaveManager.hasPicture(null)).toBe(false);
+  });
+});

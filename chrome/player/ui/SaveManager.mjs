@@ -193,6 +193,18 @@ export class SaveManager {
     }
   }
 
+  /**
+   * Whether a video shows a picture a screenshot can take. Its size is known from the
+   * metadata, but drawImage draws nothing until a frame is decoded (readyState 2): during a
+   * slow seek, or the first moments of a video, the screenshot was an empty file that said
+   * "saved" (review).
+   * @param {?HTMLVideoElement} video
+   * @return {boolean}
+   */
+  static hasPicture(video) {
+    return !!video?.videoWidth && !!video?.videoHeight && video.readyState >= 2;
+  }
+
   async saveScreenshot() {
     if (!this.client.player) {
       await AlertPolyfill.alert(Localize.getMessage('player_nosource_alert'), 'error');
@@ -201,8 +213,7 @@ export class SaveManager {
 
     // No picture (audio, or a video not showing one yet): the screenshot was an empty file,
     // and said "saved".
-    const shown = this.client.player.getVideo();
-    if (!shown?.videoWidth || !shown?.videoHeight) {
+    if (!SaveManager.hasPicture(this.client.player.getVideo())) {
       await AlertPolyfill.alert(Localize.getMessage('player_screenshot_nopicture'), 'error');
       return;
     }
