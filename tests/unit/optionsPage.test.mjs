@@ -161,6 +161,8 @@ describe('the options page once the saved options are read', () => {
     for (const fn of win.listeners.message) fn({origin: win.location.origin, source: {}, data: {type: 'options'}});
     await settle();
     expect(keybindBox('PlayPause').dataset.key).toBe('KeyL');
+    // And shown as pressed, not as saved.
+    expect(keybindBox('PlayPause').textContent).toBe('L');
     expect(optionWrites()).toEqual([]);
   });
 
