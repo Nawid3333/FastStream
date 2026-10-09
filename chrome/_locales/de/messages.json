@@ -1001,6 +1001,9 @@
     "options_general_maxsize": {
         "message": "Maximale Größe für vorgeladene Videos"
     },
+    "options_general_rambudget": {
+        "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
+    },
     "options_general_bufferahead": {
         "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, sobald das Vorab-Laden stoppt oder der Speicherplatz ausgeht)"
     },

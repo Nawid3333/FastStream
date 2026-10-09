@@ -1,7 +1,8 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
+import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
-import {StandardDownloader} from './StandardDownloader.mjs';
+import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
 export class DownloadManager {
   /** How long no download may fail before a downloader dropped for a failure comes back. */
@@ -35,6 +36,12 @@ export class DownloadManager {
 
     this.downloaders = [];
     this.paused = false;
+    // The next reset() keeps the downloads (keepStorageOnce).
+    this.keepStorageNext = false;
+    // Leaving the network to a watched player that is short of video (setYield).
+    this.yielding = false;
+    // ...and holding even its own playback's requests: it is paused (setYield).
+    this.holdingPlayback = false;
     this.speedTestBuffer = [];
     this.speedTestSeen = [];
     this.speedTestCount = 0;
@@ -62,7 +69,11 @@ export class DownloadManager {
 
     this.failed = 0;
 
-    this.blobStore = new FSBlob();
+    // A private window's downloads never reach the disk (FSBlob memoryOnly).
+    this.blobStore = new FSBlob({memoryOnly: EnvUtils.isIncognito()});
+    // The RAM budget is used up: no downloads ahead until some is let go of
+    // (FastStreamClient.enforceMemoryBudget).
+    this.memoryFull = false;
   }
 
   getCompletedEntries() {
@@ -87,7 +98,8 @@ export class DownloadManager {
     }
 
     const identifier = this.getIdentifier(entry);
-    await this.blobStore.saveBlobAsync(entry.data, identifier);
+    // Kept in RAM; the client writes it to disk only when the RAM budget needs it to.
+    await this.blobStore.saveBlobAsync(entry.data, identifier, {deferred: true});
 
     entry.data = () => {
       return this.blobStore.getBlob(identifier);
@@ -96,6 +108,14 @@ export class DownloadManager {
 
   setEntry(entry) {
     const identifier = this.getIdentifier(entry);
+    // Its stored data cannot be read any more (DownloadEntry.getDataFromBlob): forgotten,
+    // so the next request for it downloads it again.
+    entry.onDataLost = (error) => {
+      if (this.storage?.get(identifier) !== entry) return;
+      console.warn('A stored download could not be read, it will be downloaded again', error);
+      this.storage.delete(identifier);
+      this.blobStore?.deleteBlob(identifier);
+    };
 
     // A save that failed (a full disk) leaves the data in memory, as before - without an
     // unhandled rejection, which neither caller awaited.
@@ -231,6 +251,11 @@ export class DownloadManager {
       // were none (during reset) was waiting for a queueNext that nothing called: the
       // manifest a new player asked for again joined it, and never loaded.
       this.queueNext();
+    } else if (storedEntry.status === DownloadStatus.DOWNLOAD_INITIATED && storedEntry.priority < priority) {
+      // Joined while it downloads (playback now waits for what was a download ahead): a
+      // retry goes out with the higher priority (StandardDownloader's fetchPriority). The
+      // request already sent keeps its own.
+      storedEntry.priority = priority;
     }
 
     return watcher;
@@ -386,6 +411,141 @@ export class DownloadManager {
     }
   }
 
+  /**
+   * Leaves the network to another FastStream player that the user watches and that is short
+   * of video (PlayerPeers.shouldYield), or takes it back. While yielding the client starts no
+   * downloads ahead (predownloadFragments), what still goes out asks Firefox for 'low'
+   * priority (StandardDownloader), and the downloads ahead that are running are cancelled -
+   * not those this player's own playback waits for (priority 1000 and up), nor one at least
+   * half done, nor one being delivered. A cancelled one is downloaded again later, from the
+   * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
+   * user's, and stops everything.
+   * A paused player holds its playback's requests too (holdPlayback): they wait in the queue
+   * until it stops yielding. Its player still wanted to buffer ahead, and once its downloads
+   * ahead were cancelled it asked for them itself - measured: three paused MP4 players in
+   * background tabs kept a request each running all through a seek in the watched one.
+   * @param {boolean} yielding
+   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
+   */
+  setYield(yielding, holdPlayback = false) {
+    if (!this.downloaders) return;
+    const hold = yielding && holdPlayback;
+    const holdChanged = this.holdingPlayback !== hold;
+    const yieldChanged = this.yielding !== yielding;
+    // Both set before anything starts again: queueNext and the client read them.
+    this.holdingPlayback = hold;
+    this.yielding = yielding;
+    if (yieldChanged && yielding) {
+      // The downloads ahead: queued ones leave the queue, running ones under half done stop.
+      // Not a save's (priority below 0: the user asked for it), not what playback waits for.
+      const cancellable = (entry) => {
+        const priority = entry.priority || 0;
+        return priority >= 0 && priority < PLAYBACK_PRIORITY;
+      };
+      for (const entry of this.queue.filter((queued) => queued.status === DownloadStatus.ENQUEUED && cancellable(queued))) {
+        this.queue.splice(this.queue.indexOf(entry), 1);
+        entry.abort();
+      }
+      for (const downloader of this.downloaders.slice()) {
+        const entry = downloader.entry;
+        if (!entry || downloader.delivering || !cancellable(entry)) continue;
+        const stats = downloader.stats;
+        if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
+        entry.abort();
+      }
+    }
+    if (yieldChanged && !yielding) {
+      this.client?.predownloadFragments?.();
+    }
+    if (yieldChanged || holdChanged) {
+      // Freed connections go to what may run now.
+      this.queueNext();
+    }
+  }
+
+  /**
+   * Cancels the download of a request, when that is cheap and harmless: not one this player's
+   * playback waits for (priority 1000 and up), not one at least half done, not one being
+   * delivered. A queued one leaves the queue. Its fragment goes back to waiting
+   * (DownloadEntry.abort tells the watchers) and is downloaded again when it is wanted.
+   * @param {Object} details - The request (a fragment's getContext()).
+   * @return {boolean} Whether it was cancelled.
+   */
+  cancelIfCheap(details) {
+    const entry = this.getEntry(details);
+    if (!entry || (entry.priority || 0) >= PLAYBACK_PRIORITY) return false;
+    if (entry.status === DownloadStatus.ENQUEUED) {
+      const index = this.queue.indexOf(entry);
+      if (index !== -1) this.queue.splice(index, 1);
+      entry.abort();
+      return true;
+    }
+    if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
+    const downloader = entry.downloader;
+    if (downloader?.delivering) return false;
+    const stats = downloader?.stats;
+    if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) return false;
+    entry.abort();
+    return true;
+  }
+
+  /**
+   * Downloads running or waiting in the queue.
+   * @return {number}
+   */
+  activeCount() {
+    if (!this.downloaders) return 0;
+    return this.downloaders.filter((downloader) => downloader.entry).length + this.queue.length;
+  }
+
+  /**
+   * Bytes of downloaded data held in RAM.
+   * @return {number}
+   */
+  ramBytes() {
+    return this.blobStore?.ramBytes() || 0;
+  }
+
+  /**
+   * @param {Object} details - A fragment's getContext().
+   * @return {number} Bytes of its downloaded data held in RAM.
+   */
+  ramBytesOf(details) {
+    return this.blobStore?.inRam.get(this.getIdentifier(details)) || 0;
+  }
+
+  /**
+   * Bytes on their way to disk (spill).
+   * @return {number}
+   */
+  spillingBytes() {
+    return this.blobStore?.spillingBytes() || 0;
+  }
+
+  /**
+   * @param {Object} details - A fragment's getContext().
+   * @return {boolean} Whether its downloaded data is held in RAM.
+   */
+  isInRam(details) {
+    return !!this.blobStore?.isInRam(this.getIdentifier(details));
+  }
+
+  /**
+   * Writes a downloaded fragment's data to disk and lets the RAM copy go.
+   * @param {Object} details - A fragment's getContext().
+   * @return {Promise<boolean>}
+   */
+  spill(details) {
+    return this.blobStore?.spill(this.getIdentifier(details)) ?? Promise.resolve(false);
+  }
+
+  /**
+   * @return {boolean} Whether downloads can go to disk at all (not in a private window).
+   */
+  canSpill() {
+    return !!this.blobStore && !this.blobStore.memoryOnly;
+  }
+
   removeAllDownloaders() {
     this.testing = false;
     this.droppedDownloaders = 0;
@@ -514,6 +674,11 @@ export class DownloadManager {
         this.queue.shift();
         continue;
       }
+      // A paused player that leaves the network to a watched one starts only a save (priority
+      // below 0: the user asked for it), nothing of its own playback (setYield).
+      const index = this.holdingPlayback ?
+        this.queue.findIndex((entry) => entry.status === DownloadStatus.ENQUEUED && (entry.priority || 0) < 0) : 0;
+      if (index === -1) return;
 
       const failCooldown = 1000;
       const waitUntil = Math.max(this.lastFailed + failCooldown, this.holdUntil);
@@ -526,11 +691,11 @@ export class DownloadManager {
       }
 
       const downloader = this.downloaders.find((downloader) => {
-        return downloader.canHandle(this.queue[0].details);
+        return downloader.canHandle(this.queue[index].details);
       });
       if (!downloader) return;
 
-      const entry = this.queue.shift();
+      const entry = this.queue.splice(index, 1)[0];
       downloader.run(entry);
     }
   }
@@ -564,7 +729,11 @@ export class DownloadManager {
     this.probing = this.throttled;
     this.calmUntil = this.throttled ? Date.now() + DownloadManager.CalmPeriodMs : 0;
 
-    if (!this.dontClearStorage) {
+    // keepStorageOnce() asks for this reset only; resetOverride() for as long as it is on.
+    const keep = this.dontClearStorage || this.keepStorageNext;
+    this.keepStorageNext = false;
+    this.memoryFull = false;
+    if (!keep) {
       await this.clearStorage();
     }
 
@@ -586,6 +755,15 @@ export class DownloadManager {
 
   resetOverride(value) {
     this.dontClearStorage = value;
+  }
+
+  /**
+   * The next reset() keeps what was downloaded, and only that one (the player built again
+   * for its source after an error, FastStreamClient.recoverPlayer). Not resetOverride(), the
+   * save manager's switch for a loaded archive: one turned it off under the other.
+   */
+  keepStorageOnce() {
+    this.keepStorageNext = true;
   }
 
   async clearStorage() {

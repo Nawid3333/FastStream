@@ -95,6 +95,131 @@ describe('DownloadManager', () => {
     vi.restoreAllMocks();
   });
 
+  it('raises the priority of a download playback starts waiting for while it runs', () => {
+    // A download ahead (priority 0) that the player now needs (1000): a retry of it must
+    // go out first in Firefox's queue (StandardDownloader asks entry.priority each attempt).
+    const manager = new DownloadManager(null);
+    manager.downloaders = [idleDownloader()];
+    const details = {url: 'https://example.com/a.ts', responseType: 'arraybuffer'};
+    const entry = manager.getFile(details, {}, 0).entry;
+    expect(manager.downloaders[0].entry).toBe(entry);
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED; // as StandardDownloader.run() leaves it
+
+    manager.getFile(details, {}, 1000);
+    expect(entry.priority).toBe(1000);
+    // A lower one leaves it.
+    manager.getFile(details, {}, 0);
+    expect(entry.priority).toBe(1000);
+  });
+
+  it('downloads again a fragment whose stored data can no longer be read', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const manager = new DownloadManager(null);
+    manager.blobStore = {deleteBlob: vi.fn(), close() {}};
+    manager.downloaders = [idleDownloader()];
+    const details = {url: 'https://example.com/a.ts', responseType: 'arraybuffer'};
+    const entry = manager.getFile(details, {}, 0).entry;
+    entry.status = DownloadStatus.DOWNLOAD_COMPLETE;
+    entry.data = () => undefined;
+
+    await expect(entry.getDataFromBlob()).rejects.toThrow();
+
+    expect(manager.getEntry(details)).toBeUndefined();
+    expect(manager.blobStore.deleteBlob).toHaveBeenCalledTimes(1);
+    // The next request makes a new download of it.
+    const again = manager.getFile(details, {}, 1000).entry;
+    expect(again).not.toBe(entry);
+    vi.restoreAllMocks();
+  });
+
+  it('yielding cancels the downloads ahead, not what playback waits for, nor one nearly done', () => {
+    // Another player the user watches is short of video (PlayerPeers.shouldYield).
+    const client = {predownloadFragments: vi.fn()};
+    const manager = new DownloadManager(client);
+    const running = (priority, loaded, total, delivering = false) => {
+      const entry = {priority, abort: vi.fn()};
+      return {entry, delivering, stats: total ? {loaded, total} : null};
+    };
+    const ahead = running(0, 100, 1000);
+    const unknownSize = running(0, 0, 0);
+    const playback = running(1000, 0, 1000);
+    const nearlyDone = running(0, 600, 1000);
+    const delivering = running(0, 0, 1000, true);
+    manager.downloaders = [ahead, unknownSize, playback, nearlyDone, delivering, {entry: null}];
+
+    manager.setYield(true);
+    expect(manager.yielding).toBe(true);
+    expect(ahead.entry.abort).toHaveBeenCalledTimes(1);
+    expect(unknownSize.entry.abort).toHaveBeenCalledTimes(1);
+    expect(playback.entry.abort).not.toHaveBeenCalled();
+    expect(nearlyDone.entry.abort).not.toHaveBeenCalled();
+    expect(delivering.entry.abort).not.toHaveBeenCalled();
+    // Once, not on every tick.
+    manager.setYield(true);
+    expect(ahead.entry.abort).toHaveBeenCalledTimes(1);
+
+    // Taking the network back starts the downloads ahead again.
+    manager.setYield(false);
+    expect(manager.yielding).toBe(false);
+    expect(client.predownloadFragments).toHaveBeenCalledTimes(1);
+  });
+
+  it('a paused player that yields holds even its playback\'s requests until it stops yielding', () => {
+    // Paused MP4 players in background tabs asked for the ranges they buffer ahead
+    // themselves (priority 1000) once their downloads ahead were cancelled.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.downloaders = [idleDownloader()];
+    manager.setYield(true, true);
+    const entry = manager.getFile({url: 'https://example.com/range', responseType: 'arraybuffer'}, {}, 1000).entry;
+    expect(manager.downloaders[0].entry).toBe(null);
+    expect(entry.status).toBe(DownloadStatus.ENQUEUED);
+
+    // Playing again (still yielding): its playback gets the network.
+    manager.setYield(true, false);
+    expect(manager.downloaders[0].entry).toBe(entry);
+  });
+
+  it('yielding never cancels a save, and a paused player that holds still lets a save run', () => {
+    // A save downloads at priority -1 (SaveFragmentFetcher): the user asked for it.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    const saving = {entry: {priority: -1, abort: vi.fn()}, delivering: false, stats: {loaded: 0, total: 100}, canHandle: () => false};
+    manager.downloaders = [saving, idleDownloader()];
+    const queuedAhead = {status: DownloadStatus.ENQUEUED, priority: 0, details: {}, abort: vi.fn()};
+    manager.queue.push(queuedAhead);
+
+    manager.setYield(true, true);
+    expect(saving.entry.abort).not.toHaveBeenCalled();
+    // A download ahead that was queued before the yield does not start behind its back.
+    expect(queuedAhead.abort).toHaveBeenCalledTimes(1);
+    expect(manager.queue).not.toContain(queuedAhead);
+
+    // Held: playback's request waits, the save's next fragment goes.
+    const playback = manager.getFile({url: 'https://example.com/p', responseType: 'arraybuffer'}, {}, 1000).entry;
+    const save = manager.getFile({url: 'https://example.com/s', responseType: 'arraybuffer'}, {}, -1).entry;
+    expect(manager.downloaders[1].entry).toBe(save);
+    expect(playback.status).toBe(DownloadStatus.ENQUEUED);
+  });
+
+  it('ignores a watcher that gives up after its download is over', async () => {
+    // It was told "aborted" after "done", and the finished entry was aborted: a stored
+    // fragment marked failed, downloaded again on the next request.
+    const manager = new DownloadManager(null);
+    manager.blobStore = {saveBlobAsync: async () => {}, getBlob: () => null, deleteBlob() {}, close() {}};
+    manager.downloaders = [idleDownloader()];
+    const callbacks = {onSuccess: vi.fn(), onAbort: vi.fn(), onFail: vi.fn()};
+    const watcher = manager.getFile({url: 'https://example.com/a.ts', responseType: 'arraybuffer'}, callbacks, 0);
+    const entry = watcher.entry;
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    entry.downloader = manager.downloaders[0];
+    await entry.onSuccess({data: new ArrayBuffer(4), headers: {}}, {}, entry, null);
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(entry.status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+
+    watcher.abort();
+    expect(callbacks.onAbort).not.toHaveBeenCalled();
+    expect(entry.status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();

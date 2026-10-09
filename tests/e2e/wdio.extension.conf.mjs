@@ -32,6 +32,7 @@ import * as url from 'node:url';
 import {recordRetriedSpecs} from './retriedSpecs.mjs';
 import {shardSpecs} from './shardSpecs.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
+import {mozLogHooks} from './mozLog.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {testTimeout} from './testTimeout.mjs';
 import {ensureBidi} from './bidi.mjs';
@@ -100,6 +101,10 @@ let server;
 // before and after the run, so a crashed previous run can't leave stale
 // files either.
 const downloadDir = path.join(root, '.e2e-downloads');
+
+// Firefox's own log for the specs listed in mozLog.mjs, when E2E_MOZ_LOG=1 (CI's Windows
+// steps); an attempt that passes deletes its own.
+const mozLog = mozLogHooks(path.join(root, 'logs-moz'));
 function resetDownloadDir() {
   fs.mkdirSync(downloadDir, {recursive: true});
   // Emptied in place: a spec file's setup runs this too (before), with Firefox already
@@ -284,9 +289,15 @@ export const config = {
     await speedBeforeTest(test);
   },
 
-  afterTest: async function(test, context, {passed}) {
-    await speedAfterTest(test, passed);
+  afterTest: async function(test, context, result) {
+    mozLog.afterTest(test, context, result);
+    await speedAfterTest(test, result.passed);
   },
+
+  // Firefox's own log for the specs listed in mozLog.mjs (the const above).
+  beforeSession: mozLog.beforeSession,
+  afterHook: mozLog.afterHook,
+  afterSession: mozLog.afterSession,
 
   // A failure here fails every test of the spec file (setupGuard.mjs): without the add-on,
   // a spec that checks the player does not open would pass.

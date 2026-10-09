@@ -242,7 +242,8 @@ describe('FSBlob storage backends', function() {
 
       window.__step = 'reads';
       const readBacks = await Promise.all(
-          identifiers.map((id) => blobStore.getBlob(id).arrayBuffer()),
+          // getBlob answers a promise for a blob the Cache API holds (read when asked for).
+          identifiers.map(async (id) => (await blobStore.getBlob(id)).arrayBuffer()),
       );
 
       window.__step = 'close';
@@ -342,7 +343,8 @@ describe('FSBlob storage backends', function() {
         const payload = new Uint8Array([4, 5, 6, 7]);
         const second = await blobStore.saveBlobAsync(new Blob([payload]));
         const waited = Date.now() - started;
-        const readBack = new Uint8Array(await blobStore.getBlob(second).arrayBuffer());
+        // The Cache API now: getBlob answers a promise, read when asked for.
+        const readBack = new Uint8Array(await (await blobStore.getBlob(second)).arrayBuffer());
         const after = blobStore.opfsManager ? 'opfs' :
           (blobStore.cache ? 'cache' : (blobStore.indexedDBManager ? 'indexeddb' : 'memory'));
         blobStore.close();
@@ -399,7 +401,7 @@ describe('FSBlob storage backends', function() {
             (blobStore.indexedDBManager ? 'indexeddb' : 'memory'));
 
         const readBack = new Uint8Array(
-            await blobStore.getBlob(identifier).arrayBuffer());
+            await (await blobStore.getBlob(identifier)).arrayBuffer());
 
         // Both of these used to reject with the OPFS failure rather than
         // absorbing it.

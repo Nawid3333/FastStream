@@ -159,6 +159,76 @@ describe('reloading a live stream\'s playlist or manifest', () => {
   });
 });
 
+// A stored copy that can no longer be read (an OPFS file gone, a Cache API entry gone):
+// the read's rejection reached no callback, and the library waited for an answer for ever.
+// Now it is a failure the library retries, and the next request downloads it again.
+describe('a stored copy that can no longer be read', () => {
+  /**
+   * Makes the stored copy of a URL unreadable, as a file deleted under its File.
+   * @param {Object} player
+   * @param {string} url
+   */
+  function loseStoredCopy(player, url) {
+    const manager = player.getClient().downloadManager;
+    const entry = manager.getCompletedEntries().find((completed) => completed.url === url);
+    manager.blobStore.blobs.delete(manager.getIdentifier(entry));
+  }
+
+  it('fails the DASH request, and the next one downloads it again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const player = makePlayer();
+    const url = 'http://127.0.0.1/index.mp4';
+    expect(await loadDash(player, url, 'IndexSegment')).toBe('answer 1');
+    loseStoredCopy(player, url);
+    await expect(loadDash(player, url, 'IndexSegment')).rejects.toThrow('onFail');
+    expect(await loadDash(player, url, 'IndexSegment')).toBe('answer 2');
+    vi.restoreAllMocks();
+  });
+
+  it('fails the HLS key request, and the next one downloads it again', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const player = makePlayer();
+    const context = {url: 'http://127.0.0.1/key.bin', frag: {sn: 3}, keyInfo: {}};
+    expect(await loadHls(player, context)).toBe('answer 1');
+    loseStoredCopy(player, context.url);
+    await expect(loadHls(player, context)).rejects.toThrow('onAbort');
+    expect(await loadHls(player, context)).toBe('answer 2');
+    vi.restoreAllMocks();
+  });
+});
+
+// A segment dash.js asks for that the fragment store does not have goes to the server
+// directly (DashLoader's fallback). Its failures were not counted: dash.js's own errors once
+// the stream is up leave it playing, and a dead segment spun forever behind a spinner.
+describe('a DASH segment the fragment store does not have', () => {
+  it('fails in the player after three tries, as a stored one does', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 404})));
+    const player = {...makePlayer(), emit: vi.fn()};
+    player.client = {getFragment: () => null, getFragments: () => []};
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // One factory per player, as DashPlayer gives dash.js (dash.extend): the count is its.
+    const factory = dashLoaderFactory(player);
+    const load = () => new Promise((resolve) => {
+      factory().load({
+        url: 'http://127.0.0.1/seg-5.m4s', method: 'GET', headers: {},
+        customData: {
+          request: {type: 'MediaSegment', representation: {id: 'v1', adaptation: {type: 'video'}},
+            index: 5, startTime: 10, responseType: 'arraybuffer'},
+          onSuccess: () => resolve('success'),
+          onFail: () => resolve('fail'),
+          onAbort: () => resolve('abort'),
+        },
+      });
+    });
+    expect(await load()).toBe('abort');
+    expect(await load()).toBe('abort');
+    expect(player.emit).not.toHaveBeenCalled();
+    expect(await load()).toBe('fail');
+    expect(player.emit).toHaveBeenCalledWith('error', 'Segment http://127.0.0.1/seg-5.m4s failed to load');
+    vi.restoreAllMocks();
+  });
+});
+
 // But the copy a player downloaded stays in the store. "Dump buffer" writes the store into
 // an .fsa archive, and a player opened from that archive finds its manifest there - with
 // the manifest dropped after every load, an archive could not be opened without the

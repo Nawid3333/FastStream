@@ -322,6 +322,8 @@ jobs:
       - name: End-to-end extension tests (${{ matrix.os }} Firefox)
         if: matrix.suite == 'extension'
         run: pnpm run test:ext
+        env:
+          E2E_MOZ_LOG: ${{ matrix.os == 'Windows' && '1' || '' }}
 
       # The installed extension in a private window, where storage APIs behave
       # differently (see tests/e2e/wdio.pbm.conf.mjs). One spec file, seconds: in the
@@ -335,6 +337,8 @@ jobs:
       - name: End-to-end extension tests, GitHub build (${{ matrix.os }} Firefox)
         if: matrix.suite == 'github'
         run: pnpm run test:ext:github
+        env:
+          E2E_MOZ_LOG: ${{ matrix.os == 'Windows' && '1' || '' }}
 
       # A spec file that fails once and passes on its retry (specFileRetries) leaves the
       # job green: each config's onWorkerEnd records it in logs/retried.jsonl
@@ -376,15 +380,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      # Firefox's network log of a failed attempt of a spec in tests/e2e/mozLog.mjs. Not
+      # Firefox's own log of a failed attempt of a spec in tests/e2e/mozLog.mjs. Not
       # only on failure(): a spec that fails once and passes on its retry leaves the job
       # green, and that failed attempt is the one whose log is wanted. A passing attempt
       # deletes its log, so on most runs there is nothing here and nothing is uploaded.
       - name: Upload Firefox logs of failed attempts
-        if: ${{ !cancelled() && matrix.os == 'Windows' && matrix.suite == 'playback' }}
+        if: ${{ !cancelled() && matrix.os == 'Windows' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-moz-logs-windows-${{ matrix.shard }}
+          name: e2e-moz-logs-windows-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs-moz/
           if-no-files-found: ignore
           retention-days: 7

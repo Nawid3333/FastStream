@@ -1001,6 +1001,9 @@
     "options_general_maxsize": {
         "message": "Tamanho máximo do vídeo pré-baixado"
     },
+    "options_general_rambudget": {
+        "message": "RAM para o vídeo em buffer (todas as abas)"
+    },
     "options_general_bufferahead": {
         "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download para ou fica sem espaço)"
     },

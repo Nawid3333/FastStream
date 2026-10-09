@@ -115,8 +115,9 @@ describe('the extension in a private window', function() {
         out.backend = store.opfsManager ? 'opfs' :
           (store.cache ? 'cache' :
             (store.indexedDBManager ? 'indexeddb' : 'memory'));
+        // A promise for a blob the Cache API holds: it is read from there when asked for.
         const readBack = new Uint8Array(
-            await store.getBlob(identifier).arrayBuffer());
+            await (await store.getBlob(identifier)).arrayBuffer());
         out.roundTrips = readBack.length === payload.length &&
             readBack.every((b, i) => b === payload[i]);
         store.close();
@@ -129,9 +130,9 @@ describe('the extension in a private window', function() {
     console.log('      blob backend:', JSON.stringify(res));
     expect(res.err).toBe(undefined);
     expect(res.roundTrips).toBe(true);
-    // The point of the backend chain: OPFS is unusable here, so FSBlob has to
-    // fall through to the Cache API, which works. Ending up on 'memory' means
-    // every buffered fragment is sitting in RAM again.
+    // The backend chain itself: OPFS is unusable here, so an FSBlob that may use the disk
+    // falls through to the Cache API, which works. (The player's own store in a private
+    // window uses no disk at all, on purpose: see the next case but one.)
     expect(res.backend).not.toBe('memory');
     expect(res.backend).not.toBe('opfs');
   });
@@ -193,6 +194,49 @@ describe('the extension in a private window', function() {
     });
     console.log('      playback:', JSON.stringify(state));
     expect(state.error).toBe(null);
+  });
+
+  it('keeps what a private window downloads in RAM, and nothing on disk', async function() {
+    // Firefox keeps a private window's media in RAM (browser.privatebrowsing.
+    // forceMediaMemoryCache); so does FastStream now (FSBlob memoryOnly). Its fragments went
+    // to the Cache API - encrypted on disk, under storage/private - and a copy of each stayed
+    // in RAM as well.
+    await openEmbeddedPlayer(globalThis.__EXT_FIXTURE_MP4__);
+    await browser.waitUntil(
+        async () => browser.execute(() => {
+          const v = document.querySelector('video');
+          return !!v && v.readyState >= 2;
+        }),
+        {timeout: 60000, interval: 1000, timeoutMsg: 'video never became ready'});
+
+    let res = {};
+    await browser.waitUntil(async () => {
+      res = await browser.executeAsync(async (done) => {
+        const out = {};
+        try {
+          const manager = window.fastStream.downloadManager;
+          const store = manager.blobStore;
+          out.memoryOnly = store.memoryOnly;
+          out.backend = store.opfsManager ? 'opfs' :
+            (store.cache ? 'cache' : (store.indexedDBManager ? 'indexeddb' : 'memory'));
+          out.stored = store.blobStore.size;
+          out.ram = manager.ramBytes();
+          out.canSpill = manager.canSpill();
+        } catch (e) {
+          out.err = (e && e.stack) || String(e);
+        }
+        done(out);
+      });
+      return !!res.err || res.stored > 0;
+    }, {timeout: 30000, interval: 1000}).catch(() => {});
+
+    console.log('      private store:', JSON.stringify(res));
+    expect(res.err).toBe(undefined);
+    expect(res.memoryOnly).toBe(true);
+    expect(res.backend).toBe('memory');
+    expect(res.canSpill).toBe(false);
+    expect(res.stored).toBeGreaterThan(0);
+    expect(res.ram).toBeGreaterThan(0);
   });
 
   it('asks for a filename before saving', async function() {

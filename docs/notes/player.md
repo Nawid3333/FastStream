@@ -160,7 +160,9 @@ is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
   `catch` unpins them. Anything that throws in between leaves them pinned for the session.
   It downloads them through `players/SaveFragmentFetcher.mjs`: the next few (the user's
   downloader limit) while the converter reads the current one, in order; the `catch` calls
-  its `cancel()`, which aborts what is still downloading for the save.
+  its `cancel()`, which aborts what is still downloading for the save. They go at priority -1,
+  and nothing else cancels or holds them: not the network yield, not a paused player's hold
+  (2026-10-09, "Downloads between players").
 - **A partial save keeps the time of the fragments it lacks** (2026-10-04, #224). Both
   writers place samples one after the other, so a hole would close up. `MP4Merger` (DASH)
   and `HLS2MP4` (HLS) stretch the last sample before a hole until the next fragment's
@@ -277,3 +279,74 @@ in mpv, while the site's own player played. The cause was Firefox VPN (Firefox's
 - **Tests.** `tests/unit/VpnProxyMirror.test.mjs`; `tests/e2e/ext-specs/firefox-vpn.e2e.mjs`
   (a helper add-on plays the VPN: page requests only, through a local proxy, to a host no DNS
   answers). With `proxyFor` disabled, its two playback tests fail.
+
+## Downloads between players, after seeks and errors (2026-10-09)
+
+Firefox opens six connections to a host for all tabs together (per kind of window), and each
+player page downloads on its own, up to six at once. Measured on a throttled local server at
+4x the stream's rate (12 Mbit/s, a 3 Mbit/s stream, 4 s segments): a seek to 5:00 in HLS
+played after 4.9 s alone and after 17-21 s with three paused background players loading
+ahead; the watched one got about a third of the bandwidth, and its next fragment downloaded
+side by side with the two after it (MP4: a 3 s stall right after the seek).
+
+- **HLS downloads from the seek time** (`HLSPlayer.currentFragment`). The client downloads
+  ahead from the player's current fragment; for HLS that was hls.js's `currentFrag`, the
+  fragment that plays, which stays the old one after a seek until the first fragment at the new
+  time plays. `seek-downloads.e2e.mjs`: after a seek to place 166 the server was asked for
+  166, 4, 5, 6, 7, 167; now 166, 167, 168. The fragment comes from the time (at the very end or
+  in a gap, the last one that starts before it), the level from hls.js.
+- **Fetch Priority.** A playback library's request (priority 1000: `HLSLoader`, `DashLoader`,
+  `MP4Player`) goes out `'high'` (Firefox 132); a download ahead `'auto'`, a yielding player's
+  `'low'`. It reorders only the waiting requests and cannot change one already sent; the
+  priority is asked at each attempt, so a retry of a download playback started waiting for goes
+  out `'high'`. Same measurement: the fragment a seek needed reached the server 0.6 s after the
+  seek instead of 7.5 s.
+- **`PlayerPeers` and `DownloadManager.setYield`.** Players tell each other over a
+  `BroadcastChannel` whether they are seen, play, and are short of video (under 10 s ahead, under
+  20 s just after a seek: `BufferAhead`). A player the user cannot see steps aside while one the
+  user watches is short: no downloads ahead, the queued ones dropped, running ones under half
+  done cancelled (their fragments back to waiting), the rest `'low'`; when it is also paused
+  (`holdPlayback`) even its own playback's requests wait. It reacts when the message comes - a
+  hidden page's timers run up to 15 s late - and goes on 3 s after the last needy word; nobody
+  short, everyone downloads to the end at full speed. A bug that made every player alone at
+  first: `start()` announced while the player was still being built, reading its state threw, and
+  the channel was taken for missing (`readState` now never throws).
+- **The back-forward cache.** Firefox takes a page out of that cache when a message reaches a
+  `BroadcastChannel` the page has open (`BroadcastChannel::MessageReceived`:
+  `CheckCurrentGlobalCorrectness` fails for a window in the cache - `IsCurrentInnerWindow` is
+  false there - and it calls `RemoveDocFromBFCache`), and the other players announce every
+  second: Back loaded a page with a player again.
+  `player-peers-bfcache.e2e.mjs` failed on the Windows runner in 4 of 4 attempts and passed
+  locally (first taken there for proof that messages do not evict). A player leaves the channel on
+  `pagehide` (with a goodbye) and joins again on `pageshow` when the page came from the cache;
+  `pagehide` comes before the page is marked as cached, in the same task
+  (`BrowsingContext::DeactivateDocuments`), so the goodbye does not take it out. `close()`
+  lets go of the channel a task later (`CloseRunnable`, then `BroadcastChannelChild` has no
+  channel to give messages to): a message already queued then can still take the page out. A
+  few milliseconds against the whole time in the cache; Firefox offers a page no way to leave
+  sooner.
+- **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
+  the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
+  downloads ahead in parallel as before. A seek does the same at once.
+- **Result**, same measurement, three background players: HLS 4.4 s (alone 3.9 s), MP4 3.4 s
+  (alone 3.1 s), no stalls; the background players resumed about 13-20 s after the seek and
+  buffered to the end.
+- **`recoverPlayer`.** An error after the source had shown something (a fatal hls.js error, the
+  `<video>` element's `MediaError`, `MP4Player`'s stall watchdog) ended it for good, and only a
+  tab reload - which downloaded everything again - played it again. Seeks were the usual
+  trigger: Firefox can fail to decode what a seek appends late (bug 2069633), and only a new
+  `MediaSource` plays again. The player is built again for the same source at the time it was
+  at (not for a live stream), with its quality and audio track, keeping every downloaded
+  fragment (`DownloadManager.keepStorageOnce`, apart from the save manager's `resetOverride`),
+  resuming only if the user was playing; at most 3 times per source in 2 minutes, then the
+  load error with its reason (`player-recovery.e2e.mjs`). Not for a network failure
+  (`isNetworkFailure`: a new player asks the same server for the same fragment): the full web
+  e2e run caught that, `mp4-loading.e2e.mjs`'s error came a minute late.
+- **The load error names its reason** (`describePlayerError`): the client's handler read a
+  second argument that nothing passes, so every failure said only "Failed to load video!".
+  Now e.g. "Failed to load video! (manifestLoadError (HTTP 404))" (`failed-load.e2e.mjs`).
+
+**Invariants.** A save's downloads (priority -1) are never cancelled or held by a yield; a
+player's own playback requests are never held unless it is paused and yielding. Yield is
+re-evaluated on each peer message and on the client's tick, play, pause, seek and
+visibilitychange. A scrub sends the same state at most every 250 ms.

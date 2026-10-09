@@ -8,8 +8,12 @@
 // for it. A passing run shows the entry doomed at the abort and the retry opening a
 // fresh one (cache2 and nsHttp at level 5); only a failing run's log can show whether
 // the retry waited on the old entry. That log is ~40 MB per run, so only the listed
-// specs write one, only when E2E_MOZ_LOG=1 (CI's Windows playback step), and an
-// attempt that passes deletes its own.
+// specs write one, only when E2E_MOZ_LOG=1 (CI's Windows steps), and an attempt that
+// passes deletes its own.
+//
+// player-peers-bfcache.e2e.mjs failed on the Windows runner in 4 of 4 attempts and passed
+// locally (PR #366): Back loaded the page again instead of taking it from the back-forward
+// cache. SHIPBFCache names what kept or took a page out of it.
 //
 // The variables go into the worker's own environment: wdio starts geckodriver from the
 // worker, and geckodriver starts Firefox, each inheriting it. Every spec file, and
@@ -25,6 +29,7 @@ import * as url from 'node:url';
 /** Spec file name (without .e2e.mjs) -> the MOZ_LOG modules its Firefox logs. */
 export const MozLogSpecs = new Map([
   ['loader-retry', 'timestamp,sync,cache2:5,nsHttp:5'],
+  ['player-peers-bfcache', 'timestamp,sync,SHIPBFCache:5'],
 ]);
 
 /**

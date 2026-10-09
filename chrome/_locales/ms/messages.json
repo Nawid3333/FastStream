@@ -1001,6 +1001,9 @@
     "options_general_maxsize": {
         "message": "Saiz maksimum video yang dimuat turun awal"
     },
+    "options_general_rambudget": {
+        "message": "RAM untuk video yang ditimbal (semua tab)"
+    },
     "options_general_bufferahead": {
         "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan sebaik pramuat turun berhenti atau kehabisan ruang)"
     },

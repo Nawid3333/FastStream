@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {FetchLoader, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
+import {FetchLoader, fetchPriorityOf, retryAfterMs} from '../../chrome/player/network/FetchLoader.mjs';
 
 // FetchLoader is the single network primitive shared by HLS, DASH and MP4
 // fragment/playlist loading (via DownloadManager -> StandardDownloader). It
@@ -118,6 +118,35 @@ describe('FetchLoader', () => {
 
     const [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
     expect(response.headers['content-type']).toBe('video/mp2t');
+  });
+
+  it('asks fetch() for the priority its config gives, as it is at each attempt', async () => {
+    // Firefox queues a host's requests beyond its six connections by priority: what
+    // playback waits for goes out 'high' (StandardDownloader), and a retry of a download
+    // playback started waiting for meanwhile goes out 'high' too.
+    const fetchMock = fetchHangingUntilAborted();
+    vi.stubGlobal('fetch', fetchMock);
+    let priority = 'auto';
+
+    const loader = new FetchLoader();
+    loader.addCallbacks(makeCallbackRecorder());
+    loader.load(makeRequest(), makeConfig({timeout: 100, maxRetry: 2, fetchPriority: () => priority}));
+    await vi.advanceTimersByTimeAsync(10);
+    priority = 'high';
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const asked = fetchMock.mock.calls.map(([, init]) => init.priority);
+    expect(asked.length).toBeGreaterThanOrEqual(2);
+    expect(asked[0]).toBe('auto');
+    expect(asked.slice(1).every((value) => value === 'high')).toBe(true);
+  });
+
+  it('reads the priority from a value or a function, and nothing else', () => {
+    expect(fetchPriorityOf({})).toBe('auto');
+    expect(fetchPriorityOf({fetchPriority: 'high'})).toBe('high');
+    expect(fetchPriorityOf({fetchPriority: () => 'low'})).toBe('low');
+    // fetch() throws on a value it does not know.
+    expect(fetchPriorityOf({fetchPriority: 'urgent'})).toBe('auto');
   });
 
   it('fetches past Firefox\'s HTTP cache, every attempt', async () => {

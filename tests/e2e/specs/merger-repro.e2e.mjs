@@ -26,7 +26,8 @@ describe('mp4merger finalize micro-repro', function() {
           for (let i = 0; i < payload.length; i++) payload[i] = i % 251;
           const id = await store.saveBlobAsync(new Blob([payload]));
 
-          const stored = store.getBlob(id);
+          // A promise when the Cache API holds it (read when asked for).
+          const stored = await store.getBlob(id);
           out.storedType = stored?.constructor?.name;
           out.storedSize = stored?.size;
 

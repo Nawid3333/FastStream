@@ -32,11 +32,15 @@ describe('A stream that cannot be loaded', function() {
         state = await browser.execute(() => ({
           failed: !!window.fastStream?.interfaceController?.failed,
           buffering: !!window.fastStream?.interfaceController?.state?.buffering,
+          message: window.fastStream?.interfaceController?.statusManager?.statusMessages?.get('error')?.message,
         }));
         return state.failed;
       }, {timeout: 90000, interval: 500}).catch(() => {});
       console.log(`      ${stream.name}: ${JSON.stringify(state)} after ${Date.now() - started} ms`);
       expect(state.failed).toBe(true);
+      // It says what failed, after the general message (describePlayerError): it was the
+      // general message alone, whatever the cause.
+      expect(state.message).toMatch(/^.+ \(.+\)$/);
     });
   }
 

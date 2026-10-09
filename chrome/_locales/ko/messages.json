@@ -1001,6 +1001,9 @@
     "options_general_maxsize": {
         "message": "사전 다운로드할 비디오의 최대 크기"
     },
+    "options_general_rambudget": {
+        "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"
+    },
     "options_general_bufferahead": {
         "message": "재생 지점 이후 구간을 버퍼에 유지할 초 수(사전 다운로드가 중지되었거나 공간이 부족해질 때 사용)"
     },

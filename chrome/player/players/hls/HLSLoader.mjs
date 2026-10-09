@@ -241,7 +241,22 @@ export function HLSLoaderFactory(player) {
         onSuccess: async (entry, xhr) => {
           segmentFailures.delete(failureKey);
           this.copyStats(entry.stats);
-          const data = await entry.getDataFromBlob();
+          let data;
+          try {
+            data = await entry.getDataFromBlob();
+          } catch (e) {
+            // Stored, and no longer there to read (DownloadEntry.onDataLost drops it, so the
+            // next request downloads it again): a failure, as the download's own (onFail
+            // below). The rejection went nowhere, and hls.js waited for the answer for ever.
+            console.warn('Could not read a stored download', e);
+            if (!this.callbacks) return;
+            if (isPlaylist) {
+              this.callbacks.onError?.({code: 0, text: 'Stored copy unreadable'}, this.context, null, this.stats);
+            } else {
+              this.reportFailure(failureKey);
+            }
+            return;
+          }
 
           if (this.callbacks) {
             this.callbacks.onSuccess({

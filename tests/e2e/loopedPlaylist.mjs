@@ -10,9 +10,13 @@ const FIXTURE = path.resolve(import.meta.dirname, 'fixtures/hls-ts/index.m3u8');
  * Builds the playlist.
  * @param {number} seconds - Its length: a multiple of the fixture's 9 s.
  * @param {string} segmentPath - Where the spec serves the fixture's segments, as '/hls-ts/'.
+ * @param {Object} [options]
+ * @param {boolean} [options.unique] - Each segment's URL ends in `?i=<its place>`, so the
+ *   loops are different downloads to FastStream (which keeps one per URL), and the server can
+ *   tell which place in the playlist a request is for.
  * @return {string} The playlist.
  */
-export function loopedPlaylist(seconds, segmentPath) {
+export function loopedPlaylist(seconds, segmentPath, {unique = false} = {}) {
   const fixture = fs.readFileSync(FIXTURE, 'utf8').split(/\r?\n/);
   const segments = [];
   fixture.forEach((line, i) => {
@@ -23,13 +27,15 @@ export function loopedPlaylist(seconds, segmentPath) {
 
   const lines = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-TARGETDURATION:2', '#EXT-X-PLAYLIST-TYPE:VOD'];
   let total = 0;
+  let place = 0;
   for (let loop = 0; total < seconds; loop++) {
     // Each loop starts the fixture's timestamps over.
     if (loop > 0) {
       lines.push('#EXT-X-DISCONTINUITY');
     }
     for (const segment of segments) {
-      lines.push(segment.extinf, segment.uri);
+      lines.push(segment.extinf, unique ? `${segment.uri}?i=${place}` : segment.uri);
+      place++;
       total += segment.length;
     }
   }

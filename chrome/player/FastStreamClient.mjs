@@ -35,6 +35,11 @@ import {AlertPolyfill} from './utils/AlertPolyfill.mjs';
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
+import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mjs';
+import {PlayerPeers} from './network/PlayerPeers.mjs';
+import {aheadOfPlayhead} from './network/BufferAhead.mjs';
+import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
+import {chooseToRelease, DEFAULT_BUDGET_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 
 
 /**
@@ -42,6 +47,12 @@ import {VpnPrompt} from './ui/VpnPrompt.mjs';
  * @extends EventEmitter
  */
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
+
+// How often recoverPlayer builds the player again for one source: at most RECOVERY_LIMIT
+// times in RECOVERY_WINDOW_MS. A stream that fails again at once after each rebuild ends in
+// the load error within seconds; one that plays on between rare errors keeps recovering.
+const RECOVERY_LIMIT = 3;
+const RECOVERY_WINDOW_MS = 120000;
 
 export class FastStreamClient extends EventEmitter {
   /**
@@ -55,6 +66,7 @@ export class FastStreamClient extends EventEmitter {
       autoPlay: false,
       maxSpeed: -1,
       maxVideoSize: 5000000000, // 5GB max size
+      ramBudget: DEFAULT_BUDGET_BYTES, // downloaded video kept in RAM, all players together
       introCutoff: 5 * 60,
       outroCutoff: 5 * 60,
       bufferAhead: 300,
@@ -120,6 +132,18 @@ export class FastStreamClient extends EventEmitter {
     this.keybindManager = new KeybindManager(this);
     this.frameStepper = new FrameStepper();
     this.downloadManager = new DownloadManager(this);
+    // The other FastStream players: one the user watches and that is short of video gets
+    // the network (PlayerPeers.shouldYield, DownloadManager.setYield).
+    this.peers = new PlayerPeers({
+      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(),
+        ramBytes: this.downloadManager?.ramBytes?.() || 0}),
+      onChange: () => {
+        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield(), !this.state.playing);
+      },
+    });
+    this.peers.start();
+    this.onPeersVisibility = () => this.updatePeers();
+    document.addEventListener('visibilitychange', this.onPeersVisibility);
     this.sourcesBrowser = new SourcesBrowser(this);
     this.vpnPrompt = new VpnPrompt(this);
     this.videoAnalyzer = new VideoAnalyzer(this);
@@ -153,6 +177,10 @@ export class FastStreamClient extends EventEmitter {
     this.fallbacks = {request: 0, sources: []};
     // A source's decode failures, kept over its own reload (reloadWithoutFailedCodec).
     this.carriedDecodeFailures = null;
+    // The source that has shown something (LOADEDDATA), and when the player was built again
+    // for it after an error (recoverPlayer).
+    this.playedSource = null;
+    this.recoveries = {url: null, times: []};
     this.previewPlayerSetup = null;
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
@@ -313,6 +341,8 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
+    document.removeEventListener('visibilitychange', this.onPeersVisibility);
+    this.peers.stop();
     this.resetPlayer();
     this.downloadManager.destroy();
     this.videoAnalyzer.destroy();
@@ -337,6 +367,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
+    this.options.ramBudget = options.ramBudget;
     this.options.bufferAhead = options.bufferAhead;
     this.options.bufferBehind = options.bufferBehind;
     this.options.seekStepSize = options.seekStepSize;
@@ -1233,6 +1264,9 @@ export class FastStreamClient extends EventEmitter {
       this.interfaceController.setStatusMessage(StatusTypes.REQINTERACTION, null);
     }
 
+    this.updatePeers();
+    this.enforceMemoryBudget();
+
     if (this.player) {
       this.updatePreview();
       this.predownloadFragments();
@@ -1253,10 +1287,139 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Seconds of video this player has ahead of the playhead, without a hole.
+   * @return {number}
+   */
+  getVideoAhead() {
+    return aheadOfPlayhead({
+      video: this.fragments,
+      audio: this.audioFragments,
+      buffered: this.player?.buffered,
+      time: this.state.currentTime,
+    });
+  }
+
+  /**
+   * Keeps the downloaded video this player holds in RAM within its share of the RAM budget
+   * (MemoryBudget: the user's setting, 2 GB by default, for all FastStream players; the one
+   * the user watches gets more). Over HIGH of its share it lets go of fragments until it is
+   * down to LOW, those furthest behind the playhead first, then the furthest ahead, never the
+   * next seconds: a normal window writes them to disk, a private window - which keeps
+   * nothing on disk - lets them go, to be downloaded again when needed. Until it is back
+   * down, it starts no downloads ahead (DownloadManager.memoryFull); playback's own requests
+   * still go. Fragments of every quality level count, not only the current one's.
+   */
+  enforceMemoryBudget() {
+    // On the client's tick: a throw here skipped the rest of it, the downloads ahead with it.
+    try {
+      this.keepWithinMemoryBudget();
+    } catch (e) {
+      console.warn('Could not keep within the RAM budget', e);
+    }
+  }
+
+  /** enforceMemoryBudget's work. */
+  keepWithinMemoryBudget() {
+    const manager = this.downloadManager;
+    if (!manager?.blobStore || !this.peers) return;
+    const budget = this.options.ramBudget > 0 ? this.options.ramBudget : DEFAULT_BUDGET_BYTES;
+    const watched = this.peers.visible() && !!this.state.playing;
+    const others = this.peers.livePeers().map((peer) => ({
+      ramBytes: peer.ramBytes,
+      weight: weightOf(peer.visible && peer.playing),
+    }));
+    const share = shareOf(budget, weightOf(watched), others);
+    const held = manager.ramBytes();
+    const leaving = manager.spillingBytes();
+    manager.memoryFull = isFull(held, leaving, share, manager.memoryFull);
+    if (held - leaving <= share * HIGH) return;
+
+    const toDisk = manager.canSpill();
+    const time = this.state.currentTime;
+    const current = this.currentFragment;
+    const candidates = [];
+    for (const fragments of Object.values(this.fragmentsStore || {})) {
+      for (const fragment of fragments || []) {
+        // Init segments (sn -1) every fragment of their level needs.
+        if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
+        const bytes = manager.ramBytesOf(fragment.getContext());
+        if (!(bytes > 0)) continue;
+        let start = fragment.start;
+        let end = fragment.end;
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+          // No times yet (a fragmented MP4's ranges before they are parsed): placed by their
+          // distance from the fragment playing, far behind or far ahead; next to it, kept.
+          // Never released, they let a private window's RAM grow without a bound.
+          if (!current || current.level !== fragment.level || Math.abs(fragment.sn - current.sn) <= 2) continue;
+          const distance = fragment.sn - current.sn;
+          start = distance > 0 ? time + 1e7 + distance : time - 1e7 + distance;
+          end = start;
+        }
+        candidates.push({fragment, start, end, bytes});
+      }
+    }
+    const keep = toDisk ? KEEP_ON_DISK_WINDOW : KEEP_IN_RAM_ONLY_WINDOW;
+    for (const {fragment} of chooseToRelease(candidates, time, keep, held - leaving - share * LOW)) {
+      if (toDisk) {
+        // One that cannot go to disk (the disk full) is let go of instead of staying in RAM.
+        manager.spill(fragment.getContext()).then((stored) => {
+          if (!stored && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE && fragment.canFree() &&
+              manager.ramBytesOf(fragment.getContext()) > 0) {
+            this.freeFragment(fragment);
+          }
+        }).catch((e) => console.warn('Could not write a fragment to disk', e));
+      } else {
+        this.freeFragment(fragment);
+      }
+    }
+  }
+
+  /**
+   * Tells the other players how this one is doing, and steps aside for them or not.
+   */
+  updatePeers() {
+    if (this.destroyed || !this.peers) return;
+    this.peers.announce();
+    this.downloadManager?.setYield?.(this.peers.shouldYield(), !this.state.playing);
+  }
+
+  /**
+   * Cancels the downloads ahead that run outside the next seconds around the playhead
+   * (PlayheadFirst): their connections serve the fragment playback needs.
+   */
+  cancelFarDownloads() {
+    if (this.isLive() || !this.downloadManager) return;
+    const time = this.state.currentTime;
+    for (const fragments of [this.fragments, this.audioFragments]) {
+      for (const fragment of downloadingOutside(fragments, time, KEEP_BEHIND_S, KEEP_AHEAD_S)) {
+        // A fragment a save or the analyzer holds is theirs to finish.
+        if (fragment.canFree()) this.downloadManager.cancelIfCheap(fragment.getContext());
+      }
+    }
+  }
+
+  /**
    * Pre-downloads fragments for smooth playback.
    * @return {boolean} True if any fragments were downloaded.
    */
   predownloadFragments() {
+    // Another player that the user watches needs the network (DownloadManager.setYield).
+    if (this.downloadManager.yielding) {
+      return false;
+    }
+
+    // Its share of the RAM budget is used up (enforceMemoryBudget).
+    if (this.downloadManager.memoryFull) {
+      return false;
+    }
+
+    // Short of video: the next seconds first, on few connections (PlayheadFirst).
+    const wasConcentrating = this.concentrating;
+    this.concentrating = shouldConcentrate(this.getVideoAhead(), !!this.concentrating);
+    if (this.concentrating && !wasConcentrating) {
+      this.cancelFarDownloads();
+    }
+
     // Don't pre-download if user is offline
     if (!navigator.onLine) {
       return false;
@@ -1286,6 +1449,12 @@ export class FastStreamClient extends EventEmitter {
         if (nextDownload.end < this.state.currentTime - this.state.bufferBehind) {
           break;
         }
+      }
+
+      // (A live stream's fragments are placed on its own clock: no window there.)
+      if (this.concentrating && (this.downloadManager.activeCount() >= URGENT_PARALLEL ||
+          (!this.isLive() && nextDownload.start > this.state.currentTime + KEEP_AHEAD_S))) {
+        break;
       }
 
       if (!this.downloadManager.canGetFile(nextDownload.getContext())) {
@@ -1482,6 +1651,91 @@ export class FastStreamClient extends EventEmitter {
     }
   }
 
+  /**
+   * Builds the player again for the source it plays, at the time it was at, keeping every
+   * fragment already downloaded: for an error after the source has shown something. Each
+   * such error ended the video for good ("Failed to load video!"), and only reloading the
+   * tab - which threw away everything downloaded - played it again. A seek is the usual
+   * trigger: Firefox can fail to decode what a seek appends late (bug 2069633), and only a
+   * new MediaSource plays again (hls.js's recoverMediaError, Shaka's resetMediaSource do the
+   * same). At most RECOVERY_LIMIT times in RECOVERY_WINDOW_MS, so a stream that is really
+   * broken still ends in the error, with its reason.
+   * @param {Object} player - The player whose error it is.
+   * @param {*} reason - The error.
+   * @return {boolean} Whether it builds the player again.
+   */
+  recoverPlayer(player, reason) {
+    const source = this.source;
+    // A fragment the server keeps refusing: a new player would ask for it again.
+    if (isNetworkFailure(reason)) {
+      return false;
+    }
+    if (!source || player !== this.player || this.playedSource !== source ||
+        this.fallbacks.request !== this.sourceRequests) {
+      return false;
+    }
+    const url = this.recoverySourceURL(source.url);
+    const now = Date.now();
+    if (this.recoveries.url !== url) {
+      this.recoveries = {url, times: []};
+    }
+    this.recoveries.times = this.recoveries.times.filter((time) => now - time < RECOVERY_WINDOW_MS);
+    if (this.recoveries.times.length >= RECOVERY_LIMIT) {
+      return false;
+    }
+    this.recoveries.times.push(now);
+
+    const time = this.currentTime;
+    // What the user wants, not what the element says: an error can leave it paused.
+    const wasPlaying = !!this.state.playing || !this.paused;
+    console.warn('Building the player again at ' + time + ' after an error:', reason);
+
+    const again = source.copy();
+    // The time goes the way a page's does, as the faststream-timestamp parameter that
+    // setSourceInternal reads and takes off again (whole seconds). Not for a live stream,
+    // which joins at its live edge again, nor for a blob: or data: URL, which takes none.
+    if (!this.isLive() && /^https?:/i.test(again.url)) {
+      try {
+        const withTime = new URL(again.url);
+        withTime.searchParams.set('faststream-timestamp', String(Math.floor(time)));
+        again.url = withTime.toString();
+      } catch (e) {
+        // Not a URL after all: from the start, still with everything downloaded.
+      }
+    }
+    // The quality and the audio track the user had.
+    again.defaultLevelInfo = {
+      level: this.getCurrentVideoLevelID() ?? undefined,
+      audioLevel: this.getCurrentAudioLevelID() ?? undefined,
+    };
+
+    // The next reset keeps what was downloaded: the new player asks for the same
+    // fragments, and the stored ones answer at once.
+    this.downloadManager.keepStorageOnce();
+    this.setSource(again, this.fallbacks.sources).then(() => {
+      if (wasPlaying && this.recoverySourceURL(this.source?.url || '') === url) {
+        return this.play();
+      }
+    }).catch((e) => console.warn('Could not resume after building the player again', e));
+    return true;
+  }
+
+  /**
+   * A source's URL without the time recoverPlayer gives it, so its recoveries count as one
+   * source's.
+   * @param {string} url
+   * @return {string}
+   */
+  recoverySourceURL(url) {
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.delete('faststream-timestamp');
+      return parsed.toString();
+    } catch (e) {
+      return url;
+    }
+  }
+
   failedToLoad(reason) {
     this.downloadManager.removeAllDownloaders();
     this.interfaceController.failedToLoad(reason);
@@ -1671,8 +1925,8 @@ export class FastStreamClient extends EventEmitter {
       this.autoplayNextVideo();
     });
 
-    this.context.on(DefaultPlayerEvents.ERROR, (event, msg) => {
-      console.error('ERROR', event);
+    this.context.on(DefaultPlayerEvents.ERROR, (reason) => {
+      console.error('ERROR', reason);
       // A video codec that just failed to decode for good: the same source again, without it.
       if (player.takeCodecReload?.() && this.reloadWithoutFailedCodec(player)) {
         return;
@@ -1680,7 +1934,16 @@ export class FastStreamClient extends EventEmitter {
       if (this.tryNextSource()) {
         return;
       }
-      this.failedToLoad(msg || Localize.getMessage('player_error_load'));
+      // After it has shown something: the same source again, at the same time, with what it
+      // downloaded (recoverPlayer).
+      if (this.recoverPlayer(player, reason)) {
+        return;
+      }
+      // With what went wrong: the reason is the event's only argument, and the second one
+      // this read instead was never passed, so every failure said only "Failed to load video!".
+      const detail = describePlayerError(reason);
+      const message = Localize.getMessage('player_error_load');
+      this.failedToLoad(detail ? message + ' (' + detail + ')' : message);
     });
 
     this.context.on(DefaultPlayerEvents.NEED_KEY, (event) => {
@@ -1690,6 +1953,10 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.LOADEDDATA, (event) => {
       // It shows something: a failure from now on is the stream's, not a wrong pick.
       this.fallbacks.sources = [];
+      // This player's: an old one's late event is not the new source's.
+      if (player === this.player) {
+        this.playedSource = this.source;
+      }
       // Made only where Web Audio is (constructor), as every other use checks
       this.audioConfigManager?.updateChannelCount();
     });
@@ -1703,12 +1970,14 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
       this.interfaceController.pause();
       this.reportPlaying(false);
+      this.updatePeers();
     });
 
 
     this.context.on(DefaultPlayerEvents.PLAY, (event) => {
       this.interfaceController.play();
       this.reportPlaying(true);
+      this.updatePeers();
     });
 
 
@@ -2003,6 +2272,11 @@ export class FastStreamClient extends EventEmitter {
     if (this.player) {
       this.player.currentTime = value;
     }
+    this.peers?.noteSeek();
+    this.updatePeers();
+    // What was downloading for the old place gives way to the new one at once.
+    this.concentrating = true;
+    this.cancelFarDownloads();
     if (this.syncedAudioPlayer) this.syncedAudioPlayer.setCurrentTime(value);
   }
 
