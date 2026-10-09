@@ -36,6 +36,8 @@ const CHECKED = [
   'chrome/player/network/PlayerPeers.mjs',
   'chrome/player/network/PlayheadFirst.mjs',
   'chrome/player/network/MemoryBudget.mjs',
+  'chrome/player/utils/BrokenMedia.mjs',
+  'chrome/player/players/dash/DashErrors.mjs',
   'chrome/player/utils/StreamLength.mjs',
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/URLUtils.mjs',

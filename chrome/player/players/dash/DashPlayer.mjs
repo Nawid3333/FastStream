@@ -7,6 +7,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {DashFragment} from './DashFragment.mjs';
 import {DashFragmentRequester} from './DashFragmentRequester.mjs';
+import {stuckAfterStart} from './DashErrors.mjs';
 import {DASHLoaderFactory} from './DashLoader.mjs';
 import {DashTrackUtils} from './DashTrackUtils.mjs';
 import {audioProbeFor, describeDashRepresentation, probeDecoding, videoProbeFor} from '../DecodingCapabilities.mjs';
@@ -97,7 +98,9 @@ export default class DashPlayer extends EventEmitter {
       },
       errors: {
         recoverAttempts: {
-          mediaErrorDecode: 1000000,
+          // The seek preview has no client to build it again (recoverPlayer): dash.js's own
+          // reset is all it has, and a segment that never decodes reset it for ever.
+          mediaErrorDecode: this.isPreview ? 5 : 1000000,
         },
       },
     };
@@ -182,15 +185,27 @@ export default class DashPlayer extends EventEmitter {
     });
 
     // A manifest dash.js could not load or parse is reported only here: <video> gets no
-    // error, so without this the player would wait forever. An error once the stream is
-    // up (a segment, a live refresh) leaves it playing, as before.
+    // error, so without this the player would wait forever. Once the stream is up, the errors
+    // it stays stuck after for good (DashErrors.mjs): they were dropped, and such a stream sat
+    // behind a spinner for ever.
     const manifestErrors = [
       MediaPlayer.errors.MANIFEST_LOADER_PARSING_FAILURE_ERROR_CODE,
       MediaPlayer.errors.MANIFEST_LOADER_LOADING_FAILURE_ERROR_CODE,
       MediaPlayer.errors.DOWNLOAD_ERROR_ID_MANIFEST_CODE,
     ];
+    const stuck = stuckAfterStart(MediaPlayer.errors);
+    const stuckLive = stuckAfterStart(MediaPlayer.errors, true);
     this.dash.on('error', (e) => {
-      if (!initAlready && manifestErrors.includes(e.error?.code)) {
+      const code = e.error?.code;
+      let live = false;
+      try {
+        live = initAlready && this.dash.isDynamic();
+      } catch (err) {
+        // Not known yet: as for a video on demand.
+      }
+      // Before the start, a manifest that loads but cannot be used (no stream, a muxed track,
+      // a type MSE refuses) waited for ever as well.
+      if (initAlready ? (live ? stuckLive : stuck).has(code) : (manifestErrors.includes(code) || stuck.has(code))) {
         this.emit(DefaultPlayerEvents.ERROR, e);
       }
     });

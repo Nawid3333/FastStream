@@ -14,6 +14,18 @@ describe('isNetworkFailure', () => {
     }
   });
 
+  it('knows the downloads of dash.js that ran out of retries', () => {
+    // The manifest's loading, then a manifest, an index, a segment, an init segment, an xlink.
+    for (const code of [11, 25, 26, 27, 28, 29]) {
+      expect(isNetworkFailure({type: 'error', error: {code, message: 'x'}})).toBe(true);
+    }
+    // A manifest it cannot use, no stream, a muxed track, a type MSE does not take, no key:
+    // a new player can do no better, but they are not the network.
+    for (const code of [10, 31, 32, 34, 35, 36]) {
+      expect(isNetworkFailure({type: 'error', error: {code, message: 'x'}})).toBe(false);
+    }
+  });
+
   it('leaves what a new player can get past', () => {
     for (const reason of ['Playback stuck at 302.1', 'The video could not be buffered: QuotaExceededError',
       {type: 'mediaError', details: 'bufferAppendError', fatal: true},
