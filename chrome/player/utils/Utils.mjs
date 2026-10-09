@@ -14,20 +14,23 @@ export class Utils {
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored));
+    return Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored);
   }
 
   /**
-   * A maximum size saved below 1 MB was a bare number read as bytes, before #378 made it
-   * megabytes: "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded.
-   * Read as megabytes. Changed in place; a size of 1 MB or more is left alone.
-   * @param {Object} options - Saved options merged over the defaults.
-   * @return {Object} The same options.
+   * A maximum size below 1 MB in options saved before #378 was a bare number read as bytes:
+   * "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded. Read as
+   * megabytes. Only once (sizesVersion), from the value as saved: a size below 1 MB chosen
+   * since, in the MB/GB picker (0.5 MB), is meant.
+   * @param {Object} options - Saved options merged over the defaults; changed in place.
+   * @param {Object|null} stored - The options as saved, before the defaults were filled in.
+   * @return {Object} The same options, with sizesVersion set.
    */
-  static migrateSizes(options) {
-    if (options.maxVideoSize > 0 && options.maxVideoSize < 1000000) {
+  static migrateSizes(options, stored) {
+    if (stored && !Number.isInteger(stored.sizesVersion) && options.maxVideoSize > 0 && options.maxVideoSize < 1000000) {
       options.maxVideoSize *= 1000000;
     }
+    options.sizesVersion = 1;
     return options;
   }
 

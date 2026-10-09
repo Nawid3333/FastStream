@@ -615,14 +615,15 @@ function showSize(input, unit, bytes, keepUnit = false) {
 }
 
 /**
- * The amount a number field holds, times its unit; NaN when it holds no number. A number
- * field takes the decimal separator of the browser's language ("1,5" in French).
+ * The amount a field holds, times its unit; NaN when it holds no number. A comma is a
+ * decimal point ("1,5", as French and German write it): a number field would have taken
+ * only the page language's, and "1,5" was cut to 1.
  * @param {HTMLInputElement} input
  * @param {number} multiplier
  * @return {number}
  */
 function readAmount(input, multiplier) {
-  const amount = input.valueAsNumber;
+  const amount = parseFloat(input.value.trim().replace(',', '.'));
   return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * multiplier) : NaN;
 }
 
@@ -715,15 +716,20 @@ maxdownloaders.addEventListener('change', () => {
  * on leaving the field (Tab, a click elsewhere), so a size typed and the settings closed with the
  * cursor still in it was lost, and the field showed the old value again ("stuck at 5 GB", #378).
  * The field's own change handler reads, clamps and saves the value; what is being typed stays in
- * the field as typed. An emptied field is saved only when left.
+ * the field as typed. An emptied field is saved when it or the page is left, not while typing.
  * @param {HTMLInputElement|HTMLTextAreaElement} input
  */
 function saveWhileTyping(input) {
   let timer = null;
-  const save = () => {
+  // Typed and not saved yet: an emptied field waits for the field or the page to be left.
+  let unsaved = false;
+  const save = (leaving = false) => {
     clearTimeout(timer);
     timer = null;
-    if (!input.value.trim()) return;
+    // A number field half typed ("1.", "-") reads as empty: taken for "no limit", it is lost.
+    if (input.validity?.badInput) return;
+    // Emptied while typing is no value yet; emptied when the page goes, it is the user's.
+    if (!leaving && !input.value.trim()) return;
     const typed = input.value;
     const {selectionStart, selectionEnd} = input;
     input.dispatchEvent(new Event('change'));
@@ -734,17 +740,20 @@ function saveWhileTyping(input) {
     }
   };
   input.addEventListener('input', () => {
+    unsaved = true;
     clearTimeout(timer);
     timer = setTimeout(save, 400);
   });
   // Left: its change event saves it, and shows it as kept.
   input.addEventListener('change', () => {
+    unsaved = false;
     clearTimeout(timer);
     timer = null;
   });
-  // The page goes (the tab closed, the player with the settings in it closed) before the wait.
+  // The page goes (the tab closed, the player with the settings in it closed) before the wait,
+  // or with the field emptied: an emptied field was not saved at all.
   window.addEventListener('pagehide', () => {
-    if (timer !== null) save();
+    if (unsaved) save(true);
   });
 }
 
@@ -828,7 +837,7 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
-    const newOptions = Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj));
+    const newOptions = Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj);
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);

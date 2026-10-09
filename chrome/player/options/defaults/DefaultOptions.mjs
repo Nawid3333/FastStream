@@ -32,6 +32,9 @@ export const DefaultOptions = {
   customSourcePatterns: ``,
   keybinds: DefaultKeybinds,
   keybindsVersion: KEYBINDS_VERSION,
+  // Saved with the options: those saved before carry none, and their maximum size may be a
+  // bare number read as bytes (Utils.migrateSizes).
+  sizesVersion: 1,
   videoBrightness: 1,
   videoContrast: 1,
   videoSaturation: 1,

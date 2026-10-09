@@ -298,6 +298,30 @@ describe('Options page size fields, typed by hand', function() {
     expect(await shown('maxsize')).toEqual(['3000', 'GB']);
   });
 
+  it('takes a decimal comma, and keeps a size below 1 MB that was chosen', async function() {
+    await typeInto('maxsize', '1,5');
+    await savedAs('maxVideoSize', 1.5e9);
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '0.5');
+    await savedAs('maxVideoSize', 5e5);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['0.5', 'MB']);
+  });
+
+  it('saves a field emptied when the page is left', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    // Emptied, and the page left at once: no limit, not the old 8 Mbit/s.
+    await typeInto('maxspeed', '');
+    await browser.keys(['Backspace']);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    await savedAs('maxSpeed', -1);
+  });
+
   it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
