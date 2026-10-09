@@ -24,6 +24,8 @@ vi.mock('../../chrome/player/modules/analyzer/VideoAligner.mjs', async () => {
       async getMemoryForSave() {
         return {};
       }
+      pushVideoFrame() {}
+      calculate() {}
     },
   };
 });
@@ -141,6 +143,144 @@ describe('VideoAnalyzer, a background player that fails to load', () => {
     client.playerLoader.createPlayer.mockClear();
     await analyzer.update();
     expect(client.playerLoader.createPlayer).toHaveBeenCalled();
+  });
+});
+
+describe('VideoAnalyzer, a source change while a finder\'s player loads', () => {
+  /**
+   * A background player whose source loads when the test says so.
+   * @return {{player: Object, loaded: function(): void}}
+   */
+  function slowPlayer() {
+    let loaded;
+    const player = {
+      destroyed: false,
+      setup: vi.fn(async () => {}),
+      setSource: vi.fn(() => new Promise((resolve) => {
+        loaded = resolve;
+      })),
+      on: vi.fn(),
+      off: vi.fn(),
+      destroy: vi.fn(() => {
+        player.destroyed = true;
+      }),
+    };
+    return {player, loaded: () => loaded()};
+  }
+
+  // The player that loaded after the change was kept: it went on downloading the episode
+  // before at 6x and put its frames into the next one's sequence, the finder was not run for
+  // the next episode until it happened to end, and a later finder overwrote it without
+  // destroying it (audit, 2026-10-09).
+  it('destroys the old source\'s player, frees its range, and runs again for the new one', async () => {
+    const {player, loaded} = slowPlayer();
+    const client = makeClient(player);
+    const analyzer = new VideoAnalyzer(client);
+    await analyzer.setSource(client.source);
+
+    const updating = analyzer.update();
+    await vi.waitFor(() => expect(player.setSource).toHaveBeenCalled());
+    expect(analyzer.isRunning()).toBe(true);
+
+    // The next episode, in the same client.
+    await analyzer.setSource({mode: 'accelerated_hls', identifier: 'http://127.0.0.1/b.m3u8'});
+    loaded();
+    await updating;
+
+    expect(player.destroyed).toBe(true);
+    expect(analyzer.introPlayer).toBeNull();
+    expect(analyzer.isRunning()).toBe(false);
+    expect(client.fragments.every((fragment) => fragment.canFree())).toBe(true);
+    // ... and the old run started no outro finder from the old source's ranges.
+    expect(client.playerLoader.createPlayer).toHaveBeenCalledTimes(1);
+    // The next update runs the finder for the new source.
+    analyzer.update();
+    await vi.waitFor(() => expect(client.playerLoader.createPlayer).toHaveBeenCalledTimes(2));
+  });
+
+  it('starts the finder again after a quality change while it loaded', async () => {
+    const {player, loaded} = slowPlayer();
+    const client = makeClient(player);
+    const analyzer = new VideoAnalyzer(client);
+    await analyzer.setSource(client.source);
+
+    const updating = analyzer.update();
+    await vi.waitFor(() => expect(player.setSource).toHaveBeenCalled());
+    analyzer.setLevel('0:1', null);
+    loaded();
+    await updating;
+
+    expect(player.destroyed).toBe(true);
+    expect(analyzer.introStatus).toBe('idle');
+    analyzer.update();
+    await vi.waitFor(() => expect(client.playerLoader.createPlayer).toHaveBeenCalledTimes(2));
+  });
+
+  it('plays nothing when its metadata comes after the change, before it finished loading', async () => {
+    const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+    const {player, loaded} = slowPlayer();
+    player.play = vi.fn();
+    const client = makeClient(player);
+    const analyzer = new VideoAnalyzer(client);
+    await analyzer.setSource(client.source);
+
+    const updating = analyzer.update();
+    await vi.waitFor(() => expect(player.setSource).toHaveBeenCalled());
+    await analyzer.setSource({mode: 'accelerated_hls', identifier: 'http://127.0.0.1/b.m3u8'});
+    const [, onLoadedMetadata] = player.on.mock.calls.find(([event]) => event === DefaultPlayerEvents.LOADEDMETADATA);
+    onLoadedMetadata();
+    loaded();
+    await updating;
+
+    expect(player.play).not.toHaveBeenCalled();
+    expect(player.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  // Its metadata came first: it played, pushing frames, and destroyPlayers could not stop a
+  // player runFinder did not hold yet (review, 2026-10-09).
+  it('stops a player already playing when the change comes before it finished loading', async () => {
+    const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+    // A frame loop that cannot outlive the test.
+    let frames = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback) => {
+      if (++frames < 500) setTimeout(callback, 0);
+    });
+    const {player, loaded} = slowPlayer();
+    const contextListeners = new Map();
+    Object.assign(player, {
+      currentTime: 0, readyState: 4, paused: false,
+      play: vi.fn(),
+      pause: vi.fn(),
+      getVideo: () => ({videoWidth: 640, videoHeight: 360}),
+      createContext: () => ({on: (event, callback) => contextListeners.set(event, callback), destroy() {}}),
+    });
+    player.destroy = vi.fn(() => {
+      player.destroyed = true;
+      contextListeners.get(DefaultPlayerEvents.DESTROYED)?.();
+    });
+    const client = makeClient(player);
+    const analyzer = new VideoAnalyzer(client);
+    await analyzer.setSource(client.source);
+    const push = vi.spyOn(analyzer.introAligner, 'pushVideoFrame');
+
+    const updating = analyzer.update();
+    await vi.waitFor(() => expect(player.setSource).toHaveBeenCalled());
+    const [, onLoadedMetadata] = player.on.mock.calls.find(([event]) => event === DefaultPlayerEvents.LOADEDMETADATA);
+    onLoadedMetadata();
+    await vi.waitFor(() => expect(push).toHaveBeenCalled());
+
+    await analyzer.setSource({mode: 'accelerated_hls', identifier: 'http://127.0.0.1/b.m3u8'});
+    const pushed = push.mock.calls.length;
+    await vi.waitFor(() => expect(player.destroyed).toBe(true));
+    // Moving on: a frame loop still running would take this new picture.
+    player.currentTime = 5;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(push.mock.calls.length).toBe(pushed);
+
+    loaded();
+    await updating;
+    expect(player.destroy).toHaveBeenCalledTimes(1);
+    expect(client.fragments.every((fragment) => fragment.canFree())).toBe(true);
   });
 });
 
