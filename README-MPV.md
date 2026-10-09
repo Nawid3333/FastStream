@@ -173,9 +173,13 @@ It removes the helper it installed too. The add-on itself is removed in
 **Installed by hand:**
 
 ```powershell
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost" -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv" -ErrorAction SilentlyContinue
+$dir = "$env:LOCALAPPDATA\FastStreamMpvHost"
+if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+$key = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv"
+if (Test-Path $key) { Remove-Item -Recurse -Force $key }
 ```
+
+What is not there is skipped; anything that cannot be removed (a file in use) says so.
 
 Untick the MPV options in settings, and FastStream goes back to normal.
 
