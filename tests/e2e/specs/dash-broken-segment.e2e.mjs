@@ -11,6 +11,9 @@
 //
 // dash.js's own recovery does not help here: it skips a segment only when the SourceBuffer
 // reports the error, and a decode error on the element only resets its MediaSource.
+//
+// The HLS segment holds both tracks, and on Linux Firefox's FFmpeg audio decoder fails on it
+// first (on Windows the video decoder): an audio decode error skips the place too.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -90,10 +93,25 @@ describe('A segment that does not decode', function() {
           state = await browser.execute(() => {
             const client = window.fastStream;
             const video = client?.player?.getVideo();
+            // Each error the client builds the player again for, and with what: a failure then
+            // says which decoder failed where (on Linux the audio one, for hls-fmp4).
+            if (client && !client.recoveryLog) {
+              const log = client.recoveryLog = [];
+              const recover = client.recoverPlayer.bind(client);
+              client.recoverPlayer = (player, reason) => {
+                const error = reason?.target?.error;
+                const entry = {at: Math.round(performance.now()), time: client.currentTime,
+                  reason: error ? `error ${error.code}: ${error.message}` : String(reason?.details || reason).slice(0, 200)};
+                entry.rebuilt = recover(player, reason);
+                entry.to = new URL(client.source?.url || 'about:blank').searchParams.get('faststream-timestamp');
+                log.push(entry);
+                return entry.rebuilt;
+              };
+            }
             if (!video) return {time: 0, failed: false, rebuilds: 0};
             if (video.paused && !video.ended) video.play().catch(() => {});
             return {time: video.currentTime, failed: !!client.interfaceController.failed,
-              rebuilds: client.recoveries.times.length};
+              rebuilds: client.recoveries.times.length, log: client.recoveryLog};
           });
           return state.time > BROKEN_END + 0.5 || state.failed;
         }, {timeout: 45000, interval: 250});

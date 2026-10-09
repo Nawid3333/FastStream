@@ -15,8 +15,10 @@ describe('BrokenMedia', () => {
   it('knows the <video> element\'s decode error, and nothing else', () => {
     expect(isDecodeError({target: {error: {code: 3}}})).toBe(true);
     expect(isDecodeError({target: {error: {code: 3, message: 'RemoteVideoDecoderChild::InitIPDL'}}})).toBe(true);
-    // An audio decoder's failure: no reason to skip video.
-    expect(isDecodeError({target: {error: {code: 3, message: 'RemoteAudioDecoder failed'}}})).toBe(false);
+    // An audio decoder's failure too: on Linux a broken segment holding both tracks fails there
+    // first, and only a skip past it plays on (dash-broken-segment.e2e.mjs, hls-fmp4).
+    expect(isDecodeError({target: {error: {code: 3, message: 'MediaResult mozilla::FFmpegAudioDecoder<60>::' +
+      'DecodeUsingFFmpeg(AVPacket *, bool &, MediaRawData *, DecodedData &, bool *): FFmpeg audio error'}}})).toBe(true);
     for (const reason of [{target: {error: {code: 2}}}, {target: {error: null}}, 'Segment 1 failed to load',
       {type: 'mediaError', details: 'bufferAppendError'}, null, undefined]) {
       expect(isDecodeError(reason)).toBe(false);

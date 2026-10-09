@@ -24,19 +24,18 @@ export const DECODED_AHEAD_S = 1;
 export const BLIND_SKIP_S = 2;
 
 /**
- * Whether an error is the <video> element's decode error (MEDIA_ERR_DECODE) of the video, as
- * the players pass it on: the element's error event. An audio decoder's failure comes as the
- * same error, its message naming the decoder (DashPlayer.onVideoError): skipping video for it
- * would lose good video. Never throws.
+ * Whether an error is the <video> element's decode error (MEDIA_ERR_DECODE), as the players
+ * pass it on: the element's error event. The audio decoder's too: a segment holding both
+ * tracks fails in whichever decoder trips first - on Linux Firefox's FFmpeg audio decoder,
+ * on Windows the video one (measured, the same broken HLS segment) - and skipping the place
+ * skips both. An audio decoder that fails everywhere ends in the load error all the same, the
+ * rebuilds spent (RECOVERY_LIMIT). Never throws.
  * @param {*} reason
  * @return {boolean}
  */
 export function isDecodeError(reason) {
   try {
-    const error = reason?.target?.error;
-    if (error?.code !== 3) return false;
-    const message = String(error.message || '');
-    return !(/audio/i.test(message) && !/video/i.test(message));
+    return reason?.target?.error?.code === 3;
   } catch (e) {
     return false;
   }
