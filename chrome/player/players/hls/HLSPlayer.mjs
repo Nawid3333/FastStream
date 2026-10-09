@@ -427,11 +427,18 @@ export default class HLSPlayer extends EventEmitter {
   }
 
   set currentTime(value) {
+    // The seek preview follows the pointer: what it was loading for the old place is dropped,
+    // through hls.js, which then loads from the new one. Its loaders were aborted behind its
+    // back before, and hls.js resets after an abort only once its first segment has loaded
+    // (handleFragLoadAborted needs its transmuxer): a hover before that left the preview
+    // loading that first segment for good, and hovering loaded nothing for the rest of the
+    // video.
     if (this.isPreview && this.activeRequests.length > 0 && !VideoUtils.isBuffered(this.video.buffered, value)) {
-      this.activeRequests.forEach((loader) => {
-        loader.abort();
-      });
+      this.hls.stopLoad();
       this.activeRequests.length = 0;
+      this.video.currentTime = value;
+      this.hls.startLoad(value);
+      return;
     }
 
     this.video.currentTime = value;
