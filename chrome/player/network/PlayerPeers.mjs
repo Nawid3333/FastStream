@@ -12,6 +12,16 @@
 //
 // BroadcastChannel is per origin and kept apart between private and normal windows, as are
 // Firefox's connection pools: the players that compete for connections hear each other.
+//
+// A page going into the back-forward cache leaves the channel, and joins again when Back
+// brings it out. Firefox takes a page out of that cache when a message reaches one of its
+// open BroadcastChannels (BroadcastChannel::MessageReceived: CheckCurrentGlobalCorrectness
+// fails for a window in the cache, and it calls RemoveDocFromBFCache), and the other players
+// announce every second: on the Windows runner, Back loaded such a page again in 4 of 4
+// attempts (PR #366). pagehide comes before the page is marked as cached, in the same task
+// (BrowsingContext::DeactivateDocuments), so the goodbye does not take it out. close() lets go
+// of the channel a task later (CloseRunnable): a message already queued then can still take
+// the page out - a few milliseconds, not the whole time in the cache.
 
 const CHANNEL = 'faststream-players-v1';
 const VERSION = 1;
@@ -61,9 +71,17 @@ export class PlayerPeers {
    * @param {() => void} [options.onChange] - Called when a peer's message changed who needs
    *   the network: a hidden page's own timers run late (up to 15 s), its messages do not,
    *   so it steps aside when the message comes, not on its next tick.
+   * @param {{addEventListener: Function, removeEventListener: Function}} [options.page] - Where
+   *   pagehide and pageshow come from (the window; tests give their own).
    */
-  constructor({state, visible, channel, now, onChange}) {
+  constructor({state, visible, channel, now, onChange, page}) {
     this.onChange = onChange || (() => {});
+    this.page = page || (typeof window !== 'undefined' ? window : null);
+    this.listening = false;
+    this.onPageHide = () => this.leave();
+    this.onPageShow = (/** @type {PageTransitionEvent} */ event) => {
+      if (event?.persisted && this.listening) this.join();
+    };
     this.state = state;
     this.visible = visible || (() => typeof document !== 'undefined' &&
       (document.visibilityState === 'visible' || !!document.pictureInPictureElement));
@@ -82,6 +100,19 @@ export class PlayerPeers {
    * @return {boolean} Whether it could.
    */
   start() {
+    if (!this.listening) {
+      this.listening = true;
+      this.page?.addEventListener('pagehide', this.onPageHide);
+      this.page?.addEventListener('pageshow', this.onPageShow);
+    }
+    return this.join();
+  }
+
+  /**
+   * Opens the channel, unless it is open.
+   * @return {boolean} Whether it is open.
+   */
+  join() {
     if (this.channel) return true;
     try {
       this.channel = this.makeChannel(CHANNEL);
@@ -90,12 +121,17 @@ export class PlayerPeers {
       return false;
     }
     this.channel.onmessage = (event) => this.receive(event.data);
-    // Not announced here: the player may not be built yet. Its first tick announces it.
+    // Not announced here: the player may not be built yet. Its first tick announces it, also
+    // after the page came back from the back-forward cache.
+    this.lastAnnounced = null;
     return true;
   }
 
-  /** Says goodbye, so peers stop counting this one at once, and stops listening. */
-  stop() {
+  /**
+   * Says goodbye, so peers stop counting this one at once, and closes the channel: for now
+   * (a page going into the back-forward cache) or for good (stop).
+   */
+  leave() {
     if (this.channel) {
       this.post({bye: true});
       try {
@@ -107,6 +143,14 @@ export class PlayerPeers {
     this.channel = null;
     this.peers.clear();
     this.lastNeedyPeerAt = -Infinity;
+  }
+
+  /** Leaves the channel for good: a later pageshow does not join it again. */
+  stop() {
+    this.listening = false;
+    this.page?.removeEventListener('pagehide', this.onPageHide);
+    this.page?.removeEventListener('pageshow', this.onPageShow);
+    this.leave();
   }
 
   /**

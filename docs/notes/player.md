@@ -311,6 +311,20 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   short, everyone downloads to the end at full speed. A bug that made every player alone at
   first: `start()` announced while the player was still being built, reading its state threw, and
   the channel was taken for missing (`readState` now never throws).
+- **The back-forward cache.** Firefox takes a page out of that cache when a message reaches a
+  `BroadcastChannel` the page has open (`BroadcastChannel::MessageReceived`:
+  `CheckCurrentGlobalCorrectness` fails for a window in the cache - `IsCurrentInnerWindow` is
+  false there - and it calls `RemoveDocFromBFCache`), and the other players announce every
+  second: Back loaded a page with a player again.
+  `player-peers-bfcache.e2e.mjs` failed on the Windows runner in 4 of 4 attempts and passed
+  locally (first taken there for proof that messages do not evict). A player leaves the channel on
+  `pagehide` (with a goodbye) and joins again on `pageshow` when the page came from the cache;
+  `pagehide` comes before the page is marked as cached, in the same task
+  (`BrowsingContext::DeactivateDocuments`), so the goodbye does not take it out. `close()`
+  lets go of the channel a task later (`CloseRunnable`, then `BroadcastChannelChild` has no
+  channel to give messages to): a message already queued then can still take the page out. A
+  few milliseconds against the whole time in the cache; Firefox offers a page no way to leave
+  sooner.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.

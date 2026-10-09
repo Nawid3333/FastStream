@@ -276,8 +276,8 @@
   (Mondays, 7 jobs for hours) leaves 13, and a push during it runs in two waves.
   `fail-fast: false`, so one failing group does not cancel the others and their lists of
   retried specs. Per-job artifacts: `e2e-retried-<os>-<suite>-<group>`,
-  `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<group>` only from the Windows
-  playback jobs (the ones that set `E2E_MOZ_LOG`). firefox-beta.yml and firefox-stable.yml
+  `e2e-logs-<os>-<suite>-<group>`; `e2e-moz-logs-windows-<suite>-<group>` only from the Windows
+  jobs (the ones that set `E2E_MOZ_LOG`). firefox-beta.yml and firefox-stable.yml
   split the same way (playback, extension; three groups on Windows, two on Linux).
 - **e2e setup, faster** (2026-10-06, `.github/actions/e2e-setup`): Linux installs ffmpeg and
   PulseAudio in one apt run without recommended packages (the separate runs took 29 s and
@@ -365,9 +365,11 @@
 - **Firefox's network log on CI, 2026-09-30:** with `E2E_MOZ_LOG=1` (CI's Windows playback
   step), the specs listed in `tests/e2e/mozLog.mjs` run with `MOZ_LOG` (cache2 and nsHttp),
   and an attempt with a failed test keeps its log under `logs-moz/`, uploaded as
-  `e2e-moz-logs-windows-<group>` for 7 days; a passing attempt deletes its own. For loader-retry's
+  `e2e-moz-logs-windows-<suite>-<group>` for 7 days; a passing attempt deletes its own. For loader-retry's
   "stalls before its body", which failed twice on the Windows runner with every retry stalled
-  before reaching the server, and never locally.
+  before reaching the server, and never locally. Since 2026-10-09 also the Windows extension
+  and GitHub-build steps, for `player-peers-bfcache` (SHIPBFCache: what took a page out of the
+  back-forward cache; it failed there 4 of 4 times and passed locally, PR #366).
 - **e2e ports, 2026-09-27:** every fixed port a test server listens on is in
   41800-41999 (`tests/unit/e2ePorts.test.mjs` fails otherwise). Linux hands 32768-60999
   out to outgoing connections, and one that gets a test's port makes that server's

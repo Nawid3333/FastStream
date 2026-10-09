@@ -21,7 +21,7 @@ let server;
  * Opens the looped stream (two minutes) with a RAM budget and waits until all of it is
  * downloaded.
  * @param {number} budget - Bytes.
- * @return {Promise<Object>} What the player holds where.
+ * @return {Promise<void>}
  */
 async function downloadAll(budget) {
   await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}/long.m3u8`);
@@ -35,8 +35,13 @@ async function downloadAll(budget) {
     const fragments = window.fastStream.fragments;
     return fragments.length > 50 && fragments.every((fragment) => fragment && fragment.status === 3);
   }), {timeout: 120000, interval: 500, timeoutMsg: 'the stream never finished downloading'});
-  // The budget is kept on the client's tick (once a second), and spills take a moment.
-  await browser.pause(4000);
+}
+
+/**
+ * @return {Promise<Object>} What the player holds where: in RAM (with what is being written
+ *     to disk, as leaving), on disk (files), and in all (total).
+ */
+async function holdings() {
   return browser.executeAsync(async (done) => {
     const client = window.fastStream;
     const manager = client.downloadManager;
@@ -53,7 +58,8 @@ async function downloadAll(budget) {
       files = -1;
     }
     const total = client.fragments.reduce((sum, fragment) => sum + (fragment?.dataSize || 0), 0);
-    done({ram: manager.ramBytes(), total, files, opfs: !!store.opfsManager, full: manager.memoryFull});
+    done({ram: manager.ramBytes(), leaving: manager.spillingBytes(), total, files, opfs: !!store.opfsManager,
+      full: manager.memoryFull});
   });
 }
 
@@ -90,7 +96,11 @@ describe('The RAM budget', function() {
   });
 
   it('keeps a video that fits in RAM, and writes none of it to disk', async function() {
-    const state = await downloadAll(2e9);
+    await downloadAll(2e9);
+    // The budget is kept on the client's tick, once a second: a few ticks, to see that none of
+    // them writes anything.
+    await browser.pause(4000);
+    const state = await holdings();
     console.log(`      fits: ${JSON.stringify(state)}`);
     expect(state.opfs).toBe(true);
     expect(state.files).toBe(0);
@@ -101,11 +111,20 @@ describe('The RAM budget', function() {
 
   it('writes what does not fit to disk, and still plays it from there', async function() {
     const budget = 2e6;
-    const state = await downloadAll(budget);
-    console.log(`      over the budget: ${JSON.stringify(state)}`);
-    expect(state.files).toBeGreaterThan(0);
     // Down to its share and the next seconds (MemoryBudget.KEEP_AT_LEAST: 10 s, here 2-3 MB).
-    expect(state.ram).toBeLessThan(budget + 4e6);
+    const bound = budget + 4e6;
+    await downloadAll(budget);
+    // The local server sends the whole stream before the test sets the budget, and a RAM copy
+    // goes only once it is on disk: 13-16 of the ~65 files were there after 4 s on the Windows
+    // runner (PR #366), all of them locally.
+    const start = Date.now();
+    let state;
+    await browser.waitUntil(async () => {
+      state = await holdings();
+      return state.ram < bound;
+    }, {timeout: 60000, interval: 500, timeoutMsg: `still more in RAM than its share: ${JSON.stringify(state)}`});
+    console.log(`      over the budget, after ${Date.now() - start} ms: ${JSON.stringify(state)}`);
+    expect(state.files).toBeGreaterThan(0);
 
     // The start, long written to disk, plays again.
     const played = await browser.executeAsync(async (done) => {

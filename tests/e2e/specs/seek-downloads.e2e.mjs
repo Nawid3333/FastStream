@@ -90,8 +90,12 @@ describe('Downloads after a seek', function() {
     }, SEEK_TO), {timeout: 30000, interval: 250, timeoutMsg: 'it never played after the seek'});
 
     // What was asked for after the seek. A request already on its way at the seek can arrive
-    // a moment after it: those within 100 ms are left out.
-    const after = requests.filter((request) => request.at > seekAt + 100).map((request) => request.place);
+    // a moment after it: those within 100 ms are left out. So can the first two the seek
+    // asked for (on the Linux runner, PR #366): it downloads on, and three are waited for.
+    const askedAfter = () => requests.filter((request) => request.at > seekAt + 100).map((request) => request.place);
+    await browser.waitUntil(async () => askedAfter().length > 2,
+        {timeout: 20000, interval: 250, timeoutMsg: `too few requests after the seek: ${JSON.stringify(askedAfter())}`});
+    const after = askedAfter();
     console.log(`      seek to place ${SEEK_PLACE}; asked for after it: ${JSON.stringify(after.slice(0, 12))}`);
     const oldPlace = after.filter((place) => place < SEEK_PLACE - 1);
     expect(after.length).toBeGreaterThan(2);

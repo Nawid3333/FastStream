@@ -186,6 +186,72 @@ describe('PlayerPeers', () => {
     expect(sent.length).toBeLessThanOrEqual(3);
   });
 
+  it('leaves the channel while its page is in the back-forward cache, and comes back with it', () => {
+    // Firefox takes a page out of that cache when a message reaches one of its open
+    // BroadcastChannels, and the other players announce every second.
+    const channel = network();
+    const clock = {now: 1000};
+    const page = new EventTarget();
+    const cached = new PlayerPeers({state: () => ({playing: false, ahead: 100}), visible: () => false,
+      channel, now: () => clock.now, page});
+    cached.start();
+    const other = player(channel, clock, {visible: true, playing: true, ahead: 2});
+    cached.announce();
+    expect(other.livePeers()).toHaveLength(1);
+
+    page.dispatchEvent(Object.assign(new Event('pagehide'), {persisted: true}));
+    expect(cached.channel).toBe(null);
+    // Its goodbye: the other player stops counting it at once.
+    expect(other.livePeers()).toEqual([]);
+    clock.now += 1000;
+    other.announce();
+    expect(cached.livePeers()).toEqual([]);
+
+    page.dispatchEvent(Object.assign(new Event('pageshow'), {persisted: true}));
+    expect(cached.channel).not.toBe(null);
+    // It announces itself on its next tick, though its state is the one it had.
+    cached.announce();
+    expect(other.livePeers()).toHaveLength(1);
+    clock.now += 1000;
+    other.announce();
+    expect(cached.livePeers()).toHaveLength(1);
+
+    cached.stop();
+    // Stopped: a later pageshow does not open it again.
+    page.dispatchEvent(Object.assign(new Event('pageshow'), {persisted: true}));
+    expect(cached.channel).toBe(null);
+  });
+
+  it('keeps its channel on the first pageshow, which is not from the cache', () => {
+    const page = new EventTarget();
+    const peers = new PlayerPeers({state: () => ({playing: false, ahead: 0}), channel: network(), page});
+    peers.start();
+    const first = peers.channel;
+    page.dispatchEvent(Object.assign(new Event('pageshow'), {persisted: false}));
+    expect(peers.channel).toBe(first);
+    // start() again neither opens a second channel nor listens twice.
+    peers.start();
+    expect(peers.channel).toBe(first);
+    peers.stop();
+  });
+
+  it('tries again to open the channel when the first try failed', () => {
+    let tries = 0;
+    const make = network();
+    const peers = new PlayerPeers({
+      state: () => ({playing: false, ahead: 0}),
+      channel: (name) => {
+        if (++tries === 1) throw new Error('no channel yet');
+        return make(name);
+      },
+      page: new EventTarget(),
+    });
+    expect(peers.start()).toBe(false);
+    expect(peers.start()).toBe(true);
+    expect(peers.channel).not.toBe(null);
+    peers.stop();
+  });
+
   it('stays alone, never yielding, without BroadcastChannel', () => {
     const peers = new PlayerPeers({
       state: () => ({playing: false, ahead: 0, ramBytes: 0}),

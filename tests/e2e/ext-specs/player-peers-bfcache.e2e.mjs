@@ -4,10 +4,11 @@
 // (PlayerPeers), and the OPFS worker of each player's storage runs for the page's lifetime.
 // Firefox keeps a page out of the back-forward cache for some of what a page holds: a Web
 // Lock held by a worker does (BFCacheStatus::ACTIVE_LOCK - a lock per OPFS session was tried
-// and reverted on 2026-10-09 for it, content-cleanup.e2e.mjs caught it). A BroadcastChannel
-// message to a cached page does not take it out (measured here: the next page's player
-// announced itself twice while the first was cached, and Back restored it); messages to a
-// frozen page are dropped.
+// and reverted on 2026-10-09 for it, content-cleanup.e2e.mjs caught it). So does a message
+// that reaches a BroadcastChannel the cached page has open (BroadcastChannel::MessageReceived
+// calls RemoveDocFromBFCache for a window in the cache), and PlayerPeers leaves its channel on
+// pagehide: this test passed locally without that, and failed on the Windows runner in 4 of 4
+// attempts (PR #366).
 //
 // Both players are in one tab - a page, then the next page with its own player - because a
 // tab WebDriver opens meanwhile drops the first tab's cached page by itself (measured).
