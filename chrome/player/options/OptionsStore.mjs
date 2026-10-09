@@ -10,7 +10,7 @@ export class OptionsStore {
   static #options = null;
   static #listeners = new Set();
   static #lastSendTime = null;
-  /** @type {?Promise<Object>} The first init()'s load, which every later caller waits for. */
+  /** @type {?Promise<void>} The first init()'s load, which every later caller waits for. */
   static #initialized = null;
 
   /**
@@ -21,9 +21,10 @@ export class OptionsStore {
     this.#initialized ??= (async () => {
       this.#options = await Utils.getOptionsFromStorage();
       this.#wireExternalUpdates();
-      return this.#options;
     })();
-    return this.#initialized;
+    await this.#initialized;
+    // The options as they are now: a save since the first load replaced the object.
+    return this.#options;
   }
 
   /**
