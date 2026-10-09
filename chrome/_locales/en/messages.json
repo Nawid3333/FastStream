@@ -383,6 +383,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Stop Testing"
     },
+    "player_subtitles_url_track": {
+        "message": "Subtitles from a link"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Track $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "New subtitle"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Type a title to search for"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Upload File"
     },

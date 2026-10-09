@@ -166,8 +166,10 @@ export class OpenSubtitlesSearch extends EventEmitter {
    * @return {{query: string, language: string, year: ?number, season: ?number, episode: ?number}}
    */
   readInputs() {
+    // The first number in the field: "S2" or "Season 2" was no number, and the search went
+    // on as one for a movie.
     const number = (input) => {
-      const value = parseInt(input.value, 10);
+      const value = parseInt(/\d+/.exec(input.value)?.[0], 10);
       return Number.isFinite(value) && value >= 0 ? value : null;
     };
     return {
@@ -297,7 +299,8 @@ export class OpenSubtitlesSearch extends EventEmitter {
     this.subui.title.replaceChildren();
     this.subui.pages.replaceChildren();
     if (!input.query) {
-      this.showMessage(Localize.getMessage('player_opensubtitles_noresults'));
+      // No search ran: "No results found" said otherwise.
+      this.showMessage(Localize.getMessage('player_opensubtitles_enter_title'));
       return;
     }
     this.showMessage(Localize.getMessage('player_opensubtitles_searching'));
