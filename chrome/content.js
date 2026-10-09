@@ -491,22 +491,8 @@
           }
         }
 
-        // Add resize listener: an update at most every 100 ms, and one more 100 ms after
-        // the last change. The changes skipped inside a burst (a sidebar sliding shut) were
-        // never made up, and the player kept a size from the middle of it.
-        pobj.resizeObserver = new ResizeObserver(() => {
-          clearTimeout(resizeTrailing);
-          const now = performance.now();
-          if (now - resizeDebounce > 100) {
-            resizeDebounce = now;
-            updateReplacedPlayers();
-          } else {
-            resizeTrailing = setTimeout(() => {
-              resizeDebounce = performance.now();
-              updateReplacedPlayers();
-            }, 100);
-          }
-        });
+        // Add resize listener
+        pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
         // An element: a video straight in a shadow root put the player there, with the root
         // as its parent, which a ResizeObserver refuses. The throw left the player without
         // one: it followed the window's size, but not its box on the page.
@@ -1177,6 +1163,27 @@
     }
     if (player.style.contain === 'paint') {
       player.style.contain = player.dataset.oldContain || '';
+    }
+  }
+
+  /**
+   * Updates the replaced players for a resize: at most every 100 ms, and once more 100 ms
+   * after the last call. The changes skipped inside a burst (a sidebar sliding shut) were
+   * never made up, and the player kept a size from the middle of it; a window being resized
+   * updated them on every event, putting a hard-replaced page video back into the page to
+   * measure it each time.
+   */
+  function updateReplacedPlayersSoon() {
+    clearTimeout(resizeTrailing);
+    const now = performance.now();
+    if (now - resizeDebounce > 100) {
+      resizeDebounce = now;
+      updateReplacedPlayers();
+    } else {
+      resizeTrailing = setTimeout(() => {
+        resizeDebounce = performance.now();
+        updateReplacedPlayers();
+      }, 100);
     }
   }
 
@@ -2007,7 +2014,7 @@
   });
 
   window.addEventListener('resize', () => {
-    updateReplacedPlayers();
+    updateReplacedPlayersSoon();
     resizeMiniPlayers();
   });
 

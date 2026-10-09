@@ -738,6 +738,23 @@ describe('a player whose box keeps changing', () => {
     page.advance(150);
     expect(iframe.style.width).toBe('960px');
   });
+
+  // A window being resized updated the players on every event: a hard-replaced page video
+  // went back into the page to be measured each time.
+  it('follows a window being resized at most every 100 ms, and to its last size', async () => {
+    const {page, wrap} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    page.dispatchWindow('resize');
+    expect(iframe.style.width).toBe('800px');
+    wrap.rect = {x: 0, y: 0, width: 900, height: 500};
+    page.dispatchWindow('resize');
+    expect(iframe.style.width).toBe('800px');
+    page.advance(150);
+    expect(iframe.style.width).toBe('900px');
+  });
 });
 
 // Firefox fires beforeunload for a navigation that then never happens: a link answered
