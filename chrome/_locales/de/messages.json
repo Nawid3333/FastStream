@@ -969,7 +969,7 @@
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
     "options_general_bufferahead": {
-        "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, sobald das Vorab-Laden stoppt oder der Speicherplatz ausgeht)"
+        "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, wenn Vorab-Laden deaktiviert ist, gestoppt wurde oder der Speicherplatz ausgeht)"
     },
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"

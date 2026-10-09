@@ -35,7 +35,13 @@ describe('getSizeValue', () => {
   });
 
   it('defaults a bare number to megabytes', () => {
-    expect(StringUtils.getSizeValue('5')).toBe(5);
+    // It was 5 bytes: "10" typed into "Maximum size of predownloaded video" became 10 B (#378).
+    expect(StringUtils.getSizeValue('5')).toBe(5e6);
+    expect(StringUtils.getSizeValue('0.5')).toBe(5e5);
+    // An unknown unit too, as before ("10 Mo" is French for MB, and reads as m).
+    expect(StringUtils.getSizeValue('10 xyz')).toBe(1e7);
+    expect(StringUtils.getSizeValue('10 Mo')).toBe(1e7);
+    expect(StringUtils.getSizeValue('300 B')).toBe(300);
   });
 
   it('returns -1 for input it cannot parse', () => {

@@ -969,7 +969,7 @@
         "message": "RAM na buforowane wideo (wszystkie karty)"
     },
     "options_general_bufferahead": {
-        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie się zatrzyma lub skończy się miejsce)"
+        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie jest wyłączone, zatrzymane lub skończyło się miejsce)"
     },
     "options_general_bufferbehind": {
         "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"

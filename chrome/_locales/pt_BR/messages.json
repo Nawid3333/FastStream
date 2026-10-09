@@ -969,7 +969,7 @@
         "message": "RAM para o vídeo em buffer (todas as abas)"
     },
     "options_general_bufferahead": {
-        "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download para ou fica sem espaço)"
+        "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download está desativado, parou ou ficou sem espaço)"
     },
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"

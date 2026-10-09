@@ -179,3 +179,68 @@ describe('Options page search box', function() {
     expect(await shownSections('')).toHaveLength(8);
   });
 });
+
+// Issue #378: "the maximum size of the preloaded video stays at 5 GB". A text field saved only on
+// its change event, which comes when the field is left: a size typed and the settings closed
+// with the cursor in the field was lost, and the old value came back. A bare "10" was 10 bytes.
+// And with predownload off the size does not apply at all ("Buffer ahead" does), yet the field
+// looked as if it did.
+describe('Options page size fields, typed by hand', function() {
+  beforeEach(async function() {
+    await openOptions();
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000, timeoutMsg: 'the saved options never loaded'});
+  });
+
+  /**
+   * Waits until an option is saved with a value.
+   * @param {string} key
+   * @param {*} value
+   * @return {Promise<void>}
+   */
+  const savedAs = (key, value) => browser.waitUntil(async () => browser.execute((key) =>
+    JSON.parse(localStorage.getItem('options') || 'null')?.[key], key).then((saved) => saved === value),
+  {timeout: 10000, timeoutMsg: `${key} was never saved as ${value}`});
+
+  /**
+   * Clicks into a field, selects what it holds and types over it, as a person does.
+   * @param {string} id
+   * @param {string} text
+   */
+  async function typeInto(id, text) {
+    await (await browser.$(`#${id}`)).click();
+    await browser.keys(['Control', 'a', 'Control']);
+    await browser.keys(text.split(''));
+  }
+
+  it('saves a size while it is typed, without waiting for the field to be left', async function() {
+    await typeInto('maxsize', '10 MB');
+    await savedAs('maxVideoSize', 1e7);
+    // The field keeps what is being typed, and the cursor stays in it.
+    expect(await browser.execute(() => [document.getElementById('maxsize').value, document.activeElement.id]))
+        .toEqual(['10 MB', 'maxsize']);
+    // The page reloaded with the cursor still in the field: the size stays.
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await browser.execute(() => document.getElementById('maxsize').value)).toBe('10 MB');
+  });
+
+  it('reads a bare number as megabytes', async function() {
+    await typeInto('maxsize', '10');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', 1e7);
+    expect(await browser.execute(() => document.getElementById('maxsize').value)).toBe('10 MB');
+  });
+
+  it('greys the size out while predownload is off, where buffer ahead decides', async function() {
+    const disabled = () => browser.execute(() => document.getElementById('maxsize').disabled);
+    expect(await disabled()).toBe(false);
+    await (await browser.$('#downloadall')).click();
+    expect(await disabled()).toBe(true);
+    await typeInto('bufferahead', '10');
+    await savedAs('bufferAhead', 10);
+    await (await browser.$('#downloadall')).click();
+    expect(await disabled()).toBe(false);
+  });
+});

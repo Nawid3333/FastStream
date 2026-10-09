@@ -969,7 +969,7 @@
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
     "options_general_bufferahead": {
-        "message": "在播放位置前方保留缓冲的秒数（预下载停止或空间用尽后使用）"
+        "message": "在播放位置前方保留缓冲的秒数（预下载关闭、停止或空间用尽时使用）"
     },
     "options_general_bufferbehind": {
         "message": "在播放位置后方、裁剪前保留缓冲的秒数"

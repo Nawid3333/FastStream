@@ -969,7 +969,7 @@
         "message": "RAM untuk video yang ditimbal (semua tab)"
     },
     "options_general_bufferahead": {
-        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan sebaik pramuat turun berhenti atau kehabisan ruang)"
+        "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan apabila muat turun awal dimatikan, berhenti atau kehabisan ruang)"
     },
     "options_general_bufferbehind": {
         "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"

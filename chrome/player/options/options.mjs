@@ -116,6 +116,7 @@ async function loadOptions(newOptions) {
   Options = newOptions;
 
   downloadAll.checked = !!Options.downloadAll;
+  maxSize.disabled = !downloadAll.checked;
   analyzeVideos.checked = !!Options.analyzeVideos;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
@@ -549,6 +550,8 @@ analyzeVideos.addEventListener('change', () => {
 
 downloadAll.addEventListener('change', () => {
   Options.downloadAll = downloadAll.checked;
+  // The size limit applies to predownloading only; without it "Buffer ahead" decides (#378).
+  maxSize.disabled = !downloadAll.checked;
   optionChanged();
 });
 
@@ -655,6 +658,65 @@ maxdownloaders.addEventListener('change', () => {
   optionChanged();
 });
 
+/**
+ * Saves a text field while it is typed in, not only when it is left. Its change event came only
+ * on leaving the field (Tab, a click elsewhere), so a size typed and the settings closed with the
+ * cursor still in it was lost, and the field showed the old value again ("stuck at 5 GB", #378).
+ * The field's own change handler reads, clamps and saves the value; what is being typed stays in
+ * the field as typed. An emptied field is saved only when left.
+ * @param {HTMLInputElement|HTMLTextAreaElement} input
+ */
+function saveWhileTyping(input) {
+  let timer = null;
+  const save = () => {
+    clearTimeout(timer);
+    timer = null;
+    if (!input.value.trim()) return;
+    const typed = input.value;
+    const {selectionStart, selectionEnd} = input;
+    input.dispatchEvent(new Event('change'));
+    if (input.value !== typed) {
+      input.value = typed;
+      input.setSelectionRange(selectionStart, selectionEnd);
+    }
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(save, 400);
+  });
+  // Left: its change event saves it, and shows it as kept.
+  input.addEventListener('change', () => {
+    clearTimeout(timer);
+    timer = null;
+  });
+  // The page goes (the tab closed, the player with the settings in it closed) before the wait.
+  window.addEventListener('pagehide', () => {
+    if (timer !== null) save();
+  });
+}
+
+[maxSpeed, maxSize, ramBudget, bufferAhead, bufferBehind, seekStepSize, replaceDelay, miniSize, maxdownloaders,
+  mpvPathInput].forEach(saveWhileTyping);
+
+/**
+ * Saves a list field when the page goes with it changed, as it does when it is left: half a
+ * line saved while typing would be a list entry of its own ("https://" in the sites FastStream
+ * opens on by itself would be every site).
+ * @param {HTMLTextAreaElement} input
+ */
+function saveOnLeavingPage(input) {
+  let changed = false;
+  input.addEventListener('input', () => {
+    changed = true;
+  });
+  input.addEventListener('change', () => {
+    changed = false;
+  });
+  window.addEventListener('pagehide', () => {
+    if (changed) input.dispatchEvent(new Event('change'));
+  });
+}
+
 optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder');
 
 
@@ -691,6 +753,8 @@ customSourcePatterns.addEventListener('change', (e) => {
   Options.customSourcePatterns = customSourcePatterns.value;
   optionChanged();
 });
+
+[mpvAllowlistInput, autoEnableURLSInput, customSourcePatterns].forEach(saveOnLeavingPage);
 
 importButton.addEventListener('click', () => {
   const picker = document.createElement('input');

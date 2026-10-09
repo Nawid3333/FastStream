@@ -969,7 +969,7 @@
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
     "options_general_bufferahead": {
-        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven (gebruikt zodra het vooraf downloaden stopt of de ruimte op is)"
+        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven (gebruikt wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is)"
     },
     "options_general_bufferbehind": {
         "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
