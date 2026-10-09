@@ -243,6 +243,41 @@ describe('Player menus', function() {
     expect(state.running).toBe(false);
   });
 
+  // Typing an end time passes times before the start ("3" on the way to "3:00"): that
+  // turned the loop off, and it stayed off once the time was typed (review, 2026-10-09).
+  it('keeps the loop on while a time is typed, and loops once the times make a loop', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const typeTime = (name, value) => browser.execute((name, value) => {
+      const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      const loop = window.fastStream.interfaceController.loopControls;
+      return {enabled: loop.loopEnabled, valid: loop.loopRangeValid, invalidMark: input.classList.contains('invalid'),
+        videoLoop: window.fastStream.player.getVideo().loop, start: loop.loopStart, end: loop.loopEnd};
+    }, name, value);
+    // An empty end is the end of the video, and says so.
+    expect(await browser.execute(() => document.querySelector('.mainplayer input[name="end"]').placeholder))
+        .not.toBe('');
+    await typeTime('start', '00:00:02');
+    await browser.execute(() => document.querySelector('.mainplayer .loop_menu_toggle_button').click());
+
+    const halfTyped = await typeTime('end', '1');
+    expect(halfTyped.enabled).toBe(true);
+    expect(halfTyped.valid).toBe(false);
+    expect(halfTyped.invalidMark).toBe(true);
+    expect(halfTyped.videoLoop).toBe(false);
+
+    // A decimal comma, as French and German write it: "4,5" was 4.
+    const typed = await typeTime('end', '00:00:04,5');
+    expect(typed.enabled).toBe(true);
+    expect(typed.valid).toBe(true);
+    expect(typed.invalidMark).toBe(false);
+    expect(typed.videoLoop).toBe(true);
+    expect(typed.end).toBe(4.5);
+  });
+
   it('names a dropdown\'s new value when the keyboard changes it', async function() {
     // Only a click on an item renamed it, so a screen reader kept the old value.
     await openEmptyPlayer();

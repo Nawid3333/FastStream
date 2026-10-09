@@ -1272,6 +1272,11 @@ body {
     border: var(--input-focus-border);
 }
 
+/* Loop times that make no loop (the end before the start): looping waits (LoopMenu). */
+.loop_menu .option input.invalid {
+    border-color: #d9534f;
+}
+
 .subtitles_test_button {
     display: inline-block;
     border-radius: 5px;

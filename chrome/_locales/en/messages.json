@@ -494,6 +494,9 @@
     "loop_menu_start": {
         "message": "Start"
     },
+    "loop_menu_end_placeholder": {
+        "message": "End of video"
+    },
     "loop_menu_end": {
         "message": "End"
     },
