@@ -1,0 +1,1274 @@
+{
+ "path": "features",
+ "query": {
+  "query": "dune part two"
+ },
+ "recorded": "2026-10-09",
+ "data": [
+  {
+   "id": "7215",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "7215",
+    "feature_type": "Tvshow",
+    "title": "frank herbert's dune",
+    "original_title": "Frank Herbert's Dune",
+    "year": "2000",
+    "imdb_id": 142032,
+    "tmdb_id": 19566,
+    "subtitles_counts": {
+     "bg": 4,
+     "bs": 4,
+     "cs": 10,
+     "de": 3,
+     "el": 3,
+     "en": 24,
+     "es": 7,
+     "et": 3,
+     "fi": 5,
+     "fr": 5,
+     "he": 5,
+     "hr": 10,
+     "hu": 1,
+     "ko": 3,
+     "nl": 31,
+     "pl": 30,
+     "pt-BR": 7,
+     "pt-PT": 3,
+     "ro": 8,
+     "sr": 2,
+     "sv": 11,
+     "tr": 6
+    },
+    "seasons_count": 2
+   }
+  },
+  {
+   "id": "515513",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "515513",
+    "feature_type": "Movie",
+    "title": "dune",
+    "original_title": "Dune",
+    "year": "1984",
+    "imdb_id": 87182,
+    "tmdb_id": 841,
+    "subtitles_counts": {
+     "ar": 5,
+     "be": 1,
+     "bg": 17,
+     "bn": 1,
+     "bs": 3,
+     "ca": 1,
+     "cs": 46,
+     "da": 3,
+     "de": 9,
+     "el": 13,
+     "en": 43,
+     "es": 31,
+     "et": 4,
+     "fa": 2,
+     "fi": 7,
+     "fr": 23,
+     "he": 11,
+     "hr": 11,
+     "hu": 9,
+     "id": 2,
+     "is": 1,
+     "it": 14,
+     "ja": 3,
+     "ko": 1,
+     "mk": 2,
+     "nl": 13,
+     "no": 5,
+     "pl": 50,
+     "pt-BR": 21,
+     "pt-PT": 20,
+     "ro": 27,
+     "ru": 4,
+     "sk": 3,
+     "sl": 12,
+     "sr": 30,
+     "sv": 10,
+     "th": 2,
+     "tr": 15,
+     "uk": 2,
+     "vi": 2,
+     "zh-CN": 3
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "7222",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "7222",
+    "feature_type": "Tvshow",
+    "title": "frank herbert's children of dune",
+    "original_title": "Frank Herbert's Children of Dune",
+    "year": "2003",
+    "imdb_id": 287839,
+    "tmdb_id": 9156,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 4,
+     "bs": 1,
+     "cs": 1,
+     "de": 3,
+     "el": 14,
+     "en": 11,
+     "es": 5,
+     "et": 1,
+     "fa": 3,
+     "fi": 3,
+     "fr": 8,
+     "he": 6,
+     "hr": 9,
+     "hu": 5,
+     "it": 6,
+     "nl": 12,
+     "pl": 6,
+     "pt-BR": 9,
+     "pt-PT": 3,
+     "ro": 13,
+     "sr": 8,
+     "sv": 4,
+     "tr": 5,
+     "zh-CN": 3
+    },
+    "seasons_count": 2
+   }
+  },
+  {
+   "id": "1275717",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1275717",
+    "feature_type": "Movie",
+    "title": "dune",
+    "original_title": "Dune",
+    "year": "2021",
+    "imdb_id": 1160419,
+    "tmdb_id": 438631,
+    "subtitles_counts": {
+     "ar": 9,
+     "az-AZ": 1,
+     "be": 1,
+     "bg": 6,
+     "bn": 4,
+     "bs": 1,
+     "ca": 1,
+     "cs": 7,
+     "da": 2,
+     "de": 9,
+     "el": 6,
+     "en": 18,
+     "eo": 1,
+     "es": 15,
+     "et": 3,
+     "fa": 11,
+     "fi": 3,
+     "fr": 10,
+     "he": 10,
+     "hr": 18,
+     "hu": 4,
+     "id": 8,
+     "is": 1,
+     "it": 11,
+     "ja": 4,
+     "ko": 4,
+     "ku": 1,
+     "lt": 2,
+     "lv": 2,
+     "mk": 1,
+     "ms": 3,
+     "my": 3,
+     "nl": 10,
+     "no": 1,
+     "pl": 11,
+     "pt-BR": 14,
+     "pt-PT": 11,
+     "ro": 26,
+     "ru": 9,
+     "si": 1,
+     "sk": 1,
+     "sl": 6,
+     "sr": 16,
+     "sv": 3,
+     "te": 1,
+     "th": 2,
+     "tr": 14,
+     "uk": 3,
+     "ur": 1,
+     "vi": 5,
+     "ze": 5,
+     "zh-CA": 1,
+     "zh-CN": 4,
+     "zh-TW": 3
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "592331",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "592331",
+    "feature_type": "Movie",
+    "title": "jodorowsky's dune",
+    "original_title": "Jodorowsky's Dune",
+    "year": "2013",
+    "imdb_id": 1935156,
+    "tmdb_id": 191720,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "cs": 1,
+     "de": 1,
+     "el": 2,
+     "en": 7,
+     "es": 2,
+     "eu": 1,
+     "fr": 1,
+     "he": 2,
+     "hu": 2,
+     "it": 1,
+     "ja": 1,
+     "pl": 2,
+     "pt-BR": 3,
+     "ro": 2,
+     "ru": 1,
+     "sr": 3,
+     "sv": 1,
+     "th": 1,
+     "tr": 2,
+     "uk": 2,
+     "zh-CN": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "518802",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "518802",
+    "feature_type": "Movie",
+    "title": "woman in the dunes",
+    "original_title": "砂の女",
+    "year": "1964",
+    "imdb_id": 58625,
+    "tmdb_id": 16672,
+    "subtitles_counts": {
+     "ar": 4,
+     "bg": 2,
+     "bn": 1,
+     "ca": 1,
+     "cs": 4,
+     "da": 3,
+     "de": 2,
+     "el": 7,
+     "en": 7,
+     "es": 6,
+     "fa": 5,
+     "fi": 1,
+     "fr": 4,
+     "he": 1,
+     "hr": 1,
+     "hu": 1,
+     "id": 2,
+     "it": 3,
+     "ko": 1,
+     "ml": 1,
+     "no": 1,
+     "pl": 7,
+     "pt-BR": 4,
+     "pt-PT": 1,
+     "ro": 13,
+     "ru": 1,
+     "sr": 5,
+     "sv": 2,
+     "tr": 9,
+     "uk": 1,
+     "vi": 3
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "221324",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "221324",
+    "feature_type": "Episode",
+    "title": "dune buggy",
+    "original_title": null,
+    "year": "2004",
+    "imdb_id": 566019,
+    "tmdb_id": 140225,
+    "subtitles_counts": {
+     "ar": 3,
+     "bg": 2,
+     "el": 1,
+     "en": 2,
+     "et": 2,
+     "fr": 1,
+     "he": 1,
+     "hr": 2,
+     "nl": 3,
+     "pt-BR": 2,
+     "sr": 1,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "517883",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "517883",
+    "feature_type": "Movie",
+    "title": "dune 2000",
+    "original_title": "",
+    "year": "1998",
+    "imdb_id": 165275,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "bg": 2,
+     "bs": 1,
+     "cs": 9,
+     "el": 1,
+     "en": 2,
+     "es": 4,
+     "he": 4,
+     "hr": 2,
+     "nl": 1,
+     "pl": 6,
+     "pt-BR": 1,
+     "pt-PT": 1,
+     "ro": 8,
+     "sl": 1,
+     "sr": 2,
+     "sv": 1,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "28990",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "28990",
+    "feature_type": "Episode",
+    "title": "dune",
+    "original_title": "Dune",
+    "year": "2000",
+    "imdb_id": 1262235,
+    "tmdb_id": 575979,
+    "subtitles_counts": {
+     "bg": 2,
+     "bs": 1,
+     "cs": 3,
+     "de": 1,
+     "el": 1,
+     "en": 9,
+     "es": 3,
+     "et": 1,
+     "fi": 2,
+     "fr": 1,
+     "he": 1,
+     "hr": 3,
+     "hu": 1,
+     "ko": 1,
+     "nl": 11,
+     "pl": 8,
+     "pt-BR": 3,
+     "pt-PT": 1,
+     "ro": 2,
+     "sr": 1,
+     "sv": 3,
+     "tr": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "505",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "505",
+    "feature_type": "Episode",
+    "title": "dune and gloom",
+    "original_title": "Dune and Gloom",
+    "year": "2012",
+    "imdb_id": 2320279,
+    "tmdb_id": 65807,
+    "subtitles_counts": {
+     "ar": 3,
+     "bg": 2,
+     "cs": 1,
+     "da": 1,
+     "de": 1,
+     "el": 2,
+     "en": 9,
+     "es": 2,
+     "fi": 1,
+     "fr": 1,
+     "hr": 2,
+     "hu": 1,
+     "it": 2,
+     "nl": 2,
+     "no": 1,
+     "pl": 4,
+     "pt-BR": 1,
+     "pt-PT": 2,
+     "ro": 3,
+     "sr": 1,
+     "sv": 1,
+     "tr": 4
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "519557",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "519557",
+    "feature_type": "Movie",
+    "title": "the secrets of frank herbert's dune",
+    "original_title": "",
+    "year": "2000",
+    "imdb_id": 281179,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "cs": 2,
+     "en": 1,
+     "es": 1,
+     "he": 1,
+     "pl": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "552608",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "552608",
+    "feature_type": "Movie",
+    "title": "emperor: battle for dune",
+    "original_title": null,
+    "year": "2002",
+    "imdb_id": 276104,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "cs": 1,
+     "hr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "317053",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "317053",
+    "feature_type": "Episode",
+    "title": "looney dunes",
+    "original_title": "Looney Dunes",
+    "year": "2011",
+    "imdb_id": 2124531,
+    "tmdb_id": 1559903,
+    "subtitles_counts": {
+     "en": 1,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "588243",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "588243",
+    "feature_type": "Movie",
+    "title": "children of the dune",
+    "original_title": null,
+    "year": "2010",
+    "imdb_id": 1910516,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "he": 1,
+     "hr": 3,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2600230",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2600230",
+    "feature_type": "Episode",
+    "title": "dunedin railways, new zealand",
+    "original_title": "Dunedin Railways, New Zealand",
+    "year": "2021",
+    "imdb_id": 14579580,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "220450",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "220450",
+    "feature_type": "Episode",
+    "title": "\"naked and afraid\" dunes of despair",
+    "original_title": null,
+    "year": "2014",
+    "imdb_id": 4067678,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "en": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1759311",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1759311",
+    "feature_type": "Episode",
+    "title": "dune (2021)",
+    "original_title": "Dune (2021)",
+    "year": "2021",
+    "imdb_id": 16221332,
+    "tmdb_id": 3351658,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "597546",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "597546",
+    "feature_type": "Movie",
+    "title": "meurtres sur la dune du pyla",
+    "original_title": "Meurtres sur la dune du Pyla",
+    "year": "2014",
+    "imdb_id": 3355064,
+    "tmdb_id": 326026,
+    "subtitles_counts": {
+     "de": 1,
+     "en": 1,
+     "fr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2616385",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2616385",
+    "feature_type": "Episode",
+    "title": "dune buggy blues",
+    "original_title": "Dune Buggy Blues",
+    "year": "2015",
+    "imdb_id": 5034024,
+    "tmdb_id": 1105155,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "220442",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "220442",
+    "feature_type": "Episode",
+    "title": "dunes of despair",
+    "original_title": null,
+    "year": "2014",
+    "imdb_id": 4030140,
+    "tmdb_id": 1328502,
+    "subtitles_counts": {
+     "en": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1277352",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1277352",
+    "feature_type": "Movie",
+    "title": "the dunes",
+    "original_title": "The Dunes",
+    "year": "2019",
+    "imdb_id": 4681432,
+    "tmdb_id": 641213,
+    "subtitles_counts": {
+     "da": 1,
+     "en": 1,
+     "fi": 1,
+     "no": 1,
+     "sv": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1364569",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1364569",
+    "feature_type": "Movie",
+    "title": "the dune",
+    "original_title": "La dune",
+    "year": "2013",
+    "imdb_id": 2251648,
+    "tmdb_id": 271683,
+    "subtitles_counts": {
+     "he": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2987924",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2987924",
+    "feature_type": "Movie",
+    "title": "dans l'ombre des dunes",
+    "original_title": "Dans l'ombre des dunes",
+    "year": "2022",
+    "imdb_id": 19882638,
+    "tmdb_id": 970173,
+    "subtitles_counts": {
+     "fi": 1,
+     "nl": 1,
+     "pt-PT": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1759304",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1759304",
+    "feature_type": "Episode",
+    "title": "dune",
+    "original_title": "Dune",
+    "year": "2021",
+    "imdb_id": 15552544,
+    "tmdb_id": 3264839,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1716799",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1716799",
+    "feature_type": "Episode",
+    "title": "\"aladdin\" dune quixote",
+    "original_title": null,
+    "year": "1994",
+    "imdb_id": 507376,
+    "tmdb_id": 214943,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1713226",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1713226",
+    "feature_type": "Episode",
+    "title": "dunes day",
+    "original_title": "Dunes Day",
+    "year": "2022",
+    "imdb_id": 21236580,
+    "tmdb_id": 3795049,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2948171",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2948171",
+    "feature_type": "Movie",
+    "title": "dune: part three",
+    "original_title": "Dune: Part Three",
+    "year": "2026",
+    "imdb_id": 31378509,
+    "tmdb_id": 1170608,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2798183",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2798183",
+    "feature_type": "Movie",
+    "title": "dune - the complete saga",
+    "original_title": null,
+    "year": "2024",
+    "imdb_id": null,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "16130",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "16130",
+    "feature_type": "Tvshow",
+    "title": "long road in the dunes",
+    "original_title": "Долгая дорога в дюнах",
+    "year": "1980",
+    "imdb_id": 174599,
+    "tmdb_id": 96185,
+    "subtitles_counts": {
+     "en": 7,
+     "lv": 7,
+     "ru": 7
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "225799",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "225799",
+    "feature_type": "Episode",
+    "title": "dunes day",
+    "original_title": "Dunes Day",
+    "year": "2000",
+    "imdb_id": 1849603,
+    "tmdb_id": 1462255,
+    "subtitles_counts": {
+     "en": 1,
+     "hu": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2497896",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2497896",
+    "feature_type": "Movie",
+    "title": "love in the sand dunes",
+    "original_title": "Έρωτας Στους Αμμόλοφους",
+    "year": "1958",
+    "imdb_id": 206720,
+    "tmdb_id": 591576,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "622856",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "622856",
+    "feature_type": "Movie",
+    "title": "dune warriors",
+    "original_title": "Dune Warriors",
+    "year": "1990",
+    "imdb_id": 99474,
+    "tmdb_id": 222339,
+    "subtitles_counts": {
+     "el": 1,
+     "en": 2,
+     "hu": 1,
+     "it": 1,
+     "nl": 1,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2799027",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2799027",
+    "feature_type": "Movie",
+    "title": "the dune people",
+    "original_title": null,
+    "year": "2025",
+    "imdb_id": null,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2794838",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2794838",
+    "feature_type": "Movie",
+    "title": "dune.2021.720p.webrip.dd5.1.x264-shitbox",
+    "original_title": null,
+    "year": "2021",
+    "imdb_id": null,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "fa": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2840174",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2840174",
+    "feature_type": "Episode",
+    "title": "kauai to kiwi in dunedin, new zealand",
+    "original_title": "Kauai to Kiwi in Dunedin, New Zealand",
+    "year": "2026",
+    "imdb_id": 39932857,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2916074",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2916074",
+    "feature_type": "Episode",
+    "title": "silver lake sand dunes",
+    "original_title": "Silver Lake Sand Dunes",
+    "year": "2025",
+    "imdb_id": 37560637,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "en": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2798921",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2798921",
+    "feature_type": "Movie",
+    "title": "an abundance of dunes",
+    "original_title": null,
+    "year": "2025",
+    "imdb_id": null,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2748608",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2748608",
+    "feature_type": "Episode",
+    "title": "vw dune buggy",
+    "original_title": "Vw Dune Buggy",
+    "year": "2025",
+    "imdb_id": 36998371,
+    "tmdb_id": 6070620,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2863198",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2863198",
+    "feature_type": "Episode",
+    "title": "\"terra mater\" doñana - zwischen dünen und meer",
+    "original_title": null,
+    "year": "2025",
+    "imdb_id": 38018460,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2001998",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2001998",
+    "feature_type": "Episode",
+    "title": "\"maretv\" 370 die küste der normandie - klippen, dünen und der d-day",
+    "original_title": null,
+    "year": "2024",
+    "imdb_id": 32383650,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "de": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2772412",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2772412",
+    "feature_type": "Episode",
+    "title": "\"honest trailers\" dune: part two",
+    "original_title": null,
+    "year": "2024",
+    "imdb_id": 31512314,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2714348",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2714348",
+    "feature_type": "Episode",
+    "title": "‘dune: part two’",
+    "original_title": "‘Dune: Part Two’",
+    "year": "2024",
+    "imdb_id": 31530072,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1327809",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1327809",
+    "feature_type": "Movie",
+    "title": "on the dune of solitude",
+    "original_title": "Sur le dune de la solitude",
+    "year": "1964",
+    "imdb_id": 1291144,
+    "tmdb_id": 911777,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1705942",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1705942",
+    "feature_type": "Episode",
+    "title": "sand dune",
+    "original_title": "Sand Dune",
+    "year": "2022",
+    "imdb_id": 29208045,
+    "tmdb_id": 4073570,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1611458",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1611458",
+    "feature_type": "Episode",
+    "title": "‘dune’ & ‘the french dispatch’",
+    "original_title": "‘Dune’ & ‘The French Dispatch’",
+    "year": "2021",
+    "imdb_id": 15940372,
+    "tmdb_id": 3295437,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2413433",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2413433",
+    "feature_type": "Episode",
+    "title": "game of thrones collapse anniversary - sdcc cancelled - jar jar's dceu - elon! dune! mcu!",
+    "original_title": null,
+    "year": "2020",
+    "imdb_id": 12198368,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1714011",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1714011",
+    "feature_type": "Episode",
+    "title": "mystery in the sand dunes",
+    "original_title": "Mystery in the Sand Dunes",
+    "year": "2020",
+    "imdb_id": 13500486,
+    "tmdb_id": 2742430,
+    "subtitles_counts": {
+     "el": 1,
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1526196",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1526196",
+    "feature_type": "Episode",
+    "title": "junkyard dune machines: radillac vs. rescue ranger",
+    "original_title": "Junkyard Dune Machines: Radillac vs. Rescue Ranger",
+    "year": "2018",
+    "imdb_id": 9275016,
+    "tmdb_id": 2181461,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2717003",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2717003",
+    "feature_type": "Episode",
+    "title": "dune busters",
+    "original_title": "Dune Busters",
+    "year": "2017",
+    "imdb_id": 30401525,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "291117",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "291117",
+    "feature_type": "Episode",
+    "title": "\"meitantei conan\" tottori sand dunes mystery tour: tottori part",
+    "original_title": null,
+    "year": "2015",
+    "imdb_id": 5240530,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "204858",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "204858",
+    "feature_type": "Episode",
+    "title": "the dune roller",
+    "original_title": "The Dune Roller",
+    "year": "1952",
+    "imdb_id": 717059,
+    "tmdb_id": 539098,
+    "subtitles_counts": {
+     "en": 1,
+     "pl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1475388",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1475388",
+    "feature_type": "Episode",
+    "title": "dune buddies",
+    "original_title": "Dune Buddies",
+    "year": "2013",
+    "imdb_id": 2657084,
+    "tmdb_id": 1489792,
+    "subtitles_counts": {
+     "de": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1605999",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1605999",
+    "feature_type": "Episode",
+    "title": "the dune",
+    "original_title": "The Dune",
+    "year": "2012",
+    "imdb_id": 2657038,
+    "tmdb_id": 897137,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1668731",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1668731",
+    "feature_type": "Episode",
+    "title": "secrets of the dunes - kenfig, bridgend",
+    "original_title": "Secrets of the Dunes - Kenfig, Bridgend",
+    "year": "2012",
+    "imdb_id": 2362861,
+    "tmdb_id": 219653,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1582659",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1582659",
+    "feature_type": "Episode",
+    "title": "the dunes",
+    "original_title": "The Dunes",
+    "year": "2011",
+    "imdb_id": 1989204,
+    "tmdb_id": 598046,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2874055",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2874055",
+    "feature_type": "Episode",
+    "title": "\"until we win\" dune ii",
+    "original_title": null,
+    "year": "2010",
+    "imdb_id": 2241802,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "65899",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "65899",
+    "feature_type": "Episode",
+    "title": "the god of death, dune",
+    "original_title": "The God of Death, Dune",
+    "year": "2009",
+    "imdb_id": 1876696,
+    "tmdb_id": 759162,
+    "subtitles_counts": {
+     "ar": 2,
+     "en": 2,
+     "fa": 1,
+     "ru": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1668681",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1668681",
+    "feature_type": "Episode",
+    "title": "bodies in the dunes - barra, western isles",
+    "original_title": "Bodies in the Dunes - Barra, Western Isles",
+    "year": "2008",
+    "imdb_id": 1235028,
+    "tmdb_id": 219347,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1694133",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1694133",
+    "feature_type": "Episode",
+    "title": "mirror neurons, hurricanes, sand dunes",
+    "original_title": "Mirror Neurons, Hurricanes, Sand Dunes",
+    "year": "2005",
+    "imdb_id": 944655,
+    "tmdb_id": 269272,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1724042",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1724042",
+    "feature_type": "Episode",
+    "title": "dune",
+    "original_title": "Dune",
+    "year": "2003",
+    "imdb_id": 6612356,
+    "tmdb_id": 4871642,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  }
+ ]
+}

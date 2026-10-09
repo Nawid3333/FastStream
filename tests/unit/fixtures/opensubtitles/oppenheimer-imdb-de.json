@@ -1,0 +1,237 @@
+{
+ "query": {
+  "imdb_id": "15398776",
+  "languages": "de",
+  "order_by": "download_count"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 1,
+ "total_count": 7,
+ "page": 1,
+ "data": [
+  {
+   "id": "7485772",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 6911,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Oppenheimer.2023.German.DL.1080p.BluRay.x264.RERiP-DETAiLS",
+    "uploader": {
+     "name": "Angee81"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8417282
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7488605",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1101,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Oppenheimer (2023)_PROPER_BluRay [ 03:00:22]",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8420046
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7485773",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 793,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Oppenheimer.2023.German.DL.1080p.BluRay.x264.RERiP-DETAiLS.forced",
+    "uploader": {
+     "name": "Angee81"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8417281
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7588147",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 566,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 24,
+    "release": "Oppenheimer DVD Release",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8514848
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7566647",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 483,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Oppenheimer.2023.German.1080p.BluRay.DCA",
+    "uploader": {
+     "name": "drm_cracker_3000"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8494208
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7375037",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 0,
+    "hearing_impaired": false,
+    "ai_translated": true,
+    "machine_translated": false,
+    "from_trusted": null,
+    "fps": 23.976,
+    "release": "Oppenheimer.2023.1080p.HD-TS-C1NEM4",
+    "uploader": {
+     "name": "system"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8309228
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  },
+  {
+   "id": "7454740",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 0,
+    "hearing_impaired": true,
+    "ai_translated": true,
+    "machine_translated": false,
+    "from_trusted": null,
+    "fps": 23.976,
+    "release": "Oppenheimer.2023.1080p.BluRay.x264.AAC5.1-[YTS.MX]",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": null,
+    "files": [
+     {
+      "file_id": 8386883
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1492864,
+     "feature_type": "Movie",
+     "year": 2023,
+     "title": "Oppenheimer",
+     "movie_name": "2023 - Oppenheimer",
+     "imdb_id": 15398776,
+     "tmdb_id": 872585
+    }
+   }
+  }
+ ]
+}

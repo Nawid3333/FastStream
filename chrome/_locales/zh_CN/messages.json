@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "集 #"
     },
-    "player_opensubtitles_type": {
-        "message": "类型"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "全部"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "电影"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "剧集"
-    },
     "player_opensubtitles_language": {
         "message": "语言"
     },
     "player_opensubtitles_year": {
         "message": "年份"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "排序方式"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "下载量"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "上传日期"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "评分"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "投票数"
-    },
-    "player_opensubtitles_sort": {
-        "message": "排序"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "降序"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "升序"
     },
     "player_opensubtitles_searching": {
         "message": "搜索中..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "未找到结果！"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "其他标题："
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "此标题没有 $1 字幕：正在显示所有语言。"
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 次下载"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "适用于聋人和听障人士"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "机器翻译"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "来自可信的上传者"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles 限制字幕下载！您的下载次数已用尽！配额将在 $1 后重置"

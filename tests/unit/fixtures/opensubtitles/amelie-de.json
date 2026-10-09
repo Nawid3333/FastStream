@@ -1,0 +1,1620 @@
+{
+ "path": "subtitles",
+ "query": {
+  "languages": "de",
+  "query": "Die fabelhafte Welt der Amélie",
+  "year": "2001"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 5,
+ "total_count": 216,
+ "page": 1,
+ "data": [
+  {
+   "id": "4367325",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 15756,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Die fabelhafte Welt der Amelie",
+    "uploader": {
+     "name": "MosuB (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-fabelhafte-welt-der-amelie",
+    "files": [
+     {
+      "file_id": 4466039
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "5256482",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 531,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV arte color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8310369-dtv-arte-color",
+    "files": [
+     {
+      "file_id": 5359437
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "7851945",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 137,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "FabuleuxdestindAmliePoulainLe2001-Germany[Xsubt.com][9142435901]",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/fabuleuxdestindamliepoulainle2001-germany-xsubt-com-9142435901",
+    "files": [
+     {
+      "file_id": 8776793
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "4376923",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 984,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Le Fabuleux Destin d Amelie Poulain 2001 720p BluRay x264-SiNNERS",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/6113587-le-fabuleux-destin-d-amelie-poulain-2001-720p-bluray-x264-sinners",
+    "files": [
+     {
+      "file_id": 4477581
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "4375763",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 3896,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Le.Fabuleux.Destin.d.Amelie.Poulain.2001.720p.BluRay.x264-SiNNERS.german.srt",
+    "uploader": {
+     "name": "arcchancellor"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/le-fabuleux-destin-d-amelie-poulain-2001-720p-bluray-x264-sinners-german-srt",
+    "files": [
+     {
+      "file_id": 4476139
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "4375751",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1030,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "le fabuleux destin d'amélie poulain german dvd.srt",
+    "uploader": {
+     "name": "arcchancellor"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/le-fabuleux-destin-d-amelie-poulain-german-dvd-srt",
+    "files": [
+     {
+      "file_id": 4476122
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646324,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Amélie",
+     "movie_name": "2001 - Amélie",
+     "imdb_id": 211915,
+     "tmdb_id": 194
+    }
+   }
+  },
+  {
+   "id": "252395",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 2407,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "The Lord of the Rings: The Fellowship of the Ring",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/6947495-the-lord-of-the-rings-the-fellowship-of-the-ring",
+    "files": [
+     {
+      "file_id": 7329270
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - The Lord of the Rings: The Fellowship of the Ring",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "5607275",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1372,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Der Herr der Ringe - Die Gefährten Disk 2 (4K SEE)",
+    "uploader": {
+     "name": "lordoftherings84"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/der-herr-der-ringe-die-gefahrten-disk-2-4k-see",
+    "files": [
+     {
+      "file_id": 6643133
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - The Lord of the Rings: The Fellowship of the Ring",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "11680289",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 57,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Der Herr der Ringe - Die Gefährten (2001) {imdb-tt0120737} {tmdb-120}",
+    "uploader": {
+     "name": "musti20d"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/13782005-der-herr-der-ringe-die-gefahrten-2001-imdb-tt0120737-tmdb-120",
+    "files": [
+     {
+      "file_id": 12589447
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - The Lord of the Rings: The Fellowship of the Ring",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "11645498",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 43,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Der Herr der Ringe - Die Gefährten (2001) {imdb-tt0120737} {tmdb-120}",
+    "uploader": {
+     "name": "musti20d"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/der-herr-der-ringe-die-gefahrten-2001-imdb-tt0120737-tmdb-120",
+    "files": [
+     {
+      "file_id": 12554665
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - The Lord of the Rings: The Fellowship of the Ring",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "5606835",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 29,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8460861-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 6642717
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1192932,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Die Meute der Erben",
+     "movie_name": "2001 - Die Meute der Erben",
+     "imdb_id": 280941,
+     "tmdb_id": 298733
+    }
+   }
+  },
+  {
+   "id": "11645497",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 35,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Der Herr der Ringe - Die Gefährten (2001) {imdb-tt0120737} {tmdb-120}.de.forced",
+    "uploader": {
+     "name": "musti20d"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/der-herr-der-ringe-die-gefahrten-2001-imdb-tt0120737-tmdb-120-de-forced",
+    "files": [
+     {
+      "file_id": 12554664
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - The Lord of the Rings: The Fellowship of the Ring",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "449124",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 6192,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Der Schuh der Manitu",
+    "uploader": {
+     "name": "Juraj66 (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/110632-der-schuh-der-manitu",
+    "files": [
+     {
+      "file_id": 494307
+     }
+    ],
+    "feature_details": {
+     "feature_id": 517385,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Manitou's Shoe",
+     "movie_name": "2001 - Manitou's Shoe",
+     "imdb_id": 248408,
+     "tmdb_id": 8366
+    }
+   }
+  },
+  {
+   "id": "7402576",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 12,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9735260-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 8335819
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1503882,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Der Zimmerspringbrunnen",
+     "movie_name": "2001 - Der Zimmerspringbrunnen",
+     "imdb_id": 298234,
+     "tmdb_id": 220924
+    }
+   }
+  },
+  {
+   "id": "239349",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 930,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Brotherhood Of The Wolf (2001)",
+    "uploader": {
+     "name": "arne (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/20152-brotherhood-of-the-wolf-2001",
+    "files": [
+     {
+      "file_id": 252819
+     },
+     {
+      "file_id": 252823
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515194,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Brotherhood of the Wolf",
+     "movie_name": "2001 - Brotherhood of the Wolf",
+     "imdb_id": 237534,
+     "tmdb_id": 6312
+    }
+   }
+  },
+  {
+   "id": "641630",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 619,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Tunnel, Der (2001)",
+    "uploader": {
+     "name": "gorazd65 (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/170871-tunnel-der-2001",
+    "files": [
+     {
+      "file_id": 708740
+     },
+     {
+      "file_id": 708742
+     }
+    ],
+    "feature_details": {
+     "feature_id": 523023,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Tunnel",
+     "movie_name": "2001 - The Tunnel",
+     "imdb_id": 251447,
+     "tmdb_id": 3577
+    }
+   }
+  },
+  {
+   "id": "4927919",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 71,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Megiddo.The.Omega.Code.2.2001.DVDRiP.XViD",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/megiddo-the-omega-code-2-2001-dvdrip-xvid",
+    "files": [
+     {
+      "file_id": 5051187
+     }
+    ],
+    "feature_details": {
+     "feature_id": 519416,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Megiddo: The Omega Code 2",
+     "movie_name": "2001 - Megiddo: The Omega Code 2",
+     "imdb_id": 263728,
+     "tmdb_id": 30379
+    }
+   }
+  },
+  {
+   "id": "250663",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 8063,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Der.Herr.der.Ringe.1.Die.Gefaehrten.Extended.Edition.2001.German.DL.DTS.1080p.BluRay.PROPER.x264.NEU",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/der-herr-der-ringe-1-die-gefaehrten-extended-edition-2001-german-dl-dts-1080p-bluray-proper-x264-neu",
+    "files": [
+     {
+      "file_id": 266101
+     }
+    ],
+    "feature_details": {
+     "feature_id": 514811,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Lord of the Rings: The Fellowship of the Ring",
+     "movie_name": "2001 - Der Herr der Ringe - Die Gefährten",
+     "imdb_id": 120737,
+     "tmdb_id": 120
+    }
+   }
+  },
+  {
+   "id": "1162767",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1773,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Planet der Affen (2000)",
+    "uploader": {
+     "name": "gummybear (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/planet-der-affen-2000",
+    "files": [
+     {
+      "file_id": 1255274
+     }
+    ],
+    "feature_details": {
+     "feature_id": 5,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Planet of the Apes",
+     "movie_name": "2001 - Planet der Affen",
+     "imdb_id": 133152,
+     "tmdb_id": 869
+    }
+   }
+  },
+  {
+   "id": "9978821",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 26,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 60,
+    "release": "2001.Planet.der.Affen.1080p.720p.German.Forced.",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/2001-planet-der-affen-1080p-720p-german-forced",
+    "files": [
+     {
+      "file_id": 10887636
+     }
+    ],
+    "feature_details": {
+     "feature_id": 5,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Planet of the Apes",
+     "movie_name": "2001 - Planet of the Apes",
+     "imdb_id": 133152,
+     "tmdb_id": 869
+    }
+   }
+  },
+  {
+   "id": "6565349",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 248,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Die Ahnungslosen DVD",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-ahnungslosen-dvd",
+    "files": [
+     {
+      "file_id": 7534937
+     }
+    ],
+    "feature_details": {
+     "feature_id": 518817,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "His Secret Life",
+     "movie_name": "2001 - His Secret Life",
+     "imdb_id": 274497,
+     "tmdb_id": 23550
+    }
+   }
+  },
+  {
+   "id": "912171",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 53,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Die Wonderboys - German",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-wonderboys-german",
+    "files": [
+     {
+      "file_id": 995034
+     }
+    ],
+    "feature_details": {
+     "feature_id": 585518,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Wonderboy",
+     "movie_name": "2001 - Wonderboy",
+     "imdb_id": 304949,
+     "tmdb_id": null
+    }
+   }
+  },
+  {
+   "id": "5790239",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 38,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Planet der Affen (2001) Blue Ray",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/planet-der-affen-2001-blue-ray",
+    "files": [
+     {
+      "file_id": 6807161
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1226147,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Planet of the Apes",
+     "movie_name": "2001 - Planet of the Apes",
+     "imdb_id": 292190,
+     "tmdb_id": null
+    }
+   }
+  },
+  {
+   "id": "5250617",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 680,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Planet der Affen (2001) Bluray",
+    "uploader": {
+     "name": "Deafmobil"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/planet-der-affen-2001-bluray",
+    "files": [
+     {
+      "file_id": 5353847
+     }
+    ],
+    "feature_details": {
+     "feature_id": 5,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Planet of the Apes",
+     "movie_name": "2001 - Planet of the Apes",
+     "imdb_id": 133152,
+     "tmdb_id": 869
+    }
+   }
+  },
+  {
+   "id": "449237",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 2294,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 30,
+    "release": "Schuh des Manitu, Der (2001)",
+    "uploader": {
+     "name": "BetaMAN (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/201504-schuh-des-manitu-der-2001",
+    "files": [
+     {
+      "file_id": 494419
+     }
+    ],
+    "feature_details": {
+     "feature_id": 517385,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Manitou's Shoe",
+     "movie_name": "2001 - Der Schuh des Manitu",
+     "imdb_id": 248408,
+     "tmdb_id": 8366
+    }
+   }
+  },
+  {
+   "id": "449094",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 1443,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Schuh des Manitu, Der (2001)",
+    "uploader": {
+     "name": "yo-yo (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/55264-schuh-des-manitu-der-2001",
+    "files": [
+     {
+      "file_id": 494275
+     }
+    ],
+    "feature_details": {
+     "feature_id": 517385,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Manitou's Shoe",
+     "movie_name": "2001 - Manitou's Shoe",
+     "imdb_id": 248408,
+     "tmdb_id": 8366
+    }
+   }
+  },
+  {
+   "id": "7086668",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 22,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV SRF color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9467545-dtv-srf-color",
+    "files": [
+     {
+      "file_id": 8024032
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1446596,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Im Namen der Gerechtigkeit",
+     "movie_name": "2001 - Im Namen der Gerechtigkeit",
+     "imdb_id": 278499,
+     "tmdb_id": 761680
+    }
+   }
+  },
+  {
+   "id": "6664647",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 125,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV arte color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9182347-dtv-arte-color",
+    "files": [
+     {
+      "file_id": 7633894
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515319,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Sex and Lucia",
+     "movie_name": "2001 - Sex and Lucia",
+     "imdb_id": 254455,
+     "tmdb_id": 1364
+    }
+   }
+  },
+  {
+   "id": "6779067",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 66,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ZDF color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9293507-dtv-zdf-color",
+    "files": [
+     {
+      "file_id": 7748465
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515497,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Along Came a Spider",
+     "movie_name": "2001 - Along Came a Spider",
+     "imdb_id": 164334,
+     "tmdb_id": 2043
+    }
+   }
+  },
+  {
+   "id": "5159021",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 21,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8253652-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 5269355
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1096508,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Der Vamp im Schlafrock",
+     "movie_name": "2001 - Der Vamp im Schlafrock",
+     "imdb_id": 294999,
+     "tmdb_id": 382939
+    }
+   }
+  },
+  {
+   "id": "6513712",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 15,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8357116-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 7486078
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1096508,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Der Vamp im Schlafrock",
+     "movie_name": "2001 - Der Vamp im Schlafrock",
+     "imdb_id": 294999,
+     "tmdb_id": 382939
+    }
+   }
+  },
+  {
+   "id": "315735",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 2178,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "So weit die F",
+    "uploader": {
+     "name": "mifo (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/65781-so-weit-die-f",
+    "files": [
+     {
+      "file_id": 341078
+     }
+    ],
+    "feature_details": {
+     "feature_id": 516160,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "As Far As My Feet Will Carry Me",
+     "movie_name": "2001 - As Far As My Feet Will Carry Me",
+     "imdb_id": 277327,
+     "tmdb_id": 11476
+    }
+   }
+  },
+  {
+   "id": "7246013",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 58,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ZDF color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9614574-dtv-zdf-color",
+    "files": [
+     {
+      "file_id": 8181041
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646055,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Spy Game",
+     "movie_name": "2001 - Spy Game",
+     "imdb_id": 266987,
+     "tmdb_id": 1535
+    }
+   }
+  },
+  {
+   "id": "642752",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 511,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Theatrical Version 2hrs 40mn 29s",
+    "uploader": {
+     "name": "subshare"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/4465388-theatrical-version-2hrs-40mn-29s",
+    "files": [
+     {
+      "file_id": 710005
+     }
+    ],
+    "feature_details": {
+     "feature_id": 523023,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "The Tunnel",
+     "movie_name": "2001 - The Tunnel",
+     "imdb_id": 251447,
+     "tmdb_id": 3577
+    }
+   }
+  },
+  {
+   "id": "4664811",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 2487,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Shrek - Der tollkuehne Held 2001 BDRiP",
+    "uploader": {
+     "name": "os-auto"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/shrek-der-tollkuehne-held-2001-bdrip",
+    "files": [
+     {
+      "file_id": 4787834
+     }
+    ],
+    "feature_details": {
+     "feature_id": 56,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Shrek",
+     "movie_name": "2001 - Shrek",
+     "imdb_id": 126029,
+     "tmdb_id": 808
+    }
+   }
+  },
+  {
+   "id": "5933383",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 24,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8775132-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 6943965
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1281189,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Frauen, die Prosecco trinken",
+     "movie_name": "2001 - Frauen, die Prosecco trinken",
+     "imdb_id": 279826,
+     "tmdb_id": 298732
+    }
+   }
+  },
+  {
+   "id": "4687237",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 393,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Ran an die Braut GERMAN DL 2001 AC3 DVDRiP X264 iNTERNAL-HTPG",
+    "uploader": {
+     "name": "Deafmobil"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/ran-an-die-braut-german-dl-2001-ac3-dvdrip-x264-internal-htpg",
+    "files": [
+     {
+      "file_id": 4810217
+     }
+    ],
+    "feature_details": {
+     "feature_id": 646766,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Get Over It",
+     "movie_name": "2001 - Get Over It",
+     "imdb_id": 192071,
+     "tmdb_id": 10050
+    }
+   }
+  },
+  {
+   "id": "245083",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 433,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 23.976,
+    "release": "Pakt der Wölfe 2001 HD BluRay.x264",
+    "uploader": {
+     "name": "crashmike"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/pakt-der-wolfe-2001-hd-bluray-x264",
+    "files": [
+     {
+      "file_id": 7326945
+     }
+    ],
+    "feature_details": {
+     "feature_id": 515194,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Brotherhood of the Wolf",
+     "movie_name": "2001 - Brotherhood of the Wolf",
+     "imdb_id": 237534,
+     "tmdb_id": 6312
+    }
+   }
+  },
+  {
+   "id": "6234334",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 112,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ORF color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8159139-dtv-orf-color",
+    "files": [
+     {
+      "file_id": 7147673
+     }
+    ],
+    "feature_details": {
+     "feature_id": 534174,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Emil und die Detektive",
+     "movie_name": "2001 - Emil und die Detektive",
+     "imdb_id": 256739,
+     "tmdb_id": 10556
+    }
+   }
+  },
+  {
+   "id": "10284826",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 29,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Emil und die Detektive (2001)",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/emil-und-die-detektive-2001",
+    "files": [
+     {
+      "file_id": 11191217
+     }
+    ],
+    "feature_details": {
+     "feature_id": 534174,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Emil und die Detektive",
+     "movie_name": "2001 - Emil und die Detektive",
+     "imdb_id": 256739,
+     "tmdb_id": 10556
+    }
+   }
+  },
+  {
+   "id": "899943",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 111,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Die.18.Farben.des.Todes.2001.German.DVDRip.Retail",
+    "uploader": {
+     "name": "Ralle1"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-18-farben-des-todes-2001-german-dvdrip-retail",
+    "files": [
+     {
+      "file_id": 982362
+     }
+    ],
+    "feature_details": {
+     "feature_id": 596677,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "18 Shades of Dust",
+     "movie_name": "2001 - 18 Shades of Dust",
+     "imdb_id": 119028,
+     "tmdb_id": 68565
+    }
+   }
+  },
+  {
+   "id": "899938",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 43,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "Die.18.Farben.des.Todes.2001.German.SDH.DVDRip.Retail",
+    "uploader": {
+     "name": "Ralle1"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/die-18-farben-des-todes-2001-german-sdh-dvdrip-retail",
+    "files": [
+     {
+      "file_id": 982357
+     }
+    ],
+    "feature_details": {
+     "feature_id": 596677,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "18 Shades of Dust",
+     "movie_name": "2001 - 18 Shades of Dust",
+     "imdb_id": 119028,
+     "tmdb_id": 68565
+    }
+   }
+  },
+  {
+   "id": "5615588",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 21,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8474380-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 6650795
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1195069,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Am Anfang war die Eifersucht",
+     "movie_name": "2001 - Am Anfang war die Eifersucht",
+     "imdb_id": 275191,
+     "tmdb_id": null
+    }
+   }
+  },
+  {
+   "id": "6491168",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 116,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "Exit Wounds - Die Copjäger (2001)",
+    "uploader": {
+     "name": "Deafmobil"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/exit-wounds-die-copjager-2001",
+    "files": [
+     {
+      "file_id": 7464977
+     }
+    ],
+    "feature_details": {
+     "feature_id": 517534,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Exit Wounds",
+     "movie_name": "2001 - Exit Wounds",
+     "imdb_id": 242445,
+     "tmdb_id": 10877
+    }
+   }
+  },
+  {
+   "id": "86735",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 100,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Stille Liebe (sign language dialog only)",
+    "uploader": {
+     "name": "TedTheBellhop"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/stille-liebe-sign-language-dialog-only",
+    "files": [
+     {
+      "file_id": 7281284
+     }
+    ],
+    "feature_details": {
+     "feature_id": 555957,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Stille Liebe",
+     "movie_name": "2001 - Stille Liebe",
+     "imdb_id": 295636,
+     "tmdb_id": 71660
+    }
+   }
+  },
+  {
+   "id": "5911448",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 45,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV ARD color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/8764355-dtv-ard-color",
+    "files": [
+     {
+      "file_id": 6924219
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1277846,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Die Pferdefrau",
+     "movie_name": "2001 - Die Pferdefrau",
+     "imdb_id": 318560,
+     "tmdb_id": 311695
+    }
+   }
+  },
+  {
+   "id": "556361",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 352,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "Abrafaxe - Unter schwarzer Flagge, Die (2001)",
+    "uploader": {
+     "name": "badjo (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/204602-abrafaxe-unter-schwarzer-flagge-die-2001",
+    "files": [
+     {
+      "file_id": 615149
+     }
+    ],
+    "feature_details": {
+     "feature_id": 519257,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Die Abrafaxe - Unter schwarzer Flagge",
+     "movie_name": "2001 - Die Abrafaxe - Unter schwarzer Flagge",
+     "imdb_id": 295152,
+     "tmdb_id": 50179
+    }
+   }
+  },
+  {
+   "id": "556339",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 160,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 25,
+    "release": "Abrafaxe - Unter schwarzer Flagge, Die (2001)",
+    "uploader": {
+     "name": "chino_113 (a)"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/abrafaxe-unter-schwarzer-flagge-die-2001",
+    "files": [
+     {
+      "file_id": 615129
+     }
+    ],
+    "feature_details": {
+     "feature_id": 519257,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Die Abrafaxe - Unter schwarzer Flagge",
+     "movie_name": "2001 - Die Abrafaxe - Unter schwarzer Flagge",
+     "imdb_id": 295152,
+     "tmdb_id": 50179
+    }
+   }
+  },
+  {
+   "id": "4912188",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 672,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV 2003 color 1h55m",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/dtv-2003-color-1h55m",
+    "files": [
+     {
+      "file_id": 5035442
+     }
+    ],
+    "feature_details": {
+     "feature_id": 516160,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "As Far As My Feet Will Carry Me",
+     "movie_name": "2001 - As Far As My Feet Will Carry Me",
+     "imdb_id": 277327,
+     "tmdb_id": 11476
+    }
+   }
+  },
+  {
+   "id": "6623342",
+   "type": "subtitle",
+   "attributes": {
+    "language": "de",
+    "download_count": 39,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 25,
+    "release": "dTV 3sat color",
+    "uploader": {
+     "name": "holti_surfer"
+    },
+    "url": "https://www.opensubtitles.com/de/subtitles/9140843-dtv-3sat-color",
+    "files": [
+     {
+      "file_id": 7592629
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1384359,
+     "feature_type": "Movie",
+     "year": 2001,
+     "title": "Der Bestseller - Millionencoup auf Gran Canaria",
+     "movie_name": "2001 - Der Bestseller - Millionencoup auf Gran Canaria",
+     "imdb_id": 282380,
+     "tmdb_id": 322738
+    }
+   }
+  }
+ ]
+}

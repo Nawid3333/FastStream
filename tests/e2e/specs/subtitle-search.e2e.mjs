@@ -1,9 +1,11 @@
 // The player's OpenSubtitles search: the order its answers come in, a failed search, Enter
-// on its dropdowns, and a failed download while the search was closed.
+// in its fields, its pages, and its downloads.
 //
 // Each case opens the web player with no source and the search on it. Its requests to
 // opensubtitles.com are stubbed in the page, and nothing goes out: each one waits in
-// window.__requests until the case answers it.
+// window.__requests until the case answers it. A search asks twice at once - a text search
+// for subtitles and a title search - then for the subtitles of the title it took
+// (subtitle-search-titles.e2e.mjs tests which title, with the API's real answers).
 import fs from 'node:fs';
 import {browser, expect} from '@wdio/globals';
 
@@ -13,17 +15,20 @@ const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messa
 const DOWNLOAD_LINK = 'https://www.opensubtitles.com/download/0123456789ABCDEF/subfile/sub.vtt';
 
 /**
- * An answer of the search API with one result.
- * @param {string} title - The result's title.
+ * An answer of the subtitles API with one result: a subtitle of the film of that title.
+ * @param {string} title - The film's title.
  * @param {number} [pages] - How many pages of results there are.
  * @return {Object}
  */
 function answer(title, pages = 1) {
   return {response: {page: 1, total_pages: pages, data: [{attributes: {
-    language: 'en', ratings: 5, url: 'https://www.opensubtitles.com/en/subtitles/x',
-    feature_details: {movie_name: title, year: 2000}, uploader: {name: 'someone'}, files: [{file_id: 1}],
+    language: 'en', download_count: 5, url: 'https://www.opensubtitles.com/en/subtitles/x',
+    feature_details: {movie_name: title, title, year: 2000, feature_type: 'Movie', imdb_id: 1000 + title.length},
+    uploader: {name: 'someone'}, files: [{file_id: 1}],
   }}]}};
 }
+
+const NOTHING = {response: {page: 1, total_pages: 0, data: []}};
 
 /**
  * Opens the player with no source and the search on it, its requests stubbed.
@@ -49,17 +54,44 @@ async function openSearch() {
 }
 
 /**
- * Starts a search for a text, as the search button does.
+ * Starts a search for a text, as the search button does: requests n and n + 1.
  * @param {string} text - What to search for.
  * @return {Promise<void>}
  */
 async function search(text) {
   await browser.execute((text) => {
-    window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.queryOpenSubtitles({
-      query: text, type: 'all', season: '', episode: '', language: '', year: '',
-      sortBy: 'download_count', sortDirection: 'desc', page: 1,
-    });
+    const search = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch;
+    search.subui.search.value = text;
+    search.subui.languageInput.value = '';
+    search.startSearch();
   }, text);
+}
+
+/**
+ * Waits for a request, by its number.
+ * @param {number} index
+ * @return {Promise<void>}
+ */
+async function asked(index) {
+  await browser.waitUntil(async () => browser.execute((index) => window.__requests.length > index, index),
+      {timeout: 10000, timeoutMsg: `request ${index} was never made`});
+}
+
+/**
+ * Answers a search's two requests, and then the subtitles of the title it took.
+ * @param {number} first - The number of the search's first request.
+ * @param {Object} subtitles - The answer for the text search and the title's subtitles.
+ * @param {Object} [list] - The title's subtitles, when other than the text search's.
+ * @return {Promise<void>}
+ */
+async function answerSearch(first, subtitles, list = subtitles) {
+  await asked(first + 1);
+  await browser.execute((first, subtitles, nothing) => {
+    window.__requests[first].resolve(subtitles);
+    window.__requests[first + 1].resolve(nothing);
+  }, first, subtitles, NOTHING);
+  await asked(first + 2);
+  await browser.execute((index, list) => window.__requests[index].resolve(list), first + 2, list);
 }
 
 /**
@@ -85,18 +117,26 @@ describe('Subtitle search', function() {
     await openSearch();
     await search('old');
     await search('new');
-    await browser.execute((answer) => window.__requests[1].resolve(answer), answer('New'));
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Old'));
+    await answerSearch(2, answer('New'));
+    await browser.execute((answer, nothing) => {
+      window.__requests[0].resolve(answer);
+      window.__requests[1].resolve(nothing);
+    }, answer('Old'), NOTHING);
     const state = await shown();
     console.log('      results:', JSON.stringify(state));
-    expect(state.titles).toEqual(['New (2000)']);
+    expect(state.titles).toEqual(['New']);
+    // The old search, answered late, asked for nothing more.
+    expect(state.requests).toBe(5);
     // Nor does an earlier search's failure, coming after: it cleared the newer one's pages.
     await search('failing');
     await search('newest');
-    await browser.execute((answer) => window.__requests[3].resolve(answer), answer('Newest', 3));
-    await browser.execute(() => window.__requests[2].reject(new Error('offline')));
+    await answerSearch(7, answer('Newest', 3));
+    await browser.execute(() => {
+      window.__requests[5].reject(new Error('offline'));
+      window.__requests[6].reject(new Error('offline'));
+    });
     const after = await shown();
-    expect(after.titles).toEqual(['Newest (2000)']);
+    expect(after.titles).toEqual(['Newest']);
     expect(after.pages).toBeGreaterThan(0);
   });
 
@@ -106,38 +146,44 @@ describe('Subtitle search', function() {
     // again for its query when clicked.
     await openSearch();
     await search('first');
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('First', 3));
+    await answerSearch(0, answer('First', 3));
     const before = await shown();
     expect(before.pages).toBeGreaterThan(0);
     await search('second');
-    await browser.execute(() => window.__requests[1].reject(new Error('offline')));
+    await asked(4);
+    await browser.execute(() => {
+      window.__requests[3].reject(new Error('offline'));
+      window.__requests[4].reject(new Error('offline'));
+    });
     const state = await shown();
     console.log('      after a failed search:', JSON.stringify(state));
     expect(state.message).toBe(en.player_opensubtitles_disabled.message);
     expect(state.pages).toBe(0);
     // The same when the API answers with an error.
     await search('third');
-    await browser.execute((answer) => window.__requests[2].resolve(answer), answer('Third', 3));
+    await answerSearch(5, answer('Third', 3));
     expect((await shown()).pages).toBeGreaterThan(0);
     await search('fourth');
-    await browser.execute(() => window.__requests[3].resolve({response: {errors: ['Bad query']}}));
+    await asked(9);
+    await browser.execute(() => {
+      window.__requests[8].resolve({response: {errors: ['Bad query']}});
+      window.__requests[9].resolve({response: {errors: ['Bad query']}});
+    });
     const refused = await shown();
     expect(refused.message).toBe(en.player_opensubtitles_error.message.replace('$1', 'Bad query'));
     expect(refused.pages).toBe(0);
   });
 
-  it('searches with the type shown when Enter is pressed on the type filter', async function() {
-    // A guard, which passes on main too: Enter on a dropdown searches, and the dropdown's
-    // own Enter (the next choice) must not run as well. The search's handler is a capture
-    // listener on the dropdown itself, and its stopPropagation() also skips the dropdown's
-    // listener there (measured, Firefox 156).
+  it('searches once when Enter is pressed in one of its fields', async function() {
+    // Enter in a field searches, once.
     await openSearch();
-    const state = await browser.execute(() => {
-      const selector = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.typeSelector;
-      selector.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
-      return {type: selector.dataset.val, requests: window.__requests.length};
+    const requests = await browser.execute(() => {
+      const {subui} = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch;
+      subui.search.value = 'film';
+      subui.yearInput.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+      return window.__requests.map((request) => request.options.url.split('/').pop());
     });
-    expect(state).toEqual({type: 'all', requests: 1});
+    expect(requests).toEqual(['subtitles', 'features']);
   });
 
   it('says why when a search answers with no results list', async function() {
@@ -145,33 +191,42 @@ describe('Subtitle search', function() {
     // data: reading data threw with the results already cleared, and the pane stayed blank.
     await openSearch();
     await search('throttled');
-    await browser.execute(() => window.__requests[0].resolve({response: {message: 'Throttle limit reached'}}));
+    await asked(1);
+    await browser.execute(() => {
+      window.__requests[0].resolve({response: {message: 'Throttle limit reached'}});
+      window.__requests[1].resolve({response: {message: 'Throttle limit reached'}});
+    });
     const state = await shown();
     expect(state.message).toBe(en.player_opensubtitles_error.message.replace('$1', 'Throttle limit reached'));
     expect(state.pages).toBe(0);
     await search('nothing');
-    await browser.execute(() => window.__requests[1].resolve({response: {}}));
+    await asked(3);
+    await browser.execute(() => {
+      window.__requests[2].resolve({response: {}});
+      window.__requests[3].resolve({response: {}});
+    });
     expect((await shown()).message).toBe(en.player_opensubtitles_error_down.message);
   });
 
   it('lists the other results when one has no file, uploader or title', async function() {
     await openSearch();
-    await search('film');
-    await browser.execute((good) => window.__requests[0].resolve({response: {page: 1, total_pages: 1, data: [
+    await search('good');
+    const good = answer('Good');
+    await answerSearch(0, good, {response: {page: 1, total_pages: 1, data: [
       {attributes: {language: 'en'}},
       {attributes: {language: 'en', files: [{file_id: 2}]}},
       good.response.data[0],
-    ]}}), answer('Good'));
+    ]}});
     const state = await shown();
-    // The one without a file is left out; the one without uploader or title is listed.
-    expect(state.titles).toEqual(['', 'Good (2000)']);
+    // The one without a file is left out; the one without release or title is listed.
+    expect(state.titles).toEqual(['', 'Good']);
   });
 
   it('loads the page clicked while another page is loading', async function() {
     // The bar shown while a page loads loaded that page again, whichever page was clicked.
     await openSearch();
     await search('film');
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film', 5));
+    await answerSearch(0, answer('Film', 5));
     await shown();
     const clickPage = (page) => browser.execute((page) => {
       const pages = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.pages;
@@ -180,27 +235,29 @@ describe('Subtitle search', function() {
     }, page);
     await clickPage(2);
     await clickPage(4);
-    const pagesAsked = await browser.execute(() => window.__requests.map((r) => r.options.query.page || '1'));
+    // The film's pages: by its IMDb id.
+    const pagesAsked = await browser.execute(() => window.__requests.filter((r) => r.options.query.imdb_id)
+        .map((r) => r.options.query.page || '1'));
     expect(pagesAsked).toEqual(['1', '2', '4']);
   });
 
   /**
    * Clicks the first result, answers its download link request, and leaves the
-   * subtitle file's request waiting.
+   * subtitle file's request (number 4) waiting.
    * @return {Promise<void>}
    */
   async function startDownload() {
     await search('film');
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film'));
+    await answerSearch(0, answer('Film'));
     await shown();
     await browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2),
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 4),
         {timeout: 15000, timeoutMsg: 'choosing a result asked for no download link'});
-    await browser.execute((link) => window.__requests[1].resolve({response: {link}}), DOWNLOAD_LINK);
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 3),
+    await browser.execute((link) => window.__requests[3].resolve({response: {link}}), DOWNLOAD_LINK);
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 5),
         {timeout: 15000, timeoutMsg: 'the subtitle file was never fetched from its link'});
   }
 
@@ -215,7 +272,7 @@ describe('Subtitle search', function() {
    * @param {string} text - The file.
    * @return {Promise<void>}
    */
-  const answerFile = (text) => browser.execute((text) => window.__requests[2].resolve({
+  const answerFile = (text) => browser.execute((text) => window.__requests[4].resolve({
     status: 200, response: new TextEncoder().encode(text).buffer, getResponseHeader: () => null,
   }), text);
 
@@ -250,21 +307,21 @@ describe('Subtitle search', function() {
     // whatever its scheme or host (#189).
     await openSearch();
     await search('film');
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film'));
+    await answerSearch(0, answer('Film'));
     await shown();
     await browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true}));
     });
-    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 2),
+    await browser.waitUntil(async () => browser.execute(() => window.__requests.length === 4),
         {timeout: 10000, timeoutMsg: 'the picked subtitle was never asked for'});
     // Closed first, so the failure shows no alert to wait on.
     await browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.closeUI();
-      window.__requests[1].resolve({response: {link: 'https://dl.example/sub.vtt'}});
+      window.__requests[3].resolve({response: {link: 'https://dl.example/sub.vtt'}});
     });
     const state = await shown();
-    expect(state.requests).toBe(2);
+    expect(state.requests).toBe(4);
     expect(await trackLabels()).toEqual([]);
   });
 
@@ -273,21 +330,23 @@ describe('Subtitle search', function() {
     // "downloading" mark, and the result ignored every click after.
     await openSearch();
     await search('film');
-    await browser.execute((answer) => window.__requests[0].resolve(answer), answer('Film'));
+    await answerSearch(0, answer('Film'));
+    await shown();
     const click = () => browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui.results
           .querySelector('.subtitle-result-container').dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
     });
     await click();
+    await asked(3);
     await browser.execute(() => {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.closeUI();
-      window.__requests[1].reject(new Error('offline'));
+      window.__requests[3].reject(new Error('offline'));
     });
     await shown();
     await browser.execute(() => window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.openUI());
     await click();
     const state = await shown();
     console.log('      requests:', state.requests);
-    expect(state.requests).toBe(3);
+    expect(state.requests).toBe(5);
   });
 });

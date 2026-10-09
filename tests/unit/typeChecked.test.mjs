@@ -44,6 +44,8 @@ const CHECKED = [
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/URLUtils.mjs',
   'chrome/player/utils/Compression.mjs',
+  'chrome/player/utils/MediaTitle.mjs',
+  'chrome/player/ui/subtitles/SubtitleSearchTitles.mjs',
   'native-host/faststream-mpv-host.mjs',
 ];
 

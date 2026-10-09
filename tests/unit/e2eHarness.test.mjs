@@ -179,10 +179,12 @@ describe('sendFile', () => {
 // demo host being slow or down failed both CI jobs (#255). Real streams are the live
 // suite's (live-specs/), which is never part of CI.
 describe('the e2e suites CI runs', () => {
-  // Hosts the specs name without fetching: reserved test names, and a subtitle search
-  // result's link, which the stubbed search returns and nothing opens.
+  // Hosts the specs name without fetching: reserved test names, a subtitle search result's
+  // link, which the stubbed search returns and nothing opens, and the search's API, whose
+  // requests the stub answers from recorded answers (subtitle-search-titles.e2e.mjs).
   const named = (host) => host === '127.0.0.1' || host === 'localhost' || host === 'example.com' ||
-    /\.(test|example)$/.test(host) || !host.includes('.') || host === 'www.opensubtitles.com';
+    /\.(test|example)$/.test(host) || !host.includes('.') || host === 'www.opensubtitles.com' ||
+    host === 'api.opensubtitles.com';
 
   it('stream nothing from a public host', () => {
     const root = path.resolve(import.meta.dirname, '../e2e');

@@ -1,0 +1,479 @@
+{
+ "path": "features",
+ "query": {
+  "query": "the bear",
+  "type": "tvshow"
+ },
+ "recorded": "2026-10-09",
+ "data": [
+  {
+   "id": "12737",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "12737",
+    "title": "masha and the bear",
+    "original_title": "Маша и Медведь",
+    "year": "2007",
+    "imdb_id": 1884856,
+    "tmdb_id": 46080,
+    "subtitles_counts": {
+     "ar": 7,
+     "bs": 4,
+     "de": 41,
+     "en": 85,
+     "es": 20,
+     "fa": 8,
+     "hr": 1,
+     "hu": 26,
+     "id": 39,
+     "pt-PT": 24,
+     "ro": 35,
+     "ru": 31,
+     "sr": 1,
+     "vi": 25
+    }
+   }
+  },
+  {
+   "id": "12681",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "12681",
+    "title": "where the bears are",
+    "original_title": "Where the Bears Are",
+    "year": "2012",
+    "imdb_id": 2298250,
+    "tmdb_id": 69308,
+    "subtitles_counts": {
+     "de": 47,
+     "el": 25,
+     "en": 48,
+     "es": 54,
+     "fr": 48,
+     "hu": 23,
+     "id": 2,
+     "it": 71,
+     "ja": 48,
+     "nl": 7,
+     "pl": 6,
+     "pt-BR": 33,
+     "pt-PT": 15,
+     "ru": 48,
+     "th": 35,
+     "tl": 48,
+     "tr": 47,
+     "zh-CN": 96
+    }
+   }
+  },
+  {
+   "id": "8233",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "8233",
+    "title": "disney's adventures of the gummi bears",
+    "original_title": "Disney's Adventures of the Gummi Bears",
+    "year": "1985",
+    "imdb_id": 88528,
+    "tmdb_id": 1931,
+    "subtitles_counts": {
+     "ar": 65,
+     "cs": 1,
+     "el": 4,
+     "en": 30,
+     "hr": 2,
+     "ru": 34,
+     "sk": 1,
+     "uk": 34
+    }
+   }
+  },
+  {
+   "id": "14270",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "14270",
+    "title": "meet the romans with mary beard",
+    "original_title": "Meet the Romans with Mary Beard",
+    "year": "2012",
+    "imdb_id": 2656614,
+    "tmdb_id": 74778,
+    "subtitles_counts": {
+     "en": 10,
+     "es": 3,
+     "hr": 4,
+     "ro": 4
+    }
+   }
+  },
+  {
+   "id": "8413",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "8413",
+    "title": "the care bears",
+    "original_title": "The Care Bears",
+    "year": "1985",
+    "imdb_id": 284713,
+    "tmdb_id": 2264,
+    "subtitles_counts": {
+     "en": 1
+    }
+   }
+  },
+  {
+   "id": "7329",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "7329",
+    "title": "bear in the big blue house",
+    "original_title": "Bear in the Big Blue House",
+    "year": "1997",
+    "imdb_id": 173664,
+    "tmdb_id": 207,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "15322",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "15322",
+    "title": "the island with bear grylls",
+    "original_title": "The Island with Bear Grylls",
+    "year": "2014",
+    "imdb_id": 3725394,
+    "tmdb_id": 62177,
+    "subtitles_counts": {
+     "zh-CN": 1
+    }
+   }
+  },
+  {
+   "id": "8721",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "8721",
+    "title": "the pall bearer's revue",
+    "original_title": "The Pall Bearer's Revue",
+    "year": "1992",
+    "imdb_id": 103507,
+    "tmdb_id": 30406,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "13023",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "13023",
+    "title": "the bear family and me",
+    "original_title": "The Bear Family and Me",
+    "year": "2011",
+    "imdb_id": 2315439,
+    "tmdb_id": 34931,
+    "subtitles_counts": {
+     "fi": 3,
+     "nl": 3
+    }
+   }
+  },
+  {
+   "id": "17166",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "17166",
+    "title": "the polar bear family and me",
+    "original_title": null,
+    "year": "2013",
+    "imdb_id": 2835830,
+    "tmdb_id": 65108,
+    "subtitles_counts": {
+     "en": 1,
+     "sr": 1
+    }
+   }
+  },
+  {
+   "id": "2494450",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2494450",
+    "title": "the berenstain bears",
+    "original_title": null,
+    "year": "1985",
+    "imdb_id": 364793,
+    "tmdb_id": null,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "2064308",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2064308",
+    "title": "the miracle of teddy bear",
+    "original_title": "คุณหมีปาฏิหาริย์",
+    "year": "2022",
+    "imdb_id": 19729114,
+    "tmdb_id": 196103,
+    "subtitles_counts": {
+     "de": 16,
+     "fr": 7,
+     "id": 16
+    }
+   }
+  },
+  {
+   "id": "1455953",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1455953",
+    "title": "b. j. and the bear",
+    "original_title": "B. J. and the Bear",
+    "year": "1978",
+    "imdb_id": 78564,
+    "tmdb_id": 961,
+    "subtitles_counts": {
+     "ar": 2,
+     "en": 12,
+     "id": 1,
+     "nl": 1
+    }
+   }
+  },
+  {
+   "id": "1105019",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1105019",
+    "title": "the adventures of paddington bear",
+    "original_title": "The Adventures of Paddington Bear",
+    "year": "1997",
+    "imdb_id": 314975,
+    "tmdb_id": 11732,
+    "subtitles_counts": {
+     "en": 26,
+     "id": 1
+    }
+   }
+  },
+  {
+   "id": "2494531",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2494531",
+    "title": "the little bear",
+    "original_title": null,
+    "year": "1988",
+    "imdb_id": 5493240,
+    "tmdb_id": 209836,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "1396824",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1396824",
+    "title": "running wild with bear grylls: the challenge",
+    "original_title": "Running Wild with Bear Grylls: The Challenge",
+    "year": "2022",
+    "imdb_id": 21383124,
+    "tmdb_id": 204577,
+    "subtitles_counts": {
+     "pt-PT": 11
+    }
+   }
+  },
+  {
+   "id": "2957153",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2957153",
+    "title": "into the wild with bear grylls & ajay devgn",
+    "original_title": "Into The Wild With Bear Grylls & Ajay Devgn",
+    "year": "2021",
+    "imdb_id": 15662470,
+    "tmdb_id": 137411,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "1385125",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1385125",
+    "title": "the bear",
+    "original_title": "The Bear",
+    "year": "2022",
+    "imdb_id": 14452776,
+    "tmdb_id": 136315,
+    "subtitles_counts": {
+     "ar": 152,
+     "be": 19,
+     "bg": 95,
+     "cs": 19,
+     "da": 56,
+     "de": 47,
+     "ea": 86,
+     "el": 64,
+     "en": 242,
+     "es": 157,
+     "et": 65,
+     "fa": 230,
+     "fi": 64,
+     "fr": 59,
+     "he": 84,
+     "hr": 45,
+     "hu": 51,
+     "id": 95,
+     "it": 124,
+     "ja": 47,
+     "ko": 49,
+     "lv": 1,
+     "nb": 10,
+     "nl": 130,
+     "no": 64,
+     "pl": 93,
+     "pt-BR": 170,
+     "pt-PT": 97,
+     "ro": 145,
+     "ru": 51,
+     "sl": 1,
+     "sr": 47,
+     "sv": 60,
+     "th": 64,
+     "tr": 100,
+     "uk": 38,
+     "vi": 69,
+     "zh-CN": 39,
+     "zh-TW": 20
+    }
+   }
+  },
+  {
+   "id": "3034972",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "3034972",
+    "title": "the hillbilly bears",
+    "original_title": null,
+    "year": "1965",
+    "imdb_id": 11427284,
+    "tmdb_id": null,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "2957023",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2957023",
+    "title": "eddy and the bear",
+    "original_title": "Eddy and the Bear",
+    "year": "2001",
+    "imdb_id": 1535177,
+    "tmdb_id": 225105,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "1070062",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1070062",
+    "title": "mary beard's shock of the nude",
+    "original_title": "Mary Beard's Shock of the Nude",
+    "year": "2020",
+    "imdb_id": 11167868,
+    "tmdb_id": 99081,
+    "subtitles_counts": {
+     "en": 2
+    }
+   }
+  },
+  {
+   "id": "2956890",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2956890",
+    "title": "masha and the bear",
+    "original_title": null,
+    "year": "2007",
+    "imdb_id": 13056038,
+    "tmdb_id": null,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "1432688",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "1432688",
+    "title": "the berenstain bears",
+    "original_title": "The Berenstain Bears",
+    "year": "1985",
+    "imdb_id": 233033,
+    "tmdb_id": 10318,
+    "subtitles_counts": {
+     "en": 17
+    }
+   }
+  },
+  {
+   "id": "2242642",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "2242642",
+    "title": "bamse -the world's strongest bear",
+    "original_title": "Bamse - världens starkaste björn",
+    "year": "1972",
+    "imdb_id": 235912,
+    "tmdb_id": 55645,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "3014572",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "3014572",
+    "title": "baahubali: the torch bearer",
+    "original_title": null,
+    "year": "2026",
+    "imdb_id": 43620256,
+    "tmdb_id": 326122,
+    "subtitles_counts": {}
+   }
+  },
+  {
+   "id": "722232",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "722232",
+    "title": "polar bear: spy on the ice",
+    "original_title": null,
+    "year": "2010",
+    "imdb_id": 6979202,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "sv": 2
+    }
+   }
+  },
+  {
+   "id": "3035450",
+   "type": "tvshow",
+   "attributes": {
+    "feature_id": "3035450",
+    "title": "the chosen in the wild with bear grylls",
+    "original_title": null,
+    "year": "2026",
+    "imdb_id": 35781996,
+    "tmdb_id": 294141,
+    "subtitles_counts": {}
+   }
+  }
+ ]
+}

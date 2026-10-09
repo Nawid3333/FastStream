@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Odcinek #"
     },
-    "player_opensubtitles_type": {
-        "message": "Typ"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Wszystkie"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Film"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Odcinek"
-    },
     "player_opensubtitles_language": {
         "message": "Język"
     },
     "player_opensubtitles_year": {
         "message": "Rok"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Sortuj według"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Pobrania"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Data przesłania"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Ocena"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Głosy"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Sortuj"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Malejąco"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Rosnąco"
     },
     "player_opensubtitles_searching": {
         "message": "Wyszukiwanie..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Brak wyników!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Inne tytuły:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Brak w $1 dla tego tytułu: wyświetlane są wszystkie języki."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 pobrań"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Dla głuchych i niedosłyszących"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Przetłumaczono maszynowo"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Od zaufanego użytkownika"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles ogranicza pobieranie napisów! Nie masz już dostępnych pobrań! Twój limit zostanie zresetowany za $1"

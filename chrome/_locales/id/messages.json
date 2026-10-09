@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Episode #"
     },
-    "player_opensubtitles_type": {
-        "message": "Jenis"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Semua"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Film"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Episode"
-    },
     "player_opensubtitles_language": {
         "message": "Bahasa"
     },
     "player_opensubtitles_year": {
         "message": "Tahun"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Urutkan berdasarkan"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Unduhan"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Tanggal Unggah"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Penilaian"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Suara"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Urutkan"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Menurun"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Naik"
     },
     "player_opensubtitles_searching": {
         "message": "Mencari..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Tidak ada hasil!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Judul lain:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Tidak ada dalam $1 untuk judul ini: semua bahasa ditampilkan."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 unduhan"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Untuk tuli dan gangguan pendengaran"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Terjemahan mesin"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Dari pengunggah tepercaya"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles membatasi unduhan subtitle! Anda sudah kehabisan kuota unduhan! Kuota Anda akan direset dalam $1"

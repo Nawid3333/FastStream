@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "エピソード #"
     },
-    "player_opensubtitles_type": {
-        "message": "タイプ"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "すべて"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "映画"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "エピソード"
-    },
     "player_opensubtitles_language": {
         "message": "言語"
     },
     "player_opensubtitles_year": {
         "message": "年"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "並べ替え基準"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "ダウンロード"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "アップロード日時"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "評価"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "投票"
-    },
-    "player_opensubtitles_sort": {
-        "message": "ソート"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "降順"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "昇順"
     },
     "player_opensubtitles_searching": {
         "message": "検索中..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "結果が見つかりません!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "他のタイトル："
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "このタイトルには$1の字幕がありません：すべての言語を表示しています。"
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 ダウンロード"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "ろう者・難聴者向け"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "機械翻訳"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "信頼できるアップローダーから"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles は字幕のダウンロードを制限します! ダウンロードの残り回数がありません! クォータは、 $1 でリセットされます。"

@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "集 #"
     },
-    "player_opensubtitles_type": {
-        "message": "類型"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "全部"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "電影"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "影集"
-    },
     "player_opensubtitles_language": {
         "message": "語言"
     },
     "player_opensubtitles_year": {
         "message": "年份"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "排序依據"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "下載次數"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "上傳日期"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "評分"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "票數"
-    },
-    "player_opensubtitles_sort": {
-        "message": "排序"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "遞減"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "遞增"
     },
     "player_opensubtitles_searching": {
         "message": "搜尋中..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "找不到結果！"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "其他標題："
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "此標題沒有 $1 字幕：正在顯示所有語言。"
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 次下載"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "適用於聾人及聽障人士"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "機器翻譯"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "來自可信賴的上傳者"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles 限制字幕下載！您已無剩餘下載次數！您的配額將於 $1 後重置"

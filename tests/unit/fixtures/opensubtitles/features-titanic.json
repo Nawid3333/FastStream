@@ -1,0 +1,1289 @@
+{
+ "path": "features",
+ "query": {
+  "query": "titanic"
+ },
+ "recorded": "2026-10-09",
+ "data": [
+  {
+   "id": "646407",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "646407",
+    "feature_type": "Movie",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "1997",
+    "imdb_id": 120338,
+    "tmdb_id": 597,
+    "subtitles_counts": {
+     "ar": 45,
+     "bg": 17,
+     "bn": 6,
+     "bs": 3,
+     "ca": 1,
+     "cs": 19,
+     "da": 8,
+     "de": 8,
+     "ea": 1,
+     "el": 25,
+     "en": 105,
+     "es": 38,
+     "et": 13,
+     "fa": 31,
+     "fi": 14,
+     "fr": 16,
+     "he": 33,
+     "hi": 6,
+     "hr": 24,
+     "hu": 8,
+     "id": 20,
+     "is": 1,
+     "it": 8,
+     "ja": 4,
+     "ko": 6,
+     "ku": 2,
+     "lt": 2,
+     "lv": 1,
+     "mk": 1,
+     "ml": 4,
+     "mn": 1,
+     "ms": 11,
+     "my": 3,
+     "nl": 24,
+     "no": 5,
+     "pl": 35,
+     "pt-BR": 32,
+     "pt-PT": 20,
+     "ro": 72,
+     "ru": 11,
+     "sd": 1,
+     "si": 2,
+     "sk": 2,
+     "sl": 23,
+     "sq": 1,
+     "sr": 19,
+     "sv": 7,
+     "ta": 1,
+     "te": 3,
+     "th": 2,
+     "tl": 1,
+     "tr": 44,
+     "uk": 2,
+     "ur": 1,
+     "vi": 17,
+     "ze": 1,
+     "zh-CN": 13,
+     "zh-TW": 8
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "540949",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "540949",
+    "feature_type": "Movie",
+    "title": "raise the titanic",
+    "original_title": "Raise the Titanic",
+    "year": "1980",
+    "imdb_id": 81400,
+    "tmdb_id": 24575,
+    "subtitles_counts": {
+     "ar": 2,
+     "bs": 2,
+     "cs": 1,
+     "el": 2,
+     "en": 6,
+     "es": 1,
+     "et": 1,
+     "fi": 2,
+     "hi": 1,
+     "hr": 1,
+     "id": 1,
+     "ms": 1,
+     "nl": 2,
+     "pl": 2,
+     "pt-BR": 1,
+     "pt-PT": 1,
+     "ro": 1,
+     "ru": 1,
+     "sr": 1,
+     "sv": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "11889",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "11889",
+    "feature_type": "Tvshow",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "2012",
+    "imdb_id": 1869152,
+    "tmdb_id": 39016,
+    "subtitles_counts": {
+     "bg": 5,
+     "cs": 1,
+     "de": 4,
+     "el": 6,
+     "en": 33,
+     "es": 5,
+     "fa": 1,
+     "fi": 4,
+     "he": 4,
+     "hr": 6,
+     "it": 7,
+     "ja": 1,
+     "nl": 5,
+     "pl": 1,
+     "pt-BR": 7,
+     "pt-PT": 6,
+     "ro": 8,
+     "sr": 2,
+     "sv": 4,
+     "tr": 1
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "12412",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "12412",
+    "feature_type": "Tvshow",
+    "title": "titanic: blood and steel",
+    "original_title": "Titanic: Blood and Steel",
+    "year": "2012",
+    "imdb_id": 1695366,
+    "tmdb_id": 40161,
+    "subtitles_counts": {
+     "ar": 1,
+     "da": 12,
+     "de": 12,
+     "el": 7,
+     "en": 46,
+     "es": 8,
+     "fa": 1,
+     "hu": 8,
+     "id": 6,
+     "nl": 32,
+     "pl": 1,
+     "pt-BR": 12,
+     "ro": 5,
+     "sr": 4,
+     "tr": 4
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "561553",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "561553",
+    "feature_type": "Movie",
+    "title": "titanic 2",
+    "original_title": "Titanic II",
+    "year": "2010",
+    "imdb_id": 1640571,
+    "tmdb_id": 44918,
+    "subtitles_counts": {
+     "ar": 4,
+     "bg": 1,
+     "bn": 1,
+     "cs": 1,
+     "da": 2,
+     "el": 1,
+     "en": 3,
+     "es": 2,
+     "fa": 1,
+     "fi": 2,
+     "fr": 2,
+     "hr": 2,
+     "hu": 1,
+     "id": 3,
+     "it": 2,
+     "mk": 1,
+     "nl": 2,
+     "pl": 1,
+     "pt-BR": 3,
+     "pt-PT": 3,
+     "ro": 7,
+     "ru": 1,
+     "sl": 1,
+     "sr": 5,
+     "sv": 1,
+     "tr": 2,
+     "zh-CN": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "421022",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "421022",
+    "feature_type": "Episode",
+    "title": "a titanic problem",
+    "original_title": null,
+    "year": "2018",
+    "imdb_id": 8047474,
+    "tmdb_id": 1500015,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 2,
+     "cs": 1,
+     "de": 1,
+     "el": 2,
+     "en": 4,
+     "es": 2,
+     "fa": 2,
+     "fi": 1,
+     "fr": 2,
+     "he": 1,
+     "hu": 1,
+     "it": 4,
+     "ko": 1,
+     "pt-BR": 1,
+     "pt-PT": 1,
+     "ro": 1,
+     "ru": 1,
+     "sl": 1,
+     "sv": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2815636",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2815636",
+    "feature_type": "Tvshow",
+    "title": "titanic sinks tonight",
+    "original_title": null,
+    "year": "2025",
+    "imdb_id": 38639981,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "de": 4,
+     "en": 8,
+     "fa": 1,
+     "fr": 4,
+     "nl": 6,
+     "pt-BR": 8,
+     "tr": 1
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "549033",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "549033",
+    "feature_type": "Movie",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "1953",
+    "imdb_id": 46435,
+    "tmdb_id": 16535,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "cs": 1,
+     "da": 1,
+     "de": 1,
+     "el": 2,
+     "en": 10,
+     "es": 1,
+     "fa": 1,
+     "fi": 2,
+     "fr": 2,
+     "hr": 1,
+     "hu": 1,
+     "id": 2,
+     "it": 4,
+     "nl": 2,
+     "no": 1,
+     "pl": 2,
+     "pt-BR": 4,
+     "pt-PT": 1,
+     "ro": 2,
+     "sr": 5,
+     "sv": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "527684",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "527684",
+    "feature_type": "Movie",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "1943",
+    "imdb_id": 36443,
+    "tmdb_id": 11021,
+    "subtitles_counts": {
+     "cs": 2,
+     "de": 3,
+     "el": 1,
+     "en": 4,
+     "fr": 3,
+     "pl": 1,
+     "pt-BR": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "606524",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "606524",
+    "feature_type": "Movie",
+    "title": "titanic: the final word",
+    "original_title": "Titanic: The Final Word",
+    "year": "2012",
+    "imdb_id": 2132504,
+    "tmdb_id": 102041,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 2,
+     "fi": 1,
+     "pt-BR": 1,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1423465",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1423465",
+    "feature_type": "Movie",
+    "title": "the blind man who did not want to see titanic",
+    "original_title": "Sokea mies, joka ei halunnut nähdä Titanicia",
+    "year": "2021",
+    "imdb_id": 13328824,
+    "tmdb_id": 716855,
+    "subtitles_counts": {
+     "ar": 1,
+     "da": 1,
+     "de": 2,
+     "el": 1,
+     "en": 1,
+     "es": 1,
+     "fa": 1,
+     "fi": 1,
+     "hu": 1,
+     "it": 2,
+     "ko": 1,
+     "pl": 1,
+     "pt-BR": 2,
+     "ro": 2,
+     "sv": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "646765",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "646765",
+    "feature_type": "Movie",
+    "title": "s.o.s. titanic",
+    "original_title": "S.O.S. Titanic",
+    "year": "1979",
+    "imdb_id": 79836,
+    "tmdb_id": 86938,
+    "subtitles_counts": {
+     "bg": 1,
+     "cs": 2,
+     "el": 1,
+     "en": 5,
+     "es": 2,
+     "fi": 4,
+     "fr": 1,
+     "nl": 1,
+     "pl": 1,
+     "pt-BR": 3,
+     "pt-PT": 1,
+     "ro": 2,
+     "ru": 1,
+     "sl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "577636",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "577636",
+    "feature_type": "Movie",
+    "title": "le syndrome du titanic",
+    "original_title": "Le syndrome du Titanic",
+    "year": "2009",
+    "imdb_id": 1503718,
+    "tmdb_id": 52374,
+    "subtitles_counts": {
+     "es": 1,
+     "fr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2792454",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2792454",
+    "feature_type": "Movie",
+    "title": "unsinkable: titanic untold",
+    "original_title": "Unsinkable: Titanic Untold",
+    "year": "2018",
+    "imdb_id": 7137074,
+    "tmdb_id": 1159452,
+    "subtitles_counts": {
+     "en": 3,
+     "es": 1,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "373298",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "373298",
+    "feature_type": "Episode",
+    "title": "titanic in the sky (qantas flight 32)",
+    "original_title": "Titanic in the Sky (Qantas Flight 32)",
+    "year": "2013",
+    "imdb_id": 3234896,
+    "tmdb_id": 974224,
+    "subtitles_counts": {
+     "el": 1,
+     "en": 1,
+     "hr": 2,
+     "zh-CN": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "559024",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "559024",
+    "feature_type": "Movie",
+    "title": "the chambermaid on the titanic",
+    "original_title": "La femme de chambre du Titanic",
+    "year": "1997",
+    "imdb_id": 129923,
+    "tmdb_id": 115872,
+    "subtitles_counts": {
+     "en": 2,
+     "es": 1,
+     "he": 1,
+     "pt-BR": 2,
+     "ro": 1,
+     "sr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "562806",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "562806",
+    "feature_type": "Movie",
+    "title": "titanic: the complete story",
+    "original_title": "Titanic: The Complete Story",
+    "year": "1994",
+    "imdb_id": 158273,
+    "tmdb_id": 285652,
+    "subtitles_counts": {
+     "de": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "226996",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "226996",
+    "feature_type": "Episode",
+    "title": "what sank titanic?",
+    "original_title": "What Sank Titanic?",
+    "year": "2011",
+    "imdb_id": 2034920,
+    "tmdb_id": 1329198,
+    "subtitles_counts": {
+     "ar": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "585941",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "585941",
+    "feature_type": "Movie",
+    "title": "nazi titanic",
+    "original_title": "Nazi Titanic",
+    "year": "2012",
+    "imdb_id": 2363459,
+    "tmdb_id": 463397,
+    "subtitles_counts": {
+     "ar": 1,
+     "bg": 1,
+     "fi": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "613451",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "613451",
+    "feature_type": "Movie",
+    "title": "titanic: 100 years in 3d",
+    "original_title": "Titanic: 100 Years in 3D",
+    "year": "2012",
+    "imdb_id": 2414932,
+    "tmdb_id": 136331,
+    "subtitles_counts": {
+     "fr": 1,
+     "hr": 1,
+     "nl": 1,
+     "pl": 1,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1760174",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1760174",
+    "feature_type": "Episode",
+    "title": "titanic baker, psychic scammer and cuban swimmer crisis",
+    "original_title": "Titanic Baker, Psychic Scammer and Cuban Swimmer Crisis",
+    "year": "2018",
+    "imdb_id": 8844304,
+    "tmdb_id": 1850560,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "253963",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "253963",
+    "feature_type": "Episode",
+    "title": "the iceberg that sank the titanic",
+    "original_title": "The Iceberg That Sank the Titanic",
+    "year": "2006",
+    "imdb_id": 1326627,
+    "tmdb_id": 592952,
+    "subtitles_counts": {
+     "bg": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2736231",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2736231",
+    "feature_type": "Episode",
+    "title": "titanic (1): a clear and starry night",
+    "original_title": "Titanic (1): A Clear and Starry Night",
+    "year": "2024",
+    "imdb_id": 32084765,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "560795",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "560795",
+    "feature_type": "Movie",
+    "title": "titanic",
+    "original_title": null,
+    "year": "1989",
+    "imdb_id": 409390,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2736235",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2736235",
+    "feature_type": "Episode",
+    "title": "titanic (2): the last moments",
+    "original_title": "Titanic (2): The Last Moments",
+    "year": "2024",
+    "imdb_id": 32084766,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "648378",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "648378",
+    "feature_type": "Movie",
+    "title": "explorers: from the titanic to the moon",
+    "original_title": "Explorers: From The Titanic To The Moon",
+    "year": "2006",
+    "imdb_id": 871860,
+    "tmdb_id": 63790,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "622677",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "622677",
+    "feature_type": "Movie",
+    "title": "aliens vs titanic",
+    "original_title": "Aliens vs Titanic",
+    "year": "2017",
+    "imdb_id": 4247440,
+    "tmdb_id": 467839,
+    "subtitles_counts": {
+     "bn": 1,
+     "en": 2,
+     "es": 1,
+     "fa": 1,
+     "fi": 1,
+     "ro": 1,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "379650",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "379650",
+    "feature_type": "Episode",
+    "title": "\"nostalgia critic\" the other animated titanic movie",
+    "original_title": null,
+    "year": "2011",
+    "imdb_id": 1915443,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2027447",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2027447",
+    "feature_type": "Movie",
+    "title": "titanic: the musical",
+    "original_title": "Titanic: The Musical",
+    "year": "2023",
+    "imdb_id": 28656527,
+    "tmdb_id": 1181637,
+    "subtitles_counts": {
+     "en": 1,
+     "es": 1,
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "577916",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "577916",
+    "feature_type": "Movie",
+    "title": "titanic at 100: mystery solved",
+    "original_title": "Titanic at 100: Mystery Solved",
+    "year": "2012",
+    "imdb_id": 2302931,
+    "tmdb_id": 149911,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 1,
+     "es": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "520102",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "520102",
+    "feature_type": "Movie",
+    "title": "titanic 2000",
+    "original_title": "Titanic 2000",
+    "year": "1999",
+    "imdb_id": 212559,
+    "tmdb_id": 4240,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 1,
+     "sl": 2,
+     "tr": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1110469",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1110469",
+    "feature_type": "Tvshow",
+    "title": "titanic with len goodman",
+    "original_title": "Titanic with Len Goodman",
+    "year": "2012",
+    "imdb_id": 2336103,
+    "tmdb_id": 138064,
+    "subtitles_counts": {
+     "ru": 2
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "638428",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "638428",
+    "feature_type": "Movie",
+    "title": "titanic: 20 years later with james cameron",
+    "original_title": "Titanic: 20 Years Later with James Cameron",
+    "year": "2017",
+    "imdb_id": 7620568,
+    "tmdb_id": 489493,
+    "subtitles_counts": {
+     "ar": 2,
+     "da": 1,
+     "el": 1,
+     "en": 2,
+     "fi": 1,
+     "fr": 1,
+     "nl": 1,
+     "no": 1,
+     "pt-BR": 2,
+     "pt-PT": 1,
+     "ro": 1,
+     "sv": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "589385",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "589385",
+    "feature_type": "Movie",
+    "title": "titanic town",
+    "original_title": "Titanic Town",
+    "year": "1998",
+    "imdb_id": 127319,
+    "tmdb_id": 83036,
+    "subtitles_counts": {
+     "bs": 1,
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1672792",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1672792",
+    "feature_type": "Episode",
+    "title": "theodore roosevelt, eliot ness, spirit of america, the titanic, rosa parks, bigfoot",
+    "original_title": "Theodore Roosevelt, Eliot Ness, Spirit of America, The Titanic, Rosa Parks, Bigfoot",
+    "year": "2010",
+    "imdb_id": 2093662,
+    "tmdb_id": 857183,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "609972",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "609972",
+    "feature_type": "Movie",
+    "title": "drain the titanic",
+    "original_title": "Drain the Titanic",
+    "year": "2015",
+    "imdb_id": 4743564,
+    "tmdb_id": 428950,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 1,
+     "fi": 1,
+     "he": 1,
+     "nl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1725323",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1725323",
+    "feature_type": "Episode",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "2006",
+    "imdb_id": 771984,
+    "tmdb_id": 1215144,
+    "subtitles_counts": {
+     "sl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1760167",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1760167",
+    "feature_type": "Episode",
+    "title": "titanic hustle, sherlock to the rescue and america's greatest athlete",
+    "original_title": "Titanic Hustle, Sherlock to the Rescue and America's Greatest Athlete",
+    "year": "2019",
+    "imdb_id": 8938312,
+    "tmdb_id": 3245809,
+    "subtitles_counts": {
+     "en": 4
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2210793",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2210793",
+    "feature_type": "Movie",
+    "title": "10 mistakes that sank the titanic",
+    "original_title": "10 Mistakes That Sank The Titanic",
+    "year": "2019",
+    "imdb_id": 11281184,
+    "tmdb_id": 693343,
+    "subtitles_counts": {
+     "no": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1565838",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1565838",
+    "feature_type": "Episode",
+    "title": "titanic 3d",
+    "original_title": "Titanic 3D",
+    "year": "2012",
+    "imdb_id": 2577752,
+    "tmdb_id": 2861566,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1604541",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1604541",
+    "feature_type": "Episode",
+    "title": "titanic pawn",
+    "original_title": "Titanic Pawn",
+    "year": "2016",
+    "imdb_id": 5295510,
+    "tmdb_id": 1559563,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1598795",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1598795",
+    "feature_type": "Episode",
+    "title": "ames pyramid, straus titanic, cracking the zodiac",
+    "original_title": "Ames Pyramid, Straus Titanic, Cracking the Zodiac",
+    "year": "2013",
+    "imdb_id": 3113068,
+    "tmdb_id": 993185,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "641160",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "641160",
+    "feature_type": "Movie",
+    "title": "titanic's tragic twin: the britannic disaster",
+    "original_title": "Titanic's Tragic Twin: The Britannic Disaster",
+    "year": "2016",
+    "imdb_id": 7140714,
+    "tmdb_id": 436597,
+    "subtitles_counts": {
+     "en": 2,
+     "pt-BR": 1,
+     "sl": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "534516",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "534516",
+    "feature_type": "Movie",
+    "title": "buffet titanic",
+    "original_title": "Bife 'Titanik'",
+    "year": "1979",
+    "imdb_id": 135804,
+    "tmdb_id": 49129,
+    "subtitles_counts": {
+     "en": 2,
+     "es": 1,
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2947559",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2947559",
+    "feature_type": "Movie",
+    "title": "cinematic titanic: doomsday machine",
+    "original_title": null,
+    "year": "2008",
+    "imdb_id": 1290392,
+    "tmdb_id": 60980,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "3079421",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "3079421",
+    "feature_type": "Movie",
+    "title": "cinematic titanic: the oozing skull",
+    "original_title": "Cinematic Titanic: The Oozing Skull",
+    "year": "2007",
+    "imdb_id": 1210513,
+    "tmdb_id": 570897,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "565709",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "565709",
+    "feature_type": "Movie",
+    "title": "titanica",
+    "original_title": "Titanica",
+    "year": "1992",
+    "imdb_id": 105601,
+    "tmdb_id": 45929,
+    "subtitles_counts": {
+     "hr": 3
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2807122",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2807122",
+    "feature_type": "Movie",
+    "title": "mysteries from the grave: titanic",
+    "original_title": null,
+    "year": "2022",
+    "imdb_id": 19369946,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "ar": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1610877",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1610877",
+    "feature_type": "Episode",
+    "title": "titanic tech",
+    "original_title": "Titanic Tech",
+    "year": "2004",
+    "imdb_id": 1007464,
+    "tmdb_id": 1023264,
+    "subtitles_counts": {
+     "da": 1,
+     "no": 1,
+     "sv": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "546795",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "546795",
+    "feature_type": "Movie",
+    "title": "titanic: untold stories",
+    "original_title": "Titanic: Untold Stories",
+    "year": "1998",
+    "imdb_id": 402540,
+    "tmdb_id": 185082,
+    "subtitles_counts": {
+     "en": 1,
+     "id": 1,
+     "ro": 2,
+     "ta": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2650064",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2650064",
+    "feature_type": "Episode",
+    "title": "titanic",
+    "original_title": "Titanic",
+    "year": "2006",
+    "imdb_id": 972121,
+    "tmdb_id": 1215150,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1543828",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1543828",
+    "feature_type": "Episode",
+    "title": "titanic survival",
+    "original_title": "Titanic Survival",
+    "year": "2012",
+    "imdb_id": 2443302,
+    "tmdb_id": 1057066,
+    "subtitles_counts": {
+     "en": 5
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2732697",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2732697",
+    "feature_type": "Episode",
+    "title": "sinking titanic",
+    "original_title": "Sinking Titanic",
+    "year": "2004",
+    "imdb_id": 768448,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1577586",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1577586",
+    "feature_type": "Episode",
+    "title": "heart of the ocean: the making of 'titanic'",
+    "original_title": "Heart of the Ocean: The Making of 'Titanic'",
+    "year": "1997",
+    "imdb_id": 471735,
+    "tmdb_id": 2483227,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "115677",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "115677",
+    "feature_type": "Episode",
+    "title": "\"mythbusters\" sinking titanic/goldfish memory/trombone explosion",
+    "original_title": null,
+    "year": "2004",
+    "imdb_id": 768499,
+    "tmdb_id": 1001605,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2459010",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2459010",
+    "feature_type": "Movie",
+    "title": "titanic: how it really sank",
+    "original_title": "Titanic: How It Really Sank",
+    "year": "2009",
+    "imdb_id": 2241683,
+    "tmdb_id": 112081,
+    "subtitles_counts": {
+     "ar": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1449373",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1449373",
+    "feature_type": "Episode",
+    "title": "clash of the titanics",
+    "original_title": null,
+    "year": "2005",
+    "imdb_id": 613923,
+    "tmdb_id": 13317,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 1,
+     "id": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1519777",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1519777",
+    "feature_type": "Episode",
+    "title": "special effects: titanic and beyond",
+    "original_title": "Special Effects: Titanic and Beyond",
+    "year": "1999",
+    "imdb_id": 1398262,
+    "tmdb_id": 254727,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2419965",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2419965",
+    "feature_type": "Episode",
+    "title": "\"the passionate eye\" waking the titanic",
+    "original_title": null,
+    "year": "2013",
+    "imdb_id": 5829498,
+    "tmdb_id": null,
+    "subtitles_counts": {
+     "ar": 1,
+     "nl": 1,
+     "ro": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "151165",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "151165",
+    "feature_type": "Episode",
+    "title": "voyagers of the titanic",
+    "original_title": "Voyagers of the Titanic",
+    "year": "1983",
+    "imdb_id": 742370,
+    "tmdb_id": 361552,
+    "subtitles_counts": {
+     "de": 1,
+     "el": 1,
+     "en": 2,
+     "es": 1,
+     "nl": 1,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  }
+ ]
+}

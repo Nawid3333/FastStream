@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Episódio #"
     },
-    "player_opensubtitles_type": {
-        "message": "Tipo"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Tudo"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Filme"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Episódio"
-    },
     "player_opensubtitles_language": {
         "message": "Idioma"
     },
     "player_opensubtitles_year": {
         "message": "Ano"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Ordenar por"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Downloads"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Data de envio"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Avaliação"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Votos"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Ordenar"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Descendente"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Ascendente"
     },
     "player_opensubtitles_searching": {
         "message": "Buscando..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Nenhum resultado encontrado!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Outros títulos:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Nenhum em $1 para este título: mostrando todos os idiomas."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 downloads"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Para surdos e deficientes auditivos"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Traduzido por máquina"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "De um uploader confiável"
     },
     "player_opensubtitles_quota": {
         "message": "O OpenSubtitles limita os downloads de legendas! Você não tem mais downloads disponíveis! Sua cota é redefinida em $1"

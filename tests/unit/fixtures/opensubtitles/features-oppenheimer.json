@@ -1,0 +1,577 @@
+{
+ "path": "features",
+ "query": {
+  "query": "oppenheimer"
+ },
+ "recorded": "2026-10-09",
+ "data": [
+  {
+   "id": "1492864",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1492864",
+    "feature_type": "Movie",
+    "title": "oppenheimer",
+    "original_title": "Oppenheimer",
+    "year": "2023",
+    "imdb_id": 15398776,
+    "tmdb_id": 872585,
+    "subtitles_counts": {
+     "ar": 16,
+     "be": 1,
+     "bg": 9,
+     "bn": 4,
+     "cs": 5,
+     "da": 4,
+     "de": 8,
+     "ea": 3,
+     "el": 11,
+     "en": 15,
+     "es": 12,
+     "et": 3,
+     "fa": 14,
+     "fi": 5,
+     "fr": 7,
+     "he": 3,
+     "hr": 13,
+     "hu": 4,
+     "hy": 1,
+     "id": 6,
+     "is": 1,
+     "it": 8,
+     "ja": 11,
+     "ko": 1,
+     "lt": 1,
+     "lv": 5,
+     "ms": 1,
+     "nb": 1,
+     "nl": 7,
+     "no": 1,
+     "pl": 11,
+     "pt-BR": 12,
+     "pt-PT": 6,
+     "ro": 7,
+     "ru": 2,
+     "si": 4,
+     "sl": 4,
+     "sp": 1,
+     "sq": 2,
+     "sr": 8,
+     "sv": 2,
+     "th": 3,
+     "tr": 10,
+     "uk": 1,
+     "ur": 1,
+     "vi": 7,
+     "ze": 4,
+     "zh-CN": 6,
+     "zh-TW": 2
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1495976",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1495976",
+    "feature_type": "Tvshow",
+    "title": "oppenheimer",
+    "original_title": "Oppenheimer",
+    "year": "1980",
+    "imdb_id": 78037,
+    "tmdb_id": 8771,
+    "subtitles_counts": {
+     "en": 7
+    },
+    "seasons_count": 1
+   }
+  },
+  {
+   "id": "2817461",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2817461",
+    "feature_type": "Movie",
+    "title": "spionagefall robert oppenheimer",
+    "original_title": "Spionagefall Robert Oppenheimer",
+    "year": "2025",
+    "imdb_id": 37727446,
+    "tmdb_id": 1521971,
+    "subtitles_counts": {
+     "de": 1,
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "300384",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "300384",
+    "feature_type": "Episode",
+    "title": "joshua oppenheimer",
+    "original_title": "Joshua Oppenheimer",
+    "year": "2013",
+    "imdb_id": 3095618,
+    "tmdb_id": 160945,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1397048",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1397048",
+    "feature_type": "Episode",
+    "title": "the trials of j. robert oppenheimer",
+    "original_title": "The Trials of J. Robert Oppenheimer",
+    "year": "2009",
+    "imdb_id": 1347565,
+    "tmdb_id": 1408094,
+    "subtitles_counts": {
+     "en": 2,
+     "fa": 3,
+     "pt-BR": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1671611",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1671611",
+    "feature_type": "Episode",
+    "title": "michael oppenheimer",
+    "original_title": "Michael Oppenheimer",
+    "year": "2007",
+    "imdb_id": 956554,
+    "tmdb_id": 304365,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2772253",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2772253",
+    "feature_type": "Episode",
+    "title": "\"honest trailers\" oppenheimer",
+    "original_title": null,
+    "year": "2023",
+    "imdb_id": 30221758,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1550568",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1550568",
+    "feature_type": "Episode",
+    "title": "oppenheimer and the hollywood implosion",
+    "original_title": "Oppenheimer and The Hollywood Implosion",
+    "year": "2023",
+    "imdb_id": 28482447,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2695696",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2695696",
+    "feature_type": "Episode",
+    "title": "thanos vs. j. robert oppenheimer",
+    "original_title": "Thanos vs. J. Robert Oppenheimer",
+    "year": "2020",
+    "imdb_id": 12152228,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2065597",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2065597",
+    "feature_type": "Episode",
+    "title": "oppenheimer vs. heisenberg",
+    "original_title": "Oppenheimer vs. Heisenberg",
+    "year": "2015",
+    "imdb_id": 4222414,
+    "tmdb_id": 1070320,
+    "subtitles_counts": {
+     "vi": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2753647",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2753647",
+    "feature_type": "Episode",
+    "title": "the trials of oppenheimer",
+    "original_title": "The Trials of Oppenheimer",
+    "year": "2009",
+    "imdb_id": 31064565,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2724539",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2724539",
+    "feature_type": "Episode",
+    "title": "tony curtis / megalyn echikunwoke / oppenheimer",
+    "original_title": "Tony Curtis / Megalyn Echikunwoke / Oppenheimer",
+    "year": "2008",
+    "imdb_id": 1326544,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2676230",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2676230",
+    "feature_type": "Episode",
+    "title": "oppenheimer park",
+    "original_title": "Oppenheimer Park",
+    "year": "2001",
+    "imdb_id": 552220,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1692944",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1692944",
+    "feature_type": "Episode",
+    "title": "oppenheimer (6)",
+    "original_title": "Oppenheimer (6)",
+    "year": "1982",
+    "imdb_id": 2147689,
+    "tmdb_id": 422207,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "295763",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "295763",
+    "feature_type": "Episode",
+    "title": "oppenheimer (3)",
+    "original_title": "Oppenheimer (3)",
+    "year": "1982",
+    "imdb_id": 2147683,
+    "tmdb_id": 422202,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1692941",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1692941",
+    "feature_type": "Episode",
+    "title": "oppenheimer (5)",
+    "original_title": "Oppenheimer (5)",
+    "year": "1982",
+    "imdb_id": 2147687,
+    "tmdb_id": 422204,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1692937",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1692937",
+    "feature_type": "Episode",
+    "title": "oppenheimer (4)",
+    "original_title": "Oppenheimer (4)",
+    "year": "1982",
+    "imdb_id": 2147685,
+    "tmdb_id": 422203,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1692928",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1692928",
+    "feature_type": "Episode",
+    "title": "oppenheimer (2)",
+    "original_title": "Oppenheimer (2)",
+    "year": "1982",
+    "imdb_id": 2147681,
+    "tmdb_id": 422201,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "295760",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "295760",
+    "feature_type": "Episode",
+    "title": "oppenheimer (1)",
+    "original_title": "Oppenheimer (1)",
+    "year": "1982",
+    "imdb_id": 2147679,
+    "tmdb_id": 422199,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "295768",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "295768",
+    "feature_type": "Episode",
+    "title": "oppenheimer (7)",
+    "original_title": "Oppenheimer (7)",
+    "year": "1982",
+    "imdb_id": 2147691,
+    "tmdb_id": 422208,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2435238",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2435238",
+    "feature_type": "Movie",
+    "title": "the story of our time: the making of oppenheimer",
+    "original_title": "The Story of Our Time: The Making of Oppenheimer",
+    "year": "2023",
+    "imdb_id": 30700968,
+    "tmdb_id": 1264395,
+    "subtitles_counts": {
+     "en": 1,
+     "it": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2260973",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2260973",
+    "feature_type": "Movie",
+    "title": "\"film theory\" the bomb in oppenheimer isn't what you think...",
+    "original_title": null,
+    "year": "",
+    "imdb_id": 29483957,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1373430",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1373430",
+    "feature_type": "Movie",
+    "title": "the trials of j. robert oppenheimer",
+    "original_title": "The Trials of J. Robert Oppenheimer",
+    "year": "2008",
+    "imdb_id": 1559008,
+    "tmdb_id": 401783,
+    "subtitles_counts": {
+     "en": 1,
+     "fa": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "765209",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "765209",
+    "feature_type": "Episode",
+    "title": "mark jonathan harris & deborah oppenheimer",
+    "original_title": "Mark Jonathan Harris & Deborah Oppenheimer",
+    "year": "2019",
+    "imdb_id": 10235764,
+    "tmdb_id": 1849516,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2834294",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2834294",
+    "feature_type": "Movie",
+    "title": "oppenheimer after trinity",
+    "original_title": "Oppenheimer After Trinity",
+    "year": "2023",
+    "imdb_id": 28017314,
+    "tmdb_id": 1143770,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1781577",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1781577",
+    "feature_type": "Movie",
+    "title": "inside christopher nolan's oppenheimer",
+    "original_title": "Inside Christopher Nolan's Oppenheimer",
+    "year": "2023",
+    "imdb_id": 28522133,
+    "tmdb_id": 1152711,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1811966",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1811966",
+    "feature_type": "Movie",
+    "title": "the real oppenheimer",
+    "original_title": "The Real Oppenheimer",
+    "year": "2023",
+    "imdb_id": 28655290,
+    "tmdb_id": 1230570,
+    "subtitles_counts": {
+     "en": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1489168",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1489168",
+    "feature_type": "Movie",
+    "title": "to end all war: oppenheimer & the atomic bomb",
+    "original_title": "To End All War: Oppenheimer & the Atomic Bomb",
+    "year": "2023",
+    "imdb_id": 28240284,
+    "tmdb_id": 1149947,
+    "subtitles_counts": {
+     "ar": 4,
+     "bg": 1,
+     "bs": 1,
+     "cs": 2,
+     "da": 2,
+     "de": 2,
+     "el": 1,
+     "en": 4,
+     "es": 4,
+     "fa": 2,
+     "fi": 1,
+     "he": 1,
+     "hr": 1,
+     "hu": 2,
+     "id": 1,
+     "it": 1,
+     "ja": 2,
+     "ko": 1,
+     "nl": 2,
+     "pl": 3,
+     "pt-BR": 3,
+     "ro": 3,
+     "sl": 2,
+     "sr": 2,
+     "sv": 1,
+     "tr": 1,
+     "vi": 1
+    },
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2353011",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2353011",
+    "feature_type": "Movie",
+    "title": "\"the dick cavett show\" michael oppenheimer/robert h. boyle",
+    "original_title": null,
+    "year": "",
+    "imdb_id": 16219944,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "2435352",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "2435352",
+    "feature_type": "Episode",
+    "title": "ultimate weapon: oppenheimer and the atomic bomb.",
+    "original_title": "Ultimate Weapon: Oppenheimer and the Atomic Bomb.",
+    "year": "2005",
+    "imdb_id": 640834,
+    "tmdb_id": null,
+    "subtitles_counts": {},
+    "seasons_count": 0
+   }
+  },
+  {
+   "id": "1768744",
+   "type": "feature",
+   "attributes": {
+    "feature_id": "1768744",
+    "feature_type": "Movie",
+    "title": "oppenheimer: the real story",
+    "original_title": "Oppenheimer: The Real Story",
+    "year": "2023",
+    "imdb_id": 27192512,
+    "tmdb_id": 1142906,
+    "subtitles_counts": {
+     "ar": 1,
+     "en": 2,
+     "nl": 1
+    },
+    "seasons_count": 0
+   }
+  }
+ ]
+}

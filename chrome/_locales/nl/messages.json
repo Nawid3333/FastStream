@@ -317,47 +317,11 @@
     "player_opensubtitles_episodenum": {
         "message": "Aflevering #"
     },
-    "player_opensubtitles_type": {
-        "message": "Type"
-    },
-    "player_opensubtitles_type_all": {
-        "message": "Alles"
-    },
-    "player_opensubtitles_type_movie": {
-        "message": "Film"
-    },
-    "player_opensubtitles_type_episode": {
-        "message": "Aflevering"
-    },
     "player_opensubtitles_language": {
         "message": "Taal"
     },
     "player_opensubtitles_year": {
         "message": "Jaar"
-    },
-    "player_opensubtitles_sortby": {
-        "message": "Sorteren op"
-    },
-    "player_opensubtitles_sortby_downloads": {
-        "message": "Downloads"
-    },
-    "player_opensubtitles_sortby_date": {
-        "message": "Uploaddatum"
-    },
-    "player_opensubtitles_sortby_rating": {
-        "message": "Beoordeling"
-    },
-    "player_opensubtitles_sortby_votes": {
-        "message": "Stemmen"
-    },
-    "player_opensubtitles_sort": {
-        "message": "Sorteren"
-    },
-    "player_opensubtitles_sort_desc": {
-        "message": "Aflopend"
-    },
-    "player_opensubtitles_sort_asc": {
-        "message": "Oplopend"
     },
     "player_opensubtitles_searching": {
         "message": "Zoeken..."
@@ -376,6 +340,24 @@
     },
     "player_opensubtitles_noresults": {
         "message": "Geen resultaten gevonden!"
+    },
+    "player_opensubtitles_other_titles": {
+        "message": "Andere titels:"
+    },
+    "player_opensubtitles_other_languages": {
+        "message": "Geen ondertitels in $1 voor deze titel: alle talen worden weergegeven."
+    },
+    "player_opensubtitles_downloads": {
+        "message": "$1 downloads"
+    },
+    "player_opensubtitles_hearing_impaired": {
+        "message": "Voor doven en slechthorenden"
+    },
+    "player_opensubtitles_machine_translated": {
+        "message": "Automatisch vertaald"
+    },
+    "player_opensubtitles_trusted": {
+        "message": "Van een vertrouwde uploader"
     },
     "player_opensubtitles_quota": {
         "message": "OpenSubtitles beperkt het aantal ondertiteldownloads! Je hebt geen downloads meer over! Je limiet wordt gereset over $1"

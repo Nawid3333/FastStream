@@ -1,0 +1,201 @@
+{
+ "path": "subtitles",
+ "query": {
+  "episode_number": "3",
+  "languages": "en",
+  "order_by": "download_count",
+  "parent_feature_id": "1385125",
+  "season_number": "2"
+ },
+ "recorded": "2026-10-09",
+ "total_pages": 1,
+ "total_count": 5,
+ "page": 1,
+ "data": [
+  {
+   "id": "7242263",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 41455,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "The.Bear.S02E03.720p.WEB.h264-EDITH",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-bear-s02e03-720p-web-h264-edith",
+    "files": [
+     {
+      "file_id": 8177317
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1433679,
+     "feature_type": "Episode",
+     "year": 2023,
+     "title": "Sundae",
+     "movie_name": "Медведь - S02E03  Sundae",
+     "imdb_id": 26230374,
+     "tmdb_id": 4423393,
+     "season_number": 2,
+     "episode_number": 3,
+     "parent_imdb_id": 14452776,
+     "parent_title": "The Bear",
+     "parent_feature_id": 1385125
+    }
+   }
+  },
+  {
+   "id": "7242267",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 9684,
+    "hearing_impaired": true,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": true,
+    "fps": 23.976,
+    "release": "The.Bear.S02E03.720p.WEB.h264-EDITH",
+    "uploader": {
+     "name": "m_i_s"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-bear-s02e03-720p-web-h264-edith-en",
+    "files": [
+     {
+      "file_id": 8177318
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1433679,
+     "feature_type": "Episode",
+     "year": 2023,
+     "title": "Sundae",
+     "movie_name": "The Bear - S02E03  Sundae",
+     "imdb_id": 26230374,
+     "tmdb_id": 4423393,
+     "season_number": 2,
+     "episode_number": 3,
+     "parent_imdb_id": 14452776,
+     "parent_title": "The Bear",
+     "parent_feature_id": 1385125
+    }
+   }
+  },
+  {
+   "id": "8075189",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2769,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "The Bear - S02E03 (2022) WEB",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-bear-s02e03-2022-web",
+    "files": [
+     {
+      "file_id": 9001277
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1433679,
+     "feature_type": "Episode",
+     "year": 2023,
+     "title": "Sundae",
+     "movie_name": "The Bear - S02E03  Sundae",
+     "imdb_id": 26230374,
+     "tmdb_id": 4423393,
+     "season_number": 2,
+     "episode_number": 3,
+     "parent_imdb_id": 14452776,
+     "parent_title": "The Bear",
+     "parent_feature_id": 1385125
+    }
+   }
+  },
+  {
+   "id": "8075201",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 2473,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "The-Bear-FLUX-S02E03",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/10722345-the-bear-flux-s02e03",
+    "files": [
+     {
+      "file_id": 9001289
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1433679,
+     "feature_type": "Episode",
+     "year": 2023,
+     "title": "Sundae",
+     "movie_name": "The Bear - S02E03  Sundae",
+     "imdb_id": 26230374,
+     "tmdb_id": 4423393,
+     "season_number": 2,
+     "episode_number": 3,
+     "parent_imdb_id": 14452776,
+     "parent_title": "The Bear",
+     "parent_feature_id": 1385125
+    }
+   }
+  },
+  {
+   "id": "7973377",
+   "type": "subtitle",
+   "attributes": {
+    "language": "en",
+    "download_count": 358,
+    "hearing_impaired": false,
+    "ai_translated": false,
+    "machine_translated": false,
+    "from_trusted": false,
+    "fps": 0,
+    "release": "The.Bear.SE02E03.WEBRip-DNSP",
+    "uploader": {
+     "name": "Anonymous"
+    },
+    "url": "https://www.opensubtitles.com/en/subtitles/the-bear-se02e03-webrip-dnsp-en",
+    "files": [
+     {
+      "file_id": 8900427
+     }
+    ],
+    "feature_details": {
+     "feature_id": 1433679,
+     "feature_type": "Episode",
+     "year": 2023,
+     "title": "Sundae",
+     "movie_name": "The Bear - S02E03  Sundae",
+     "imdb_id": 26230374,
+     "tmdb_id": 4423393,
+     "season_number": 2,
+     "episode_number": 3,
+     "parent_imdb_id": 14452776,
+     "parent_title": "The Bear",
+     "parent_feature_id": 1385125
+    }
+   }
+  }
+ ]
+}
