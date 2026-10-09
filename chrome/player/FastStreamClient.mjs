@@ -39,6 +39,7 @@ import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mj
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
+import {chooseToRelease, DEFAULT_BUDGET_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 
 
 /**
@@ -65,6 +66,7 @@ export class FastStreamClient extends EventEmitter {
       autoPlay: false,
       maxSpeed: -1,
       maxVideoSize: 5000000000, // 5GB max size
+      ramBudget: DEFAULT_BUDGET_BYTES, // downloaded video kept in RAM, all players together
       introCutoff: 5 * 60,
       outroCutoff: 5 * 60,
       bufferAhead: 300,
@@ -133,7 +135,8 @@ export class FastStreamClient extends EventEmitter {
     // The other FastStream players: one the user watches and that is short of video gets
     // the network (PlayerPeers.shouldYield, DownloadManager.setYield).
     this.peers = new PlayerPeers({
-      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(), ramBytes: 0}),
+      state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(),
+        ramBytes: this.downloadManager?.ramBytes?.() || 0}),
       onChange: () => {
         if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield(), !this.state.playing);
       },
@@ -364,6 +367,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.mpvPausePage = !!options.mpvPausePage;
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
+    this.options.ramBudget = options.ramBudget;
     this.options.bufferAhead = options.bufferAhead;
     this.options.bufferBehind = options.bufferBehind;
     this.options.seekStepSize = options.seekStepSize;
@@ -1261,6 +1265,7 @@ export class FastStreamClient extends EventEmitter {
     }
 
     this.updatePeers();
+    this.enforceMemoryBudget();
 
     if (this.player) {
       this.updatePreview();
@@ -1295,6 +1300,51 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Keeps the downloaded video this player holds in RAM within its share of the RAM budget
+   * (MemoryBudget: the user's setting, 2 GB by default, for all FastStream players; the one
+   * the user watches gets more). Over HIGH of its share it lets go of fragments until it is
+   * down to LOW, those furthest behind the playhead first, then the furthest ahead, never the
+   * next seconds: a normal window writes them to disk, a private window - which keeps
+   * nothing on disk - lets them go, to be downloaded again when needed. Until it is back
+   * down, it starts no downloads ahead (DownloadManager.memoryFull); playback's own requests
+   * still go. Fragments of every quality level count, not only the current one's.
+   */
+  enforceMemoryBudget() {
+    const manager = this.downloadManager;
+    if (!manager?.blobStore || !this.peers) return;
+    const budget = this.options.ramBudget > 0 ? this.options.ramBudget : DEFAULT_BUDGET_BYTES;
+    const watched = this.peers.visible() && !!this.state.playing;
+    const others = this.peers.livePeers().map((peer) => ({
+      ramBytes: peer.ramBytes,
+      weight: weightOf(peer.visible && peer.playing),
+    }));
+    const share = shareOf(budget, weightOf(watched), others);
+    const held = manager.ramBytes();
+    const leaving = manager.spillingBytes();
+    manager.memoryFull = isFull(held, leaving, share, manager.memoryFull);
+    if (held - leaving <= share * HIGH) return;
+
+    const toDisk = manager.canSpill();
+    const candidates = [];
+    for (const fragments of Object.values(this.fragmentsStore || {})) {
+      for (const fragment of fragments || []) {
+        if (!fragment || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
+        if (!Number.isFinite(fragment.start) || !Number.isFinite(fragment.end)) continue;
+        const bytes = manager.ramBytesOf(fragment.getContext());
+        if (bytes > 0) candidates.push({fragment, start: fragment.start, end: fragment.end, bytes});
+      }
+    }
+    const keep = toDisk ? KEEP_ON_DISK_WINDOW : KEEP_IN_RAM_ONLY_WINDOW;
+    for (const {fragment} of chooseToRelease(candidates, this.state.currentTime, keep, held - leaving - share * LOW)) {
+      if (toDisk) {
+        manager.spill(fragment.getContext()).catch((e) => console.warn('Could not write a fragment to disk', e));
+      } else {
+        this.freeFragment(fragment);
+      }
+    }
+  }
+
+  /**
    * Tells the other players how this one is doing, and steps aside for them or not.
    */
   updatePeers() {
@@ -1325,6 +1375,11 @@ export class FastStreamClient extends EventEmitter {
   predownloadFragments() {
     // Another player that the user watches needs the network (DownloadManager.setYield).
     if (this.downloadManager.yielding) {
+      return false;
+    }
+
+    // Its share of the RAM budget is used up (enforceMemoryBudget).
+    if (this.downloadManager.memoryFull) {
       return false;
     }
 

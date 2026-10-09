@@ -1,5 +1,6 @@
 import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {FSBlob} from '../modules/FSBlob.mjs';
+import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {DownloadEntry} from './DownloadEntry.mjs';
 import {PLAYBACK_PRIORITY, StandardDownloader} from './StandardDownloader.mjs';
 
@@ -68,7 +69,11 @@ export class DownloadManager {
 
     this.failed = 0;
 
-    this.blobStore = new FSBlob();
+    // A private window's downloads never reach the disk (FSBlob memoryOnly).
+    this.blobStore = new FSBlob({memoryOnly: EnvUtils.isIncognito()});
+    // The RAM budget is used up: no downloads ahead until some is let go of
+    // (FastStreamClient.enforceMemoryBudget).
+    this.memoryFull = false;
   }
 
   getCompletedEntries() {
@@ -93,7 +98,8 @@ export class DownloadManager {
     }
 
     const identifier = this.getIdentifier(entry);
-    await this.blobStore.saveBlobAsync(entry.data, identifier);
+    // Kept in RAM; the client writes it to disk only when the RAM budget needs it to.
+    await this.blobStore.saveBlobAsync(entry.data, identifier, {deferred: true});
 
     entry.data = () => {
       return this.blobStore.getBlob(identifier);
@@ -492,6 +498,54 @@ export class DownloadManager {
     return this.downloaders.filter((downloader) => downloader.entry).length + this.queue.length;
   }
 
+  /**
+   * Bytes of downloaded data held in RAM.
+   * @return {number}
+   */
+  ramBytes() {
+    return this.blobStore?.ramBytes() || 0;
+  }
+
+  /**
+   * @param {Object} details - A fragment's getContext().
+   * @return {number} Bytes of its downloaded data held in RAM.
+   */
+  ramBytesOf(details) {
+    return this.blobStore?.inRam.get(this.getIdentifier(details)) || 0;
+  }
+
+  /**
+   * Bytes on their way to disk (spill).
+   * @return {number}
+   */
+  spillingBytes() {
+    return this.blobStore?.spillingBytes() || 0;
+  }
+
+  /**
+   * @param {Object} details - A fragment's getContext().
+   * @return {boolean} Whether its downloaded data is held in RAM.
+   */
+  isInRam(details) {
+    return !!this.blobStore?.isInRam(this.getIdentifier(details));
+  }
+
+  /**
+   * Writes a downloaded fragment's data to disk and lets the RAM copy go.
+   * @param {Object} details - A fragment's getContext().
+   * @return {Promise<boolean>}
+   */
+  spill(details) {
+    return this.blobStore?.spill(this.getIdentifier(details)) ?? Promise.resolve(false);
+  }
+
+  /**
+   * @return {boolean} Whether downloads can go to disk at all (not in a private window).
+   */
+  canSpill() {
+    return !!this.blobStore && !this.blobStore.memoryOnly;
+  }
+
   removeAllDownloaders() {
     this.testing = false;
     this.droppedDownloaders = 0;
@@ -678,6 +732,7 @@ export class DownloadManager {
     // keepStorageOnce() asks for this reset only; resetOverride() for as long as it is on.
     const keep = this.dontClearStorage || this.keepStorageNext;
     this.keepStorageNext = false;
+    this.memoryFull = false;
     if (!keep) {
       await this.clearStorage();
     }

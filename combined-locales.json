@@ -6011,6 +6011,24 @@
         "zh_CN": "预下载视频的最大大小",
         "zh_TW": "預先下載影片最大大小"
     },
+    "options_general_rambudget": {
+        "en": "RAM for buffered video (all tabs)",
+        "de": "Arbeitsspeicher für gepuffertes Video (alle Tabs)",
+        "es": "RAM para el vídeo en búfer (todas las pestañas)",
+        "fr": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)",
+        "id": "RAM untuk video yang di-buffer (semua tab)",
+        "it": "RAM per il video nel buffer (tutte le schede)",
+        "ja": "バッファした動画に使うRAM（全タブ合計）",
+        "ko": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)",
+        "ms": "RAM untuk video yang ditimbal (semua tab)",
+        "nl": "RAM voor gebufferde video (alle tabbladen)",
+        "pl": "RAM na buforowane wideo (wszystkie karty)",
+        "pt_BR": "RAM para o vídeo em buffer (todas as abas)",
+        "ru": "ОЗУ для буферизованного видео (все вкладки)",
+        "tr": "Arabelleğe alınan video için RAM (tüm sekmeler)",
+        "zh_CN": "缓冲视频所用内存（所有标签页合计）",
+        "zh_TW": "緩衝影片所用記憶體（所有分頁合計）"
+    },
     "options_general_bufferahead": {
         "en": "Seconds to keep buffered ahead of playback (used once predownload stops or runs out of space)",
         "de": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, sobald das Vorab-Laden stoppt oder der Speicherplatz ausgeht)",

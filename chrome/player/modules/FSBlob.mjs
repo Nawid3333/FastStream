@@ -16,17 +16,40 @@ import {Localize} from './Localize.mjs';
 // reason.
 const BackendChain = ['opfs', 'cache', 'indexeddb'];
 
+// What blobStore holds for a blob the Cache API has: it is read from there when asked for
+// (getBlob), not kept. Reading each one back at once (match().blob()) made a copy in RAM,
+// and in a private window always one: Firefox keeps a private Response.blob() in memory
+// (dom/fetch/Fetch.cpp, MutableBlobStorage::eOnlyInMemory), so every fragment of the
+// 300 s a private window keeps sat in RAM, beside the Cache API's encrypted copy on disk
+// (storage/private), for every player tab.
+const IN_CACHE = Symbol('in the Cache API');
+
 export class FSBlob {
-  constructor() {
+  /**
+   * @param {Object} [options]
+   * @param {boolean} [options.memoryOnly] - Never write to disk: a private window's store,
+   *   as Firefox keeps a private window's media in RAM (browser.privatebrowsing.
+   *   forceMediaMemoryCache). Its blobs stay in RAM, and what does not fit in the RAM budget
+   *   is let go of and downloaded again when needed (FastStreamClient.enforceMemoryBudget).
+   */
+  constructor({memoryOnly = false} = {}) {
     this.blobStore = new Map();
     this.blobStorePromises = new Map();
+    this.memoryOnly = memoryOnly;
+    // The blobs held in RAM, with their sizes: a deferred save keeps its blob here until
+    // spill() writes it to disk (the RAM budget, FastStreamClient.enforceMemoryBudget).
+    /** @type {Map<string, number>} */
+    this.inRam = new Map();
+    // The ones being written to disk now.
+    /** @type {Set<string>} */
+    this.spilling = new Set();
     // Counts clear()s, so an offload that finishes after one can tell (offloadBlob).
     this.generation = 0;
     this.opfsManager = null;
     this.cache = null;
     this.indexedDBManager = null;
     this.setupPromise = null;
-    this.remainingBackends = BackendChain.slice();
+    this.remainingBackends = memoryOnly ? [] : BackendChain.slice();
 
     try {
       this.activateNextBackend();
@@ -187,23 +210,27 @@ export class FSBlob {
 
   async saveBlobUsingCache(identifier, blob) {
     const identifierURL = this.getIdentifierURL(identifier);
+    // One cache for the put and the check: clear() replaces this.cache meanwhile.
+    const cache = this.cache;
 
     try {
-      await this.cache.put(identifierURL, new Response(blob));
+      await cache.put(identifierURL, new Response(blob));
 
-      const match = await this.cache.match(identifierURL);
-      const blobResponse = await match?.blob();
+      // Checked, not read: its body stays on disk until getBlob() asks for it. The
+      // answer's unread body is let go of at once rather than when it is collected.
+      const match = await cache.match(identifierURL);
+      match?.body?.cancel().catch(() => {});
 
-      if (!blobResponse) {
+      if (!match) {
         // put() resolved but match() came back empty (eviction under quota
         // pressure, or some other Cache API surprise) - leave the original
         // in-memory blob in blobStore alone rather than overwrite it with
-        // undefined and silently lose the data.
+        // a marker for nothing and silently lose the data.
         console.warn('Cache write could not be verified for this blob, keeping it in memory');
         return false;
       }
 
-      this.blobStore.set(identifier, blobResponse);
+      this.blobStore.set(identifier, IN_CACHE);
       return true;
     } catch (e) {
       // A single write failing (e.g. quota exceeded mid-session) doesn't
@@ -222,11 +249,25 @@ export class FSBlob {
     return `blob${this.blobIndex++}`;
   }
 
-  async saveBlobAsync(blob, identifier) {
+  /**
+   * Saves a blob, to disk at once unless deferred.
+   * @param {Blob} blob
+   * @param {string} [identifier]
+   * @param {Object} [options]
+   * @param {boolean} [options.deferred] - Keep it in RAM until spill() writes it to disk.
+   *   Every downloaded fragment was written to disk at once (44 ms for 1.5 MB on OPFS,
+   *   measured), and a video that fits in RAM never needed it.
+   * @return {Promise<string>} Its identifier.
+   */
+  async saveBlobAsync(blob, identifier, {deferred = false} = {}) {
     if (!identifier) {
       identifier = this.nextIdentifier();
     }
     this.blobStore.set(identifier, blob);
+    this.inRam.set(identifier, blob?.size || 0);
+    if (deferred) {
+      return identifier;
+    }
     const promise = this.offloadBlob(identifier, blob);
     this.blobStorePromises.set(identifier, promise);
 
@@ -259,9 +300,58 @@ export class FSBlob {
       // next clear.
       this.blobStore.delete(identifier);
       this.blobStorePromises.delete(identifier);
+      this.inRam.delete(identifier);
       return false;
     }
+    if (handled) this.inRam.delete(identifier);
     return handled;
+  }
+
+  /**
+   * Writes a blob held in RAM to disk, and lets the RAM copy go once it is there. Nothing for
+   * a memory-only store, a blob already on disk, or one already on its way.
+   * @param {string} identifier
+   * @return {Promise<boolean>} Whether it is on disk now.
+   */
+  async spill(identifier) {
+    if (this.memoryOnly || !this.inRam.has(identifier) || this.spilling.has(identifier)) return false;
+    const blob = this.blobStore.get(identifier);
+    this.spilling.add(identifier);
+    try {
+      const promise = this.offloadBlob(identifier, blob);
+      this.blobStorePromises.set(identifier, promise);
+      return await promise;
+    } finally {
+      this.spilling.delete(identifier);
+    }
+  }
+
+  /**
+   * Bytes of blobs held in RAM.
+   * @return {number}
+   */
+  ramBytes() {
+    let bytes = 0;
+    for (const size of this.inRam.values()) bytes += size;
+    return bytes;
+  }
+
+  /**
+   * Bytes of blobs being written to disk now (spill()): RAM that is about to be let go of.
+   * @return {number}
+   */
+  spillingBytes() {
+    let bytes = 0;
+    for (const identifier of this.spilling) bytes += this.inRam.get(identifier) || 0;
+    return bytes;
+  }
+
+  /**
+   * @param {string} identifier
+   * @return {boolean} Whether the blob is held in RAM.
+   */
+  isInRam(identifier) {
+    return this.inRam.has(identifier);
   }
 
   saveBlob(blob) {
@@ -277,6 +367,7 @@ export class FSBlob {
 
   async deleteBlob(identifier) {
     this.blobStore.delete(identifier);
+    this.inRam.delete(identifier);
 
     if (this.blobStorePromises.has(identifier)) {
       await this.blobStorePromises.get(identifier);
@@ -306,8 +397,32 @@ export class FSBlob {
     return true;
   }
 
+  /**
+   * The blob saved under an identifier: the Blob or File itself, or - for one the Cache API
+   * holds - a promise of it, read from there now. Every caller awaits what this gives.
+   * @param {string} identifier
+   * @return {Blob|File|Promise<Blob|undefined>|undefined} undefined once it is gone.
+   */
   getBlob(identifier) {
-    return this.blobStore.get(identifier);
+    const blob = this.blobStore.get(identifier);
+    if (blob !== IN_CACHE) return blob;
+    return this.readFromCache(identifier);
+  }
+
+  /**
+   * Reads a blob the Cache API holds.
+   * @param {string} identifier
+   * @return {Promise<Blob|undefined>} undefined when the cache no longer has it.
+   */
+  async readFromCache(identifier) {
+    // A read during clear()'s new setup waits for it: the placeholder (cache === true) is
+    // no answer, and "undefined" would have the download manager drop and fetch again
+    // what is stored (DownloadEntry.onDataLost).
+    await this.ready();
+    const cache = this.cache;
+    if (!cache || cache === true) return undefined;
+    const match = await cache.match(this.getIdentifierURL(identifier));
+    return match ? match.blob() : undefined;
   }
 
   /**
@@ -324,6 +439,7 @@ export class FSBlob {
   async clear() {
     this.blobStore.clear();
     this.blobStorePromises.clear();
+    this.inRam.clear();
     // Offloads still running belong to what was cleared (offloadBlob).
     this.generation++;
 

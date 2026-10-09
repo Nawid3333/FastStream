@@ -38,6 +38,7 @@ const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
+const ramBudget = document.getElementById('rambudget');
 const bufferAhead = document.getElementById('bufferahead');
 const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
@@ -136,6 +137,7 @@ async function loadOptions(newOptions) {
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
   maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
   bufferAhead.value = Options.bufferAhead;
   bufferBehind.value = Options.bufferBehind;
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
@@ -607,6 +609,16 @@ maxSize.addEventListener('change', () => {
   // parse value, number unit
   Options.maxVideoSize = StringUtils.getSizeValue(maxSize.value);
   maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+  optionChanged();
+});
+
+// The RAM all players keep downloaded video in (MemoryBudget). Not unlimited: every
+// FastStream page runs in one Firefox process. Nothing readable, or "∞", is the default.
+const MIN_RAM_BUDGET = 256000000;
+ramBudget.addEventListener('change', () => {
+  const value = StringUtils.getSizeValue(ramBudget.value);
+  Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
+  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
   optionChanged();
 });
 

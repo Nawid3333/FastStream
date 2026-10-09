@@ -423,11 +423,83 @@ describe('FSBlob', () => {
     expect(dead.close).toHaveBeenCalled();
     expect(fsblob.opfsManager).toBeNull();
     expect(cached.size).toBe(1);
-    expect(await fsblob.getBlob(identifier).text()).toBe('fragment');
+    expect(await (await fsblob.getBlob(identifier)).text()).toBe('fragment');
 
     // And the next one goes there directly.
     await fsblob.saveBlobAsync(new Blob(['next']));
     expect(cached.size).toBe(2);
+  });
+
+  it('keeps nothing in RAM for a blob the Cache API holds, and reads it from there', async () => {
+    // A private window's backend. Reading each fragment back at once (match().blob()) kept a
+    // copy of every one in RAM: Firefox keeps a private window's Response.blob() in memory.
+    const {fsblob, cached} = withOpfs(null);
+    let reads = 0;
+    const cache = await window.caches.open('x');
+    const match = cache.match;
+    cache.match = async (url) => {
+      reads++;
+      return match(url);
+    };
+    const identifier = await fsblob.saveBlobAsync(new Blob(['fragment']));
+
+    expect(cached.size).toBe(1);
+    expect(fsblob.blobStore.get(identifier)).not.toBeInstanceOf(Blob);
+    const readsAfterSave = reads;
+    expect(await (await fsblob.getBlob(identifier)).text()).toBe('fragment');
+    expect(reads).toBe(readsAfterSave + 1);
+
+    // Gone from the cache: nothing, which the download manager takes as data lost.
+    cached.clear();
+    expect(await fsblob.getBlob(identifier)).toBeUndefined();
+  });
+
+  it('keeps a downloaded fragment in RAM until it is spilled to disk', async () => {
+    // Every fragment was written to OPFS at once (44 ms for 1.5 MB, measured); a video that
+    // fits in the RAM budget never needs it (FastStreamClient.enforceMemoryBudget).
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    const {fsblob} = withOpfs(manager);
+    try {
+      const blob = new Blob([new Uint8Array([1, 2, 3, 4])]);
+      const identifier = await fsblob.saveBlobAsync(blob, 'blob0', {deferred: true});
+      expect(fsblob.getBlob(identifier)).toBe(blob);
+      expect(fsblob.ramBytes()).toBe(4);
+      expect(fsblob.isInRam(identifier)).toBe(true);
+      expect([...sessionOf(root, manager).children.keys()]).toEqual(['_meta.json']);
+
+      expect(await fsblob.spill(identifier)).toBe(true);
+      expect(fsblob.ramBytes()).toBe(0);
+      expect(fsblob.isInRam(identifier)).toBe(false);
+      expect(fsblob.getBlob(identifier).disk).toBeDefined();
+      // Once on disk, nothing more to spill.
+      expect(await fsblob.spill(identifier)).toBe(false);
+
+      await fsblob.saveBlobAsync(new Blob([new Uint8Array([5])]), 'blob1', {deferred: true});
+      await fsblob.deleteBlob('blob1');
+      expect(fsblob.ramBytes()).toBe(0);
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it('never writes a private window\'s blob to disk', async () => {
+    // Firefox keeps a private window's media in RAM; so does FastStream (memoryOnly).
+    const cached = new Map();
+    vi.stubGlobal('window', {caches: {
+      open: async () => ({put: async (url, response) => cached.set(url, response)}),
+      delete: async () => true,
+    }});
+    const fsblob = new FSBlob({memoryOnly: true});
+    expect(await fsblob.ready()).toBe(false);
+    const blob = new Blob(['fragment']);
+    const identifier = await fsblob.saveBlobAsync(blob);
+    expect(fsblob.getBlob(identifier)).toBe(blob);
+    expect(await fsblob.spill(identifier)).toBe(false);
+    expect(fsblob.ramBytes()).toBe(blob.size);
+    expect(cached.size).toBe(0);
+    await fsblob.clear();
+    expect(fsblob.ramBytes()).toBe(0);
   });
 
   it('keeps one blob in RAM when a single write fails but the worker lives', async () => {

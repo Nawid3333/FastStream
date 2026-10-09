@@ -1001,6 +1001,9 @@
     "options_general_maxsize": {
         "message": "Taille maximale de la vidéo préchargée"
     },
+    "options_general_rambudget": {
+        "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
+    },
     "options_general_bufferahead": {
         "message": "Secondes à conserver en mémoire tampon devant la lecture (utilisé une fois que le pré-téléchargement s'arrête ou arrive à court d'espace)"
     },
