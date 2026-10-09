@@ -226,7 +226,9 @@ jobs:
           }
           report() { # result, images, what the image is to -latest
             local result=$1 images=$2 role=$3 title number
-            if [ "$result" != success ] && [ "$result" != failure ]; then
+            # A job that runs out of its time ends cancelled, not failed (as in
+            # mutation-tests.yml): an image that hangs CI said nothing.
+            if [ "$result" != success ] && [ "$result" != failure ] && [ "$result" != cancelled ]; then
               echo "$images: ${result:-not run} - nothing to report."
               return
             fi
