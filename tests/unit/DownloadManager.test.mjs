@@ -732,3 +732,72 @@ describe('DownloadManager', () => {
     });
   });
 });
+
+describe('DownloadManager stopping every download (a new source, a failed load)', () => {
+  /**
+   * Downloaders running a download each, as StandardDownloader runs them: a real entry and a
+   * loader that stops when told.
+   * @param {Object} manager
+   * @param {number} count
+   * @return {Array<Object>}
+   */
+  async function running(manager, count) {
+    const {DownloadEntry} = await import('../../chrome/player/network/DownloadEntry.mjs');
+    return Array.from({length: count}, (_, i) => {
+      const downloader = new StandardDownloader(manager);
+      const entry = new DownloadEntry({url: `https://cdn.test/seg-${i}.ts`});
+      entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+      entry.downloader = downloader;
+      downloader.entry = entry;
+      downloader.loader = {abort: vi.fn(), destroy: vi.fn(), stats: {}, xhr: null};
+      return downloader;
+    });
+  }
+
+  it('stops all of them, and counts none as a failed download', async () => {
+    // Stopping one went through onDownloaderFinished as a failure (its entry was not marked
+    // aborted): online, with more than one downloader, it took the downloader out of the list
+    // abortAll was going through, so the next one was skipped and downloaded on for the old
+    // video, and lastFailed held the next video's first downloads back a second.
+    vi.stubGlobal('navigator', {onLine: true});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const manager = new DownloadManager({resetFailed: vi.fn(), predownloadFragments: vi.fn()});
+    manager.testing = false;
+    const downloaders = await running(manager, 4);
+    manager.downloaders = downloaders.slice();
+    manager.abortAll();
+    expect(downloaders.map((downloader) => downloader.loader?.abort ? 'running' : 'stopped')).toEqual(Array(4).fill('stopped'));
+    expect(downloaders.every((downloader) => downloader.entry === null)).toBe(true);
+    expect(manager.lastFailed).toBe(0);
+    expect(manager.droppedDownloaders).toBe(0);
+    expect(manager.downloaders).toHaveLength(4);
+    vi.unstubAllGlobals();
+  });
+
+  it('counts a downloader taken away with the minus key as no failed download', async () => {
+    vi.stubGlobal('navigator', {onLine: true});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const manager = new DownloadManager({resetFailed: vi.fn(), predownloadFragments: vi.fn()});
+    manager.testing = false;
+    const downloaders = await running(manager, 3);
+    manager.downloaders = downloaders.slice();
+    manager.removeDownloader();
+    expect(downloaders[2].entry).toBe(null);
+    expect(manager.lastFailed).toBe(0);
+    expect(manager.downloaders).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+
+  it('stops all of them when the downloaders are taken away', async () => {
+    vi.stubGlobal('navigator', {onLine: true});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const manager = new DownloadManager({resetFailed: vi.fn(), predownloadFragments: vi.fn()});
+    manager.testing = false;
+    const downloaders = await running(manager, 3);
+    manager.downloaders = downloaders.slice();
+    manager.removeAllDownloaders();
+    expect(downloaders.every((downloader) => downloader.entry === null)).toBe(true);
+    expect(manager.lastFailed).toBe(0);
+    vi.unstubAllGlobals();
+  });
+});
