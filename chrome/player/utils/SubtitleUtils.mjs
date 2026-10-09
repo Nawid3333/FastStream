@@ -381,16 +381,17 @@ export class SubtitleUtils {
         // \b700 is a bold weight, so on; \b, \b0 off. \bord, \blur, \be, \iclip are other
         // tags (a letter follows). A block ends on its line: a stray "{\" took everything up
         // to a "}" in a later cue, timing lines too. Switches are not toggled ASS-style:
-        // {\i1}a{\b1}b{\i0} closes nothing until </b>, as WebVTT nests its tags.
+        // {\i1}a{\b1}b{\i0}c becomes <i>a<b>b</i>c, and WebVTT ignores that </i> while <b>
+        // is open, so c stays italic and bold.
         .replace(/\{(\\[^{}\n]*)\}/g, (block, overrides) =>
           Array.from(overrides.matchAll(/\\([ibu])(\d*)(?![a-z])/gi), ([, tag, value]) =>
             value === '' || value === '0' ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`).join(''))
         .replace(/\{([ibu])\}/gi, '<$1>') // convert {b}, {i}, {u} to <b>, <i>, <u>
         .replace(/\{\/([ibu])\}/gi, '</$1>') // convert {/b}, {/i}, {/u} to </b>, </i>, </u>
         .replace(/\{an\d\}/gi, '') // strip any remaining alignment tags without a backslash
-        // An ASS hard line break. Several in a row, or one at a line's end, make one: an empty
-        // line would end the cue.
-        .replace(/(?:\\N)+(?:\r?\n)?/g, '\n')
+        // An ASS hard line break. Several in a row, with or without a real line break after
+        // each, make one: an empty line would end the cue.
+        .replace(/(?:\\N(?:\r?\n)?)+/g, '\n')
         .replace(/\\h/gi, ' '); // convert hard spaces to regular spaces
   }
 }

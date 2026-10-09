@@ -255,6 +255,8 @@ describe('convertSubtitleFormatting', () => {
     // Two breaks in a row, or one at a line's end, are one: an empty line ends a cue.
     expect(format('one\\N\\Ntwo')).toBe('one\ntwo');
     expect(format('one\\N\ntwo')).toBe('one\ntwo');
+    expect(format('one\\N\n\\Ntwo')).toBe('one\ntwo');
+    expect(format('one\\N\r\n\\N\r\ntwo')).toBe('one\ntwo');
     expect(format('00:00:01.000 --> 00:00:02.000\nlast\\N\n\n00:00:03.000 --> 00:00:04.000\nnext'))
         .toBe('00:00:01.000 --> 00:00:02.000\nlast\n\n00:00:03.000 --> 00:00:04.000\nnext');
   });
