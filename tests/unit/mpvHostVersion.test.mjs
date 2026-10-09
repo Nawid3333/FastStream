@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import * as url from 'node:url';
 import {spawn} from 'node:child_process';
@@ -32,7 +33,7 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // the hashes).
 const RECORDED = {
   version: 4,
-  host: '233d0620ba60db0d687f822b566b02b25435bd943b4f973f00f0a8abc8ae986a',
+  host: 'dbe3f3799c30795a857292ed1a972cc7ea3fd3462940ad4813e55dd1887b1356',
   installer: '40301c0365877f54d34f56b4e75ad27382d317cfaed6ab2018437acc79daef4c',
 };
 
@@ -78,9 +79,9 @@ describe('the mpv host\'s version', () => {
    * @param {Object} message - The message.
    * @return {Promise<Object>} The host's answer.
    */
-  function askHost(message) {
+  function askHost(message, file = hostFile) {
     return new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [hostFile], {stdio: ['pipe', 'pipe', 'inherit']});
+      const child = spawn(process.execPath, [file], {stdio: ['pipe', 'pipe', 'inherit']});
       // A host that never answers (a mutant's endless read loop) must not outlive the test.
       const timer = setTimeout(() => child.kill(), 15000);
       const chunks = [];
@@ -108,6 +109,21 @@ describe('the mpv host\'s version', () => {
   it('is in the running host\'s answer to a ping, and to a message it does not know', async () => {
     expect((await askHost({type: 'ping'})).hostVersion).toBe(HostVersion);
     expect(await askHost({type: 'nonsense'})).toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion});
+  }, 30000);
+
+  // Node names the program by its real path: started through a link to its folder (a Linux
+  // install linking the host somewhere of its own), the host took itself for an imported
+  // module and ended without an answer (audit, 2026-10-09). A junction on Windows, which
+  // needs no rights there; a symlink elsewhere.
+  it('answers when started through a link', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-link-'));
+    const link = path.join(dir, 'host');
+    try {
+      fs.symlinkSync(path.dirname(hostFile), link, 'junction');
+      expect((await askHost({type: 'ping'}, path.join(link, path.basename(hostFile)))).hostVersion).toBe(HostVersion);
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true});
+    }
   }, 30000);
 });
 
