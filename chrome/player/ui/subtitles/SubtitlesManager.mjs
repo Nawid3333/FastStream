@@ -400,16 +400,13 @@ export class SubtitlesManager extends EventEmitter {
         return;
       }
       // The track's name, as its tooltip has it: the row shows it cut to 30 characters and,
-      // with more than one track on, after its place ("1: ").
-      // Without its own extension: a track loaded from movie.srt was saved as movie.srt.srt.
-      const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_')
-          .replace(/\.(srt|vtt|ass|ssa)$/i, '');
+      // with more than one track on, after its place ("1: "). Suggested and typed alike as a
+      // file name (SubtitleUtils.downloadName).
+      const suggestedName = SubtitleUtils.downloadName((trackName.title || trackElement.textContent).replaceAll(' ', '_'));
       // Asked in a private window too: a Firefox save lands straight in the download
       // directory under whatever name is passed, as SaveManager says.
-      const typed = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName.replace(/[\\/:*?"<>|]/g, '_'));
-      // What Windows refuses in a file name (a release name with : or ?) saved nothing, and a
-      // name typed with .srt was saved as .srt.srt.
-      const dlname = typed && typed.replace(/[\\/:*?"<>|]/g, '_').replace(/\.srt$/i, '');
+      const typed = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+      const dlname = typed && SubtitleUtils.downloadName(typed);
 
       if (!dlname) {
         return;

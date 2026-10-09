@@ -23,6 +23,18 @@ export class SubtitleUtils {
   }
 
   /**
+   * A subtitle track's file name to save it under, before ".srt" is added: what Windows (and
+   * Firefox's downloads) refuse replaced, and an extension of its own taken off - a track
+   * loaded from movie.srt was saved as movie.srt.srt, and one typed as movie.vtt as
+   * movie.vtt.srt (the file is SubRip whatever it was loaded as).
+   * @param {string} name
+   * @return {string}
+   */
+  static downloadName(name) {
+    return String(name).replace(/[\\/:*?"<>|]/g, '_').replace(/\.(srt|vtt|ass|ssa)$/i, '');
+  }
+
+  /**
    * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
    * a charset the server declared), except that bytes that are no UTF-8 are read as
    * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every

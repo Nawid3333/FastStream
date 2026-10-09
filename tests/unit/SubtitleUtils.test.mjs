@@ -6,6 +6,19 @@ import {SubtitleUtils} from '../../chrome/player/utils/SubtitleUtils.mjs';
 // user reports missing captions. This pins down the pure-string logic
 // (time formatting and SRT->VTT conversion) that has no DOM dependency.
 
+// The name a subtitle track is saved under, ".srt" added after: movie.srt was saved as
+// movie.srt.srt, a typed movie.vtt as movie.vtt.srt, and a name with : or ? not at all.
+describe('downloadName', () => {
+  it('takes off a subtitle extension of its own and what file names refuse', () => {
+    expect(SubtitleUtils.downloadName('movie.srt')).toBe('movie');
+    expect(SubtitleUtils.downloadName('movie.VTT')).toBe('movie');
+    expect(SubtitleUtils.downloadName('Show.S01E01.ass')).toBe('Show.S01E01');
+    expect(SubtitleUtils.downloadName('Episode 1: Pilot?')).toBe('Episode 1_ Pilot_');
+    expect(SubtitleUtils.downloadName('a/b\\c"d<e>f|g*h')).toBe('a_b_c_d_e_f_g_h');
+    expect(SubtitleUtils.downloadName('movie.mp4')).toBe('movie.mp4');
+  });
+});
+
 describe('vttTimeFormat / srtTimeFormat', () => {
   it('zero-pads hours, minutes, seconds and milliseconds', () => {
     expect(SubtitleUtils.vttTimeFormat(0)).toBe('00:00:00.000');
