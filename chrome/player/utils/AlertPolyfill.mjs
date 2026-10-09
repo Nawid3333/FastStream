@@ -192,6 +192,17 @@ function errorText(error) {
 }
 
 /**
+ * What the error dialog's title says went wrong: error.message alone was "undefined" for
+ * a thrown text or a player's error object.
+ * @param {*} error
+ * @return {string}
+ */
+export function errorTitleText(error) {
+  const text = errorText(error);
+  return text.length > 200 ? text.slice(0, 200) + '...' : text;
+}
+
+/**
  * The address of a new GitHub issue that reports an error.
  * @param {*} error
  * @param {string} version - FastStream's.
@@ -310,7 +321,7 @@ export class AlertPolyfill {
     );
     const result = await openDialog({
       icon: 'error',
-      title: Localize.getMessage('error_popup', [error?.message]),
+      title: Localize.getMessage('error_popup', [errorTitleText(error)]),
       content,
       confirmText: Localize.getMessage('error_popup_send'),
       cancelText: Localize.getMessage('cancel'),
