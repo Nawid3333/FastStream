@@ -3,8 +3,9 @@
 /**
  * Parses and evaluates a URL allowlist in the same format as the
  * "Auto-enable URLs" option: one entry per line, pages starting with the
- * entry match (without its scheme it matches http and https, and a leading
- * `www.` counts on neither side; see prefixMatches), `~` marks a regex, `!` marks a negative (exclude) entry and
+ * entry match (without its scheme it matches http and https, a leading
+ * `www.` counts on neither side, and a site alone matches that site only, not
+ * example.com.au; see prefixMatches), `~` marks a regex, `!` marks a negative (exclude) entry and
  * `-` matches by hostname only. Lines starting with `#` are comments.
  *
  * An entry may also carry a trailing content-type tag, separated by
