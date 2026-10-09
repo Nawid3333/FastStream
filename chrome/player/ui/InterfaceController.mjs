@@ -206,7 +206,9 @@ export class InterfaceController {
     this.state.playing = false;
     this.updatePlayPauseButton();
     DOMElements.playPauseButtonBigCircle.style.display = '';
-    DOMElements.playerContainer.classList.add('controls_visible');
+    // Shown the way every other show is, with its hide check (showControlBar): only the
+    // class was added, nothing checked, and the bar could stay up after the next video.
+    this.showControlBar();
     this.updateToolVisibility();
     this.fineTimeControls.reset();
     this.playbackRateChanger.reset();
@@ -1006,8 +1008,10 @@ export class InterfaceController {
 
   queueControlsHide(time) {
     clearTimeout(this.hideControlBarTimeout);
+    this.hideControlBarTimeout = null;
     if (this.destroyed) return;
     this.hideControlBarTimeout = setTimeout(() => {
+      this.hideControlBarTimeout = null;
       if (!this.isFocusInControls() && !this.isPointerOverControls() && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
         this.hideControlBar();
       } else if (this.controlsVisible && !this.destroyed) {
@@ -1038,6 +1042,7 @@ export class InterfaceController {
 
   hideControlBar() {
     clearTimeout(this.hideControlBarTimeout);
+    this.hideControlBarTimeout = null;
     this.controlsVisible = false;
     DOMElements.playerContainer.classList.remove('controls_visible');
     DOMElements.controlsContainer.classList.remove('fade_in');
@@ -1058,6 +1063,10 @@ export class InterfaceController {
     DOMElements.playerContainer.classList.add('controls_visible');
     DOMElements.controlsContainer.classList.remove('fade_out');
     DOMElements.controlsContainer.classList.add('fade_in');
+    // Every bar shown has a hide check (#383): a pause, the show-controls key, a new video,
+    // a closed menu or a tab come back to showed it without one, and it stayed up until
+    // something else asked. One already waiting keeps its own time.
+    if (!this.hideControlBarTimeout) this.queueControlsHide();
   }
 
   showControlBarTemporarily(timeout = 1000) {

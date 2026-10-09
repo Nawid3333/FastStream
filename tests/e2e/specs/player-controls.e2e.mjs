@@ -484,6 +484,16 @@ describe('Player controls, hiding by themselves', function() {
     expect(await controlsVisible()).toBe(true);
   });
 
+  it('hides the bar shown by a way that asks for no hide (the show-controls key)', async function() {
+    await playerWithPointerAway();
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
+    await browser.execute(() => window.fastStream.interfaceController.toggleControlBar());
+    expect(await controlsVisible()).toBe(true);
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar the key showed stayed up'});
+  });
+
   it('hides the bar once it may, after a hide was refused', async function() {
     await playerWithPointerAway();
     // Refused while paused; then played on by a way that asks for no hide.
