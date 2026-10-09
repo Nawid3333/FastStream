@@ -167,8 +167,7 @@ export class FSBlob {
     try {
       await this.opfsManager.setFile(identifier, blob);
       const file = await this.opfsManager.getFile(identifier);
-      this.blobStore.set(identifier, file);
-      return true;
+      return this.replaceIfStill(identifier, blob, file);
     } catch (e) {
       if (this.opfsManager && !this.opfsManager.worker) {
         // The worker is gone (it crashed, or stopped answering): OPFS is over for this
@@ -196,8 +195,7 @@ export class FSBlob {
       // Delete file to orphan it
       await this.indexedDBManager.deleteFile(identifier);
 
-      this.blobStore.set(identifier, file);
-      return true;
+      return this.replaceIfStill(identifier, blob, file);
     } catch (e) {
       // A single write failing (e.g. quota exceeded mid-session) doesn't
       // mean IndexedDB is broken for everything else - leave
@@ -230,8 +228,7 @@ export class FSBlob {
         return false;
       }
 
-      this.blobStore.set(identifier, IN_CACHE);
-      return true;
+      return this.replaceIfStill(identifier, blob, IN_CACHE);
     } catch (e) {
       // A single write failing (e.g. quota exceeded mid-session) doesn't
       // mean the Cache API is broken for everything else - leave this.cache
@@ -239,6 +236,23 @@ export class FSBlob {
       console.warn('Cache write failed for this blob, keeping it in memory', e);
       return false;
     }
+  }
+
+  /**
+   * Puts what a backend stored in place of the blob held in RAM - only if that blob is still
+   * the one held: the same identifier may have been deleted, cleared or saved again while the
+   * backend wrote (a fragment let go of and downloaded again), and the old write's answer
+   * put the old data back, or took the new one out of the RAM count.
+   * @param {string} identifier
+   * @param {Blob} blob - What was written.
+   * @param {*} stored - What now stands for it (a File, IN_CACHE).
+   * @return {boolean} Whether it took its place.
+   */
+  replaceIfStill(identifier, blob, stored) {
+    if (this.blobStore.get(identifier) !== blob) return false;
+    this.blobStore.set(identifier, stored);
+    this.inRam.delete(identifier);
+    return true;
   }
 
   getIdentifierURL(identifier) {
@@ -296,14 +310,10 @@ export class FSBlob {
       handled = await this.saveBlobInIndexedDBAsync(identifier, blob);
     }
     if (generation !== this.generation) {
-      // clear() ran meanwhile: this blob was put back after it, and stayed until the
-      // next clear.
-      this.blobStore.delete(identifier);
-      this.blobStorePromises.delete(identifier);
-      this.inRam.delete(identifier);
+      // clear() ran meanwhile: what the backend answered was not put back (replaceIfStill),
+      // and whatever is under this identifier now is a newer save's.
       return false;
     }
-    if (handled) this.inRam.delete(identifier);
     return handled;
   }
 
@@ -318,7 +328,10 @@ export class FSBlob {
     const blob = this.blobStore.get(identifier);
     this.spilling.add(identifier);
     try {
-      const promise = this.offloadBlob(identifier, blob);
+      const promise = this.offloadBlob(identifier, blob).catch((e) => {
+        console.warn('Could not write a blob to disk', e);
+        return false;
+      });
       this.blobStorePromises.set(identifier, promise);
       return await promise;
     } finally {
@@ -375,6 +388,7 @@ export class FSBlob {
 
     this.blobStore.delete(identifier);
     this.blobStorePromises.delete(identifier);
+    this.inRam.delete(identifier);
 
     if (!await this.ready()) return true;
 

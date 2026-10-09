@@ -617,7 +617,7 @@ maxSize.addEventListener('change', () => {
 const MIN_RAM_BUDGET = 256000000;
 ramBudget.addEventListener('change', () => {
   const value = StringUtils.getSizeValue(ramBudget.value);
-  Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
+  Options.ramBudget = Number.isFinite(value) && value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
   ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
   optionChanged();
 });

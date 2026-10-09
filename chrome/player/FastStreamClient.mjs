@@ -1310,6 +1310,16 @@ export class FastStreamClient extends EventEmitter {
    * still go. Fragments of every quality level count, not only the current one's.
    */
   enforceMemoryBudget() {
+    // On the client's tick: a throw here skipped the rest of it, the downloads ahead with it.
+    try {
+      this.keepWithinMemoryBudget();
+    } catch (e) {
+      console.warn('Could not keep within the RAM budget', e);
+    }
+  }
+
+  /** enforceMemoryBudget's work. */
+  keepWithinMemoryBudget() {
     const manager = this.downloadManager;
     if (!manager?.blobStore || !this.peers) return;
     const budget = this.options.ramBudget > 0 ? this.options.ramBudget : DEFAULT_BUDGET_BYTES;
@@ -1325,19 +1335,39 @@ export class FastStreamClient extends EventEmitter {
     if (held - leaving <= share * HIGH) return;
 
     const toDisk = manager.canSpill();
+    const time = this.state.currentTime;
+    const current = this.currentFragment;
     const candidates = [];
     for (const fragments of Object.values(this.fragmentsStore || {})) {
       for (const fragment of fragments || []) {
-        if (!fragment || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
-        if (!Number.isFinite(fragment.start) || !Number.isFinite(fragment.end)) continue;
+        // Init segments (sn -1) every fragment of their level needs.
+        if (!fragment || fragment.sn < 0 || fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE || !fragment.canFree()) continue;
         const bytes = manager.ramBytesOf(fragment.getContext());
-        if (bytes > 0) candidates.push({fragment, start: fragment.start, end: fragment.end, bytes});
+        if (!(bytes > 0)) continue;
+        let start = fragment.start;
+        let end = fragment.end;
+        if (!Number.isFinite(start) || !Number.isFinite(end)) {
+          // No times yet (a fragmented MP4's ranges before they are parsed): placed by their
+          // distance from the fragment playing, far behind or far ahead; next to it, kept.
+          // Never released, they let a private window's RAM grow without a bound.
+          if (!current || current.level !== fragment.level || Math.abs(fragment.sn - current.sn) <= 2) continue;
+          const distance = fragment.sn - current.sn;
+          start = distance > 0 ? time + 1e7 + distance : time - 1e7 + distance;
+          end = start;
+        }
+        candidates.push({fragment, start, end, bytes});
       }
     }
     const keep = toDisk ? KEEP_ON_DISK_WINDOW : KEEP_IN_RAM_ONLY_WINDOW;
-    for (const {fragment} of chooseToRelease(candidates, this.state.currentTime, keep, held - leaving - share * LOW)) {
+    for (const {fragment} of chooseToRelease(candidates, time, keep, held - leaving - share * LOW)) {
       if (toDisk) {
-        manager.spill(fragment.getContext()).catch((e) => console.warn('Could not write a fragment to disk', e));
+        // One that cannot go to disk (the disk full) is let go of instead of staying in RAM.
+        manager.spill(fragment.getContext()).then((stored) => {
+          if (!stored && fragment.status === DownloadStatus.DOWNLOAD_COMPLETE && fragment.canFree() &&
+              manager.ramBytesOf(fragment.getContext()) > 0) {
+            this.freeFragment(fragment);
+          }
+        }).catch((e) => console.warn('Could not write a fragment to disk', e));
       } else {
         this.freeFragment(fragment);
       }

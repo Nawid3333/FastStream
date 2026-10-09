@@ -539,6 +539,31 @@ describe('FSBlob', () => {
     }
   });
 
+  it('does not let an old write replace a fragment saved again meanwhile', async () => {
+    // A fragment let go of and downloaded again while its first copy was still being
+    // written: the old write's answer put the old data back, and took the new one out of
+    // the RAM count.
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const {fsblob} = withOpfs({
+      worker: {},
+      setFile: () => gate,
+      getFile: async () => new Blob(['old, from disk']),
+      close: vi.fn(),
+    });
+    const first = new Blob(['old']);
+    await fsblob.saveBlobAsync(first, 'f1', {deferred: true});
+    const spilling = fsblob.spill('f1');
+    const second = new Blob(['new data']);
+    await fsblob.saveBlobAsync(second, 'f1', {deferred: true});
+    release();
+    expect(await spilling).toBe(false);
+    expect(fsblob.getBlob('f1')).toBe(second);
+    expect(fsblob.ramBytes()).toBe(second.size);
+  });
+
   it('never writes a private window\'s blob to disk', async () => {
     // Firefox keeps a private window's media in RAM; so does FastStream (memoryOnly).
     const cached = new Map();
