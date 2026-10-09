@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "跳過片尾"
     },
+    "player_nextvideo_auto": {
+        "message": "自動"
+    },
     "player_nextvideoin": {
         "message": "下一部影片於 $1s 後播放"
     },

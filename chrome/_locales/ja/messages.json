@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "アウトロをスキップ"
     },
+    "player_nextvideo_auto": {
+        "message": "自動"
+    },
     "player_nextvideoin": {
         "message": "次のビデオ $1s 後"
     },

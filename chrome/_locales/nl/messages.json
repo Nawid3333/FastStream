@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "Outro overslaan"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Volgende video over $1s"
     },

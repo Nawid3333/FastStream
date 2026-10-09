@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "Пропустить окончание"
     },
+    "player_nextvideo_auto": {
+        "message": "Авто"
+    },
     "player_nextvideoin": {
         "message": "Следующее видео через $1с"
     },

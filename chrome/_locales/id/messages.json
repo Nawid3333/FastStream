@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "Lewati Outro"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Video berikutnya dalam $1s"
     },

@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "Salta l'Outro"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Prossimo video tra $1s"
     },

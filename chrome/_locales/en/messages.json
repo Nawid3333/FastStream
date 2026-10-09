@@ -239,6 +239,9 @@
     "player_skipoutro": {
         "message": "Skip Outro"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Next Video in $1s"
     },
