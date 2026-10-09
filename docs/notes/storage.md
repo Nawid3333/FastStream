@@ -60,6 +60,14 @@ than trusting `FSBlob`'s own self-report.
   (it exists before its first heartbeat: two players starting together deleted each
   other's), and a heartbeat that exists but cannot be read (its owner is writing it) means
   alive. Only a stale or missing heartbeat on an older directory is pruned.
+- **A session whose worker holds its Web Lock is never pruned (2026-10-09).** A heartbeat is
+  only as punctual as a timer: a busy worker, a computer back from sleep or a clock set
+  forward made a live player look gone, and its whole stored video was deleted under it
+  (seeking back then failed for good). Each worker takes the lock `faststream-fsblob:<session>`
+  before its directory exists and holds it for its lifetime; Firefox lets go of a worker's
+  locks when it ends. Without the lock the heartbeat decides as before, which also leaves a
+  closed session's finished save its `STALE_MS` to be read (`opfsStorage.test.mjs`,
+  "a live session by its lock").
 - `clear()` bumps a generation, so an offload that finishes after it does not put its
   blob back.
 - The progress store: `pruneOld` never rejects or hangs (the player's setup awaits it),
@@ -100,7 +108,10 @@ What that fix put in place, and the invariants to keep:
   to the next one — a backend that claims support and then fails costs one
   step down the chain, not a drop to RAM. A private window therefore lands
   on the Cache API, which is disk-backed, rather than buffering every
-  fragment in memory.
+  fragment in memory. (Superseded 2026-10-09 for the player's own store: in a private
+  window it is `memoryOnly` and nothing of it reaches the disk - see "RAM first, a
+  budget, and private windows in RAM only". The chain and its fall-through still hold for
+  every other `FSBlob`, the save converters' among them.)
 - **No async `FSBlob` entry point may reject because of its backend.**
   `clear()` and `deleteBlob()` are best-effort by contract: the in-memory
   maps are emptied first, so the caller's invariant already holds, and a
@@ -131,7 +142,8 @@ What that fix put in place, and the invariants to keep:
 test:pbm`) cover this: a permanently private session
 (`browser.privatebrowsing.autostart`) with the add-on's private-browsing
 permission granted through `ExtensionPermissions` in the `before` hook,
-asserting the blob backend is neither `memory` nor `opfs`, that
+asserting the blob backend of a bare `FSBlob` is neither `memory` nor `opfs` (the
+player's own store there is memory-only on purpose since 2026-10-09, a separate case), that
 `clear()`/`deleteBlob()`/`downloadManager.reset()` resolve, and that an MP4
 actually reaches `HAVE_CURRENT_DATA`. Verified to fail on the pre-fix tree
 (4 of 6 specs) and pass after.
@@ -183,4 +195,60 @@ refuses to predownload a whole video in a private session
 window. With a disk-backed Cache backend the original RAM rationale is
 weaker, but not writing an entire video to disk during a private session is
 a defensible privacy stance, and changing it is a behaviour change rather
-than a fix.
+than a fix. (2026-10-09: a private window now keeps nothing on disk at all, and its
+buffering is bounded by the RAM budget as well as by this window.)
+
+## RAM first, a budget, and private windows in RAM only (2026-10-09)
+
+Every downloaded fragment was written to disk at once - 44 ms for a 1.5 MB piece on OPFS,
+measured in Firefox 157 - even for a video that fits in RAM many times over. A private window
+paid twice: each fragment went to the Cache API (encrypted on disk, `storage/private`) and a
+copy of it stayed in RAM as well, because Firefox keeps a private `Response.blob()` in memory
+(`dom/fetch/Fetch.cpp`, `MutableBlobStorage::eOnlyInMemory`). Reading a 1.5 MB piece takes
+0.24 ms from RAM, 1.5 ms from OPFS and 5.6 ms from the Cache API (same measurement, 40 reads
+each): reads are not the bottleneck at one piece per 4 s of video; the writes were.
+
+- **The budget.** A setting (Options > General, "RAM for buffered video", 16 locales), 2 GB by
+  default, at least 256 MB, for all FastStream players together: Firefox tells an extension
+  nothing of the computer's RAM (no `navigator.deviceMemory`). Players announce their RAM over
+  `PlayerPeers`; a player's share (`MemoryBudget.shareOf`) is its weight's part of the budget
+  (the one the user watches and that plays weighs 4, others 1), or all the others leave free,
+  whichever is more. Each kind of window has its own budget: `BroadcastChannel` is kept apart
+  between private and normal windows. The count is the sizes of the Blobs held, an estimate,
+  not resident memory; MSE SourceBuffers (Firefox caps them at 150 MiB video / 20 MiB audio each,
+  and the players keep only 20-40 s there) are not counted.
+- **Release.** Fragments stay in RAM (`FSBlob` deferred saves). Over `HIGH` (90 %) of its share a
+  player lets go of fragments until it is back at `LOW` (75 %): furthest behind the playhead
+  first, then furthest ahead, never [-10 s, +60 s] around it (private: [-5 s, +30 s]); if that
+  window alone is bigger than the share, all but the next 10 s may go. Fragments without times
+  (a fragmented MP4's ranges before they are parsed) are placed by their distance from the
+  fragment playing; init segments are never released. Until it is back at `LOW` it starts no
+  downloads ahead (`DownloadManager.memoryFull`); playback's own requests still go.
+- **Normal windows** write what they let go of to disk (`FSBlob.spill`) and read it from there;
+  one that cannot be written (the disk full) is let go of instead.
+- **Private windows keep nothing on disk** (`FSBlob` `memoryOnly`): the owner's decision of
+  2026-10-09, after Firefox's own design (`browser.privatebrowsing.forceMediaMemoryCache` keeps a
+  private window's media in RAM). What a private player lets go of is downloaded again when
+  needed. A save is the user's own request to write the video to disk: its converters
+  (`hls2mp4`, `mp4merger`, `remuxer`, `StreamSaver`) still stage in Firefox's encrypted
+  private storage.
+- **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
+  stored without reading it back (`match()`, body cancelled) and reads it when asked
+  (`getBlob` then answers a promise; every caller awaits it).
+- **Stored data that can no longer be read** (an OPFS file deleted or rewritten under its
+  `File` - a File from `getFile()` reads the file as it is on disk now -, a Cache API entry gone)
+  drops its entry (`DownloadEntry.onDataLost`), so the next request downloads it again, instead
+  of failing the same way every time. Only for a `DOMException` or data that is not there: a
+  `TypeError` is a bug, and dropping on it would download for ever.
+
+**Invariants.** Every `FSBlob` path keeps `inRam` in step with `blobStore` (the budget reads the
+count). What a backend stored replaces the RAM blob only while that blob is still the one held
+(`replaceIfStill`): a fragment let go of and downloaded again while its first copy was being
+written got the old data back. `enforceMemoryBudget` runs on the client's tick and must not
+throw (it is wrapped). Saves are never cancelled or held by the network yield (player.md).
+
+**Tests.** `ram-budget.e2e.mjs` (a two-minute stream that fits stays in RAM, no file written;
+with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start played again from
+disk); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
+`MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
+write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).

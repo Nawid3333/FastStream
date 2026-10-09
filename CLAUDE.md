@@ -16,8 +16,11 @@ reviewers check add-on license claims, and "I assert GPL over someone
 else's all-rights-reserved code" does not survive that.
 
 Goal: a Firefox-only extension (Chrome was dropped on 2026-09-20 — see
-`docs/notes/build-and-release.md`, "Build targets") with a modern, testable dev workflow, and
-upstream merges that stay as painless as a fork can make them.
+`docs/notes/build-and-release.md`, "Build targets") with a modern, testable dev workflow.
+Since 2026-10-09 upstream no longer constrains the code (the owner's decision): restructure,
+rewrite and modernise freely, and use what Firefox offers (Fetch Priority, Web Locks, OPFS,
+`browser.*`) without Chrome fallbacks. An upstream change is reviewed for fixes that also apply
+here, and the fix is ported, not merged.
 
 ## This file is the short part
 
@@ -131,8 +134,9 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
   and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
   from `sync/upstream` when Andrew has commits `main` lacks. It waits for the owner like
-  every PR (`update-prs.yml` only says whether it is ready): close it to skip,
-  merge it to take. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
+  every PR (`update-prs.yml` only says whether it is ready). Since 2026-10-09 it is a list of
+  upstream changes to review for fixes that apply here (port the fix, then close it), not
+  something to merge. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
   branches, if ever needed, get cut fresh off `upstream/main`.
 - **A new string needs all 16 locales.** The 16 `chrome/_locales/*/messages.json` files are
   the source (4-space indent); edit those, then `pnpm run combine-locales`. Never
