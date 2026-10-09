@@ -360,23 +360,37 @@ export class SubtitleUtils {
     // onto whatever line came before it, and were shown as text.
     const lines = text.split('\n');
     for (let i = 1; i < lines.length; i++) {
-      const tag = /^\{\\?an(\d)\}/i.exec(lines[i]);
+      // The alignment can share its block with other tags ({\an8\i1}): those stay, in a
+      // block of their own, for the override blocks below.
+      const tag = /^\{\\?an(\d)((?:\\[^{}\n]*)?)\}/i.exec(lines[i]);
       if (!tag || !lines[i - 1].includes('-->')) {
         continue;
       }
       const timing = lines[i - 1].replace(/\r$/, '');
       const settings = alignmentSettings[tag[1]];
       lines[i - 1] = settings ? `${timing} ${settings}` : timing;
-      lines[i] = lines[i].substring(tag[0].length);
+      lines[i] = (tag[2] ? `{${tag[2]}}` : '') + lines[i].substring(tag[0].length);
     }
     const withAlignment = lines.join('\n');
 
     return withAlignment
-        .replace(/\{\\([ibu])1\}/gi, '<$1>') // convert {\b1}, {\i1}, {\u1} to <b>, <i>, <u>
-        .replace(/\{\\([ibu])\}/gi, '</$1>') // convert {\b}, {\i}, {\u} to </b>, </i>, </u>
+        // An ASS override block ({\i1}, {\b0}, {\i1\fad(200,0)}, {\pos(400,570)\c&HFFFFFF&}):
+        // its italic, bold and underline switches become tags; the rest (position, colour,
+        // fades, fonts, a later alignment) has no WebVTT form and goes. Only {\b1} and the
+        // like were known, and every other block was shown as text (audit, 2026-10-09).
+        // \b700 is a bold weight, so on; \b, \b0 off. \bord, \blur, \be, \iclip are other
+        // tags (a letter follows). A block ends on its line: a stray "{\" took everything up
+        // to a "}" in a later cue, timing lines too. Switches are not toggled ASS-style:
+        // {\i1}a{\b1}b{\i0} closes nothing until </b>, as WebVTT nests its tags.
+        .replace(/\{(\\[^{}\n]*)\}/g, (block, overrides) =>
+          Array.from(overrides.matchAll(/\\([ibu])(\d*)(?![a-z])/gi), ([, tag, value]) =>
+            value === '' || value === '0' ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`).join(''))
         .replace(/\{([ibu])\}/gi, '<$1>') // convert {b}, {i}, {u} to <b>, <i>, <u>
         .replace(/\{\/([ibu])\}/gi, '</$1>') // convert {/b}, {/i}, {/u} to </b>, </i>, </u>
-        .replace(/\{\\?an\d\}/gi, '') // strip any remaining alignment tags
+        .replace(/\{an\d\}/gi, '') // strip any remaining alignment tags without a backslash
+        // An ASS hard line break. Several in a row, or one at a line's end, make one: an empty
+        // line would end the cue.
+        .replace(/(?:\\N)+(?:\r?\n)?/g, '\n')
         .replace(/\\h/gi, ' '); // convert hard spaces to regular spaces
   }
 }
