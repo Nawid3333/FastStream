@@ -57,7 +57,9 @@
   // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
 
-  let resizeDebounce = Date.now();
+  // The resize observers' last update of the players, and the one due after a burst.
+  let resizeDebounce = performance.now();
+  let resizeTrailing = null;
   const Config = {
     softReplaceByDefault: true,
     hasCustomPlaylist: false,
@@ -489,12 +491,20 @@
           }
         }
 
-        // Add resize listener
+        // Add resize listener: an update at most every 100 ms, and one more 100 ms after
+        // the last change. The changes skipped inside a burst (a sidebar sliding shut) were
+        // never made up, and the player kept a size from the middle of it.
         pobj.resizeObserver = new ResizeObserver(() => {
-          const now = Date.now();
+          clearTimeout(resizeTrailing);
+          const now = performance.now();
           if (now - resizeDebounce > 100) {
             resizeDebounce = now;
             updateReplacedPlayers();
+          } else {
+            resizeTrailing = setTimeout(() => {
+              resizeDebounce = performance.now();
+              updateReplacedPlayers();
+            }, 100);
           }
         });
         // An element: a video straight in a shadow root put the player there, with the root

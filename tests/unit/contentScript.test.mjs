@@ -680,6 +680,35 @@ describe('a player put in a shadow root', () => {
   });
 });
 
+// The resize observer updated the player at most every 100 ms and dropped the changes in
+// between: after a box that kept changing (a sidebar sliding shut), the player kept a size
+// from the middle of it until the next resize.
+describe('a player whose box keeps changing', () => {
+  it('takes the box\'s last size', async () => {
+    const {page, wrap} = pageWithVideo();
+    let resized = null;
+    page.window.ResizeObserver = class {
+      constructor(callback) {
+        resized = callback;
+      }
+      observe() {}
+      disconnect() {}
+    };
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    expect(iframe.style.width).toBe('640px');
+
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    resized();
+    expect(iframe.style.width).toBe('800px');
+    wrap.rect = {x: 0, y: 0, width: 960, height: 540};
+    resized();
+    page.advance(150);
+    expect(iframe.style.width).toBe('960px');
+  });
+});
+
 // Firefox fires beforeunload for a navigation that then never happens: a link answered
 // with a download or a 204, a "Leave page?" the user said no to. The page stays, but it had
 // told the background it left: the background forgot its frames and their streams, and
