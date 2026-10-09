@@ -336,9 +336,12 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   line), loading nothing meanwhile. `HLSPlayer`'s preview seek now goes through
   `hls.stopLoad()`/`startLoad(time)`: the segment is asked for within milliseconds (37 ms; the
   old code 9.2 s with 8 s segments). A pointer still inside the segment that is loading leaves
-  it loading: each move started it over. Open: the hovered segment is requested a second time
-  a few seconds later in `seek-preview.e2e.mjs` (before and after that guard), not explained
-  yet.
+  it loading: each move started it over. And the segment was downloaded twice: the client's
+  level check (`checkLevelChange`, on the main loop) told the preview the level it was on, and
+  `HLSPlayer.setCurrentVideoLevelID` set `hls.currentLevel`, which makes hls.js switch at once
+  even to the same level - drop the segment loading and the buffer (traced: aborted 0.4 s in,
+  downloaded again 9 s later). A level already loading or playing is now only pinned
+  (`hls.loadLevel`); a real change still switches at once.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.

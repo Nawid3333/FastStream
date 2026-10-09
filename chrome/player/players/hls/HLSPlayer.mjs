@@ -541,7 +541,18 @@ export default class HLSPlayer extends EventEmitter {
 
   setCurrentVideoLevelID(value) {
     if (value === null) return;
-    this.hls.currentLevel = this.getIndexes(value).levelID;
+    const level = this.getIndexes(value).levelID;
+    // The level it loads already: pinned for what it loads next. Setting currentLevel makes
+    // hls.js switch at once even to the same level - it drops the segment loading and the
+    // buffer: the client's level check (checkLevelChange) told the seek preview the level it
+    // was on, and the segment under the pointer was dropped 0.4 s in and downloaded again.
+    // In effect: the level it loads next (loadLevel, once set) or the one playing; a real
+    // change still switches at once.
+    if (level === this.hls.loadLevel || level === this.hls.currentLevel) {
+      this.hls.loadLevel = level;
+      return;
+    }
+    this.hls.currentLevel = level;
   }
 
   get duration() {

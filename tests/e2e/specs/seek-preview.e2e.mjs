@@ -133,5 +133,8 @@ describe('The seek preview', function() {
     } finally {
       console.log(`      then: ${JSON.stringify(state)}; asked for: ${JSON.stringify(requests.slice(0, 12).map((request) => request.place))}`);
     }
+    // Downloaded once in all. The client told the preview the level it was on, which made
+    // hls.js drop the segment and the buffer and load the segment again 9 s later.
+    expect(asked().length).toBe(1);
   });
 });
