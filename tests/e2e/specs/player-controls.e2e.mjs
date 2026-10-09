@@ -190,11 +190,14 @@ describe('Player controls', function() {
     expect(after.seeking).toBe(false);
     expect(after.later).toBe(after.time);
 
+    // A drag paused the playing video; a reset (a new video) during it played it again.
+    await browser.execute(() => window.fastStream.play());
+    await browser.waitUntil(async () => browser.execute(() => !window.fastStream.paused), {timeout: 10000});
     expect(await drag()).toBe(true);
     expect(await browser.execute(() => {
       window.fastStream.interfaceController.progressBar.reset();
-      return window.fastStream.interfaceController.progressBar.isSeeking;
-    })).toBe(false);
+      return {seeking: window.fastStream.interfaceController.progressBar.isSeeking, paused: window.fastStream.paused};
+    })).toEqual({seeking: false, paused: true});
   });
 
   it('does not carry the previous video\'s failed-fragments button over', async function() {

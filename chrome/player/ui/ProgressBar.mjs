@@ -139,7 +139,8 @@ export class ProgressBar extends EventEmitter {
   reset() {
     // A drag still going (the next video came mid-scrub) froze the next video's bar, and the
     // release then seeked it to the old position.
-    this.endDrag?.(null);
+    // Without playing on: the next video does not start because one was dragged in.
+    this.endDrag?.(null, false);
     DOMElements.progressLoadedContainer.replaceChildren();
     this.progressCache = [];
     this.progressCacheAudio = [];
@@ -606,7 +607,7 @@ export class ProgressBar extends EventEmitter {
 
     // Ends the drag, at the release point of a mouseup (event) or where it was (null).
     let ended = false;
-    const endDrag = (event) => {
+    const endDrag = (event, resume = true) => {
       // Once: a mouseup in the player reaches its listener and the document's.
       if (ended) return;
       ended = true;
@@ -638,7 +639,7 @@ export class ProgressBar extends EventEmitter {
 
       DOMElements.progressContainer.classList.remove('freeze');
 
-      if (shouldPlay) {
+      if (shouldPlay && resume) {
         this.client.player?.play();
       }
     };
