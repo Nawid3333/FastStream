@@ -169,7 +169,8 @@ export class OpenSubtitlesSearch extends EventEmitter {
     // The first number in the field: "S2" or "Season 2" was no number, and the search went
     // on as one for a movie.
     const number = (input) => {
-      const value = parseInt(/\d+/.exec(input.value)?.[0], 10);
+      // With its sign: "-1" is no number to search for, and not 1 (review).
+      const value = parseInt(/-?\d+/.exec(input.value)?.[0], 10);
       return Number.isFinite(value) && value >= 0 ? value : null;
     };
     return {

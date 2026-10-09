@@ -47,5 +47,7 @@ describe('OpenSubtitlesSearch.readInputs', () => {
   it('keeps 0 and leaves empty or wordless fields out', () => {
     expect(read('0', '3')).toMatchObject({season: 0, episode: 3});
     expect(read('', 'none', 'abc')).toMatchObject({season: null, episode: null, year: null});
+    // A sign is kept, and a negative left out: "-1" was read as 1.
+    expect(read('-2', 'S-1', '-1999')).toMatchObject({season: null, episode: null, year: null});
   });
 });
