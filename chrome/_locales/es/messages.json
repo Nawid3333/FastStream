@@ -963,13 +963,13 @@
         "message": "Velocidad de descarga objetivo del predescargador"
     },
     "options_general_maxsize": {
-        "message": "Tamaño máximo de video predescargado"
+        "message": "Tamaño máximo de video predescargado (solo se usa cuando la descarga previa está activada)"
     },
     "options_general_rambudget": {
         "message": "RAM para el vídeo en búfer (todas las pestañas)"
     },
     "options_general_bufferahead": {
-        "message": "Segundos de vídeo que se mantienen en el búfer por delante de la reproducción (se usa cuando la descarga previa se detiene o se queda sin espacio)"
+        "message": "Segundos de vídeo que se mantienen en el búfer por delante de la reproducción (se usa cuando la descarga previa está desactivada, se ha detenido o se queda sin espacio)"
     },
     "options_general_bufferbehind": {
         "message": "Segundos que se mantienen en el búfer por detrás de la reproducción antes de descartarse"

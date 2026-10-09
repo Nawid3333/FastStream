@@ -963,13 +963,13 @@
         "message": "Ön indiricinin hedef indirme hızı"
     },
     "options_general_maxsize": {
-        "message": "Önceden indirilen videonun maksimum boyutu"
+        "message": "Önceden indirilen videonun maksimum boyutu (yalnızca ön indirme açıkken kullanılır)"
     },
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
     "options_general_bufferahead": {
-        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme durduğunda ya da yer kalmadığında kullanılır)"
+        "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme kapalıysa, durduysa veya yer kalmadıysa kullanılır)"
     },
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"

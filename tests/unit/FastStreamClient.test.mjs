@@ -429,6 +429,32 @@ describe('FastStreamClient, remembered times', () => {
     expect(client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
   });
 
+  // #378: with predownload off the maximum size is not used, but a size smaller than the
+  // video (10 MB) still warned "Video size exceeds limits" at the start of every video.
+  it('warns about the maximum size only with predownload on, also once it is turned on', () => {
+    const client = makeClient({downloadAll: false, maxVideoSize: 1e7});
+    const player = new FakePlayer(makeSource('http://127.0.0.1/episode.mp4'));
+    player.duration = 1400;
+    player.videoLevel = 'video-1';
+    player.getVideoLevels = () => new Map([['video-1', {bitrate: 5e5}]]);
+    client.player = player;
+    client.hasDownloadSpace = true;
+    client.storageAvailable = 1e12;
+
+    client.updateHasDownloadSpace();
+    expect(client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+    expect(client.shouldDownloadAll()).toBeFalsy();
+
+    // Turned on in the middle of the video: too big for the 10 MB, as a predownload that ran
+    // out of room - warned once, and downloading only the buffer window.
+    client.options.downloadAll = true;
+    client.updateHasDownloadSpace();
+    client.updateHasDownloadSpace();
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledTimes(1);
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.shouldDownloadAll()).toBeFalsy();
+  });
+
   it('applies the remembered time when an options change looked it up first', async () => {
     // setOptions() looks the time up too. While that lookup ran, the source's own returned at
     // once with nothing, its time was never applied, and the next save wrote ~0 over it.

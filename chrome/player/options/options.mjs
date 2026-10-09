@@ -1,7 +1,6 @@
 import {DefaultKeybinds} from './defaults/DefaultKeybinds.mjs';
 import {conflictPartners, keybindLabel} from './KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
-import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
@@ -37,7 +36,9 @@ const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
+const maxSizeUnit = document.getElementById('maxsizeunit');
 const ramBudget = document.getElementById('rambudget');
+const ramBudgetUnit = document.getElementById('rambudgetunit');
 const bufferAhead = document.getElementById('bufferahead');
 const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
@@ -116,6 +117,8 @@ async function loadOptions(newOptions) {
   Options = newOptions;
 
   downloadAll.checked = !!Options.downloadAll;
+  maxSize.disabled = !downloadAll.checked;
+  maxSizeUnit.disabled = !downloadAll.checked;
   analyzeVideos.checked = !!Options.analyzeVideos;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
@@ -132,9 +135,9 @@ async function loadOptions(newOptions) {
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
-  maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
-  maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
-  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
+  showSpeed(Options.maxSpeed);
+  showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
+  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   bufferAhead.value = Options.bufferAhead;
   bufferBehind.value = Options.bufferBehind;
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
@@ -259,7 +262,8 @@ createSelectMenu(qualityMenu, Object.values(DefaultQualities), Options.defaultQu
 
 document.querySelectorAll('.option').forEach((option) => {
   option.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'INPUT') {
+    // A unit picker beside a number takes its own clicks.
+    if (e.target.tagName !== 'INPUT' && !e.target.closest('select')) {
       const input = option.querySelector('input');
       if (input) {
         if (input.type === 'checkbox') {
@@ -549,6 +553,9 @@ analyzeVideos.addEventListener('change', () => {
 
 downloadAll.addEventListener('change', () => {
   Options.downloadAll = downloadAll.checked;
+  // The size limit applies to predownloading only; without it "Buffer ahead" decides (#378).
+  maxSize.disabled = !downloadAll.checked;
+  maxSizeUnit.disabled = !downloadAll.checked;
   optionChanged();
 });
 
@@ -578,29 +585,85 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
   optionChanged();
 });
 
-maxSpeed.addEventListener('change', () => {
-  // parse value, number unit/s
-  Options.maxSpeed = StringUtils.getSpeedValue(maxSpeed.value);
-  maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
+// The speed and the two sizes are a number with a unit beside it: typed as text, "10 Mb",
+// "10 Mo" and "10" left users unsure what the field took (#378). The values are kept as
+// before: bytes per second, bytes, -1 for no limit.
+const BYTES_PER_MBIT_PER_S = 1000000 / 8;
+const GB = 1000 ** 3;
+
+/**
+ * Shows the maximum speed in Mbit/s, as speed tests give it; nothing (∞) for no limit.
+ * @param {number} bytesPerSecond
+ */
+function showSpeed(bytesPerSecond) {
+  maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 1000) / 1000) : '';
+}
+
+/**
+ * Shows a size in its number field and MB/GB picker, to three decimals; nothing (∞) for no
+ * limit. Loaded, in GB from 1 GB up (in whole MB) and in MB below; after a change, in the unit the user
+ * has picked: switched under them, "3000" typed in MB became "3 GB" when the field was left,
+ * and picking GB after it changed nothing.
+ * @param {HTMLInputElement} input
+ * @param {HTMLSelectElement} unit
+ * @param {number} bytes
+ * @param {boolean} [keepUnit] - Whether the unit picked stays.
+ */
+function showSize(input, unit, bytes, keepUnit = false) {
+  // GB only when its three decimals hold the size: 1234.4 MB came back as 1.234 GB.
+  if (!keepUnit) unit.value = String(!(bytes >= 0) || (bytes >= GB && bytes % (GB / 1000) === 0) ? GB : GB / 1000);
+  input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
+}
+
+/**
+ * The amount a field holds, times its unit; NaN when it holds no number above 0. A comma is
+ * a decimal point ("1,5", as French and German write it): a number field would have taken
+ * only the page language's, and "1,5" was cut to 1. Read to the three decimals the field
+ * shows (showSpeed, showSize), so what is saved is what it says: 0.0001 MB was saved as 100
+ * bytes and shown as 0. 0 is no amount, so no limit, as an empty field: a limit of 0 Mbit/s
+ * held back reading ahead whenever anything downloaded, and a size of 0 was read as no limit
+ * while the field said 0. Too big to hold (1e308 MB) is no amount either: saved as JSON, it
+ * read back as null.
+ * @param {HTMLInputElement} input
+ * @param {number} multiplier
+ * @return {number}
+ */
+function readAmount(input, multiplier) {
+  const shown = Math.round(parseFloat(input.value.trim().replace(',', '.')) * 1000) / 1000;
+  const amount = Math.round(shown * multiplier);
+  return Number.isFinite(amount) && amount > 0 ? amount : NaN;
+}
+
+// Written back (in the unit picked: showSize) when the field is left or a unit picked - a
+// trusted change - not on a save while typing, where it fought the keys being typed.
+maxSpeed.addEventListener('change', (e) => {
+  const value = readAmount(maxSpeed, BYTES_PER_MBIT_PER_S);
+  Options.maxSpeed = Number.isNaN(value) ? -1 : value;
+  if (e.isTrusted) showSpeed(Options.maxSpeed);
   optionChanged();
 });
 
-maxSize.addEventListener('change', () => {
-  // parse value, number unit
-  Options.maxVideoSize = StringUtils.getSizeValue(maxSize.value);
-  maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+const onMaxSizeChange = (e) => {
+  const value = readAmount(maxSize, Number(maxSizeUnit.value));
+  Options.maxVideoSize = Number.isNaN(value) ? -1 : value;
+  if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize, true);
   optionChanged();
-});
+};
+maxSize.addEventListener('change', onMaxSizeChange);
+// Another unit, the same number: "2" from MB to GB is 2 GB.
+maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
 // The RAM all players keep downloaded video in (MemoryBudget). Not unlimited: every
-// FastStream page runs in one Firefox process. Nothing readable, or "∞", is the default.
+// FastStream page runs in one Firefox process. Nothing readable is the default.
 const MIN_RAM_BUDGET = 256000000;
-ramBudget.addEventListener('change', () => {
-  const value = StringUtils.getSizeValue(ramBudget.value);
-  Options.ramBudget = Number.isFinite(value) && value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
-  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
+const onRamBudgetChange = (e) => {
+  const value = readAmount(ramBudget, Number(ramBudgetUnit.value));
+  Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
+  if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
   optionChanged();
-});
+};
+ramBudget.addEventListener('change', onRamBudgetChange);
+ramBudgetUnit.addEventListener('change', onRamBudgetChange);
 
 /**
  * A number field's value within its limits, or the default when it holds no number, shown
@@ -655,6 +718,74 @@ maxdownloaders.addEventListener('change', () => {
   optionChanged();
 });
 
+/**
+ * Saves a text field while it is typed in, not only when it is left. Its change event came only
+ * on leaving the field (Tab, a click elsewhere), so a size typed and the settings closed with the
+ * cursor still in it was lost, and the field showed the old value again ("stuck at 5 GB", #378).
+ * The field's own change handler reads, clamps and saves the value; what is being typed stays in
+ * the field as typed. An emptied field is saved when it or the page is left, not while typing.
+ * @param {HTMLInputElement|HTMLTextAreaElement} input
+ */
+function saveWhileTyping(input) {
+  let timer = null;
+  // Typed and not saved yet: an emptied field waits for the field or the page to be left.
+  let unsaved = false;
+  const save = (leaving = false) => {
+    clearTimeout(timer);
+    timer = null;
+    // A number field half typed ("1.", "-") reads as empty: taken for "no limit", it is lost.
+    if (input.validity?.badInput) return;
+    // Emptied while typing is no value yet; emptied when the page goes, it is the user's.
+    if (!leaving && !input.value.trim()) return;
+    const typed = input.value;
+    const {selectionStart, selectionEnd} = input;
+    input.dispatchEvent(new Event('change'));
+    if (input.value !== typed) {
+      input.value = typed;
+      // A number field has no caret position (null), and setSelectionRange throws there.
+      if (selectionStart !== null) input.setSelectionRange(selectionStart, selectionEnd);
+    }
+  };
+  input.addEventListener('input', () => {
+    unsaved = true;
+    clearTimeout(timer);
+    timer = setTimeout(save, 400);
+  });
+  // Left: its change event saves it, and shows it as kept.
+  input.addEventListener('change', () => {
+    unsaved = false;
+    clearTimeout(timer);
+    timer = null;
+  });
+  // The page goes (the tab closed, the player with the settings in it closed) before the wait,
+  // or with the field emptied: an emptied field was not saved at all.
+  window.addEventListener('pagehide', () => {
+    if (unsaved) save(true);
+  });
+}
+
+[maxSpeed, maxSize, ramBudget, bufferAhead, bufferBehind, seekStepSize, replaceDelay, miniSize, maxdownloaders,
+  mpvPathInput].forEach(saveWhileTyping);
+
+/**
+ * Saves a list field when the page goes with it changed, as it does when it is left: half a
+ * line saved while typing would be a list entry of its own ("https://" in the sites FastStream
+ * opens on by itself would be every site).
+ * @param {HTMLTextAreaElement} input
+ */
+function saveOnLeavingPage(input) {
+  let changed = false;
+  input.addEventListener('input', () => {
+    changed = true;
+  });
+  input.addEventListener('change', () => {
+    changed = false;
+  });
+  window.addEventListener('pagehide', () => {
+    if (changed) input.dispatchEvent(new Event('change'));
+  });
+}
+
 optionsSearchBar.placeholder = Localize.getMessage('options_search_placeholder');
 
 
@@ -692,6 +823,8 @@ customSourcePatterns.addEventListener('change', (e) => {
   optionChanged();
 });
 
+[mpvAllowlistInput, autoEnableURLSInput, customSourcePatterns].forEach(saveOnLeavingPage);
+
 importButton.addEventListener('click', () => {
   const picker = document.createElement('input');
   picker.type = 'file';
@@ -711,7 +844,7 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
-    const newOptions = Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj);
+    const newOptions = Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj);
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);

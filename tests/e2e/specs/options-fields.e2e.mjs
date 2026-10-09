@@ -179,3 +179,232 @@ describe('Options page search box', function() {
     expect(await shownSections('')).toHaveLength(8);
   });
 });
+
+// Issue #378: "the maximum size of the preloaded video stays at 5 GB". A text field saved only on
+// its change event, which comes when the field is left: a size typed and the settings closed
+// with the cursor in the field was lost, and the old value came back. A bare "10" was 10 bytes.
+// And with predownload off the size does not apply at all ("Buffer ahead" does), yet the field
+// looked as if it did.
+describe('Options page size fields, typed by hand', function() {
+  beforeEach(async function() {
+    await openOptions();
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000, timeoutMsg: 'the saved options never loaded'});
+  });
+
+  /**
+   * Waits until an option is saved with a value.
+   * @param {string} key
+   * @param {*} value
+   * @return {Promise<void>}
+   */
+  const savedAs = (key, value) => browser.waitUntil(async () => browser.execute((key) =>
+    JSON.parse(localStorage.getItem('options') || 'null')?.[key], key).then((saved) => saved === value),
+  {timeout: 10000, timeoutMsg: `${key} was never saved as ${value}`});
+
+  /**
+   * Clicks into a field, selects what it holds and types over it, as a person does.
+   * @param {string} id
+   * @param {string} text
+   */
+  async function typeInto(id, text) {
+    await (await browser.$(`#${id}`)).click();
+    await browser.keys(['Control', 'a', 'Control']);
+    await browser.keys(text.split(''));
+  }
+
+  /**
+   * A size field's number and unit as shown.
+   * @param {string} id
+   * @return {Promise<[string, string]>}
+   */
+  const shown = (id) => browser.execute((id) =>
+    [document.getElementById(id).value, document.getElementById(id + 'unit').selectedOptions[0].textContent], id);
+
+  /**
+   * Picks a unit as a person does.
+   * @param {string} id - The size field's id.
+   * @param {string} unit - 'MB' or 'GB'.
+   */
+  async function pickUnit(id, unit) {
+    await (await browser.$(`#${id}unit`)).selectByVisibleText(unit);
+  }
+
+  // Typed as text, "10 MB", "10 Mb" and "10 Mo" left the reporter unsure what the field took
+  // (#378): a number, and the unit beside it.
+  it('shows each size as a number and a unit, the speed in Mbit/s', async function() {
+    expect(await shown('maxsize')).toEqual(['5', 'GB']);
+    expect(await shown('rambudget')).toEqual(['2', 'GB']);
+    // No speed limit: an empty field showing ∞.
+    expect(await browser.execute(() => [document.getElementById('maxspeed').value,
+      document.getElementById('maxspeed').placeholder])).toEqual(['', '∞']);
+  });
+
+  it('saves a size while it is typed, without waiting for the field to be left', async function() {
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '10');
+    await savedAs('maxVideoSize', 1e7);
+    // The field keeps what is being typed, and the cursor stays in it.
+    expect(await browser.execute(() => [document.getElementById('maxsize').value, document.activeElement.id]))
+        .toEqual(['10', 'maxsize']);
+    // The page reloaded with the cursor still in the field: the size stays.
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['10', 'MB']);
+  });
+
+  it('takes the unit from its picker, and keeps the number when the unit changes', async function() {
+    await typeInto('maxsize', '2');
+    await savedAs('maxVideoSize', 2e9);
+    await pickUnit('maxsize', 'MB');
+    await savedAs('maxVideoSize', 2e6);
+    expect(await shown('maxsize')).toEqual(['2', 'MB']);
+    // 1500 MB stays in MB, also once the field is left (the unit is the user's), and reads
+    // as 1.5 GB when the page loads again.
+    await typeInto('maxsize', '1500');
+    await savedAs('maxVideoSize', 1.5e9);
+    expect(await shown('maxsize')).toEqual(['1500', 'MB']);
+    await browser.keys(['Tab']);
+    expect(await shown('maxsize')).toEqual(['1500', 'MB']);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['1.5', 'GB']);
+    // A size GB's three decimals do not hold comes back in MB: it came back as 1.234 GB.
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '1234.4');
+    await savedAs('maxVideoSize', 1234.4e6);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['1234.4', 'MB']);
+    // Emptied, it is no limit.
+    await typeInto('maxsize', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('maxVideoSize', -1);
+  });
+
+  // Before #378 a bare "10" was saved as 10 bytes: such a size is megabytes now.
+  it('shows a size saved as a bare number before as megabytes', async function() {
+    await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxVideoSize: 10})));
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['10', 'MB']);
+  });
+
+  it('shows a speed limit of 0 saved before as no limit, as it now is', async function() {
+    await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0})));
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+  });
+
+  it('keeps the unit that is picked, also for an empty size', async function() {
+    await typeInto('maxsize', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('maxVideoSize', -1);
+    await pickUnit('maxsize', 'MB');
+    expect(await shown('maxsize')).toEqual(['', 'MB']);
+    await typeInto('maxsize', '3000');
+    await pickUnit('maxsize', 'GB');
+    await savedAs('maxVideoSize', 3e12);
+    expect(await shown('maxsize')).toEqual(['3000', 'GB']);
+  });
+
+  it('takes a decimal comma, and keeps a size below 1 MB that was chosen', async function() {
+    await typeInto('maxsize', '1,5');
+    await savedAs('maxVideoSize', 1.5e9);
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '0.5');
+    await savedAs('maxVideoSize', 5e5);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await shown('maxsize')).toEqual(['0.5', 'MB']);
+  });
+
+  it('saves a field emptied when the page is left', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    // Emptied, and the page left at once: no limit, not the old 8 Mbit/s.
+    await typeInto('maxspeed', '');
+    await browser.keys(['Backspace']);
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    await savedAs('maxSpeed', -1);
+  });
+
+  // A limit of 0 Mbit/s held back reading ahead whenever anything downloaded, and a size of
+  // 0 was read as no limit while the field said 0 (review, 2026-10-09).
+  it('reads 0, as an empty field, as no limit, and a number too big to save as none', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    await typeInto('maxspeed', '0');
+    await browser.keys(['Tab']);
+    await savedAs('maxSpeed', -1);
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '0');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+    expect(await shown('maxsize')).toEqual(['', 'GB']);
+
+    // 1e308 GB is no number JSON keeps: it was saved as null.
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '1e308');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+
+    // 0.0001 GB is 0 to the three decimals shown: it was saved as 100 kB and shown as 0.
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '0.0001');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+    expect(await shown('maxsize')).toEqual(['', 'GB']);
+  });
+
+  it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    await typeInto('rambudget', '100');
+    await pickUnit('rambudget', 'MB');
+    await browser.keys(['Tab']);
+    await savedAs('ramBudget', 256e6);
+    expect(await shown('rambudget')).toEqual(['256', 'MB']);
+  });
+
+  // A number field has no caret position: putting it back threw (review, 2026-10-09).
+  it('saves a number field its handler corrects, without an error', async function() {
+    await browser.execute(() => {
+      window.pageErrors = [];
+      window.addEventListener('error', (e) => window.pageErrors.push(String(e.message)));
+    });
+    await typeInto('seekstepsize', '-3');
+    await savedAs('seekStepSize', 0.1);
+    // The typed text stays while the field is being typed in; leaving it shows the value saved.
+    expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('-3');
+    await browser.keys(['Tab']);
+    expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('0.1');
+    expect(await browser.execute(() => window.pageErrors)).toEqual([]);
+  });
+
+  it('greys the size out while predownload is off, where buffer ahead decides', async function() {
+    const disabled = () => browser.execute(() =>
+      [document.getElementById('maxsize').disabled, document.getElementById('maxsizeunit').disabled]);
+    expect(await disabled()).toEqual([false, false]);
+    await (await browser.$('#downloadall')).click();
+    expect(await disabled()).toEqual([true, true]);
+    await typeInto('bufferahead', '10');
+    await savedAs('bufferAhead', 10);
+    await (await browser.$('#downloadall')).click();
+    expect(await disabled()).toEqual([false, false]);
+  });
+});

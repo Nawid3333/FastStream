@@ -287,17 +287,15 @@ export class StringUtils {
     const match = unit.match(/([a-oq-zA-Z]+)/);
     const unit1 = match?.[1];
 
-    let multiplier = 1;
+    // Megabytes when no unit is known, typed or not: a bare "10" was 10 bytes (#378).
+    let multiplier = 1000 ** 2;
 
     // Convert to bytes
     if (unit1) {
       const sci = ['b', 'k', 'm', 'g', 't', 'p', 'e', 'z', 'y'];
       const split = unit1.split('');
       if (sci.includes(split[0].toLowerCase())) {
-        multiplier *= 1000 ** sci.indexOf(split[0].toLowerCase());
-      } else {
-        // M default
-        multiplier *= 1000 ** 2;
+        multiplier = 1000 ** sci.indexOf(split[0].toLowerCase());
       }
     }
 

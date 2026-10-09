@@ -963,13 +963,13 @@
         "message": "Docelowa prędkość wstępnego pobierania"
     },
     "options_general_maxsize": {
-        "message": "Maksymalny rozmiar wstępnie pobranego wideo"
+        "message": "Maksymalny rozmiar wstępnie pobranego wideo (używany tylko, gdy wstępne pobieranie jest włączone)"
     },
     "options_general_rambudget": {
         "message": "RAM na buforowane wideo (wszystkie karty)"
     },
     "options_general_bufferahead": {
-        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie się zatrzyma lub skończy się miejsce)"
+        "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie jest wyłączone, zatrzymane lub skończyło się miejsce)"
     },
     "options_general_bufferbehind": {
         "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"

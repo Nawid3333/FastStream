@@ -963,13 +963,13 @@
         "message": "Kecepatan unduh target predownloader"
     },
     "options_general_maxsize": {
-        "message": "Ukuran maksimum video yang dipraunduh"
+        "message": "Ukuran maksimum video yang dipraunduh (hanya digunakan saat predownload aktif)"
     },
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
     "options_general_bufferahead": {
-        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload berhenti atau kehabisan ruang)"
+        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti atau kehabisan ruang)"
     },
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"

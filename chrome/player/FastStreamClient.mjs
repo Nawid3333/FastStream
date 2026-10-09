@@ -657,7 +657,9 @@ export class FastStreamClient extends EventEmitter {
     }
 
     if (EnvUtils.isIncognito()) {
-      if (this.hasDownloadSpace) {
+      // Only for a predownload asked for: without it there is nothing to fit, and turned on
+      // later, it warns then.
+      if (this.hasDownloadSpace && this.options.downloadAll) {
         this.state.bufferBehind = this.options.bufferBehind;
         this.state.bufferAhead = this.options.bufferAhead;
         const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
@@ -692,7 +694,12 @@ export class FastStreamClient extends EventEmitter {
         }
 
         const newHasDownloadSpace = (bitrate * this.duration) * (this.hasDownloadSpace ? 1 : 1.1) < storageAvailable;
-        if (!newHasDownloadSpace && this.hasDownloadSpace) {
+        // Only with predownload on: without it the maximum size is not used (Buffer ahead
+        // decides), yet a size below the video's said "Video size exceeds limits" on every
+        // video and pinned what had been downloaded (#378, a size of 10 MB). Without it there
+        // is no room to keep track of either, so predownload turned on later finds the video
+        // too big the way a predownload running out of room does: warned, what it has kept.
+        if (!newHasDownloadSpace && this.hasDownloadSpace && this.options.downloadAll) {
           // Storage just ran out mid-session. Grandfather in everything
           // already downloaded so the windowed bufferAhead/bufferBehind
           // fallback below only holds back *future* downloads - it must
@@ -711,7 +718,7 @@ export class FastStreamClient extends EventEmitter {
           const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
           this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [timestr]), 'warning', 5000);
         }
-        this.hasDownloadSpace = newHasDownloadSpace;
+        this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
       } else {
         this.hasDownloadSpace = true;
       }

@@ -963,13 +963,13 @@
         "message": "Target download speed of predownloader"
     },
     "options_general_maxsize": {
-        "message": "Maximum size of predownloaded video"
+        "message": "Maximum size of predownloaded video (used only when predownload is on)"
     },
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"
     },
     "options_general_bufferahead": {
-        "message": "Seconds to keep buffered ahead of playback (used once predownload stops or runs out of space)"
+        "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped or ran out of space"
     },
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"

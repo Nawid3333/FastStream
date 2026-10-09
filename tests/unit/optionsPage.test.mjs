@@ -181,13 +181,17 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    // Eight until the colour-blindness filter's was removed (2026-10-09).
-    expect(selects.length).toBe(7);
+    // Eight until the colour-blindness filter's was removed (2026-10-09); two more since the
+    // MB/GB pickers beside the maximum size and the RAM budget (#378).
+    expect(selects.length).toBe(9);
     for (const select of selects) {
-      const wrapper = select.parentNode;
-      expect(wrapper.dataset.i18nLabel, wrapper.id).toBeTruthy();
+      // A menu options.mjs builds takes its name from its wrapper; a unit picker written in
+      // the page carries its own, which i18n.mjs applies.
+      const named = select.dataset.i18nLabel ? select : select.parentNode;
+      expect(named.dataset.i18nLabel, select.id || named.id).toBeTruthy();
+      if (named === select) continue;
       // In Node the page has no translations, so a message is its key.
-      expect(select.getAttribute('aria-label'), wrapper.id).toBe(wrapper.dataset.i18nLabel);
+      expect(select.getAttribute('aria-label'), named.id).toBe(named.dataset.i18nLabel);
     }
   });
 

@@ -963,13 +963,13 @@
         "message": "Vitesse de téléchargement cible du préchargeur"
     },
     "options_general_maxsize": {
-        "message": "Taille maximale de la vidéo préchargée"
+        "message": "Taille maximale de la vidéo préchargée (utilisée uniquement lorsque le pré-téléchargement est activé)"
     },
     "options_general_rambudget": {
         "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
     },
     "options_general_bufferahead": {
-        "message": "Secondes à conserver en mémoire tampon devant la lecture (utilisé une fois que le pré-téléchargement s'arrête ou arrive à court d'espace)"
+        "message": "Secondes à conserver en mémoire tampon devant la lecture (utilisé lorsque le pré-téléchargement est désactivé, arrêté ou à court d'espace)"
     },
     "options_general_bufferbehind": {
         "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"

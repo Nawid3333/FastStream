@@ -14,7 +14,30 @@ export class Utils {
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored);
+    return Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored);
+  }
+
+  /**
+   * A maximum size below 1 MB in options saved before #378 was a bare number read as bytes:
+   * "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded. Read as
+   * megabytes. Only once (sizesVersion), from the value as saved: a size below 1 MB chosen
+   * since, in the MB/GB picker (0.5 MB), is meant. A size or speed limit of 0 saved before is
+   * no limit, as the options page reads 0 now: a speed limit of 0 held back reading ahead
+   * while the field said 0.
+   * @param {Object} options - Saved options merged over the defaults; changed in place.
+   * @param {Object|null} stored - The options as saved, before the defaults were filled in.
+   * @return {Object} The same options, with sizesVersion set.
+   */
+  static migrateSizes(options, stored) {
+    if (stored && !Number.isInteger(stored.sizesVersion)) {
+      if (options.maxVideoSize > 0 && options.maxVideoSize < 1000000) {
+        options.maxVideoSize *= 1000000;
+      }
+      if (options.maxVideoSize === 0) options.maxVideoSize = -1;
+      if (options.maxSpeed === 0) options.maxSpeed = -1;
+    }
+    options.sizesVersion = 1;
+    return options;
   }
 
   /**
