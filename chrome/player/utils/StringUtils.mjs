@@ -100,11 +100,15 @@ export class StringUtils {
   }
 
   /**
-   * Formats a time value in seconds to HH:MM:SS or MM:SS.
+   * Formats a time value in seconds to HH:MM:SS or MM:SS; --:-- for none (a live stream's
+   * endless length showed as "Infinity:aN:aN").
    * @param {number} time - Time in seconds.
    * @return {string} Formatted time string.
    */
   static formatTime(time) {
+    if (!Number.isFinite(time)) {
+      return '--:--';
+    }
     const hours = Math.floor(time / 3600);
     time = time - hours * 3600;
     const minutes = Math.floor(time / 60);

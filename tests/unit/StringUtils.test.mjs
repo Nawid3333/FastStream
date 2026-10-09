@@ -1,9 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {StringUtils} from '../../chrome/player/utils/StringUtils.mjs';
 
-// These parse user-entered settings (download speed caps, buffer size caps)
-// and HTTP Range headers. A regression turns a "10 MB/s" cap into a silently
-// wrong number rather than an error, so the unit maths is worth pinning down.
+// Times as the player shows them, and HTTP Range headers.
 
 describe('formatTime', () => {
   it('omits the hour component below an hour', () => {
@@ -16,6 +14,12 @@ describe('formatTime', () => {
   it('adds hours once past 3600s', () => {
     expect(StringUtils.formatTime(3600)).toBe('1:00:00');
     expect(StringUtils.formatTime(3661)).toBe('1:01:01');
+  });
+
+  // A DASH live stream's length is Infinity: the player showed "00:12 / Infinity:aN:aN".
+  it('shows no length for one that has none', () => {
+    expect(StringUtils.formatTime(Infinity)).toBe('--:--');
+    expect(StringUtils.formatTime(NaN)).toBe('--:--');
   });
 });
 
