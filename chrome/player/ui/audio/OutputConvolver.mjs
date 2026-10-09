@@ -119,17 +119,17 @@ export class OutputConvolver extends AbstractAudioModule {
 
     const channelData = audioData.getChannelData(0);
 
-    // trim to IMPULSE_LENGTH
+    // Its first channel, trimmed to IMPULSE_LENGTH: one file per output channel. A file
+    // shorter than that was handed on with all its channels, which a ConvolverNode refuses
+    // past 2 (1, 2 or 4): that output channel went silent (review).
     const IMPULSE_LENGTH = this.currentProfile ? this.currentProfile.bufferSize : 2048;
-    if (channelData.length > IMPULSE_LENGTH) {
-      const trimmedData = channelData.slice(0, IMPULSE_LENGTH);
-      const newBuffer = this.audioContext.createBuffer(1, IMPULSE_LENGTH, audioData.sampleRate);
-      newBuffer.copyToChannel(trimmedData, 0);
-      return newBuffer;
+    const length = Math.min(channelData.length, IMPULSE_LENGTH);
+    if (audioData.numberOfChannels === 1 && length === channelData.length) {
+      return audioData;
     }
-
-    // or return as is
-    return audioData;
+    const newBuffer = this.audioContext.createBuffer(1, length, audioData.sampleRate);
+    newBuffer.copyToChannel(channelData.subarray(0, length), 0);
+    return newBuffer;
   }
 
   setupNodes(audioContext) {

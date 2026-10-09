@@ -44,6 +44,30 @@ function stereoConvolver() {
 }
 
 describe('OutputConvolver', () => {
+  // Each output channel has a file of its own: its first channel is the impulse. A short file
+  // of 6 channels was handed on whole, which a ConvolverNode refuses (review).
+  it('makes an impulse of one channel of any file, trimmed or not', async () => {
+    const {convolver} = stereoConvolver();
+    const made = [];
+    const decoded = (channels, length) => ({numberOfChannels: channels, sampleRate: 48000,
+      getChannelData: () => new Float32Array(length).fill(0.5)});
+    convolver.audioContext = {
+      decodeAudioData: async (bytes) => decoded(new Uint8Array(bytes)[0], new Uint8Array(bytes)[1] * 100),
+      createBuffer: (channels, length, rate) => {
+        const buffer = {numberOfChannels: channels, length, sampleRate: rate, copyToChannel: () => {}};
+        made.push(buffer);
+        return buffer;
+      },
+    };
+    convolver.currentProfile.bufferSize = 4096;
+    const file = (channels, hundreds) => new Blob([new Uint8Array([channels, hundreds])]);
+    expect((await convolver.getImpulseResponse(file(6, 10))).numberOfChannels).toBe(1);
+    expect((await convolver.getImpulseResponse(file(2, 10))).numberOfChannels).toBe(1);
+    const trimmed = await convolver.getImpulseResponse(file(6, 100));
+    expect([trimmed.numberOfChannels, trimmed.length]).toEqual([1, 4096]);
+    expect(made).toHaveLength(3);
+  });
+
   // A link clicked in the player's frame is refused for a blob URL, and the URL was revoked
   // at once (review): the stored impulse file is saved as every other file is.
   it('saves a stored impulse file through the downloads, its URL revoked once it is read', async () => {
