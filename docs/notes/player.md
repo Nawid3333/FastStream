@@ -325,6 +325,26 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   channel to give messages to): a message already queued then can still take the page out. A
   few milliseconds against the whole time in the cache; Firefox offers a page no way to leave
   sooner.
+- **A segment that does not decode costs that segment (2026-10-09).** A DASH stream whose 4-6 s
+  segment had garbage sample sizes failed at 3.64 s (Firefox decodes ahead): `recoverPlayer` built
+  the player again three times in 1.5 s at the same place, then "Failed to load video!". Now the
+  first decode error (`MEDIA_ERR_DECODE` on the element) builds it again at the same time - right
+  for Firefox's late-append bug 2069633, where the segment is fine - and the same place failing
+  again right after (within 1.5 s, same source) builds it past that segment
+  (`BrokenMedia.pastBrokenMedia`: the end of the segment that begins within 1 s, else of the one
+  playing; whole seconds rounded up): it plays on from 6 s. For every player kind; not live.
+  dash.js's own recovery skips a segment only when the SourceBuffer reports the error (it
+  blacklists the segment appended last); a decode error on the element only resets its
+  MediaSource, and the same segment failed again. Garbage inside a NAL unit Firefox decodes as
+  garbage, without an error (measured). `dash-broken-segment.e2e.mjs`.
+- **dash.js errors once the stream is up (2026-10-09).** Every one was dropped, and a stream
+  stuck after one sat behind a spinner for ever. `DashErrors.stuckAfterStart` names those it stays
+  stuck after (a download out of retries, an unusable manifest, no stream, a muxed track, a type
+  MSE refuses, no usable key): DashPlayer reports them; the downloads count as network failures
+  (`isNetworkFailure`, no rebuild). Left to dash.js: a live refresh that did not parse, the clock
+  sync, a subtitle. FastStream's own segment loader reports a dead segment itself
+  (`DashLoader`, after three tries). The seek preview, with no client to rebuild it, gives dash.js's
+  decode recovery 5 tries instead of a million.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.

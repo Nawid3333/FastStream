@@ -23,6 +23,10 @@ export function describePlayerError(reason) {
   }
 }
 
+// dash.js's download errors (MediaPlayer.errors): the manifest's loading, then a manifest, an
+// index, a segment, an init segment, an xlink that ran out of retries.
+const DASH_NETWORK_ERRORS = new Set([11, 25, 26, 27, 28, 29]);
+
 /**
  * Whether a player error is the network's: a fragment the server keeps refusing. A player
  * built again for it asks the same server for the same fragment, so building it again only
@@ -38,8 +42,11 @@ export function isNetworkFailure(reason) {
       return /^(Range|Segment) .+ failed to load$/.test(reason) ||
         reason === 'Failed first fragment' || reason === 'No content range';
     }
+    if (!reason || typeof reason !== 'object') return false;
+    // dash.js's error event.
+    if (reason.type === 'error' && DASH_NETWORK_ERRORS.has(reason.error?.code)) return true;
     // hls.js's error data.
-    return !!reason && typeof reason === 'object' && reason.type === 'networkError';
+    return reason.type === 'networkError';
   } catch (e) {
     return false;
   }

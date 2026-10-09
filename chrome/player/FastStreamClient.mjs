@@ -36,6 +36,7 @@ import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
 import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mjs';
+import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
@@ -181,6 +182,8 @@ export class FastStreamClient extends EventEmitter {
     // for it after an error (recoverPlayer).
     this.playedSource = null;
     this.recoveries = {url: null, times: []};
+    // The last decode error recoverPlayer built the player again for (BrokenMedia.mjs).
+    this.lastDecodeFailure = null;
     this.previewPlayerSetup = null;
     // Counts play() and pause() calls: the later one wins (play()).
     this.playPauseTurn = 0;
@@ -1678,6 +1681,7 @@ export class FastStreamClient extends EventEmitter {
     const now = Date.now();
     if (this.recoveries.url !== url) {
       this.recoveries = {url, times: []};
+      this.lastDecodeFailure = null;
     }
     this.recoveries.times = this.recoveries.times.filter((time) => now - time < RECOVERY_WINDOW_MS);
     if (this.recoveries.times.length >= RECOVERY_LIMIT) {
@@ -1685,10 +1689,23 @@ export class FastStreamClient extends EventEmitter {
     }
     this.recoveries.times.push(now);
 
-    const time = this.currentTime;
+    let time = this.currentTime;
+    // The same place failing to decode again, right after the player was built again for it:
+    // the media there is broken. Built once more, it starts past that segment (BrokenMedia.mjs).
+    let skip = false;
+    if (isDecodeError(reason) && !this.isLive()) {
+      if (isSamePlace(this.lastDecodeFailure, url, time)) {
+        skip = true;
+        time = pastBrokenMedia(this.fragments, time);
+        this.lastDecodeFailure = null;
+      } else {
+        this.lastDecodeFailure = {url, time};
+      }
+    }
     // What the user wants, not what the element says: an error can leave it paused.
     const wasPlaying = !!this.state.playing || !this.paused;
-    console.warn('Building the player again at ' + time + ' after an error:', reason);
+    console.warn((skip ? 'Skipping a segment that does not decode, on to ' : 'Building the player again at ') + time +
+      ' after an error:', reason);
 
     const again = source.copy();
     // The time goes the way a page's does, as the faststream-timestamp parameter that
@@ -1697,7 +1714,8 @@ export class FastStreamClient extends EventEmitter {
     if (!this.isLive() && /^https?:/i.test(again.url)) {
       try {
         const withTime = new URL(again.url);
-        withTime.searchParams.set('faststream-timestamp', String(Math.floor(time)));
+        // Whole seconds: past a broken segment, the second after it ends.
+        withTime.searchParams.set('faststream-timestamp', String(skip ? Math.ceil(time) : Math.floor(time)));
         again.url = withTime.toString();
       } catch (e) {
         // Not a URL after all: from the start, still with everything downloaded.
