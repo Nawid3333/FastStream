@@ -431,6 +431,30 @@ describe('Options page size fields, typed by hand', function() {
     expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
   });
 
+  // Buffer ahead and behind, in seconds, by the same rule: an emptied field was read as 0,
+  // which kept nothing buffered.
+  it('takes an empty buffer field as no limit and 0 as none, and says so under it', async function() {
+    for (const [id, option] of [['bufferahead', 'bufferAhead'], ['bufferbehind', 'bufferBehind']]) {
+      await typeInto(id, '45');
+      await browser.keys(['Tab']);
+      await savedAs(option, 45);
+      expect(await hint(id)).toBe(null);
+      await typeInto(id, '0');
+      await browser.keys(['Tab']);
+      await savedAs(option, 0);
+      expect(await hint(id)).toBe(await message(`options_general_${id}_zero`));
+      await typeInto(id, '');
+      await browser.keys(['Backspace', 'Tab']);
+      await savedAs(option, -1);
+      expect(await browser.execute((field) => document.getElementById(field).value, id)).toBe('');
+      expect(await hint(id)).toBe(await message(`options_general_${id}_none`));
+      // No number: the value set stays.
+      await typeInto(id, 'abc');
+      await browser.keys(['Tab']);
+      await savedAs(option, -1);
+    }
+  });
+
   // Letters, a negative number or one too big to save (1e308 GB was saved as Infinity, which
   // JSON keeps as null) were read as no limit: the limit set stays, and shows again.
   it('keeps the limit set when the field holds no number', async function() {

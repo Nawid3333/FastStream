@@ -804,4 +804,23 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
     client.setOptions({bufferBehind: 120});
     expect(client.state.bufferBehind).toBe(120);
   });
+
+  // An empty field is no limit (-1): read as -1 seconds, nothing was kept, and "only -1 s
+  // buffered" made no sense. 0 is none.
+  it('takes an empty field as no limit, and 0 as none', () => {
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
+    vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+
+    client.setOptions({bufferAhead: -1, bufferBehind: -1});
+    expect(client.options.bufferAhead).toBe(Infinity);
+    expect(client.state.bufferBehind).toBe(Infinity);
+    client.setOptions({bufferAhead: 0, bufferBehind: 0});
+    expect(client.options.bufferAhead).toBe(0);
+    expect(client.state.bufferBehind).toBe(0);
+  });
 });

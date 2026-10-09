@@ -986,8 +986,20 @@
     "options_general_bufferahead": {
         "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped or ran out of space"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: nothing is kept buffered ahead, so the video stops to load often. Leave the field empty for no limit."
+    },
+    "options_general_bufferahead_none": {
+        "message": "No limit: the whole video is downloaded ahead, even with predownload off: in RAM, then on disk once the RAM limit above is full."
+    },
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: played video is dropped at once; seeking back loads it again. Leave the field empty for no limit."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "No limit: everything already played is kept, in RAM and then on disk once the RAM limit above is full."
     },
     "options_general_blockpopups": {
         "message": "Block popups/popunders opened right after clicking the player"

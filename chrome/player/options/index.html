@@ -169,12 +169,16 @@
 
                 <div class="option search-target-remove grid2" style="margin-top: 5px">
                     <div class="label search-target-text" data-i18n="options_general_bufferahead"></div>
-                    <input class="number" type="text" id="bufferahead" data-i18n-label="options_general_bufferahead"></input>
+                    <input class="number" type="text" inputmode="numeric" id="bufferahead" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
+                        data-i18n-label="options_general_bufferahead"></input>
+                    <div class="limit-hint" id="bufferaheadhint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_bufferbehind"></div>
-                    <input class="number" type="text" id="bufferbehind" data-i18n-label="options_general_bufferbehind"></input>
+                    <input class="number" type="text" inputmode="numeric" id="bufferbehind" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
+                        data-i18n-label="options_general_bufferbehind"></input>
+                    <div class="limit-hint" id="bufferbehindhint" hidden></div>
                 </div>
             </div>
 

@@ -161,8 +161,8 @@ async function loadOptions(newOptions) {
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
   showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
-  bufferAhead.value = Options.bufferAhead;
-  bufferBehind.value = Options.bufferBehind;
+  showSeconds(bufferAhead, Options.bufferAhead);
+  showSeconds(bufferBehind, Options.bufferBehind);
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
   customSourcePatterns.value = Options.customSourcePatterns || '';
   // A part of the player, shown in percent: 0.25 left users typing 25, which was 100%.
@@ -649,6 +649,8 @@ const LIMIT_HINTS = {
   maxspeed: {zero: 'options_general_targetspeed_zero'},
   maxsize: {zero: 'options_general_maxsize_zero'},
   rambudget: {zero: 'options_general_rambudget_zero', none: 'options_general_rambudget_none'},
+  bufferahead: {zero: 'options_general_bufferahead_zero', none: 'options_general_bufferahead_none'},
+  bufferbehind: {zero: 'options_general_bufferbehind_zero', none: 'options_general_bufferbehind_none'},
 };
 
 /**
@@ -754,15 +756,29 @@ function readNumberField(input, fallback, min, max = Infinity, whole = false) {
   return result;
 }
 
-bufferAhead.addEventListener('change', () => {
-  Options.bufferAhead = readNumberField(bufferAhead, 0, 0, Infinity, true);
-  optionChanged();
-});
+/**
+ * Shows seconds of Buffer ahead or behind; nothing ("No limit") for none.
+ * @param {HTMLInputElement} input
+ * @param {number} seconds - As saved: -1 for no limit.
+ */
+function showSeconds(input, seconds) {
+  input.value = seconds >= 0 ? String(seconds) : '';
+  showLimitHint(input, seconds);
+}
 
-bufferBehind.addEventListener('change', () => {
-  Options.bufferBehind = readNumberField(bufferBehind, 0, 0, Infinity, true);
-  optionChanged();
-});
+// Whole seconds; an empty field is no limit (-1), and anything else that is no number keeps
+// the value saved (an empty field read as 0 kept nothing buffered).
+for (const [input, option] of [[bufferAhead, 'bufferAhead'], [bufferBehind, 'bufferBehind']]) {
+  input.addEventListener('change', (e) => {
+    const text = input.value.trim().replace(',', '.');
+    const seconds = text === '' ? -1 : Number(text);
+    if (seconds === -1 || (Number.isFinite(seconds) && seconds >= 0)) {
+      Options[option] = seconds === -1 ? -1 : Math.floor(seconds);
+      optionChanged();
+    }
+    if (e.isTrusted) showSeconds(input, Options[option]);
+  });
+}
 
 seekStepSize.addEventListener('change', () => {
   Options.seekStepSize = readNumberField(seekStepSize, DefaultOptions.seekStepSize, 0.1, 3600);

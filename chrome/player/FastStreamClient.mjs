@@ -370,8 +370,9 @@ export class FastStreamClient extends EventEmitter {
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.ramBudget = options.ramBudget;
-    this.options.bufferAhead = options.bufferAhead;
-    this.options.bufferBehind = options.bufferBehind;
+    // Seconds; an empty field (-1) is no limit: the whole video ahead, everything played kept.
+    this.options.bufferAhead = FastStreamClient.bufferSeconds(options.bufferAhead);
+    this.options.bufferBehind = FastStreamClient.bufferSeconds(options.bufferBehind);
     // At once, as "Buffer ahead" is (updateHasDownloadSpace): a change waited for the next
     // video. A private window's warning sets both from the options the same way.
     this.state.bufferBehind = this.options.bufferBehind;
@@ -665,8 +666,11 @@ export class FastStreamClient extends EventEmitter {
       if (this.hasDownloadSpace && this.options.downloadAll) {
         this.state.bufferBehind = this.options.bufferBehind;
         this.state.bufferAhead = this.options.bufferAhead;
-        const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
-        this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [timestr]), 'warning', 5000);
+        // Without a limit on either, the whole video is buffered all the same: nothing to say.
+        const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
+        if (Number.isFinite(windowSeconds)) {
+          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+        }
         this.hasDownloadSpace = false;
       }
     } else {
@@ -719,8 +723,10 @@ export class FastStreamClient extends EventEmitter {
           // The quality on now may have no fragments yet (just switched to)
           if (fragments) fragments.forEach(grandfather);
           if (this.audioFragments) this.audioFragments.forEach(grandfather);
-          const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
-          this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [timestr]), 'warning', 5000);
+          const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
+          if (Number.isFinite(windowSeconds)) {
+            this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+          }
         }
         this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
       } else {
@@ -2363,6 +2369,16 @@ export class FastStreamClient extends EventEmitter {
    */
   get duration() {
     return this.player?.duration || 0;
+  }
+
+  /**
+   * The seconds a Buffer ahead or Buffer behind setting keeps: Infinity for no limit (an
+   * empty field, saved as -1), 0 for none.
+   * @param {number} value - The setting as saved.
+   * @return {number}
+   */
+  static bufferSeconds(value) {
+    return typeof value === 'number' && value < 0 ? Infinity : value;
   }
 
   /**
