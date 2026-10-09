@@ -978,7 +978,7 @@
         "message": "0: nothing is predownloaded; only the seconds set below are kept ahead. Leave the field empty for no limit."
     },
     "options_general_rambudget_zero": {
-        "message": "0: no RAM for downloaded video, so nothing is downloaded ahead of playback. Leave the field empty for no limit."
+        "message": "0: downloaded video is not kept in RAM but on disk, all but the next seconds. In a private window, which keeps nothing on disk, nothing is downloaded ahead. Leave the field empty for no limit."
     },
     "options_general_rambudget_none": {
         "message": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down."
@@ -990,7 +990,7 @@
         "message": "0: nothing is kept buffered ahead, so the video stops to load often. Leave the field empty for no limit."
     },
     "options_general_bufferahead_none": {
-        "message": "No limit: the whole video is downloaded ahead, even with predownload off: in RAM, then on disk once the RAM limit above is full."
+        "message": "No limit: the whole video is downloaded ahead, even with predownload off: in RAM, then on disk once the RAM limit above is full. If the download speed above is 0, nothing is downloaded ahead."
     },
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"

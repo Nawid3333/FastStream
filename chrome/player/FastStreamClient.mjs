@@ -39,7 +39,7 @@ import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.m
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
-import {chooseToRelease, DEFAULT_BUDGET_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
+import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 
 
 /**
@@ -1328,7 +1328,8 @@ export class FastStreamClient extends EventEmitter {
   keepWithinMemoryBudget() {
     const manager = this.downloadManager;
     if (!manager?.blobStore || !this.peers) return;
-    // -1 (an empty field) is no limit, and 0 none: all of it in RAM, or nothing kept ahead.
+    // -1 (an empty field) is no limit, and 0 none: all of it in RAM, or all of it on disk
+    // (DISK_ONLY_ROOM_BYTES).
     const setting = this.options.ramBudget;
     const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
     const watched = this.peers.visible() && !!this.state.playing;
@@ -1339,10 +1340,11 @@ export class FastStreamClient extends EventEmitter {
     const share = shareOf(budget, weightOf(watched), others);
     const held = manager.ramBytes();
     const leaving = manager.spillingBytes();
-    manager.memoryFull = isFull(held, leaving, share, manager.memoryFull);
+    const toDisk = manager.canSpill();
+    const room = budget === 0 && toDisk ? DISK_ONLY_ROOM_BYTES : share;
+    manager.memoryFull = isFull(held, leaving, room, manager.memoryFull);
     if (held - leaving <= share * HIGH) return;
 
-    const toDisk = manager.canSpill();
     const time = this.state.currentTime;
     const current = this.currentFragment;
     const candidates = [];

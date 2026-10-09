@@ -52,6 +52,7 @@ const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mj
 const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
 const {DownloadStatus} = await import('../../chrome/player/enums/DownloadStatus.mjs');
 const {ReferenceTypes} = await import('../../chrome/player/enums/ReferenceTypes.mjs');
+const {DISK_ONLY_ROOM_BYTES} = await import('../../chrome/player/network/MemoryBudget.mjs');
 const {MessageTypes} = await import('../../chrome/player/enums/MessageTypes.mjs');
 const {Fragment} = await import('../../chrome/player/players/Fragment.mjs');
 const {LevelManager} = await import('../../chrome/player/players/LevelManager.mjs');
@@ -764,20 +765,26 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
   });
 
   /** Whether the RAM budget counts this player full, holding this many bytes in RAM. */
-  function ramFull(ramBudget, held) {
+  function ramFull(ramBudget, held, toDisk = true) {
     const client = makeClient({ramBudget});
     client.state.playing = true;
     client.peers = {visible: () => true, livePeers: () => []};
     client.downloadManager = {blobStore: {}, memoryFull: false, ramBytes: () => held,
-      spillingBytes: () => 0, canSpill: () => true, ramBytesOf: () => 0};
+      spillingBytes: () => 0, canSpill: () => toDisk, ramBytesOf: () => 0};
     client.keepWithinMemoryBudget();
     return client.downloadManager.memoryFull;
   }
 
-  it('keeps nothing ahead in RAM with a RAM budget of 0, and no bound with no limit', () => {
+  it('downloads ahead to disk with a RAM budget of 0, and has no bound with no limit', () => {
+    // 0 was read as nothing ahead: no download ahead at all, the disk unused. Downloads ahead
+    // go on while what is on its way to disk stays small.
+    expect(ramFull(0, 0)).toBe(false);
+    expect(ramFull(0, 10e6)).toBe(false);
+    expect(ramFull(0, DISK_ONLY_ROOM_BYTES)).toBe(true);
+    // A private window keeps nothing on disk: nothing ahead there.
+    expect(ramFull(0, 0, false)).toBe(true);
+    expect(ramFull(0, 1e6, false)).toBe(true);
     // 0 and the empty field were both read as the 2 GB default.
-    expect(ramFull(0, 0)).toBe(true);
-    expect(ramFull(0, 1e6)).toBe(true);
     expect(ramFull(-1, 50e9)).toBe(false);
     // A budget the options never set is the default, 2 GB.
     expect(ramFull(undefined, 1e9)).toBe(false);

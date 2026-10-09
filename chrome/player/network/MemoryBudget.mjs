@@ -24,6 +24,12 @@ export const KEEP_IN_RAM_ONLY_WINDOW = {behind: 5, ahead: 30};
 // When the window alone holds more than the share (a high bitrate, a small budget), all but
 // the next seconds may go: a window bigger than the budget let RAM grow without a bound.
 export const KEEP_AT_LEAST = {behind: 0, ahead: 10};
+// A budget of 0 keeps nothing in RAM: in a normal window all but the next seconds goes to
+// disk (KEEP_AT_LEAST). What is downloaded passes through RAM on its way there, so downloads
+// ahead go on while a player holds less than this; the user's decision (2026-10-09): 0 RAM
+// is straight to disk, not nothing downloaded ahead. A private window keeps nothing on disk:
+// there, 0 downloads nothing ahead.
+export const DISK_ONLY_ROOM_BYTES = 64e6;
 
 /**
  * A player's share of the budget: its weight's part of it, or all that the other players
