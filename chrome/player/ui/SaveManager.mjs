@@ -121,7 +121,9 @@ export class SaveManager {
       if (response && response.ok) {
         // An outdated host still got the stream; say that it wants installing again.
         if (response.hostOutdated) {
-          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent_outdated'), 'warning', 8000);
+          // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
+          const key = navigator.platform.startsWith('Win') ? 'player_mpv_sent_outdated' : 'player_mpv_sent_outdated_unix';
+          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage(key), 'warning', 8000);
         } else {
           this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         }

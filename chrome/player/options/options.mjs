@@ -547,7 +547,9 @@ mpvTestButton.addEventListener('click', () => {
       // (MpvBackend's RequiredHostVersion): the copy on this PC was not installed again
       // after the host changed.
       if (response.ok && response.hostOutdated) {
-        mpvTestResult.textContent += ' ' + window.getI18nMessage('options_mpv_test_outdated');
+        // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
+        mpvTestResult.textContent += ' ' + window.getI18nMessage(navigator.platform.startsWith('Win') ?
+          'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
       }
       // An mpv the host started is open: which decoder it plays with, as mpv says. On the
       // processor, only a hint: mpv.conf is the user's, and FastStream never overrides it.

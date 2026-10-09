@@ -71,6 +71,14 @@ export class BackgroundUtils {
     });
   }
 
+  /**
+   * Whether this is Windows, where the mpv host's setup and update steps differ.
+   * @return {boolean}
+   */
+  static isWindows() {
+    return String(globalThis.navigator?.platform || '').startsWith('Win');
+  }
+
   static updateTabIcon(tab, skipNotify) {
     clearTimeout(tab.tabIconTimeout);
     if (tab.isOn && tab.isMpv) {
@@ -92,9 +100,14 @@ export class BackgroundUtils {
         title = chrome.i18n.getMessage('extension_toggle_label_mpv_failed', [tab.mpvError]) ||
           'FastStream - MPV - the stream did not open: ' + tab.mpvError;
       } else if (tab.mpvHostOutdated) {
-        title = chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
-          'FastStream - MPV - the mpv host on this computer is out of date: ' +
-          'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
+        // What to run differs: on Windows the setup installed a copy (Start menu "Update
+        // mpv"); on Linux and macOS the manifest names the host file itself.
+        title = BackgroundUtils.isWindows() ?
+          chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
+            'FastStream - MPV - the mpv host on this computer is out of date: ' +
+            'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)' :
+          chrome.i18n.getMessage('extension_toggle_label_mpv_outdated_unix') ||
+            'FastStream - MPV - the mpv host on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)';
       } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
         // What mpv itself said about its decoder (MpvBackend.decoderStatus).
         const what = MpvBackend.describeDecoder(tab.mpvDecoder);
