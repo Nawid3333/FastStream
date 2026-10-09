@@ -86,9 +86,14 @@ export class StandardDownloader {
     });
   }
 
+  /** Stops the download on purpose: a failed one comes through onError or onTimeout. */
   abort() {
     this.loader?.abort();
-    if (this.entry) this.entry.onAbort(this.loader.stats, this.entry, this.loader.xhr);
+    if (this.entry) {
+      // Not a failed download (DownloadManager.onDownloaderFinished): no downloader taken away.
+      this.entry.aborted = true;
+      this.entry.onAbort(this.loader?.stats, this.entry, this.loader?.xhr);
+    }
     this.cleanup();
   }
 

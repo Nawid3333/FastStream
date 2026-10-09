@@ -48,6 +48,8 @@ export class DownloadManager {
     this.testing = true;
     this.lastSpeed = 0;
     this.lastFailed = 0;
+    // True while stopDownloaders() stops downloaders on purpose.
+    this.stopping = false;
     // Downloaders taken away after failed downloads, and not back yet.
     this.droppedDownloaders = 0;
     // A server answered 429 or 503: this player stays careful, for the next video too.
@@ -397,9 +399,28 @@ export class DownloadManager {
     if (this.paused) return;
     this.paused = true;
     this.abortRetiring();
-    this.downloaders.forEach((downloader) => {
-      downloader.abort();
-    });
+    this.stopDownloaders(this.downloaders);
+  }
+
+  /**
+   * Stops downloaders on purpose: a new source, a failed load, a pause. Each stop came back
+   * through onDownloaderFinished as a failed download (its entry was not marked aborted):
+   * online, with more than one downloader, it took the downloader out of the list being gone
+   * through, so the next one was skipped and downloaded on for the old video; it set
+   * lastFailed, and the next video's first downloads waited a second; and it started more
+   * downloads half way through the stop.
+   * @param {Iterable<StandardDownloader>} downloaders
+   */
+  stopDownloaders(downloaders) {
+    const stopping = this.stopping;
+    this.stopping = true;
+    try {
+      for (const downloader of Array.from(downloaders)) {
+        downloader.abort();
+      }
+    } finally {
+      this.stopping = stopping;
+    }
   }
 
   resume() {
@@ -550,9 +571,7 @@ export class DownloadManager {
     this.testing = false;
     this.droppedDownloaders = 0;
     this.abortRetiring();
-    this.downloaders.forEach((downloader) => {
-      downloader.abort();
-    });
+    this.stopDownloaders(this.downloaders);
     this.downloaders.length = 0;
   }
 
@@ -560,12 +579,12 @@ export class DownloadManager {
   abortRetiring() {
     const retiring = Array.from(this.retiring);
     this.retiring.clear();
-    retiring.forEach((downloader) => downloader.abort());
+    this.stopDownloaders(retiring);
   }
 
   onDownloaderFinished(downloader, entry) {
     this.retiring.delete(downloader);
-    if (this.paused || !this.downloaders) return;
+    if (this.paused || !this.downloaders || this.stopping) return;
 
     const failed = entry.status === DownloadStatus.DOWNLOAD_FAILED && !entry.aborted;
     // A 429/503 was already signalled when the answer came (StandardDownloader.onSlowDown ->
@@ -777,10 +796,7 @@ export class DownloadManager {
     });
     this.queue.length = 0;
     this.abortRetiring();
-
-    this.downloaders.forEach((downloader) => {
-      downloader.abort();
-    });
+    this.stopDownloaders(this.downloaders);
   }
 
   getStorageByteCount() {
