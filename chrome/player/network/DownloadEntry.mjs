@@ -49,7 +49,15 @@ export class DownloadEntry {
     if (ind != -1) this.watchers.splice(ind, 1);
   }
 
+  /**
+   * A watcher gives up on the download; the last one to do so aborts it. A watcher that is no
+   * longer here was already told how the download ended (the watchers go once it is over), or
+   * gave up before: its abort is too late. It told it "aborted" after "done", and aborted the
+   * finished entry - a stored fragment marked failed, and downloaded again.
+   * @param {Object} watcher
+   */
   abortWatcher(watcher) {
+    if (!this.watchers.includes(watcher)) return;
     this.removeWatcher(watcher);
     if (this.watchers.length === 0) {
       if (watcher.callbacks.onAbort) watcher.callbacks.onAbort(this);

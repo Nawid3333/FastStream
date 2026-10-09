@@ -200,6 +200,26 @@ describe('DownloadManager', () => {
     expect(playback.status).toBe(DownloadStatus.ENQUEUED);
   });
 
+  it('ignores a watcher that gives up after its download is over', async () => {
+    // It was told "aborted" after "done", and the finished entry was aborted: a stored
+    // fragment marked failed, downloaded again on the next request.
+    const manager = new DownloadManager(null);
+    manager.blobStore = {saveBlobAsync: async () => {}, getBlob: () => null, deleteBlob() {}, close() {}};
+    manager.downloaders = [idleDownloader()];
+    const callbacks = {onSuccess: vi.fn(), onAbort: vi.fn(), onFail: vi.fn()};
+    const watcher = manager.getFile({url: 'https://example.com/a.ts', responseType: 'arraybuffer'}, callbacks, 0);
+    const entry = watcher.entry;
+    entry.status = DownloadStatus.DOWNLOAD_INITIATED;
+    entry.downloader = manager.downloaders[0];
+    await entry.onSuccess({data: new ArrayBuffer(4), headers: {}}, {}, entry, null);
+    expect(callbacks.onSuccess).toHaveBeenCalledTimes(1);
+    expect(entry.status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+
+    watcher.abort();
+    expect(callbacks.onAbort).not.toHaveBeenCalled();
+    expect(entry.status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
