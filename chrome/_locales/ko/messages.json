@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "프로필"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "프로파일 $1"
+    },
+    "audiomixer_master": {
+        "message": "마스터"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "이름 없는 프로필"
     },

@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "プロファイル"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "プロファイル $1"
+    },
+    "audiomixer_master": {
+        "message": "マスター"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "無題のプロファイル"
     },

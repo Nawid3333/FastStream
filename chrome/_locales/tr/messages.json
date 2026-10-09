@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Ana Ses"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Adsız profil"
     },

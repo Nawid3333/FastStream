@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "設定檔"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "設定檔 $1"
+    },
+    "audiomixer_master": {
+        "message": "主音量"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "未命名的設定檔"
     },

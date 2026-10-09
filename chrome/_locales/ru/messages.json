@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "Профиль"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Профиль $1"
+    },
+    "audiomixer_master": {
+        "message": "Общий"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Безымянный профиль"
     },
