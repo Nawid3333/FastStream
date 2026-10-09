@@ -162,6 +162,41 @@ describe('Player controls', function() {
     expect(state.count).toBe(0);
   });
 
+  // Let go outside the player, a drag on the bar never ended: every later move seeked, and
+  // the next click played the video (review, 2026-10-09).
+  it('ends a drag on the bar on a move with no button held, and on a reset', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const drag = () => browser.execute(() => {
+      const bar = document.querySelector('.mainplayer .fluid_controls_progress_container');
+      const box = bar.getBoundingClientRect();
+      bar.dispatchEvent(new MouseEvent('mousedown', {button: 0, buttons: 1, bubbles: true,
+        clientX: box.left + box.width / 2, clientY: box.top + box.height / 2}));
+      return window.fastStream.interfaceController.progressBar.isSeeking;
+    });
+    expect(await drag()).toBe(true);
+    const after = await browser.execute(() => {
+      const container = document.querySelector('.mainplayer');
+      const box = container.getBoundingClientRect();
+      container.dispatchEvent(new MouseEvent('mousemove', {buttons: 0, bubbles: true,
+        clientX: box.left + 5, clientY: box.top + 5}));
+      const time = window.fastStream.currentTime;
+      container.dispatchEvent(new MouseEvent('mousemove', {buttons: 0, bubbles: true,
+        clientX: box.left + box.width - 5, clientY: box.top + 5}));
+      return {seeking: window.fastStream.interfaceController.progressBar.isSeeking, time,
+        later: window.fastStream.currentTime};
+    });
+    expect(after.seeking).toBe(false);
+    expect(after.later).toBe(after.time);
+
+    expect(await drag()).toBe(true);
+    expect(await browser.execute(() => {
+      window.fastStream.interfaceController.progressBar.reset();
+      return window.fastStream.interfaceController.progressBar.isSeeking;
+    })).toBe(false);
+  });
+
   it('does not carry the previous video\'s failed-fragments button over', async function() {
     // It was hidden only by a video with fragments to count.
     await openEmptyPlayer();

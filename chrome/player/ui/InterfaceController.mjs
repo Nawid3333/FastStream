@@ -1093,6 +1093,9 @@ export class InterfaceController {
       }
     }
 
+    // Nothing to copy (no source, or none that can be copied): the clipboard was emptied, and
+    // "Link copied" said otherwise.
+    if (!copyURL) return;
     await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 
     this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);

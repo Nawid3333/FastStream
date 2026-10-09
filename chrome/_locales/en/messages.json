@@ -233,6 +233,12 @@
     "player_needs_interaction": {
         "message": "Interact to enable download acceleration"
     },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Skip Intro"
     },
