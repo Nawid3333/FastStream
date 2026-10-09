@@ -33,7 +33,7 @@
         "message": "Puoi anche aprire una nuova scheda e cliccare sull'icona di FastStream per accedere al lettore."
     },
     "welcome_page_usage_content3": {
-        "message": "Con le opzioni \"Usa il lettore per riprodurre video MP4\" e \"Usa il lettore per riprodurre flussi HLS/DASH\" abilitate, un link diretto a un video (che termina con .mp4, .m3u8 o .mpd) si apre nel lettore."
+        "message": "Un link diretto a un video si apre nel lettore quando l'opzione corrispondente è abilitata: \"Usa il lettore video per riprodurre video MP4\" per un link che termina con .mp4, e \"Usa il lettore video per riprodurre flussi HLS/DASH\" per uno che termina con .m3u8 o .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Tieni aperto il lettore video in una nuova scheda affinché possa raccogliere le sorgenti video mentre navighi altrove."

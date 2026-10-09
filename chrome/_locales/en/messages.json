@@ -33,7 +33,7 @@
         "message": "You can also open a new tab and click the FastStream icon to go to the player."
     },
     "welcome_page_usage_content3": {
-        "message": "With \"Use player to play MP4 videos\" and \"Use player to play HLS/DASH streams\" on in the options, a direct video link (ending in .mp4, .m3u8 or .mpd) opens in the player."
+        "message": "A direct video link opens in the player when its option is on: \"Use player to play MP4 videos\" for a link ending in .mp4, \"Use player to play HLS/DASH streams\" for one ending in .m3u8 or .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Keep the player open in a new tab and it will collect sources as you browse elsewhere."

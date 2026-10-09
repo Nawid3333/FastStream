@@ -33,7 +33,7 @@
         "message": "Je kunt ook een nieuw tabblad openen en op het FastStream-pictogram klikken om naar de speler te gaan."
     },
     "welcome_page_usage_content3": {
-        "message": "Als ‘Gebruik de speler om MP4-video's af te spelen’ en ‘Gebruik de speler om HLS/DASH-streams af te spelen’ in de opties aan staan, opent een directe videolink (eindigend op .mp4, .m3u8 of .mpd) in de speler."
+        "message": "Een directe videolink opent in de speler wanneer de bijbehorende optie aan staat: ‘Gebruik de speler om MP4-video's af te spelen’ voor een link eindigend op .mp4, en ‘Gebruik de speler om HLS/DASH-streams af te spelen’ voor een link eindigend op .m3u8 of .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Houd de speler open in een nieuw tabblad; hij verzamelt bronnen terwijl je elders surft."

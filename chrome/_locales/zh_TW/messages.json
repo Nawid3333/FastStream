@@ -33,7 +33,7 @@
         "message": "也可以開新分頁，點擊 FastStream 圖示前往播放器。"
     },
     "welcome_page_usage_content3": {
-        "message": "在選項中開啟「使用播放器播放 MP4 影片」與「使用播放器播放 HLS/DASH 串流」後，影片的直接連結（以 .mp4、.m3u8 或 .mpd 結尾）就會在播放器中開啟。"
+        "message": "當對應選項開啟時，影片的直接連結就會在播放器中開啟：以 .mp4 結尾的連結需開啟「開啟 .mp4 連結時以播放器播放 MP4 影片」，以 .m3u8 或 .mpd 結尾的連結則需開啟「開啟播放清單 URL（.m3u8/.mpd）時使用播放器播放 HLS/DASH 串流」。"
     },
     "welcome_page_usage_content4": {
         "message": "在新分頁保持播放器開啟，瀏覽其他頁面時它會收集來源。"

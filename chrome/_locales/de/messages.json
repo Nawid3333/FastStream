@@ -33,7 +33,7 @@
         "message": "Du kannst auch einen neuen Tab öffnen und auf das FastStream-Symbol klicken, um zum Player zu gelangen."
     },
     "welcome_page_usage_content3": {
-        "message": "Wenn du in den Optionen „Player zum Abspielen von MP4-Videos verwenden“ und „Player zum Abspielen von HLS/DASH-Streams verwenden“ aktiviert hast, öffnet ein direkter Videolink (der mit .mp4, .m3u8 oder .mpd endet) im Player."
+        "message": "Ein direkter Videolink öffnet sich im Player, wenn die entsprechende Option aktiviert ist: „Den Player verwenden, um MP4-Videos beim Öffnen von Video-URLs (.mp4) abzuspielen“ für einen Link, der auf .mp4 endet, und „Den Player verwenden, um HLS/DASH-Streams beim Öffnen von Playlist-URLs (.m3u8/.mpd) abzuspielen“ für einen, der auf .m3u8 oder .mpd endet."
     },
     "welcome_page_usage_content4": {
         "message": "Lass den Player in einem neuen Tab geöffnet, und er sammelt automatisch Videoquellen, während du anderswo surfst."

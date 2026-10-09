@@ -33,7 +33,7 @@
         "message": "Anda juga dapat membuka tab baru dan mengklik ikon FastStream untuk membuka pemutar."
     },
     "welcome_page_usage_content3": {
-        "message": "Dengan opsi \"Gunakan pemutar untuk memutar video MP4\" dan \"Gunakan pemutar untuk memutar streaming HLS/DASH\" diaktifkan di pengaturan, tautan video langsung (berakhiran .mp4, .m3u8, atau .mpd) akan terbuka di pemutar."
+        "message": "Tautan video langsung akan terbuka di pemutar jika opsinya diaktifkan: \"Gunakan pemutar untuk memutar video MP4\" untuk tautan berakhiran .mp4, dan \"Gunakan pemutar untuk memutar stream HLS/DASH\" untuk tautan berakhiran .m3u8 atau .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Biarkan pemutar terbuka di tab baru dan ia akan mengumpulkan sumber saat Anda menjelajah tempat lain."

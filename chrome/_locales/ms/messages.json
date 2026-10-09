@@ -33,7 +33,7 @@
         "message": "Anda juga boleh membuka tab baharu dan mengklik ikon FastStream untuk pergi ke pemain."
     },
     "welcome_page_usage_content3": {
-        "message": "Apabila \"Gunakan pemain untuk memainkan video MP4\" dan \"Gunakan pemain untuk memainkan strim HLS/DASH\" dihidupkan dalam pilihan, pautan video terus (berakhiran .mp4, .m3u8 atau .mpd) akan dibuka dalam pemain."
+        "message": "Pautan video terus akan dibuka dalam pemain apabila pilihannya dihidupkan: \"Gunakan pemain untuk memainkan video MP4\" untuk pautan berakhiran .mp4, dan \"Gunakan pemain untuk memainkan strim HLS/DASH\" untuk pautan berakhiran .m3u8 atau .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Biarkan pemain terbuka dalam tab baharu dan ia akan mengumpul sumber semasa anda menyemak imbas di tempat lain."

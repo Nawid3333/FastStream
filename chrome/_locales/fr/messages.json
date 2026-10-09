@@ -33,7 +33,7 @@
         "message": "Vous pouvez également ouvrir un nouvel onglet et cliquer sur l'icône FastStream pour accéder au lecteur."
     },
     "welcome_page_usage_content3": {
-        "message": "Si vous avez activé les options « Utiliser le lecteur pour lire les vidéos MP4 » et « Utiliser le lecteur pour lire les flux HLS/DASH » dans les paramètres, un lien vidéo direct (se terminant par .mp4, .m3u8 ou .mpd) s'ouvre dans le lecteur."
+        "message": "Un lien vidéo direct s'ouvre dans le lecteur lorsque son option est activée : « Utiliser le lecteur pour lire les vidéos MP4 » pour un lien se terminant par .mp4, et « Utiliser le lecteur pour lire les flux HLS/DASH » pour un lien se terminant par .m3u8 ou .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Gardez le lecteur ouvert dans un nouvel onglet et il récupérera les sources pendant que vous naviguez ailleurs."

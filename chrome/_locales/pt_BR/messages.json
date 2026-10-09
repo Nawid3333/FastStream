@@ -33,7 +33,7 @@
         "message": "Você também pode abrir uma nova aba e clicar no ícone do FastStream para ir ao reprodutor."
     },
     "welcome_page_usage_content3": {
-        "message": "Com “Usar o reprodutor para reproduzir vídeos MP4” e “Usar o reprodutor para reproduzir streams HLS/DASH” ativadas nas opções, um link direto de vídeo (que termina em .mp4, .m3u8 ou .mpd) abre no reprodutor."
+        "message": "Um link direto de vídeo abre no reprodutor quando a opção correspondente está ativada: “Use o player para reproduzir vídeos MP4” para um link que termina em .mp4, e “Use o player para reproduzir transmissões no formato HLS/DASH” para um que termina em .m3u8 ou .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Mantenha o player aberto em uma nova guia e ele coletará fontes enquanto você navega em outro lugar."

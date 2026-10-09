@@ -33,7 +33,7 @@
         "message": "Możesz też otworzyć nową kartę i kliknąć ikonę FastStream, aby przejść do odtwarzacza."
     },
     "welcome_page_usage_content3": {
-        "message": "Gdy w opcjach są włączone „Używaj odtwarzacza do filmów MP4” i „Używaj odtwarzacza do strumieni HLS/DASH”, bezpośredni link do wideo (kończący się na .mp4, .m3u8 lub .mpd) otworzy się w odtwarzaczu."
+        "message": "Bezpośredni link do wideo otworzy się w odtwarzaczu, gdy odpowiednia opcja będzie włączona: „Użyj odtwarzacza do odtwarzania plików MP4” dla linku kończącego się na .mp4, oraz „Użyj odtwarzacza do odtwarzania strumieni HLS/DASH” dla linku kończącego się na .m3u8 lub .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Pozostaw odtwarzacz otwarty w nowej karcie — będzie zbierał źródła podczas przeglądania."

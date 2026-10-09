@@ -33,7 +33,7 @@
         "message": "Ayrıca yeni bir sekme açıp FastStream simgesine tıklayarak oynatıcıya gidebilirsiniz."
     },
     "welcome_page_usage_content3": {
-        "message": "Seçeneklerde \"MP4 videolarını oynatmak için oynatıcıyı kullan\" ve \"HLS/DASH akışlarını oynatmak için oynatıcıyı kullan\" seçenekleri açıkken, .mp4, .m3u8 veya .mpd ile biten doğrudan bir video bağlantısı oynatıcıda açılır."
+        "message": "İlgili seçenek açık olduğunda doğrudan bir video bağlantısı oynatıcıda açılır: .mp4 ile biten bağlantılar için \"Video URL'leri (.mp4) açıldığında MP4 videoları oynatmak için oynatıcıyı kullan\", .m3u8 veya .mpd ile bitenler için \"Oynatma listesi URL'leri (.m3u8/.mpd) açıldığında HLS/DASH akışlarını oynatmak için oynatıcıyı kullan\"."
     },
     "welcome_page_usage_content4": {
         "message": "Oynatıcıyı yeni bir sekmede açık tutun; başka yerlerde gezinirken kaynakları toplayacaktır."
