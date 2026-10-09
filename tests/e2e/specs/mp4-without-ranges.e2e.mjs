@@ -150,6 +150,50 @@ describe('MP4 from a server without proper ranges', function() {
     return state;
   }
 
+  /**
+   * Records, in order, the player's resets and where it learnt the file's end, for the log of
+   * a run that does not end.
+   * @return {Promise<void>}
+   */
+  const traceEnd = () => browser.execute(() => {
+    const player = window.fastStream.player;
+    const events = window.__mp4Events = [];
+    for (const name of ['resetHLS', 'endsAt']) {
+      const original = player[name];
+      player[name] = function(...args) {
+        events.push(`${name}(${args.join(',')}) at ${player.getVideo().currentTime.toFixed(2)}`);
+        return original.apply(this, args);
+      };
+    }
+  });
+
+  /**
+   * What MP4Player's end check (checkEndOfStream) looks at. Once (local, 2026-10-09) the 416
+   * case sat at 20.08 of 20.3 s with every range read: this tells which condition held it.
+   * @return {Promise<Object>}
+   */
+  const endState = () => browser.execute(() => {
+    const player = window.fastStream.player;
+    const ranges = (buffered) => Array.from({length: buffered?.length || 0},
+        (_, i) => [buffered.start(i), buffered.end(i)].map((time) => Number(time.toFixed(3))));
+    const wrapper = (w) => w && {updating: w.updating, sourceUpdating: w.sourceBuffer.updating,
+      toDo: w.toDo.length, buffered: ranges(w.sourceBuffer.buffered)};
+    return {
+      fileLength: player.fileLength,
+      hasLastRange: player.hasLastRange?.(),
+      currentFragments: player.currentFragments?.map((frag) => [frag.sn, frag.rangeStart, frag.rangeEnd, frag.status]),
+      loader: !!player.loader,
+      mediaSource: player.mediaSource?.readyState,
+      tracks: player.mp4box?.fragmentedTracks?.map((track) => [track.id, track.trak.nextSample, track.trak.samples.length]),
+      // More moofs than the file has: a range parsed twice, its samples listed twice.
+      moofs: [player.mp4box?.moofs?.length, player.mp4box?.lastMoofIndex],
+      video: wrapper(player.videoSourceBuffer),
+      audio: wrapper(player.audioSourceBuffer),
+      readyState: player.getVideo().readyState,
+      events: window.__mp4Events,
+    };
+  });
+
   it('plays a big file from a server that ignores Range in Firefox\'s own player, reading it once', async function() {
     const state = await play(`${ORIGIN}/ignore-range/long.mp4`, 3);
     expect(state.failed).toBe(false);
@@ -196,6 +240,7 @@ describe('MP4 from a server without proper ranges', function() {
       const state = await play(`${ORIGIN}/${kind}/padded.mp4`, 1);
       expect(state.failed).toBe(false);
       expect(state.mode).toBe('accelerated_mp4');
+      await traceEnd();
       // Near the end, once its ranges are all read: it ends there and fires 'ended', and no
       // range past the one after the end is asked for.
       let end = {ended: false, time: 0, duration: 0, failed: false};
@@ -216,6 +261,9 @@ describe('MP4 from a server without proper ranges', function() {
       } finally {
         console.log(`      to its end: ${JSON.stringify(end)}; ${requests.length} request(s): ` +
           JSON.stringify(requests.map((request) => request.range)));
+        if (!end.ended) {
+          console.log(`      player state: ${JSON.stringify(await endState().catch((e) => String(e)))}`);
+        }
       }
       expect(end.failed).toBe(false);
       expect(end.ended).toBe(true);
