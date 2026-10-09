@@ -215,11 +215,16 @@ describe('Player controls', function() {
       }).catch((e) => done('failed: ' + e));
     });
     expect(shown).toBe(true);
+    // Its "all buffered" said too (review): the next video, buffered from the start, said nothing.
+    await browser.execute(() => {
+      window.fastStream.interfaceController.shownDownloadComplete = true;
+    });
     await addSource(missingUrl());
     const after = await settle(() => browser.execute(() => document.querySelector('.mainplayer .reset_failed').style.display),
         (display) => display === 'none');
     console.log('      after the switch, display:', JSON.stringify(after));
     expect(after).toBe('none');
+    expect(await browser.execute(() => window.fastStream.interfaceController.shownDownloadComplete)).toBe(false);
   });
 
   it('shows the next video\'s time, not the previous one\'s', async function() {

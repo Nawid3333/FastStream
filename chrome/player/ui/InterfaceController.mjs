@@ -202,6 +202,8 @@ export class InterfaceController {
     this.setStatusMessage('chapter', null, 'error');
     // The last video's download line stayed up over a next video that never loaded.
     this.setStatusMessage('download', null, 'success');
+    // And its "all buffered" was the next one's: one buffered from the start never said so.
+    this.shownDownloadComplete = false;
     // The next video may never have fragments to count, and then nothing else hides it.
     DOMElements.resetFailed.style.display = 'none';
     this.stopProgressLoop();
