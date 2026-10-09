@@ -734,15 +734,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "已載入設定檔!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "儲存設定檔"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "儲存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "已儲存設定檔!"
-    },
     "player_audioconfig_profile_download": {
         "message": "下載設定檔"
     },

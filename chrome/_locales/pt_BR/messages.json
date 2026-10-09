@@ -734,15 +734,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "Perfil carregado!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "Salvar perfil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Salvando..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Perfil salvo!"
-    },
     "player_audioconfig_profile_download": {
         "message": "Baixar perfil"
     },

@@ -734,15 +734,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "프로필 불러옴!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "프로필 저장"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "저장 중..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "프로필 저장됨!"
-    },
     "player_audioconfig_profile_download": {
         "message": "프로필 다운로드"
     },

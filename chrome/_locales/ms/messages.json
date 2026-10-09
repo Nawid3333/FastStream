@@ -734,15 +734,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "Profil Dimuatkan!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "Simpan Profil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Menyimpan..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil Disimpan!"
-    },
     "player_audioconfig_profile_download": {
         "message": "Muat turun Profil"
     },

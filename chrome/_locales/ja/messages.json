@@ -734,15 +734,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "プロファイルを読み込みました!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "プロファイルを保存"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "保存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "プロファイルを保存しました!"
-    },
     "player_audioconfig_profile_download": {
         "message": "プロファイルをダウンロード"
     },

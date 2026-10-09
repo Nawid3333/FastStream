@@ -740,15 +740,6 @@
     "player_audioconfig_profile_loaded": {
         "message": "Loaded Profile!"
     },
-    "player_audioconfig_profile_save": {
-        "message": "Save Profile"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Saving..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Saved Profile!"
-    },
     "player_audioconfig_profile_download": {
         "message": "Download Profile"
     },
