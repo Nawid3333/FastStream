@@ -617,16 +617,19 @@ function showSize(input, unit, bytes, keepUnit = false) {
 /**
  * The amount a field holds, times its unit; NaN when it holds no number above 0. A comma is
  * a decimal point ("1,5", as French and German write it): a number field would have taken
- * only the page language's, and "1,5" was cut to 1. 0 is no amount, so no limit, as an
- * empty field: a limit of 0 Mbit/s held back reading ahead whenever anything downloaded,
- * and a size of 0 was read as no limit while the field said 0. Too big to hold (1e308 MB)
- * is no amount either: saved as JSON, it read back as null.
+ * only the page language's, and "1,5" was cut to 1. Read to the three decimals the field
+ * shows (showSpeed, showSize), so what is saved is what it says: 0.0001 MB was saved as 100
+ * bytes and shown as 0. 0 is no amount, so no limit, as an empty field: a limit of 0 Mbit/s
+ * held back reading ahead whenever anything downloaded, and a size of 0 was read as no limit
+ * while the field said 0. Too big to hold (1e308 MB) is no amount either: saved as JSON, it
+ * read back as null.
  * @param {HTMLInputElement} input
  * @param {number} multiplier
  * @return {number}
  */
 function readAmount(input, multiplier) {
-  const amount = Math.round(parseFloat(input.value.trim().replace(',', '.')) * multiplier);
+  const shown = Math.round(parseFloat(input.value.trim().replace(',', '.')) * 1000) / 1000;
+  const amount = Math.round(shown * multiplier);
   return Number.isFinite(amount) && amount > 0 ? amount : NaN;
 }
 

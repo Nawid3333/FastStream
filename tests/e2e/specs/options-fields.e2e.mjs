@@ -286,6 +286,14 @@ describe('Options page size fields, typed by hand', function() {
     expect(await shown('maxsize')).toEqual(['10', 'MB']);
   });
 
+  it('shows a speed limit of 0 saved before as no limit, as it now is', async function() {
+    await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0})));
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+  });
+
   it('keeps the unit that is picked, also for an empty size', async function() {
     await typeInto('maxsize', '');
     await browser.keys(['Backspace', 'Tab']);
@@ -345,6 +353,14 @@ describe('Options page size fields, typed by hand', function() {
     await typeInto('maxsize', '1e308');
     await browser.keys(['Tab']);
     await savedAs('maxVideoSize', -1);
+
+    // 0.0001 GB is 0 to the three decimals shown: it was saved as 100 kB and shown as 0.
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    await typeInto('maxsize', '0.0001');
+    await browser.keys(['Tab']);
+    await savedAs('maxVideoSize', -1);
+    expect(await shown('maxsize')).toEqual(['', 'GB']);
   });
 
   it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {

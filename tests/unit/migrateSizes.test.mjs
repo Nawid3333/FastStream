@@ -18,10 +18,25 @@ describe('Utils.migrateSizes', () => {
     expect(migrate({maxVideoSize: 10, sizesVersion: 1})).toBe(10);
   });
 
-  it('leaves a real size, no limit, nothing and fresh options alone', () => {
-    for (const size of [1e6, 1e7, 5e9, -1, 0]) {
+  it('leaves a real size, no limit and fresh options alone', () => {
+    for (const size of [1e6, 1e7, 5e9, -1]) {
       expect(migrate({maxVideoSize: size})).toBe(size);
     }
     expect(Utils.migrateSizes({maxVideoSize: 5e9}, null).maxVideoSize).toBe(5e9);
+  });
+
+  // The options page reads 0 as no limit now, as an empty field. A speed limit of 0 saved
+  // before held back reading ahead while the field said 0.
+  it('reads a size or speed limit of 0 saved before as no limit', () => {
+    const stored = {maxVideoSize: 0, maxSpeed: 0};
+    const options = Utils.migrateSizes({...stored}, stored);
+    expect(options.maxVideoSize).toBe(-1);
+    expect(options.maxSpeed).toBe(-1);
+    for (const speed of [-1, 125000]) {
+      expect(Utils.migrateSizes({maxSpeed: speed}, {maxSpeed: speed}).maxSpeed).toBe(speed);
+    }
+    // Saved since: no page writes 0 any more, and what is there is left as it is.
+    const since = {maxVideoSize: 0, maxSpeed: 0, sizesVersion: 1};
+    expect(Utils.migrateSizes({...since}, since)).toMatchObject({maxVideoSize: 0, maxSpeed: 0});
   });
 });
