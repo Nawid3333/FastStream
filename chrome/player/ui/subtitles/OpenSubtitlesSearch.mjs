@@ -344,11 +344,14 @@ export class OpenSubtitlesSearch extends EventEmitter {
    * @param {{language: string, season: ?number, episode: ?number}} input
    * @param {string} language - The language to ask for ('' for all).
    * @param {number} page
+   * @param {number} [pages] - How many pages the title has, when a page of it was clicked.
    */
-  async showTitle(title, others, input, language, page) {
+  async showTitle(title, others, input, language, page, pages = 0) {
     const searchNumber = ++this.searchCount;
     this.showTitleHeader(title, others, input);
-    this.subui.pages.replaceChildren();
+    // The bar stays while a page loads, at the page clicked: another page can be clicked
+    // meanwhile, and is the one loaded.
+    this.showPagesBar(title, others, input, language, page, pages);
     this.showMessage(Localize.getMessage('player_opensubtitles_searching'));
 
     let response;
@@ -383,9 +386,23 @@ export class OpenSubtitlesSearch extends EventEmitter {
     }
     response.data.forEach((item) => this.addResult(item));
 
-    if (response.total_pages > 1) {
-      this.subui.pages.appendChild(createPagesBar(response.page || page, response.total_pages, (next) => {
-        this.showTitle(title, others, input, language, next).catch((e) => this.showFailure(e));
+    this.showPagesBar(title, others, input, language, response.page || page, response.total_pages);
+  }
+
+  /**
+   * The bar of a title's pages of subtitles, none for one page.
+   * @param {Object} title
+   * @param {Array<Object>} others
+   * @param {Object} input
+   * @param {string} language
+   * @param {number} page - The page shown.
+   * @param {number} pages
+   */
+  showPagesBar(title, others, input, language, page, pages) {
+    this.subui.pages.replaceChildren();
+    if (pages > 1) {
+      this.subui.pages.appendChild(createPagesBar(page, pages, (next) => {
+        this.showTitle(title, others, input, language, next, pages).catch((e) => this.showFailure(e));
       }));
     }
   }
