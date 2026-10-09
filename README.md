@@ -4,7 +4,7 @@
 
 Tired of having videos buffer with slow internet speeds? Frustrated by a website's lack of accessibility features? This extension will replace videos on websites with a video player designed for your convenience. Say goodbye to buffering and hello to a more accessible video experience!
 
-This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), maintained by Nawid3333. It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
+This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andrews54757/FastStream), maintained by Nawid3333 on its own since 2026-10-09 (it no longer follows upstream). It adds a hand-off to the mpv player and leaves out upstream's YouTube support.
 
 1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.

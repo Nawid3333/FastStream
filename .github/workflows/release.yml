@@ -1,12 +1,10 @@
 name: Release
 
 # Builds the extension and publishes it as a GitHub Release with downloadable
-# zips attached -- the public-facing equivalent of what Andrew does by hand
-# on the upstream repo (github.com/Andrews54757/FastStream/releases): a tag,
-# a release page, downloadable builds. This fork ships Firefox only (see the
-# "abandon Chrome" decision, 2026-09-11): the unrestricted firefox-github
-# build plus the Firefox AMO build, signed by Mozilla so it installs with no
-# "unverified" warning.
+# zips attached: a tag, a release page, downloadable builds. This project ships
+# Firefox only (see the "abandon Chrome" decision, 2026-09-11): the unrestricted
+# firefox-github build plus the Firefox AMO build, signed by Mozilla so it
+# installs with no "unverified" warning.
 #
 # Fires on a version tag push from tools/cut-release.mjs (a deliberate manual
 # version bump), and is dispatched by auto-release.yml (the automatic
@@ -14,8 +12,8 @@ name: Release
 # this, see there) and by amo-signing-failsafe.yml (a tag left without a
 # release). Either way, by the time the tag lands here package.json and
 # chrome/manifest.json already agree with it. Only lowercase v tags: the
-# capital-V ones in this repository are upstream's (V1.3.77 and so on), copied
-# when it was forked. Run again for a tag that already has a release, it
+# capital-V ones in this repository are the original project's (V1.3.77 and so
+# on), copied when it was forked. Run again for a tag that already has a release, it
 # replaces that release's files instead of failing.
 #
 # AMO signing happens once per release, right here (the old publish-amo.yml,
@@ -62,8 +60,8 @@ jobs:
     name: Build and publish release
     runs-on: ubuntu-latest
     # The AMO keys are secrets of the "release" environment, which only main and v* tags may
-    # use (Settings, Environments): a workflow file on any other branch - an upstream sync's,
-    # a pull request's - cannot read them (#163). The environment only guards the secrets,
+    # use (Settings, Environments): a workflow file on any other branch - a pull request's -
+    # cannot read them (#163). The environment only guards the secrets,
     # so no deployment is recorded.
     environment:
       name: release

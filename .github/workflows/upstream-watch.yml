@@ -1,0 +1,232 @@
+name: Upstream watch
+
+# Reports what upstream (Andrews54757/FastStream) changed, for review: this fork no longer
+# merges upstream. The owner's decision of 2026-10-09: the fork is Firefox-only and
+# maintained on its own, ahead of upstream, which targets Chrome first; an upstream change
+# matters here only as a fix this fork's code may need too, ported by hand. (Until then
+# sync-upstream.yml merged upstream into a pull request; docs/upstream-sync-log.md records
+# what was taken.)
+#
+# Once a day this lists upstream's commits that were not reviewed yet in one issue,
+# "Upstream: N commits to review", assigned to the owner and @mentioning them (an assigned
+# issue is what GitHub emails), updated in place when upstream moves again, with a comment
+# that mentions the owner. Each commit names the files it changes and marks the ones this
+# fork still has, and "fix?" when its message speaks of a fix, a bug, a crash, a leak or
+# security; a commit that touches only files this fork does not have (Chrome-only code,
+# removed features) is listed apart.
+#
+# Closing the issue marks its commits reviewed: the next run lists only what came after the
+# upstream commit the closed issue went up to (`<!-- upstream-head: ... -->` in its body).
+# Nothing is committed for it - a push to main releases. Without a closed issue (the first
+# run), the list starts at the last upstream commit main merged. An upstream force-push
+# that drops the reviewed commit falls back to the closed issue before it, then to that.
+#
+# Upstream sends no webhooks to a repository that is not its own: polling once a day is the
+# substitute. GitHub disables scheduled workflows after 60 days without activity;
+# keepalive.yml keeps them on.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read  # main, to see which files this fork still has
+  issues: write   # the review issue and the failure issue
+
+env:
+  UPSTREAM: https://github.com/Andrews54757/FastStream.git
+  UPSTREAM_REPO: Andrews54757/FastStream
+  # gh ranks a remote named "upstream" above "origin" when it is not told which repository
+  # to act on, and the next steps add one: every gh call here would go to upstream, where
+  # this token cannot write (sync-upstream.yml's failure of 2026-09-18).
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  watch:
+    name: List upstream's new commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The token is not kept in .git/config: no later step needs it there.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch --no-tags upstream main
+
+      - name: Report the upstream commits to review
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          PREFIX: 'Upstream: '
+          # At most this many commits are listed; the rest are a link to compare.
+          MAX_COMMITS: '60'
+          # Files named per commit; the rest are counted.
+          MAX_FILES: '8'
+        run: |
+          set -euo pipefail
+          T=$RUNNER_TEMP
+          UP=$(git rev-parse upstream/main)
+          # Every issue this workflow opened, open or closed, with the upstream commit it went
+          # up to. A list of issues, not a search: the search index lags behind a new issue.
+          # The issues endpoint lists pull requests too, and pages through all of them.
+          gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
+            --jq '.[] | select(.pull_request == null and .user.login == "github-actions[bot]" and (.title | startswith(env.PREFIX))) | {number, state, closed_at, head: (((.body // "") | capture("<!-- upstream-head: (?<h>[0-9a-f]{40}) -->") | .h) // null)}' \
+            | jq -s . > "$T/issues.json"
+          OPEN=$(jq -r '[.[] | select(.state == "open")] | sort_by(.number) | last | .number // empty' "$T/issues.json")
+          OPEN_HEAD=$(jq -r '[.[] | select(.state == "open")] | sort_by(.number) | last | .head // empty' "$T/issues.json")
+
+          # Reviewed up to the newest closed issue's commit that upstream still has; never
+          # reviewed: from what main last merged of upstream.
+          BASE=''
+          for head in $(jq -r '[.[] | select(.state == "closed" and .head != null)] | sort_by(.closed_at) | reverse | .[].head' "$T/issues.json"); do
+            if git cat-file -e "$head^{commit}" 2> /dev/null && git merge-base --is-ancestor "$head" "$UP"; then
+              BASE=$head
+              break
+            fi
+          done
+          if [ -z "$BASE" ]; then
+            BASE=$(git merge-base HEAD "$UP")
+          fi
+
+          git rev-list --no-merges --reverse "$BASE..$UP" > "$T/commits.txt"
+          N=$(wc -l < "$T/commits.txt")
+          if [ "$N" -eq 0 ]; then
+            echo "Nothing new upstream since ${BASE:0:10}." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -n "$OPEN" ] && [ "$OPEN_HEAD" = "$UP" ]; then
+            echo "Issue #$OPEN already lists upstream up to ${UP:0:10}." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Another project's text, made safe for this repository's issue: a < could hide a
+          # fake marker, an @ would notify a stranger, and #123 means upstream's 123, not ours.
+          escape() {
+            sed -e 's/</\&lt;/g' -e "s~#\([0-9][0-9]*\)~${UPSTREAM_REPO}#\1~g" -e 's/@/@\&#8203;/g'
+          }
+          : > "$T/have.md"
+          : > "$T/other.md"
+          shown=0
+          while read -r sha; do
+            shown=$((shown + 1))
+            if [ "$shown" -gt "$MAX_COMMITS" ]; then
+              break
+            fi
+            subject=$(git log -1 --format=%s "$sha" | escape)
+            date=$(git log -1 --format=%as "$sha")
+            flag=''
+            if git log -1 --format='%s%n%b' "$sha" | grep -qiE '(^|[^a-z])(fix|bug|crash|secur|vulnerab|leak|regress|broken|hang|freez)'; then
+              flag=' - **fix?**'
+            fi
+            have=0
+            total=0
+            names=()
+            while read -r file; do
+              [ -n "$file" ] || continue
+              total=$((total + 1))
+              shown_name=$(printf '%s' "$file" | escape)
+              if git cat-file -e "HEAD:$file" 2> /dev/null; then
+                have=$((have + 1))
+                names+=("**\`$shown_name\`**")
+              else
+                names+=("\`$shown_name\`")
+              fi
+            done < <(git diff-tree --no-commit-id --name-only -r "$sha")
+            files=$(printf '%s, ' "${names[@]:0:$MAX_FILES}")
+            files=${files%, }
+            if [ "$total" -gt "$MAX_FILES" ]; then
+              files="$files and $((total - MAX_FILES)) more"
+            fi
+            entry="- [\`${sha:0:8}\`](https://github.com/$UPSTREAM_REPO/commit/$sha) $subject ($date)$flag"$'\n'"  $files"
+            if [ "$have" -gt 0 ]; then
+              printf '%s\n' "$entry" >> "$T/have.md"
+            else
+              printf '%s\n' "$entry" >> "$T/other.md"
+            fi
+          done < "$T/commits.txt"
+
+          COMPARE="https://github.com/$UPSTREAM_REPO/compare/$BASE...$UP"
+          {
+            printf '@%s upstream ([%s](https://github.com/%s)) has %s commit(s) this fork has not reviewed yet ([all of them](%s)).\n\n' \
+              "$OWNER" "$UPSTREAM_REPO" "$UPSTREAM_REPO" "$N" "$COMPARE"
+            cat <<'EOF'
+          This fork no longer merges upstream (the owner's decision of 2026-10-09: Firefox only, maintained on its own). Read these for fixes this fork's code may need too, and port what helps by hand. **Close this issue once they are reviewed:** the next run lists only the commits that came after.
+
+          Files in bold are ones this fork still has. "fix?" marks a commit whose message speaks of a fix, a bug, a crash, a leak or security.
+
+          ### Touch files this fork has
+
+          EOF
+            if [ -s "$T/have.md" ]; then cat "$T/have.md"; else echo 'None.'; fi
+            printf '\n### Touch only files this fork does not have\n\n'
+            if [ -s "$T/other.md" ]; then cat "$T/other.md"; else echo 'None.'; fi
+            if [ "$N" -gt "$MAX_COMMITS" ]; then
+              printf '\n%s more are not listed: see [all of them](%s).\n' "$((N - MAX_COMMITS))" "$COMPARE"
+            fi
+            printf '\nMerge commits are left out. Listed from upstream %s to %s.\n' "${BASE:0:10}" "${UP:0:10}"
+            printf '<!-- upstream-base: %s -->\n<!-- upstream-head: %s -->\n' "$BASE" "$UP"
+          } > "$T/body.md"
+          TITLE="${PREFIX}${N} commit(s) to review"
+
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --title "$TITLE" --body-file "$T/body.md" --add-assignee "$OWNER"
+            # Editing an issue notifies no one; a comment that mentions the owner does.
+            if [ -n "$OPEN_HEAD" ] && git cat-file -e "$OPEN_HEAD^{commit}" 2> /dev/null && git merge-base --is-ancestor "$OPEN_HEAD" "$UP"; then
+              MORE=$(git rev-list --no-merges --count "$OPEN_HEAD..$UP")
+            else
+              MORE=$N
+            fi
+            gh issue comment "$OPEN" --body "@${OWNER} upstream moved: ${MORE} more commit(s), ${N} to review now."
+            echo "Updated #$OPEN: $N commit(s) to review." >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh issue create --title "$TITLE" --body-file "$T/body.md" --assignee "$OWNER"
+            echo "Opened an issue: $N commit(s) to review." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # A run that got this far succeeded, so an earlier failure has cleared. By the exact
+      # title in the list of open issues, as everywhere here: the search index lags.
+      - name: Close the failure issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Upstream watch failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh issue list --state open --limit 200 --json number,title \
+            --jq '.[] | select(.title == env.TITLE) | .number' > "$RUNNER_TEMP/failed-issues.txt"
+          while read -r issue; do
+            gh issue close "$issue" --comment "The upstream watch ran cleanly again: $RUN_URL"
+          done < "$RUNNER_TEMP/failed-issues.txt"
+
+      # Assigning an issue emails the owner. One issue by title, commented on when it fails
+      # again, so daily failures do not pile up.
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: 'Upstream watch failed'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          # When the issues cannot be read, a second issue is better than none.
+          EXISTING=$(gh issue list --state open --limit 200 --json number,title \
+            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || EXISTING=''
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Failed again: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" \
+              --body "The upstream watch failed. Run: $RUN_URL" \
+              --assignee "$OWNER"
+          fi

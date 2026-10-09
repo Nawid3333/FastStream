@@ -212,7 +212,7 @@ setup_branch_mismatch() {
   check 'GITHUB_OUTPUT empty' [ ! -s "$GITHUB_OUTPUT" ]
 }
 
-UPDATE_BRANCHES=('dependabot/npm_and_yarn/x-1' 'dependabot/github_actions/y' 'toolchain/node-26' 'patched/hls.js-1.7.0' 'sync/upstream')
+UPDATE_BRANCHES=('dependabot/npm_and_yarn/x-1' 'dependabot/github_actions/y' 'toolchain/node-26' 'patched/hls.js-1.7.0')
 
 setup_update_branches_accepted() {
   local br
@@ -225,7 +225,7 @@ setup_update_branches_accepted() {
   done
 }
 
-OTHER_BRANCHES=('feature/x' 'main' 'sync/upstream-2' 'xdependabot/a' 'my/toolchain/a' 'sync/upstreamx')
+OTHER_BRANCHES=('feature/x' 'main' 'sync/upstream' 'sync/upstream-2' 'xdependabot/a' 'my/toolchain/a' 'sync/upstreamx')
 
 setup_other_branches_refused() {
   local br

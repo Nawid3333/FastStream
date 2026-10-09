@@ -1,5 +1,14 @@
 # Upstream sync decisions
 
+**Ended 2026-10-09.** The owner decided that this fork no longer follows upstream: it is
+Firefox-only and maintained on its own. `sync-upstream.yml` was removed and the last sync PR
+(#368, 18 commits, upstream V1.3.78) closed unmerged: 13 of its commits were the owner's own
+upstream PRs (#559-#570, #577, #578, all here already), the security fix (35aca0f7) was here
+already (it came from the owner's report), "Fix yt" (e2134874) has no code here to apply to,
+V1.3.78 is a version bump, and the video aspect-ratio option (#552 and 3311d313) is a feature
+left for the owner's decision. `upstream-watch.yml` now lists upstream's new commits in one
+issue for review; a fix that helps is ported by hand. The record below is of the merge years.
+
 This fork is maintained on its own. Upstream (`Andrews54757/FastStream`) is a
 source of fixes to take, not a tree to stay identical to. The rule for every
 upstream commit:

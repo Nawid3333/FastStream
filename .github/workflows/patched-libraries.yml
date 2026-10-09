@@ -25,7 +25,7 @@ name: Patched libraries
 
 on:
   schedule:
-    # Daily, 06:30 UTC, after sync-upstream.yml.
+    # Daily, 06:30 UTC.
     - cron: '30 6 * * *'
   # Right after a library was upgraded, so its issue or pull request closes without
   # waiting a day. A push only closes; re-cutting is the daily run's job.

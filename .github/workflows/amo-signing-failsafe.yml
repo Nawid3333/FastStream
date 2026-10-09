@@ -94,8 +94,8 @@ jobs:
           if [[ " $assets " == *" updates.json "* ]] && [[ "$assets" == *.xpi* ]] && [[ "$assets" == *firefox-github-*.zip* ]]; then
             complete=true
           fi
-          # The project's own tags only: lowercase v. The capital-V ones are upstream's,
-          # copied when the repository was forked.
+          # The project's own tags only: lowercase v. The capital-V ones are the original
+          # project's, copied when the repository was forked.
           newest=$(git tag -l 'v*' | grep -E '^v[0-9]+(\.[0-9]+)+$' | sort -V | tail -1 || true)
           orphan=
           if [ -n "$newest" ] && [ "$newest" != "$tag" ] &&
