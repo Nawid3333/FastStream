@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "Поворот\nоттенка"
     },
-    "options_video_daltonizer_type": {
-        "message": "Коррекция дальтонизма"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "Усиление"
-    },
-    "options_video_daltonizer_none": {
-        "message": "Нет"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "Протаномалия"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "Дейтераномалия"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "Тританомалия"
-    },
     "options_general_header": {
         "message": "Общие настройки"
     },

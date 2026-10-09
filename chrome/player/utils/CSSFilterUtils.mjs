@@ -1,12 +1,3 @@
-import {SVGDaltonizer} from '../modules/SVGDaltonizer.mjs';
-import {DaltonizerTypes} from '../options/defaults/DaltonizerTypes.mjs';
-
-const DaltonizerTypeMap = new Map();
-DaltonizerTypeMap.set(DaltonizerTypes.NONE, -1);
-DaltonizerTypeMap.set(DaltonizerTypes.PROTANOMALY, 0);
-DaltonizerTypeMap.set(DaltonizerTypes.DEUTERANOMALY, 1);
-DaltonizerTypeMap.set(DaltonizerTypes.TRITANOMALY, 2);
-
 /**
  * Utility functions for generating CSS filter strings for video effects.
  */
@@ -19,10 +10,6 @@ export class CSSFilterUtils {
   static getFilterString(options) {
     const filters = [];
     if (!options.disableVisualFilters) {
-      if (options.videoDaltonizerType !== DaltonizerTypes.NONE && options.videoDaltonizerStrength > 0) {
-        filters.push(`url(#daltonizer-${options.videoDaltonizerType}-${options.videoDaltonizerStrength})`);
-      }
-
       if (options.videoBrightness !== 1) {
         filters.push(`brightness(${options.videoBrightness})`);
       }
@@ -53,16 +40,6 @@ export class CSSFilterUtils {
     }
 
     return filters.join(' ');
-  }
-
-  /**
-   * Creates an SVG daltonizer filter for color blindness simulation/correction.
-   * @param {string} type - Daltonizer type.
-   * @param {number} strength - Filter strength.
-   * @return {string} SVG filter string.
-   */
-  static makeLMSDaltonizerFilter(type, strength) {
-    return SVGDaltonizer.makeLMSDaltonizerFilter(DaltonizerTypeMap.get(type), strength, true);
   }
 
   /**

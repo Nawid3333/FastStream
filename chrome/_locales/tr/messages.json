@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "Renk Tonu Döndürme"
     },
-    "options_video_daltonizer_type": {
-        "message": "Renk körlüğü düzeltmesi"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "Güç"
-    },
-    "options_video_daltonizer_none": {
-        "message": "Yok"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "Protanomali"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomali"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomali"
-    },
     "options_general_header": {
         "message": "Genel Seçenekler"
     },

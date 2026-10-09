@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "Farbtonrotation"
     },
-    "options_video_daltonizer_type": {
-        "message": "Korrektur für Farbenblindheit"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "Intensität"
-    },
-    "options_video_daltonizer_none": {
-        "message": "Keine"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "Protanomalie"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomalie"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomalie"
-    },
     "options_general_header": {
         "message": "Allgemeine Einstellungen"
     },
