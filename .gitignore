@@ -13,8 +13,6 @@ chrome/player/modules/dash.mjs
 chrome/player/modules/pako.mjs
 chrome/player/modules/fuse.mjs
 chrome/player/modules/sortable.mjs
-chrome/player/modules/sweetalert.mjs
-chrome/player/assets/sweetalert/css/sweetalert.css
 chrome/player/modules/vad/ort.wasm.mjs
 chrome/player/modules/vad/ort-wasm-simd-threaded.mjs
 chrome/player/modules/vad/ort-wasm-simd-threaded.wasm

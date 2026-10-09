@@ -1,13 +1,12 @@
-// Regression test for a bug where the save-filename dialog's
-// `.swal2-container` overlay got created under the real `document.body`
-// while every other lookup (getContainer, focus, classList) scoped to
-// DOMElements.playerContainer (`.mainplayer`) - so the container was never
-// found again after creation, the popup inside it never became visible, and
-// the invisible full-size container sat on top of the page eating every
-// click, including WebDriver's own trusted click on `.swal2-confirm`
-// ("did not become interactable"). Fixed in tools/sync-vendor.mjs's
-// toSweetAlertModule() by making getTarget() resolve the 'body' default to
-// document_body instead of the real document.body.
+// Regression test for a bug where the save-filename dialog's overlay (then
+// sweetalert2's `.swal2-container`) got created under the real `document.body`
+// while every other lookup scoped to DOMElements.playerContainer
+// (`.mainplayer`) - so the popup inside it never became visible, and the
+// invisible full-size container sat on top of the page eating every click,
+// including WebDriver's own trusted click on its confirm button ("did not
+// become interactable"). The dialogs are Firefox's own <dialog> since
+// 2026-10-09 (AlertPolyfill), which leaves the page as it closes; this keeps
+// checking that nothing is left over the page after a real save.
 //
 // This drives the full real flow: click Save, confirm the prompt with a
 // trusted driver click, wait for the save to settle, then assert nothing
@@ -59,12 +58,12 @@ describe('save dialog regression', function() {
     await saveBtn.click();
 
     await browser.waitUntil(
-        async () => browser.execute(() => !!document.querySelector('.swal2-input')),
+        async () => browser.execute(() => !!document.querySelector('.fs-dialog-input')),
         {timeout: 15000, timeoutMsg: 'filename prompt never appeared'});
     // The real regression: this trusted click used to time out with
     // "element did not become interactable" because an invisible
-    // .swal2-container sat on top of the whole page.
-    const confirmBtn = await browser.$('.swal2-confirm');
+    // .fs-dialog sat on top of the whole page.
+    const confirmBtn = await browser.$('.fs-dialog-confirm');
     await confirmBtn.waitForClickable({timeout: 10000});
     await confirmBtn.click();
 
@@ -84,10 +83,10 @@ describe('save dialog regression', function() {
         cls: typeof el.className === 'string' ? el.className.slice(0, 60) : null,
       } : null;
       const containers = Array.from(
-          document.querySelectorAll('.swal2-container')).map((c) => ({
+          document.querySelectorAll('.fs-dialog')).map((c) => ({
         display: getComputedStyle(c).display,
         pointerEvents: getComputedStyle(c).pointerEvents,
-        childPopup: !!c.querySelector('.swal2-popup'),
+        open: c.open,
         inDom: document.body.contains(c),
       }));
       return {
@@ -104,8 +103,8 @@ describe('save dialog regression', function() {
         containers,
       };
     });
-    const leftoversOf = (landscape) => (landscape.containers || []).filter(
-        (c) => c.inDom && c.display !== 'none' && !c.childPopup);
+    // A closed dialog leaves the page (AlertPolyfill): one still in it is left over.
+    const leftoversOf = (landscape) => (landscape.containers || []).filter((c) => c.inDom);
 
     // Poll instead of sleeping a fixed 2s and taking one snapshot: headless
     // Firefox's software (SWGL) compositor - the path CI's Linux runners

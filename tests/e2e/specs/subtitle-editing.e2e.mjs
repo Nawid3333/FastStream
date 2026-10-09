@@ -68,15 +68,15 @@ async function doubleClickAndAnswer(time, text) {
     client.interfaceController.subtitlesManager.subtitleSyncer.ui.timelineTrack
         .dispatchEvent(new MouseEvent('dblclick', {bubbles: true, cancelable: true}));
   }, time);
-  const popup = await browser.$('.swal2-popup');
+  const popup = await browser.$('.fs-dialog');
   await popup.waitForDisplayed({timeout: 5000});
   if (text === null) {
-    await (await browser.$('.swal2-cancel')).click();
+    await (await browser.$('.fs-dialog-cancel')).click();
   } else {
     await browser.execute((text) => {
-      document.querySelector('.swal2-input').value = text;
+      document.querySelector('.fs-dialog-input').value = text;
     }, text);
-    await (await browser.$('.swal2-confirm')).click();
+    await (await browser.$('.fs-dialog-confirm')).click();
   }
   await popup.waitForDisplayed({reverse: true, timeout: 5000});
   await browser.pause(300);
@@ -161,10 +161,10 @@ describe('Subtitle editing', function() {
     expect(rowText.startsWith('1: ')).toBe(true);
     await browser.execute(() => document.querySelector('.mainplayer .subtitles_list .subtitle-download-tool')
         .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
-    const popup = await browser.$('.swal2-popup');
+    const popup = await browser.$('.fs-dialog');
     await popup.waitForDisplayed({timeout: 5000});
-    const offered = await browser.execute(() => document.querySelector('.swal2-input').value);
-    await (await browser.$('.swal2-cancel')).click();
+    const offered = await browser.execute(() => document.querySelector('.fs-dialog-input').value);
+    await (await browser.$('.fs-dialog-cancel')).click();
     await popup.waitForDisplayed({reverse: true, timeout: 5000});
     expect(offered).toBe('(en)_Foo_Bar');
   });
@@ -190,7 +190,7 @@ describe('Subtitle editing', function() {
     });
     await browser.execute(() => document.querySelector('.mainplayer .subtitles_list .subtitle-download-tool')
         .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
-    const popup = await browser.$('.swal2-popup');
+    const popup = await browser.$('.fs-dialog');
     await popup.waitForDisplayed({timeout: 5000});
     // Another track takes the row's place while the prompt is open, as a new video's does.
     await browser.executeAsync((done) => {
@@ -203,7 +203,7 @@ describe('Subtitle editing', function() {
         done();
       });
     });
-    await (await browser.$('.swal2-confirm')).click();
+    await (await browser.$('.fs-dialog-confirm')).click();
     await browser.waitUntil(async () => browser.execute(() => window.__saved.length > 0), {timeout: 5000}).catch(() => {});
     const saved = await browser.execute(() => window.__saved);
     console.log('      saved:', JSON.stringify(saved));

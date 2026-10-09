@@ -1,31 +1,188 @@
-// import {MessageTypes} from '../enums/MessageTypes.mjs';
+// @ts-check
 import {Localize} from '../modules/Localize.mjs';
-import {SweetAlert} from '../modules/sweetalert.mjs';
 import {EnvUtils} from './EnvUtils.mjs';
 
-// Every dialog closes without the hide animation. SweetAlert2 removes a closing dialog
-// only on the popup's animationend, and when that never fires - Firefox can hold back
-// animations in a window it considers inactive, as on the Windows CI runner - the
-// invisible popup stays over the page and eats clicks (seen covering the save button;
-// sweetalert2/sweetalert2#1841). Without a hide animation it is removed at once.
-const Dialog = SweetAlert.mixin({
-  hideClass: {popup: '', backdrop: '', icon: ''},
-});
+// The player's dialogs and toasts, with Firefox's own <dialog> (showModal) and popover, in
+// place of sweetalert2 11.26.25 (until 2026-10-09: its 150 KB module, its stylesheet, and the
+// changes the build made to both). Styles: assets/dialogs/dialogs.css.
+//
+// - Both open in the top layer, so they show over a player in fullscreen wherever they are in
+//   the page; sweetalert2 had to be retargeted at the player for that.
+// - A dialog leaves the page the moment it closes: no hide animation to wait for. One that
+//   never ended once left an invisible sweetalert2 popup over the page, taking every click
+//   (sweetalert2/sweetalert2#1841).
+// - They are children of <body>, not of the player (.mainplayer), and their keys stop at
+//   them: the player's Escape handler cancels the key (preventDefault), which would keep a
+//   dialog open, and its keybinds would act on keys meant for the dialog.
+// - Every text goes in as text (textContent): an error's message can quote the markup it
+//   failed on.
+
+const TOAST_MS = 3000;
+
+// The mark inside each icon's circle.
+const ICON_MARKS = {
+  success: '✓',
+  error: '✕',
+  warning: '!',
+  info: 'i',
+  question: '?',
+};
 
 /**
- * Polyfill for alert, confirm, prompt, and toast dialogs using SweetAlert.
+ * @typedef {{isConfirmed: boolean, isDenied: boolean, isDismissed: boolean, value: (string|boolean|undefined)}} DialogResult
+ */
+
+/**
+ * An element with a class and, when given, its text.
+ * @param {string} tag
+ * @param {string} className
+ * @param {string} [text]
+ * @return {HTMLElement}
+ */
+function make(tag, className, text) {
+  const element = document.createElement(tag);
+  element.className = className;
+  if (text !== undefined && text !== null) element.textContent = String(text);
+  return element;
+}
+
+/**
+ * The circle with an icon's mark.
+ * @param {string} icon - success, error, warning, info or question.
+ * @return {HTMLElement}
+ */
+function makeIcon(icon) {
+  const element = make('div', `fs-dialog-icon fs-dialog-icon-${icon}`, ICON_MARKS[icon] || '');
+  element.setAttribute('aria-hidden', 'true');
+  return element;
+}
+
+/**
+ * Opens a modal dialog and waits for it to close: by a button, Escape, or a click beside it
+ * (on its backdrop), as sweetalert2's closed.
+ * @param {Object} options
+ * @param {string} [options.icon]
+ * @param {string} [options.title]
+ * @param {string} [options.text]
+ * @param {HTMLElement} [options.content] - Built from text.
+ * @param {{type: string, value: string}} [options.input]
+ * @param {string} options.confirmText
+ * @param {string} [options.cancelText] - No cancel button without it.
+ * @return {Promise<DialogResult>} value: the input's text, or true, once confirmed.
+ */
+function openDialog({icon, title, text, content, input, confirmText, cancelText}) {
+  const dialog = /** @type {HTMLDialogElement} */ (make('dialog', 'fs-dialog'));
+  const form = /** @type {HTMLFormElement} */ (make('form', 'fs-dialog-form'));
+  form.method = 'dialog';
+  if (icon) form.append(makeIcon(icon));
+  if (title) form.append(make('h2', 'fs-dialog-title', title));
+  if (text) form.append(make('p', 'fs-dialog-text', text));
+  if (content) form.append(content);
+
+  /** @type {?HTMLInputElement} */
+  let field = null;
+  if (input) {
+    field = /** @type {HTMLInputElement} */ (make('input', 'fs-dialog-input'));
+    field.type = input.type;
+    field.value = input.value ?? '';
+    // A URL is asked for to load something: an empty one is no answer (sweetalert2 refused
+    // it too). The browser says why before the dialog closes.
+    field.required = input.type === 'url';
+    field.setAttribute('aria-label', text || title || '');
+    form.append(field);
+  }
+
+  const buttons = make('div', 'fs-dialog-buttons');
+  // First: Enter in the field submits with the first submit button (implicit submission).
+  const confirm = /** @type {HTMLButtonElement} */ (make('button', 'fs-dialog-confirm', confirmText));
+  confirm.type = 'submit';
+  confirm.value = 'confirm';
+  buttons.append(confirm);
+  if (cancelText) {
+    const cancel = /** @type {HTMLButtonElement} */ (make('button', 'fs-dialog-cancel', cancelText));
+    cancel.type = 'submit';
+    cancel.value = 'cancel';
+    cancel.formNoValidate = true;
+    buttons.append(cancel);
+  }
+  form.append(buttons);
+  dialog.append(form);
+
+  // Keys typed into the dialog are the dialog's: not the player's keybinds (on document).
+  dialog.addEventListener('keydown', (e) => e.stopPropagation());
+  // A click on the backdrop lands on the dialog itself. Pressed there too: a selection
+  // dragged out of the field ends in a click on the dialog as well.
+  let pressedOutside = false;
+  dialog.addEventListener('pointerdown', (e) => {
+    pressedOutside = e.target === dialog;
+  });
+  dialog.addEventListener('click', (e) => {
+    if (pressedOutside && e.target === dialog) dialog.close('');
+  });
+
+  document.body.append(dialog);
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => {
+      const confirmed = dialog.returnValue === 'confirm';
+      dialog.remove();
+      resolve({
+        isConfirmed: confirmed,
+        isDenied: false,
+        isDismissed: !confirmed,
+        value: confirmed ? (field ? field.value : true) : undefined,
+      });
+    }, {once: true});
+    dialog.showModal();
+    // The field when there is one (showModal focuses the first control), else the button
+    // that answers: Enter or Space confirms, as in sweetalert2.
+    if (!field) confirm.focus();
+  });
+}
+
+/**
+ * The corner the toasts stack in, a popover so it shows over a dialog or a fullscreen
+ * player. Shown again on top of whatever opened in the top layer since.
+ * @return {HTMLElement}
+ */
+function toastCorner() {
+  let corner = /** @type {?HTMLElement} */ (document.querySelector('.fs-toasts'));
+  if (!corner) {
+    corner = make('div', 'fs-toasts');
+    corner.popover = 'manual';
+    document.body.append(corner);
+  }
+  if (corner.matches(':popover-open')) corner.hidePopover();
+  corner.showPopover();
+  return corner;
+}
+
+/**
+ * The address of a new GitHub issue that reports an error.
+ * @param {*} error
+ * @param {string} version - FastStream's.
+ * @return {string}
+ */
+export function errorReportURL(error, version) {
+  const body = `## Version:\n${version}\n\n## Error message:\n${error?.message || error}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
+  const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
+  return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
+}
+
+/**
+ * The player's alert, confirm and prompt dialogs, and its toasts.
  */
 export class AlertPolyfill {
   /**
    * Shows an alert dialog.
    * @param {string} message - The message to display.
    * @param {string} [icon] - Optional icon type.
-   * @return {Promise<any>} Resolves when the dialog is closed.
+   * @return {Promise<DialogResult>} Resolves when the dialog is closed.
    */
   static async alert(message, icon = undefined) {
-    return Dialog.fire({
+    return openDialog({
+      icon,
       text: message,
-      icon: icon,
+      confirmText: Localize.getMessage('ok'),
     });
   }
 
@@ -36,12 +193,11 @@ export class AlertPolyfill {
    * @return {Promise<boolean>} Resolves with true if confirmed, false otherwise.
    */
   static async confirm(message, icon = undefined) {
-    return (await Dialog.fire({
+    return (await openDialog({
+      icon,
       text: message,
-      icon: icon,
-      showCancelButton: true,
-      confirmButtonText: Localize.getMessage('yes'),
-      cancelButtonText: Localize.getMessage('cancel'),
+      confirmText: Localize.getMessage('yes'),
+      cancelText: Localize.getMessage('cancel'),
     })).isConfirmed;
   }
 
@@ -51,42 +207,63 @@ export class AlertPolyfill {
    * @param {string} [defaultValue] - Default input value.
    * @param {string} [icon] - Optional icon type.
    * @param {string} [inputType='text'] - Input type.
-   * @return {Promise<string>} Resolves with the entered value.
+   * @return {Promise<string|undefined>} Resolves with the entered value, undefined if dismissed.
    */
   static async prompt(message, defaultValue = '', icon = undefined, inputType = 'text') {
-    return (await Dialog.fire({
+    const {value} = await openDialog({
+      icon,
       text: message,
-      icon: icon,
-      input: inputType,
-      inputValue: defaultValue,
-      showCancelButton: true,
-      confirmButtonText: Localize.getMessage('ok'),
-      cancelButtonText: Localize.getMessage('cancel'),
-    })).value;
+      input: {type: inputType, value: defaultValue},
+      confirmText: Localize.getMessage('ok'),
+      cancelText: Localize.getMessage('cancel'),
+    });
+    return typeof value === 'string' ? value : undefined;
   }
 
   /**
-   * Shows a toast notification.
+   * Shows a toast notification in the top right corner for 3 s: longer while the pointer is
+   * on it, shorter when clicked.
    * @param {string} icon - Icon type.
    * @param {string} message - Main message.
    * @param {string} [submessage] - Optional submessage.
-   * @return {Promise<any>} Resolves when the toast is closed.
+   * @return {Promise<DialogResult>} Resolves when the toast is closed.
    */
   static async toast(icon, message, submessage = undefined) {
-    return await Dialog.fire({
-      icon: icon,
-      titleText: message,
-      text: submessage,
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      didOpen: (toast) => {
-        toast.onmouseenter = SweetAlert.stopTimer;
-        toast.onmouseleave = SweetAlert.resumeTimer;
-        toast.onclick = SweetAlert.close;
-      },
+    const corner = toastCorner();
+    const toast = make('div', `fs-toast fs-toast-${icon}`);
+    toast.setAttribute('role', 'status');
+    const words = make('div', 'fs-toast-words');
+    words.append(make('div', 'fs-toast-title', message));
+    if (submessage) words.append(make('div', 'fs-toast-text', submessage));
+    const bar = make('div', 'fs-toast-progress');
+    bar.style.animationDuration = `${TOAST_MS}ms`;
+    toast.append(makeIcon(icon), words, bar);
+    corner.append(toast);
+
+    return new Promise((resolve) => {
+      let left = TOAST_MS;
+      let since = Date.now();
+      let timer = setTimeout(close, left);
+      let closed = false;
+      /** Takes the toast away. */
+      function close() {
+        if (closed) return;
+        closed = true;
+        clearTimeout(timer);
+        toast.remove();
+        if (!corner.children.length && corner.matches(':popover-open')) corner.hidePopover();
+        resolve({isConfirmed: false, isDenied: false, isDismissed: true, value: undefined});
+      }
+      // Its bar stops with it (dialogs.css, :hover).
+      toast.addEventListener('mouseenter', () => {
+        clearTimeout(timer);
+        left -= Date.now() - since;
+      });
+      toast.addEventListener('mouseleave', () => {
+        since = Date.now();
+        timer = setTimeout(close, Math.max(left, 0));
+      });
+      toast.addEventListener('click', close);
     });
   }
 
@@ -96,34 +273,20 @@ export class AlertPolyfill {
    * @return {Promise<void>} Resolves when the dialog is closed and report is sent or cancelled.
    */
   static async errorSendToDeveloper(error) {
-    const errorHtml = document.createElement('div');
-    const bodyText = document.createElement('p');
-    bodyText.classList.add('error-popup-body');
-    bodyText.textContent = Localize.getMessage('error_popup_body');
-
-    const stackText = document.createElement('pre');
-    stackText.classList.add('error-popup-stack');
-    stackText.textContent = error?.stack;
-    errorHtml.appendChild(bodyText);
-    errorHtml.appendChild(stackText);
-
-    // titleText, not title: SweetAlert2 parses a title as HTML, and an error's message can
-    // quote a URL or a file it failed on, markup and all (an <img> would load).
-    return await Dialog.fire({
-      titleText: Localize.getMessage('error_popup', [error?.message]),
-      html: errorHtml,
+    const content = make('div', 'fs-dialog-error');
+    content.append(
+        make('p', 'error-popup-body', Localize.getMessage('error_popup_body')),
+        make('pre', 'error-popup-stack', error?.stack || ''),
+    );
+    const result = await openDialog({
       icon: 'error',
-      showCancelButton: true,
-      confirmButtonText: Localize.getMessage('error_popup_send'),
-      cancelButtonText: Localize.getMessage('cancel'),
-    }).then((result) => {
-      if (result.isConfirmed) {
-        const body = `## Version:\n${EnvUtils.getVersion()}\n\n## Error message:\n${error?.message || error}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
-        const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
-        const url = `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
-
-        EnvUtils.openExternalURL(url);
-      }
+      title: Localize.getMessage('error_popup', [error?.message]),
+      content,
+      confirmText: Localize.getMessage('error_popup_send'),
+      cancelText: Localize.getMessage('cancel'),
     });
+    if (result.isConfirmed) {
+      EnvUtils.openExternalURL(errorReportURL(error, EnvUtils.getVersion()));
+    }
   }
 }

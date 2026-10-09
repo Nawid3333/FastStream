@@ -127,10 +127,10 @@ describe('faithful save flow (UI + embedded iframe)', function() {
 
     // The filename prompt appears (SaveManager asks before saving).
     await browser.waitUntil(
-        async () => browser.execute(() => !!document.querySelector('.swal2-container .swal2-input')),
+        async () => browser.execute(() => !!document.querySelector('.fs-dialog .fs-dialog-input')),
         {timeout: 15000, timeoutMsg: 'filename prompt never appeared'});
     await browser.execute(() => {
-      const confirm = document.querySelector('.swal2-confirm');
+      const confirm = document.querySelector('.fs-dialog-confirm');
       confirm.click();
     });
 

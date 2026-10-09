@@ -15,7 +15,6 @@
       "Read(./chrome/player/modules/pako.mjs)",
       "Read(./chrome/player/modules/fuse.mjs)",
       "Read(./chrome/player/modules/sortable.mjs)",
-      "Read(./chrome/player/modules/sweetalert.mjs)",
       "Read(./chrome/player/modules/vad/ort.wasm.mjs)",
       "Read(./chrome/player/modules/vad/ort-wasm-simd-threaded.mjs)",
       "Read(./chrome/player/modules/remux/mediabunny.mjs)",
