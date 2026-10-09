@@ -36,9 +36,11 @@ async function getFsBlobRoot() {
 /**
  * Reads another session's heartbeat.
  * @return {Promise<{time: ?number, unreadable?: boolean}>} time: the last beat, or null
- *     when the session has no heartbeat (or is no directory); unreadable: it has one that
- *     could not be read, e.g. while its owner is writing it (a sync access handle locks
- *     the file) - a live session.
+ *     when the session has no heartbeat (or is no directory), or one that reads but is not
+ *     JSON - cut short by a crash (heartbeats are not flushed), its session gone for good;
+ *     unreadable: it has one that could not be read, while its owner writes it (a sync
+ *     access handle locks the file, and a File read after the owner wrote again fails) -
+ *     a live session.
  */
 async function readHeartbeat(name) {
   let fileHandle;
@@ -48,12 +50,18 @@ async function readHeartbeat(name) {
   } catch (e) {
     return {time: null};
   }
+  let text;
   try {
-    const file = await fileHandle.getFile();
-    const meta = JSON.parse(await file.text());
-    return {time: meta.updated_time ?? null};
+    text = await (await fileHandle.getFile()).text();
   } catch (e) {
     return {time: null, unreadable: true};
+  }
+  try {
+    return {time: JSON.parse(text).updated_time ?? null};
+  } catch (e) {
+    // Its owner never leaves it half written (it holds the lock while writing): a crash
+    // did. Taken for unreadable, it kept that session's fragments on the disk for good.
+    return {time: null};
   }
 }
 
@@ -114,6 +122,13 @@ function writeAll(accessHandle, data, at) {
   }
 }
 
+// No flush() (a forced sync to the disk) for the heartbeat or a stored fragment: both only
+// have to be read back in this browser session, which close() makes them, and a session that
+// crashed is pruned, its video downloaded again. Writing 500 MB as 1.6 MB files, each flushed,
+// made Windows write 800 MB to the disk; left to its lazy writer, 423 MB (measured
+// 2026-10-09). The heartbeat flushed once a second for every open player. A save's file is
+// flushed once, when it is complete (saveEnd).
+
 /** Overwrites this session's heartbeat marker with the current time. */
 async function writeHeartbeat() {
   const handle = await sessionDir.getFileHandle(META_FILE, {create: true});
@@ -122,7 +137,6 @@ async function writeHeartbeat() {
     const bytes = new TextEncoder().encode(JSON.stringify({updated_time: Date.now()}));
     writeAll(accessHandle, bytes, 0);
     accessHandle.truncate(bytes.byteLength);
-    accessHandle.flush();
   } finally {
     accessHandle.close();
   }
@@ -162,7 +176,6 @@ async function setFile(identifier, data) {
   try {
     writeAll(accessHandle, data, 0);
     accessHandle.truncate(data.byteLength);
-    accessHandle.flush();
   } catch (e) {
     accessHandle.close();
     // What was written of it only takes up the space that ran out.

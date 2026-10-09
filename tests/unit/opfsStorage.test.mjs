@@ -51,6 +51,8 @@ class FakeFile {
     this.unreadable = false;
     // The heartbeat is left out of diskRoom: it is written every second, whenever.
     this.isHeartbeat = name === '_meta.json';
+    // Forced syncs to the disk (FileSystemSyncAccessHandle.flush).
+    this.flushes = 0;
   }
   async createSyncAccessHandle() {
     return {
@@ -73,7 +75,9 @@ class FakeFile {
         cut.set(this.bytes.subarray(0, n));
         this.bytes = cut;
       },
-      flush: () => {},
+      flush: () => {
+        this.flushes++;
+      },
       close: () => {},
     };
   }
@@ -280,6 +284,10 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
     session(`fsblob-${now - 60000}-4`, locked);
     // A live one.
     session(`fsblob-${now - 60000}-5`, heartbeat(now - 2000));
+    // One whose heartbeat a crash cut short (heartbeats are not flushed): it reads, but is
+    // not JSON. Kept as "being written", its fragments stayed on the disk for good.
+    session(`fsblob-${now - 60000}-6`, new FakeFile('{"updated_ti'));
+    session(`fsblob-${now - 60000}-7`, new FakeFile(''));
 
     const manager = await startManager(root);
     try {
@@ -321,6 +329,34 @@ describe('opfs-worker: writes', () => {
       await expect(manager.saveAppend('save-1', new Uint8Array([4, 5, 6]))).rejects.toThrow(/wrote 1 of 3 bytes/);
     } finally {
       diskRoom = Infinity;
+      await manager.close();
+    }
+  });
+
+  it('forces no fragment and no heartbeat to the disk, and a save once, when it is complete', async () => {
+    // A flushed write is a forced sync: 500 MB as 1.6 MB files, each flushed, made Windows
+    // write 800 MB, lazily 423 MB (measured), and the heartbeat was flushed every second for
+    // every open player. A fragment and the heartbeat are only read back in this session.
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    try {
+      await manager.setFile('blob0', new Blob([new Uint8Array([1, 2, 3])]));
+      await manager.saveBegin('save-1');
+      await manager.saveAppend('save-1', new Uint8Array([1, 2]));
+      await manager.saveAppend('save-1', new Uint8Array([3]));
+      const flushed = () => [...sessionOf(root, manager).children.values()].reduce((n, file) => n + (file.flushes || 0), 0);
+      // Nothing yet: the save's one flush comes when it is complete.
+      expect(flushed()).toBe(0);
+      await manager.saveEnd('save-1');
+      expect(flushed()).toBe(1);
+      const fragment = await manager.getFile('blob0');
+      const save = await manager.getSavedFile('save-1');
+      expect({
+        fragment: fragment.disk.flushes,
+        heartbeat: sessionOf(root, manager).children.get('_meta.json').flushes,
+        save: save.disk.flushes,
+      }).toEqual({fragment: 0, heartbeat: 0, save: 1});
+    } finally {
       await manager.close();
     }
   });
