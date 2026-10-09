@@ -213,24 +213,73 @@ describe('Options page size fields, typed by hand', function() {
     await browser.keys(text.split(''));
   }
 
+  /**
+   * A size field's number and unit as shown.
+   * @param {string} id
+   * @return {Promise<[string, string]>}
+   */
+  const shown = (id) => browser.execute((id) =>
+    [document.getElementById(id).value, document.getElementById(id + 'unit').selectedOptions[0].textContent], id);
+
+  /**
+   * Picks a unit as a person does.
+   * @param {string} id - The size field's id.
+   * @param {string} unit - 'MB' or 'GB'.
+   */
+  async function pickUnit(id, unit) {
+    await (await browser.$(`#${id}unit`)).selectByVisibleText(unit);
+  }
+
+  // Typed as text, "10 MB", "10 Mb" and "10 Mo" left the reporter unsure what the field took
+  // (#378): a number, and the unit beside it.
+  it('shows each size as a number and a unit, the speed in Mbit/s', async function() {
+    expect(await shown('maxsize')).toEqual(['5', 'GB']);
+    expect(await shown('rambudget')).toEqual(['2', 'GB']);
+    // No speed limit: an empty field showing ∞.
+    expect(await browser.execute(() => [document.getElementById('maxspeed').value,
+      document.getElementById('maxspeed').placeholder])).toEqual(['', '∞']);
+  });
+
   it('saves a size while it is typed, without waiting for the field to be left', async function() {
-    await typeInto('maxsize', '10 MB');
+    await pickUnit('maxsize', 'MB');
+    await typeInto('maxsize', '10');
     await savedAs('maxVideoSize', 1e7);
     // The field keeps what is being typed, and the cursor stays in it.
     expect(await browser.execute(() => [document.getElementById('maxsize').value, document.activeElement.id]))
-        .toEqual(['10 MB', 'maxsize']);
+        .toEqual(['10', 'maxsize']);
     // The page reloaded with the cursor still in the field: the size stays.
     await browser.url(optionsPagePath());
     await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
         {timeout: 30000});
-    expect(await browser.execute(() => document.getElementById('maxsize').value)).toBe('10 MB');
+    expect(await shown('maxsize')).toEqual(['10', 'MB']);
   });
 
-  it('reads a bare number as megabytes', async function() {
-    await typeInto('maxsize', '10');
+  it('takes the unit from its picker, and keeps the number when the unit changes', async function() {
+    await typeInto('maxsize', '2');
+    await savedAs('maxVideoSize', 2e9);
+    await pickUnit('maxsize', 'MB');
+    await savedAs('maxVideoSize', 2e6);
+    expect(await shown('maxsize')).toEqual(['2', 'MB']);
+    // 1500 MB stays as typed while it is typed, and reads as 1.5 GB once the field is left.
+    await typeInto('maxsize', '1500');
+    await savedAs('maxVideoSize', 1.5e9);
+    expect(await shown('maxsize')).toEqual(['1500', 'MB']);
     await browser.keys(['Tab']);
-    await savedAs('maxVideoSize', 1e7);
-    expect(await browser.execute(() => document.getElementById('maxsize').value)).toBe('10 MB');
+    expect(await shown('maxsize')).toEqual(['1.5', 'GB']);
+    // Emptied, it is no limit.
+    await typeInto('maxsize', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('maxVideoSize', -1);
+  });
+
+  it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {
+    await typeInto('maxspeed', '8');
+    await savedAs('maxSpeed', 1e6);
+    await typeInto('rambudget', '100');
+    await pickUnit('rambudget', 'MB');
+    await browser.keys(['Tab']);
+    await savedAs('ramBudget', 256e6);
+    expect(await shown('rambudget')).toEqual(['256', 'MB']);
   });
 
   // A number field has no caret position: putting it back threw (review, 2026-10-09).
@@ -249,13 +298,14 @@ describe('Options page size fields, typed by hand', function() {
   });
 
   it('greys the size out while predownload is off, where buffer ahead decides', async function() {
-    const disabled = () => browser.execute(() => document.getElementById('maxsize').disabled);
-    expect(await disabled()).toBe(false);
+    const disabled = () => browser.execute(() =>
+      [document.getElementById('maxsize').disabled, document.getElementById('maxsizeunit').disabled]);
+    expect(await disabled()).toEqual([false, false]);
     await (await browser.$('#downloadall')).click();
-    expect(await disabled()).toBe(true);
+    expect(await disabled()).toEqual([true, true]);
     await typeInto('bufferahead', '10');
     await savedAs('bufferAhead', 10);
     await (await browser.$('#downloadall')).click();
-    expect(await disabled()).toBe(false);
+    expect(await disabled()).toEqual([false, false]);
   });
 });

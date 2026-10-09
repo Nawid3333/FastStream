@@ -1,7 +1,6 @@
 import {DefaultKeybinds} from './defaults/DefaultKeybinds.mjs';
 import {conflictPartners, keybindLabel} from './KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
-import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
@@ -37,7 +36,9 @@ const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
 const maxSpeed = document.getElementById('maxspeed');
 const maxSize = document.getElementById('maxsize');
+const maxSizeUnit = document.getElementById('maxsizeunit');
 const ramBudget = document.getElementById('rambudget');
+const ramBudgetUnit = document.getElementById('rambudgetunit');
 const bufferAhead = document.getElementById('bufferahead');
 const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
@@ -117,6 +118,7 @@ async function loadOptions(newOptions) {
 
   downloadAll.checked = !!Options.downloadAll;
   maxSize.disabled = !downloadAll.checked;
+  maxSizeUnit.disabled = !downloadAll.checked;
   analyzeVideos.checked = !!Options.analyzeVideos;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
@@ -133,9 +135,9 @@ async function loadOptions(newOptions) {
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
-  maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
-  maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
-  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
+  showSpeed(Options.maxSpeed);
+  showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
+  showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   bufferAhead.value = Options.bufferAhead;
   bufferBehind.value = Options.bufferBehind;
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
@@ -260,7 +262,8 @@ createSelectMenu(qualityMenu, Object.values(DefaultQualities), Options.defaultQu
 
 document.querySelectorAll('.option').forEach((option) => {
   option.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'INPUT') {
+    // A unit picker beside a number takes its own clicks.
+    if (e.target.tagName !== 'INPUT' && !e.target.closest('select')) {
       const input = option.querySelector('input');
       if (input) {
         if (input.type === 'checkbox') {
@@ -552,6 +555,7 @@ downloadAll.addEventListener('change', () => {
   Options.downloadAll = downloadAll.checked;
   // The size limit applies to predownloading only; without it "Buffer ahead" decides (#378).
   maxSize.disabled = !downloadAll.checked;
+  maxSizeUnit.disabled = !downloadAll.checked;
   optionChanged();
 });
 
@@ -581,29 +585,75 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
   optionChanged();
 });
 
-maxSpeed.addEventListener('change', () => {
-  // parse value, number unit/s
-  Options.maxSpeed = StringUtils.getSpeedValue(maxSpeed.value);
-  maxSpeed.value = StringUtils.getSpeedString(Options.maxSpeed, true);
+// The speed and the two sizes are a number with a unit beside it: typed as text, "10 Mb",
+// "10 Mo" and "10" left users unsure what the field took (#378). The values are kept as
+// before: bytes per second, bytes, -1 for no limit.
+const BYTES_PER_MBIT_PER_S = 1000000 / 8;
+const GB = 1000 ** 3;
+
+/**
+ * Shows the maximum speed in Mbit/s, as speed tests give it; nothing (∞) for no limit.
+ * @param {number} bytesPerSecond
+ */
+function showSpeed(bytesPerSecond) {
+  maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 100) / 100) : '';
+}
+
+/**
+ * Shows a size in its number field and MB/GB picker: in GB from 1 GB up, in MB below, to
+ * two decimals; nothing (∞) and GB for no limit.
+ * @param {HTMLInputElement} input
+ * @param {HTMLSelectElement} unit
+ * @param {number} bytes
+ */
+function showSize(input, unit, bytes) {
+  const multiplier = !(bytes >= 0) || bytes >= GB ? GB : GB / 1000;
+  unit.value = String(multiplier);
+  input.value = bytes >= 0 ? String(Math.round(bytes / multiplier * 100) / 100) : '';
+}
+
+/**
+ * The amount a number field holds, times its unit; NaN when it holds no number. A number
+ * field takes the decimal separator of the browser's language ("1,5" in French).
+ * @param {HTMLInputElement} input
+ * @param {number} multiplier
+ * @return {number}
+ */
+function readAmount(input, multiplier) {
+  const amount = input.valueAsNumber;
+  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * multiplier) : NaN;
+}
+
+// Written back only when the field is left (a trusted change), not on a save while typing:
+// "1500 MB" became "1.5 GB" under the typing, and the next keys went into the wrong unit.
+maxSpeed.addEventListener('change', (e) => {
+  const value = readAmount(maxSpeed, BYTES_PER_MBIT_PER_S);
+  Options.maxSpeed = Number.isNaN(value) ? -1 : value;
+  if (e.isTrusted) showSpeed(Options.maxSpeed);
   optionChanged();
 });
 
-maxSize.addEventListener('change', () => {
-  // parse value, number unit
-  Options.maxVideoSize = StringUtils.getSizeValue(maxSize.value);
-  maxSize.value = StringUtils.getSizeString(Options.maxVideoSize);
+const onMaxSizeChange = (e) => {
+  const value = readAmount(maxSize, Number(maxSizeUnit.value));
+  Options.maxVideoSize = Number.isNaN(value) ? -1 : value;
+  if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
   optionChanged();
-});
+};
+maxSize.addEventListener('change', onMaxSizeChange);
+// Another unit, the same number: "2" from MB to GB is 2 GB.
+maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
 // The RAM all players keep downloaded video in (MemoryBudget). Not unlimited: every
-// FastStream page runs in one Firefox process. Nothing readable, or "∞", is the default.
+// FastStream page runs in one Firefox process. Nothing readable is the default.
 const MIN_RAM_BUDGET = 256000000;
-ramBudget.addEventListener('change', () => {
-  const value = StringUtils.getSizeValue(ramBudget.value);
-  Options.ramBudget = Number.isFinite(value) && value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
-  ramBudget.value = StringUtils.getSizeString(Options.ramBudget);
+const onRamBudgetChange = (e) => {
+  const value = readAmount(ramBudget, Number(ramBudgetUnit.value));
+  Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
+  if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   optionChanged();
-});
+};
+ramBudget.addEventListener('change', onRamBudgetChange);
+ramBudgetUnit.addEventListener('change', onRamBudgetChange);
 
 /**
  * A number field's value within its limits, or the default when it holds no number, shown

@@ -509,6 +509,32 @@ button:focus-visible {
   text-align: center;
 }
 
+/* A number with its unit: a picker (MB, GB) or a fixed one (Mbit/s). Typed by hand, "10 Mb"
+   or "10 Mo" left users unsure what the field took (#378). */
+.option.grid2 .amount {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.amount .number {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  appearance: textfield;
+}
+
+.amount select {
+  flex: none;
+}
+
+.amount .unit {
+  flex: none;
+  min-width: 4.5em;
+  text-align: center;
+}
+
 input,
 select,
 textarea {
