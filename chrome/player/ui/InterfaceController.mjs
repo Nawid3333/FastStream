@@ -925,6 +925,7 @@ export class InterfaceController {
   }
 
   runProgressLoop() {
+<<<<<<< HEAD
     // Set unconditionally, before the isRunning guard: stopProgressLoop()
     // only clears shouldRunProgressLoop, and isRunningProgressLoop isn't
     // cleared until the *next* frame observes that. Between those two points
@@ -932,6 +933,9 @@ export class InterfaceController {
     // paused there - a runProgressLoop() call would otherwise hit the guard,
     // leave shouldRunProgressLoop false, and let the pending frame stop the
     // loop for good even though it had just been asked to run.
+=======
+    // Set even if a frame is still pending, or a stop right before this would win
+>>>>>>> upstream/main
     this.shouldRunProgressLoop = true;
     if (!this.isRunningProgressLoop) {
       this.isRunningProgressLoop = true;

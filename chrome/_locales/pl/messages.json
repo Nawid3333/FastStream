@@ -207,6 +207,7 @@
         "message": "Wysyłanie źródeł do odtwarzaczy ze skryptu w tle."
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "Wymiana komunikatów z programami innymi niż Firefox"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "Tylko po to, by sprawdzić, w którym kontenerze Firefoksa jest karta, aby pobieranie rozpoczęte w karcie kontenera odbyło się w tym samym kontenerze. FastStream nigdy nie odczytuje, nie zmienia ani nie wysyła Twoich ciasteczek."
+=======
+        "message": "Proxy (opcjonalnie)"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Używane tylko z Firefox VPN. Firefox wymienia je jako kontrolę ustawień proxy przeglądarki, ale FastStream nie zmienia żadnych ustawień: wysyła własne żądania dotyczące wideo w taki sam sposób, w jaki przechodziły żądania samej strony, przez VPN. Bez tego witryna, która wiąże swoje wideo z adresem VPN, odrzuca FastStream. Odtwarzacz prosi o nie, gdy jest potrzebne po raz pierwszy."
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "Przyznano"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "Nie udało się załadować wideo!"
     },
+    "player_vpn_allow": {
+        "message": "Odtwarzaj przez Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Ta strona otrzymuje swoje wideo przez Firefox VPN, który pomija żądania FastStream, a witryna może je odrzucić. Kliknij, aby FastStream mógł korzystać z tego samego połączenia (jednorazowo, na stronie uprawnień FastStream)."
+    },
     "source_copied": {
         "message": "Adres URL skopiowany do schowka!"
     },
@@ -676,6 +689,9 @@
     },
     "player_source_accelvm": {
         "message": "Przyspieszone Vimeo"
+    },
+    "player_source_accelpanopto": {
+        "message": "Przyspieszony Panopto"
     },
     "player_source_mode": {
         "message": "Tryb"
@@ -1355,7 +1371,21 @@
     "perms_page_breakdown_perm9d": {
         "message": "Używane tylko z Firefox VPN. Firefox wymienia je jako kontrolę ustawień proxy przeglądarki, ale FastStream nie zmienia żadnych ustawień: wysyła własne żądania dotyczące wideo w taki sam sposób, w jaki przechodziły żądania samej strony, przez VPN. Bez tego witryna, która wiąże swoje wideo z adresem VPN, odrzuca FastStream. Odtwarzacz prosi o nie, gdy jest potrzebne po raz pierwszy."
     },
+<<<<<<< HEAD
     "player_mpv_vpn": {
         "message": "Firefox VPN przesyła ten film, a mpv nie może go użyć: witryna odrzuciłaby mpv. Aby obejrzeć go w mpv, wyłącz Firefox VPN dla tej witryny i odśwież stronę."
+=======
+    "ytslowdown_popup": {
+        "message": "Powiadomienie o spowolnieniu YouTube"
+    },
+    "ytslowdown_popup_body": {
+        "message": "Z powodu zmian w YouTube możesz doświadczyć wolnych czasów ładowania początkowego dla filmów. Dzieje się tak, ponieważ YouTube teraz wymusza opóźnienie dla reklam, na które FastStream musi czekać, zanim będzie mógł zacząć ładować film. Niestety, nie ma rozwiązania tego problemu. Dziękujemy za zrozumienie."
+    },
+    "ytslowdown_ok": {
+        "message": "OK"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
+>>>>>>> upstream/main
     }
 }

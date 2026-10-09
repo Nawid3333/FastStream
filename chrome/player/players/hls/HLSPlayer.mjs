@@ -173,6 +173,7 @@ export default class HLSPlayer extends EventEmitter {
       });
     }
 
+<<<<<<< HEAD
     // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
     const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
         this.client.downloadManager.downloaderLimit());
@@ -199,6 +200,37 @@ export default class HLSPlayer extends EventEmitter {
     }
 
     zippedFragments.forEach((data, index) => {
+=======
+    const level = this.hls.levels[this.getIndexes(this.getCurrentVideoLevelID()).levelID];
+    const audioLevel = this.hls.audioTracks[this.hls.audioTrack];
+
+    let levelInitData = null;
+    let audioLevelInitData = null;
+
+    // Right after a quality switch, hls.js may not have loaded the new level's init segment yet.
+    if (fragments[-1]) {
+      if (fragments[-1].status !== DownloadStatus.DOWNLOAD_COMPLETE) {
+        await this.downloadFragment(fragments[-1], -1);
+      }
+      levelInitData = new Uint8Array(await this.client.downloadManager.getEntry(fragments[-1].getContext()).getDataFromBlob());
+    }
+
+    if (audioFragments[-1]) {
+      if (audioFragments[-1].status !== DownloadStatus.DOWNLOAD_COMPLETE) {
+        await this.downloadFragment(audioFragments[-1], -1);
+      }
+      audioLevelInitData = new Uint8Array(await this.client.downloadManager.getEntry(audioFragments[-1].getContext()).getDataFromBlob());
+    }
+
+    // A level is fMP4 exactly when its playlist named an initialization segment, and
+    // those go to the merger — HLS2MP4 demuxes transport streams. A level that carries
+    // its own audio rather than taking it from a separate rendition belongs there too,
+    // so the audio side is only handed over when it is a rendition of its own.
+    const mergeable = levelInitData && (audioLevelInitData || audioFragments.length === 0);
+
+    // Pin last: only getEntry and the catch below unpin, so nothing that can throw may run in between.
+    zippedFragments.forEach((data) => {
+>>>>>>> upstream/main
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
         await fetcher.get(index);
@@ -207,6 +239,7 @@ export default class HLSPlayer extends EventEmitter {
       };
     });
 
+<<<<<<< HEAD
     // A level is fMP4 exactly when its playlist named an initialization segment, and
     // those belong to the merger - HLS2MP4 below demuxes transport streams and cannot
     // read them. A level that carries its own audio rather than taking it from a
@@ -215,6 +248,8 @@ export default class HLSPlayer extends EventEmitter {
     // audio to HLS2MP4, which then failed on data it was never meant to parse.
     const mergeable = levelInitData && (audioLevelInitData || audioFragments.length === 0);
 
+=======
+>>>>>>> upstream/main
     try {
       if (mergeable) {
         // Routed through the DASH2MP4 wrapper (not MP4Merger directly) so a

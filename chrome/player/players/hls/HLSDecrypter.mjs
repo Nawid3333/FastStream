@@ -14,6 +14,7 @@ export class HLSDecrypter {
     }
     const id = this.lastId++;
     return new Promise((resolve, reject) => {
+<<<<<<< HEAD
       this.encryptionWorkerCallbacks.set(id, (decrypted, error) => {
         // decrypter-worker.js answers a failure (a wrong key, an IV that is not 16 bytes,
         // a download cut short) with 0 bytes and an error, and those 0 bytes were stored
@@ -24,6 +25,9 @@ export class HLSDecrypter {
           reject(new Error('Segment not decrypted: ' + (error || 'the decrypter was destroyed')));
         }
       });
+=======
+      this.encryptionWorkerCallbacks.set(id, (data, error) => error ? reject(error) : resolve(data));
+>>>>>>> upstream/main
       this.encryptionWorker.postMessage({
         encrypted: data,
         iv: iv,
@@ -37,6 +41,9 @@ export class HLSDecrypter {
     if (this.encryptionWorker) {
       this.encryptionWorker.terminate();
       this.encryptionWorker = null;
+      // A terminated worker never answers, so fail what is still waiting on it.
+      this.encryptionWorkerCallbacks.forEach((callback) => callback(null, new Error('Decrypter destroyed')));
+      this.encryptionWorkerCallbacks.clear();
     }
     // A terminated worker will never post back the results these are
     // waiting on - settle them now instead of leaving decryptAES() callers

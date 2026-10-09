@@ -214,10 +214,16 @@ export function HLSLoaderFactory(player) {
     }
 
     loadNonFragmentInternal() {
+<<<<<<< HEAD
       // A playlist, not a key or a fragment. hls.js loads one again to see what is new.
       const isPlaylist = this.context.frag === undefined;
       const downloadManager = player.getClient().downloadManager;
       const details = {
+=======
+      // A playlist, not a key or a fragment.
+      const isPlaylist = this.context.frag === undefined;
+      this.loader = player.getClient().downloadManager.getFile({
+>>>>>>> upstream/main
         ...this.context,
         config: this.config,
         headers: {
@@ -276,11 +282,19 @@ export function HLSLoaderFactory(player) {
             if (isPlaylist) {
               // hls.js's playlist loader passes no onAbort, so a failure reported as one
               // reached nobody, and the player waited forever. As an error, hls.js retries
+<<<<<<< HEAD
               // the playlist, and fails the player once it gives up.
               const error = this.stats.error || {code: 0, text: 'Download failed'};
               this.callbacks.onError?.(error, this.context, null, this.stats);
             } else {
               this.reportFailure(failureKey);
+=======
+              // or switches level as it would for its own loader, and fails once it gives up.
+              const error = this.stats.error || {code: 0, text: 'Download failed'};
+              this.callbacks.onError?.(error, this.context, null, this.stats);
+            } else {
+              this.callbacks.onAbort?.(this.stats, this.context, null, null);
+>>>>>>> upstream/main
             }
           }, 1000);
         },

@@ -156,6 +156,7 @@ async function buildFirefoxGithub() {
   const manifestPath = path.join(firefoxGithubBuildDir, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
+<<<<<<< HEAD
   // 'downloads' and 'cookies' are in the source manifest. This build also asks for
   // 'contextualIdentities'; the AMO build deliberately does not (see below).
   manifest.permissions.push('contextualIdentities');
@@ -171,6 +172,26 @@ async function buildFirefoxGithub() {
       data_collection_permissions: {
         required: ['none'],
       },
+=======
+  manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
+
+  // remove the userscripts permission
+  manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
+
+  // move it to optional_permissions
+  if (!manifest.optional_permissions) {
+    manifest.optional_permissions = [];
+  }
+  manifest.optional_permissions.push('userScripts');
+  // Lets FastStream's requests follow the page's through Firefox VPN (VpnProxyMirror.mjs).
+  // Firefox only: Chromium has no proxy.onRequest, so the Chrome builds do not ask for it.
+  manifest.optional_permissions.push('proxy');
+
+  manifest.browser_specific_settings = {
+    gecko: {
+      id: 'faststream@andrews',
+      strict_min_version: '128.0',
+>>>>>>> upstream/main
     },
   };
 
@@ -193,6 +214,7 @@ async function buildFirefoxAmo() {
 
   manifest.browser_specific_settings = {
     gecko: {
+<<<<<<< HEAD
       id: 'thanatus@Nawid',
       // data_collection_permissions needs Firefox 140+ (Android 142+).
       strict_min_version: '142.0',
@@ -227,6 +249,35 @@ async function buildFirefoxAmo() {
   // container definitions - which nothing here calls. Reading a tab's
   // cookieStoreId, which is all this add-on does, needs 'cookies' and not
   // this.
+=======
+      id: 'faststream@andrews',
+      strict_min_version: '128.0',
+    },
+  };
+
+  manifest.background = {
+    scripts: ['background/background.mjs'],
+    type: 'module',
+  };
+
+  manifest.permissions.push('downloads', 'cookies', 'contextualIdentities');
+
+  // remove the userscripts permission
+  manifest.permissions = manifest.permissions.filter((permission) => permission !== 'userScripts');
+
+  // move it to optional_permissions
+  if (!manifest.optional_permissions) {
+    manifest.optional_permissions = [];
+  }
+  manifest.optional_permissions.push('userScripts');
+  // Lets FastStream's requests follow the page's through Firefox VPN (VpnProxyMirror.mjs).
+  // Firefox only: Chromium has no proxy.onRequest, so the Chrome builds do not ask for it.
+  manifest.optional_permissions.push('proxy');
+
+  delete manifest.incognito;
+  delete manifest.minimum_chrome_version;
+  delete manifest.key;
+>>>>>>> upstream/main
 
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 

@@ -207,6 +207,7 @@
         "message": "バックグラウンドスクリプトからプレーヤーにソースを送信"
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "Firefox 以外のプログラムとメッセージを交換"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "タブがどの Firefox コンテナーに属しているかを知るためだけに使います。これにより、コンテナータブで始めたダウンロードが同じコンテナー内で行われます。FastStream が Cookie を読み取ったり、変更したり、送信したりすることはありません。"
+=======
+        "message": "プロキシ（任意）"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "許可"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "動画の読み込みに失敗しました!"
     },
+    "player_vpn_allow": {
+        "message": "Firefox VPN で再生"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "このページは Firefox VPN 経由で動画を取得しています。FastStream のリクエストは除外され、サイトがそれらを拒否する可能性があります。クリックすると、FastStream が同じ接続を使用できるようになります（1回のみ、FastStream の権限ページで）。"
+    },
     "source_copied": {
         "message": "URL をクリップボードにコピーしました!"
     },
@@ -676,6 +689,9 @@
     },
     "player_source_accelvm": {
         "message": "高速化された Vimeo"
+    },
+    "player_source_accelpanopto": {
+        "message": "高速化された Panopto"
     },
     "player_source_mode": {
         "message": "モード"
@@ -1355,7 +1371,21 @@
     "perms_page_breakdown_perm9d": {
         "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
     },
+<<<<<<< HEAD
     "player_mpv_vpn": {
         "message": "Firefox VPNがこの動画を中継しており、mpvはそれを使用できません。サイトはmpvを拒否するでしょう。mpvで視聴するには、このサイトでFirefox VPNをオフにして、ページを再読み込みしてください。"
+=======
+    "ytslowdown_popup": {
+        "message": "YouTubeの速度低下に関する通知"
+    },
+    "ytslowdown_popup_body": {
+        "message": "YouTube の変更により、動画の初期読み込み時間が遅くなる可能性があります。これは、YouTube が広告の遅延を強制するようになったためで、FastStream は動画の読み込みを開始する前に待機する必要があります。残念ながら、この問題には回避策がありません。ご理解いただきありがとうございます。"
+    },
+    "ytslowdown_ok": {
+        "message": "OK"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
+>>>>>>> upstream/main
     }
 }

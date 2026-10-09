@@ -808,19 +808,27 @@ export default class MP4Player extends EventEmitter {
   set currentTime(value) {
     this.video.currentTime = value;
 
+<<<<<<< HEAD
     // What matters is where the element is going: a seek to -3 s lands on 0, which may well
     // be buffered, and throwing the whole buffer away for it made every arrow press near the
     // start rebuffer the video. The target is clamped here to the range the element clamps a
     // seek to (MediaSource makes it [0, duration]), so the check does not depend on reading
     // the time back.
+=======
+    // Check the time the element actually seeks to: it clamps to [0, duration].
+>>>>>>> upstream/main
     let target = Math.max(0, value);
     const duration = this.video.duration;
     if (Number.isFinite(duration)) {
       target = Math.min(target, duration);
     }
+<<<<<<< HEAD
     // A removal still queued takes away what `buffered` shows (removalPending, #265).
     if (!VideoUtils.isBuffered(this.buffered, target) ||
         removalPending([this.videoSourceBuffer, this.audioSourceBuffer], target)) {
+=======
+    if (!VideoUtils.isBuffered(this.buffered, target)) {
+>>>>>>> upstream/main
       this.resetHLS();
     }
   }

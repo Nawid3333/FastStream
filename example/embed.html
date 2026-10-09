@@ -263,16 +263,26 @@
             Every command is answered with <code>{type: 'faststream:response', id, ok, result}</code>, or
             <code>{type: 'faststream:response', id, ok: false, error: {message}}</code> when it failed. The
             <code>id</code> is whatever you labelled the command with, handed back so you can match the two up.
+<<<<<<< HEAD
             The player takes commands only from the page that embeds it (or the window that opened it), at the
             origin that page first sent from. Other frames of the page, an ad for example, get no answer.
+=======
+            Only the player's direct parent or opener can send commands. Each window must keep the origin
+            from which it first sent a command; commands from other windows or changed origins are ignored.
+>>>>>>> upstream/main
         </p>
         <p>
             Events are <code>{type: 'faststream:event', event, state, detail}</code>, where <code>state</code> is the
             same snapshot <code>getState</code> returns. They are only sent to windows that asked for them with
             <code>subscribe</code>. The exception is <code>ready</code>, which the player sends to whoever embedded it
             as soon as it has loaded — wait for it before sending anything, because an iframe's load event fires
+<<<<<<< HEAD
             before the player's scripts have run. Its <code>state.source</code> holds only the mode: ask
             <code>getState</code> for the address.
+=======
+            before the player's scripts have run. In <code>ready</code>, <code>state.source</code> contains only
+            the source's mode. Use <code>getState</code> to request its URL and identifier.
+>>>>>>> upstream/main
         </p>
 
         <table>

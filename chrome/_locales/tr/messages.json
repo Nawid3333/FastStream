@@ -207,6 +207,7 @@
         "message": "Kaynakları arka plan betiğinden oynatıcılara gönderme."
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "Firefox dışındaki programlarla mesaj alışverişi"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "Yalnızca bir sekmenin hangi Firefox kapsayıcısında olduğunu görmek için; böylece kapsayıcı sekmede başlatılan bir indirme aynı kapsayıcıda gerçekleşir. FastStream çerezlerinizi asla okumaz, değiştirmez veya göndermez."
+=======
+        "message": "Proxy (isteğe bağlı)"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister."
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "Verildi"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "Video yüklenemedi!"
     },
+    "player_vpn_allow": {
+        "message": "Firefox VPN üzerinden oynat"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Bu sayfa videosunu Firefox VPN üzerinden alıyor; bu, FastStream'in isteklerini dışarıda bırakıyor ve site bunları reddedebilir. FastStream'in aynı bağlantıyı kullanmasına izin vermek için tıklayın (bir kez, FastStream'in izinler sayfasında)."
+    },
     "source_copied": {
         "message": "URL panoya kopyalandı!"
     },
@@ -676,6 +689,9 @@
     },
     "player_source_accelvm": {
         "message": "Hızlandırılmış Vimeo"
+    },
+    "player_source_accelpanopto": {
+        "message": "Hızlandırılmış Panopto"
     },
     "player_source_mode": {
         "message": "Mod"
@@ -1355,7 +1371,21 @@
     "perms_page_breakdown_perm9d": {
         "message": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister."
     },
+<<<<<<< HEAD
     "player_mpv_vpn": {
         "message": "Firefox VPN bu videoyu taşıyor ve mpv bunu kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu site için Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
+=======
+    "ytslowdown_popup": {
+        "message": "YouTube Yavaşlama Bildirimi"
+    },
+    "ytslowdown_popup_body": {
+        "message": "YouTube'daki değişiklikler nedeniyle, videoların başlangıç yükleme sürelerinde yavaşlama yaşayabilirsiniz. Bunun nedeni, YouTube'un artık reklamlar için bir gecikme zorunlu kılmasıdır ve FastStream'in videoyu yüklemeye başlamadan önce beklemesi gerekir. Ne yazık ki, bu sorun için bir çözüm yoktur. Anlayışınız için teşekkür ederiz."
+    },
+    "ytslowdown_ok": {
+        "message": "Tamam"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
+>>>>>>> upstream/main
     }
 }

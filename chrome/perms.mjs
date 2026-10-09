@@ -1,3 +1,12 @@
+// An optional permission's row shows only where the manifest declares it: the Firefox
+// builds alone ask for "proxy" (build.mjs), and requesting an undeclared one throws.
+const optionalPermissions = chrome.runtime.getManifest().optional_permissions || [];
+for (const row of document.querySelectorAll('.optional-perm')) {
+  if (!optionalPermissions.includes(row.dataset.perm)) {
+    row.remove();
+  }
+}
+
 async function updatePerms() {
   const perms = await chrome.permissions.getAll();
   const permsEl = document.querySelectorAll('.permstatus');
@@ -19,7 +28,11 @@ async function updatePerms() {
       el.classList.add('no-perms');
       el.textContent = window.getI18nMessage('perms_page_notgranted');
       // onclick, not a listener: updatePerms runs again at every permission change, and each
+<<<<<<< HEAD
       // run added one more - a click then asked for the permission that many times.
+=======
+      // run added one more listener, so a click asked for the permission that many times.
+>>>>>>> upstream/main
       el.onclick = () => {
         if (el.dataset.perm === 'all-urls') {
           chrome.permissions.request({
@@ -37,8 +50,14 @@ async function updatePerms() {
 
 updatePerms();
 
+<<<<<<< HEAD
 // Opened from the player's Firefox VPN button (VpnPrompt.mjs): the proxy row is the one,
 // and once it is granted the tab goes, back to the video, whose player loads again.
+=======
+// Opened from the player's Firefox VPN button (player/ui/VpnPrompt.mjs): the proxy row is
+// the one, and once it is granted the tab closes, back to the video, whose player loads
+// again.
+>>>>>>> upstream/main
 if (location.hash === '#proxy') {
   const status = document.querySelector('.permstatus[data-perm="proxy"]');
   const row = status?.closest('h4');

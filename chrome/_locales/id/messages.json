@@ -207,6 +207,7 @@
         "message": "Mengirim sumber ke pemutar dari skrip latar belakang."
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "Bertukar pesan dengan program selain Firefox"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "Hanya untuk melihat kontainer Firefox tempat sebuah tab berada, agar unduhan yang dimulai di tab kontainer berlangsung di kontainer yang sama. FastStream tidak pernah membaca, mengubah, atau mengirim cookie Anda."
+=======
+        "message": "Proxy (opsional)"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Hanya digunakan dengan Firefox VPN. Firefox mencantumkannya sebagai kontrol pengaturan proxy browser, tetapi FastStream tidak mengubah pengaturan apa pun: ia mengirim permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, situs yang mengaitkan videonya ke alamat VPN menolak FastStream. Pemutar memintanya saat pertama kali dibutuhkan."
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "Diizinkan"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "Gagal memuat video!"
     },
+    "player_vpn_allow": {
+        "message": "Putar melalui Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, yang tidak menyertakan permintaan FastStream, dan situs mungkin menolaknya. Klik untuk mengizinkan FastStream menggunakan koneksi yang sama (sekali, di halaman izin FastStream)."
+    },
     "source_copied": {
         "message": "URL disalin ke papan klip!"
     },
@@ -676,6 +689,9 @@
     },
     "player_source_accelvm": {
         "message": "Vimeo Dipercepat"
+    },
+    "player_source_accelpanopto": {
+        "message": "Panopto Dipercepat"
     },
     "player_source_mode": {
         "message": "Mode"
@@ -1355,7 +1371,21 @@
     "perms_page_breakdown_perm9d": {
         "message": "Hanya digunakan dengan Firefox VPN. Firefox mencantumkannya sebagai kontrol pengaturan proxy browser, tetapi FastStream tidak mengubah pengaturan apa pun: ia mengirim permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, situs yang mengaitkan videonya ke alamat VPN menolak FastStream. Pemutar memintanya saat pertama kali dibutuhkan."
     },
+<<<<<<< HEAD
     "player_mpv_vpn": {
         "message": "Firefox VPN membawa video ini, dan mpv tidak dapat menggunakannya: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."
+=======
+    "ytslowdown_popup": {
+        "message": "Pemberitahuan Perlambatan YouTube"
+    },
+    "ytslowdown_popup_body": {
+        "message": "Karena perubahan oleh YouTube, Anda mungkin mengalami waktu muat awal yang lambat untuk video. Ini karena YouTube sekarang memberlakukan penundaan untuk iklan, yang harus ditunggu oleh FastStream sebelum dapat mulai memuat video. Sayangnya, tidak ada solusi untuk masalah ini. Terima kasih atas pengertian Anda."
+    },
+    "ytslowdown_ok": {
+        "message": "OK"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
+>>>>>>> upstream/main
     }
 }

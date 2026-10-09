@@ -21,6 +21,7 @@ import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
 import {SecureMemory} from './modules/SecureMemory.mjs';
 import {CSSFilterUtils} from './utils/CSSFilterUtils.mjs';
 import {DaltonizerTypes} from './options/defaults/DaltonizerTypes.mjs';
+import {AspectRatios} from './options/defaults/AspectRatios.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
 import {AudioAnalyzer} from './modules/analyzer/AudioAnalyzer.mjs';
@@ -35,11 +36,14 @@ import {AlertPolyfill} from './utils/AlertPolyfill.mjs';
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
+<<<<<<< HEAD
 import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
+=======
+>>>>>>> upstream/main
 
 
 /**
@@ -95,6 +99,7 @@ export class FastStreamClient extends EventEmitter {
       videoDaltonizerType: DaltonizerTypes.NONE,
       videoDaltonizerStrength: 1,
       videoZoom: 1,
+      videoAspectRatio: AspectRatios.AUTO,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
       toolSettings: Utils.mergeOptions(DefaultToolSettings, {}),
@@ -399,6 +404,7 @@ export class FastStreamClient extends EventEmitter {
     this.options.videoDaltonizerType = options.videoDaltonizerType;
     this.options.videoDaltonizerStrength = options.videoDaltonizerStrength;
     this.options.videoZoom = options.videoZoom;
+    this.options.videoAspectRatio = options.videoAspectRatio || AspectRatios.AUTO;
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
     document.body.dataset.theme = options.colorTheme;
@@ -477,15 +483,22 @@ export class FastStreamClient extends EventEmitter {
 
     const filterStr = CSSFilterUtils.getFilterString(this.options);
     const transformStr = CSSFilterUtils.getTransformString(this.options);
+    const aspectStyle = CSSFilterUtils.getAspectRatioStyles(this.options);
 
     if (this.player) {
       this.player.getVideo().style.filter = filterStr;
       this.player.getVideo().style.transform = transformStr;
+      this.player.getVideo().style.objectFit = aspectStyle.objectFit;
+      this.player.getVideo().style.aspectRatio = aspectStyle.aspectRatio;
+      this.player.getVideo().style.setProperty('--video-aspect-ratio', aspectStyle.aspectRatio);
+      this.player.getVideo().classList.toggle('fixed-aspect-ratio', !!aspectStyle.aspectRatio);
     }
 
     if (this.previewPlayer) {
       this.previewPlayer.getVideo().style.filter = filterStr;
       this.previewPlayer.getVideo().style.transform = transformStr;
+      this.previewPlayer.getVideo().style.objectFit = aspectStyle.objectFit;
+      this.previewPlayer.getVideo().style.aspectRatio = aspectStyle.aspectRatio;
     }
   }
 
@@ -561,10 +574,13 @@ export class FastStreamClient extends EventEmitter {
       this.previewPlayer.getVideo().style.opacity = 0;
       clearTimeout(this.previewPlayerLoadingTimeout);
       this.previewPlayerLoadingTimeout = setTimeout(() => {
+<<<<<<< HEAD
         // previewPlayer can go null (resetPlayer/destroy) while this timeout
         // is still pending - none of those paths clear it, since it's a
         // plain UI debounce rather than something tied to the player's
         // lifecycle.
+=======
+>>>>>>> upstream/main
         if (this.previewPlayer && parseFloat(this.previewPlayer.getVideo().style.opacity) === 0) {
           DOMElements.seekPreviewVideo.classList.add('loading');
         }
@@ -925,10 +941,16 @@ export class FastStreamClient extends EventEmitter {
       await this.resetPlayer();
       this.restoreCarriedDecodeFailures(source);
       this.source = source;
+<<<<<<< HEAD
       // Only once the last player is torn down: its failure is not this source's.
       this.fallbacks = fallbacks;
       // Came it through Firefox VPN, which leaves FastStream's requests out? (VpnPrompt.mjs)
       this.vpnPrompt?.check(source);
+=======
+      this.subtitleTimelineOffset = 0;
+      // Did it come through Firefox VPN, which leaves FastStream's requests out? (VpnPrompt.mjs)
+      this.vpnPrompt.check(source);
+>>>>>>> upstream/main
 
       if (source.defaultLevelInfo?.level !== undefined) {
         this.getLevelManager().setCurrentVideoLevelID(source.defaultLevelInfo.level);
@@ -984,10 +1006,15 @@ export class FastStreamClient extends EventEmitter {
       this.setSeekSave(true);
 
       if (this.player.getSource()) {
+<<<<<<< HEAD
         // The seek preview is an extra: one that fails to build must not cost the video
         // the rest of this setup.
         await this.setupPreviewPlayer().catch((e) => {
           console.warn('The preview player failed to build', e);
+=======
+        await this.setupPreviewPlayer().catch((e) => {
+          console.error(e);
+>>>>>>> upstream/main
         });
 
         await this.videoAnalyzer.setSource(this.player.getSource());
@@ -1007,8 +1034,12 @@ export class FastStreamClient extends EventEmitter {
       }
 
       this.loadProgressData().then(async () => {
+<<<<<<< HEAD
         // Another source came in meanwhile: this one's time and progress are not for it,
         // and switching progress saving off here would switch it off for that one.
+=======
+        // Another source may have been set in the meantime
+>>>>>>> upstream/main
         if (this.source !== source) return;
         this.disableProgressSave = true;
 
@@ -1016,7 +1047,10 @@ export class FastStreamClient extends EventEmitter {
         if (this.initPromise) {
           await this.initPromise;
         }
+<<<<<<< HEAD
         // The wait ends when whichever player is current is ready: maybe the next source's.
+=======
+>>>>>>> upstream/main
         if (this.source !== source) return;
 
         if (timeFromURL) {
@@ -2183,8 +2217,11 @@ export class FastStreamClient extends EventEmitter {
   undoSeek() {
     if (this.player && this.pastSeeks.length) {
       this.pastUnseeks.push(this.player.currentTime);
+<<<<<<< HEAD
       // Through the setter, so a separate audio track follows at once; not saved, or
       // the undo would be a seek to undo.
+=======
+>>>>>>> upstream/main
       this.setSeekSave(false);
       this.currentTime = this.pastSeeks.pop();
       this.setSeekSave(true);
@@ -2259,6 +2296,10 @@ export class FastStreamClient extends EventEmitter {
     if (Number.isNaN(value)) {
       return;
     }
+<<<<<<< HEAD
+=======
+    // Relative seeks near either end ask for a time outside the video.
+>>>>>>> upstream/main
     value = Math.max(0, value);
     const duration = this.duration;
     if (duration > 0 && Number.isFinite(duration)) {
@@ -2757,4 +2798,3 @@ export class FastStreamClient extends EventEmitter {
     this.player.getVideo().style.objectFit = 'cover';
   }
 }
-

@@ -498,6 +498,7 @@ export default class DashPlayer extends EventEmitter {
       });
     }
 
+<<<<<<< HEAD
     // Downloads the fragments a few ahead of the one being saved: see SaveFragmentFetcher.
     const fetcher = new SaveFragmentFetcher(this.fragmentRequester, zippedFragments.map((data) => data.fragment),
         this.client.downloadManager.downloaderLimit());
@@ -507,6 +508,8 @@ export default class DashPlayer extends EventEmitter {
       });
     }
 
+=======
+>>>>>>> upstream/main
     const videoProcessor = this.dash.getStreamController()?.getActiveStream()?.getStreamProcessors()?.find((o) => o.getType() === 'video');
     const audioProcessor = this.dash.getStreamController()?.getActiveStream()?.getStreamProcessors()?.find((o) => o.getType() === 'audio');
 
@@ -541,12 +544,31 @@ export default class DashPlayer extends EventEmitter {
     const videoMimeType = videoProcessor?.getRepresentation()?.mimeType;
     const audioMimeType = audioProcessor?.getRepresentation()?.mimeType;
 
+<<<<<<< HEAD
     // Pinned last: a pinned fragment is unpinned only by its getEntry or by the catch
     // below, so nothing between the two may throw (an init download above can).
     zippedFragments.forEach((data, index) => {
       data.fragment.addReference(ReferenceTypes.SAVER);
       data.getEntry = async () => {
         await fetcher.get(index);
+=======
+    // Pin last: only getEntry and the catch below unpin, so nothing that can throw may run in between.
+    zippedFragments.forEach((data) => {
+      data.fragment.addReference(ReferenceTypes.SAVER);
+      data.getEntry = async () => {
+        if (data.fragment.status !== DownloadStatus.DOWNLOAD_COMPLETE) {
+          while (true) {
+            try {
+              await this.downloadFragment(data.fragment, -1);
+              break;
+            } catch (e) {
+              if (e.message !== 'Aborted download') {
+                throw e;
+              }
+            }
+          }
+        }
+>>>>>>> upstream/main
         data.fragment.removeReference(ReferenceTypes.SAVER);
         return this.client.downloadManager.getEntry(data.fragment.getContext());
       };

@@ -6,12 +6,21 @@ import {DOMElements} from './DOMElements.mjs';
 
 /**
  * Firefox VPN carries a page's requests but not FastStream's, and a site that ties its
+<<<<<<< HEAD
  * stream to the VPN's address refuses FastStream's player (background VpnProxyMirror.mjs).
+=======
+ * stream to the VPN's address refuses FastStream's player (background/VpnProxyMirror.mjs).
+>>>>>>> upstream/main
  * FastStream can follow the page's way with the optional "proxy" permission: when a source
  * came through the VPN and the permission is missing, this button shows. A player in a
  * page has no permissions API (chrome.permissions is undefined there, Firefox 157), so the
  * button opens FastStream's permissions page at its proxy row, where the user allows it;
  * the background then tells the players (VPN_ALLOWED), and this one loads its source again.
+<<<<<<< HEAD
+=======
+ *
+ * Only builds that declare the optional permission (the Firefox ones) ask the background.
+>>>>>>> upstream/main
  */
 export class VpnPrompt {
   /**
@@ -33,6 +42,21 @@ export class VpnPrompt {
   }
 
   /**
+<<<<<<< HEAD
+=======
+   * @return {boolean} Whether this build can follow Firefox VPN.
+   */
+  static isAvailable() {
+    if (!EnvUtils.isExtension()) return false;
+    try {
+      return !!chrome.runtime.getManifest().optional_permissions?.includes('proxy');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+>>>>>>> upstream/main
    * Asks the background whether this source came through Firefox VPN, and shows the
    * button when FastStream may not follow yet.
    * @param {Object} source - The source just set.
@@ -41,7 +65,11 @@ export class VpnPrompt {
   async check(source) {
     this.hide();
     this.source = source;
+<<<<<<< HEAD
     if (!EnvUtils.isExtension() || !source?.url) return;
+=======
+    if (!source?.url || !VpnPrompt.isAvailable()) return;
+>>>>>>> upstream/main
     let status;
     try {
       status = await chrome.runtime.sendMessage({type: MessageTypes.VPN_STATUS, url: source.url});
@@ -71,7 +99,11 @@ export class VpnPrompt {
     const client = this.client;
     if (!this.isShown() || !source || client.source !== source) return;
     this.hide();
+<<<<<<< HEAD
     client.setSource(source, client.fallbacks?.sources || []).catch((e) => console.error(e));
+=======
+    client.setSource(source).catch((e) => console.error(e));
+>>>>>>> upstream/main
   }
 
   isShown() {

@@ -207,6 +207,7 @@
         "message": "Sending sources to players from the background script."
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "Exchange messages with programs other than Firefox"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "Only to see which Firefox container a tab is in, so that a download started in a container tab happens in that same container. FastStream never reads, changes or sends your cookies."
+=======
+        "message": "Proxy (optional)"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "Only used with Firefox VPN. Firefox lists it as control of the browser's proxy settings, but FastStream changes no setting: it sends its own requests for a video the same way the page's own requests went, through the VPN. Without it, a site that ties its video to the VPN's address refuses FastStream. The player asks for it the first time it is needed."
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "Granted"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "Failed to load video!"
     },
+    "player_vpn_allow": {
+        "message": "Play through Firefox VPN"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "This page gets its video through Firefox VPN, which leaves FastStream's requests out, and the site may refuse them. Click to allow FastStream to use the same connection (once, on FastStream's permissions page)."
+    },
     "source_copied": {
         "message": "Copied URL to clipboard!"
     },
@@ -970,6 +983,9 @@
     },
     "options_video_hue": {
         "message": "Hue Rotate"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
     },
     "options_video_daltonizer_type": {
         "message": "Color blindness correction"

@@ -16,7 +16,10 @@ import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
 import {TabTracker} from './TabTracker.mjs';
+<<<<<<< HEAD
 import {UrlMatchList} from './UrlMatchList.mjs';
+=======
+>>>>>>> upstream/main
 import {VpnProxyMirror} from './VpnProxyMirror.mjs';
 
 let Options = {};
@@ -174,6 +177,57 @@ const LiveMediaReportWaitMs = 1000;
 
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
 
+<<<<<<< HEAD
+=======
+// FastStream's requests follow the page's through Firefox VPN (VpnProxyMirror.mjs). Only
+// builds that declare the optional "proxy" permission have it: the Firefox ones (build.mjs).
+const VpnMirror = chrome.runtime.getManifest().optional_permissions?.includes('proxy') ?
+  new VpnProxyMirror({
+    origin: chrome.runtime.getURL(''),
+    getProxyApi: () => chrome.proxy || null,
+  }) : null;
+
+/**
+ * Reads whether FastStream holds the "proxy" permission, for VpnMirror.
+ * @return {Promise<boolean>}
+ */
+async function refreshProxyPermission() {
+  let permitted = false;
+  try {
+    permitted = await chrome.permissions.contains({permissions: ['proxy']});
+  } catch (e) {
+    console.warn('Could not read the proxy permission', e);
+  }
+  VpnMirror.setPermitted(permitted);
+  return permitted;
+}
+
+if (VpnMirror) {
+  refreshProxyPermission();
+  chrome.permissions.onAdded.addListener(async (added) => {
+    if (!added.permissions?.includes('proxy')) return;
+    const permitted = await refreshProxyPermission();
+    if (!permitted) return;
+    // A player that offered to follow the VPN loads its source again, now through it.
+    for (const tab of await BackgroundUtils.queryTabs()) {
+      if (tab.id === undefined) continue;
+      chrome.tabs.sendMessage(tab.id, {type: MessageTypes.VPN_ALLOWED}, () => {
+        BackgroundUtils.checkMessageError('vpn_allowed', true);
+      });
+    }
+  });
+  chrome.permissions.onRemoved.addListener(() => refreshProxyPermission());
+}
+
+const sponsorBlockBackend = new SponsorBlockIntegration();
+sponsorBlockBackend.setup();
+try {
+  sponsorBlockBackend.setup(self);
+} catch (e) {
+  console.error(e);
+}
+
+>>>>>>> upstream/main
 BackgroundUtils.openWelcomePageOnInstall();
 
 // After the restore, or a woken event page would reset every tab's icon to Off.
@@ -454,10 +508,20 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
           openPlayersWithSources(tab);
         }
       } else {
+<<<<<<< HEAD
         tab.isOn = !tab.isOn;
         tab.isMpv = false;
         if (!tab.isOn) {
           userTurnedOff(tab);
+=======
+        let hasPlayer = false;
+        for (const frame of tab.getFrames()) {
+          // A player that is still loading has to go too.
+          if (frame.isPlayer || frame.playerOpening) {
+            hasPlayer = true;
+            break;
+          }
+>>>>>>> upstream/main
         }
 
         BackgroundUtils.updateTabIcon(tab);
@@ -585,7 +649,11 @@ async function onCancelledShortcut(press, tabobj) {
 
 chrome.tabs.onRemoved.addListener((tabid, removed) => {
   Tabs.removeTab(tabid);
+<<<<<<< HEAD
   VpnMirror.forgetTab(tabid);
+=======
+  VpnMirror?.forgetTab(tabid);
+>>>>>>> upstream/main
 });
 
 // Closes a tab opened right after the user's click landed on a player
@@ -797,9 +865,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return;
   } else if (msg.type === MessageTypes.VPN_STATUS) {
     // The player, about its source: did the page reach it through Firefox VPN, and may
+<<<<<<< HEAD
     // FastStream follow (VpnProxyMirror)? Only from FastStream's own pages: the answer adds
     // the URL's host to those that follow the VPN.
     if (!String(sender.url || '').startsWith(chrome.runtime.getURL(''))) {
+=======
+    // FastStream follow (VpnProxyMirror.mjs)? Only FastStream's own pages may ask: the
+    // answer adds the URL's host to those that follow the VPN.
+    if (!VpnMirror || !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) {
+      sendResponse(null);
+>>>>>>> upstream/main
       return;
     }
     sendResponse(VpnMirror.status(String(msg.url || ''), !!sender.tab?.incognito, sender.tab?.id));
@@ -807,10 +882,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.VPN_OPEN_PERMISSION) {
     // The player's Firefox VPN button: a player in a page has no permissions API, so the
     // permissions page asks, at its proxy row, in a tab of its own next to the video's.
+<<<<<<< HEAD
     if (!String(sender.url || '').startsWith(chrome.runtime.getURL(''))) {
       return;
     }
     /** @type {chrome.tabs.CreateProperties} */
+=======
+    if (!VpnMirror || !String(sender.url || '').startsWith(chrome.runtime.getURL(''))) {
+      sendResponse(false);
+      return;
+    }
+>>>>>>> upstream/main
     const create = {url: chrome.runtime.getURL('perms.html') + '#proxy'};
     if (sender.tab?.id !== undefined) {
       create.openerTabId = sender.tab.id;
@@ -1193,6 +1275,63 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(response);
     });
     return true;
+<<<<<<< HEAD
+=======
+  } else if (msg.type === MessageTypes.REQUEST_SPONSORBLOCK) {
+    if (msg.action === 'getSkipSegments' && frame.frameId !== 0) {
+      // send message to parent frame
+      chrome.tabs.sendMessage(frame.tab.tabId, {
+        type: MessageTypes.SPONSORBLOCK_SCRAPE,
+        videoId: msg.videoId,
+      }, {
+        frameId: frame.parent.frameId,
+      }, (response) => {
+        if (!response || response.error) {
+          sendResponse(null);
+          return;
+        } else {
+          sendResponse(response.segments);
+        }
+      });
+      return true;
+    }
+
+    return sponsorBlockBackend.onPlayerMessage(msg, sendResponse);
+  } else if (msg.type === MessageTypes.REQUEST_YT_PO_TOKENS) {
+    const pageFrame = frame.pageFrame;
+    if (!pageFrame) {
+      sendResponse({error: 'No YouTube page is available to mint playback tokens.'});
+      return;
+    }
+
+    chrome.tabs.sendMessage(pageFrame.tab.tabId, {
+      type: MessageTypes.MINT_YT_PO_TOKENS,
+      videoId: msg.videoId,
+      visitorData: msg.visitorData,
+    }, {
+      frameId: pageFrame.frameId,
+    }, (response) => {
+      const error = chrome.runtime.lastError;
+      sendResponse(error ? {error: error.message} : response || {error: 'No response from the YouTube token bridge.'});
+    });
+    return true;
+  } else if (msg.type === MessageTypes.REQUEST_YT_DATA) {
+    const pageFrame = frame.pageFrame;
+    if (!pageFrame) {
+      sendResponse('error');
+      return;
+    }
+
+    chrome.tabs.sendMessage(pageFrame.tab.tabId, {
+      type: MessageTypes.EXTRACT_YT_DATA,
+    }, {
+      frameId: pageFrame.frameId,
+    }, (response) => {
+      BackgroundUtils.checkMessageError('extract_yt_data');
+      sendResponse(response);
+    });
+    return true;
+>>>>>>> upstream/main
   } else {
     return;
   }
@@ -2146,7 +2285,12 @@ async function openPlayer(frame) {
     }, (response) => {
       BackgroundUtils.checkMessageError('player');
 
+<<<<<<< HEAD
       if (!BackgroundUtils.isPlayerOpeningResponse(response)) {
+=======
+      // Anything else, including no answer at all, means no player is coming.
+      if (!['redirect', 'replaceall', 'replace'].includes(response)) {
+>>>>>>> upstream/main
         frame.playerOpening = false;
       }
 
@@ -2320,6 +2464,7 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
       return await hasVideoSource(frame) ? {frame, videoSize: await getVideoSize(frame)} : null;
     }))).filter((entry) => entry !== null);
 
+<<<<<<< HEAD
     // The page's videos were measured with a round trip to it; a click that turned the
     // tab off, or over to MPV, in the meantime decides.
     if (!tab.isOn || tab.isMpv) {
@@ -2328,6 +2473,13 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
 
     // A frame that did not answer (no content script) has no size: 0, not undefined, whose
     // NaN made the order arbitrary - and the first player opened is the one that plays.
+=======
+    // The tab may have been turned off while the videos were measured.
+    if (!tab.isOn) {
+      return;
+    }
+
+>>>>>>> upstream/main
     framesWithSources.sort((a, b) => {
       return (b.videoSize || 0) - (a.videoSize || 0);
     });
@@ -3019,8 +3171,12 @@ function isTablessRequest(details) {
 }
 
 chrome.webRequest.onBeforeRequest.addListener((details) => {
+<<<<<<< HEAD
   VpnMirror.noteRequest(details);
   if (isTablessRequest(details)) return;
+=======
+  VpnMirror?.noteRequest(details);
+>>>>>>> upstream/main
   const tab = Tabs.getTabOrCreate(details.tabId);
   const frame = tab.getFrameOrCreate(details.frameId);
   if (!frame.parent && details.parentFrameId !== -1) {
@@ -3054,9 +3210,14 @@ chrome.webRequest.onHeadersReceived.addListener(
       const ext = urlType(url);
 
       if (BackgroundUtils.isSubtitles(ext)) {
+<<<<<<< HEAD
         VpnMirror.noteSource(details);
         handleSubtitles(url, frame, tab.requestHeaders.get(details.requestId));
         return;
+=======
+        VpnMirror?.noteSource(details);
+        return handleSubtitles(url, frame, frame.requestHeaders.get(details.requestId));
+>>>>>>> upstream/main
       }
 
       let mode = URLUtils.getModeFromExtension(ext);
@@ -3087,7 +3248,11 @@ chrome.webRequest.onHeadersReceived.addListener(
         }
       }
 
+<<<<<<< HEAD
       VpnMirror.noteSource(details);
+=======
+      VpnMirror?.noteSource(details);
+>>>>>>> upstream/main
       onSourceRecieved(details, frame, mode);
     }, {
       urls: ['<all_urls>'],

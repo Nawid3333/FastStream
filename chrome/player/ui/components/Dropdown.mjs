@@ -77,7 +77,10 @@ export function renameDropdownChoice(container, value) {
   container.ariaLabel = text.firstChild.textContent + value;
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> upstream/main
 function setupDropdown(itemListElement, text, container, call, title) {
   container.addEventListener('mouseleave', (e) => {
     container.blur();

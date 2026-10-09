@@ -776,6 +776,7 @@ body {
 .video-container {
     position: absolute;
     inset: 0px;
+    container-type: size;
 }
 
 .video-container>video {
@@ -783,6 +784,12 @@ body {
     inset: 0px;
     width: 100%;
     height: 100%;
+}
+
+.video-container>video.fixed-aspect-ratio {
+    width: min(100cqw, calc(100cqh * var(--video-aspect-ratio)));
+    height: auto;
+    margin: auto;
 }
 
 .mainplayer {
@@ -1118,7 +1125,11 @@ body {
     bottom: 88px;
 }
 
+<<<<<<< HEAD
 /* VpnPrompt.mjs: above everything at the top, where a failed load's message leaves room. */
+=======
+/* VpnPrompt.mjs: at the top, above everything, where a failed load's message leaves room. */
+>>>>>>> upstream/main
 .vpn_button {
     color: var(--popbutton-text-color);
     position: absolute;
@@ -3406,7 +3417,15 @@ input.crosstalk_calculator_input {
     outline: 1px solid rgba(255, 255, 255, 0.5);
 }
 
+<<<<<<< HEAD
 /* no spin buttons on the number box */
 .convolver_impulse_length_container .convolver_impulse_length_input {
     appearance: textfield;
 }
+=======
+.convolver_impulse_length_container .convolver_impulse_length_input::-webkit-inner-spin-button,
+.convolver_impulse_length_container .convolver_impulse_length_input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+>>>>>>> upstream/main

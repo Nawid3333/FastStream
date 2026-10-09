@@ -102,6 +102,7 @@ export class SubtitleUtils {
    * @return {string} WebVTT subtitle data.
    */
   static srt2webvtt(data) {
+<<<<<<< HEAD
     // remove dos newlines; in a file with no line feed at all (a classic Mac one) the
     // carriage returns are the line ends, and removing them left no cue
     let srt = data.includes('\n') ? data.replace(/\r+/g, '') : data.replace(/\r/g, '\n');
@@ -112,6 +113,13 @@ export class SubtitleUtils {
     // at its own timestamp when no blank line comes before it. So a line of spaces ends
     // the cue before a timestamp, and inside a cue it is text, as ffmpeg and VLC read it:
     // splitting at it too lost the text below it.
+=======
+    // remove dos newlines
+    let srt = data.replace(/\r+/g, '');
+    // trim white space start and end
+    srt = srt.replace(/^\s+|\s+$/g, '');
+    // get cues: split at blank lines, and at a timestamp line with no blank line before it
+>>>>>>> upstream/main
     const cuelist = srt.split(/\n\n+/).flatMap((block) => this.splitAtCueStarts(block));
     let result = '';
     if (cuelist.length > 0) {
@@ -303,6 +311,7 @@ export class SubtitleUtils {
       // file format error or comment lines
       return '';
     }
+<<<<<<< HEAD
 
     // The timestamp line comes first, or second after a sequence-number line.
     const timestamp = SRT_TIMESTAMP;
@@ -314,6 +323,29 @@ export class SubtitleUtils {
       const identifier = lines[0].match(/\w+/);
       if (identifier) {
         cue += identifier[0] + '\n';
+=======
+    let line = 0;
+    // detect identifier
+    if (!s[0].match(/\d+:\d+:\d+/) && s[1].match(/\d+:\d+:\d+/)) {
+      cue += s[0].match(/\w+/) + '\n';
+      line += 1;
+    }
+    // a time string may mark its milliseconds with '.', as WebVTT does: read it as ','
+    s[line] = s[line].replace(/(\d+:\d+:\d+)\.(\d+)/g, '$1,$2');
+    // get time strings
+    if (s[line].match(/\d+:\d+:\d+/)) {
+      // convert time string
+      const m = s[line].match(/(\d+):(\d+):(\d+)(?:,(\d+))?\s*--?>\s*(\d+):(\d+):(\d+)(?:,(\d+))?/);
+      if (m) {
+        // vtt.js needs three millisecond digits; short ones are a number (,5 is 5 ms, as
+        // ffmpeg and VLC read them) and missing ones are zero
+        cue += m[1] + ':' + m[2] + ':' + m[3] + '.' + (m[4] || '').padStart(3, '0') + ' --> ' +
+                    m[5] + ':' + m[6] + ':' + m[7] + '.' + (m[8] || '').padStart(3, '0') + '\n';
+        line += 1;
+      } else {
+        // Unrecognized timestring
+        return '';
+>>>>>>> upstream/main
       }
       line = 1;
     }
@@ -323,6 +355,7 @@ export class SubtitleUtils {
       // file format error or comment lines
       return '';
     }
+<<<<<<< HEAD
     cue += this.srtTimestampToVtt(m[1], m[2], m[3], m[4]) + ' --> ' +
       this.srtTimestampToVtt(m[5], m[6], m[7], m[8]) + '\n';
 
@@ -335,6 +368,50 @@ export class SubtitleUtils {
       cue += cueText.substring(0, end).replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n') + cueText.substring(end);
     }
     return cue + '\n\n';
+=======
+    // get cue text: every line after the time string. A cue with no text is left out,
+    // since convertCueToDOMTree() returns null for it.
+    const cueText = s.slice(line).join('\n');
+    if (!cueText) {
+      return '';
+    }
+    return cue + cueText.replace(/<\s*\/?\s*br\b[^>]*>/gi, '\n') + '\n\n';
+  }
+
+  /**
+   * Splits SRT text at every timestamp line (with the sequence number before it),
+   * since a cue can start without a blank line before it.
+   * @param {string} block - SRT text with no blank lines.
+   * @return {string[]} One block per cue.
+   */
+  static splitAtCueStarts(block) {
+    const lines = block.split('\n');
+    const cues = [];
+    const push = (from, to) => {
+      const cue = lines.slice(from, to);
+      // drop trailing whitespace-only lines, e.g. a separator line holding a (non-breaking) space
+      while (cue.length > 0 && cue[cue.length - 1].trim() === '') {
+        cue.pop();
+      }
+      if (cue.length > 0) {
+        cues.push(cue.join('\n'));
+      }
+    };
+
+    let start = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (!/^\s*\d+:\d+:\d+(?:[,.]\d+)?\s*--?>\s*\d+:\d+:\d+/.test(lines[i])) {
+        continue;
+      }
+      const cueStart = i > start && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
+      if (cueStart > start) {
+        push(start, cueStart);
+        start = cueStart;
+      }
+    }
+    push(start, lines.length);
+    return cues;
+>>>>>>> upstream/main
   }
 
   /**

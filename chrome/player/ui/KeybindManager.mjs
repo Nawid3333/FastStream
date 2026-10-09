@@ -8,6 +8,7 @@ import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {OnScreenDisplay} from './OnScreenDisplay.mjs';
 import {Utils} from '../utils/Utils.mjs';
+import {AspectRatios} from '../options/defaults/AspectRatios.mjs';
 
 export class KeybindManager extends EventEmitter {
   constructor(client) {
@@ -242,6 +243,15 @@ export class KeybindManager extends EventEmitter {
     this.on('ZoomReset', (e) => {
       const options = this.client.options;
       options.videoZoom = 1;
+      this.client.updateCSSFilters();
+    });
+
+    this.on('CycleAspectRatio', (e) => {
+      const options = this.client.options;
+      const ratios = Object.values(AspectRatios);
+      const currentIndex = ratios.indexOf(options.videoAspectRatio);
+      const nextIndex = (currentIndex + 1) % ratios.length;
+      options.videoAspectRatio = ratios[nextIndex];
       this.client.updateCSSFilters();
     });
 

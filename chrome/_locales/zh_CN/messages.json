@@ -207,6 +207,7 @@
         "message": "从后台脚本向播放器发送视频源。"
     },
     "perms_page_breakdown_perm6h": {
+<<<<<<< HEAD
         "message": "与 Firefox 之外的其他程序交换消息"
     },
     "perms_page_breakdown_perm6d": {
@@ -223,6 +224,12 @@
     },
     "perms_page_breakdown_perm8d": {
         "message": "仅用于查看标签页所在的 Firefox 容器，以便在容器标签页中开始的下载在同一容器中进行。FastStream 从不读取、修改或发送你的 Cookie。"
+=======
+        "message": "代理（可选）"
+    },
+    "perms_page_breakdown_perm6d": {
+        "message": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。"
+>>>>>>> upstream/main
     },
     "perms_page_granted": {
         "message": "已授权"
@@ -647,6 +654,12 @@
     "player_error_load": {
         "message": "视频加载失败！"
     },
+    "player_vpn_allow": {
+        "message": "通过 Firefox VPN 播放"
+    },
+    "player_vpn_allow_tooltip": {
+        "message": "此页面通过 Firefox VPN 获取视频，这会将 FastStream 的请求排除在外，网站可能会拒绝这些请求。点击以允许 FastStream 使用同一连接（仅一次，在 FastStream 的权限页面上）。"
+    },
     "source_copied": {
         "message": "已将 URL 复制到剪贴板！"
     },
@@ -676,6 +689,9 @@
     },
     "player_source_accelvm": {
         "message": "加速 Vimeo"
+    },
+    "player_source_accelpanopto": {
+        "message": "加速 Panopto"
     },
     "player_source_mode": {
         "message": "模式"
@@ -1355,7 +1371,21 @@
     "perms_page_breakdown_perm9d": {
         "message": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。"
     },
+<<<<<<< HEAD
     "player_mpv_vpn": {
         "message": "Firefox VPN 正在传输此视频，而 mpv 无法使用它：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"
+=======
+    "ytslowdown_popup": {
+        "message": "YouTube 慢速通知"
+    },
+    "ytslowdown_popup_body": {
+        "message": "由于 YouTube 的更改，您可能会遇到视频初始加载时间变慢的情况。这是因为 YouTube 现在强制广告延迟，FastStream 必须等待才能开始加载视频。不幸的是，这个问题没有解决方法。感谢您的理解。"
+    },
+    "ytslowdown_ok": {
+        "message": "确定"
+    },
+    "options_video_aspect_ratio": {
+        "message": "Aspect Ratio"
+>>>>>>> upstream/main
     }
 }

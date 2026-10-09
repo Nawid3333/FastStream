@@ -48,6 +48,7 @@
   const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
   let MiniplayerCooldown = 0;
+<<<<<<< HEAD
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
   // detected in it.
@@ -56,6 +57,10 @@
   // frame showed before opened (FRAME_ADDED, and the player URL's opener). Not
   // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
+=======
+  let Activated = false;
+  let RedirectingToPlayer = false;
+>>>>>>> upstream/main
 
   let resizeDebounce = Date.now();
   const Config = {
@@ -1998,6 +2003,7 @@
     resizeMiniPlayers();
   });
 
+<<<<<<< HEAD
   // Sites that pad their video with popup/popunder ads commonly hook the
   // page's own 'blur' event to fire window.open() the moment focus leaves
   // the top document - which is exactly what happens the instant a click on
@@ -2012,6 +2018,15 @@
     let isOurIframe = false;
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.iframe === active) isOurIframe = true;
+=======
+  window.addEventListener('beforeunload', () => {
+    // The player loads in this frame and asks for the sources found in it.
+    if (RedirectingToPlayer) {
+      return;
+    }
+    chrome.runtime.sendMessage({
+      type: MessageTypes.FRAME_REMOVED,
+>>>>>>> upstream/main
     });
     if (isOurIframe) {
       notifyBackground({type: MessageTypes.POPUP_GUARD_ARM});

@@ -655,7 +655,10 @@ export class EmbedAPI {
     this.subscribers = [];
     this.playerContext = null;
     this.started = false;
+<<<<<<< HEAD
     // The origin each embedding window first sent a command from (isEmbedder).
+=======
+>>>>>>> upstream/main
     this.pinnedOrigins = new Map();
     this.onMessage = this.handleMessage.bind(this);
   }
@@ -806,10 +809,15 @@ export class EmbedAPI {
    * The embedder has no other way to know: an iframe's load event fires before the
    * player's modules have run, so a command sent then would arrive before anything was
    * listening. The announcement is sent with a wildcard target because the embedder's
+<<<<<<< HEAD
    * origin is not knowable from in here. It goes to the window that embedded this one or
    * opened it, and an opener may have moved on to another site since, so it leaves out
    * what is playing (its address and identifier, which can carry a signed token, #218):
    * the embedder asks getState for those, and only it gets an answer.
+=======
+   * origin is not knowable from in here. Source URLs and identifiers are omitted until
+   * an embedder has sent a command, since an opener may have navigated in the meantime.
+>>>>>>> upstream/main
    */
   announce() {
     const state = this.getState();
@@ -819,7 +827,14 @@ export class EmbedAPI {
     const message = {
       type: EVENT_TYPE,
       event: READY_EVENT,
+<<<<<<< HEAD
       state,
+=======
+      state: {
+        ...this.getState(),
+        source: this.client.source ? {mode: this.client.source.mode} : null,
+      },
+>>>>>>> upstream/main
       detail: this.describe(),
     };
 
@@ -934,6 +949,7 @@ export class EmbedAPI {
   }
 
   /**
+<<<<<<< HEAD
    * Whether a command comes from the page that embeds the player (its parent) or opened it.
    *
    * Any window that can reach this frame can post to it: an ad in another frame of the
@@ -946,6 +962,12 @@ export class EmbedAPI {
    * @param {Window} source - The window a command came from.
    * @param {string} origin - The origin it came from.
    * @return {boolean}
+=======
+   * Accepts commands only from the direct parent or opener at its initial origin.
+   * @param {Window} source - The window that sent the command.
+   * @param {string} origin - The sender's origin.
+   * @return {boolean} Whether the sender is an authorized embedder.
+>>>>>>> upstream/main
    */
   isEmbedder(source, origin) {
     if (source === window || (source !== window.parent && source !== window.opener)) {

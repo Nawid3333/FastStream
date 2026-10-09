@@ -15,6 +15,7 @@ import {VisChangeActions} from './defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './defaults/MiniplayerPositions.mjs';
 import {DefaultSubtitlesSettings} from './defaults/DefaultSubtitlesSettings.mjs';
 import {DaltonizerTypes} from './defaults/DaltonizerTypes.mjs';
+import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {DefaultToolSettings} from './defaults/ToolSettings.mjs';
 import {DefaultQualities} from './defaults/DefaultQualities.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
@@ -56,6 +57,7 @@ const showWhenMiniSelected = document.getElementById('showWhenMiniSelected');
 const storeProgress = document.getElementById('storeprogress');
 const miniSize = document.getElementById('minisize');
 const miniPos = document.getElementById('minipos');
+const videoAspectRatio = document.getElementById('videoAspectRatio');
 const daltonizerType = document.getElementById('daltonizerType');
 const daltonizerStrength = document.getElementById('daltonizerStrength');
 const previewEnabled = document.getElementById('previewenabled');
@@ -147,6 +149,7 @@ async function loadOptions(newOptions) {
   replaceDelay.value = Options.replaceDelay;
   maxdownloaders.value = Options.maximumDownloaders;
 
+  setSelectMenuValue(videoAspectRatio, Options.videoAspectRatio);
   setSelectMenuValue(daltonizerType, Options.videoDaltonizerType);
   setSelectMenuValue(clickAction, Options.singleClickAction);
   setSelectMenuValue(dblclickAction, Options.doubleClickAction);
@@ -208,7 +211,16 @@ function createSelectMenu(container, options, selected, localPrefix, callback) {
   for (const option of options) {
     const optionElement = document.createElement('option');
     optionElement.value = option;
-    optionElement.textContent = localPrefix !== null ? Localize.getMessage(localPrefix + '_' + option) : option;
+    let label = option;
+    if (localPrefix !== null) {
+      const msgKey = localPrefix + '_' + option;
+      const msg = Localize.getMessage(msgKey);
+      label = msg !== msgKey ? msg : option;
+    } else {
+      if (option === 'auto') label = 'Auto (Default)';
+      else if (option === 'stretch') label = 'Stretch';
+    }
+    optionElement.textContent = label;
     if (option === selected) {
       optionElement.selected = true;
     }
@@ -225,6 +237,11 @@ function setSelectMenuValue(container, value) {
   }
   select.value = value;
 }
+
+createSelectMenu(videoAspectRatio, Object.values(AspectRatios), Options.videoAspectRatio, null, (e) => {
+  Options.videoAspectRatio = e.target.value;
+  optionChanged();
+});
 
 createSelectMenu(daltonizerType, Object.values(DaltonizerTypes), Options.videoDaltonizerType, 'options_video_daltonizer', (e) => {
   Options.videoDaltonizerType = e.target.value;

@@ -22,10 +22,13 @@ export class OpenSubtitlesSearch extends EventEmitter {
     super();
     this.subui = {};
     this.version = version;
+<<<<<<< HEAD
     this.searchCount = 0;
     // Bumped when the player's subtitles are cleared (a new video): a download started
     // before that belongs to the video before.
     this.downloadGeneration = 0;
+=======
+>>>>>>> upstream/main
     this.setupUI();
   }
 

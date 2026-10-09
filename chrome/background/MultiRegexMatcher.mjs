@@ -11,6 +11,7 @@ export class MultiRegexMatcher {
   }
 
   addRegex(regex, flags, output) {
+<<<<<<< HEAD
     // The empty regex matches every string: added by mistake, it would route every URL
     // to this output.
     if (!regex) {
@@ -20,6 +21,12 @@ export class MultiRegexMatcher {
     // returns every match and no groups, so the pattern never matched; `y` would keep a
     // lastIndex between calls. Neither means anything for a yes/no match.
     flags = String(flags || '').replace(/[gy]/g, '');
+=======
+    // An empty regex matches every string
+    if (!regex) {
+      throw new Error('Empty regex for ' + output);
+    }
+>>>>>>> upstream/main
 
     // check if regex is valid
     try {
@@ -68,9 +75,26 @@ export class MultiRegexMatcher {
           alone.push(...joinable);
         }
       }
+<<<<<<< HEAD
       for (const {regex, output} of alone) {
         this.compiledRegexes.push({regex: new RegExp(regex, flags), output});
       }
+=======
+
+      // Named groups: a pattern's own capture groups would shift group positions
+      const joinedRegexes = [];
+      const outputs = new Map();
+      regexesByOutput.forEach((regexes, output) => {
+        const groupName = '__fsOutput' + outputs.size;
+        joinedRegexes.push(`(?<${groupName}>` + regexes.join('|') + ')');
+        outputs.set(groupName, output);
+      });
+
+      this.compiledRegexes.push({
+        regex: new RegExp(joinedRegexes.join('|'), flags),
+        outputs,
+      });
+>>>>>>> upstream/main
     });
   }
 
@@ -110,6 +134,7 @@ export class MultiRegexMatcher {
   }
 
   match(str) {
+<<<<<<< HEAD
     for (const {regex, output, outputByGroupName} of this.compiledRegexes) {
       const match = str.match(regex);
       if (!match) {
@@ -123,6 +148,18 @@ export class MultiRegexMatcher {
       for (const [groupName, groupOutput] of outputByGroupName) {
         if (match.groups?.[groupName] !== undefined) {
           return groupOutput;
+=======
+    for (const {regex, outputs} of this.compiledRegexes) {
+      // exec() from the start: str.match() gives no groups for a g regex,
+      // and g or y would carry lastIndex over from the previous call
+      regex.lastIndex = 0;
+      const match = regex.exec(str);
+      if (match) {
+        for (const [groupName, output] of outputs) {
+          if (match.groups[groupName] !== undefined) {
+            return output;
+          }
+>>>>>>> upstream/main
         }
       }
     }
