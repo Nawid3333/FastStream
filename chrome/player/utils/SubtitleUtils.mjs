@@ -23,6 +23,18 @@ export class SubtitleUtils {
   }
 
   /**
+   * The subtitle outline's width in pixels, from its text field: a decimal comma too, as in
+   * the size fields ("1,5" was 1), and at most 64: "Infinity" (or 1e999) passed, and the
+   * outline's loop never ended - the player hung. 0 for none, or for what is no number.
+   * @param {*} value
+   * @return {number}
+   */
+  static outlineWidth(value) {
+    const width = Math.min(parseFloat(String(value ?? '').replace(',', '.')), 64);
+    return Number.isFinite(width) && width > 0 ? width : 0;
+  }
+
+  /**
    * A subtitle track's file name to save it under, before ".srt" is added: what Windows (and
    * Firefox's downloads) refuse replaced, and an extension of its own taken off - a track
    * loaded from movie.srt was saved as movie.srt.srt, and one typed as movie.vtt as

@@ -6,6 +6,22 @@ import {SubtitleUtils} from '../../chrome/player/utils/SubtitleUtils.mjs';
 // user reports missing captions. This pins down the pure-string logic
 // (time formatting and SRT->VTT conversion) that has no DOM dependency.
 
+// The outline's width from its text field (SubtitlesSettingsManager.applyOutline).
+describe('outlineWidth', () => {
+  it('reads a decimal comma, a unit, and at most 64 pixels', () => {
+    // "1,5" was 1.
+    expect(SubtitleUtils.outlineWidth('1,5')).toBe(1.5);
+    expect(SubtitleUtils.outlineWidth('1.5px')).toBe(1.5);
+    expect(SubtitleUtils.outlineWidth(' 2 ')).toBe(2);
+    expect(SubtitleUtils.outlineWidth('Infinity')).toBe(64);
+    expect(SubtitleUtils.outlineWidth('1e999')).toBe(64);
+  });
+
+  it('is 0 for nothing, 0, a negative or what is no number', () => {
+    for (const value of ['', '0', '-3', 'abc', undefined, null]) expect(SubtitleUtils.outlineWidth(value)).toBe(0);
+  });
+});
+
 // The name a subtitle track is saved under, ".srt" added after: movie.srt was saved as
 // movie.srt.srt, a typed movie.vtt as movie.vtt.srt, and a name with : or ? not at all.
 describe('downloadName', () => {
