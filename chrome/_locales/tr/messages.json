@@ -27,13 +27,13 @@
         "message": "FastStream'i kullanmanın dört yolu var"
     },
     "welcome_page_usage_content1": {
-        "message": "Video akışı olan bir web sitesine gidip simgeye tıklayarak FastStream'i açabilirsiniz. Akışı oynatın; oynatıcı otomatik olarak FastStream ile değiştirilecektir."
+        "message": "Video içeren bir web sitesine gidin ve araç çubuğundaki simgesine tıklayarak FastStream'i açın. Videoyu oynattığınızda FastStream oynatıcısı, sitenin kendi oynatıcısının yerini alır."
     },
     "welcome_page_usage_content2": {
-        "message": "Yeni bir sekme açıp eklenti simgesine tıklayarak oynatıcıya gidebilirsiniz."
+        "message": "Ayrıca yeni bir sekme açıp FastStream simgesine tıklayarak oynatıcıya gidebilirsiniz."
     },
     "welcome_page_usage_content3": {
-        "message": "Seçenek etkinse, bir mp4/mpd/m3u8 URL'sine gidin; oynatıcı bunları oynatacaktır."
+        "message": "Seçeneklerde \"MP4 videolarını oynatmak için oynatıcıyı kullan\" ve \"HLS/DASH akışlarını oynatmak için oynatıcıyı kullan\" seçenekleri açıkken, .mp4, .m3u8 veya .mpd ile biten doğrudan bir video bağlantısı oynatıcıda açılır."
     },
     "welcome_page_usage_content4": {
         "message": "Oynatıcıyı yeni bir sekmede açık tutun; başka yerlerde gezinirken kaynakları toplayacaktır."
@@ -45,10 +45,10 @@
         "message": "Varsayılan Klavye Kontrolleri"
     },
     "welcome_page_keybinds_content0": {
-        "message": "Bu tuş atamalarını eklenti ayarlarından değiştirebilirsiniz"
+        "message": "Bu tuşları seçeneklerde, Klavye Kısayolları altında değiştirebilirsiniz."
     },
     "welcome_page_keybinds_content1": {
-        "message": "yön tuşları - 5 saniye ileri/geri sarma"
+        "message": "yön tuşları - 5 saniye ileri/geri sarma (atlama adımı seçeneklerden değiştirilebilir)"
     },
     "welcome_page_keybinds_content2": {
         "message": "tuşlar - 10 saniye ileri/geri sarma"
@@ -63,7 +63,7 @@
         "message": "- Tam ekran"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- Eşzamanlı istek sayısını artır/azalt"
+        "message": "- Videonun aynı anda daha çok/az parçasını indirin"
     },
     "welcome_page_keybinds_content7": {
         "message": "- Zorla tekrar dene tuşu - başarısız indirmeleri yeniden denemek için kullanın"
@@ -75,7 +75,7 @@
         "message": "- Oynatıcıyı gizle/göster"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- Videonun %10-%90 noktasına git (0 - başlangıç)"
+        "message": "- Videonun %0, %10, %20 ... %90 noktasına gidin (0 = başlangıç)"
     },
     "welcome_page_keybinds_content11": {
         "message": "- Hızı 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x veya 16x olarak ayarla - geri dönmek için aynı tuşa yeniden bas"
@@ -135,16 +135,16 @@
         "message": "FastStream'in Gerektirdiği İzinler Hakkında"
     },
     "perms_page_about_content0": {
-        "message": "Eklentinin çalışabilmesi için belirli izinlere sahip olması gerekir. Bu izinler yalnızca temel işlevsellik için kullanılır."
+        "message": "FastStream'in çalışması için belirli izinlere ihtiyacı var. Bu izinler yalnızca aşağıda listelenenler için kullanılır."
     },
     "perms_page_about_content1": {
         "message": "FastStream sizden hiçbir veri toplamaz ve sizi izlemez. Kendine ait bir sunucusu yoktur. Yalnızca videolarını oynattığınız sitelere, altyazı aradığınızda OpenSubtitles'a ve güncellemeleri denetlemek için GitHub'a bağlanır."
     },
     "perms_page_about_content2": {
-        "message": "Güvenmiyor musunuz? FastStream'in kaynak kodu şurada mevcut:"
+        "message": "Sözümüze güvenmenize gerek yok: FastStream'in kaynak kodu şurada mevcut:"
     },
     "perms_page_about_content3": {
-        "message": "Kodu kendiniz inceleyebilir veya talimatları izleyerek kendi özel derlemenizi manuel olarak kurabilirsiniz."
+        "message": "Kodu kendiniz okuyabilir veya README'sindeki talimatları izleyerek kendi FastStream kopyanızı derleyip kurabilirsiniz."
     },
     "perms_page_breakdown_header": {
         "message": "İzinlerin Açıklaması"
@@ -210,7 +210,7 @@
         "message": "Firefox dışındaki programlarla mesaj alışverişi"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "Yalnızca mpv için: bir video mpv'ye gönderildiğinde FastStream onu kendi bilgisayarınızdaki FastStream mpv host'una verir, o da videoyu mpv'de açar. Bu host olmadan bu izin hiç kullanılmaz."
+        "message": "Yalnızca mpv için: bir video mpv'ye gönderildiğinde FastStream onu kendi bilgisayarınızdaki FastStream mpv yardımcısına verir, o da videoyu mpv'de açar. Bu yardımcı olmadan bu izin hiç kullanılmaz."
     },
     "perms_page_breakdown_perm7h": {
         "message": "Dosya indirme"
@@ -231,7 +231,7 @@
         "message": "Verilmedi, izin vermek için tıklayın"
     },
     "player_needs_interaction": {
-        "message": "İndirme hızlandırmayı etkinleştirmek için etkileşime geçin"
+        "message": "Videoyu önceden indirebilmesi için oynatıcıya tıklayın"
     },
     "player_skipintro": {
         "message": "İntroyu atla"
@@ -333,10 +333,10 @@
         "message": "Uygun başlıkları ayarlayamıyor! Bu özelliği kullanmak için eklentiyi yükleyin!"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles çalışmıyor!"
+        "message": "OpenSubtitles'a ulaşılamadı: internet bağlantınızı kontrol edin veya daha sonra tekrar deneyin."
     },
     "player_opensubtitles_down_alert": {
-        "message": "OpenSubtitles indirmesi başarısız oldu! Sunucuları muhtemelen hizmet vermiyor!"
+        "message": "OpenSubtitles'dan indirme başarısız oldu: daha sonra tekrar deneyin."
     },
     "player_opensubtitles_noresults": {
         "message": "Sonuç bulunamadı!"
@@ -349,6 +349,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 indirme"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 indirme"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "Sağır ve işitme güçlüğü olanlar için"
@@ -402,7 +405,7 @@
         "message": "Altyazı yüklenemedi!"
     },
     "player_subtitles_nocues": {
-        "message": "İçinde altyazı bulunamadı."
+        "message": "Bu dosyada altyazı bulunamadı."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles'ta ara"
@@ -462,7 +465,7 @@
         "message": "Ayarlar penceresini kapat"
     },
     "player_savevideo_label": {
-        "message": "Videoyu kaydet. Kısmi videoyu kaydetmek için ALT tuşunu basılı tut. Arabelleği arşiv olarak kaydetmek için SHIFT tuşunu basılı tut."
+        "message": "Videoyu kaydedin. Yalnızca şimdiye kadar indirilenleri kaydetmek için tıklarken Alt tuşunu basılı tutun. İndirilen veriyi FastStream arşivi olarak kaydetmek için Shift tuşunu basılı tutun (yeniden oynatmak için oynatıcının üzerine bırakın)."
     },
     "player_screenshot_label": {
         "message": "Ekran görüntüsü al"
@@ -474,7 +477,7 @@
         "message": "Tam ekranı aç/kapat"
     },
     "player_fullscreen_denied": {
-        "message": "Tam ekran izni reddedildi!"
+        "message": "Firefox tam ekrana yalnızca bir tıklamadan sonra izin veriyor: oynatıcının tam ekran düğmesine tıklayın."
     },
     "player_windowed_fullscreen_label": {
         "message": "Pencereli tam ekranı aç/kapat"
@@ -522,10 +525,10 @@
         "message": "İndirme duraklatıldı"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 parça başarısız oldu! Tekrar denemek için tıklayın."
+        "message": "Videonun $1 parçası indirilemedi. Tekrar denemek için tıklayın."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 parça başarısız oldu! Tekrar denemek için tıklayın."
+        "message": "Videonun $1 parçası indirilemedi. Tekrar denemek için tıklayın."
     },
     "player_fragment_allbuffered": {
         "message": "%100 önbelleğe alındı"
@@ -567,7 +570,7 @@
         "message": "Video henüz tamamen indirilmedi! Yine de kaydetmek istediğinizden emin misiniz?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "Gizli Mod videoları tamponlamak için RAM kullanır. Bilgisayarınızda tüm videoyu kaydetmek için yeterli bellek olmayabilir!\nDevam etmek istediğinizden emin misiniz?"
+        "message": "Gizli pencere, videoyu disk yerine bellekte (RAM) tutar. Bilgisayarınızda tüm videoyu kaydetmek için yeterli bellek olmayabilir!\nDevam etmek istiyor musunuz?"
     },
     "player_savevideo_cancelling": {
         "message": "Kaydetme iptal ediliyor..."
@@ -585,7 +588,7 @@
         "message": "Video kaydedilemedi!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Video kaydedilemedi!\nOynatıcının tampon belleğini arşivlemek ister misiniz?\n- Arşiv dosyalarını oynatıcıya sürükleyip bırakarak yükleyin"
+        "message": "Video kaydedilemedi!\nİndirilenleri bunun yerine FastStream arşivi olarak kaydetmek ister misiniz?\n- Yeniden oynatmak için arşiv dosyasını oynatıcıya sürükleyip bırakın"
     },
     "player_savevideo_complete": {
         "message": "Kaydetme tamamlandı!"
@@ -618,13 +621,13 @@
         "message": "(bilinmiyor)"
     },
     "player_buffer_incognito_warning": {
-        "message": "Gizli modda ön indirme için yeterli alan yok, $1 önbelleğe alınacak"
+        "message": "Gizli pencerede ön indirme için yeterli alan yok: FastStream videonun yalnızca $1 kadarını arabellekte tutar."
     },
     "player_buffer_storage_warning": {
-        "message": "Video boyutu sınırı aşıyor, $1 önbelleğe alınacak"
+        "message": "Bu video ön indirme sınırlarına (boyut, disk alanı veya RAM) sığmıyor: FastStream videonun yalnızca $1 kadarını arabellekte tutar."
     },
     "player_error_drm": {
-        "message": "Yüklenemedi! DRM desteklenmiyor!"
+        "message": "Bu video kopya korumalı (DRM) ve FastStream onu oynatamıyor. Sitenin kendi oynatıcısında izlemek için FastStream'i araç çubuğu düğmesiyle kapatın."
     },
     "player_error_load": {
         "message": "Video yüklenemedi!"
@@ -912,7 +915,7 @@
         "message": "FastStream v$1 şimdi mevcut (şu anki sürüm v$2). Güncellemek ister misiniz?"
     },
     "options_update_go": {
-        "message": "Beni Github'a götür"
+        "message": "Beni GitHub'a götür"
     },
     "options_update_no": {
         "message": "Bu güncellemeyi yok say"
@@ -924,7 +927,7 @@
         "message": "Video Seçenekleri"
     },
     "options_video_body": {
-        "message": "Videoya CSS filtreleri uygular. Resim içinde resim ile çalışmaz."
+        "message": "Videonun görünümünü değiştirir: parlaklık, kontrast, renkler ve daha fazlası. Resim içinde resim ile çalışmaz."
     },
     "options_video_zoom": {
         "message": "Video Yakınlaştırma"
@@ -1005,7 +1008,7 @@
         "message": "Oynatıcıyı otomatik değiştirmeden önce gecikme (ms)"
     },
     "options_general_maxdownloaders": {
-        "message": "En fazla indirici sayısı (1–6)"
+        "message": "Aynı anda yapılacak indirme sayısı (1–6)"
     },
     "options_general_autoplaynext": {
         "message": "Mevcut video bittiğinde sonraki videoyu otomatik oynat"
@@ -1164,7 +1167,7 @@
         "message": "Algılanan akışları mpv'de (dış oynatıcı) aç"
     },
     "options_mpv_body": {
-        "message": "MPV modu açıkken araç çubuğu düğmesi Kapalı, Açık (yerleşik oynatıcı) ve MPV arasında geçiş yapar. İzin listesindeki sitelerde algılanan akışlar tarayıcı oynatıcısı yerine bilgisayarınızdaki mpv'de doğrudan açılır. Bilgisayarınızda mpv ve FastStream mpv host'u gerekir: Windows'ta tek tıklamalı kurulum (aşağıdaki ilk bağlantı) ikisini de kurar; elle kurulum (ikinci bağlantı) geliştiriciler ve diğer sistemler içindir."
+        "message": "MPV modu açıkken araç çubuğu düğmesi Kapalı, Açık (yerleşik oynatıcı) ve MPV arasında geçiş yapar. İzin listesindeki sitelerde algılanan akışlar tarayıcı oynatıcısı yerine bilgisayarınızdaki mpv'de doğrudan açılır. Bilgisayarınızda mpv ve FastStream mpv yardımcısı gerekir: Windows'ta tek tıklamalı kurulum (aşağıdaki ilk bağlantı) ikisini de kurar; elle kurulum (ikinci bağlantı) Linux, macOS ve geliştiriciler içindir."
     },
     "options_mpv_setup_oneclick": {
         "message": "Windows için tek tıklamalı kurulum (mpv-config)"
@@ -1179,7 +1182,7 @@
         "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir. Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — Film olmayan siteler için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir."
     },
     "options_mpv_path": {
-        "message": "mpv yolu (isteğe bağlı; mpv PATH üzerinde değilken yerel host tarafından kullanılır)"
+        "message": "mpv yolu (isteğe bağlı: mpv yardımcısı mpv'yi kendisi bulamıyorsa)"
     },
     "options_mpv_fullscreen": {
         "message": "mpv'yi tam ekranda aç"
@@ -1200,13 +1203,13 @@
         "message": "mpv bulundu: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv bulundu: $1 (yukarıda ayarlanan yol bulunamadı, bu yüzden host bunu kullanıyor)"
+        "message": "mpv bulundu: $1 (yukarıda ayarlanan yol bulunamadı, bu yüzden mpv yardımcısı bunu kullanıyor)"
     },
     "options_mpv_test_nompv": {
-        "message": "Host'a ulaşıldı, ancak mpv bulunamadı"
+        "message": "mpv yardımcısı çalışıyor ancak mpv'yi bulamadı: mpv'yi kurun ya da yolunu yukarıdaki \"mpv yolu\" alanına girin."
     },
     "options_mpv_test_fail": {
-        "message": "mpv host'u kullanılamıyor – kurulu mu? Bu bölümün başındaki kurulum bağlantılarına bakın."
+        "message": "mpv yardımcısı yanıt vermedi - kurulu mu? Bu bölümün başındaki kurulum bağlantılarına bakın."
     },
     "options_mpv_suggest_text": {
         "message": "mpv yardımcısı kurulu – videolar mpv'de açılsın mı?"
@@ -1218,7 +1221,7 @@
         "message": "Yok say"
     },
     "options_mpv_suggest_done": {
-        "message": "MPV modu açık. Videoları mpv'de açılacak siteleri MPV izin listesine ekleyin (aşağıda, MPV modu bölümünde). Diğer sitelerde Alt+F'ye (MPV kısayolu) basıp videoyu başlatın veya FastStream oynatıcısındaki mpv düğmesini kullanın."
+        "message": "MPV modu açık. Videolarının mpv'de açılmasını istediğiniz siteleri MPV izin listesine ekleyin (bu bölümde). Diğer sitelerde MPV kısayoluna (Alt+F, değiştirmediyseniz) basıp videoyu başlatın ya da FastStream oynatıcısındaki mpv düğmesini kullanın."
     },
     "options_mpv_suggest_close": {
         "message": "Kapat"
@@ -1233,7 +1236,7 @@
         "message": "mpv'ye gönderildi"
     },
     "player_mpv_fail": {
-        "message": "mpv'de açılamadı. FastStream mpv host'u kurulu mu?"
+        "message": "mpv'de açılamadı. FastStream mpv yardımcısı kurulu mu?"
     },
     "player_mpv_fail_reason": {
         "message": "mpv'de açılamadı: $1"
@@ -1242,7 +1245,7 @@
         "message": "FastStream - MPV - akış açılmadı: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)"
+        "message": "FastStream - MPV - bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV'de oynatılıyor - ekran kartı tarafından çözülüyor: $1"
@@ -1251,16 +1254,16 @@
         "message": "FastStream - MPV'de oynatılıyor - işlemci tarafından çözülüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin"
     },
     "options_mpv_test_outdated": {
-        "message": "Bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)."
+        "message": "Bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
-        "message": "Açık mpv ekran kartında çözüyor: $1."
+        "message": "Açık mpv penceresi ekran kartında çözüyor: $1."
     },
     "options_mpv_test_decoder_sw": {
-        "message": "Açık mpv işlemcide çözüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin."
+        "message": "Açık mpv penceresi işlemcide çözüyor ($1): ekran kartında çözmek için mpv.conf dosyasına hwdec=auto-safe ekleyin."
     },
     "player_mpv_sent_outdated": {
-        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv host'u güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream deposu kopyasında: update-local.cmd veya native-host\\install.ps1)."
+        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
@@ -1326,13 +1329,13 @@
         "message": "Hata Bildir"
     },
     "player_outofstorage": {
-        "message": "Uyarı: Tarayıcınız dosya depolama özelliklerini tam olarak desteklemiyor. Bunun nedeni, tarayıcınızın depolama alanının dolmuş olması veya uzun süredir yeniden başlatılmamış olması olabilir. Bazı özellikler beklendiği gibi çalışmayabilir."
+        "message": "İndirilen video için Firefox'un depolama alanı açılamadı, bu yüzden FastStream videoyu bunun yerine bellekte (RAM) tutar; uzun bir video sığmayabilir. Firefox'u yeniden başlatmak veya diskte yer açmak genellikle bu sorunu çözer."
     },
     "player_vpn_allow": {
         "message": "Firefox VPN üzerinden oynat"
     },
     "player_vpn_allow_tooltip": {
-        "message": "Bu sayfa videosunu Firefox VPN üzerinden alıyor; bu, FastStream'in isteklerini dışarıda bırakıyor ve site bunları reddedebilir. FastStream'in aynı bağlantıyı kullanmasına izin vermek için tıklayın (bir kez, FastStream'in izinler sayfasında)."
+        "message": "Bu sayfa, videosunu Firefox VPN üzerinden alıyor ama FastStream'in kendi istekleri bunun üzerinden geçmiyor ve site bunları reddedebilir. FastStream'in de Firefox VPN'i kullanmasına izin vermek için tıklayın; izni bir kez, açılacak olan FastStream izinler sayfasında verirsiniz."
     },
     "perms_page_breakdown_perm9h": {
         "message": "Proxy (isteğe bağlı)"
@@ -1341,6 +1344,6 @@
         "message": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister."
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN bu videoyu taşıyor ve mpv bunu kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu site için Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
+        "message": "Bu video Firefox VPN üzerinden geliyor ve mpv Firefox VPN'i kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu sitede Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
     }
 }

@@ -27,13 +27,13 @@
         "message": "FastStream の使用方法は 4 つあります"
     },
     "welcome_page_usage_content1": {
-        "message": "動画のある Web サイトを開いてアイコンをクリックで FastStream を ON にする事ができます。動画を再生するとクライアントは自動的に FastStream に置き換わります。"
+        "message": "動画のある Web サイトを開き、ツールバーのアイコンをクリックして FastStream を有効にします。動画を再生すると、サイトのプレーヤーの代わりに FastStream プレーヤーが表示されます。"
     },
     "welcome_page_usage_content2": {
-        "message": "新しいタブを開いて拡張機能のアイコンをクリックでプレーヤーを開く事ができます。"
+        "message": "新しいタブを開いて FastStream アイコンをクリックすると、プレーヤーを開くこともできます。"
     },
     "welcome_page_usage_content3": {
-        "message": "オプションを有効化している場合に、mp4/mpd/m3u8 の URL にアクセスする事でプレーヤーが再生をします。"
+        "message": "オプションで「MP4 動画の再生にプレーヤーを使用する」と「HLS/DASH ストリームの再生にプレーヤーを使用する」を有効にすると、動画への直接リンク（.mp4、.m3u8、または .mpd で終わる）がプレーヤーで開きます。"
     },
     "welcome_page_usage_content4": {
         "message": "新しいタブでプレーヤーを開いておく事で、他の場所を参照してソースを取得します。"
@@ -45,10 +45,10 @@
         "message": "デフォルトのキーボードコントロール"
     },
     "welcome_page_keybinds_content0": {
-        "message": "これらのキーバインドは拡張機能の設定で変更できます"
+        "message": "これらのキーは、オプションの「キーボードショートカット」で変更できます。"
     },
     "welcome_page_keybinds_content1": {
-        "message": "矢印キー - 前後の 5 秒間隔のシーク"
+        "message": "矢印キー - 5 秒ずつ前後にシークします（シーク間隔はオプションで変更できます）。"
     },
     "welcome_page_keybinds_content2": {
         "message": "キー - 前後の 10 秒間隔のシーク"
@@ -63,7 +63,7 @@
         "message": "- フルスクリーン"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- 同時リクエストの増減"
+        "message": "- 同時にダウンロードする動画の部分の数を増減します。"
     },
     "welcome_page_keybinds_content7": {
         "message": "- 強制再試行キー - これを使用する事で失敗をしたダウンロードを再試行します"
@@ -75,7 +75,7 @@
         "message": "- プレーヤーを表示/非表示"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- 動画の 10%-90% の位置に移動 (0 は先頭)"
+        "message": "- 動画の 0%、10%、20% ... 90% の位置に移動します（0 は先頭）。"
     },
     "welcome_page_keybinds_content11": {
         "message": "- 速度を 1x・2x・2.5x・3x・3.5x・4x・5x・8x・16x に設定 - 同じキーをもう一度押すと元に戻ります"
@@ -135,16 +135,16 @@
         "message": "FastStream に必要な権限について"
     },
     "perms_page_about_content0": {
-        "message": "拡張機能を動作させるには特定の権限を許可する必要があります。これらの権限は基本的な機能のみで使用されます。"
+        "message": "FastStream は動作するために特定の権限を必要とします。これらの権限を使うのは、以下に挙げた用途のためだけです。"
     },
     "perms_page_about_content1": {
         "message": "FastStream はユーザーのデータを収集せず、追跡もしません。独自のサーバーも持っていません。接続するのは、再生する動画のサイト、字幕を検索するときの OpenSubtitles、そして更新を確認するための GitHub だけです。"
     },
     "perms_page_about_content2": {
-        "message": "信用ができませんか? FastStream のソースは次の場所で入手ができます。"
+        "message": "私たちの言葉をそのまま信じる必要はありません。FastStream のソースコードは、次の場所で公開されています:"
     },
     "perms_page_about_content3": {
-        "message": "自分でコードを確認する事もできますし、指示に従って自分だけのカスタムビルドを手動でインストールする事もできます。"
+        "message": "コードを自分で確認することもできますし、README の手順に従って、自分でビルドしたコピーをインストールすることもできます。"
     },
     "perms_page_breakdown_header": {
         "message": "権限の内訳"
@@ -210,7 +210,7 @@
         "message": "Firefox 以外のプログラムとメッセージを交換"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "mpv 専用です。動画を mpv に送るとき、FastStream はその動画をお使いのコンピューター上の FastStream mpv ホストに渡し、ホストが mpv で開きます。このホストがなければ、この権限は一切使われません。"
+        "message": "mpv 専用です。動画を mpv に送るとき、FastStream はその動画をお使いのコンピューター上の mpv ヘルパーに渡し、mpv ヘルパーが mpv で開きます。mpv ヘルパーがない場合、この権限は一切使用されません。"
     },
     "perms_page_breakdown_perm7h": {
         "message": "ファイルをダウンロード"
@@ -231,7 +231,7 @@
         "message": "許可されていません。クリックして許可"
     },
     "player_needs_interaction": {
-        "message": "ダウンロードの高速化を有効にするには、動画を再生してください"
+        "message": "動画を事前ダウンロードするには、プレーヤーをクリックしてください。"
     },
     "player_skipintro": {
         "message": "イントロをスキップ"
@@ -333,10 +333,10 @@
         "message": "適切なヘッダーを設定できません! この機能を使用するには拡張機能をインストールしてください!"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles はダウンしています!"
+        "message": "OpenSubtitles に接続できませんでした。インターネット接続を確認するか、後で再度お試しください。"
     },
     "player_opensubtitles_down_alert": {
-        "message": "OpenSubtitles のダウンロードに失敗しました! サーバーがダウンしているかもしれません!"
+        "message": "OpenSubtitles からのダウンロードに失敗しました。後で再度お試しください。"
     },
     "player_opensubtitles_noresults": {
         "message": "結果が見つかりません!"
@@ -349,6 +349,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 ダウンロード"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 件のダウンロード"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "ろう者・難聴者向け"
@@ -402,7 +405,7 @@
         "message": "字幕トラックの読み込みに失敗しました!"
     },
     "player_subtitles_nocues": {
-        "message": "字幕が見つかりませんでした。"
+        "message": "このファイルには字幕が見つかりませんでした。"
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "OpenSubtitles を検索"
@@ -462,7 +465,7 @@
         "message": "設定ウィンドウを閉じる"
     },
     "player_savevideo_label": {
-        "message": "動画を保存します。ALT を押しながらクリックすると動画の一部を保存します。SHIFT を押しながらクリックするとバッファーをダンプします。"
+        "message": "動画を保存します。Alt キーを押しながらクリックすると、これまでにダウンロードされた部分のみを保存します。Shift キーを押しながらクリックすると、ダウンロード済みのデータを FastStream アーカイブとして保存します（プレーヤーにドロップすると、再度再生できます）。"
     },
     "player_screenshot_label": {
         "message": "スクリーンショットを撮る"
@@ -474,7 +477,7 @@
         "message": "フルスクリーン"
     },
     "player_fullscreen_denied": {
-        "message": "フルスクリーンの許可が拒否されました!"
+        "message": "Firefox では、クリックした後でしかフルスクリーンにできません。プレーヤーのフルスクリーンボタンをクリックしてください。"
     },
     "player_windowed_fullscreen_label": {
         "message": "ウィンドウ化されたフルスクリーン"
@@ -522,10 +525,10 @@
         "message": "ダウンロードが一時停止されました"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 の分割処理に失敗しました! クリックで再試行します。"
+        "message": "動画の部分が $1 個ダウンロードに失敗しました。クリックして再試行してください。"
     },
     "player_fragment_failed_plural": {
-        "message": "$1 の分割処理に失敗しました! クリックで再試行します。"
+        "message": "動画の部分が $1 個ダウンロードに失敗しました。クリックして再試行してください。"
     },
     "player_fragment_allbuffered": {
         "message": "100% バッファー済み"
@@ -567,7 +570,7 @@
         "message": "動画のダウンロードが完了していません! 本当に保存をしますか?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "シークレットモードでは、RAM を使用して動画をバッファーします。コンピューターに動画全体を保存するのに必要なメモリがない可能性があります。\n続行してもよろしいですか?"
+        "message": "プライベートウィンドウでは、動画はディスクではなくメモリ（RAM）に保存されます。お使いのコンピューターには、動画全体を保存するのに十分なメモリがない可能性があります。\n続行しますか？"
     },
     "player_savevideo_cancelling": {
         "message": "キャンセル中..."
@@ -585,7 +588,7 @@
         "message": "動画の保存に失敗しました!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "動画の保存に失敗しました!\n代わりにプレーヤーのバッファーストレージをアーカイブしますか?\n- アーカイブファイルをプレーヤーにドラッグ&ドロップで読み込みます"
+        "message": "動画の保存に失敗しました!\n代わりに、ダウンロード済みの部分を FastStream アーカイブとして保存しますか？\n- アーカイブファイルをプレーヤーにドロップすると、再度再生できます"
     },
     "player_savevideo_complete": {
         "message": "保存が完了しました!"
@@ -618,13 +621,13 @@
         "message": "(不明)"
     },
     "player_buffer_incognito_warning": {
-        "message": "シークレットモードでプリダウンロードに必要な空き容量がないため、$1 がバッファーされます"
+        "message": "プライベートウィンドウでは、事前ダウンロードに必要な空き容量が足りないため、FastStream は動画のうち $1 だけをバッファーに保持します。"
     },
     "player_buffer_storage_warning": {
-        "message": "ビデオのサイズが制限を超えています、$1 バッファリングします"
+        "message": "この動画は、事前ダウンロードの制限（サイズ、ディスク容量、RAM）に収まらないため、FastStream は動画のうち $1 だけをバッファーに保持します。"
     },
     "player_error_drm": {
-        "message": "読み込みに失敗しました! DRM には対応していません!"
+        "message": "この動画はコピーガード（DRM）がかかっているため、FastStream では再生できません。ツールバーのボタンで FastStream をオフにして、サイトの標準プレーヤーで再生してください。"
     },
     "player_error_load": {
         "message": "動画の読み込みに失敗しました!"
@@ -924,7 +927,7 @@
         "message": "動画のオプション"
     },
     "options_video_body": {
-        "message": "動画に CSS フィルタを適用します。ピクチャー イン ピクチャー (PiP) では動作しません。"
+        "message": "動画の見え方（明るさ、コントラスト、色など）を変更します。ピクチャーインピクチャーでは機能しません。"
     },
     "options_video_zoom": {
         "message": "ビデオズーム"
@@ -1005,7 +1008,7 @@
         "message": "プレーヤーを自動的に置き換える前の遅延 (ミリ秒)"
     },
     "options_general_maxdownloaders": {
-        "message": "最大ダウンローダー数 (1〜6)"
+        "message": "同時にダウンロードする数（1〜6）"
     },
     "options_general_autoplaynext": {
         "message": "次の動画の自動再生"
@@ -1164,7 +1167,7 @@
         "message": "検出したストリームを mpv（外部プレーヤー）で開く"
     },
     "options_mpv_body": {
-        "message": "MPV モードが有効なとき、ツールバーのボタンは「オフ」「オン（内蔵プレーヤー）」「MPV」を切り替えます。許可リストのサイトでは、検出されたストリームはブラウザーのプレーヤーではなく、コンピューター上の mpv で直接開かれます。コンピューターに mpv と FastStream mpv ホストが必要です。Windows では、ワンクリックセットアップ（下の最初のリンク）で両方をインストールできます。手動セットアップ（2 番目のリンク）は開発者やその他のシステム向けです。"
+        "message": "MPV モードが有効な場合、ツールバーのボタンで「オフ」「オン（内蔵プレーヤー）」「MPV」を切り替えます。許可リストに登録されたサイトでは、検出されたストリームは、ブラウザーのプレーヤーの代わりにお使いのコンピューターの mpv で直接開きます。お使いのコンピューターに mpv と mpv ヘルパーが必要です。Windows の場合、ワンクリックセットアップ（下の最初のリンク）で両方をインストールできます。手動セットアップ（2 番目のリンク）は Linux、macOS、および開発者向けです。"
     },
     "options_mpv_setup_oneclick": {
         "message": "Windows 用ワンクリックセットアップ（mpv-config）"
@@ -1179,7 +1182,7 @@
         "message": "このリストにあるサイトは、検出されたストリームを mpv で開きます。1 行に 1 つの URL。その URL で始まるページも一致します。正規表現には ~ を、除外には ! を使用します。タグのないサイトは、mpv のシェーダー選択に既定で映画が使われます。該当しないサイトは行末に @anime を追加してください。明示的に書きたい場合は @movie も受け付けます。プレーヤーの mpv ボタンから動画ごとに上書きできます。"
     },
     "options_mpv_path": {
-        "message": "mpv のパス（省略可。PATH 上に mpv がない場合にネイティブホストが使用）"
+        "message": "mpv のパス（省略可: mpv ヘルパーが mpv を自動的に見つけられない場合のみ入力）"
     },
     "options_mpv_fullscreen": {
         "message": "mpv を全画面で開く"
@@ -1200,13 +1203,13 @@
         "message": "mpvが見つかりました: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpvが見つかりました: $1 (上で設定したパスが見つからないため、ホストはこちらを使います)"
+        "message": "mpv が見つかりました: $1（上で設定したパスが見つからなかったため、mpv ヘルパーはこれを使用します）"
     },
     "options_mpv_test_nompv": {
-        "message": "ホストには到達できましたが、mpv が見つかりません"
+        "message": "mpv ヘルパーは機能していますが、mpv が見つかりませんでした。mpv をインストールするか、上の「mpv のパス」にパスを入力してください。"
     },
     "options_mpv_test_fail": {
-        "message": "mpv ホストを利用できません。インストールされていますか？このセクションの先頭にあるセットアップのリンクを参照してください。"
+        "message": "mpv ヘルパーから応答がありません。インストールされていますか？このセクションの先頭にあるセットアップのリンクを参照してください。"
     },
     "options_mpv_suggest_text": {
         "message": "mpv ヘルパーがインストールされています。動画を mpv で開きますか？"
@@ -1218,7 +1221,7 @@
         "message": "今後表示しない"
     },
     "options_mpv_suggest_done": {
-        "message": "MPV モードがオンになりました。動画を mpv で開きたいサイトを MPV 許可リスト（下の「MPV モード」内）に追加してください。その他のサイトでは、Alt+F（MPV のショートカット）を押してから動画を再生するか、FastStream のプレーヤーの mpv ボタンを使ってください。"
+        "message": "MPV モードがオンになりました。動画を mpv で開きたいサイトを MPV 許可リスト（このセクション内）に追加してください。その他のサイトでは、MPV のショートカット（変更していなければ Alt+F）を押してから動画を再生するか、FastStream のプレーヤーの mpv ボタンを使ってください。"
     },
     "options_mpv_suggest_close": {
         "message": "閉じる"
@@ -1233,7 +1236,7 @@
         "message": "mpv に送信済み"
     },
     "player_mpv_fail": {
-        "message": "mpv で開けませんでした。FastStream mpv ホストはインストールされていますか？"
+        "message": "mpv で開けませんでした。mpv ヘルパーはインストールされていますか？"
     },
     "player_mpv_fail_reason": {
         "message": "mpvで開けませんでした: $1"
@@ -1242,7 +1245,7 @@
         "message": "FastStream - MPV - ストリームを開けませんでした: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）"
+        "message": "FastStream - MPV - このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV で再生中 - グラフィックカードでデコード: $1"
@@ -1251,16 +1254,16 @@
         "message": "FastStream - MPV で再生中 - プロセッサでデコード ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください"
     },
     "options_mpv_test_outdated": {
-        "message": "このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
+        "message": "このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
     },
     "options_mpv_test_decoder_hw": {
-        "message": "開いている mpv はグラフィックカードでデコードしています: $1。"
+        "message": "開いている mpv ウィンドウはグラフィックカードでデコードしています: $1。"
     },
     "options_mpv_test_decoder_sw": {
-        "message": "開いている mpv はプロセッサでデコードしています ($1): グラフィックカードでデコードするには mpv.conf に hwdec=auto-safe を追加してください。"
+        "message": "開いている mpv ウィンドウはプロセッサでデコードしています（$1）: グラフィックカードでデコードするには、mpv.conf に hwdec=auto-safe を追加してください。"
     },
     "player_mpv_sent_outdated": {
-        "message": "mpv に送信済み。このコンピューターの mpv ホストが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
+        "message": "mpv に送信済み。このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
     },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
@@ -1326,13 +1329,13 @@
         "message": "エラーを報告"
     },
     "player_outofstorage": {
-        "message": "警告: お使いのブラウザはファイルストレージ機能を完全にはサポートしていません。これは、ブラウザのストレージ容量が不足しているか、長時間再起動されていないためです。一部の機能が期待通りに動作しない場合があります。"
+        "message": "動画の保存に使う Firefox のファイルストレージを開けられなかったため、FastStream は代わりに動画をメモリ（RAM）に保存します。長い動画は収まらない場合があります。Firefox を再起動するか、ディスクの空き容量を増やすと、通常は解決します。"
     },
     "player_vpn_allow": {
         "message": "Firefox VPN で再生"
     },
     "player_vpn_allow_tooltip": {
-        "message": "このページは Firefox VPN 経由で動画を取得しています。FastStream のリクエストは除外され、サイトがそれらを拒否する可能性があります。クリックすると、FastStream が同じ接続を使用できるようになります（1回のみ、FastStream の権限ページで）。"
+        "message": "このページは Firefox VPN 経由で動画を取得していますが、FastStream 自身のリクエストは VPN を通らないため、サイトに拒否されることがあります。クリックすると、FastStream が Firefox VPN も使用できるようになります（許可は 1 回のみで、この後で開く FastStream の権限ページで行います）。"
     },
     "perms_page_breakdown_perm9h": {
         "message": "プロキシ（任意）"
@@ -1341,6 +1344,6 @@
         "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPNがこの動画を中継しており、mpvはそれを使用できません。サイトはmpvを拒否するでしょう。mpvで視聴するには、このサイトでFirefox VPNをオフにして、ページを再読み込みしてください。"
+        "message": "この動画は Firefox VPN 経由で送られてきますが、mpv は Firefox VPN を使用できません。そのためサイトは mpv を拒否します。mpv で視聴するには、このサイトで Firefox VPN をオフにして、ページを再読み込みしてください。"
     }
 }

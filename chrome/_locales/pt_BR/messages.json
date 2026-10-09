@@ -27,13 +27,13 @@
         "message": "Existem quatro formas de uso do FastStream"
     },
     "welcome_page_usage_content1": {
-        "message": "Acesse qualquer site para transmissão de vídeo, ative o FastStream pelo ícone da extensão. Reproduza o vídeo e o cliente será substituído automaticamente pelo FastStream"
+        "message": "Abra um site com um vídeo e ative o FastStream clicando no ícone dele na barra de ferramentas. Quando você reproduzir o vídeo, o reprodutor do FastStream ocupará o lugar do reprodutor do site."
     },
     "welcome_page_usage_content2": {
-        "message": "Você pode ir para uma nova guia e pressionar o ícone da extensão para ir para o tocador."
+        "message": "Você também pode abrir uma nova aba e clicar no ícone do FastStream para ir ao reprodutor."
     },
     "welcome_page_usage_content3": {
-        "message": "Se a opção estiver ativada, acesse uma URL mp4/mpd/m3u8 e o player a reproduzirá."
+        "message": "Com “Usar o reprodutor para reproduzir vídeos MP4” e “Usar o reprodutor para reproduzir streams HLS/DASH” ativadas nas opções, um link direto de vídeo (que termina em .mp4, .m3u8 ou .mpd) abre no reprodutor."
     },
     "welcome_page_usage_content4": {
         "message": "Mantenha o player aberto em uma nova guia e ele coletará fontes enquanto você navega em outro lugar."
@@ -45,10 +45,10 @@
         "message": "Controles padrão do teclado"
     },
     "welcome_page_keybinds_content0": {
-        "message": "Você pode alterar esses atalhos do teclado nas configurações da extensão"
+        "message": "Você pode alterar essas teclas nas opções, em Atalhos de teclado."
     },
     "welcome_page_keybinds_content1": {
-        "message": "Setas do teclado - 5 segundos de busca para frente/trás"
+        "message": "Setas do teclado - avançam/voltam 5 segundos (o intervalo pode ser alterado nas opções)"
     },
     "welcome_page_keybinds_content2": {
         "message": "Teclas - 10 segundos de busca para frente/trás"
@@ -63,7 +63,7 @@
         "message": "- Tela cheia"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- Adicionar/reduzir solicitações simultâneas"
+        "message": "- Baixar mais/menos partes do vídeo ao mesmo tempo"
     },
     "welcome_page_keybinds_content7": {
         "message": "- Forçar nova tentativa - use-a para tentar novamente os downloads que falharam"
@@ -75,7 +75,7 @@
         "message": "- Ocultar/mostrar o player"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- Ir para 10%-90% do vídeo (0 - início)"
+        "message": "- Ir para 0%, 10%, 20% ... 90% do vídeo (0 = início)"
     },
     "welcome_page_keybinds_content11": {
         "message": "- Definir a velocidade para 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x ou 16x - pressione a mesma tecla novamente para reverter"
@@ -135,16 +135,16 @@
         "message": "Sobre as permissões exigidas pelo FastStream"
     },
     "perms_page_about_content0": {
-        "message": "Para que a extensão funcione, ela precisa ter determinadas permissões. Essas permissões são usadas somente para funcionalidades básicas."
+        "message": "FastStream precisa de determinadas permissões para funcionar. Elas são usadas somente para o que está listado abaixo."
     },
     "perms_page_about_content1": {
         "message": "O FastStream não coleta nenhum dado seu e não rastreia você. Ele não tem servidor próprio. Ele só se conecta aos sites cujos vídeos você reproduz, ao OpenSubtitles quando você procura legendas e ao GitHub para verificar atualizações."
     },
     "perms_page_about_content2": {
-        "message": "Não confia em mim? O FastStream tem seu código fonte disponível em"
+        "message": "Você não precisa acreditar apenas na nossa palavra: o código-fonte do FastStream está em"
     },
     "perms_page_about_content3": {
-        "message": "Você pode examinar o código fonte se quiser ou instalar manualmente sua própria compilação personalizada seguindo as instruções."
+        "message": "Você pode ler o código por conta própria, ou compilar e instalar a sua própria cópia com as instruções do README."
     },
     "perms_page_breakdown_header": {
         "message": "Detalhamento das permissões"
@@ -210,7 +210,7 @@
         "message": "Trocar mensagens com outros programas além do Firefox"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "Só para o mpv: quando um vídeo vai para o mpv, o FastStream o entrega ao host mpv do FastStream no seu próprio computador, que o abre no mpv. Sem esse host, esta permissão nunca é usada."
+        "message": "Só para o mpv: quando um vídeo vai para o mpv, o FastStream o entrega ao auxiliar mpv do FastStream no seu próprio computador, que o abre no mpv. Sem esse auxiliar, esta permissão nunca é usada."
     },
     "perms_page_breakdown_perm7h": {
         "message": "Baixar arquivos"
@@ -231,7 +231,7 @@
         "message": "Não concedida, clique para conceder"
     },
     "player_needs_interaction": {
-        "message": "Interagir para ativar a aceleração de download"
+        "message": "Clique no reprodutor para permitir que ele baixe o vídeo antecipadamente"
     },
     "player_skipintro": {
         "message": "Pular Intro"
@@ -333,10 +333,10 @@
         "message": "Não é possível definir cabeçalhos adequadamente! Instale a extensão para usar esse recurso!"
     },
     "player_opensubtitles_error_down": {
-        "message": "O OpenSubtitles está inativo!"
+        "message": "Não foi possível acessar o OpenSubtitles: verifique sua conexão com a internet, ou tente novamente mais tarde."
     },
     "player_opensubtitles_down_alert": {
-        "message": "O download do OpenSubtitles falhou! Seus servidores provavelmente estão fora do ar!"
+        "message": "O download do OpenSubtitles falhou: tente novamente mais tarde."
     },
     "player_opensubtitles_noresults": {
         "message": "Nenhum resultado encontrado!"
@@ -349,6 +349,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 downloads"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 download"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "Para surdos e deficientes auditivos"
@@ -402,7 +405,7 @@
         "message": "Falha ao carregar a faixa de legenda!"
     },
     "player_subtitles_nocues": {
-        "message": "Nenhuma legenda encontrada nele."
+        "message": "Nenhuma legenda encontrada neste arquivo."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Pesquisar no OpenSubtitles"
@@ -462,7 +465,7 @@
         "message": "Fechar janela de configurações"
     },
     "player_savevideo_label": {
-        "message": "Salve o vídeo. Mantenha pressionada a tecla ALT para salvar o vídeo parcialmente. Mantenha pressionada a tecla SHIFT para salvar o buffer como arquivo."
+        "message": "Salve o vídeo. Mantenha pressionada a tecla Alt ao clicar para salvar apenas o que foi baixado até o momento. Mantenha pressionada a tecla Shift para salvar os dados baixados como um arquivo FastStream (solte-o no reprodutor para reproduzi-lo novamente)."
     },
     "player_screenshot_label": {
         "message": "Tirar captura de tela"
@@ -474,7 +477,7 @@
         "message": "Alternar tela cheia"
     },
     "player_fullscreen_denied": {
-        "message": "Permissões de tela cheia negadas!"
+        "message": "O Firefox só permite tela cheia depois de um clique: use o botão de tela cheia do reprodutor."
     },
     "player_windowed_fullscreen_label": {
         "message": "Alternar tela cheia em janela"
@@ -522,10 +525,10 @@
         "message": "Download pausado"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 Fragmento com erro! Clique para tentar novamente."
+        "message": "$1 parte do vídeo não foi baixada. Clique para tentar novamente."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 Fragmentos com erro! Clique para tentar novamente."
+        "message": "$1 partes do vídeo não foram baixadas. Clique para tentar novamente."
     },
     "player_fragment_allbuffered": {
         "message": "100% Armazenado"
@@ -567,7 +570,7 @@
         "message": "O download do vídeo ainda não foi concluído! Tem certeza de que deseja salvá-lo?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "O modo de navegação anônima usará a RAM para armazenar vídeos. Seu computador pode não ter memória suficiente para salvar o vídeo inteiro!\nTem certeza de que deseja prosseguir?"
+        "message": "Uma janela privativa mantém o vídeo na memória (RAM), não no disco. Seu computador pode não ter memória suficiente para salvar o vídeo inteiro!\nDeseja continuar?"
     },
     "player_savevideo_cancelling": {
         "message": "Cancelando salvamento..."
@@ -585,7 +588,7 @@
         "message": "Falha ao salvar vídeo!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Não foi possível salvar o vídeo!\nEm vez disso, você gostaria de arquivar o armazenamento do buffer do tocador?\n- Arraste e solte arquivos compactados no tocador para carregá-los"
+        "message": "Não foi possível salvar o vídeo!\nEm vez disso, você gostaria de salvar o que foi baixado como um arquivo FastStream?\n- Solte um arquivo FastStream no reprodutor para reproduzi-lo novamente"
     },
     "player_savevideo_complete": {
         "message": "Salvamento completo!"
@@ -618,13 +621,13 @@
         "message": "(desconhecido)"
     },
     "player_buffer_incognito_warning": {
-        "message": "Não há espaço suficiente para fazer o download prévio no modo incógnito, o buffer será de $1"
+        "message": "Não há espaço suficiente para o pré-download em uma janela privativa: o FastStream mantém em buffer apenas $1 do vídeo."
     },
     "player_buffer_storage_warning": {
-        "message": "O tamanho do vídeo excede os limites, o buffer será de $1"
+        "message": "Este vídeo não cabe nos limites do pré-download (tamanho, espaço em disco ou RAM): o FastStream mantém em buffer apenas $1 dele."
     },
     "player_error_drm": {
-        "message": "Falha ao carregar! DRM não é suportado!"
+        "message": "Este vídeo é protegido contra cópia (DRM), e o FastStream não pode reproduzi-lo. Desative o FastStream pelo botão dele na barra de ferramentas para assisti-lo no reprodutor do próprio site."
     },
     "player_error_load": {
         "message": "Falha ao carregar o vídeo!"
@@ -912,7 +915,7 @@
         "message": "FastStream v$1 já está disponível (versão atual v$2). Você gostaria de atualizar?"
     },
     "options_update_go": {
-        "message": "Me leve ao Github"
+        "message": "Leve-me ao GitHub"
     },
     "options_update_no": {
         "message": "Ignorar esta atualização"
@@ -924,7 +927,7 @@
         "message": "Opções de vídeo"
     },
     "options_video_body": {
-        "message": "Aplica filtros CSS ao vídeo. Não funciona no modo sobreposição (pip)."
+        "message": "Altera a aparência do vídeo: brilho, contraste, cores e mais. Não funciona no modo sobreposição (picture-in-picture)."
     },
     "options_video_zoom": {
         "message": "Zoom de vídeo"
@@ -1005,7 +1008,7 @@
         "message": "Atraso antes da substituição automática do player (ms)"
     },
     "options_general_maxdownloaders": {
-        "message": "Máximo de downloaders (1 a 6)"
+        "message": "Downloads ao mesmo tempo (1 a 6)"
     },
     "options_general_autoplaynext": {
         "message": "Reproduzir automaticamente o próximo vídeo quando o vídeo atual terminar"
@@ -1164,7 +1167,7 @@
         "message": "Abrir streams detectados no mpv (reprodutor externo)"
     },
     "options_mpv_body": {
-        "message": "Com o Modo MPV ativado, o botão da barra de ferramentas alterna entre Desativado, Ativado (reprodutor integrado) e MPV. Em sites da lista de permissões, os streams detectados abrem diretamente no mpv do seu computador em vez do reprodutor do navegador. Requer o mpv e o host mpv do FastStream no seu computador: no Windows, a instalação com um clique (primeiro link abaixo) instala os dois; a instalação manual (segundo link) é para desenvolvedores e outros sistemas."
+        "message": "Com o Modo MPV ativado, o botão da barra de ferramentas alterna entre Desativado, Ativado (reprodutor integrado) e MPV. Em sites da lista de permissões, os streams detectados abrem diretamente no mpv do seu computador em vez do reprodutor do navegador. Requer o mpv e o auxiliar mpv do FastStream no seu computador: no Windows, a instalação com um clique (primeiro link abaixo) instala os dois; a instalação manual (segundo link) é para Linux, macOS e desenvolvedores."
     },
     "options_mpv_setup_oneclick": {
         "message": "Instalação com um clique para Windows (mpv-config)"
@@ -1179,7 +1182,7 @@
         "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem. Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo."
     },
     "options_mpv_path": {
-        "message": "Caminho do mpv (opcional, usado pelo host nativo quando o mpv não está no PATH)"
+        "message": "Caminho do mpv (opcional: apenas se o auxiliar do mpv não encontrar o mpv por conta própria)"
     },
     "options_mpv_fullscreen": {
         "message": "Abrir o mpv em tela cheia"
@@ -1200,13 +1203,13 @@
         "message": "mpv encontrado: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv encontrado: $1 (o caminho definido acima não foi encontrado, então o host usa este)"
+        "message": "mpv encontrado: $1 (o caminho definido acima não foi encontrado, então o auxiliar do mpv usa este)"
     },
     "options_mpv_test_nompv": {
-        "message": "Host acessível, mas o mpv não foi encontrado"
+        "message": "O auxiliar do mpv funciona, mas não encontrou o mpv: instale o mpv, ou informe o caminho dele em “Caminho do mpv” acima."
     },
     "options_mpv_test_fail": {
-        "message": "Host mpv indisponível – ele está instalado? Veja os links de instalação no início desta seção."
+        "message": "O auxiliar do mpv não respondeu – ele está instalado? Veja os links de instalação no início desta seção."
     },
     "options_mpv_suggest_text": {
         "message": "O auxiliar do mpv está instalado – abrir os vídeos no mpv?"
@@ -1218,7 +1221,7 @@
         "message": "Dispensar"
     },
     "options_mpv_suggest_done": {
-        "message": "O Modo MPV está ativado. Adicione à lista de permissões do MPV (abaixo, em Modo MPV) os sites cujos vídeos devem abrir no mpv. Em outros sites, pressione Alt+F (o atalho do MPV) e inicie o vídeo, ou use o botão do mpv no reprodutor do FastStream."
+        "message": "O Modo MPV está ativado. Adicione à lista de permissões do MPV (nesta seção) os sites cujos vídeos devem abrir no mpv. Em qualquer outro site, pressione o atalho do MPV (Alt+F, a menos que você o tenha alterado) e inicie o vídeo, ou use o botão do mpv no reprodutor do FastStream."
     },
     "options_mpv_suggest_close": {
         "message": "Fechar"
@@ -1233,7 +1236,7 @@
         "message": "Enviado para o mpv"
     },
     "player_mpv_fail": {
-        "message": "Não foi possível abrir no mpv. O host mpv do FastStream está instalado?"
+        "message": "Não foi possível abrir no mpv. O auxiliar mpv do FastStream está instalado?"
     },
     "player_mpv_fail_reason": {
         "message": "Não foi possível abrir no mpv: $1"
@@ -1242,7 +1245,7 @@
         "message": "FastStream - MPV - o stream não abriu: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - o host do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)"
+        "message": "FastStream - MPV - o auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Reproduzindo no MPV - decodificado pela placa de vídeo: $1"
@@ -1251,7 +1254,7 @@
         "message": "FastStream - Reproduzindo no MPV - decodificado pelo processador ($1): adicione hwdec=auto-safe ao mpv.conf para decodificar na placa de vídeo"
     },
     "options_mpv_test_outdated": {
-        "message": "O host do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
+        "message": "O auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "O mpv aberto decodifica na placa de vídeo: $1."
@@ -1260,7 +1263,7 @@
         "message": "O mpv aberto decodifica no processador ($1): adicione hwdec=auto-safe ao mpv.conf para decodificar na placa de vídeo."
     },
     "player_mpv_sent_outdated": {
-        "message": "Enviado para o mpv. O host do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
+        "message": "Enviado para o mpv. O auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
     },
     "player_mpv_content_unset": {
         "message": "Abrir este stream no mpv (tipo de conteúdo: automático – Filme, a menos que o site esteja marcado com @anime; clique com o botão direito para mudar neste vídeo)"
@@ -1326,13 +1329,13 @@
         "message": "Relatar erro"
     },
     "player_outofstorage": {
-        "message": "Aviso: Seu navegador não suporta totalmente os recursos de armazenamento de arquivos. Isso pode ser porque seu navegador ficou sem espaço de armazenamento ou não foi reiniciado por um longo tempo. Alguns recursos podem não funcionar como esperado."
+        "message": "Não foi possível abrir o armazenamento do Firefox para o vídeo baixado, então o FastStream mantém o vídeo na memória (RAM), e um vídeo longo pode não caber. Reiniciar o Firefox, ou liberar espaço em disco, geralmente resolve isso."
     },
     "player_vpn_allow": {
         "message": "Reproduzir via Firefox VPN"
     },
     "player_vpn_allow_tooltip": {
-        "message": "Esta página obtém seu vídeo pelo Firefox VPN, que deixa de fora as solicitações do FastStream, e o site pode recusá-las. Clique para permitir que o FastStream use a mesma conexão (uma vez, na página de permissões do FastStream)."
+        "message": "O vídeo desta página vem pelo Firefox VPN, mas as solicitações do próprio FastStream não passam por ele, e o site pode recusá-las. Clique para permitir que o FastStream também use o Firefox VPN: você o autoriza apenas uma vez, na página de permissões do FastStream, que será aberta."
     },
     "perms_page_breakdown_perm9h": {
         "message": "Proxy (opcional)"
@@ -1341,6 +1344,6 @@
         "message": "Usada apenas com o Firefox VPN. O Firefox a lista como controle das configurações de proxy do navegador, mas o FastStream não altera nenhuma configuração: ele envia suas próprias solicitações para um vídeo da mesma forma que as solicitações da própria página passaram, através da VPN. Sem ela, um site que vincula seu vídeo ao endereço da VPN recusa o FastStream. O player a solicita na primeira vez em que é necessária."
     },
     "player_mpv_vpn": {
-        "message": "O Firefox VPN carrega este vídeo, e o mpv não pode usá-lo: o site recusaria o mpv. Para assistir no mpv, desative o Firefox VPN para este site e recarregue a página."
+        "message": "O Firefox VPN carrega este vídeo, e o mpv não pode usar o Firefox VPN: o site recusaria o mpv. Para assistir no mpv, desative o Firefox VPN para este site e recarregue a página."
     }
 }
