@@ -233,6 +233,12 @@
     "player_needs_interaction": {
         "message": "Interact to enable download acceleration"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Drag the pink line to set how quiet a part must be to be skipped"
+    },
+    "loop_menu_now": {
+        "message": "Use the current time"
+    },
     "player_segment_intro": {
         "message": "Intro"
     },

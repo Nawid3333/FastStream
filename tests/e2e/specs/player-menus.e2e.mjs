@@ -290,6 +290,47 @@ describe('Player menus', function() {
     expect(typed.end).toBe(4.5);
   });
 
+  // Back at 0 after a reload, the silence skipper skipped nothing (review, 2026-10-09).
+  it('keeps the silence threshold the user dragged', async function() {
+    await openEmptyPlayer();
+    const loaded = await browser.executeAsync((done) => {
+      const changer = window.fastStream.interfaceController.playbackRateChanger;
+      changer.silenceThreshold = 0.42;
+      changer.saveState().then(() => {
+        changer.silenceThreshold = 0;
+        return changer.loadState();
+      }).then(() => done(changer.silenceThreshold));
+    });
+    expect(loaded).toBeCloseTo(0.42, 5);
+  });
+
+  // In a background tab no animation frames come, and the video played past the loop's end.
+  it('keeps a hidden tab\'s video within its loop', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const time = await browser.execute(() => {
+      const loop = window.fastStream.interfaceController.loopControls;
+      for (const [name, value] of [['start', '00:00:01'], ['end', '00:00:02']]) {
+        const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+        input.value = value;
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+      }
+      loop.loopEnabled = true;
+      loop.updateLoopAndGif();
+      // As in a background tab: the animation frames stopped, and only timeupdate comes.
+      loop.loopLoopRunning = true;
+      loop.loopEnabled = true;
+      Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+      window.fastStream.currentTime = 3;
+      window.fastStream.currentVideo.dispatchEvent(new Event('timeupdate'));
+      const after = window.fastStream.currentTime;
+      delete document.hidden;
+      return after;
+    });
+    expect(time).toBe(1);
+  });
+
   it('names a dropdown\'s new value when the keyboard changes it', async function() {
     // Only a click on an item renamed it, so a screen reader kept the old value.
     await openEmptyPlayer();

@@ -1,4 +1,5 @@
 import {EventEmitter} from '../../modules/eventemitter.mjs';
+import {Localize} from '../../modules/Localize.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
@@ -35,6 +36,8 @@ export class PlaybackRateChanger extends EventEmitter {
     const state = {
       playbackRate: this.silenceSkipperActive ? this.regularSpeed : this.playbackRate,
       silenceSkipSpeed: this.silenceSkipSpeed,
+      // Kept, as the skipper's speed is: back at 0 after a reload, the skipper skipped nothing.
+      silenceThreshold: this.silenceThreshold,
       audioPaddingStart: this.audioPaddingStart,
       audioPaddingEnd: this.audioPaddingEnd,
     };
@@ -46,6 +49,7 @@ export class PlaybackRateChanger extends EventEmitter {
     const state = await Utils.loadAndParseOptions('playbackRateConfig', {
       playbackRate: 1,
       silenceSkipSpeed: this.maxPlaybackRate,
+      silenceThreshold: 0,
       // audioPaddingStart: 0.25,
       // audioPaddingEnd: 0.25,
     });
@@ -53,6 +57,7 @@ export class PlaybackRateChanger extends EventEmitter {
     this.client.playbackRate = state.playbackRate;
     // Saved by a build with a higher cap, it went to the video as it was.
     this.silenceSkipSpeed = Utils.clamp(state.silenceSkipSpeed, 0.1, this.maxPlaybackRate);
+    this.silenceThreshold = Number.isFinite(state.silenceThreshold) ? Utils.clamp(state.silenceThreshold, 0, 1) : 0;
     // this.audioPaddingStart = state.audioPaddingStart;
     // this.audioPaddingEnd = state.audioPaddingEnd;
   }
@@ -82,6 +87,7 @@ export class PlaybackRateChanger extends EventEmitter {
       DOMElements.playerContainer.removeEventListener('mousemove', onAudioMouseMove);
       DOMElements.playerContainer.removeEventListener('mouseup', onAudioMouseUp);
       DOMElements.playerContainer.removeEventListener('mouseleave', onAudioMouseUp);
+      this.saveState();
     };
 
     DOMElements.playerContainer.addEventListener('mousemove', onAudioMouseMove);
@@ -106,7 +112,7 @@ export class PlaybackRateChanger extends EventEmitter {
     fineTimeControls.ui.timelineAudio.style.cursor = 'ns-resize';
     this.updateSilenceSkipper();
 
-    this.client.interfaceController.setStatusMessage('silence-skip', 'Drag pink line to set silence threshold', 'info', 5000);
+    this.client.interfaceController.setStatusMessage('silence-skip', Localize.getMessage('player_silenceskip_threshold_hint'), 'info', 5000);
   }
 
   onSilenceSkipperUIClose() {

@@ -111,7 +111,11 @@ export class AudioQualityChanger extends EventEmitter {
         e.preventDefault();
         e.stopPropagation();
       } else if (e.key === 'Enter') {
+        // The track playing already: nothing to choose, and the key is not the player's
+        // either (it reached its Enter binding).
         if (current.classList.contains('source_active')) {
+          e.preventDefault();
+          e.stopPropagation();
           return;
         }
         current.click();

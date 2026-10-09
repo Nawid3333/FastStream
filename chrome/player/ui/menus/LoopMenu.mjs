@@ -24,6 +24,12 @@ export class LoopMenu extends EventEmitter {
     this.timeInputs = {};
 
     this.loopHandler = this.checkLoopLoop.bind(this);
+    // A background tab gets no animation frames: the video played past the loop's end. Its
+    // timeupdate (four a second, also in the background) keeps it within the loop there.
+    this.timeupdateHandler = () => {
+      if (document.hidden) this.keepWithinLoop();
+    };
+    this.timeupdateVideo = null;
   }
 
   reset() {
@@ -123,6 +129,9 @@ export class LoopMenu extends EventEmitter {
       nowButton.role = 'button';
       nowButton.classList.add('now_button');
       nowButton.textContent = '→';
+      // An arrow alone said nothing of what it does.
+      nowButton.title = Localize.getMessage('loop_menu_now');
+      nowButton.ariaLabel = nowButton.title;
       nowButton.addEventListener('click', () => {
         input.value = this.currentTimeToTimecode(this.client.currentTime);
         this.loopTimeSettings[name] = input.value;
@@ -228,6 +237,12 @@ export class LoopMenu extends EventEmitter {
     }
 
     if (player) {
+      const video = player.getVideo();
+      if (this.timeupdateVideo !== video) {
+        this.timeupdateVideo?.removeEventListener('timeupdate', this.timeupdateHandler);
+        this.timeupdateVideo = video;
+        video?.addEventListener('timeupdate', this.timeupdateHandler);
+      }
       if (this.loopEnabled && this.loopRangeValid) {
         player.getVideo().loop = true;
         this.startLoopLoop();
@@ -314,6 +329,9 @@ export class LoopMenu extends EventEmitter {
   }
 
   gifLoop() {
+    // A frame still asked for when the recording was reset (the next video came) ran the end
+    // below, and paused the next video.
+    if (!this.gifLoopRunning) return;
     const player = this.client.player;
     if (!player) {
       this.gifLoopRunning = false;
@@ -412,9 +430,16 @@ export class LoopMenu extends EventEmitter {
       return;
     }
 
+    this.keepWithinLoop();
+  }
+
+  /** Seeks back into the loop when the video is outside it (not while a GIF records). */
+  keepWithinLoop() {
+    if (!this.client.player || !this.loopEnabled || !this.loopRangeValid || this.gifLoopRunning) return;
+    const currentTime = this.client.currentTime;
     if (currentTime >= this.loopEnd) {
       this.client.currentTime = this.loopStart;
-    } else if (this.loopStart > 0 && !this.gifLoopRunning) {
+    } else if (this.loopStart > 0) {
       if (currentTime < this.loopStart) {
         this.client.currentTime = this.loopStart;
       }

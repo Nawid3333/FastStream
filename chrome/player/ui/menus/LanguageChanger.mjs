@@ -136,7 +136,8 @@ export class LanguageChanger extends EventEmitter {
 
   groupLevelsByLanguage(levels) {
     const languageMap = new Map();
-    levels.forEach((level) => {
+    // None yet (a player still loading): the quality menu checks for that, and this threw.
+    levels?.forEach((level) => {
       const lang = level.language;
       if (!languageMap.has(lang)) {
         languageMap.set(lang, []);
