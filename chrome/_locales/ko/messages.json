@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "색상 회전"
     },
-    "options_video_daltonizer_type": {
-        "message": "색각 이상 보정"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "강도"
-    },
-    "options_video_daltonizer_none": {
-        "message": "없음"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "프로타노말리(적색 약화)"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "듀테라노말리(녹색 약화)"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "트라이타노말리(청색 약화)"
-    },
     "options_general_header": {
         "message": "일반 옵션"
     },

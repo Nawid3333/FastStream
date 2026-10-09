@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "色相旋轉"
     },
-    "options_video_daltonizer_type": {
-        "message": "色盲校正"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "強度"
-    },
-    "options_video_daltonizer_none": {
-        "message": "無"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "紅色異常"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "綠色異常"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "藍色異常"
-    },
     "options_general_header": {
         "message": "一般選項"
     },

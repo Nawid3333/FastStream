@@ -20,7 +20,6 @@ import {VisChangeActions} from './options/defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
 import {SecureMemory} from './modules/SecureMemory.mjs';
 import {CSSFilterUtils} from './utils/CSSFilterUtils.mjs';
-import {DaltonizerTypes} from './options/defaults/DaltonizerTypes.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
 import {AudioAnalyzer} from './modules/analyzer/AudioAnalyzer.mjs';
@@ -92,8 +91,6 @@ export class FastStreamClient extends EventEmitter {
       videoSepia: 0,
       videoInvert: 0,
       videoHueRotate: 0,
-      videoDaltonizerType: DaltonizerTypes.NONE,
-      videoDaltonizerStrength: 1,
       videoZoom: 1,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
@@ -396,8 +393,6 @@ export class FastStreamClient extends EventEmitter {
     this.options.videoSepia = options.videoSepia;
     this.options.videoInvert = options.videoInvert;
     this.options.videoHueRotate = options.videoHueRotate;
-    this.options.videoDaltonizerType = options.videoDaltonizerType;
-    this.options.videoDaltonizerStrength = options.videoDaltonizerStrength;
     this.options.videoZoom = options.videoZoom;
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
@@ -458,23 +453,6 @@ export class FastStreamClient extends EventEmitter {
    * Updates CSS filters and transforms for video elements.
    */
   updateCSSFilters() {
-    if (this.options.videoDaltonizerType !== DaltonizerTypes.NONE && this.options.videoDaltonizerStrength > 0) {
-      const previous = document.getElementById('daltonizer-svg');
-      if (previous) {
-        previous.remove();
-      }
-
-      const {svg, filter} = CSSFilterUtils.makeLMSDaltonizerFilter(
-          this.options.videoDaltonizerType, this.options.videoDaltonizerStrength,
-      );
-      svg.id = 'daltonizer-svg';
-      filter.id = `daltonizer-${this.options.videoDaltonizerType}-${this.options.videoDaltonizerStrength}`;
-      svg.style.position = 'absolute';
-      svg.style.width = '0px';
-      svg.style.height = '0px';
-      DOMElements.playerContainer.appendChild(svg);
-    }
-
     const filterStr = CSSFilterUtils.getFilterString(this.options);
     const transformStr = CSSFilterUtils.getTransformString(this.options);
 

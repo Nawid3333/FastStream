@@ -181,7 +181,8 @@ describe('the options page once the saved options are read', () => {
 describe('the options page\'s controls', () => {
   it('names each menu on the <select> itself', () => {
     const selects = doc.querySelectorAll('select');
-    expect(selects.length).toBe(8);
+    // Eight until the colour-blindness filter's was removed (2026-10-09).
+    expect(selects.length).toBe(7);
     for (const select of selects) {
       const wrapper = select.parentNode;
       expect(wrapper.dataset.i18nLabel, wrapper.id).toBeTruthy();

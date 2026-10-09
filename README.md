@@ -8,7 +8,7 @@ This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andr
 
 1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.
-3. Adjustable audio dynamics (equalizer, compressor, mixer, mono mode, volume booster), and video settings (brightness, contrast, hue, LMS daltonization for color blindness) for your unique audiovisual preferences.
+3. Adjustable audio dynamics (equalizer, compressor, mixer, mono mode, volume booster), and video settings (brightness, contrast, saturation, hue) for your unique audiovisual preferences.
 4. Over 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
 5. Available in 16 languages.
 6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once; see [README-MPV.md](README-MPV.md).

@@ -971,24 +971,6 @@
     "options_video_hue": {
         "message": "Kleurtoon roteren"
     },
-    "options_video_daltonizer_type": {
-        "message": "Correctie voor kleurenblindheid"
-    },
-    "options_video_daltonizer_strength": {
-        "message": "Sterkte"
-    },
-    "options_video_daltonizer_none": {
-        "message": "Geen"
-    },
-    "options_video_daltonizer_protanomaly": {
-        "message": "Protanomalie"
-    },
-    "options_video_daltonizer_deuteranomaly": {
-        "message": "Deuteranomalie"
-    },
-    "options_video_daltonizer_tritanomaly": {
-        "message": "Tritanomalie"
-    },
     "options_general_header": {
         "message": "Algemene opties"
     },

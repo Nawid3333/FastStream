@@ -1,6 +1,5 @@
 import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
-import {DaltonizerTypes} from './DaltonizerTypes.mjs';
 import {DefaultKeybinds} from './DefaultKeybinds.mjs';
 import {DEFAULT_SEEK_STEP_SIZE, KEYBINDS_VERSION} from '../KeybindUtils.mjs';
 import {MiniplayerPositions} from './MiniplayerPositions.mjs';
@@ -40,8 +39,6 @@ export const DefaultOptions = {
   videoSepia: 0,
   videoInvert: 0,
   videoHueRotate: 0,
-  videoDaltonizerType: DaltonizerTypes.NONE,
-  videoDaltonizerStrength: 1,
   videoZoom: 1,
   maxSpeed: -1,
   maxVideoSize: 5000000000, // 5GB max size
