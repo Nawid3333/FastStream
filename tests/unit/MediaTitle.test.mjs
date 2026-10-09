@@ -80,6 +80,11 @@ describe('guessMediaInfo', () => {
     ['Face/Off (1997) - Watch Online', 'example.com', movie('Face/Off', 1997)],
     // A year before a word kept at the end.
     ['Oppenheimer 2023 Movie | Watch Online', 'example.com', movie('Oppenheimer', 2023)],
+    // ... also in a part of its own after the title, which kept "2023 Movie" in the name and
+    // found no year (audit, 2026-10-09), but not as the title itself.
+    ['Oppenheimer | 2023 Movie', 'example.com', movie('Oppenheimer', 2023)],
+    ['Oppenheimer - 2023 Film', 'example.com', movie('Oppenheimer', 2023)],
+    ['2012 Movie', 'example.com', movie('2012 Movie')],
   ])('keeps the title whole in %j', (title, host, expected) => {
     expect(guess(title, host)).toEqual(expected);
   });

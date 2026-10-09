@@ -110,3 +110,22 @@ describe('VMPlayer.setSource', () => {
     expect(that.emit).toHaveBeenCalledWith(DefaultPlayerEvents.ERROR, expect.any(Error));
   });
 });
+
+// The embed page's config was cut at the first "}" with braces counted inside strings too:
+// a title like "Part {1}" ended the object early, JSON.parse failed and the video reported
+// "playerConfig not found" (audit, 2026-10-09).
+describe('VMPlayer.extractJsonConfig', () => {
+  const extract = (html) => VMPlayer.prototype.extractJsonConfig.call({}, html, 'window.playerConfig =');
+
+  it('reads a config whose strings hold braces and escaped quotes', () => {
+    const config = {video: {title: 'Part {1} of "the} end'}, request: {files: {hls: {cdns: {a: {url: 'x'}}}}}};
+    const html = '<script>window.playerConfig = ' + JSON.stringify(config) + '; var other = {};</script>';
+    expect(extract(html)).toEqual(config);
+  });
+
+  it('reads a plain config, and returns null without one', () => {
+    expect(extract('window.playerConfig = {"a": {"b": 1}};')).toEqual({a: {b: 1}});
+    expect(extract('<html>nothing here</html>')).toBeNull();
+    expect(extract('window.playerConfig = {"a": "unterminated')).toBeNull();
+  });
+});

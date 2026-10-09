@@ -138,13 +138,27 @@ export default class VMPlayer extends HLSPlayer {
     const jsonStart = i;
     let braceCount = 0;
     let foundStart = false;
+    // Braces inside a string ("title": "a {b}") are text: counted, they ended the object
+    // early and the config was "not found".
+    let inString = false;
 
     // Iterate to find the matching closing brace
     for (; i < html.length; i++) {
-      if (html[i] === '{') {
+      const char = html[i];
+      if (inString) {
+        if (char === '\\') {
+          i++;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+      } else if (char === '{') {
         braceCount++;
         foundStart = true;
-      } else if (html[i] === '}') {
+      } else if (char === '}') {
         braceCount--;
       }
 

@@ -171,13 +171,34 @@ function toastCorner() {
 }
 
 /**
+ * An error's message for a report. A player's error can be a plain object (hls.js and
+ * dash.js report {type, details, ...}): as text that was "[object Object]".
+ * @param {*} error
+ * @return {string}
+ */
+function errorText(error) {
+  let text = String(error);
+  if (error?.message) {
+    text = String(error.message);
+  } else if (error && typeof error === 'object') {
+    try {
+      text = JSON.stringify(error) ?? text;
+    } catch (e) {
+      // A cycle: the plain text.
+    }
+  }
+  // An issue's address has a length limit.
+  return text.length > 1000 ? text.slice(0, 1000) + '...' : text;
+}
+
+/**
  * The address of a new GitHub issue that reports an error.
  * @param {*} error
  * @param {string} version - FastStream's.
  * @return {string}
  */
 export function errorReportURL(error, version) {
-  const body = `## Version:\n${version}\n\n## Error message:\n${error?.message || error}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
+  const body = `## Version:\n${version}\n\n## Error message:\n${errorText(error)}\n\n## Stack trace:\n\`\`\`\n${error?.stack || 'No stack trace'}\n\`\`\``;
   const urlBase = `https://github.com/Nawid3333/FastStream/issues/new?`;
   return `${urlBase}title=${encodeURIComponent('Error report')}&body=${encodeURIComponent(body)}`;
 }

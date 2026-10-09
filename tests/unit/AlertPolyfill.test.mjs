@@ -51,4 +51,18 @@ describe('AlertPolyfill', () => {
     expect(url.searchParams.get('body')).toContain('## Error message:\njust a string\n');
     expect(url.searchParams.get('body')).toContain('No stack trace');
   });
+
+  // hls.js and dash.js report errors as plain objects: the report said "[object Object]"
+  // (audit, 2026-10-09).
+  it('reports a plain object\'s fields, and copes with a cycle', () => {
+    const url = new URL(errorReportURL({type: 'networkError', details: 'fragLoadError', fatal: true}, '1.0'));
+    expect(url.searchParams.get('body')).toContain('## Error message:\n{"type":"networkError","details":"fragLoadError","fatal":true}\n');
+    const cyclic = {type: 'mediaError'};
+    cyclic.self = cyclic;
+    expect(new URL(errorReportURL(cyclic, '1.0')).searchParams.get('body')).toContain('## Error message:\n[object Object]\n');
+    for (const error of [{data: 'x'.repeat(5000)}, new Error('x'.repeat(5000))]) {
+      error.stack = undefined;
+      expect(new URL(errorReportURL(error, '1.0')).searchParams.get('body').length).toBeLessThan(1200);
+    }
+  });
 });

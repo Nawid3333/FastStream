@@ -322,4 +322,26 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
         .map((channel) => channel === null ? null : intoGain[channel]);
     expect(speakers.slice(0, 2)).toEqual([0, 0]);
   });
+
+  // At a master gain of 1 the gain node exists only for mono: turning mono off removed it,
+  // disconnecting it from preGain, which fed the mono node. "Node not connected" was thrown
+  // and the sound stayed mono (audit, 2026-10-09).
+  it('turns master mono off again at a master gain of 1', async () => {
+    const {mixer} = mixerOn51();
+    const profile = new AudioProfile(1);
+    profile.master.mono = true;
+    mixer.setConfig(profile);
+    await settle();
+    expect(mixer.masterNodes.monoNode).toBeTruthy();
+
+    mixer.masterConfig.mono = false;
+    await expect(mixer.updateNodes()).resolves.toBeUndefined();
+    expect(mixer.masterNodes.monoNode).toBeNull();
+    expect(mixer.masterNodes.gain).toBeNull();
+    // Straight to the output again, and back to mono once more without an error.
+    expect(mixer.masterNodes.preGain.indexConnectedTo(mixer.getOutputNode())).not.toBe(-1);
+    mixer.masterConfig.mono = true;
+    await expect(mixer.updateNodes()).resolves.toBeUndefined();
+    expect(mixer.masterNodes.monoNode).toBeTruthy();
+  });
 });
