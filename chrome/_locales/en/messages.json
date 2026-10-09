@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Enter a name for the file"
     },
+    "player_screenshot_nopicture": {
+        "message": "There is no picture to save yet."
+    },
     "player_screenshot_saving": {
         "message": "Taking screenshot..."
     },

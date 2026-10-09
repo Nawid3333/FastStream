@@ -199,6 +199,14 @@ export class SaveManager {
       return;
     }
 
+    // No picture (audio, or a video not showing one yet): the screenshot was an empty file,
+    // and said "saved".
+    const shown = this.client.player.getVideo();
+    if (!shown?.videoWidth || !shown?.videoHeight) {
+      await AlertPolyfill.alert(Localize.getMessage('player_screenshot_nopicture'), 'error');
+      return;
+    }
+
     const suggestedName = (this.client.mediaInfo?.name || 'video').replaceAll(' ', '_') + '@' + StringUtils.formatTime(this.client.currentTime);
     const name = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
 
@@ -217,7 +225,10 @@ export class SaveManager {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const url = canvas.toDataURL('image/png'); // For some reason this is faster than async toBlob
-      await Utils.downloadURL(url, name + '.png');
+      // null: Firefox refused the download; it said "saved".
+      if (await Utils.downloadURL(url, name + '.png') === null) {
+        throw new Error('The download was refused');
+      }
       this.setStatusMessage('save-screenshot', Localize.getMessage('player_screenshot_saved'), 'info', 1000);
     } catch (e) {
       console.error(e);
@@ -226,6 +237,18 @@ export class SaveManager {
   }
 
   async saveVideo(e, allowPartial = false) {
+    // A second click while the first still asks (a confirm, the file name) started a second
+    // save: makingDownload is set only once the save begins, which clears this.
+    if (this.askingToSave) return;
+    this.askingToSave = true;
+    try {
+      await this.saveVideoAsked(e, allowPartial);
+    } finally {
+      this.askingToSave = false;
+    }
+  }
+
+  async saveVideoAsked(e, allowPartial) {
     if (!this.client.player) {
       await AlertPolyfill.alert(Localize.getMessage('player_nosource_alert'), 'error');
       return;
@@ -294,12 +317,16 @@ export class SaveManager {
       filestream = streamSaver.createWriteStream(name + '.' + saveExtension);
     }
 
-    if (this.reuseDownloadURL && this.downloadURL && isComplete) {
+    // The file kept is of the quality and audio track it was made of: saved again after a
+    // change of either, it was the previous one's file under the new name.
+    const levels = String(player.getCurrentVideoLevelID?.()) + '|' + String(player.getCurrentAudioLevelID?.());
+    if (this.reuseDownloadURL && this.downloadURL && isComplete && this.downloadURLLevels === levels) {
       url = this.downloadURL;
     } else {
       this.reuseDownloadURL = isComplete;
       let result;
       this.makingDownload = true;
+      this.askingToSave = false;
       this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_start'), 'info');
       DOMElements.saveNotifBanner.style.display = '';
       DOMElements.saveNotifBanner.style.color = '';
@@ -372,6 +399,7 @@ export class SaveManager {
       // in memory, or its OPFS file pinned, for the rest of the session.
       this.releaseDownloadURL();
       this.downloadURL = url;
+      this.downloadURLLevels = levels;
       this.downloadURLRelease = result.release || null;
     }
 
@@ -386,6 +414,11 @@ export class SaveManager {
       }
 
       this.downloadURLDownload = await Utils.downloadURL(url, name + '.' + saveExtension);
+      // null: Firefox refused the download (no room, a folder it cannot write to), and after
+      // "Save complete" nothing said so.
+      if (this.downloadURLDownload === null) {
+        this.setStatusMessage('save-video', Localize.getMessage('player_savevideo_fail'), 'error', 4000);
+      }
     }
   }
 
@@ -506,8 +539,6 @@ export class SaveManager {
             level: currentLevel,
             audioLevel: currentAudioLevel,
           };
-
-          this.setStatusMessage('save-video', Localize.getMessage('player_archive_loaded'), 'info', 2000);
         } catch (e) {
           console.error(e);
           this.setStatusMessage('save-video', Localize.getMessage('player_archive_fail'), 'error', 2000);
@@ -523,8 +554,15 @@ export class SaveManager {
 
       try {
         await this.client.addSource(newSource, true);
+        // Once loaded: "loaded" came before, and a source that would not load said nothing.
+        if (newSource.loadedFromArchive) {
+          this.setStatusMessage('save-video', Localize.getMessage('player_archive_loaded'), 'info', 2000);
+        }
       } catch (e) {
         console.error(e);
+        if (newSource.loadedFromArchive) {
+          this.setStatusMessage('save-video', Localize.getMessage('player_archive_fail'), 'error', 4000);
+        }
       }
 
       if (newEntries) {
@@ -553,7 +591,10 @@ export class SaveManager {
       this.client.interfaceController.subtitlesManager.activateTrack(returnedTrack);
     });
 
-    this.client.play();
+    // Only a dropped video plays: a subtitle file or an audio profile started the video.
+    if (newSource) {
+      this.client.play();
+    }
   }
 
   reset() {

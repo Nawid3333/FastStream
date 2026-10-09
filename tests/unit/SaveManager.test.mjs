@@ -28,6 +28,7 @@ vi.mock('../../chrome/player/utils/Utils.mjs', async (importOriginal) => {
 
 const {SaveManager} = await import('../../chrome/player/ui/SaveManager.mjs');
 const {streamSaver} = await import('../../chrome/player/modules/StreamSaver.mjs');
+const {AlertPolyfill} = await import('../../chrome/player/utils/AlertPolyfill.mjs');
 
 /**
  * A client whose player saves what the test says.
@@ -133,6 +134,43 @@ describe('SaveManager: the URL of a finished save', () => {
     expect(created).toEqual(['blob:save-1']);
     await vi.advanceTimersByTimeAsync(120000);
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  // Saved again after another quality or audio track was picked, it was the previous one's
+  // file under the new name (review, 2026-10-09).
+  it('makes the file again once the quality has changed', async () => {
+    let level = '1080p';
+    const player = {
+      canSave: () => ({canSave: true, isComplete: true, canStream: false}),
+      saveVideo: vi.fn(async () => ({blob: new Blob([level])})),
+      getCurrentVideoLevelID: () => level,
+      getCurrentAudioLevelID: () => 'en',
+    };
+    const manager = new SaveManager(makeClient(player));
+    await manager.saveVideo({});
+    level = '720p';
+    await manager.saveVideo({});
+    expect(player.saveVideo).toHaveBeenCalledTimes(2);
+  });
+
+  // A second click while the first still asked for the file name started a second save.
+  it('starts one save for two clicks while the name is asked', async () => {
+    let answer;
+    vi.spyOn(AlertPolyfill, 'prompt').mockImplementation(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const player = {
+      canSave: () => ({canSave: true, isComplete: true, canStream: true}),
+      saveVideo: vi.fn(async () => ({blob: null})),
+    };
+    streamSaver.createWriteStream.mockReturnValue({abort: async () => {}});
+    const manager = new SaveManager(makeClient(player));
+    const first = manager.saveVideo({});
+    await vi.advanceTimersByTimeAsync(0);
+    await manager.saveVideo({});
+    answer('clip');
+    await first;
+    expect(player.saveVideo).toHaveBeenCalledTimes(1);
   });
 });
 
