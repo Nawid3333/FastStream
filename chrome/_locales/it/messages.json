@@ -963,7 +963,7 @@
         "message": "Velocità di download obiettivo del predownloader"
     },
     "options_general_maxsize": {
-        "message": "Dimensione massima del video prescaricato"
+        "message": "Dimensione massima del video prescaricato (usata solo quando lo scaricamento anticipato è attivo)"
     },
     "options_general_rambudget": {
         "message": "RAM per il video nel buffer (tutte le schede)"

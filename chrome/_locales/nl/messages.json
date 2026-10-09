@@ -963,7 +963,7 @@
         "message": "Gewenste downloadsnelheid voor het voorladen"
     },
     "options_general_maxsize": {
-        "message": "Maximale grootte van vooraf gedownloade video"
+        "message": "Maximale grootte van vooraf gedownloade video (alleen gebruikt wanneer vooraf downloaden aan staat)"
     },
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"

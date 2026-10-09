@@ -963,7 +963,7 @@
         "message": "预下载器的目标下载速度"
     },
     "options_general_maxsize": {
-        "message": "预下载视频的最大大小"
+        "message": "预下载视频的最大大小（仅在预下载开启时使用）"
     },
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"

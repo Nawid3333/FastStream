@@ -963,7 +963,7 @@
         "message": "プリダウンローダーのターゲット速度"
     },
     "options_general_maxsize": {
-        "message": "プリダウンロードする動画の最大サイズ"
+        "message": "プリダウンロードする動画の最大サイズ（事前ダウンロードがオンのときのみ使用）"
     },
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"

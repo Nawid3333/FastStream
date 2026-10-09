@@ -963,7 +963,7 @@
         "message": "Kecepatan unduh target predownloader"
     },
     "options_general_maxsize": {
-        "message": "Ukuran maksimum video yang dipraunduh"
+        "message": "Ukuran maksimum video yang dipraunduh (hanya digunakan saat predownload aktif)"
     },
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"

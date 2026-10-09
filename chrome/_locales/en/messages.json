@@ -963,7 +963,7 @@
         "message": "Target download speed of predownloader"
     },
     "options_general_maxsize": {
-        "message": "Maximum size of predownloaded video"
+        "message": "Maximum size of predownloaded video (used only when predownload is on)"
     },
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"

@@ -963,7 +963,7 @@
         "message": "Zielgeschwindigkeit fürs Vorladen"
     },
     "options_general_maxsize": {
-        "message": "Maximale Größe für vorgeladene Videos"
+        "message": "Maximale Größe für vorgeladene Videos (nur bei aktiviertem Vorab-Laden)"
     },
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"

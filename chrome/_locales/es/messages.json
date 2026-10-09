@@ -963,7 +963,7 @@
         "message": "Velocidad de descarga objetivo del predescargador"
     },
     "options_general_maxsize": {
-        "message": "Tamaño máximo de video predescargado"
+        "message": "Tamaño máximo de video predescargado (solo se usa cuando la descarga previa está activada)"
     },
     "options_general_rambudget": {
         "message": "RAM para el vídeo en búfer (todas las pestañas)"

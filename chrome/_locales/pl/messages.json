@@ -963,7 +963,7 @@
         "message": "Docelowa prędkość wstępnego pobierania"
     },
     "options_general_maxsize": {
-        "message": "Maksymalny rozmiar wstępnie pobranego wideo"
+        "message": "Maksymalny rozmiar wstępnie pobranego wideo (używany tylko, gdy wstępne pobieranie jest włączone)"
     },
     "options_general_rambudget": {
         "message": "RAM na buforowane wideo (wszystkie karty)"

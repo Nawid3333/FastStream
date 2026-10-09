@@ -963,7 +963,7 @@
         "message": "Ön indiricinin hedef indirme hızı"
     },
     "options_general_maxsize": {
-        "message": "Önceden indirilen videonun maksimum boyutu"
+        "message": "Önceden indirilen videonun maksimum boyutu (yalnızca ön indirme açıkken kullanılır)"
     },
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"

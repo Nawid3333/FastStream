@@ -963,7 +963,7 @@
         "message": "預先下載器目標下載速度"
     },
     "options_general_maxsize": {
-        "message": "預先下載影片最大大小"
+        "message": "預先下載影片最大大小（僅在預先下載開啟時使用）"
     },
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"

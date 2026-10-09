@@ -660,8 +660,11 @@ export class FastStreamClient extends EventEmitter {
       if (this.hasDownloadSpace) {
         this.state.bufferBehind = this.options.bufferBehind;
         this.state.bufferAhead = this.options.bufferAhead;
-        const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
-        this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [timestr]), 'warning', 5000);
+        // Only for a predownload asked for: without it there is nothing to fit.
+        if (this.options.downloadAll) {
+          const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
+          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [timestr]), 'warning', 5000);
+        }
         this.hasDownloadSpace = false;
       }
     } else {
@@ -692,7 +695,10 @@ export class FastStreamClient extends EventEmitter {
         }
 
         const newHasDownloadSpace = (bitrate * this.duration) * (this.hasDownloadSpace ? 1 : 1.1) < storageAvailable;
-        if (!newHasDownloadSpace && this.hasDownloadSpace) {
+        // Only with predownload on: without it the maximum size is not used (Buffer ahead
+        // decides), yet a size below the video's said "Video size exceeds limits" on every
+        // video and pinned what had been downloaded (#378, a size of 10 MB).
+        if (!newHasDownloadSpace && this.hasDownloadSpace && this.options.downloadAll) {
           // Storage just ran out mid-session. Grandfather in everything
           // already downloaded so the windowed bufferAhead/bufferBehind
           // fallback below only holds back *future* downloads - it must

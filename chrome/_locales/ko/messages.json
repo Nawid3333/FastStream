@@ -963,7 +963,7 @@
         "message": "사전 다운로드의 목표 속도"
     },
     "options_general_maxsize": {
-        "message": "사전 다운로드할 비디오의 최대 크기"
+        "message": "사전 다운로드할 비디오의 최대 크기 (사전 다운로드가 켜져 있을 때만 사용)"
     },
     "options_general_rambudget": {
         "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"

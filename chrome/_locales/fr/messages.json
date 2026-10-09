@@ -963,7 +963,7 @@
         "message": "Vitesse de téléchargement cible du préchargeur"
     },
     "options_general_maxsize": {
-        "message": "Taille maximale de la vidéo préchargée"
+        "message": "Taille maximale de la vidéo préchargée (utilisée uniquement lorsque le pré-téléchargement est activé)"
     },
     "options_general_rambudget": {
         "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"

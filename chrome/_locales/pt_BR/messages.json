@@ -963,7 +963,7 @@
         "message": "Velocidade alvo de download do pré-downloader"
     },
     "options_general_maxsize": {
-        "message": "Tamanho máximo do vídeo pré-baixado"
+        "message": "Tamanho máximo do vídeo pré-baixado (usado apenas quando o pré-download está ativado)"
     },
     "options_general_rambudget": {
         "message": "RAM para o vídeo em buffer (todas as abas)"

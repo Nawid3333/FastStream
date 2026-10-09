@@ -963,7 +963,7 @@
         "message": "Sasaran kelajuan muat turun bagi pemuat turun awal"
     },
     "options_general_maxsize": {
-        "message": "Saiz maksimum video yang dimuat turun awal"
+        "message": "Saiz maksimum video yang dimuat turun awal (digunakan hanya apabila muat turun awal dihidupkan)"
     },
     "options_general_rambudget": {
         "message": "RAM untuk video yang ditimbal (semua tab)"
