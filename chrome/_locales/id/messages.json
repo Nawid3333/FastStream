@@ -978,7 +978,7 @@
         "message": "0: tidak ada yang dipraunduh; hanya detik yang diatur di bawah yang disimpan di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
     },
     "options_general_rambudget_zero": {
-        "message": "0: tidak ada RAM untuk video yang diunduh, jadi tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+        "message": "0: video yang diunduh tidak disimpan di RAM, melainkan di disk, kecuali beberapa detik berikutnya. Di jendela privat, yang tidak menyimpan apa pun di disk, tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
     },
     "options_general_rambudget_none": {
         "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."
@@ -990,7 +990,7 @@
         "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat. Biarkan kolom kosong untuk tanpa batas."
     },
     "options_general_bufferahead_none": {
-        "message": "Tanpa batas: seluruh video diunduh di depan, bahkan saat predownload nonaktif: di RAM, lalu pindah ke disk setelah batas RAM di atas penuh."
+        "message": "Tanpa batas: seluruh video diunduh di depan, bahkan saat predownload nonaktif: di RAM, lalu pindah ke disk setelah batas RAM di atas penuh. Jika kecepatan unduhan di atas adalah 0, tidak ada yang diunduh di depan."
     },
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"

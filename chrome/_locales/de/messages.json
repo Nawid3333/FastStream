@@ -978,7 +978,7 @@
         "message": "0: Es wird nichts vorab geladen; nur die unten eingestellte Anzahl von Sekunden wird im Voraus zwischengespeichert. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_zero": {
-        "message": "0: Kein Arbeitsspeicher für heruntergeladenes Video, daher wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+        "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_none": {
         "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."
@@ -990,7 +990,7 @@
         "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_bufferahead_none": {
-        "message": "Keine Begrenzung: Das gesamte Video wird vorgeladen, auch wenn Vorab-Laden deaktiviert ist – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist."
+        "message": "Keine Begrenzung: Das gesamte Video wird vorgeladen, auch wenn Vorab-Laden deaktiviert ist – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist. Ist die obige Download-Geschwindigkeit 0, wird nichts vorgeladen."
     },
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"

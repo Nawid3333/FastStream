@@ -978,7 +978,7 @@
         "message": "0: nada é pré-baixado; apenas os segundos definidos abaixo são mantidos em buffer à frente da reprodução. Deixe o campo vazio para não haver limite."
     },
     "options_general_rambudget_zero": {
-        "message": "0: sem RAM para o vídeo baixado, então nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
+        "message": "0: o vídeo baixado não fica na RAM, mas no disco, exceto os próximos segundos. Em uma janela privativa, que não guarda nada no disco, nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
     },
     "options_general_rambudget_none": {
         "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Em um computador com pouca memória, o Firefox pode ficar lento."
@@ -990,7 +990,7 @@
         "message": "0: nada é mantido em buffer à frente, então o vídeo para com frequência para carregar. Deixe o campo vazio para não haver limite."
     },
     "options_general_bufferahead_none": {
-        "message": "Sem limite: o vídeo inteiro é baixado antecipadamente, mesmo com o pré-download desativado: na RAM, e depois no disco, quando o limite de RAM acima for atingido."
+        "message": "Sem limite: o vídeo inteiro é baixado antecipadamente, mesmo com o pré-download desativado: na RAM, e depois no disco, quando o limite de RAM acima for atingido. Se a velocidade de download acima for 0, nada é baixado antecipadamente."
     },
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"

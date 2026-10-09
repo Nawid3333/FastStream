@@ -978,7 +978,7 @@
         "message": "0: tiada apa-apa yang dimuat turun awal; hanya bilangan detik yang ditetapkan di bawah dikekalkan di hadapan. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_rambudget_zero": {
-        "message": "0: tiada RAM untuk video yang dimuat turun, jadi tiada apa-apa yang dimuat turun di hadapan main balik. Biarkan medan ini kosong jika anda mahu tanpa had."
+        "message": "0: video yang dimuat turun tidak disimpan dalam RAM, tetapi pada cakera, kecuali beberapa saat berikutnya. Dalam tetingkap peribadi, yang tidak menyimpan apa-apa pada cakera, tiada apa-apa yang dimuat turun di hadapan main balik. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_rambudget_none": {
         "message": "Tanpa had: semua video yang dimuat turun kekal dalam RAM, tiada yang disimpan pada cakera. Pada PC dengan memori kecil, Firefox mungkin menjadi perlahan."
@@ -990,7 +990,7 @@
         "message": "0: tiada apa-apa yang dikekalkan dalam penampan di hadapan, jadi video kerap berhenti untuk memuatkan. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_bufferahead_none": {
-        "message": "Tanpa had: keseluruhan video dimuat turun di hadapan main balik, walaupun muat turun awal dimatikan: dalam RAM, kemudian pada cakera apabila had RAM di atas telah penuh."
+        "message": "Tanpa had: keseluruhan video dimuat turun di hadapan main balik, walaupun muat turun awal dimatikan: dalam RAM, kemudian pada cakera apabila had RAM di atas telah penuh. Jika kelajuan muat turun di atas ialah 0, tiada apa-apa yang dimuat turun di hadapan main balik."
     },
     "options_general_bufferbehind": {
         "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"

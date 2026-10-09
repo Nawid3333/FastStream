@@ -978,7 +978,7 @@
         "message": "0: non viene precaricato nulla; solo i secondi impostati qui sotto vengono mantenuti davanti alla riproduzione. Lascia vuoto il campo per rimuovere il limite."
     },
     "options_general_rambudget_zero": {
-        "message": "0: nessuna RAM per il video scaricato, quindi non viene scaricato nulla in anticipo. Lascia vuoto il campo per rimuovere il limite."
+        "message": "0: il video scaricato non viene tenuto in RAM ma su disco, tranne i prossimi secondi. In una finestra privata, che non salva nulla su disco, non viene scaricato nulla in anticipo. Lascia vuoto il campo per rimuovere il limite."
     },
     "options_general_rambudget_none": {
         "message": "Nessun limite: tutto il video scaricato rimane nella RAM, nulla viene salvato su disco. Su un PC con poca memoria, Firefox potrebbe rallentare."
@@ -990,7 +990,7 @@
         "message": "0: non viene mantenuto nulla nel buffer davanti alla riproduzione, quindi il video si ferma spesso per caricare. Lascia il campo vuoto per non avere limiti."
     },
     "options_general_bufferahead_none": {
-        "message": "Nessun limite: l'intero video viene scaricato in anticipo, anche quando lo scaricamento anticipato è disattivato: in RAM, poi su disco una volta raggiunto il limite di RAM sopra."
+        "message": "Nessun limite: l'intero video viene scaricato in anticipo, anche quando lo scaricamento anticipato è disattivato: in RAM, poi su disco una volta raggiunto il limite di RAM sopra. Se la velocità di download sopra è 0, non viene scaricato nulla in anticipo."
     },
     "options_general_bufferbehind": {
         "message": "Secondi da mantenere nel buffer dietro la posizione di riproduzione prima di scartarli"

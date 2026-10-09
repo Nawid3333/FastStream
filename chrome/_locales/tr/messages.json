@@ -978,7 +978,7 @@
         "message": "0: hiçbir şey önceden indirilmez; yalnızca aşağıda ayarlanan saniye sayısı oynatma noktasının ilerisinde tutulur. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_rambudget_zero": {
-        "message": "0: indirilen video için RAM ayrılmaz, bu yüzden oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
+        "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_rambudget_none": {
         "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."
@@ -990,7 +990,7 @@
         "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_bufferahead_none": {
-        "message": "Sınırsız: ön indirme kapalıyken bile videonun tamamı önceden indirilir; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur."
+        "message": "Sınırsız: ön indirme kapalıyken bile videonun tamamı önceden indirilir; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur. Yukarıdaki indirme hızı 0 ise, hiçbir şey önceden indirilmez."
     },
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
