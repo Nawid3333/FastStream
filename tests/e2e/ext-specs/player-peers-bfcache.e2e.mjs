@@ -12,10 +12,16 @@
 //
 // Both players are in one tab - a page, then the next page with its own player - because a
 // tab WebDriver opens meanwhile drops the first tab's cached page by itself (measured).
+//
+// The page is left only once nothing is loading: a request in flight keeps a page out of the
+// cache too (Firefox's REQUEST flag). The GitHub build's options page, in every player, asks
+// GitHub for the latest version once in 12 hours - on the first player of the test's fresh
+// profile - and the test left the page 70 ms into that request (the SHIPBFCache log of
+// PR #366's second CI run). Someone leaving a page that fast would lose the cache the same way.
 
 import {browser, expect} from '@wdio/globals';
 
-import {OPENER_URL} from '../wdio.extension.conf.mjs';
+import {BUILD, OPENER_URL} from '../wdio.extension.conf.mjs';
 
 /**
  * Loads the page that embeds a player, and waits until that player has announced itself.
@@ -31,6 +37,18 @@ async function openEmbed(query) {
   await browser.switchFrame(await browser.$('iframe#fs'));
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.peers?.lastAnnounced),
       {timeout: 30000, timeoutMsg: 'the player never announced itself'});
+  if (BUILD === 'github') {
+    // Stored once the request has ended (options.mjs).
+    await browser.waitUntil(async () => browser.executeAsync((done) => {
+      chrome.storage.local.get('updateData', (result) => {
+        try {
+          done(!!JSON.parse(result?.updateData || '{}').lastUpdateCheck);
+        } catch (e) {
+          done(false);
+        }
+      });
+    }), {timeout: 30000, interval: 250, timeoutMsg: 'the update check of the GitHub build never ended'});
+  }
   await browser.switchFrame(null);
 }
 

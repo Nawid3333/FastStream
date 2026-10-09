@@ -14,12 +14,16 @@ export class UpdateChecker {
    */
   static async getLatestVersion() {
     const xhr = await RequestUtils.requestSimple(PACKAGE_JSON_URL);
-    if (xhr.status !== 200) {
+    // No answer at all (offline): requestSimple gives no request back.
+    if (!xhr || xhr.status !== 200) {
       return null;
     }
-    const body = xhr.responseText;
-    const json = JSON.parse(body);
-    return json.version;
+    try {
+      const version = JSON.parse(xhr.responseText)?.version;
+      return typeof version === 'string' ? version : null;
+    } catch (e) {
+      return null;
+    }
   }
 
   /**
