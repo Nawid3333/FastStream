@@ -134,34 +134,37 @@
                 <div class="option search-target-remove grid2" style="margin-left: 25px">
                     <div class="label search-target-text" data-i18n="options_general_targetspeed"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="maxspeed" placeholder="∞"
+                        <input class="number" type="text" inputmode="decimal" id="maxspeed" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_targetspeed"></input>
                         <span class="unit">Mbit/s</span>
                     </div>
+                    <div class="limit-hint" id="maxspeedhint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_maxsize"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="maxsize" placeholder="∞"
+                        <input class="number" type="text" inputmode="decimal" id="maxsize" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_maxsize"></input>
                         <select id="maxsizeunit" data-i18n-label="options_general_maxsize">
                             <option value="1000000">MB</option>
                             <option value="1000000000">GB</option>
                         </select>
                     </div>
+                    <div class="limit-hint" id="maxsizehint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_rambudget"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="rambudget"
+                        <input class="number" type="text" inputmode="decimal" id="rambudget" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_rambudget"></input>
                         <select id="rambudgetunit" data-i18n-label="options_general_rambudget">
                             <option value="1000000">MB</option>
                             <option value="1000000000">GB</option>
                         </select>
                     </div>
+                    <div class="limit-hint" id="rambudgethint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 5px">
@@ -287,8 +290,11 @@
                         <br>
                         <div class="option grid2">
                             <div class="label search-target-text" data-i18n="options_general_minisize"></div>
-                            <input class="number" type="number" id="minisize" step="0.1"
-                                data-i18n-label="options_general_minisize"></input>
+                            <div class="amount">
+                                <input class="number" type="text" inputmode="decimal" id="minisize"
+                                    data-i18n-label="options_general_minisize"></input>
+                                <span class="unit">%</span>
+                            </div>
                         </div>
                     </div>
                 </div>

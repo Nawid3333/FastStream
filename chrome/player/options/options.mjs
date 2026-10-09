@@ -165,7 +165,8 @@ async function loadOptions(newOptions) {
   bufferBehind.value = Options.bufferBehind;
   seekStepSize.value = Math.round(Options.seekStepSize * 100) / 100;
   customSourcePatterns.value = Options.customSourcePatterns || '';
-  miniSize.value = Options.miniSize;
+  // A part of the player, shown in percent: 0.25 left users typing 25, which was 100%.
+  miniSize.value = Math.round(Options.miniSize * 1000) / 10;
   storeProgress.checked = !!Options.storeProgress;
   replaceDelay.value = Options.replaceDelay;
   maxdownloaders.value = Options.maximumDownloaders;
@@ -322,7 +323,12 @@ document.querySelectorAll('.video-option').forEach((option) => {
   const optionKey = option.dataset.option;
 
   function numberInputChanged() {
-    const value = parseInt(numberInput.value.replace(unit, '')) || 0;
+    const text = numberInput.value.replace(unit, '').trim();
+    const value = parseInt(text);
+    // An emptied field is no value: clearing it to type a new one saved 0 at once, an
+    // invisible (zoom) or black (brightness) video until the next key. Left so, the field
+    // shows the value set again (the change handler).
+    if (text === '' || !Number.isFinite(value)) return;
     rangeInput.value = value;
     Options[optionKey] = (option.dataset.nolimits ? value : parseInt(rangeInput.value)) / unitMultiplier;
     optionChanged();
@@ -517,7 +523,10 @@ mpvSingleInstanceToggle.addEventListener('change', () => {
  */
 function samePath(typed, found) {
   const norm = (p) => p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
-  return norm(typed) === norm(found) || norm(typed) + '\\mpv.exe' === norm(found);
+  // A folder: mpv.exe in it on Windows, mpv on Linux (/usr/bin for /usr/bin/mpv said "found
+  // at another path").
+  return norm(typed) === norm(found) || norm(typed) + '\\mpv.exe' === norm(found) ||
+    norm(typed) + '\\mpv' === norm(found);
 }
 
 mpvTestButton.addEventListener('click', () => {
@@ -618,16 +627,41 @@ blockPopupsWhilePlaying.addEventListener('change', () => {
 
 // The speed and the two sizes are a number with a unit beside it: typed as text, "10 Mb",
 // "10 Mo" and "10" left users unsure what the field took (#378). The values are kept as
-// before: bytes per second, bytes, -1 for no limit.
+// before: bytes per second, bytes, -1 for no limit. An empty field is no limit, and 0 is
+// none: 0 Mbit/s downloads nothing ahead, 0 MB predownloads nothing, 0 MB of RAM keeps
+// nothing ahead in RAM. 0 read as "no limit" surprised the user who typed it to turn a
+// thing off (2026-10-09).
 const BYTES_PER_MBIT_PER_S = 1000000 / 8;
 const GB = 1000 ** 3;
 
 /**
- * Shows the maximum speed in Mbit/s, as speed tests give it; nothing (∞) for no limit.
+ * Shows the maximum speed in Mbit/s, as speed tests give it; nothing (no limit) for -1.
  * @param {number} bytesPerSecond
  */
 function showSpeed(bytesPerSecond) {
   maxSpeed.value = bytesPerSecond >= 0 ? String(Math.round(bytesPerSecond / BYTES_PER_MBIT_PER_S * 1000) / 1000) : '';
+  showLimitHint(maxSpeed, bytesPerSecond);
+}
+
+// What a limit of 0, or no limit, does, under the field: both are easy to set without
+// meaning to, and their effect is not visible on the page.
+const LIMIT_HINTS = {
+  maxspeed: {zero: 'options_general_targetspeed_zero'},
+  maxsize: {zero: 'options_general_maxsize_zero'},
+  rambudget: {zero: 'options_general_rambudget_zero', none: 'options_general_rambudget_none'},
+};
+
+/**
+ * Shows, under a limit's field, what 0 or no limit means for it; nothing for other values.
+ * @param {HTMLInputElement} input
+ * @param {number} value - The limit as saved: -1 for none.
+ */
+function showLimitHint(input, value) {
+  const hint = document.getElementById(input.id + 'hint');
+  const key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
+  if (!hint) return;
+  hint.textContent = key ? Localize.getMessage(key) : '';
+  hint.hidden = !key;
 }
 
 /**
@@ -644,54 +678,58 @@ function showSize(input, unit, bytes, keepUnit = false) {
   // GB only when its three decimals hold the size: 1234.4 MB came back as 1.234 GB.
   if (!keepUnit) unit.value = String(!(bytes >= 0) || (bytes >= GB && bytes % (GB / 1000) === 0) ? GB : GB / 1000);
   input.value = bytes >= 0 ? String(Math.round(bytes / Number(unit.value) * 1000) / 1000) : '';
+  showLimitHint(input, bytes);
 }
 
 /**
- * The amount a field holds, times its unit; NaN when it holds no number above 0. A comma is
- * a decimal point ("1,5", as French and German write it): a number field would have taken
- * only the page language's, and "1,5" was cut to 1. Read to the three decimals the field
- * shows (showSpeed, showSize), so what is saved is what it says: 0.0001 MB was saved as 100
- * bytes and shown as 0. 0 is no amount, so no limit, as an empty field: a limit of 0 Mbit/s
- * held back reading ahead whenever anything downloaded, and a size of 0 was read as no limit
- * while the field said 0. Too big to hold (1e308 MB) is no amount either: saved as JSON, it
- * read back as null.
+ * The limit a field holds, times its unit: -1 (no limit) for an empty field, the amount for
+ * a number from 0 up, and null for anything else (letters, a negative number, one too big to
+ * save: 1e308 GB was saved as Infinity, which JSON keeps as null), which leaves the limit as
+ * it was. A comma is a decimal point ("1,5", as French and German write it): a number field
+ * would have taken only the page language's, and "1,5" was cut to 1. Read to the three
+ * decimals the field shows (showSpeed, showSize), so what is saved is what it says: 0.0001 MB
+ * was saved as 100 bytes and shown as 0, which is none.
  * @param {HTMLInputElement} input
  * @param {number} multiplier
- * @return {number}
+ * @return {?number}
  */
-function readAmount(input, multiplier) {
-  const shown = Math.round(parseFloat(input.value.trim().replace(',', '.')) * 1000) / 1000;
+function readLimit(input, multiplier) {
+  const text = input.value.trim().replace(',', '.');
+  if (text === '') return -1;
+  // Number() rather than parseFloat(): "10 MB" or "5x" is no number, not 10 or 5.
+  const shown = Math.round(Number(text) * 1000) / 1000;
   const amount = Math.round(shown * multiplier);
-  return Number.isFinite(amount) && amount > 0 ? amount : NaN;
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
 // Written back (in the unit picked: showSize) when the field is left or a unit picked - a
-// trusted change - not on a save while typing, where it fought the keys being typed.
+// trusted change - not on a save while typing, where it fought the keys being typed. A field
+// that holds no limit shows the one saved again then.
 maxSpeed.addEventListener('change', (e) => {
-  const value = readAmount(maxSpeed, BYTES_PER_MBIT_PER_S);
-  Options.maxSpeed = Number.isNaN(value) ? -1 : value;
+  const value = readLimit(maxSpeed, BYTES_PER_MBIT_PER_S);
+  if (value !== null) Options.maxSpeed = value;
   if (e.isTrusted) showSpeed(Options.maxSpeed);
-  optionChanged();
+  if (value !== null) optionChanged();
 });
 
 const onMaxSizeChange = (e) => {
-  const value = readAmount(maxSize, Number(maxSizeUnit.value));
-  Options.maxVideoSize = Number.isNaN(value) ? -1 : value;
+  const value = readLimit(maxSize, Number(maxSizeUnit.value));
+  if (value !== null) Options.maxVideoSize = value;
   if (e.isTrusted) showSize(maxSize, maxSizeUnit, Options.maxVideoSize, true);
-  optionChanged();
+  if (value !== null) optionChanged();
 };
 maxSize.addEventListener('change', onMaxSizeChange);
 // Another unit, the same number: "2" from MB to GB is 2 GB.
 maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
-// The RAM all players keep downloaded video in (MemoryBudget). Not unlimited: every
-// FastStream page runs in one Firefox process. Nothing readable is the default.
-const MIN_RAM_BUDGET = 256000000;
+// The RAM all players keep downloaded video in (MemoryBudget); beyond it, it goes to disk
+// (a private window lets it go). Empty: no limit, all of it in RAM. 0: none in RAM, so
+// nothing is downloaded ahead of playback.
 const onRamBudgetChange = (e) => {
-  const value = readAmount(ramBudget, Number(ramBudgetUnit.value));
-  Options.ramBudget = value > 0 ? Math.max(value, MIN_RAM_BUDGET) : DefaultOptions.ramBudget;
+  const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
+  if (value !== null) Options.ramBudget = value;
   if (e.isTrusted) showSize(ramBudget, ramBudgetUnit, Options.ramBudget, true);
-  optionChanged();
+  if (value !== null) optionChanged();
 };
 ramBudget.addEventListener('change', onRamBudgetChange);
 ramBudgetUnit.addEventListener('change', onRamBudgetChange);
@@ -735,16 +773,15 @@ replaceDelay.addEventListener('change', () => {
 });
 
 miniSize.addEventListener('change', () => {
-  Options.miniSize = readNumberField(miniSize, 0.25, 0.01, 1);
+  Options.miniSize = readNumberField(miniSize, DefaultOptions.miniSize * 100, 1, 100) / 100;
   optionChanged();
 });
 
 // 1 to 6, the browser's limit per server; 0 or less is the default, as the downloader reads
 // it. 0 meant "never add one" to the downloader and "no limit" to the add-downloader key.
+// Empty is no limit, the most a browser opens to one server (6, the default); 0 is the least
+// that still downloads, 1. 0 was read as the default 6, the most (2026-10-09).
 maxdownloaders.addEventListener('change', () => {
-  if (!(parseInt(maxdownloaders.value) > 0)) {
-    maxdownloaders.value = '';
-  }
   Options.maximumDownloaders = readNumberField(maxdownloaders, DefaultOptions.maximumDownloaders, 1, 6, true);
   optionChanged();
 });

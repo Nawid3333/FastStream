@@ -679,7 +679,8 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
         let storageAvailable = (this.storageAvailable * 8) * 0.6;
-        if (this.options.maxVideoSize > 0 && this.options.maxVideoSize * 8 < storageAvailable) {
+        // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
+        if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
         }
 
@@ -1318,7 +1319,9 @@ export class FastStreamClient extends EventEmitter {
   keepWithinMemoryBudget() {
     const manager = this.downloadManager;
     if (!manager?.blobStore || !this.peers) return;
-    const budget = this.options.ramBudget > 0 ? this.options.ramBudget : DEFAULT_BUDGET_BYTES;
+    // -1 (an empty field) is no limit, and 0 none: all of it in RAM, or nothing kept ahead.
+    const setting = this.options.ramBudget;
+    const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
     const watched = this.peers.visible() && !!this.state.playing;
     const others = this.peers.livePeers().map((peer) => ({
       ramBytes: peer.ramBytes,
@@ -1426,9 +1429,14 @@ export class FastStreamClient extends EventEmitter {
       return false;
     }
 
-    // throttle download speed if needed
+    // throttle download speed if needed. A limit of 0 downloads nothing ahead: it held
+    // downloads back only while something downloaded, so videos still read ahead in bursts.
+    // A save fetches its own (SaveFragmentFetcher), and playback's own requests still go.
+    if (this.options.maxSpeed === 0) {
+      return false;
+    }
     const speed = this.downloadManager.getSpeed();
-    if (this.options.maxSpeed >= 0 && speed > this.options.maxSpeed) {
+    if (this.options.maxSpeed > 0 && speed > this.options.maxSpeed) {
       return false;
     }
 

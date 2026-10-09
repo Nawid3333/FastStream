@@ -150,7 +150,7 @@ function makeClient(options = {}) {
     options: {
       autoPlay: false, autoplayNext: false, storeProgress: false, disableLoadProgress: false,
       previewEnabled: false, videoDelay: 0, freeUnusedChannels: true, downloadAll: false,
-      bufferAhead: 300, bufferBehind: 20, maxVideoSize: 0,
+      bufferAhead: 300, bufferBehind: 20, maxVideoSize: -1,
       ...options,
     },
     state: {
@@ -695,5 +695,93 @@ describe('FastStreamClient, a video codec that failed to decode for good', () =>
     client.restoreCarriedDecodeFailures({url: 'https://cdn.example/other.mpd'});
     expect(client.getLevelManager().isVideoCodecFailed(HEVC)).toBe(false);
     expect(client.carriedDecodeFailures).toBe(null);
+  });
+});
+
+// A limit of 0 is none, and an empty field (-1) no limit: 0 read as no limit (or as a
+// trickle) surprised the user who typed it to turn a thing off (2026-10-09).
+describe('FastStreamClient, limits of 0 and no limit', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A finite video, 1400 s at 0.5 Mbit/s (88 MB), on a disk with room to spare. */
+  function clientWithVideo(options) {
+    const client = makeClient(options);
+    const player = new FakePlayer(makeSource('http://127.0.0.1/episode.mp4'));
+    player.duration = 1400;
+    player.videoLevel = 'video-1';
+    player.getVideoLevels = () => new Map([['video-1', {bitrate: 5e5}]]);
+    client.player = player;
+    client.hasDownloadSpace = true;
+    client.storageAvailable = 1e12;
+    return client;
+  }
+
+  it('predownloads nothing with a maximum size of 0, and all of it with no limit', () => {
+    const none = clientWithVideo({downloadAll: true, maxVideoSize: 0});
+    none.updateHasDownloadSpace();
+    expect(none.hasDownloadSpace).toBe(false);
+    expect(none.shouldDownloadAll()).toBeFalsy();
+
+    const unlimited = clientWithVideo({downloadAll: true, maxVideoSize: -1});
+    unlimited.updateHasDownloadSpace();
+    expect(unlimited.hasDownloadSpace).toBe(true);
+  });
+
+  /**
+   * Runs the predownloader once, with one fragment waiting to be downloaded.
+   * @return {number} How many downloads it started.
+   */
+  function predownloadOnce({maxSpeed, speed}) {
+    vi.stubGlobal('navigator', {onLine: true});
+    const client = makeClient({maxSpeed});
+    const fragment = {start: 1, end: 2, canFree: () => true, getContext: () => ({})};
+    let waiting = [fragment];
+    client.getNextToDownload = () => waiting.shift() || null;
+    client.getVideoAhead = () => 120;
+    client.needsUserInteraction = () => false;
+    client.videoAnalyzer = {isRunning: () => false};
+    client.interfaceController.saveManager = {makingDownload: false};
+    client.downloadManager = {yielding: false, memoryFull: false, getSpeed: () => speed,
+      canGetFile: () => true, activeCount: () => 0};
+    client.player = {downloadFragment: vi.fn(() => Promise.resolve())};
+    client.predownloadFragments();
+    waiting = [];
+    return client.player.downloadFragment.mock.calls.length;
+  }
+
+  it('downloads nothing ahead at a speed limit of 0, also while nothing downloads', () => {
+    // Held back only while something downloaded, a limit of 0 still read ahead in bursts.
+    expect(predownloadOnce({maxSpeed: 0, speed: 0})).toBe(0);
+    expect(predownloadOnce({maxSpeed: 0, speed: 5e5})).toBe(0);
+  });
+
+  it('downloads ahead with no speed limit, and under a limit it has not reached', () => {
+    expect(predownloadOnce({maxSpeed: -1, speed: 1e9})).toBe(1);
+    expect(predownloadOnce({maxSpeed: 125000, speed: 1000})).toBe(1);
+    expect(predownloadOnce({maxSpeed: 125000, speed: 200000})).toBe(0);
+  });
+
+  /** Whether the RAM budget counts this player full, holding this many bytes in RAM. */
+  function ramFull(ramBudget, held) {
+    const client = makeClient({ramBudget});
+    client.state.playing = true;
+    client.peers = {visible: () => true, livePeers: () => []};
+    client.downloadManager = {blobStore: {}, memoryFull: false, ramBytes: () => held,
+      spillingBytes: () => 0, canSpill: () => true, ramBytesOf: () => 0};
+    client.keepWithinMemoryBudget();
+    return client.downloadManager.memoryFull;
+  }
+
+  it('keeps nothing ahead in RAM with a RAM budget of 0, and no bound with no limit', () => {
+    // 0 and the empty field were both read as the 2 GB default.
+    expect(ramFull(0, 0)).toBe(true);
+    expect(ramFull(0, 1e6)).toBe(true);
+    expect(ramFull(-1, 50e9)).toBe(false);
+    // A budget the options never set is the default, 2 GB.
+    expect(ramFull(undefined, 1e9)).toBe(false);
+    expect(ramFull(undefined, 3e9)).toBe(true);
+    expect(ramFull(1e9, 3e9)).toBe(true);
   });
 });

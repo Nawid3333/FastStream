@@ -59,11 +59,38 @@ describe('Options page number fields', function() {
     expect(await savedOption('replaceDelay')).toBe(0);
   });
 
-  it('reads a downloader limit of 0 as the default, and caps it at 6', async function() {
-    expect(await setField('maxdownloaders', '0')).toBe('6');
+  // 0 is the least that still downloads (1), and empty no limit, the most (6). 0 was read as
+  // the default 6, the most (2026-10-09).
+  it('reads a downloader limit of 0 as the least, empty as the most, and caps it at 6', async function() {
+    expect(await setField('maxdownloaders', '0')).toBe('1');
+    expect(await setField('maxdownloaders', '')).toBe('6');
     expect(await setField('maxdownloaders', '9')).toBe('6');
     expect(await setField('maxdownloaders', '3')).toBe('3');
     expect(await savedOption('maximumDownloaders')).toBe(3);
+  });
+
+  // 0.25 left users typing 25, which was capped to the whole player.
+  it('takes the mini player size in percent', async function() {
+    expect(await browser.execute(() => document.getElementById('minisize').value)).toBe('25');
+    expect(await setField('minisize', '40')).toBe('40');
+    expect(await savedOption('miniSize')).toBe(0.4);
+    expect(await setField('minisize', '0')).toBe('1');
+  });
+
+  // Clearing a video filter's field to type a new number saved 0 at once: an invisible
+  // (zoom) or black (brightness) video until the next key.
+  it('saves nothing for an emptied video filter field, and shows the value again when left', async function() {
+    const zoom = await browser.execute(() => {
+      const input = document.querySelector('[data-option="videoZoom"] input.number');
+      input.value = '';
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      input.dispatchEvent(new Event('change', {bubbles: true}));
+      return input.value;
+    });
+    expect(zoom).toBe('100%');
+    await browser.pause(500);
+    const saved = await browser.execute(() => JSON.parse(localStorage.getItem('options') || '{}').videoZoom);
+    expect(saved === undefined || saved === 1).toBe(true);
   });
 });
 
@@ -222,6 +249,25 @@ describe('Options page size fields, typed by hand', function() {
     [document.getElementById(id).value, document.getElementById(id + 'unit').selectedOptions[0].textContent], id);
 
   /**
+   * What the hint under a limit's field says; null while it is hidden.
+   * @param {string} id
+   * @return {Promise<?string>}
+   */
+  const hint = (id) => browser.execute((id) => {
+    const element = document.getElementById(id + 'hint');
+    return element.hidden ? null : element.textContent;
+  }, id);
+
+  /**
+   * A message as the page shows it.
+   * @param {string} key
+   * @return {Promise<string>}
+   */
+  const message = (key) => browser.executeAsync((key, done) => {
+    import('/player/modules/Localize.mjs').then(({Localize}) => done(Localize.getMessage(key)));
+  }, key);
+
+  /**
    * Picks a unit as a person does.
    * @param {string} id - The size field's id.
    * @param {string} unit - 'MB' or 'GB'.
@@ -235,9 +281,10 @@ describe('Options page size fields, typed by hand', function() {
   it('shows each size as a number and a unit, the speed in Mbit/s', async function() {
     expect(await shown('maxsize')).toEqual(['5', 'GB']);
     expect(await shown('rambudget')).toEqual(['2', 'GB']);
-    // No speed limit: an empty field showing ∞.
+    // No speed limit: an empty field that says so in words, not only "∞".
     expect(await browser.execute(() => [document.getElementById('maxspeed').value,
-      document.getElementById('maxspeed').placeholder])).toEqual(['', '∞']);
+      document.getElementById('maxspeed').placeholder])).toEqual(['', await message('options_general_nolimit')]);
+    expect(await hint('maxspeed')).toBe(null);
   });
 
   it('saves a size while it is typed, without waiting for the field to be left', async function() {
@@ -294,12 +341,14 @@ describe('Options page size fields, typed by hand', function() {
     expect(await shown('maxsize')).toEqual(['10', 'MB']);
   });
 
-  it('shows a speed limit of 0 saved before as no limit, as it now is', async function() {
+  // It held back reading ahead then, as 0 does now.
+  it('keeps a speed limit of 0 saved before, and says what it does', async function() {
     await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0})));
     await browser.url(optionsPagePath());
     await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
         {timeout: 30000});
-    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('0');
+    expect(await hint('maxspeed')).toBe(await message('options_general_targetspeed_zero'));
   });
 
   it('keeps the unit that is picked, also for an empty size', async function() {
@@ -338,47 +387,72 @@ describe('Options page size fields, typed by hand', function() {
     await savedAs('maxSpeed', -1);
   });
 
-  // A limit of 0 Mbit/s held back reading ahead whenever anything downloaded, and a size of
-  // 0 was read as no limit while the field said 0 (review, 2026-10-09).
-  it('reads 0, as an empty field, as no limit, and a number too big to save as none', async function() {
+  // 0 is none and an empty field no limit (2026-10-09): 0 read as no limit surprised the
+  // user who typed it to turn a thing off. What each does shows under the field.
+  it('takes 0 as none and an empty field as no limit, and says so under the field', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
     await typeInto('maxspeed', '0');
     await browser.keys(['Tab']);
+    await savedAs('maxSpeed', 0);
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('0');
+    expect(await hint('maxspeed')).toBe(await message('options_general_targetspeed_zero'));
+    await typeInto('maxspeed', '');
+    await browser.keys(['Backspace', 'Tab']);
     await savedAs('maxSpeed', -1);
-    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+    expect(await hint('maxspeed')).toBe(null);
 
-    await typeInto('maxsize', '7');
-    await savedAs('maxVideoSize', 7e9);
     await typeInto('maxsize', '0');
     await browser.keys(['Tab']);
-    await savedAs('maxVideoSize', -1);
-    expect(await shown('maxsize')).toEqual(['', 'GB']);
+    await savedAs('maxVideoSize', 0);
+    expect(await shown('maxsize')).toEqual(['0', 'GB']);
+    expect(await hint('maxsize')).toBe(await message('options_general_maxsize_zero'));
 
-    // 1e308 GB is no number JSON keeps: it was saved as null.
-    await typeInto('maxsize', '7');
-    await savedAs('maxVideoSize', 7e9);
-    await typeInto('maxsize', '1e308');
-    await browser.keys(['Tab']);
-    await savedAs('maxVideoSize', -1);
-
-    // 0.0001 GB is 0 to the three decimals shown: it was saved as 100 kB and shown as 0.
+    // 0.0001 GB is 0 to the three decimals shown: saved as what the field says, none.
     await typeInto('maxsize', '7');
     await savedAs('maxVideoSize', 7e9);
     await typeInto('maxsize', '0.0001');
     await browser.keys(['Tab']);
-    await savedAs('maxVideoSize', -1);
-    expect(await shown('maxsize')).toEqual(['', 'GB']);
+    await savedAs('maxVideoSize', 0);
+    expect(await shown('maxsize')).toEqual(['0', 'GB']);
+
+    await typeInto('rambudget', '0');
+    await browser.keys(['Tab']);
+    await savedAs('ramBudget', 0);
+    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
+    await typeInto('rambudget', '');
+    await browser.keys(['Backspace', 'Tab']);
+    await savedAs('ramBudget', -1);
+    expect(await shown('rambudget')).toEqual(['', 'GB']);
+    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
   });
 
-  it('takes the speed in Mbit/s, and the RAM budget at its least', async function() {
+  // Letters, a negative number or one too big to save (1e308 GB was saved as Infinity, which
+  // JSON keeps as null) were read as no limit: the limit set stays, and shows again.
+  it('keeps the limit set when the field holds no number', async function() {
+    await typeInto('maxsize', '7');
+    await savedAs('maxVideoSize', 7e9);
+    for (const text of ['abc', '-2', ',']) {
+      await typeInto('maxsize', text);
+      await browser.keys(['Tab']);
+      expect(await shown('maxsize')).toEqual(['7', 'GB']);
+    }
+    // Typed, its first digits are a size on the way (saved while typing); set at once, as a
+    // paste does, it is no number.
+    await setField('maxsize', '1e308');
+    await browser.pause(500);
+    expect(await browser.execute(() => JSON.parse(localStorage.getItem('options')).maxVideoSize)).toBe(7e9);
+  });
+
+  it('takes the speed in Mbit/s, and any RAM budget', async function() {
     await typeInto('maxspeed', '8');
     await savedAs('maxSpeed', 1e6);
+    // There was a least, 256 MB: 100 MB came back as 256.
     await typeInto('rambudget', '100');
     await pickUnit('rambudget', 'MB');
     await browser.keys(['Tab']);
-    await savedAs('ramBudget', 256e6);
-    expect(await shown('rambudget')).toEqual(['256', 'MB']);
+    await savedAs('ramBudget', 100e6);
+    expect(await shown('rambudget')).toEqual(['100', 'MB']);
   });
 
   // A number field has no caret position: putting it back threw (review, 2026-10-09).

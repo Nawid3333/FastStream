@@ -968,6 +968,21 @@
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"
     },
+    "options_general_nolimit": {
+        "message": "No limit"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: nothing is predownloaded; only the seconds set below are kept ahead. Leave the field empty for no limit."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: no RAM for downloaded video, so nothing is downloaded ahead of playback. Leave the field empty for no limit."
+    },
+    "options_general_rambudget_none": {
+        "message": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down."
+    },
     "options_general_bufferahead": {
         "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped or ran out of space"
     },
@@ -1134,7 +1149,7 @@
         "message": "Reset to Defaults"
     },
     "options_keybinds_press": {
-        "message": "Press a key"
+        "message": "Press a key, or Escape for none"
     },
     "options_keybinds_conflict": {
         "message": "Also used by $1"

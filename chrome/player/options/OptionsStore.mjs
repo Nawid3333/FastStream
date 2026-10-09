@@ -10,17 +10,20 @@ export class OptionsStore {
   static #options = null;
   static #listeners = new Set();
   static #lastSendTime = null;
-  static #initialized = false;
+  /** @type {?Promise<Object>} The first init()'s load, which every later caller waits for. */
+  static #initialized = null;
 
   /**
    * Initialize the store by loading options and wiring external updates.
    */
   static async init() {
-    if (this.#initialized) return this.#options;
-    this.#initialized = true;
-    this.#options = await Utils.getOptionsFromStorage();
-    this.#wireExternalUpdates();
-    return this.#options;
+    // A second caller while the first still read the storage got null.
+    this.#initialized ??= (async () => {
+      this.#options = await Utils.getOptionsFromStorage();
+      this.#wireExternalUpdates();
+      return this.#options;
+    })();
+    return this.#initialized;
   }
 
   /**
