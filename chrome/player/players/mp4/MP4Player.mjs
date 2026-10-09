@@ -7,6 +7,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
+import {lengthFromAnswer} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
 import {keyframeOffset, sampledDuration} from './SampleIndex.mjs';
 import {SegmentAppender} from './SegmentAppender.mjs';
@@ -53,6 +54,8 @@ export default class MP4Player extends EventEmitter {
 
     this.metaData = null;
     this.fileLength = 0;
+    // Handed to Firefox's own player (playDirectly): this player stops.
+    this.handedOver = false;
 
     this.fragmentRequester = new MP4FragmentRequester(this);
 
@@ -252,6 +255,10 @@ export default class MP4Player extends EventEmitter {
 
   estimateTotalSizeFromMetadats() {
     if (this.fileLength || !this.metaData) return;
+    // A fragmented file's samples are only those of the fragments parsed so far: taken for its
+    // length, they ended the video after the first range. Without a length from the server it
+    // is read on, range by range, until a range comes back short (onSuccess).
+    if (this.metaData.isFragmented) return;
     const info = this.metaData;
     // get last sample offset
     let maxOffset = 0;
@@ -606,11 +613,36 @@ export default class MP4Player extends EventEmitter {
             // this range, so the ranges after it were never made, and the file was
             // taken to end there.
             if (!this.fileLength) {
-              const total = parseInt(entry.responseHeaders['content-range']?.split('/')[1]);
-              if (total > 0) {
-                this.fileLength = total;
+              const {length, playDirectly} = lengthFromAnswer({
+                status: entry.responseStatus,
+                headers: entry.responseHeaders,
+                received: data?.byteLength || 0,
+              }, {start: frag.rangeStart, end: frag.rangeEnd});
+              if (playDirectly) {
+                this.playDirectly('The server sends the whole file for a range request');
+                return;
+              }
+              if (length > 0) {
+                this.fileLength = length;
                 this.initializeFragments();
               }
+            }
+            // More than the range (a 206 without Content-Range that sent the rest of the file,
+            // say): the rest would be parsed as this range's, and the offsets would no longer
+            // match. Only the range is this fragment's.
+            if (data?.byteLength > frag.rangeEnd - frag.rangeStart) {
+              const range = data.slice(0, frag.rangeEnd - frag.rangeStart);
+              range.fileStart = data.fileStart;
+              data = range;
+            }
+            // Past the end: a range read on that came back empty (a file whose length is a
+            // multiple of the range size), or one at or past the length this answer just told
+            // (a file of exactly one range from a server that ignores Range, whose answer
+            // FetchLoader took for this range: the file's start again).
+            if (frag.rangeStart > 0 &&
+                (this.fileLength ? frag.rangeStart >= this.fileLength : !(data?.byteLength > 0))) {
+              this.endsAt(this.fileLength || frag.rangeStart);
+              return;
             }
 
             const hadMetaData = !!this.metaData;
@@ -629,29 +661,24 @@ export default class MP4Player extends EventEmitter {
             }
 
             if (!this.fileLength) {
-              const rangeHeader = entry.responseHeaders['content-range'];
-              if (!rangeHeader) {
-                console.warn('No content length');
-                this.fileLength = 0;
-
-                if (!this.metaData) {
-                  const nextParsePosition = this.mp4box.nextParsePosition || (frag.rangeEnd + 1);
-                  const maxIndex = Math.floor(nextParsePosition / FRAGMENT_SIZE);
-                  const levelID = this.getCurrentVideoLevelID();
-                  for (let fragIndex = 1; fragIndex <= maxIndex; fragIndex++) {
-                    if (!this.client.getFragment(levelID, fragIndex)) {
-                      this.client.makeFragment(levelID, fragIndex, new MP4Fragment(levelID, fragIndex, this.source, fragIndex * FRAGMENT_SIZE, (fragIndex + 1) * FRAGMENT_SIZE));
-                    }
-                  }
-                } else {
-                  console.log(entry.responseHeaders);
-                  this.running = false;
-                  this.emit(DefaultPlayerEvents.ERROR, 'No content range');
-                  throw new Error('No content range');
-                }
+              // No length from the server (a 206 without Content-Range): a regular file's comes
+              // from its sample table once the moov is in (estimateTotalSizeFromMetadats); until
+              // then, and for a fragmented file, it is read on range by range. A range shorter
+              // than asked for is the file's end. (A fragmented file failed with "No content
+              // range", or ended after the first range.)
+              const received = data?.byteLength || 0;
+              const levelID = this.getCurrentVideoLevelID();
+              if (received > 0 && received < frag.rangeEnd - frag.rangeStart) {
+                this.endsAt(frag.rangeStart + received);
+                return;
               } else {
-                this.fileLength = parseInt(rangeHeader.split('/')[1]);
-                this.initializeFragments();
+                const nextParsePosition = this.metaData ? frag.rangeEnd : (this.mp4box.nextParsePosition || (frag.rangeEnd + 1));
+                const maxIndex = Math.max(frag.sn + 1, Math.floor(nextParsePosition / FRAGMENT_SIZE));
+                for (let fragIndex = 1; fragIndex <= maxIndex; fragIndex++) {
+                  if (!this.client.getFragment(levelID, fragIndex)) {
+                    this.client.makeFragment(levelID, fragIndex, new MP4Fragment(levelID, fragIndex, this.source, fragIndex * FRAGMENT_SIZE, (fragIndex + 1) * FRAGMENT_SIZE));
+                  }
+                }
               }
             }
             this.runLoad();
@@ -662,6 +689,11 @@ export default class MP4Player extends EventEmitter {
           onFail: (entry) => {
             if (this.loader === loader) {
               this.loader = null;
+            }
+            // Read on range by range (no length from the server), the range after the file's
+            // end: 416, Range Not Satisfiable. The file ends there.
+            if (!this.fileLength && frag.rangeStart > 0 && entry?.stats?.error?.code === 416) {
+              this.endsAt(frag.rangeStart);
             }
           },
           onAbort: (entry) => {
@@ -778,6 +810,41 @@ export default class MP4Player extends EventEmitter {
     this.video = null;
 
     this.emit(DefaultPlayerEvents.DESTROYED);
+  }
+
+  /**
+   * The file ends at a range read on (no length from the server) that brought nothing: its
+   * length is known now, and the stream can end.
+   * @param {number} length
+   */
+  endsAt(length) {
+    this.fileLength = length;
+    const fragments = this.client.getFragments(this.getCurrentVideoLevelID());
+    // The ranges made past the end hold nothing: dropped, with whatever was kept for them.
+    const count = Math.ceil(length / FRAGMENT_SIZE);
+    if (fragments && fragments.length > count) {
+      fragments.slice(count).forEach((frag) => {
+        if (frag) this.client.freeFragment(frag);
+        this.rangeRetries.delete(frag);
+      });
+      fragments.length = count;
+    }
+    this.initializeFragments();
+    this.checkEndOfStream();
+    this.runLoad();
+  }
+
+  /**
+   * Hands the source to Firefox's own player (DirectVideoPlayer), for a server this player
+   * cannot load in ranges (RangeAnswers.mjs). Once: this player stops loading.
+   * @param {string} reason
+   */
+  playDirectly(reason) {
+    if (this.handedOver) return;
+    this.handedOver = true;
+    this.running = false;
+    console.warn('Playing directly: ' + reason);
+    this.emit(DefaultPlayerEvents.PLAY_DIRECTLY, reason);
   }
 
   resetHLS(noLoad) {
@@ -968,6 +1035,13 @@ export default class MP4Player extends EventEmitter {
 
   canSave() {
     const frags = this.client.getFragments(this.getCurrentVideoLevelID());
+    // Read on range by range, the file's end not known yet: what is there is no whole file.
+    if (frags && !this.fileLength) {
+      return {
+        canSave: true,
+        isComplete: false,
+      };
+    }
     if (!frags) {
       return {
         canSave: false,

@@ -6,6 +6,29 @@ import {RequestUtils} from '../utils/RequestUtils.mjs';
 import {URLUtils} from '../utils/URLUtils.mjs';
 import {VideoUtils} from '../utils/VideoUtils.mjs';
 
+// Headers a rule on the element's requests must not set: Firefox's player asks for its own
+// ranges, and these describe the connection or the request itself, not the site's wishes.
+const NOT_FOR_THE_ELEMENT = new Set(['range', 'if-range', 'accept-encoding', 'host', 'connection', 'content-length',
+  'transfer-encoding', 'te', 'upgrade', 'keep-alive', 'expect', 'trailer']);
+
+/**
+ * The background's header commands (SET_HEADERS) that give the element's requests a source's
+ * headers: the value false removes a header.
+ * @param {?Object<string, string|boolean>} headers
+ * @return {Array<Object>}
+ */
+export function elementHeaderCommands(headers) {
+  const commands = [];
+  for (const header in headers || {}) {
+    if (!Object.hasOwn(headers, header)) continue;
+    const name = header.toLowerCase();
+    if (NOT_FOR_THE_ELEMENT.has(name) || name.startsWith('proxy-')) continue;
+    const value = headers[header];
+    commands.push(value === false ? {operation: 'remove', header} : {operation: 'set', header, value: String(value)});
+  }
+  return commands;
+}
+
 export default class DirectVideoPlayer extends EventEmitter {
   constructor(client, config) {
     super();
@@ -43,7 +66,28 @@ export default class DirectVideoPlayer extends EventEmitter {
       setTimeout(() => this.emit(DefaultPlayerEvents.ERROR, 'The source is not an http(s), blob, data or file URL'));
       return;
     }
+    // Firefox's own loader sends the page's headers only if the background's rule for this URL
+    // sets them (the rule the MP4 player's requests get through FetchLoader): the Referer or
+    // cookie a site asks for, so a source handed over from the MP4 player (playDirectly) plays.
+    await this.setHeaderRule(source, url);
     this.video.src = url;
+  }
+
+  /**
+   * Asks the background to set the source's headers on the requests for its URL.
+   * @param {Object} source
+   * @param {string} url - The URL the element loads.
+   */
+  async setHeaderRule(source, url) {
+    if (!EnvUtils.isExtension() || !/^https?:/i.test(url)) return;
+    const commands = elementHeaderCommands(source?.headers);
+    if (!commands.length) return;
+    try {
+      await chrome.runtime.sendMessage({type: MessageTypes.SET_HEADERS, url, commands});
+    } catch (e) {
+      // Without the rule it plays as it did before: without the headers.
+      console.warn('Could not set the headers of the source', e);
+    }
   }
 
   getSource() {
