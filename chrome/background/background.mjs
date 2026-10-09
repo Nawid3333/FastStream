@@ -2801,7 +2801,8 @@ function sendPlayedToMpv(tab, source, video = null) {
   const page = tab.mpvPage;
   // Only a video of a known length (not a live one), and past its first seconds: a play
   // from the start starts at the start.
-  const startTime = Number.isFinite(video?.duration) && video.time > 5 ? video.time : undefined;
+  const time = video?.time;
+  const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
     openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
         {startTime})).then((result) => {
