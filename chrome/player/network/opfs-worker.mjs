@@ -19,8 +19,6 @@ let sessionDir = null;
 let sessionName = null;
 let heartbeatInterval = null;
 let heartbeatInFlight = false;
-// Lets go of this session's lock (acquireSessionLock).
-let releaseSessionLock = null;
 
 // Open save-streams: identifier -> {handle, offset}. A save writes one
 // whole output file progressively (see StreamSaver.mjs / mp4merger.mjs);
@@ -70,52 +68,6 @@ function sessionCreatedTime(name) {
 }
 
 /**
- * The Web Lock a session holds for as long as its worker lives.
- * @param {string} name - The session's directory.
- * @return {string}
- */
-function sessionLockName(name) {
-  return 'faststream-fsblob:' + name;
-}
-
-/**
- * Takes this session's lock and holds it until destroy() or the worker ends: Firefox lets
- * go of a worker's locks when it ends, crashed or closed. Taken before the session's
- * directory exists, so a sibling's prune never finds that directory without its lock.
- * @param {string} name
- * @return {Promise<void>}
- */
-async function acquireSessionLock(name) {
-  if (!navigator.locks?.request) return;
-  await new Promise((resolve) => {
-    navigator.locks.request(sessionLockName(name), () => {
-      resolve();
-      return new Promise((release) => {
-        releaseSessionLock = release;
-      });
-    }).catch(() => resolve());
-  });
-}
-
-/**
- * Whether a sibling session's worker still lives: it holds its lock.
- * @param {string} name
- * @return {Promise<boolean>}
- */
-async function sessionIsLocked(name) {
-  if (!navigator.locks?.request) return false;
-  let held = false;
-  try {
-    await navigator.locks.request(sessionLockName(name), {ifAvailable: true}, (lock) => {
-      held = lock === null;
-    });
-  } catch (e) {
-    return false;
-  }
-  return held;
-}
-
-/**
  * Deletes sibling session directories left by a crashed or closed tab: a heartbeat
  * older than STALE_MS, or none at all. Judged off the heartbeat, not the directory's age,
  * so a long-running session isn't mistaken for stale. But a directory younger than
@@ -123,13 +75,6 @@ async function sessionIsLocked(name) {
  * players starting together deleted each other's brand-new session that way (its blobs
  * then stayed in RAM, and its saves failed). And a heartbeat that is there but cannot be
  * read is its owner writing it.
- *
- * A session whose worker holds its Web Lock lives, whatever its heartbeat says: a heartbeat
- * is only as punctual as a timer, and one that ran late (a busy worker, the computer
- * waking from sleep, the clock set forward) had a live player's whole stored video
- * deleted, and seeking back in it failed for good. Without the lock (a worker gone, or a
- * build from before the locks) the heartbeat decides, as before; that also leaves a closed
- * session's finished save its STALE_MS to be read.
  */
 async function prune(ownName) {
   const stale = [];
@@ -137,7 +82,6 @@ async function prune(ownName) {
     if (name === ownName) continue;
     const created = sessionCreatedTime(name);
     if (created !== null && Date.now() - created <= STALE_MS) continue;
-    if (await sessionIsLocked(name)) continue;
     const heartbeat = await readHeartbeat(name);
     if (heartbeat.unreadable) continue;
     if (!heartbeat.time || Date.now() - heartbeat.time > STALE_MS) {
@@ -188,7 +132,6 @@ async function init() {
   fsBlobRoot = await getFsBlobRoot();
   sessionName = 'fsblob-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
 
-  await acquireSessionLock(sessionName);
   // Prune before this session's own directory exists, so it can never be
   // mistaken for one of the (stale) siblings being cleaned up.
   await prune(sessionName);
@@ -262,9 +205,6 @@ async function clearStorage() {
 async function destroy() {
   clearInterval(heartbeatInterval);
   heartbeatInterval = null;
-  // From here the heartbeat decides, and gives a finished save its time (prune).
-  releaseSessionLock?.();
-  releaseSessionLock = null;
   for (const stream of saveStreams.values()) {
     try {
       stream.handle.close();
