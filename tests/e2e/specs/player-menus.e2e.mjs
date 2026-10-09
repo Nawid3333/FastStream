@@ -454,4 +454,31 @@ describe('Player menus', function() {
     console.log('      knob with a suggested value:', JSON.stringify(withSuggestion));
     expect(withSuggestion.now).toBe(12);
   });
+
+  it('takes a value typed into a knob\'s field as typed', async function() {
+    // "0,5" was 0, and a value typed within 2 % of the suggested one became the suggested
+    // one: only a drag or the wheel snaps to it.
+    await openEmptyPlayer();
+    const typed = await browser.executeAsync((done) => {
+      import('/player/ui/components/Knob.mjs').then(({createKnob}) => {
+        const values = [];
+        const knob = createKnob('Gain', 0, 20, (value) => values.push(value), 'dB');
+        document.querySelector('.mainplayer').appendChild(knob.container);
+        setTimeout(() => {
+          knob.setSuggestedValue(12);
+          const field = knob.container.querySelector('.knob_value');
+          const type = (text) => {
+            field.focus();
+            field.textContent = text;
+            field.dispatchEvent(new Event('input'));
+            field.blur();
+            return knob.knob.val();
+          };
+          done({comma: type('2,5'), near: type('11,8'), at: type('12'), last: values.at(-1)});
+        }, 50);
+      }).catch((e) => done({error: String(e)}));
+    });
+    console.log('      typed:', JSON.stringify(typed));
+    expect(typed).toEqual({comma: 2.5, near: 11.8, at: 12, last: 12});
+  });
 });
