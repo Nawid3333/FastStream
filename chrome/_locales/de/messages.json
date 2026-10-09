@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Drücke eine Taste"
     },
+    "options_keybinds_none": {
+        "message": "Keine"
+    },
     "options_keybinds_conflict": {
         "message": "Auch belegt von $1"
     },

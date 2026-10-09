@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Appuyez sur une touche"
     },
+    "options_keybinds_none": {
+        "message": "Aucun"
+    },
     "options_keybinds_conflict": {
         "message": "Également utilisé par $1"
     },

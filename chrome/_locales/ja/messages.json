@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "キーを押してください"
     },
+    "options_keybinds_none": {
+        "message": "なし"
+    },
     "options_keybinds_conflict": {
         "message": "$1 でも使用中"
     },

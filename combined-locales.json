@@ -6821,6 +6821,24 @@
         "zh_CN": "请按任意键",
         "zh_TW": "按任意鍵"
     },
+    "options_keybinds_none": {
+        "en": "None",
+        "de": "Keine",
+        "es": "Ninguno",
+        "fr": "Aucun",
+        "id": "Tidak ada",
+        "it": "Nessuno",
+        "ja": "なし",
+        "ko": "없음",
+        "ms": "Tiada",
+        "nl": "Geen",
+        "pl": "Brak",
+        "pt_BR": "Nenhuma",
+        "ru": "Нет",
+        "tr": "Yok",
+        "zh_CN": "无",
+        "zh_TW": "無"
+    },
     "options_keybinds_conflict": {
         "en": "Also used by $1",
         "de": "Auch belegt von $1",

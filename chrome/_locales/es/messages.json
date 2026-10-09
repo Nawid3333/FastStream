@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Pulse una tecla"
     },
+    "options_keybinds_none": {
+        "message": "Ninguno"
+    },
     "options_keybinds_conflict": {
         "message": "También lo usa $1"
     },

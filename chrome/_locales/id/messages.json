@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Tekan tombol"
     },
+    "options_keybinds_none": {
+        "message": "Tidak ada"
+    },
     "options_keybinds_conflict": {
         "message": "Juga dipakai oleh $1"
     },

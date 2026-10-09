@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Tekan kekunci"
     },
+    "options_keybinds_none": {
+        "message": "Tiada"
+    },
     "options_keybinds_conflict": {
         "message": "Turut digunakan oleh $1"
     },
