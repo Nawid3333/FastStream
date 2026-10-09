@@ -266,12 +266,12 @@ describe('the extension in a private window', function() {
     // incognito context, which is only correct for Chrome.
     await browser.waitUntil(
         async () => browser.execute(
-            () => !!document.querySelector('.swal2-container .swal2-input')),
+            () => !!document.querySelector('.fs-dialog .fs-dialog-input')),
         {timeout: 20000,
           timeoutMsg: 'the filename prompt never appeared in a private window'});
 
     const suggested = await browser.execute(
-        () => document.querySelector('.swal2-input').value);
+        () => document.querySelector('.fs-dialog-input').value);
     console.log('      suggested filename:', JSON.stringify(suggested));
     expect(typeof suggested).toBe('string');
   });
@@ -297,11 +297,11 @@ describe('the extension in a private window', function() {
         .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
     await browser.waitUntil(
         async () => browser.execute(
-            () => !!document.querySelector('.swal2-container .swal2-input')),
+            () => !!document.querySelector('.fs-dialog .fs-dialog-input')),
         {timeout: 20000,
           timeoutMsg: 'the filename prompt never appeared for a subtitle track in a private window'});
     const suggested = await browser.execute(
-        () => document.querySelector('.swal2-input').value);
+        () => document.querySelector('.fs-dialog-input').value);
     console.log('      suggested subtitle filename:', JSON.stringify(suggested));
     expect(suggested).toBe('(en)_Private');
   });

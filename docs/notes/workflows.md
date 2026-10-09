@@ -305,7 +305,8 @@
   which on the runner once never fired, leaving an invisible `swal2-hide` popup over the
   save button. `AlertPolyfill` dialogs close without a hide animation (a `Dialog` mixin
   with empty `hideClass`, sweetalert2#1841); `specs/dialogs.e2e.mjs` makes the animation
-  last an hour and fails without the fix. Failing save/storage specs log the page and
+  last an hour and fails without the fix. (The dialogs are Firefox's own `<dialog>` since
+  2026-10-09: it leaves the page as it closes, and the spec checks that.) Failing save/storage specs log the page and
   every unanswered OPFS worker call (`specs/diagnostics.mjs`, `OPFSManager.pendingCalls()`).
   The MPV-mode specs joined the Windows job on 2026-09-28, after three five-job trials;
   the third, with the fix below, passed every MPV spec on the first attempt.

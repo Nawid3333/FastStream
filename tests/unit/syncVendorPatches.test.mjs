@@ -47,7 +47,13 @@ describe('unappliedPatches', () => {
     // Each entry's text up to its patched key, ${...} included (mp4box's chunk entries).
     const marked = [...source.matchAll(/name: '([^']+)',(?:[^}$]|\$(?!\{)|\$\{[^}]*\})*?\bpatched: (?!false\b)/g)]
         .map((m) => ({name: m[1], patched: true}));
-    expect(new Set(marked.map((lib) => lib.name))).toEqual(new Set(['hls.js', 'dashjs', 'sweetalert2', 'mp4box', 'gif.js', 'Coloris']));
+    // Marked: every library the build copies that has a patch (pnpm-workspace.yaml), and no
+    // other. Found: the media libraries the player is built on, at least.
+    const workspace = fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8');
+    const withPatch = [...workspace.matchAll(/^ {2}'?((?:@[\w.-]+\/)?[\w.-]+)@[^:']+'?: patches\//gm)].map((m) => m[1]);
+    const copied = new Set([...source.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((m) => m[1]));
+    expect(new Set(marked.map((lib) => lib.name))).toEqual(new Set(withPatch.filter((name) => copied.has(name))));
+    expect(marked.map((lib) => lib.name)).toEqual(expect.arrayContaining(['dashjs', 'hls.js', 'mp4box']));
     const version = (name) => {
       try {
         return JSON.parse(fs.readFileSync(path.join(root, 'node_modules', name, 'package.json'), 'utf8')).version;

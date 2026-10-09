@@ -1,0 +1,235 @@
+/*
+ * The player's dialogs and toasts (utils/AlertPolyfill.mjs): a <dialog> opened with
+ * showModal() and a popover corner, both in the top layer. In the player's colours
+ * (fluidplayer/css/colors.css), so they follow its theme.
+ */
+
+.fs-dialog,
+.fs-toasts {
+  font-family: -apple-system, BlinkMacSystemFont, 'segoe ui', roboto, oxygen-sans, ubuntu, cantarell, 'helvetica neue', 'arial', sans-serif, 'apple color emoji', 'segoe ui emoji', 'segoe ui symbol';
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.fs-dialog {
+  box-sizing: border-box;
+  /* As wide as sweetalert2's dialogs at least (32em), wider for a longer line. */
+  min-width: min(32em, calc(100vw - 2em));
+  max-width: min(50em, calc(100vw - 2em));
+  max-height: calc(100vh - 2em);
+  /* None: a click on the dialog itself is then a click on its backdrop (AlertPolyfill). */
+  padding: 0;
+  border: var(--menu-border, 1px solid rgba(255, 255, 255, 0.2));
+  border-radius: 8px;
+  background: var(--popwindow-background-color, rgba(50, 50, 50, 0.9));
+  color: var(--popwindow-text-color, rgba(255, 255, 255, 0.8));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: auto;
+}
+
+.fs-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.fs-dialog-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75em;
+  margin: 0;
+  padding: 1.5em 1.75em 1.25em;
+  text-align: center;
+}
+
+.fs-dialog-title {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 600;
+  color: var(--menu-text-color, white);
+  overflow-wrap: anywhere;
+}
+
+.fs-dialog-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.fs-dialog-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.5em 0.65em;
+  border: var(--input-border, 1px solid rgba(255, 255, 255, 0.3));
+  border-radius: 5px;
+  background: var(--input-background-color, rgba(0, 0, 0, 0.2));
+  color: var(--input-text-color, white);
+  font: inherit;
+}
+
+.fs-dialog-input:focus {
+  border: var(--input-focus-border, 1px solid rgba(255, 255, 255, 0.5));
+  outline: none;
+}
+
+.fs-dialog-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6em;
+  margin-top: 0.5em;
+}
+
+.fs-dialog-buttons button {
+  min-width: 6em;
+  padding: 0.55em 1.2em;
+  border: var(--popbutton-border, 1px solid rgba(255, 255, 255, 0.1));
+  border-radius: 5px;
+  background: var(--popwindow-button-background-color, rgb(20, 20, 20));
+  color: var(--popwindow-button-text-color, rgb(200, 200, 200));
+  font: inherit;
+  cursor: pointer;
+}
+
+.fs-dialog-buttons button:hover {
+  background: var(--popwindow-button-hover-background-color, rgb(30, 30, 30));
+  border: var(--popbutton-hover-border, 1px solid rgba(255, 255, 255, 0.5));
+}
+
+.fs-dialog-buttons button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.fs-dialog-buttons .fs-dialog-confirm {
+  background: var(--popwindow-button-active-background-color, rgb(0, 135, 153));
+}
+
+.fs-dialog-buttons .fs-dialog-confirm:hover {
+  background: color-mix(in srgb, var(--popwindow-button-active-background-color, rgb(0, 135, 153)), white 15%);
+}
+
+.fs-dialog-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.6em;
+  height: 2.6em;
+  border: 0.17em solid currentColor;
+  border-radius: 50%;
+  font-size: 1.4em;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.fs-dialog-icon-success {
+  color: rgb(80, 200, 120);
+}
+
+.fs-dialog-icon-error {
+  color: rgb(240, 90, 90);
+}
+
+.fs-dialog-icon-warning {
+  color: rgb(245, 180, 60);
+}
+
+.fs-dialog-icon-info {
+  color: rgb(70, 170, 240);
+}
+
+.fs-dialog-icon-question {
+  color: rgb(150, 170, 190);
+}
+
+/* The error report's stack trace (AlertPolyfill.errorSendToDeveloper), line by line. */
+.fs-dialog-error {
+  align-self: stretch;
+}
+
+.error-popup-body {
+  margin: 0 0 0.5em;
+}
+
+.error-popup-stack {
+  max-height: 14em;
+  margin: 0;
+  padding: 0.5em;
+  overflow: auto;
+  border-radius: 5px;
+  background: rgba(128, 128, 128, 0.2);
+  font-size: 0.8em;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The toasts' corner: a popover, so in the top layer, without the popover's own box. */
+.fs-toasts {
+  position: fixed;
+  inset: 0.625em 0.625em auto auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: visible;
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5em;
+  /* Clicks between the toasts go to the player. */
+  pointer-events: none;
+}
+
+.fs-toasts:popover-open {
+  display: flex;
+}
+
+.fs-toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  box-sizing: border-box;
+  max-width: min(22em, calc(100vw - 1.25em));
+  padding: 0.6em 1em 0.75em 0.75em;
+  overflow: hidden;
+  border: var(--menu-border, 1px solid rgba(255, 255, 255, 0.2));
+  border-radius: 8px;
+  background: var(--popwindow-background-color, rgba(50, 50, 50, 0.9));
+  color: var(--popwindow-text-color, rgba(255, 255, 255, 0.8));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.fs-toast .fs-dialog-icon {
+  width: 1.6em;
+  height: 1.6em;
+  font-size: 1em;
+  border-width: 0.13em;
+}
+
+.fs-toast-title {
+  font-weight: 600;
+  color: var(--menu-text-color, white);
+  overflow-wrap: anywhere;
+}
+
+.fs-toast-text {
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+/* What is left of its time, running out from right to left (AlertPolyfill.toast animates it). */
+.fs-toast-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: currentColor;
+  opacity: 0.35;
+  transform-origin: left;
+}

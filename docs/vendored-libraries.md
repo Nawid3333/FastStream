@@ -336,8 +336,8 @@ what can actually change behaviour.
 | pako | 3.0.2 | - | **removed 2026-10-09**: Firefox's own `CompressionStream` (`chrome/player/utils/Compression.mjs`), same zlib format |
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
-| sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
-| sweetalert2 (CSS) | 11.26.25 | `body.swal2-*` rules scoped to the classes; three rules appended from `tools/sweetalert-overrides.css` | **generated since 2026-09-30** (was an 11.12.4 copy) |
+| sweetalert2 | 11.26.25 | ESM boundary; included a payload that had to stay stripped | **removed 2026-10-09**: Firefox's own `<dialog>` and popover (`utils/AlertPolyfill.mjs`, `assets/dialogs/dialogs.css`) |
+| sweetalert2 (CSS) | 11.26.25 | `body.swal2-*` rules scoped to the classes; three rules appended from `tools/sweetalert-overrides.css` | **removed 2026-10-09** with the script; was generated since 2026-09-30 (an 11.12.4 copy before) |
 | mediabunny | 1.60.0 | none - the unmodified npm bundle; only `normaliseText` (line endings, final newline) | **migrated 2026-09-30, replaces mp4-muxer 4.3.3** |
 | gif.js (worker) | 0.2.0 | none - AST identical; the vendored copy was only beautified | **migrated** |
 | gif.js (main) | 0.2.0 | ESM wrapper + worker URL resolved from `import.meta.url` | **migrated** |
@@ -909,6 +909,9 @@ swatches render, hue slider positions correctly), plus the full extension
 e2e suite (8 spec files) on Firefox.
 
 ### sweetalert.css follows the script since 2026-09-30
+
+(History: sweetalert2 and its stylesheet left on 2026-10-09; the next three sections
+describe the copy as it was.)
 
 The dialogs' stylesheet was a copy of 11.12.4's, from 2024, while the script followed npm.
 Compared rule by rule (whitespace aside), that copy was 11.12.4's `dist/sweetalert2.css`

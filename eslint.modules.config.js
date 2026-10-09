@@ -16,7 +16,6 @@ module.exports = [
       'chrome/player/modules/dash.mjs',
       'chrome/player/modules/fuse.mjs',
       'chrome/player/modules/sortable.mjs',
-      'chrome/player/modules/sweetalert.mjs',
       'chrome/player/modules/mp4box/',
       'chrome/player/modules/coloris.mjs',
       'chrome/player/modules/vad/ort.wasm.mjs',

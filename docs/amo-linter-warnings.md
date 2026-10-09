@@ -40,7 +40,7 @@ worth the audit cost, explain the rest.
 | `UNSAFE_VAR_ASSIGNMENT` x5 | `player/modules/coloris.mjs` lines 174, 185, 199, 218, 219 | `innerHTML` → `textContent` for four static-label writes (see below) |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` (swatch-list builder) | fixed upstream itself as of 0.25.0 - no longer in our patch at all (see below) |
 | `UNSAFE_VAR_ASSIGNMENT` | `player/modules/coloris.mjs` line 977 | the ~40-element picker skeleton rewritten to `createElement`/`append` (see below) |
-| `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below) |
+| `DANGEROUS_EVAL` | `player/modules/sweetalert.mjs` line 3685 | the `new Function(...)` call replaced with an explanatory `throw` (see below); gone with sweetalert2 since 2026-10-09 |
 
 **gif.js's `UNSUPPORTED_API` was a scope-blind false positive, not a
 workaround.** The flagged line was `browser.platform[browser.platform.name] =
@@ -77,7 +77,8 @@ colour-picker test but all three playback tests failed too, because
 `InterfaceController` calls `Coloris(...)` during its own construction and an
 uncaught error there aborted the rest of player setup.
 
-**sweetalert2's eval was real but dead code.** `new Function("return
+**sweetalert2's eval was real but dead code** (history: sweetalert2 left on 2026-10-09 for
+Firefox's own `<dialog>`, `utils/AlertPolyfill.mjs`). `new Function("return
 ".concat(value))()` only runs when a `Swal` is configured through a
 `<template>`-based `swal-function-param` element instead of the JS options
 object. FastStream never uses that API — zero matches anywhere in the

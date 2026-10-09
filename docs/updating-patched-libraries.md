@@ -96,7 +96,6 @@ request waits for CI and a hand update for `pnpm run verify`. What covers each o
 | mp4box | `playback.e2e.mjs` (MP4), the DASH and fMP4 saves |
 | gif.js | `modules.e2e.mjs` |
 | Coloris | `modules.e2e.mjs` |
-| sweetalert2 | `dialogs.e2e.mjs`, and the extension save-dialog specs |
 
 ## When a re-cut conflicts everywhere
 

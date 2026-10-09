@@ -68,7 +68,7 @@ file times.
 
    ```
    Coloris@0.25.0     dashjs@5.2.1      gif.js@0.2.0     hls.js@1.7.3
-   mp4box@2.4.1       sweetalert2@11.26.25
+   mp4box@2.4.1
    ```
 
    Besides the patches, `sync-vendor.mjs` itself makes a few small

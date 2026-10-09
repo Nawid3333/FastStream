@@ -228,9 +228,9 @@ describe('Audio tools', function() {
           const input = await pick(new File([view.buffer], 'room.wav', {type: 'audio/wav'}));
           const out = {accept: input.accept, afterWav: await state()};
           await pick(new File(['not audio'], 'notes.wav', {type: 'audio/wav'}));
-          await until(() => !!document.querySelector('.swal2-popup'));
+          await until(() => !!document.querySelector('.fs-dialog'));
           out.afterJunk = await state();
-          out.alert = document.querySelector('.swal2-popup')?.textContent ?? null;
+          out.alert = document.querySelector('.fs-dialog')?.textContent ?? null;
           return out;
         } finally {
           HTMLInputElement.prototype.click = click;

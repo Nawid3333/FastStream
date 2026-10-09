@@ -79,7 +79,6 @@ updates:
       - dependency-name: 'gif.js'
       - dependency-name: 'hls.js'
       - dependency-name: 'mp4box'
-      - dependency-name: 'sweetalert2'
 
   # fsaunpack: the helper that unpacks a saved .fsa archive and serves it with
   # express (fsaunpack/, its own package.json and package-lock.json). It is not

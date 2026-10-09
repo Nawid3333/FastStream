@@ -87,7 +87,7 @@ describe('FastStreamClient setup', function() {
       state = await browser.execute(() => ({
         currentTime: window.fastStream.currentTime,
         failed: !!window.fastStream.interfaceController.failed,
-        alert: !!document.querySelector('.swal2-popup'),
+        alert: !!document.querySelector('.fs-dialog'),
       }));
       return state.currentTime >= 3.9;
     }, {timeout: 10000, interval: 250}).catch(() => {});

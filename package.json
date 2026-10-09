@@ -81,7 +81,6 @@
     "mp4box": "2.4.1",
     "onnxruntime-web": "1.30.0",
     "sortablejs": "1.15.7",
-    "sweetalert2": "11.26.25",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3",
     "web-ext": "^10.7.0"

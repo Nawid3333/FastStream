@@ -27,6 +27,7 @@ const CHECKED = [
   'chrome/player/enums/MessageTypes.mjs',
   'chrome/player/enums/PlayerModes.mjs',
   'chrome/player/enums/ReferenceTypes.mjs',
+  'chrome/player/utils/AlertPolyfill.mjs',
   'chrome/player/network/DownloadEntry.mjs',
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/players/DecodingCapabilities.mjs',
