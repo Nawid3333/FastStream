@@ -2021,9 +2021,10 @@
   /**
    * What a video plays, for the player to play the same stream (StreamPick.played).
    * @param {HTMLVideoElement|null|undefined} video - The video.
-   * @return {?{src: string, duration: ?number, playing: string}} Its file's URL (not a
-   *   blob: URL, which a detected source never has), its length in seconds (Infinity when
-   *   live), and its currentSrc as it is, blob: or not; or null for no video.
+   * @return {?{src: string, duration: ?number, playing: string, time: number}} Its file's URL
+   *   (not a blob: URL, which a detected source never has), its length in seconds (Infinity
+   *   when live), its currentSrc as it is, blob: or not, and where it plays, in seconds; or
+   *   null for no video.
    */
   function playedVideo(video) {
     if (!video) {
