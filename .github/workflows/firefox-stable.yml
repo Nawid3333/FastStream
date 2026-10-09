@@ -172,7 +172,9 @@ jobs:
             done
             exit 0
           fi
-          if [ "$RESULT" != failure ]; then
+          # A suite that runs out of its time ends cancelled, not failed (as in
+          # mutation-tests.yml): a Firefox that hangs the suites said nothing.
+          if [ "$RESULT" != failure ] && [ "$RESULT" != cancelled ]; then
             echo "e2e result: $RESULT - nothing to report."
             exit 0
           fi
@@ -182,7 +184,7 @@ jobs:
             exit 0
           fi
           failed=$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json jobs \
-            --jq '[.jobs[] | select(.conclusion == "failure") | .name] | join(", ")')
+            --jq '[.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | "\(.name) (\(.conclusion))"] | join(", ")')
           {
             printf '@%s The e2e suites fail on **Firefox %s**, the current stable release - already on your machine once it updates: %s\n\n' "$OWNER" "$VERSION" "$RUN_URL"
             printf 'The run log and its e2e-logs artifact show which spec failed. tests/e2e/specs/firefox.e2e.mjs pins the Firefox behaviour FastStream relies on; a failure there means that behaviour changed.\n\n'
