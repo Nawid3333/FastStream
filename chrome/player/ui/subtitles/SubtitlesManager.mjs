@@ -138,7 +138,12 @@ export class SubtitlesManager extends EventEmitter {
   }
 
   onSettingsChanged(settings) {
-    this.openSubtitlesSearch.setLanguageInputValue(settings.defaultLanguage);
+    // Only when the default language changes: any other setting (the font size) put it back
+    // over a language typed into the search.
+    if (settings.defaultLanguage !== this.lastDefaultLanguage) {
+      this.lastDefaultLanguage = settings.defaultLanguage;
+      this.openSubtitlesSearch.setLanguageInputValue(settings.defaultLanguage);
+    }
     this.refreshSubtitleStyles();
     this.renderSubtitles();
   }
@@ -167,6 +172,8 @@ export class SubtitlesManager extends EventEmitter {
       return false;
     }
     DOMElements.subtitlesMenu.style.display = 'none';
+    // Opened again, it showed the settings it was closed on, not the list of tracks.
+    this.settingsManager.closeUI();
     WebUtils.setLabels(DOMElements.subtitles, Localize.getMessage('player_subtitlesmenu_open_label'));
     return true;
   }
@@ -230,6 +237,8 @@ export class SubtitlesManager extends EventEmitter {
         track.checkHasCues();
 
         this.addTrack(track);
+        // As the URL path says: nothing else showed that the file was taken.
+        AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
       }).catch((e) => {
         AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
       });
@@ -385,7 +394,9 @@ export class SubtitlesManager extends EventEmitter {
       }
       // The track's name, as its tooltip has it: the row shows it cut to 30 characters and,
       // with more than one track on, after its place ("1: ").
-      const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_');
+      // Without its own extension: a track loaded from movie.srt was saved as movie.srt.srt.
+      const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_')
+          .replace(/\.(srt|vtt|ass|ssa)$/i, '');
       // Asked in a private window too: a Firefox save lands straight in the download
       // directory under whatever name is passed, as SaveManager says.
       const dlname = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
@@ -732,8 +743,8 @@ export class SubtitlesManager extends EventEmitter {
 
     if (subtitlesVisible) {
       DOMElements.subtitlesContainer.style.display = '';
-      const margin = this.settingsManager.getSettings().bottomMargin;
-      DOMElements.subtitlesContainer.style.bottom = margin === '40px' ? '' : this.settingsManager.getSettings().bottomMargin;
+      const margin = SubtitleUtils.withUnit(this.settingsManager.getSettings().bottomMargin);
+      DOMElements.subtitlesContainer.style.bottom = margin === '40px' ? '' : margin;
     } else {
       DOMElements.subtitlesContainer.style.display = 'none';
     }

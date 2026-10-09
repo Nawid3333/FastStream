@@ -4,6 +4,7 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {Localize} from '../../modules/Localize.mjs';
+import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 
 export const SubtitlesSettingsManagerEvents = {
   SETTINGS_CHANGED: 'settingsChanged',
@@ -62,7 +63,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
       if (!config) continue;
 
       if (config.type === 'css') {
-        element.style[config.property] = settings[key];
+        element.style[config.property] = config.property === 'font-size' ? SubtitleUtils.withUnit(settings[key]) : settings[key];
       }
     }
     this.applyOutline(element, settings);

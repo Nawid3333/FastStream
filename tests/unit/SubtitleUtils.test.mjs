@@ -210,6 +210,12 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('a\\hb')).toBe('a b');
   });
 
+  // It was shown as \n (review, 2026-10-09); \N is the hard break.
+  it('reads an ASS soft line break as a space', () => {
+    expect(SubtitleUtils.convertSubtitleFormatting('one\\ntwo')).toBe('one two');
+    expect(SubtitleUtils.convertSubtitleFormatting('one\\Ntwo')).toBe('one\ntwo');
+  });
+
   it('strips remaining alignment tags it does not translate inline', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('{\\an5}')).toBe('');
   });
@@ -399,5 +405,21 @@ describe('hostile input: linear time', () => {
   it('still turns <br> tags into line breaks', () => {
     expect(SubtitleUtils.convertSrtCue('1\n00:00:01,000 --> 00:00:02,000\na<br>b< BR />c</br>d<br x="1">e<brx>f<br'))
         .toBe('1\n00:00:01.000 --> 00:00:02.000\na\nb\nc\nd\ne<brx>f<br\n\n');
+  });
+});
+
+// A bare 20 in the font size or the bottom margin was refused as CSS, and did nothing
+// (review, 2026-10-09).
+describe('withUnit', () => {
+  it('reads a bare number as pixels, a decimal comma too', () => {
+    expect(SubtitleUtils.withUnit('20')).toBe('20px');
+    expect(SubtitleUtils.withUnit(' 1,5 ')).toBe('1.5px');
+  });
+
+  it('leaves CSS as it is', () => {
+    for (const css of ['3vw', '40px', '1.2em', 'large', '']) {
+      expect(SubtitleUtils.withUnit(css)).toBe(css);
+    }
+    expect(SubtitleUtils.withUnit(undefined)).toBe('');
   });
 });

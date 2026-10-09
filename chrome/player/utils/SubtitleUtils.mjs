@@ -11,6 +11,18 @@ const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
  */
 export class SubtitleUtils {
   /**
+   * A subtitle size setting as CSS: a bare number ("20", or "1,5" with a decimal comma) is
+   * pixels, as the outline width already read it. The font size and the bottom margin took
+   * only CSS ("3vw", "40px"): a bare 20 was refused, and the setting did nothing.
+   * @param {string} value
+   * @return {string}
+   */
+  static withUnit(value) {
+    const text = String(value ?? '').trim();
+    return /^\d+([.,]\d+)?$/.test(text) ? text.replace(',', '.') + 'px' : text;
+  }
+
+  /**
    * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
    * a charset the server declared), except that bytes that are no UTF-8 are read as
    * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every
@@ -392,6 +404,8 @@ export class SubtitleUtils {
         // An ASS hard line break. Several in a row, with or without a real line break after
         // each, make one: an empty line would end the cue.
         .replace(/(?:\\N(?:\r?\n)?)+/g, '\n')
+        // An ASS soft line break: a space where the line need not break. It was shown as \n.
+        .replace(/\\n/g, ' ')
         .replace(/\\h/gi, ' '); // convert hard spaces to regular spaces
   }
 }
