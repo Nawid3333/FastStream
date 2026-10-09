@@ -87,9 +87,9 @@ FastStream settings → **MPV Mode**:
 
 1. Tick **Open detected streams in mpv (external player)**.
 2. Click **Test mpv connection**. You want **"mpv found"**.
-   - *"host reachable, but mpv was not found"* → mpv is installed somewhere
-     unusual; put its full path in **mpv path** and test again.
-   - *"mpv host not available - is it installed?"* → the helper is not
+   - *"The mpv helper works, but it did not find mpv"* → mpv is installed
+     somewhere unusual; put its full path in **mpv path** and test again.
+   - *"The mpv helper did not answer - is it installed?"* → the helper is not
      registered, or you have not restarted the browser since installing it.
 3. Fill in the **MPV Allowlist** — one site per line. mpv is only used on
    these sites; everywhere else FastStream behaves normally.
