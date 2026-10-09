@@ -12,10 +12,17 @@ vi.mock('../../chrome/player/modules/analyzer/VideoAligner.mjs', async () => {
   const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
   return {
     VideoAligner: class extends EventEmitter {
+      hasMemoryChanges = false;
       setRange() {}
       prepare() {}
       getMatch() {
         return null;
+      }
+      unsetChangesFlag() {
+        this.hasMemoryChanges = false;
+      }
+      async getMemoryForSave() {
+        return {};
       }
     },
   };
@@ -177,5 +184,34 @@ describe('PreviewFrameExtractor, a stale background player', () => {
 
     expect(playerA.destroy).toHaveBeenCalled();
     expect(extractor.backgroundAnalyzerPlayer).toBe(playerB);
+  });
+});
+
+describe('VideoAnalyzer, saving the intro/outro memory to the background', () => {
+  it('sends both memories once they are compressed', async () => {
+    const sendMessage = vi.fn(async () => {});
+    vi.stubGlobal('chrome', {extension: {}, runtime: {sendMessage}});
+    const analyzer = new VideoAnalyzer(makeClient(failingPlayer()));
+    analyzer.introAligner.hasMemoryChanges = true;
+    analyzer.introAligner.getMemoryForSave = async () => ({intro: 1});
+    analyzer.outroAligner.getMemoryForSave = async () => ({outro: 2});
+    analyzer.saveAnalyzerData();
+    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalled());
+    expect(sendMessage.mock.calls[0][0].data).toEqual({intro: {intro: 1}, outro: {outro: 2}});
+    expect(analyzer.introAligner.hasMemoryChanges).toBe(false);
+  });
+
+  it('keeps the changes to save at the next try when the compression fails', async () => {
+    const sendMessage = vi.fn(async () => {});
+    vi.stubGlobal('chrome', {extension: {}, runtime: {sendMessage}});
+    const analyzer = new VideoAnalyzer(makeClient(failingPlayer()));
+    analyzer.introAligner.hasMemoryChanges = true;
+    analyzer.introAligner.getMemoryForSave = async () => {
+      throw new Error('no compression');
+    };
+    analyzer.saveAnalyzerData();
+    expect(analyzer.introAligner.hasMemoryChanges).toBe(false);
+    await vi.waitFor(() => expect(analyzer.introAligner.hasMemoryChanges).toBe(true));
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

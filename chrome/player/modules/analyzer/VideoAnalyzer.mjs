@@ -85,7 +85,12 @@ export class VideoAnalyzer extends EventEmitter {
           type: MessageTypes.STORE_ANALYZER_DATA,
           data: {intro, outro},
         });
-      }).catch((e) => console.warn('[VideoAnalyzer] Could not save the analyzer data', e));
+      }).catch((e) => {
+        // Saved with the next changes, or at the next try.
+        this.introAligner.hasMemoryChanges = true;
+        this.outroAligner.hasMemoryChanges = true;
+        console.warn('[VideoAnalyzer] Could not save the analyzer data', e);
+      });
     }
   }
 
