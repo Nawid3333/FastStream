@@ -52,6 +52,9 @@ describe('AlertPolyfill', () => {
     expect(errorTitleText('just a string')).toBe('just a string');
     expect(errorTitleText({type: 'networkError', details: 'fragLoadError'})).toBe('{"type":"networkError","details":"fragLoadError"}');
     expect(errorTitleText('x'.repeat(300))).toBe('x'.repeat(200) + '...');
+    // No message: the title said "{}".
+    expect(errorTitleText(new Error())).toBe('Error');
+    expect(errorTitleText(new DOMException('', 'AbortError'))).toBe('AbortError');
   });
 
   it('reports what was thrown when it is no Error', () => {

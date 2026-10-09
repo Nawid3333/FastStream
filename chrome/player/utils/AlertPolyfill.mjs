@@ -182,7 +182,10 @@ function errorText(error) {
     text = String(error.message);
   } else if (error && typeof error === 'object') {
     try {
-      text = JSON.stringify(error) ?? text;
+      // An Error or DOMException without a message is "{}" as JSON (its own fields are not
+      // listed): its name ("Error", "AbortError") says more.
+      const json = JSON.stringify(error);
+      if (json && json !== '{}') text = json;
     } catch (e) {
       // A cycle: the plain text.
     }
