@@ -236,7 +236,12 @@ const KeyDisplayNames = {
   Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\',
   Semicolon: ';', Quote: '\'', Backquote: '`', Comma: ',', Period: '.', Slash: '/',
   AltLeft: 'Left Alt', AltRight: 'Right Alt', ControlLeft: 'Left Ctrl', ControlRight: 'Right Ctrl',
-  ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', Escape: 'Esc', Dead: 'Dead key',
+  ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', MetaLeft: 'Left Meta', MetaRight: 'Right Meta',
+  Escape: 'Esc', Dead: 'Dead key',
+  NumpadAdd: 'Num +', NumpadSubtract: 'Num -', NumpadMultiply: 'Num *', NumpadDivide: 'Num /',
+  NumpadDecimal: 'Num .', NumpadEnter: 'Num Enter', NumpadEqual: 'Num =', NumLock: 'Num Lock',
+  CapsLock: 'Caps Lock', ScrollLock: 'Scroll Lock', PageUp: 'Page Up', PageDown: 'Page Down',
+  PrintScreen: 'Print Screen', ContextMenu: 'Menu',
 };
 
 /**

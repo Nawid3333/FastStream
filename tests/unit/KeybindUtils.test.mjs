@@ -52,6 +52,12 @@ describe('keyDisplayName', () => {
     expect(keyDisplayName('Shift+Backspace')).toBe('Shift+Backspace');
     expect(keyDisplayName('F5')).toBe('F5');
     expect(keyDisplayName('Numpad3')).toBe('Num 3');
+    // Names a binding can be saved under that showed as they are (review).
+    expect(keyDisplayName('MetaLeft')).toBe('Left Meta');
+    expect(keyDisplayName('Control+NumpadAdd')).toBe('Ctrl+Num +');
+    expect(keyDisplayName('NumpadEnter')).toBe('Num Enter');
+    expect(keyDisplayName('CapsLock')).toBe('Caps Lock');
+    expect(keyDisplayName('Shift+PageDown')).toBe('Shift+Page Down');
   });
 
   it('keeps a character the layout types, a "+" among them', () => {
