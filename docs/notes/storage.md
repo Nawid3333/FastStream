@@ -210,7 +210,8 @@ copy of it stayed in RAM as well, because Firefox keeps a private `Response.blob
 each): reads are not the bottleneck at one piece per 4 s of video; the writes were.
 
 - **The budget.** A setting (Options > General, "RAM for buffered video", 16 locales), 2 GB by
-  default, at least 256 MB, for all FastStream players together: Firefox tells an extension
+  default, for all FastStream players together; an empty field is no limit, 0 is none (below):
+  Firefox tells an extension
   nothing of the computer's RAM (no `navigator.deviceMemory`). Players announce their RAM over
   `PlayerPeers`; a player's share (`MemoryBudget.shareOf`) is its weight's part of the budget
   (the one the user watches and that plays weighs 4, others 1), or all the others leave free,
@@ -227,6 +228,12 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   downloads ahead (`DownloadManager.memoryFull`); playback's own requests still go.
 - **Normal windows** write what they let go of to disk (`FSBlob.spill`) and read it from there;
   one that cannot be written (the disk full) is let go of instead.
+- **0 is straight to disk** (the owner's decision of 2026-10-09; it stopped every download
+  ahead before, like a download speed of 0). A share of 0 lets go of all but the next 10 s, so a
+  normal window writes the rest to disk as it comes, and downloads ahead go on while the player
+  holds under `MemoryBudget.DISK_ONLY_ROOM_BYTES` (64 MB): what is on its way to disk. A
+  private window, with no disk, downloads nothing ahead at 0. (ram-budget.e2e: 4 MB of a 33 MB
+  stream in RAM, the rest on disk; the old client never finished the download.)
 - **Private windows keep nothing on disk** (`FSBlob` `memoryOnly`): the owner's decision of
   2026-10-09, after Firefox's own design (`browser.privatebrowsing.forceMediaMemoryCache` keeps a
   private window's media in RAM). What a private player lets go of is downloaded again when
