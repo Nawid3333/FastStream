@@ -284,6 +284,10 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
     session(`fsblob-${now - 60000}-4`, locked);
     // A live one.
     session(`fsblob-${now - 60000}-5`, heartbeat(now - 2000));
+    // One whose heartbeat a crash cut short (heartbeats are not flushed): it reads, but is
+    // not JSON. Kept as "being written", its fragments stayed on the disk for good.
+    session(`fsblob-${now - 60000}-6`, new FakeFile('{"updated_ti'));
+    session(`fsblob-${now - 60000}-7`, new FakeFile(''));
 
     const manager = await startManager(root);
     try {
@@ -340,7 +344,11 @@ describe('opfs-worker: writes', () => {
       await manager.saveBegin('save-1');
       await manager.saveAppend('save-1', new Uint8Array([1, 2]));
       await manager.saveAppend('save-1', new Uint8Array([3]));
+      const flushed = () => [...sessionOf(root, manager).children.values()].reduce((n, file) => n + (file.flushes || 0), 0);
+      // Nothing yet: the save's one flush comes when it is complete.
+      expect(flushed()).toBe(0);
       await manager.saveEnd('save-1');
+      expect(flushed()).toBe(1);
       const fragment = await manager.getFile('blob0');
       const save = await manager.getSavedFile('save-1');
       expect({
