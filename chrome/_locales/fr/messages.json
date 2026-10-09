@@ -1143,7 +1143,7 @@
         "message": "Activation automatique par URL"
     },
     "options_autourl_body": {
-        "message": "Activera automatiquement l'extension lors de la visite de ces URL et la désactivera en quittant. Une URL par ligne ; les pages commençant par cette URL seront également prises en compte. Pour les regex, préfixez par un tilde (~). Une regex par ligne. Pour exclure des sites, préfixez par un point d'exclamation (!). Pour laisser un site entier de côté - pas d'activation automatique, et ses liens de flux ne sont pas ouverts dans le lecteur - préfixez son domaine par un signe moins (-)."
+        "message": "Active automatiquement l'extension lors de la visite de ces URL et la désactive en quittant. Une URL par ligne ; les pages commençant par cette URL seront également prises en compte (vous pouvez omettre https:// et www. : crunchyroll.com). Pour les regex, préfixez par un tilde (~). Une regex par ligne. Pour exclure des sites, préfixez par un point d'exclamation (!). Pour laisser un site entier de côté - pas d'activation automatique, et ses liens de flux ne sont pas ouverts dans le lecteur - préfixez son domaine par un signe moins (-)."
     },
     "options_autourl_hint": {
         "message": "Astuce : testez la regex sur"
@@ -1176,7 +1176,7 @@
         "message": "Liste d'autorisation MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Les sites de cette liste ouvrent dans mpv les flux détectés. Une URL par ligne ; les pages commençant par cette URL correspondent aussi. Utilisez ~ pour les regex et ! pour exclure. Les sites sans balise utilisent Film par défaut pour la sélection de shaders de mpv – ajoutez @anime à la fin d'une ligne pour les sites qui n'en sont pas. @movie est aussi accepté, si vous souhaitez l'écrire en toutes lettres. Le bouton mpv du lecteur peut remplacer cela pour chaque vidéo."
+        "message": "Les sites de cette liste ouvrent dans mpv les flux détectés. Une URL par ligne ; les pages commençant par cette URL correspondent aussi (vous pouvez omettre https:// et www. : crunchyroll.com @anime). Utilisez ~ pour les regex et ! pour exclure. Les sites sans balise utilisent Film par défaut pour la sélection de shaders de mpv - ajoutez @anime à la fin d'une ligne pour les sites d'anime. @movie est aussi accepté, si vous souhaitez l'écrire en toutes lettres. Le bouton mpv du lecteur peut remplacer cela pour chaque vidéo."
     },
     "options_mpv_path": {
         "message": "Chemin de mpv (facultatif, utilisé par l'hôte natif lorsque mpv n'est pas dans le PATH)"
@@ -1242,7 +1242,10 @@
         "message": "FastStream - MPV - le flux ne s'est pas ouvert : $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - l'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)"
+        "message": "FastStream - MPV - l'assistant mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)"
+    },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - l'assistant mpv de cet ordinateur est obsolète : mettez à jour le fichier faststream-mpv-host.mjs vers lequel pointe votre manifeste de messagerie native (effectuez un git pull dans votre copie du dépôt FastStream ; consultez native-host/README.md)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Lecture dans MPV - décodé par la carte graphique : $1"
@@ -1251,7 +1254,10 @@
         "message": "FastStream - Lecture dans MPV - décodé par le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique"
     },
     "options_mpv_test_outdated": {
-        "message": "L'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
+        "message": "L'assistant mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
+    },
+    "options_mpv_test_outdated_unix": {
+        "message": "L'assistant mpv de cet ordinateur est obsolète : mettez à jour le fichier faststream-mpv-host.mjs vers lequel pointe votre manifeste de messagerie native (effectuez un git pull dans votre copie du dépôt FastStream ; consultez native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "Le mpv ouvert décode sur la carte graphique : $1."
@@ -1260,7 +1266,10 @@
         "message": "Le mpv ouvert décode sur le processeur ($1) : ajoutez hwdec=auto-safe à mpv.conf pour décoder sur la carte graphique."
     },
     "player_mpv_sent_outdated": {
-        "message": "Envoyé vers mpv. L'hôte mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
+        "message": "Envoyé vers mpv. L'assistant mpv de cet ordinateur est obsolète : lancez « Update mpv » depuis le menu Démarrer (dans une copie du dépôt FastStream : update-local.cmd ou native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Envoyé vers mpv. L'assistant mpv de cet ordinateur est obsolète : mettez à jour le fichier faststream-mpv-host.mjs vers lequel pointe votre manifeste de messagerie native (effectuez un git pull dans votre copie du dépôt FastStream ; consultez native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Ouvrir ce flux dans mpv (type de contenu : auto – Film sauf si le site est marqué @anime ; clic droit pour le changer pour cette vidéo)"
@@ -1339,6 +1348,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Utilisée uniquement avec Firefox VPN. Firefox l'indique comme contrôle des paramètres de proxy du navigateur, mais FastStream ne modifie aucun paramètre : il envoie ses propres requêtes pour une vidéo de la même manière que les requêtes de la page elle-même, via le VPN. Sans elle, un site qui lie sa vidéo à l'adresse du VPN refuse FastStream. Le lecteur la demande la première fois qu'elle est nécessaire."
+    },
+    "player_mpv_no_host": {
+        "message": "l'assistant mpv de FastStream n'a pas répondu - est-il installé ?"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN transporte cette vidéo, et mpv ne peut pas l'utiliser : le site refuserait mpv. Pour la regarder dans mpv, désactivez Firefox VPN pour ce site et rechargez la page."

@@ -1143,7 +1143,7 @@
         "message": "Aktifkan Otomatis untuk URL"
     },
     "options_autourl_body": {
-        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok. Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!). Untuk membiarkan seluruh situs apa adanya - tanpa pengaktifan otomatis, dan tautan streamingnya tidak dibuka di pemutar - tambahkan tanda minus (-) di depan domainnya."
+        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok (https:// dan www. bisa dihilangkan: crunchyroll.com). Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!). Untuk membiarkan satu situs sepenuhnya tidak diganggu - tanpa pengaktifan otomatis, dan tautan streamingnya tidak dibuka di pemutar - awali domainnya dengan tanda minus (-)."
     },
     "options_autourl_hint": {
         "message": "Petunjuk: Uji regex di"
@@ -1176,7 +1176,7 @@
         "message": "Daftar Izin MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok. Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs yang bukan Film. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
+        "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok (https:// dan www. bisa dihilangkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs anime. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
     },
     "options_mpv_path": {
         "message": "Jalur mpv (opsional, dipakai oleh host natif ketika mpv tidak ada di PATH)"
@@ -1242,7 +1242,10 @@
         "message": "FastStream - MPV - stream tidak terbuka: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
+        "message": "FastStream - MPV - program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
+    },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Diputar di MPV - didekode oleh kartu grafis: $1"
@@ -1251,7 +1254,10 @@
         "message": "FastStream - Diputar di MPV - didekode oleh prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis"
     },
     "options_mpv_test_outdated": {
-        "message": "Host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+        "message": "Program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+    },
+    "options_mpv_test_outdated_unix": {
+        "message": "Program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "mpv yang terbuka mendekode di kartu grafis: $1."
@@ -1260,7 +1266,10 @@
         "message": "mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
     },
     "player_mpv_sent_outdated": {
-        "message": "Terkirim ke mpv. Host mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+        "message": "Terkirim ke mpv. Program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Terkirim ke mpv. Program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"
@@ -1339,6 +1348,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Hanya digunakan dengan Firefox VPN. Firefox mencantumkannya sebagai kontrol pengaturan proxy browser, tetapi FastStream tidak mengubah pengaturan apa pun: ia mengirim permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, situs yang mengaitkan videonya ke alamat VPN menolak FastStream. Pemutar memintanya saat pertama kali dibutuhkan."
+    },
+    "player_mpv_no_host": {
+        "message": "program penghubung mpv FastStream tidak merespons - apakah sudah terpasang?"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN membawa video ini, dan mpv tidak dapat menggunakannya: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."
