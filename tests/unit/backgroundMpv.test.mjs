@@ -427,7 +427,7 @@ describe('a failed hand-off', () => {
 // extension update and a `git pull`. Until 2026-10-04 an e-mail said to install it again;
 // now the button does, where MPV mode is used.
 describe('an outdated mpv host', () => {
-  const OUTDATED = 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+  const OUTDATED = 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
     'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
 
   it('gets the stream, and the toolbar says to install the host again', async () => {

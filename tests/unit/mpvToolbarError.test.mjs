@@ -48,7 +48,7 @@ describe('the toolbar button in MPV mode', () => {
   it('shows "!" and what to run after a hand-off through an outdated host', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
     expect(calls.badge).toEqual({text: '!', tabId: 7});
-    expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+    expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
       'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)',
     tabId: 7});
   });
@@ -57,7 +57,7 @@ describe('the toolbar button in MPV mode', () => {
   it('names the Linux and macOS steps there', () => {
     vi.stubGlobal('navigator', {platform: 'Linux x86_64'});
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
-    expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+    expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
       'update the faststream-mpv-host.mjs that your native messaging manifest points to ' +
       '(git pull in your FastStream checkout; see native-host/README.md)',
     tabId: 7});

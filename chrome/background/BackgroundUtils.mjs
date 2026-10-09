@@ -104,10 +104,10 @@ export class BackgroundUtils {
         // mpv"); on Linux and macOS the manifest names the host file itself.
         title = BackgroundUtils.isWindows() ?
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated') ||
-            'FastStream - MPV - the mpv host on this computer is out of date: ' +
+            'FastStream - MPV - the mpv helper on this computer is out of date: ' +
             'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)' :
           chrome.i18n.getMessage('extension_toggle_label_mpv_outdated_unix') ||
-            'FastStream - MPV - the mpv host on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)';
+            'FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)';
       } else if (tab.mpvDecoder && tab.mpvDecoder.hardware) {
         // What mpv itself said about its decoder (MpvBackend.decoderStatus).
         const what = MpvBackend.describeDecoder(tab.mpvDecoder);

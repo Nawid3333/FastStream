@@ -1242,10 +1242,10 @@
         "message": "FastStream - MPV - the stream did not open: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - the mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
+        "message": "FastStream - MPV - the mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
     },
     "extension_toggle_label_mpv_outdated_unix": {
-        "message": "FastStream - MPV - the mpv host on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)"
+        "message": "FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
@@ -1254,10 +1254,10 @@
         "message": "FastStream - Playing in MPV - decoded by the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card"
     },
     "options_mpv_test_outdated": {
-        "message": "The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+        "message": "The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
     },
     "options_mpv_test_outdated_unix": {
-        "message": "The mpv host on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
+        "message": "The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "The open mpv decodes on the graphics card: $1."
@@ -1266,10 +1266,10 @@
         "message": "The open mpv decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_sent_outdated": {
-        "message": "Sent to mpv. The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+        "message": "Sent to mpv. The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
     },
     "player_mpv_sent_outdated_unix": {
-        "message": "Sent to mpv. The mpv host on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
+        "message": "Sent to mpv. The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
