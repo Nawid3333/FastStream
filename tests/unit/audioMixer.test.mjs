@@ -348,6 +348,22 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
 
 // A solo on a strip the audio has not (greyed, the centre of a stereo video) silenced every
 // channel it has (review, 2026-10-09).
+describe('AudioChannelMixer: a profile before the audio graph', () => {
+  // A profile can come before the graph is made (setupNodes applies it then): its nodes
+  // threw, and the profile list and the crosstalk were never set up.
+  it('is kept for the graph, without throwing', () => {
+    const mixer = new AudioChannelMixer({
+      getChannelCount: async () => 2,
+      getOutputMeter: () => ({updateChannelCount() {}, createAnalysers() {}, destroyAnalysers() {}}),
+    });
+    mixer.setupUI(el(), el());
+    mixer.ui.mixer.offsetParent = null;
+    const profile = new AudioProfile(1);
+    expect(() => mixer.setConfig(profile)).not.toThrow();
+    expect(mixer.masterConfig).toBe(profile.master);
+  });
+});
+
 describe('AudioChannelMixer: a solo', () => {
   /** A mixer of six channels, the given one soloed. */
   function mixerWithSolo(soloId) {

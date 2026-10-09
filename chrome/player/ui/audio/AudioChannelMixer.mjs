@@ -73,7 +73,9 @@ export class AudioChannelMixer extends AbstractAudioModule {
     this.masterConfig = config.master;
     // A profile can come before the audio graph is made (setupNodes applies it then): its
     // nodes threw, and the profile list and the crosstalk were never set up.
-    if (!this.masterNodes) {
+    // masterNodes starts as {}, so the check is on what setupNodes makes (review: a check on
+    // masterNodes itself never held, and the channels' nodes still threw).
+    if (!this.masterNodes.equalizer || this.channelConfigs.some((channel) => !this.channelNodes[channel.id])) {
       return;
     }
     this.channelConfigs.forEach((channel, i) => {
