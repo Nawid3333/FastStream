@@ -103,7 +103,6 @@ describe('A segment that does not decode', function() {
                 const entry = {at: Math.round(performance.now()), time: client.currentTime,
                   reason: error ? `error ${error.code}: ${error.message}` : String(reason?.details || reason).slice(0, 200)};
                 entry.rebuilt = recover(player, reason);
-                entry.to = new URL(client.source?.url || 'about:blank').searchParams.get('faststream-timestamp');
                 log.push(entry);
                 return entry.rebuilt;
               };
