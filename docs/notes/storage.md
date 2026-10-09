@@ -253,3 +253,25 @@ with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start playe
 disk); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
 `MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
 write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).
+
+## What goes to the disk, measured (2026-10-09)
+
+Three player tabs, a 241 MB HLS video each, from a local server, in a test profile; the
+system-wide bytes written to physical disks (`Win32_PerfRawData_PerfDisk_PhysicalDisk`),
+against an idle baseline of the same length:
+
+- **Within the RAM budget nothing of the video is written.** 723 MB downloaded with a 4 GB
+  budget: all of it in RAM, Firefox's temp files 0 MB (FetchLoader reads the body into its
+  own buffers and fetches with `cache: 'no-store'`, so neither `Response.blob()`'s temp files
+  nor Firefox's HTTP cache take a copy); the ~80 MB above the idle baseline is the profile's
+  own activity, the same with any video size.
+- **Over it, the overflow is written once, plus the file system's overhead.** With a 300 MB
+  budget ~500 MB went to OPFS, and Windows wrote ~1.2 GB for it while every file and every
+  heartbeat was flushed (a forced sync). Plain Node, writing the same 501 MB as 313 files,
+  each flushed: 800 MB; not flushed, 423 MB after 30 s. Since then no fragment and no
+  heartbeat is flushed (`opfs-worker.mjs`; a save's file is, once, when complete): in total
+  ~1.0-1.2 GB instead of ~1.36 GB for the same spill (the lazy writer writes the data a little
+  later), and no forced sync every second per open player.
+- **What it means for an SSD:** rated endurance is in hundreds of TB written (a 1 TB drive
+  typically 600 TBW); 10 GB of spilled video a day is ~9 TB a year with the overhead, about 1.5 %
+  of that. The budget is what decides how much is written: the overflow beyond it.
