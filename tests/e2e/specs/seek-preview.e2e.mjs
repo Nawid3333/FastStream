@@ -23,12 +23,14 @@ const PORT = 41896;
 const ORIGIN = `http://127.0.0.1:${PORT}`;
 const SEGMENTS = path.resolve(import.meta.dirname, '../fixtures/hls-ts');
 // Each segment arrives over this long, a slice every 100 ms, as on a slow line: the preview's
-// first one is half there when the pointer moves.
-const SEGMENT_MS = 4000;
+// first one is still on its way when the pointer moves, for seconds.
+const SEGMENT_MS = 8000;
 // The segment under the pointer is asked for within this after the pointer got there (4 ms
-// measured), not once the preview's first segment has arrived (4.8 s before).
-const ASKED_WITHIN_MS = 1500;
-const HOVER_AT = 200;
+// measured), not once the preview's first segment has arrived (4.8 s before, with 4 s
+// segments; seconds more with these).
+const ASKED_WITHIN_MS = 3000;
+// In the middle of a segment: 200 s is where one ends and the next begins.
+const HOVER_AT = 201;
 // The playlist repeats the fixture's 9 s: 5 segments, 2 s each but the last (1 s).
 const HOVER_PLACE = Math.floor(HOVER_AT / 9) * 5 + Math.min(Math.floor((HOVER_AT % 9) / 2), 4);
 
@@ -94,13 +96,27 @@ describe('The seek preview', function() {
     });
     await browser.pause(300);
 
+    // The case this is about: the preview's first segment still on its way as the pointer comes.
+    const pointedAt = Date.now();
+    const loadingFirst = await browser.execute((time) => {
+      const preview = window.fastStream.previewPlayer;
+      const loading = preview.activeRequests.length > 0 && preview.getVideo().buffered.length === 0;
+      window.fastStream.seekPreview(time);
+      return loading;
+    }, HOVER_AT);
+    expect(loadingFirst).toBe(true);
+    const asked = () => requests.filter((request) => request.place === HOVER_PLACE && request.at >= pointedAt);
+    await browser.waitUntil(async () => asked().length > 0,
+        {timeout: 30000, interval: 50, timeoutMsg: 'the segment under the pointer was never asked for'});
+    const askedAfter = asked()[0].at - pointedAt;
+    console.log(`      pointer at place ${HOVER_PLACE}: asked for ${askedAfter} ms later`);
+    expect(askedAfter).toBeLessThan(ASKED_WITHIN_MS);
+    // The pointer moves on within that segment: its download goes on, not started over.
     await browser.execute((time) => {
       window.fastStream.seekPreview(time);
-    }, HOVER_AT);
-    const pointedAt = Date.now();
-    await browser.waitUntil(async () => requests.some((request) => request.place === HOVER_PLACE),
-        {timeout: 20000, interval: 50, timeoutMsg: 'the segment under the pointer was never asked for'});
-    const askedAfter = requests.find((request) => request.place === HOVER_PLACE).at - pointedAt;
+    }, HOVER_AT + 0.5);
+    await browser.pause(1500);
+    expect(asked().length).toBe(1);
 
     let state;
     try {
@@ -113,11 +129,9 @@ describe('The seek preview', function() {
         }, HOVER_AT);
         // Downloaded into the player's store (DownloadStatus.DOWNLOAD_COMPLETE), and shown.
         return state.status === 3 && state.previewReady >= 2;
-      }, {timeout: 20000, interval: 250});
+      }, {timeout: 30000, interval: 250});
     } finally {
-      console.log(`      pointer at place ${HOVER_PLACE}, asked for ${askedAfter} ms later: ${JSON.stringify(state)}; ` +
-        `asked for: ${JSON.stringify(requests.slice(0, 12).map((request) => request.place))}`);
+      console.log(`      then: ${JSON.stringify(state)}; asked for: ${JSON.stringify(requests.slice(0, 12).map((request) => request.place))}`);
     }
-    expect(askedAfter).toBeLessThan(ASKED_WITHIN_MS);
   });
 });

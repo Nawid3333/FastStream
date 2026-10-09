@@ -334,7 +334,11 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   that opens at its saved position, on a slow line - left the preview on its first segment
   until that finished (4.8 s in `seek-preview.e2e.mjs`, more than 10 s on a shared 12 Mbit/s
   line), loading nothing meanwhile. `HLSPlayer`'s preview seek now goes through
-  `hls.stopLoad()`/`startLoad(time)`: the segment is asked for within milliseconds.
+  `hls.stopLoad()`/`startLoad(time)`: the segment is asked for within milliseconds (37 ms; the
+  old code 9.2 s with 8 s segments). A pointer still inside the segment that is loading leaves
+  it loading: each move started it over. Open: the hovered segment is requested a second time
+  a few seconds later in `seek-preview.e2e.mjs` (before and after that guard), not explained
+  yet.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.

@@ -434,6 +434,13 @@ export default class HLSPlayer extends EventEmitter {
     // loading that first segment for good, and hovering loaded nothing for the rest of the
     // video.
     if (this.isPreview && this.activeRequests.length > 0 && !VideoUtils.isBuffered(this.video.buffered, value)) {
+      // Still on the segment that is loading: it goes on. The pointer moves many times a
+      // second, and on a slow line each move started that segment over.
+      const loading = this.hls.streamController?.fragCurrent;
+      if (loading && value >= loading.start && value < loading.start + loading.duration) {
+        this.video.currentTime = value;
+        return;
+      }
       this.hls.stopLoad();
       this.activeRequests.length = 0;
       this.video.currentTime = value;
