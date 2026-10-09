@@ -43,6 +43,8 @@ export class VideoAnalyzer extends EventEmitter {
 
     this.introStatus = AnalyzerStatus.IDLE;
     this.outroStatus = AnalyzerStatus.IDLE;
+    // Counts the finders' runs, which a source or quality change ends (destroyPlayers).
+    this.runs = 0;
 
     this.lastAnalyzerSave = 0;
 
@@ -113,6 +115,10 @@ export class VideoAnalyzer extends EventEmitter {
   }
 
   destroyPlayers() {
+    // Every finder running or loading is the one before's now (runFinder), including one
+    // whose player is not here yet; a running one starts again (IDLE), as its own end
+    // reported nothing then.
+    this.runs++;
     if (this.introPlayer) {
       this.introPlayer.destroy();
       this.introPlayer = null;
@@ -121,6 +127,12 @@ export class VideoAnalyzer extends EventEmitter {
     if (this.outroPlayer) {
       this.outroPlayer.destroy();
       this.outroPlayer = null;
+    }
+    if (this.introStatus === AnalyzerStatus.RUNNING) {
+      this.introStatus = AnalyzerStatus.IDLE;
+    }
+    if (this.outroStatus === AnalyzerStatus.RUNNING) {
+      this.outroStatus = AnalyzerStatus.IDLE;
     }
   }
 
@@ -135,60 +147,88 @@ export class VideoAnalyzer extends EventEmitter {
     this.introAligner.setRange(introStart, introEnd);
     this.outroAligner.setRange(outroStart, outroEnd);
 
+    // The ranges are this source's: after a source change while the intro finder loaded,
+    // the outro's is not started from them.
+    const run = this.runs;
     if (this.outroStatus !== AnalyzerStatus.RUNNING && this.introStatus === AnalyzerStatus.IDLE && introEnd - introStart > 30) {
       if (this.shouldLoadPlayer(introStart, introEnd)) {
-        console.log('[VideoAnalyzer] Running intro finder in background', introStart, introEnd);
-        this.introStatus = AnalyzerStatus.RUNNING;
-        const reserved = this.referenceFragments(introStart, introEnd);
-        try {
-          this.introPlayer = await this.loadPlayer(this.introAligner, introStart, introEnd, (completed) => {
-            this.introStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-            this.introPlayer = null;
-            console.log('[VideoAnalyzer] Intro finder completed', completed);
-            this.dereferenceFragments(reserved);
-            this.client.interfaceController.updateMarkers();
-          });
-        } catch (e) {
-          // Thrown on, it left the finder "running" (never run again) and the fragments it
-          // had pinned unfreeable for the rest of the video.
-          console.warn('[VideoAnalyzer] Intro finder could not load', e);
-          this.introPlayer = null;
-          this.dereferenceFragments(reserved);
-        }
-
-        if (!this.introPlayer) {
-          this.introStatus = AnalyzerStatus.FAILED;
-          console.log('[VideoAnalyzer] Intro finder failed');
-          this.client.interfaceController.updateMarkers();
-        }
+        await this.runFinder(true, introStart, introEnd);
+        if (run !== this.runs) return;
       }
     }
 
     if (this.introStatus !== AnalyzerStatus.RUNNING && this.outroStatus === AnalyzerStatus.IDLE && outroEnd - outroStart > 30) {
       if (this.shouldLoadPlayer(outroStart, outroEnd)) {
-        console.log('[VideoAnalyzer] Running outro finder in background', outroStart, outroEnd);
-        this.outroStatus = AnalyzerStatus.RUNNING;
-        const reserved = this.referenceFragments(outroStart, outroEnd);
-        try {
-          this.outroPlayer = await this.loadPlayer(this.outroAligner, outroStart, outroEnd, (completed) => {
-            this.outroStatus = completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
-            this.outroPlayer = null;
-            console.log('[VideoAnalyzer] Outro finder completed', completed);
-            this.dereferenceFragments(reserved);
-            this.client.interfaceController.updateMarkers();
-          });
-        } catch (e) {
-          console.warn('[VideoAnalyzer] Outro finder could not load', e);
-          this.outroPlayer = null;
-          this.dereferenceFragments(reserved);
-        }
-
-        if (!this.outroPlayer) {
-          this.outroStatus = AnalyzerStatus.FAILED;
-          console.log('[VideoAnalyzer] Outro finder failed');
-          this.client.interfaceController.updateMarkers();
-        }
+        await this.runFinder(false, outroStart, outroEnd);
       }
+    }
+  }
+
+  /**
+   * Runs the intro or the outro finder: a background player plays its range at 6x, and its
+   * frames go to the aligner.
+   * @param {boolean} intro - The intro's finder, or the outro's.
+   * @param {number} start - Where its range starts, in seconds.
+   * @param {number} end - Where its range ends.
+   * @return {Promise<void>} Once its player plays, or it could not load.
+   */
+  async runFinder(intro, start, end) {
+    const name = intro ? 'Intro' : 'Outro';
+    const setStatus = (status) => {
+      if (intro) this.introStatus = status;
+      else this.outroStatus = status;
+    };
+    const setPlayer = (player) => {
+      if (intro) this.introPlayer = player;
+      else this.outroPlayer = player;
+    };
+    // A source or a quality change (destroyPlayers) while its player loads, or once it
+    // plays: that player, and all it reports, are the one before's.
+    const run = this.runs;
+    console.log(`[VideoAnalyzer] Running ${name.toLowerCase()} finder in background`, start, end);
+    setStatus(AnalyzerStatus.RUNNING);
+    const reserved = this.referenceFragments(start, end);
+    let released = false;
+    const release = () => {
+      if (!released) {
+        released = true;
+        this.dereferenceFragments(reserved);
+      }
+    };
+    let ended = false;
+    let player;
+    try {
+      player = await this.loadPlayer(intro ? this.introAligner : this.outroAligner, start, end, (completed) => {
+        ended = true;
+        release();
+        if (run !== this.runs) return;
+        setStatus(completed ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED);
+        setPlayer(null);
+        console.log(`[VideoAnalyzer] ${name} finder completed`, completed);
+        this.client.interfaceController.updateMarkers();
+      }, () => run === this.runs);
+    } catch (e) {
+      // Thrown on, it left the finder "running" (never run again) and the fragments it
+      // had pinned unfreeable for the rest of the video.
+      console.warn(`[VideoAnalyzer] ${name} finder could not load`, e);
+      release();
+      if (run === this.runs) {
+        setStatus(AnalyzerStatus.FAILED);
+        this.client.interfaceController.updateMarkers();
+      }
+      return;
+    }
+    if (run !== this.runs) {
+      // Loaded for the source or quality before. Kept, it went on downloading that one's
+      // range at 6x and put its frames into the next one's sequence, and a later finder
+      // overwrote it here without destroying it (audit, 2026-10-09).
+      if (!ended) player.destroy();
+      release();
+      return;
+    }
+    // Ended while it loaded (no picture): its onDone already said so.
+    if (!ended) {
+      setPlayer(player);
     }
   }
 
@@ -266,8 +306,10 @@ export class VideoAnalyzer extends EventEmitter {
     return reserved;
   }
 
-  async loadPlayer(aligner, timeStart, timeEnd, onDone) {
-    const player = await this.client.playerLoader.createPlayer(this.source.mode, this.client, {
+  async loadPlayer(aligner, timeStart, timeEnd, onDone, isCurrent = () => true) {
+    // The source it was started for: a source change during the awaits below has its own.
+    const source = this.source;
+    const player = await this.client.playerLoader.createPlayer(source.mode, this.client, {
       isAnalyzer: true,
     });
 
@@ -281,12 +323,14 @@ export class VideoAnalyzer extends EventEmitter {
 
       const onLoadMeta = () => {
         player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
+        // Its run ended while it loaded: it plays nothing, and runFinder destroys it.
+        if (!isCurrent()) return;
         this.runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone);
       };
 
       player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
 
-      await player.setSource(this.source);
+      await player.setSource(source);
     } catch (e) {
       // Not left half built, downloading on its own.
       try {
