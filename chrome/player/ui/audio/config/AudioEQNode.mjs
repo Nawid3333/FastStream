@@ -21,7 +21,9 @@ export class AudioEQNode {
     if (!FILTER_TYPES.includes(obj?.type) || !Number.isFinite(frequency) || frequency <= 0) {
       return null;
     }
-    const gain = obj.gainDb === undefined ? obj.gain : obj.gainDb;
+    // null too: JSON writes a gain that was no number as null, and the band's gain under
+    // its old name was lost.
+    const gain = obj.gainDb == null ? obj.gain : obj.gainDb;
     return new AudioEQNode(obj.type, frequency, finiteOr(gain, 0), finiteOr(obj.q, 1));
   }
 

@@ -23,9 +23,13 @@ export class AudioProfile {
 
   static fromObj(obj) {
     const profile = new AudioProfile(obj.id);
-    profile.label = obj.label;
+    // A profile without a label (an older one, a file edited by hand) was named "undefined",
+    // and saved so; it keeps the default name.
+    if (typeof obj.label === 'string' && obj.label) profile.label = obj.label;
 
-    if (Array.isArray(obj.channels) && obj.channels.length <= MAX_AUDIO_CHANNELS) {
+    // A list of any length: one with more channels than the mixer has (8, from a file) lost
+    // every channel's settings. The loop below keeps one per ID.
+    if (Array.isArray(obj.channels)) {
       profile.channels = obj.channels.filter((channel) => channel && typeof channel === 'object').map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
