@@ -817,10 +817,8 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
     client.loadProgressData = vi.fn(async () => {});
 
     client.setOptions({bufferAhead: -1, bufferBehind: -1});
-    expect(client.options.bufferAhead).toBe(Infinity);
-    expect(client.state.bufferBehind).toBe(Infinity);
+    expect([client.options.bufferAhead, client.options.bufferBehind, client.state.bufferBehind]).toEqual([Infinity, Infinity, Infinity]);
     client.setOptions({bufferAhead: 0, bufferBehind: 0});
-    expect(client.options.bufferAhead).toBe(0);
-    expect(client.state.bufferBehind).toBe(0);
+    expect([client.options.bufferAhead, client.options.bufferBehind, client.state.bufferBehind]).toEqual([0, 0, 0]);
   });
 });

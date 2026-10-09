@@ -346,8 +346,15 @@ describe('Options page size fields, typed by hand', function() {
   });
 
   // It held back reading ahead then, as 0 does now.
-  it('keeps a speed limit of 0 saved before, and says what it does', async function() {
+  // Saved before 1.3.82.75, a speed of 0 still read ahead, in bursts: no limit now, as that
+  // release made it. One chosen since is none, and says so.
+  it('shows a speed limit of 0 saved before as no limit, and one saved since as none', async function() {
     await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0})));
+    await browser.url(optionsPagePath());
+    await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
+        {timeout: 30000});
+    expect(await browser.execute(() => document.getElementById('maxspeed').value)).toBe('');
+    await browser.execute(() => localStorage.setItem('options', JSON.stringify({maxSpeed: 0, sizesVersion: 1})));
     await browser.url(optionsPagePath());
     await browser.waitUntil(async () => browser.execute(() => document.documentElement.dataset.optionsLoaded === 'true'),
         {timeout: 30000});

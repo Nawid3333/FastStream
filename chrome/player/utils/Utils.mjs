@@ -21,9 +21,9 @@ export class Utils {
    * A maximum size below 1 MB in options saved before #378 was a bare number read as bytes:
    * "10" was 10 bytes where 10 MB was meant, and nothing could be predownloaded. Read as
    * megabytes. Only once (sizesVersion), from the value as saved: a size below 1 MB chosen
-   * since, in the MB/GB picker (0.5 MB), is meant. A size of 0 saved before was read as no
-   * limit, and stays one: 0 is none now, nothing predownloaded. A speed limit of 0 held back
-   * reading ahead before, as 0 does now, and is kept.
+   * since, in the MB/GB picker (0.5 MB), is meant. A size or speed limit of 0 saved before
+   * becomes no limit, as 1.3.82.75 made it for everyone who updated through it: the size was
+   * read as none, and the speed still read ahead in bursts. 0 is none now, for a 0 chosen since.
    * @param {Object} options - Saved options merged over the defaults; changed in place.
    * @param {Object|null} stored - The options as saved, before the defaults were filled in.
    * @return {Object} The same options, with sizesVersion set.
@@ -34,6 +34,7 @@ export class Utils {
         options.maxVideoSize *= 1000000;
       }
       if (options.maxVideoSize === 0) options.maxVideoSize = -1;
+      if (options.maxSpeed === 0) options.maxSpeed = -1;
     }
     options.sizesVersion = 1;
     return options;
