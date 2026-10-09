@@ -255,6 +255,47 @@ describe('Player menus', function() {
     expect(state.running).toBe(false);
   });
 
+  // The GIF button turns the loop on to record it, and puts it back after (review): with no
+  // loop to record, it stayed on; switched off during the recording, it came back on.
+  it('leaves the loop as the user has it around a GIF', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const loop = () => browser.execute(() => {
+      const controls = window.fastStream.interfaceController.loopControls;
+      return {enabled: controls.loopEnabled, running: controls.gifLoopRunning};
+    });
+    const setTime = (name, value) => browser.execute((name, value) => {
+      const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+    }, name, value);
+    const click = (selector) => browser.execute((selector) => document.querySelector(selector).click(), selector);
+    await browser.execute(() => {
+      // The finished GIF would be downloaded.
+      window.fastStream.interfaceController.loopControls.finishGif = function() {
+        this.gif?.abort();
+        this.gif = null;
+        this.recordingGif = false;
+        this.gifLoopRunning = false;
+      };
+    });
+
+    await setTime('start', '00:00:04');
+    await setTime('end', '00:00:02');
+    await click('.mainplayer .loop_menu_gif_button');
+    expect(await loop()).toEqual({enabled: false, running: false});
+
+    await setTime('start', '00:00:00');
+    await setTime('end', '00:00:04');
+    await click('.mainplayer .loop_menu_toggle_button');
+    await click('.mainplayer .loop_menu_gif_button');
+    expect((await loop()).running).toBe(true);
+    await click('.mainplayer .loop_menu_toggle_button');
+    await browser.waitUntil(async () => !(await loop()).running, {timeout: 10000, timeoutMsg: 'the recording never ended'});
+    expect((await loop()).enabled).toBe(false);
+  });
+
   // Typing an end time passes times before the start ("3" on the way to "3:00"): that
   // turned the loop off, and it stayed off once the time was typed (review, 2026-10-09).
   it('keeps the loop on while a time is typed, and loops once the times make a loop', async function() {

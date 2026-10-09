@@ -172,6 +172,13 @@ export class LoopMenu extends EventEmitter {
       this.loopEnabled = true;
       this.updateLoopAndGif();
       this.recordGif();
+      // Nothing to record (the times make no loop): the loop as it was. It stayed on, and
+      // started by itself once the times were put right (review).
+      if (!this.gifLoopRunning) {
+        this.loopEnabled = !!this.loopWasEnabled;
+        this.loopWasEnabled = false;
+        this.updateLoopAndGif();
+      }
       e.stopPropagation();
     });
     WebUtils.setupTabIndex(gifButton);
@@ -362,7 +369,9 @@ export class LoopMenu extends EventEmitter {
     if (reachedEnd || !this.loopEnabled || !this.recordingGif) {
       console.log('gif recording reached end');
       this.gifLoopRunning = false;
-      this.loopEnabled = !!this.loopWasEnabled;
+      // As it was before the GIF, unless the user switched the loop off meanwhile: that ended
+      // the recording, and was undone here (review).
+      this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
       this.loopWasEnabled = false;
       this.client.pause();
       this.client.playbackRate = this.previousPlaybackRate;
