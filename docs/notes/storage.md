@@ -60,14 +60,15 @@ than trusting `FSBlob`'s own self-report.
   (it exists before its first heartbeat: two players starting together deleted each
   other's), and a heartbeat that exists but cannot be read (its owner is writing it) means
   alive. Only a stale or missing heartbeat on an older directory is pruned.
-- **A session whose worker holds its Web Lock is never pruned (2026-10-09).** A heartbeat is
-  only as punctual as a timer: a busy worker, a computer back from sleep or a clock set
-  forward made a live player look gone, and its whole stored video was deleted under it
-  (seeking back then failed for good). Each worker takes the lock `faststream-fsblob:<session>`
-  before its directory exists and holds it for its lifetime; Firefox lets go of a worker's
-  locks when it ends. Without the lock the heartbeat decides as before, which also leaves a
-  closed session's finished save its `STALE_MS` to be read (`opfsStorage.test.mjs`,
-  "a live session by its lock").
+- **Tried and reverted (2026-10-09): a Web Lock per session as exact liveness.** A
+  heartbeat is only as punctual as a timer (a busy worker, a computer back from sleep, a page
+  frozen in the back-forward cache), so a live player's directory can be pruned. Each worker
+  held a lock for its lifetime, and prune kept a sibling whose lock was held - but a lock held
+  by a dedicated worker blocks the back-forward cache for its page (Firefox
+  `LockManagerChild::NotifyBFCacheOnMainThread`, `BFCacheStatus::ACTIVE_LOCK` on the
+  worker's ancestor window), and `content-cleanup.e2e.mjs`'s bfcache case failed. Do not hold
+  a lock for a page's lifetime. A pruned session now costs a re-download, not a failure: a
+  stored fragment that cannot be read is dropped and downloaded again (`onDataLost`, below).
 - `clear()` bumps a generation, so an offload that finishes after it does not put its
   blob back.
 - The progress store: `pruneOld` never rejects or hangs (the player's setup awaits it),
