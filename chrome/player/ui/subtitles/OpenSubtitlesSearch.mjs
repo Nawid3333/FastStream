@@ -243,8 +243,10 @@ export class OpenSubtitlesSearch extends EventEmitter {
         },
       ],
     })).response;
-    if (response?.errors) {
-      throw new SearchError([].concat(response.errors).join(', '));
+    // An empty list is no error.
+    const errors = [].concat(response?.errors ?? []).filter(Boolean);
+    if (errors.length) {
+      throw new SearchError(errors.join(', '));
     }
     // A throttled or refused search answers with a message and no results ("Throttle limit
     // reached", a bad key).

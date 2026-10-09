@@ -877,7 +877,16 @@ export class AudioChannelMixer extends AbstractAudioModule {
       }
     } else {
       if (this.masterNodes.gain) {
-        this.masterNodes.preGain.disconnect(this.masterNodes.gain);
+        // Mono turned off at a master gain of 1: the gain goes with it, and what feeds it is
+        // the mono node. Taken for preGain, the disconnect threw "Node not connected" and
+        // the graph stayed mono.
+        if (this.masterNodes.monoNode) {
+          this.masterNodes.preGain.disconnect(this.masterNodes.monoNode);
+          this.masterNodes.monoNode.disconnect(this.masterNodes.gain);
+          this.masterNodes.monoNode = null;
+        } else {
+          this.masterNodes.preGain.disconnect(this.masterNodes.gain);
+        }
         this.getOutputNode().disconnectFrom(this.masterNodes.gain);
         this.masterNodes.preGain.connect(this.getOutputNode());
         this.masterNodes.gain = null;

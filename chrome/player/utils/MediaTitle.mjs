@@ -185,12 +185,14 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
 
   // A bare year after the title ("Oppenheimer 2023"), not the title itself ("1917", "2012")
   // nor a number in it ("Blade Runner 2049": later than next year).
-  // The year can also stand before a word kept at the end ("Oppenheimer 2023 Movie").
+  // The year can also stand before a word kept at the end ("Oppenheimer 2023 Movie"), also
+  // in a part of its own after the title ("Oppenheimer | 2023 Movie"), but not as the title
+  // ("2012 Movie").
   const last = parts[parts.length - 1];
   if (year === null && last && (last.length > 1 || parts.length > 1)) {
     const isYear = (word) => /^(?:19|20)\d{2}$/.test(word ?? '') && Number(word) <= now + 1;
     const at = isYear(last[last.length - 1]) ? last.length - 1 :
-      (last.length > 2 && isYear(last[last.length - 2]) && EDGE_WORDS.has(bare(last[last.length - 1])) ? last.length - 2 : -1);
+      ((last.length > 2 || (last.length === 2 && parts.length > 1)) && isYear(last[last.length - 2]) && EDGE_WORDS.has(bare(last[last.length - 1])) ? last.length - 2 : -1);
     if (at >= 0) {
       year = Number(last[at]);
       last.splice(at);
