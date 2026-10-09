@@ -549,7 +549,7 @@
         "message": "Gib einen Namen für die Datei ein"
     },
     "player_screenshot_nopicture": {
-        "message": "Es gibt noch kein Bild, das gespeichert werden kann."
+        "message": "Es gibt kein Bild, das gespeichert werden kann: Die Datei enthält nur Audio, oder das Video hat noch kein Bild angezeigt."
     },
     "player_screenshot_saving": {
         "message": "Nehme Bildschirmaufnahme auf..."

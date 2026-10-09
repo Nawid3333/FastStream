@@ -549,7 +549,7 @@
         "message": "파일 이름을 입력하세요"
     },
     "player_screenshot_nopicture": {
-        "message": "아직 저장할 화면이 없습니다."
+        "message": "저장할 화면이 없습니다: 파일이 오디오 전용이거나, 동영상에 아직 화면이 표시되지 않았습니다."
     },
     "player_screenshot_saving": {
         "message": "스크린샷 저장 중..."

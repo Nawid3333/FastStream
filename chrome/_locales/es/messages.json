@@ -549,7 +549,7 @@
         "message": "Introduzca un nombre para el archivo"
     },
     "player_screenshot_nopicture": {
-        "message": "Aún no hay ninguna imagen que guardar."
+        "message": "No hay ninguna imagen que guardar: el archivo es solo de audio, o el vídeo todavía no ha mostrado ninguna imagen."
     },
     "player_screenshot_saving": {
         "message": "Tomando captura de pantalla..."

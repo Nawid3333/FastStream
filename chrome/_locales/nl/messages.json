@@ -549,7 +549,7 @@
         "message": "Voer een bestandsnaam in"
     },
     "player_screenshot_nopicture": {
-        "message": "Er is nog geen afbeelding om op te slaan."
+        "message": "Er is geen afbeelding om op te slaan: het bestand bevat alleen audio, of de video heeft nog geen beeld getoond."
     },
     "player_screenshot_saving": {
         "message": "Screenshot maken..."

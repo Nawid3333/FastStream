@@ -549,7 +549,7 @@
         "message": "Inserisci un nome per il file"
     },
     "player_screenshot_nopicture": {
-        "message": "Non è ancora disponibile alcuna immagine da salvare."
+        "message": "Non è disponibile alcuna immagine da salvare: il file è solo audio, oppure il video non ha ancora mostrato alcuna immagine."
     },
     "player_screenshot_saving": {
         "message": "Acquisizione di uno screenshot in corso..."

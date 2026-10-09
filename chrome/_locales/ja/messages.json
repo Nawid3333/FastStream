@@ -549,7 +549,7 @@
         "message": "ファイル名を入力"
     },
     "player_screenshot_nopicture": {
-        "message": "まだ保存できる画像がありません。"
+        "message": "保存できる画像がありません：ファイルが音声のみか、動画にまだ画像が表示されていません。"
     },
     "player_screenshot_saving": {
         "message": "スクリーンショットを撮影中..."

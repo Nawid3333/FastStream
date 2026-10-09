@@ -549,7 +549,7 @@
         "message": "Wpisz nazwę pliku"
     },
     "player_screenshot_nopicture": {
-        "message": "Nie ma jeszcze obrazu do zapisania."
+        "message": "Nie ma obrazu do zapisania: plik zawiera tylko dźwięk, albo wideo jeszcze nie pokazało obrazu."
     },
     "player_screenshot_saving": {
         "message": "Tworzę zrzut ekranu..."
