@@ -1006,6 +1006,7 @@ export class InterfaceController {
 
   queueControlsHide(time) {
     clearTimeout(this.hideControlBarTimeout);
+    if (this.destroyed) return;
     this.hideControlBarTimeout = setTimeout(() => {
       if (!this.isFocusInControls() && !this.isPointerOverControls() && !this.isBigPlayButtonVisible() && this.state.playing && this.toolManager.canHideControls() && !InterfaceUtils.isAnyWindowOpen()) {
         this.hideControlBar();
