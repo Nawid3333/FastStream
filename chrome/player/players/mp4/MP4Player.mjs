@@ -868,6 +868,9 @@ export default class MP4Player extends EventEmitter {
     });
 
     this.currentFragments.length = 0;
+    // A seek (or any reset) tries a failed range afresh: one whose three retries a network
+    // blip used up failed on sight for good, even after seeking away and back.
+    this.rangeRetries.clear();
     this.mp4box.seek(this.currentTime, true);
     if (!noLoad) this.runLoad();
   }
@@ -1082,11 +1085,10 @@ export default class MP4Player extends EventEmitter {
       lastFrag = frags.length;
     }
 
-    if (!options.partialSave) {
-      for (let i = 0; i < lastFrag; i++) {
-        const frag = frags[i];
-        frag.addReference(ReferenceTypes.SAVER);
-      }
+    // Held until written, partial save or not: a partial one took none, and a range playback
+    // had passed could be let go of meanwhile, written as zeros.
+    for (let i = 0; i < lastFrag; i++) {
+      frags[i].addReference(ReferenceTypes.SAVER);
     }
 
     let cancelled = false;
@@ -1108,7 +1110,6 @@ export default class MP4Player extends EventEmitter {
         const frag = frags[i];
         if (!options.partialSave) {
           await fetcher.get(i);
-          frag.removeReference(ReferenceTypes.SAVER);
         }
         if (frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
           const entry = this.client.downloadManager.getEntry(frag.getContext());
@@ -1116,6 +1117,7 @@ export default class MP4Player extends EventEmitter {
         } else {
           await writer.write(emptyTemplate);
         }
+        frag.removeReference(ReferenceTypes.SAVER);
 
         if (options.onProgress) {
           options.onProgress(i / lastFrag);

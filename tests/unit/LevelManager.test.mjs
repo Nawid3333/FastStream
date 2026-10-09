@@ -75,6 +75,12 @@ describe('getDesiredVideoHeight', () => {
   it('parses an explicit quality setting into a target height', () => {
     expect(getDesiredVideoHeight('1440p')).toBe(1440);
   });
+
+  // replace() of undefined threw: options without it (saved before it existed, or set by a
+  // page) are Auto, as the players read them.
+  it('reads no quality setting as Auto', () => {
+    expect(getDesiredVideoHeight(undefined)).toBe(Infinity);
+  });
 });
 
 describe('the preferred language', () => {

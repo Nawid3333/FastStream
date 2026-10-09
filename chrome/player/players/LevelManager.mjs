@@ -351,7 +351,9 @@ export class LevelManager {
   }
 
   getDesiredVideoHeight() {
-    const defaultQuality = this.client.options.defaultQuality;
+    // Options without it (saved before it existed, or set by a page) are Auto, as the players
+    // read them (HLSPlayer, DashPlayer): replace() threw.
+    const defaultQuality = this.client.options.defaultQuality || 'Auto';
     if (defaultQuality === 'Auto') {
       // Always max out rather than scaling to the screen - Infinity has no
       // level at or above it, so matchQuality() falls through to its "no

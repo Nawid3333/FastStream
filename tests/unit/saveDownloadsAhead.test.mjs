@@ -226,3 +226,36 @@ describe.each(PLAYERS)('%s.saveVideo', (name, Player) => {
     expect(frags.filter((frag) => !frag.canFree()).map((frag) => frag.sn)).toEqual([]);
   });
 });
+
+// A partial save ("what is downloaded") took no references: a range playback had passed
+// could be let go of while the save was still writing the ones before it, and was written
+// as zeros (review, 2026-10-09).
+describe('MP4Player.saveVideo, a partial save', () => {
+  it('holds what it has not written yet, and lets it all go once written', async () => {
+    const network = makeNetwork();
+    const frags = Array.from({length: 5}, (_, sn) => new TestFragment(sn));
+    for (const frag of frags) frag.status = frag.sn === 3 ? DownloadStatus.WAITING : DownloadStatus.DOWNLOAD_COMPLETE;
+    let release;
+    const firstWrite = new Promise((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    const filestream = {
+      getWriter: () => ({
+        write: async () => {
+          if (writes++ === 0) await firstWrite;
+        },
+        close: async () => {},
+        abort: async () => {},
+      }),
+    };
+    const saving = MP4Player.prototype.saveVideo.call(makePlayer(network, frags, MP4Player), {partialSave: true, filestream});
+    await settle();
+    // Writing the first range: it and the ones after it cannot be let go of.
+    expect(frags.filter((frag) => !frag.canFree()).map((frag) => frag.sn)).toEqual([0, 1, 2, 3, 4]);
+    release();
+    await saving;
+    expect(frags.filter((frag) => !frag.canFree()).map((frag) => frag.sn)).toEqual([]);
+    expect(network.requests).toEqual([]);
+  });
+});
