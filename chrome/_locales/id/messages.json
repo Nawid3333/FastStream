@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Masukkan nama file"
     },
+    "player_screenshot_nopicture": {
+        "message": "Belum ada gambar untuk disimpan."
+    },
     "player_screenshot_saving": {
         "message": "Mengambil tangkapan layar..."
     },

@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "輸入檔案名稱"
     },
+    "player_screenshot_nopicture": {
+        "message": "目前還沒有可儲存的截圖。"
+    },
     "player_screenshot_saving": {
         "message": "正在擷圖..."
     },

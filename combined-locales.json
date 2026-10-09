@@ -3293,6 +3293,24 @@
         "zh_CN": "请输入文件名",
         "zh_TW": "輸入檔案名稱"
     },
+    "player_screenshot_nopicture": {
+        "en": "There is no picture to save yet.",
+        "de": "Es gibt noch kein Bild, das gespeichert werden kann.",
+        "es": "Aún no hay ninguna imagen que guardar.",
+        "fr": "Il n'y a pas encore d'image à enregistrer.",
+        "id": "Belum ada gambar untuk disimpan.",
+        "it": "Non è ancora disponibile alcuna immagine da salvare.",
+        "ja": "まだ保存できる画像がありません。",
+        "ko": "아직 저장할 화면이 없습니다.",
+        "ms": "Belum ada gambar untuk disimpan.",
+        "nl": "Er is nog geen afbeelding om op te slaan.",
+        "pl": "Nie ma jeszcze obrazu do zapisania.",
+        "pt_BR": "Ainda não há imagem para salvar.",
+        "ru": "Пока нет изображения, которое можно сохранить.",
+        "tr": "Henüz kaydedilecek bir görüntü yok.",
+        "zh_CN": "目前还没有可保存的画面。",
+        "zh_TW": "目前還沒有可儲存的截圖。"
+    },
     "player_screenshot_saving": {
         "en": "Taking screenshot...",
         "de": "Nehme Bildschirmaufnahme auf...",

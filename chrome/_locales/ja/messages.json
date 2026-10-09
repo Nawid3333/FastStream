@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "ファイル名を入力"
     },
+    "player_screenshot_nopicture": {
+        "message": "まだ保存できる画像がありません。"
+    },
     "player_screenshot_saving": {
         "message": "スクリーンショットを撮影中..."
     },

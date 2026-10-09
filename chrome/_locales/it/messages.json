@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Inserisci un nome per il file"
     },
+    "player_screenshot_nopicture": {
+        "message": "Non è ancora disponibile alcuna immagine da salvare."
+    },
     "player_screenshot_saving": {
         "message": "Acquisizione di uno screenshot in corso..."
     },

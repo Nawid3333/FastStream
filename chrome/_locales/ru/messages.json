@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Введите имя файла"
     },
+    "player_screenshot_nopicture": {
+        "message": "Пока нет изображения, которое можно сохранить."
+    },
     "player_screenshot_saving": {
         "message": "Делаем скриншот…"
     },

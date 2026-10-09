@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Dosya için bir isim girin"
     },
+    "player_screenshot_nopicture": {
+        "message": "Henüz kaydedilecek bir görüntü yok."
+    },
     "player_screenshot_saving": {
         "message": "Ekran görüntüsü alınıyor..."
     },

@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Gib einen Namen für die Datei ein"
     },
+    "player_screenshot_nopicture": {
+        "message": "Es gibt noch kein Bild, das gespeichert werden kann."
+    },
     "player_screenshot_saving": {
         "message": "Nehme Bildschirmaufnahme auf..."
     },

@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Voer een bestandsnaam in"
     },
+    "player_screenshot_nopicture": {
+        "message": "Er is nog geen afbeelding om op te slaan."
+    },
     "player_screenshot_saving": {
         "message": "Screenshot maken..."
     },

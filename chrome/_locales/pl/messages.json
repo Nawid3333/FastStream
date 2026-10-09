@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "Wpisz nazwę pliku"
     },
+    "player_screenshot_nopicture": {
+        "message": "Nie ma jeszcze obrazu do zapisania."
+    },
     "player_screenshot_saving": {
         "message": "Tworzę zrzut ekranu..."
     },

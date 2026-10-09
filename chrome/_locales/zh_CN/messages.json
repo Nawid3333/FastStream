@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "请输入文件名"
     },
+    "player_screenshot_nopicture": {
+        "message": "目前还没有可保存的画面。"
+    },
     "player_screenshot_saving": {
         "message": "正在截屏..."
     },

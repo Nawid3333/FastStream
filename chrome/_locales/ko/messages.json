@@ -548,6 +548,9 @@
     "player_filename_prompt": {
         "message": "파일 이름을 입력하세요"
     },
+    "player_screenshot_nopicture": {
+        "message": "아직 저장할 화면이 없습니다."
+    },
     "player_screenshot_saving": {
         "message": "스크린샷 저장 중..."
     },
