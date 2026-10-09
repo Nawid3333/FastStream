@@ -113,6 +113,15 @@ describe('AudioProfile.fromObj: profiles from storage and files', () => {
     expect(profile.master.equalizerNodes.map((node) => node.toObj().gainDb)).toEqual([5]);
   });
 
+  it('takes the seventh mixer channel of an old profile as its master', () => {
+    const mixerChannels = Array.from({length: 7}, (_, i) => ({id: i, gain: 1}));
+    mixerChannels[6].mono = true;
+    const profile = AudioProfile.fromObj({id: 1, mixerChannels});
+    expect(profile.master.isMaster()).toBe(true);
+    expect(profile.master.mono).toBe(true);
+    expect(profile.channels.map((channel) => channel.id)).toEqual(Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => i));
+  });
+
   it('builds every equalizer of a broken profile without a value the browser refuses', () => {
     const profile = AudioProfile.fromObj(broken);
     for (const channel of [...profile.channels, profile.master]) {

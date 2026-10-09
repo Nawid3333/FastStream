@@ -34,10 +34,12 @@ export class AudioProfile {
         return AudioChannelControl.fromObj(channel);
       });
     } else if (obj.mixerChannels && obj.mixerChannels.length === 7) { // Legacy
-      profile.channels = obj.mixerChannels.map((channel) => {
+      profile.channels = obj.mixerChannels.slice(0, 6).map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
-      profile.master = profile.channels.pop();
+      // The seventh is the master: kept with its number, it was no master (isMaster), and
+      // its mono setting was lost (review).
+      profile.master = AudioChannelControl.fromObj({...obj.mixerChannels[6], id: 'master'});
     }
 
     // One channel per ID, 0 to MAX_AUDIO_CHANNELS - 1, in order, the missing ones default:
