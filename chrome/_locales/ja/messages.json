@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
+    "options_general_nolimit": {
+        "message": "制限なし"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: 再生位置より先には何もダウンロードされないため、動画が読み込みで止まることがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: 事前ダウンロードは行われず、以下に設定された秒数分だけがバッファーに保持されます。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: ダウンロードした動画に RAM を割り当てないため、再生位置より先には何もダウンロードされません。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_none": {
+        "message": "制限なし: ダウンロードした動画はすべて RAM に保存され、ディスクには保存されません。メモリの少ない PC では、Firefox の動作が遅くなる可能性があります。"
+    },
     "options_general_bufferahead": {
         "message": "再生位置より先をバッファーに保持する秒数（事前ダウンロードがオフ、停止、または容量不足のときに使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: 再生位置より先をバッファーに保持しないため、動画が頻繁に止まって読み込みます。上限をなくすには、フィールドを空のままにしてください。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "上限なし: 事前ダウンロードがオフでも、動画全体が先にダウンロードされます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。"
+    },
     "options_general_bufferbehind": {
         "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: 再生済みの部分はすぐに破棄され、シークして戻るともう一度読み込みます。上限をなくすには、フィールドを空のままにしてください。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "上限なし: 再生済みの部分はすべて保持されます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。"
     },
     "options_general_blockpopups": {
         "message": "プレーヤーをクリックした直後に開かれるポップアップ/ポップアンダーをブロックする"
@@ -1134,7 +1161,7 @@
         "message": "デフォルトにリセット"
     },
     "options_keybinds_press": {
-        "message": "キーを押してください"
+        "message": "キーを押してください。設定しない場合は Esc キーを押してください。"
     },
     "options_keybinds_conflict": {
         "message": "$1 でも使用中"

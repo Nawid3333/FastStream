@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
+    "options_general_nolimit": {
+        "message": "无限制"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0：播放位置前方不会下载任何内容，视频可能需要停下来等待加载。将输入框留空即为无限制。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0：不进行任何预下载；只在播放位置前方保留下方设置的缓冲秒数。将输入框留空即为无限制。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0：没有内存用于存放已下载的视频，因此播放位置前方不会下载任何内容。将输入框留空即为无限制。"
+    },
+    "options_general_rambudget_none": {
+        "message": "无限制：已下载的视频全部保存在内存（RAM）中，不写入磁盘。在内存较少的电脑上，Firefox 可能会变慢。"
+    },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留缓冲的秒数（预下载关闭、停止或空间用尽时使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0：播放位置前方不保留任何缓冲，因此视频会经常停下来等待加载。将输入框留空即为无限制。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "无限制：即使预下载关闭，也会提前下载整个视频：先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。"
+    },
     "options_general_bufferbehind": {
         "message": "在播放位置后方、裁剪前保留缓冲的秒数"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0：已播放的内容会立即丢弃；往回跳转时会重新加载。将输入框留空即为无限制。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "无限制：已播放的内容会全部保留，先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。"
     },
     "options_general_blockpopups": {
         "message": "屏蔽点击播放器后立即打开的弹出窗口/底层弹窗"
@@ -1134,7 +1161,7 @@
         "message": "重置为默认"
     },
     "options_keybinds_press": {
-        "message": "请按任意键"
+        "message": "请按任意键，或按 Esc 表示不设快捷键"
     },
     "options_keybinds_conflict": {
         "message": "也被 $1 使用"

@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
+    "options_general_nolimit": {
+        "message": "Geen limiet"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: er wordt niets vooruit gedownload, dus video's kunnen stoppen om te laden. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: er wordt niets vooraf gedownload; alleen de seconden die hieronder zijn ingesteld, blijven vooruit gebufferd. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: geen RAM voor gedownloade video, dus er wordt niets vooruit gedownload. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_none": {
+        "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."
+    },
     "options_general_bufferahead": {
         "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven (gebruikt wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Geen limiet: de hele video wordt vooruit gedownload, ook als vooraf downloaden uit staat: eerst in RAM, daarna op schijf zodra de RAM-limiet hierboven vol is."
+    },
     "options_general_bufferbehind": {
         "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: afgespeelde video wordt meteen weggegooid; terugspoelen laadt hem opnieuw. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Geen limiet: alles wat al is afgespeeld blijft bewaard, eerst in RAM en daarna op schijf zodra de RAM-limiet hierboven vol is."
     },
     "options_general_blockpopups": {
         "message": "Popups/popunders blokkeren die direct na het klikken op de speler worden geopend"
@@ -1134,7 +1161,7 @@
         "message": "Herstel standaardinstellingen"
     },
     "options_keybinds_press": {
-        "message": "Druk op een toets"
+        "message": "Druk op een toets, of op Escape voor geen toets"
     },
     "options_keybinds_conflict": {
         "message": "Ook gebruikt door $1"

@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"
     },
+    "options_general_nolimit": {
+        "message": "無限制"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0：不會在播放位置前方下載任何內容，影片可能會停下來載入。留空表示無限制。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0：不會預先下載任何內容，只會在播放位置前方保留下方設定的秒數。留空表示無限制。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0：沒有記憶體可用來存放已下載的影片，因此不會在播放位置前方下載任何內容。留空表示無限制。"
+    },
+    "options_general_rambudget_none": {
+        "message": "無限制：所有已下載的影片都保留在記憶體中，不會存到磁碟。記憶體較少的電腦上，Firefox 可能會變慢。"
+    },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留緩衝的秒數（預先下載關閉、停止或空間用完時使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0：在播放位置前方不保留任何緩衝，影片會經常停下來載入。留空表示無限制。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "無限制：即使預先下載關閉，也會提前下載整部影片。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。"
+    },
     "options_general_bufferbehind": {
         "message": "在播放位置後方、修剪前保留緩衝的秒數"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0：已播放的部分會立即釋放；往回跳轉時會重新載入。留空表示無限制。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "無限制：已播放的內容全部保留。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。"
     },
     "options_general_blockpopups": {
         "message": "封鎖點擊播放器後立即開啟的彈出視窗/底層彈出視窗"
@@ -1134,7 +1161,7 @@
         "message": "回復預設"
     },
     "options_keybinds_press": {
-        "message": "按任意鍵"
+        "message": "按任意鍵，按 Escape 則不設定"
     },
     "options_keybinds_conflict": {
         "message": "也被 $1 使用"

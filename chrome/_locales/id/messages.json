@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
+    "options_general_nolimit": {
+        "message": "Tidak ada batasan"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: tidak ada yang diunduh di depan pemutaran, jadi video mungkin berhenti untuk memuat. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: tidak ada yang dipraunduh; hanya detik yang diatur di bawah yang disimpan di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: tidak ada RAM untuk video yang diunduh, jadi tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_rambudget_none": {
+        "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."
+    },
     "options_general_bufferahead": {
         "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti atau kehabisan ruang)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat. Biarkan kolom kosong untuk tanpa batas."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Tanpa batas: seluruh video diunduh di depan, bahkan saat predownload nonaktif: di RAM, lalu pindah ke disk setelah batas RAM di atas penuh."
+    },
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: video yang sudah diputar langsung dibuang; mundur ke bagian sebelumnya akan memuatnya lagi. Biarkan kolom kosong untuk tanpa batas."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Tanpa batas: semua yang sudah diputar tetap disimpan, di RAM lalu pindah ke disk setelah batas RAM di atas penuh."
     },
     "options_general_blockpopups": {
         "message": "Blokir popup/popunder yang dibuka tepat setelah mengklik pemutar"
@@ -1134,7 +1161,7 @@
         "message": "Kembalikan ke Default"
     },
     "options_keybinds_press": {
-        "message": "Tekan tombol"
+        "message": "Tekan tombol, atau Escape untuk tidak ada pintasan"
     },
     "options_keybinds_conflict": {
         "message": "Juga dipakai oleh $1"

@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM para o vídeo em buffer (todas as abas)"
     },
+    "options_general_nolimit": {
+        "message": "Sem limite"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: nada é baixado antes da reprodução, então os vídeos podem parar para carregar. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: nada é pré-baixado; apenas os segundos definidos abaixo são mantidos em buffer à frente da reprodução. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: sem RAM para o vídeo baixado, então nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_rambudget_none": {
+        "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Em um computador com pouca memória, o Firefox pode ficar lento."
+    },
     "options_general_bufferahead": {
         "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download está desativado, parou ou ficou sem espaço)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: nada é mantido em buffer à frente, então o vídeo para com frequência para carregar. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Sem limite: o vídeo inteiro é baixado antecipadamente, mesmo com o pré-download desativado: na RAM, e depois no disco, quando o limite de RAM acima for atingido."
+    },
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: o vídeo já reproduzido é descartado na hora; voltar para trás recarrega o vídeo. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Sem limite: tudo o que já foi reproduzido é mantido, na RAM e depois no disco, quando o limite de RAM acima for atingido."
     },
     "options_general_blockpopups": {
         "message": "Bloquear pop-ups/popunders abertos logo após clicar no reprodutor"
@@ -1134,7 +1161,7 @@
         "message": "Redefinir para os padrões"
     },
     "options_keybinds_press": {
-        "message": "Pressione uma tecla"
+        "message": "Pressione uma tecla, ou Escape para nenhuma"
     },
     "options_keybinds_conflict": {
         "message": "Também usado por $1"
