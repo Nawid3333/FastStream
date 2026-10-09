@@ -325,6 +325,23 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   channel to give messages to): a message already queued then can still take the page out. A
   few milliseconds against the whole time in the cache; Firefox offers a page no way to leave
   sooner.
+- **The seek preview loads what the pointer is on (2026-10-09).** Pointing at the timeline
+  downloads the segment there into the store the player plays from, so a click there plays at
+  once: 0.56 s instead of 3.45 s on a 12 Mbit/s line (one segment per place pointed at; moving
+  on drops the one under way). The HLS preview dropped the old place's segment by aborting its
+  loaders behind hls.js's back, and hls.js resets after an abort only once its first segment
+  has loaded (`handleFragLoadAborted` needs its transmuxer): pointing before that - a video
+  that opens at its saved position, on a slow line - left the preview on its first segment
+  until that finished (4.8 s in `seek-preview.e2e.mjs`, more than 10 s on a shared 12 Mbit/s
+  line), loading nothing meanwhile. `HLSPlayer`'s preview seek now goes through
+  `hls.stopLoad()`/`startLoad(time)`: the segment is asked for within milliseconds (37 ms; the
+  old code 9.2 s with 8 s segments). A pointer still inside the segment that is loading leaves
+  it loading: each move started it over. And the segment was downloaded twice: the client's
+  level check (`checkLevelChange`, on the main loop) told the preview the level it was on, and
+  `HLSPlayer.setCurrentVideoLevelID` set `hls.currentLevel`, which makes hls.js switch at once
+  even to the same level - drop the segment loading and the buffer (traced: aborted 0.4 s in,
+  downloaded again 9 s later). A level already loading or playing is now only pinned
+  (`hls.loadLevel`); a real change still switches at once.
 - **`PlayheadFirst`.** Under 10 s ahead a player runs at most two downloads, only within 30 s of
   the playhead, and cancels the cheap ones outside (`cancelIfCheap`); from 20 s on it
   downloads ahead in parallel as before. A seek does the same at once.
