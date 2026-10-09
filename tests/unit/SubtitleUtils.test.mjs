@@ -229,6 +229,42 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\nfirst line\n{\\an8}second line'))
         .toBe('00:00:01.000 --> 00:00:02.000\nfirst line\nsecond line');
   });
+
+  // SubRip files converted from a fansub's ASS keep its override blocks. Only {\b1}, {\b} and
+  // the like were known: {\i0}, a block of several tags, positions, colours and fades were
+  // shown as text, and \N as "\N" (audit, 2026-10-09).
+  it('takes the switches of an ASS override block and drops the rest', () => {
+    const format = (text) => SubtitleUtils.convertSubtitleFormatting(text);
+    expect(format('{\\i1}a{\\i0} b')).toBe('<i>a</i> b');
+    expect(format('{\\i1\\b1}x{\\b0\\i0}')).toBe('<i><b>x</b></i>');
+    expect(format('{\\b700}x{\\b0}')).toBe('<b>x</b>');
+    expect(format('{\\pos(400,570)}{\\c&HFFFFFF&}Hi{\\fad(200,0)}')).toBe('Hi');
+    expect(format('{\\i1\\fad(200,0)}x{\\i0}')).toBe('<i>x</i>');
+    // Other tags that start with b, i or u, and an alignment inside a block.
+    expect(format('{\\bord2\\blur3\\be1\\iclip(0,0,1,1)\\an8}x')).toBe('x');
+    expect(format('one\\Ntwo')).toBe('one\ntwo');
+    // Braces without a backslash are text ("{laughs}"), except the known short forms.
+    expect(format('{laughs} {i}x{/i}')).toBe('{laughs} <i>x</i>');
+  });
+
+  it('keeps a block to its line, and the cue whole around line breaks', () => {
+    const format = (text) => SubtitleUtils.convertSubtitleFormatting(text);
+    // A stray "{\" took everything up to a "}" in a later cue, timing line included.
+    const twoCues = '00:00:01.000 --> 00:00:02.000\n{\\i1 oops\n\n00:00:03.000 --> 00:00:04.000\nsecond}';
+    expect(format(twoCues)).toBe(twoCues);
+    // Two breaks in a row, or one at a line's end, are one: an empty line ends a cue.
+    expect(format('one\\N\\Ntwo')).toBe('one\ntwo');
+    expect(format('one\\N\ntwo')).toBe('one\ntwo');
+    expect(format('one\\N\n\\Ntwo')).toBe('one\ntwo');
+    expect(format('one\\N\r\n\\N\r\ntwo')).toBe('one\ntwo');
+    expect(format('00:00:01.000 --> 00:00:02.000\nlast\\N\n\n00:00:03.000 --> 00:00:04.000\nnext'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nlast\n\n00:00:03.000 --> 00:00:04.000\nnext');
+  });
+
+  it('places a cue by an alignment that shares its block with other tags', () => {
+    expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{\\an8\\i1}Top{\\i0}'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\n<i>Top</i>');
+  });
 });
 
 describe('cuesAt', () => {
