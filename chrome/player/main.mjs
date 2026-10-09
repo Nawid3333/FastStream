@@ -331,6 +331,16 @@ async function setup() {
       sendFrameRemoved();
     }
   });
+  // The client went at beforeunload, which also comes for a page Firefox then keeps in the
+  // back-forward cache (gone first, the page can be cached: a live player kept it out).
+  // Back then gave back a player without its client: dead. One in a page that embeds it
+  // starts again; one that content.js put in a page is taken down with the page's own
+  // REMOVE_PLAYERS (its URL has the opener), and a player tab is never cached.
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted && !window.fastStream && !new URLSearchParams(window.location.search).has('opener')) {
+      window.location.reload();
+    }
+  });
 
   // A source in the address (#url, with faststream-headers) is taken only in a tab of
   // its own: the extension puts one there when you open a stream URL (the redirect rule

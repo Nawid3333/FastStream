@@ -79,5 +79,17 @@ describe('A page with a player in the back-forward cache', function() {
     await browser.waitUntil(async () => browser.execute(() => location.search.startsWith('?first')),
         {timeout: 15000, timeoutMsg: 'Back never reached the first page'});
     expect(await browser.execute(() => window.__kept === true)).toBe(true);
+    // And its player with it. Its client went at beforeunload, before the page was cached,
+    // and Back gave back a dead player; it starts again now (main.mjs, pageshow).
+    await browser.waitUntil(async () => {
+      try {
+        await browser.switchFrame(await browser.$('iframe#fs'));
+        return await browser.execute(() => !!window.fastStream?.peers?.lastAnnounced);
+      } catch (e) {
+        return false; // The frame is loading again.
+      } finally {
+        await browser.switchFrame(null);
+      }
+    }, {timeout: 30000, interval: 500, timeoutMsg: 'the player Back gave back is dead'});
   });
 });
