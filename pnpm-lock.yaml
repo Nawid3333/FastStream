@@ -27,15 +27,15 @@ importers:
 
   .:
     devDependencies:
-      '@eslint/eslintrc':
-        specifier: ^3.3.7
-        version: 3.3.7(supports-color@8.1.1)
       '@stryker-mutator/core':
         specifier: 10.0.0
         version: 10.0.0(@types/node@26.6.3)
       '@stryker-mutator/vitest-runner':
         specifier: 10.0.0
         version: 10.0.0(patch_hash=c5d635178da5a48e07051030a6d2eb3f33f4b31a71f4232c05f099e8e90f3dc2)(@stryker-mutator/core@10.0.0(@types/node@26.6.3))(vitest@5.0.3)
+      '@stylistic/eslint-plugin':
+        specifier: ^5.10.0
+        version: 5.10.0(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))
       '@types/chrome':
         specifier: ^0.3.4
         version: 0.3.4
@@ -72,9 +72,6 @@ importers:
       eslint:
         specifier: ^10.11.0
         version: 10.11.0(jiti@2.7.0)(supports-color@8.1.1)
-      eslint-config-google:
-        specifier: ^0.14.0
-        version: 0.14.0(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))
       eslint-plugin-no-unsanitized:
         specifier: ^4.1.5
         version: 4.1.5(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))
@@ -1117,6 +1114,12 @@ packages:
       '@stryker-mutator/core': 10.0.0
       vitest: '>=2.0.0'
 
+  '@stylistic/eslint-plugin@5.10.0':
+    resolution: {integrity: sha512-nPK52ZHvot8Ju/0A4ucSX1dcPV2/1clx0kLcH5wDmrE4naKso7TUC/voUyU1O9OTKTrR6MYip6LP0ogEMQ9jPQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    peerDependencies:
+      eslint: ^9.0.0 || ^10.0.0
+
   '@svta/cml-608@1.0.2':
     resolution: {integrity: sha512-ZEJ68330gcLKfvVv6Qifr1HR7+GldDUxzkjqSbqRK7jHtHSLSV1JAyDwlYe8+C7ABuY1bp8MpgJ4/Gg+jl+pLQ==}
     engines: {node: '>=20'}
@@ -1265,6 +1268,10 @@ packages:
 
   '@types/yargs@17.0.35':
     resolution: {integrity: sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==}
+
+  '@typescript-eslint/types@8.71.1':
+    resolution: {integrity: sha512-ybYnPTUwg3VQQOFEiBPLs8Jxl1ry2vXdn1kVKguomBbvxpetdu3MKTNDqFNUrlG8ylP9MpZosmXMFYlGQHk1oQ==}
+    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -2142,12 +2149,6 @@ packages:
     resolution: {integrity: sha512-2NlIDTwUWJN0mRPQOdtQBzbUHvdGY2P1VXSyU83Q3xKxM7WHX2Ql8dKq782Q9TgQUNOLEzEYu9bzLNj1q88I5w==}
     engines: {node: '>=6.0'}
     hasBin: true
-
-  eslint-config-google@0.14.0:
-    resolution: {integrity: sha512-WsbX4WbjuMvTdeVL6+J3rK1RGhCTqjsFjX7UMSMgZiyxxaNLkoJENbrGExzERFeoTpGw3F3FypTiWAP9ZXzkEw==}
-    engines: {node: '>=0.10.0'}
-    peerDependencies:
-      eslint: '>=5.16.0'
 
   eslint-plugin-no-unsanitized@4.1.5:
     resolution: {integrity: sha512-MSB4hXPVFQrI8weqzs6gzl7reP2k/qSjtCoL2vUMSDejIIq9YL1ZKvq5/ORBXab/PvfBBrWO2jWviYpL+4Ghfg==}
@@ -5036,6 +5037,16 @@ snapshots:
       tslib: 2.8.1
       vitest: 5.0.3(@types/node@26.6.3)(@vitest/coverage-v8@5.0.3)(vite@8.2.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
 
+  '@stylistic/eslint-plugin@5.10.0(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.10.1(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1))
+      '@typescript-eslint/types': 8.71.1
+      eslint: 10.11.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint-visitor-keys: 4.2.1
+      espree: 10.4.0
+      estraverse: 5.3.0
+      picomatch: 4.0.7
+
   '@svta/cml-608@1.0.2': {}
 
   '@svta/cml-cmcd@2.3.2(@svta/cml-structured-field-values@1.1.3(@svta/cml-utils@1.5.0))(@svta/cml-utils@1.5.0)':
@@ -5159,6 +5170,8 @@ snapshots:
   '@types/yargs@17.0.35':
     dependencies:
       '@types/yargs-parser': 21.0.3
+
+  '@typescript-eslint/types@8.71.1': {}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -6135,10 +6148,6 @@ snapshots:
       esutils: 2.0.3
     optionalDependencies:
       source-map: 0.6.1
-
-  eslint-config-google@0.14.0(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1)):
-    dependencies:
-      eslint: 10.11.0(jiti@2.7.0)(supports-color@8.1.1)
 
   eslint-plugin-no-unsanitized@4.1.5(eslint@10.11.0(jiti@2.7.0)(supports-color@8.1.1)):
     dependencies:
