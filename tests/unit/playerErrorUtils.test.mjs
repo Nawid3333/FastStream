@@ -1,9 +1,27 @@
 import {describe, expect, it} from 'vitest';
 
-import {describePlayerError} from '../../chrome/player/utils/PlayerErrorUtils.mjs';
+import {describePlayerError, isNetworkFailure} from '../../chrome/player/utils/PlayerErrorUtils.mjs';
 
 // The load error says what failed (FastStreamClient's ERROR handler). Each player emits its
 // own kind of reason; every one of them showed as the bare "Failed to load video!".
+
+describe('isNetworkFailure', () => {
+  // A player built again asks the same server for the same fragment: no rebuild for those.
+  it('knows the players\' network failures', () => {
+    for (const reason of ['Range 5 failed to load', 'Segment 0:12 failed to load', 'Failed first fragment',
+      'No content range', {type: 'networkError', details: 'fragLoadError', fatal: true}]) {
+      expect(isNetworkFailure(reason)).toBe(true);
+    }
+  });
+
+  it('leaves what a new player can get past', () => {
+    for (const reason of ['Playback stuck at 302.1', 'The video could not be buffered: QuotaExceededError',
+      {type: 'mediaError', details: 'bufferAppendError', fatal: true},
+      {type: 'error', target: {error: {code: 3, message: 'decode'}}}, undefined, null, {}]) {
+      expect(isNetworkFailure(reason)).toBe(false);
+    }
+  });
+});
 
 describe('describePlayerError', () => {
   it('keeps a sentence as it is (MP4Player, DashLoader)', () => {

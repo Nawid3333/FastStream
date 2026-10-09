@@ -35,7 +35,7 @@ import {AlertPolyfill} from './utils/AlertPolyfill.mjs';
 import {MessageTypes} from './enums/MessageTypes.mjs';
 import {LevelManager} from './players/LevelManager.mjs';
 import {VpnPrompt} from './ui/VpnPrompt.mjs';
-import {describePlayerError} from './utils/PlayerErrorUtils.mjs';
+import {describePlayerError, isNetworkFailure} from './utils/PlayerErrorUtils.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
@@ -1581,6 +1581,10 @@ export class FastStreamClient extends EventEmitter {
    */
   recoverPlayer(player, reason) {
     const source = this.source;
+    // A fragment the server keeps refusing: a new player would ask for it again.
+    if (isNetworkFailure(reason)) {
+      return false;
+    }
     if (!source || player !== this.player || this.playedSource !== source ||
         this.fallbacks.request !== this.sourceRequests) {
       return false;

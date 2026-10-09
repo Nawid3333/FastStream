@@ -24,6 +24,28 @@ export function describePlayerError(reason) {
 }
 
 /**
+ * Whether a player error is the network's: a fragment the server keeps refusing. A player
+ * built again for it asks the same server for the same fragment, so building it again only
+ * delays the error (FastStreamClient.recoverPlayer): mp4-loading.e2e.mjs waited for an error
+ * that came after three rebuilds, a minute later. Anything else - a decoder that failed, a
+ * playback stuck, a SourceBuffer that refused - a new player can get past.
+ * @param {*} reason - What the player emitted with DefaultPlayerEvents.ERROR.
+ * @return {boolean}
+ */
+export function isNetworkFailure(reason) {
+  try {
+    if (typeof reason === 'string') {
+      return /^(Range|Segment) .+ failed to load$/.test(reason) ||
+        reason === 'Failed first fragment' || reason === 'No content range';
+    }
+    // hls.js's error data.
+    return !!reason && typeof reason === 'object' && reason.type === 'networkError';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * @param {*} reason
  * @return {string}
  */
