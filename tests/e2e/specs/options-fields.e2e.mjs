@@ -233,6 +233,21 @@ describe('Options page size fields, typed by hand', function() {
     expect(await browser.execute(() => document.getElementById('maxsize').value)).toBe('10 MB');
   });
 
+  // A number field has no caret position: putting it back threw (review, 2026-10-09).
+  it('saves a number field its handler corrects, without an error', async function() {
+    await browser.execute(() => {
+      window.pageErrors = [];
+      window.addEventListener('error', (e) => window.pageErrors.push(String(e.message)));
+    });
+    await typeInto('seekstepsize', '-3');
+    await savedAs('seekStepSize', 0.1);
+    // The typed text stays while the field is being typed in; leaving it shows the value saved.
+    expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('-3');
+    await browser.keys(['Tab']);
+    expect(await browser.execute(() => document.getElementById('seekstepsize').value)).toBe('0.1');
+    expect(await browser.execute(() => window.pageErrors)).toEqual([]);
+  });
+
   it('greys the size out while predownload is off, where buffer ahead decides', async function() {
     const disabled = () => browser.execute(() => document.getElementById('maxsize').disabled);
     expect(await disabled()).toBe(false);

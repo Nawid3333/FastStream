@@ -677,7 +677,8 @@ function saveWhileTyping(input) {
     input.dispatchEvent(new Event('change'));
     if (input.value !== typed) {
       input.value = typed;
-      input.setSelectionRange(selectionStart, selectionEnd);
+      // A number field has no caret position (null), and setSelectionRange throws there.
+      if (selectionStart !== null) input.setSelectionRange(selectionStart, selectionEnd);
     }
   };
   input.addEventListener('input', () => {
