@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "İndirme hızlandırmayı etkinleştirmek için etkileşime geçin"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Bir bölümün ne kadar sessiz olursa atlanacağını ayarlamak için pembe çizgiyi sürükleyin"
+    },
+    "loop_menu_now": {
+        "message": "Şu anki zamanı kullanın"
+    },
+    "player_segment_intro": {
+        "message": "Giriş"
+    },
+    "player_segment_outro": {
+        "message": "Kapanış"
+    },
     "player_skipintro": {
         "message": "İntroyu atla"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Başlangıç"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Videonun sonu"
     },
     "loop_menu_end": {
         "message": "Bitiş"

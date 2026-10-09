@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Berinteraksi untuk mendayakan pecutan muat turun"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Seret garisan merah jambu untuk menetapkan betapa senyapnya sesuatu bahagian perlu agar ia dilangkau"
+    },
+    "loop_menu_now": {
+        "message": "Gunakan masa semasa"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Langkau Pengenalan"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Mula"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Akhir video"
     },
     "loop_menu_end": {
         "message": "Tamat"

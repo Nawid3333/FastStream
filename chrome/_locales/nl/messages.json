@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Interactie vereist om downloadversnelling in te schakelen"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Sleep de roze lijn om in te stellen hoe stil een gedeelte moet zijn om overgeslagen te worden"
+    },
+    "loop_menu_now": {
+        "message": "Gebruik de huidige tijd"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Intro overslaan"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Begin"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Einde van de video"
     },
     "loop_menu_end": {
         "message": "Einde"

@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "互動以啟用下載加速"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "拖曳粉紅色線條，設定要多安靜的片段才會被跳過"
+    },
+    "loop_menu_now": {
+        "message": "使用目前時間"
+    },
+    "player_segment_intro": {
+        "message": "片頭"
+    },
+    "player_segment_outro": {
+        "message": "片尾"
+    },
     "player_skipintro": {
         "message": "跳過片頭"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "起點"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "影片結尾"
     },
     "loop_menu_end": {
         "message": "終點"

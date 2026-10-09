@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Interagisci per abilitare l'accelerazione dei download"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Trascina la linea rosa per impostare quanto silenziosa deve essere una parte per essere saltata"
+    },
+    "loop_menu_now": {
+        "message": "Usa il tempo corrente"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Salta l'Intro"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Inizio"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Fine del video"
     },
     "loop_menu_end": {
         "message": "Fine"

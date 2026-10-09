@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Wykonaj interakcję, aby włączyć przyspieszenie pobierania"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Przeciągnij różową linię, aby ustawić, jak cicha musi być część, żeby została pominięta"
+    },
+    "loop_menu_now": {
+        "message": "Użyj bieżącego czasu"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Pomiń intro"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Początek"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Koniec wideo"
     },
     "loop_menu_end": {
         "message": "Koniec"

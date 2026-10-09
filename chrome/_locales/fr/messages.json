@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Interagissez pour activer l'accélération des téléchargements"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Faites glisser la ligne rose pour définir le seuil de silence en dessous duquel une partie sera ignorée"
+    },
+    "loop_menu_now": {
+        "message": "Utiliser l'heure actuelle"
+    },
+    "player_segment_intro": {
+        "message": "Introduction"
+    },
+    "player_segment_outro": {
+        "message": "Conclusion"
+    },
     "player_skipintro": {
         "message": "Passer l'intro"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Début"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Fin de la vidéo"
     },
     "loop_menu_end": {
         "message": "Fin"
