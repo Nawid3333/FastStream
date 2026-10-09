@@ -357,6 +357,9 @@ export class PlaybackRateChanger extends EventEmitter {
     this.playbackElements = els;
 
     DOMElements.playbackRate.addEventListener('keydown', (e) => {
+      // The button keeps the focus after a click closes the list; its keys are then the
+      // player's again (the arrows are the volume), as for the quality and language lists.
+      if (!this.isOpen()) return;
       if (e.key === 'ArrowDown') {
         this.shiftPlaybackRate(0.1);
         e.preventDefault();

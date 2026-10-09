@@ -120,6 +120,18 @@ describe('Player menus', function() {
     expect(state.volume).toBeCloseTo(0.9, 5);
   });
 
+  // They changed the speed while the list was closed (review, 2026-10-09).
+  it('lets the arrow keys through the speed button once its list is closed', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const state = await arrowDownOnClosedMenu('playbackRateChanger', '.mainplayer .fluid_button_playback_rate');
+    const rate = await browser.execute(() => window.fastStream.playbackRate);
+    console.log('      speed button:', JSON.stringify(state), 'rate', rate);
+    expect(state.volume).toBeCloseTo(0.9, 5);
+    expect(rate).toBe(1);
+  });
+
   it('keeps the language menu\'s keys to its own tracks, and lets them through once closed', async function() {
     // The highlight could rest on the empty cell of a language with no track of that
     // type, and the keys moved it while the menu was closed.
