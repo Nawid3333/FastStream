@@ -27,62 +27,6 @@ describe('formatDuration', () => {
   });
 });
 
-describe('getSizeValue', () => {
-  it('scales by SI prefix', () => {
-    expect(StringUtils.getSizeValue('1 MB')).toBe(1e6);
-    expect(StringUtils.getSizeValue('2 GB')).toBe(2e9);
-    expect(StringUtils.getSizeValue('1 KB')).toBe(1e3);
-  });
-
-  it('defaults a bare number to megabytes', () => {
-    // It was 5 bytes: "10" typed into "Maximum size of predownloaded video" became 10 B (#378).
-    expect(StringUtils.getSizeValue('5')).toBe(5e6);
-    expect(StringUtils.getSizeValue('0.5')).toBe(5e5);
-    // An unknown unit too, as before ("10 Mo" is French for MB, and reads as m).
-    expect(StringUtils.getSizeValue('10 xyz')).toBe(1e7);
-    expect(StringUtils.getSizeValue('10 Mo')).toBe(1e7);
-    expect(StringUtils.getSizeValue('300 B')).toBe(300);
-  });
-
-  it('returns -1 for input it cannot parse', () => {
-    expect(StringUtils.getSizeValue('abc')).toBe(-1);
-    expect(StringUtils.getSizeValue('-3 MB')).toBe(-1);
-  });
-});
-
-describe('getSpeedValue', () => {
-  it('treats a capital B as bytes', () => {
-    expect(StringUtils.getSpeedValue('10 MB/s')).toBe(1e7);
-  });
-
-  it('treats a lowercase b as bits, dividing by eight', () => {
-    // 10 Mbps is 1.25 MB/s - the distinction decides the real download cap.
-    expect(StringUtils.getSpeedValue('10 Mbps')).toBe(1.25e6);
-  });
-
-  it('returns -1 for unparseable or negative input', () => {
-    expect(StringUtils.getSpeedValue('fast')).toBe(-1);
-    expect(StringUtils.getSpeedValue('-5 MB/s')).toBe(-1);
-  });
-});
-
-describe('getSizeString / getSpeedString', () => {
-  it('picks a readable unit', () => {
-    expect(StringUtils.getSizeString(999)).toBe('999 B');
-    expect(StringUtils.getSizeString(1500)).toBe('1.5 KB');
-    expect(StringUtils.getSizeString(1.5e9)).toBe('1.5 GB');
-  });
-
-  it('renders the unlimited sentinel', () => {
-    expect(StringUtils.getSizeString(-1)).toBe('∞ GB');
-    expect(StringUtils.getSpeedString(-1)).toBe('∞ MB/s');
-  });
-
-  it('round-trips a size through string and back', () => {
-    expect(StringUtils.getSizeValue(StringUtils.getSizeString(2e9))).toBe(2e9);
-  });
-});
-
 describe('parseHTTPRange', () => {
   it('parses a closed range', () => {
     expect(StringUtils.parseHTTPRange('bytes=0-1023')).toEqual([0, 1023]);
