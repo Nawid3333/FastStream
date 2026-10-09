@@ -325,7 +325,7 @@ export class VideoAnalyzer extends EventEmitter {
         player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
         // Its run ended while it loaded: it plays nothing, and runFinder destroys it.
         if (!isCurrent()) return;
-        this.runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone);
+        this.runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone, isCurrent);
       };
 
       player.on(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
@@ -382,7 +382,7 @@ export class VideoAnalyzer extends EventEmitter {
     return null;
   }
 
-  runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone) {
+  runAnalyzerInBackground(player, aligner, timeStart, timeEnd, onDone, isCurrent = () => true) {
     player.currentTime = timeStart;
     player.playbackRate = 6;
     player.volume = 0;
@@ -426,6 +426,12 @@ export class VideoAnalyzer extends EventEmitter {
     const onAnimFrame = () => {
       if (destroyed) {
         aligner.calculate();
+        return;
+      }
+      // Its run ended (a source or quality change) before runFinder held the player, so
+      // destroyPlayers could not stop it: it stops itself, before another frame goes in.
+      if (!isCurrent()) {
+        player.destroy();
         return;
       }
       if (player.readyState >= 1 && player.paused) {
