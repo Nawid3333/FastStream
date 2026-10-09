@@ -166,7 +166,7 @@ perform the same steps by hand instead of running the script.
 |---|---|---|
 | 1 | Creates `%LOCALAPPDATA%\FastStreamMpvHost\` and copies `faststream-mpv-host.mjs` into it | `New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\FastStreamMpvHost"` then copy the file |
 | 2 | Writes `mpvPath` into `config.json` there — the mpv location the host should launch — and, once, `ipcToken`: a random value the host puts in the name of its pipe to mpv, since pipe names are shared by every account on the PC; anything else the file holds (`"debug": true`) stays | create the same file by hand |
-| 3 | Writes `com.faststream.mpv.bat` — a two-line wrapper that runs `node faststream-mpv-host.mjs`. Needed because Windows won't start a `.mjs` as a program. Firefox passes the manifest's path and the add-on's id as arguments; the wrapper hands them on, and the host ignores them | create the same file by hand |
+| 3 | Writes `com.faststream.mpv.bat` — a short wrapper that runs `node faststream-mpv-host.mjs`. Needed because Windows won't start a `.mjs` as a program. Firefox passes the manifest's path and the add-on's id as arguments; the wrapper hands them on, and the host ignores them | create the same file by hand |
 | 4 | Writes `com.faststream.mpv.json` — the native-messaging manifest: host name, path to the `.bat`, `type: "stdio"`, and which extension may talk to it (`allowed_extensions` = `thanatus@Nawid`) | create the same file by hand |
 | 5 | Creates registry key `HKCU\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv` (default value = path to the manifest JSON) so **Firefox** can find the host | `New-Item` + `Set-ItemProperty`, see the key paths in the script |
 
@@ -184,10 +184,12 @@ them.
 1. Copy `faststream-mpv-host.mjs` somewhere permanent, e.g.
    `%LOCALAPPDATA%\FastStreamMpvHost\`.
 2. Create a wrapper `com.faststream.mpv.bat` next to it (Windows won't start
-   a `.mjs` as a program):
+   a `.mjs` as a program). Save it as UTF-8: `chcp 65001` makes cmd read its
+   paths that way, or a user name with an accent (José, Müller) breaks them:
 
    ```bat
    @echo off
+   chcp 65001 > nul
    "C:\Program Files\nodejs\node.exe" "%LOCALAPPDATA%\FastStreamMpvHost\faststream-mpv-host.mjs" %*
    ```
 
@@ -299,7 +301,7 @@ removes the host it installed too. The add-on itself is removed in
 Installed by hand:
 
 ```powershell
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost" -ErrorAction SilentlyContinue
 Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv" -ErrorAction SilentlyContinue
 ```
 

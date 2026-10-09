@@ -139,10 +139,11 @@ into mpv yourself, which opens it with yt-dlp.
 ## When something does not work
 
 Turn on the helper's log. Add `"debug": true` to
-`%LOCALAPPDATA%\FastStreamMpvHost\config.json`:
+`%LOCALAPPDATA%\FastStreamMpvHost\config.json`, and keep what is already in it
+(your `mpvPath`, and `ipcToken`, the name of the helper's pipe to mpv):
 
 ```json
-{"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": true}
+{"mpvPath": "(as it was)", "ipcToken": "(as it was)", "debug": true}
 ```
 
 No reinstall or restart needed — it is read on every message. It then writes
@@ -156,7 +157,7 @@ Common cases:
 |---|---|
 | Nothing at all happens | Site is not on the allowlist, or MPV mode is off. The log will be empty. |
 | **Test mpv connection** fails | Browser not restarted after installing, or the helper is not registered. |
-| The toolbar's `!` says the mpv host is out of date | The helper on this PC is older than the add-on. One-click install: Start menu ▸ mpv ▸ *Update mpv*. By hand: `update-local.cmd` in your checkout, or `native-host\install.ps1` again. |
+| The toolbar's `!` says the mpv helper is out of date | The helper on this PC is older than the add-on. One-click install: Start menu ▸ mpv ▸ *Update mpv*. By hand: `update-local.cmd` in your checkout, or `native-host\install.ps1` again. |
 | mpv opens and closes instantly | The stream itself was refused — an expired token, or a site that needs cookies. Cookies are deliberately **not** sent to mpv. |
 | mpv plays but nothing switches | Log will show whether a second URL arrived at all. |
 | The toolbar tooltip says "decoded by the processor" | mpv decodes in software. FastStream never changes your mpv settings; add `hwdec=auto-safe` to `mpv.conf` for the graphics card. The tooltip (and **Test mpv connection**, while an mpv FastStream started is open) say what mpv uses; this needs **Reuse one mpv window** on (the default). |
@@ -170,8 +171,8 @@ It removes the helper it installed too. The add-on itself is removed in
 **Installed by hand:**
 
 ```powershell
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"
-Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv"
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost" -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv" -ErrorAction SilentlyContinue
 ```
 
 Untick the MPV options in settings, and FastStream goes back to normal.
