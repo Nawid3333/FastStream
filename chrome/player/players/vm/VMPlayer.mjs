@@ -42,7 +42,9 @@ export default class VMPlayer extends HLSPlayer {
       if (!requestUrl) {
         throw new Error('Not a Vimeo player address: ' + source.url);
       }
-      const isEmbed = !source.url.includes('config?');
+      // By the path vimeoRequestUrl checked: a config address without a query (".../config")
+      // was read as the player page, and the video failed with "playerConfig not found".
+      const isEmbed = !new URL(requestUrl).pathname.endsWith('/config');
       const hc = [];
       if (Array.isArray(source.headers)) {
         source.headers.forEach((h) => {
