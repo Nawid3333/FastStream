@@ -119,6 +119,9 @@ describe('AudioProfile.fromObj: profiles from storage and files', () => {
     const profile = AudioProfile.fromObj({id: 1, mixerChannels});
     expect(profile.master.isMaster()).toBe(true);
     expect(profile.master.mono).toBe(true);
+    // A null among them (a damaged file) threw.
+    const damaged = mixerChannels.map((channel, i) => i === 2 ? null : channel);
+    expect(() => AudioProfile.fromObj({id: 1, mixerChannels: damaged})).not.toThrow();
     expect(profile.channels.map((channel) => channel.id)).toEqual(Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => i));
   });
 

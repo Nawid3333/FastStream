@@ -34,7 +34,8 @@ export class AudioProfile {
         return AudioChannelControl.fromObj(channel);
       });
     } else if (obj.mixerChannels && obj.mixerChannels.length === 7) { // Legacy
-      profile.channels = obj.mixerChannels.slice(0, 6).map((channel) => {
+      // Objects only, as above: a null in an old file threw, and the profile list with it.
+      profile.channels = obj.mixerChannels.slice(0, 6).filter((channel) => channel && typeof channel === 'object').map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
       // The seventh is the master: kept with its number, it was no master (isMaster), and
