@@ -563,6 +563,28 @@ describe('FetchLoader', () => {
       }
     });
 
+    // The memory the cut saves: the body was put together in one buffer the size of all that
+    // was read, the file up to the range's end, and the range cut out of it after.
+    it('puts the range together in a buffer of its own size, not of the file read up to it', async () => {
+      const sizes = [];
+      vi.stubGlobal('Uint8Array', new Proxy(Uint8Array, {
+        construct(target, args) {
+          // The loader's own buffers (made right there): the test's Response copies its body too.
+          if (typeof args[0] === 'number' && new Error().stack.split('\n')[2].includes('FetchLoader.mjs')) sizes.push(args[0]);
+          return Reflect.construct(target, args);
+        },
+      }));
+      let response;
+      try {
+        const {recorder} = await loadRange(60, 70);
+        [response] = recorder.calls.find((c) => c.type === 'onSuccess').args;
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      expect([...new Uint8Array(response.data)]).toEqual([...file.slice(60, 70)]);
+      expect(Math.max(0, ...sizes)).toBeLessThanOrEqual(10);
+    });
+
     it('fails a range that starts past the end of the file', async () => {
       const {recorder, loader} = await loadRange(200, 300);
       expect(recorder.calls.map((c) => c.type)).toEqual(['onError']);
