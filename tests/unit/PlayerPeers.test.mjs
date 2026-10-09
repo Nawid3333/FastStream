@@ -23,6 +23,12 @@ describe('BufferAhead', () => {
     expect(downloadedAhead(undefined, 0)).toBe(0);
   });
 
+  it('counts an audio-only player\'s audio', () => {
+    // No video fragments: it looked short for ever, and every other player yielded to it.
+    expect(aheadOfPlayhead({video: [], audio: [fragment(0, 20)], time: 5})).toBe(15);
+    expect(aheadOfPlayhead({video: undefined, audio: [fragment(0, 20)], time: 5})).toBe(15);
+  });
+
   it('takes the shorter of video and audio, or what the element buffered when that is more', () => {
     const video = [fragment(0, 10), fragment(10, 20)];
     const audio = [fragment(0, 6), fragment(6, 12, WAITING)];
@@ -160,6 +166,24 @@ describe('PlayerPeers', () => {
     expect(hidden.livePeers()).toHaveLength(1);
     clock.now += PEER_TIMEOUT_MS + 1;
     expect(hidden.livePeers()).toEqual([]);
+  });
+
+  it('does not flood the channel while the user scrubs', () => {
+    const sent = [];
+    const clock = {now: 1000};
+    const peers = new PlayerPeers({
+      state: () => ({playing: true, ahead: 2, ramBytes: 0}),
+      visible: () => true,
+      channel: () => ({postMessage: (data) => sent.push(data), close() {}}),
+      now: () => clock.now,
+    });
+    peers.start();
+    for (let i = 0; i < 50; i++) {
+      peers.noteSeek();
+      peers.announce();
+      clock.now += 10;
+    }
+    expect(sent.length).toBeLessThanOrEqual(3);
   });
 
   it('stays alone, never yielding, without BroadcastChannel', () => {

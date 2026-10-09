@@ -1366,8 +1366,9 @@ export class FastStreamClient extends EventEmitter {
         }
       }
 
+      // (A live stream's fragments are placed on its own clock: no window there.)
       if (this.concentrating && (this.downloadManager.activeCount() >= URGENT_PARALLEL ||
-          nextDownload.start > this.state.currentTime + KEEP_AHEAD_S)) {
+          (!this.isLive() && nextDownload.start > this.state.currentTime + KEEP_AHEAD_S))) {
         break;
       }
 

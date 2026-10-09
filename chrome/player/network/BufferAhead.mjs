@@ -63,9 +63,15 @@ export function bufferedAhead(ranges, time) {
  * @return {number}
  */
 export function aheadOfPlayhead({video, audio, buffered, time}) {
-  let fromFragments = downloadedAhead(video, time);
-  if (audio && audio.length) {
-    fromFragments = Math.min(fromFragments, downloadedAhead(audio, time));
+  const hasVideo = !!video && video.length > 0;
+  const hasAudio = !!audio && audio.length > 0;
+  let fromFragments = 0;
+  if (hasVideo && hasAudio) {
+    fromFragments = Math.min(downloadedAhead(video, time), downloadedAhead(audio, time));
+  } else if (hasVideo || hasAudio) {
+    // Audio only has no video fragments: its audio's are what it has.
+    fromFragments = downloadedAhead(hasVideo ? video : audio, time);
   }
+  // The element's buffered ranges are already what all its tracks have together.
   return Math.max(fromFragments, bufferedAhead(buffered, time));
 }

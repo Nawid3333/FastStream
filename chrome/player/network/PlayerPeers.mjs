@@ -28,6 +28,8 @@ export const HIDDEN_PLAYING_KEEP_S = 30;
 // It goes on stepping aside this long after the last peer that was short, so that peers
 // taking turns do not make it start and stop every second.
 export const YIELD_TAIL_MS = 3000;
+// The same state again goes out no sooner than this.
+export const ANNOUNCE_REPEAT_MS = 250;
 
 /**
  * @typedef {Object} PeerState
@@ -94,15 +96,17 @@ export class PlayerPeers {
 
   /** Says goodbye, so peers stop counting this one at once, and stops listening. */
   stop() {
-    if (!this.channel) return;
-    this.post({bye: true});
-    try {
-      this.channel.close();
-    } catch (e) {
-      // Already closed with its page.
+    if (this.channel) {
+      this.post({bye: true});
+      try {
+        this.channel?.close();
+      } catch (e) {
+        // Already closed with its page.
+      }
     }
     this.channel = null;
     this.peers.clear();
+    this.lastNeedyPeerAt = -Infinity;
   }
 
   /**
@@ -135,11 +139,22 @@ export class PlayerPeers {
     return state.ahead < (justSeeked ? SHORT_AFTER_SEEK_S : SHORT_S);
   }
 
-  /** Tells the others how this player is doing. */
+  /**
+   * Tells the others how this player is doing: at once when that changed, else at most every
+   * ANNOUNCE_REPEAT_MS (a scrub seeks many times a second).
+   */
   announce() {
     const state = this.readState();
-    this.post({visible: this.visible(), playing: !!state.playing, needy: this.isNeedy(),
-      ramBytes: Math.max(0, state.ramBytes || 0)});
+    const fields = {visible: this.visible(), playing: !!state.playing, needy: this.isNeedy(),
+      ramBytes: Math.max(0, state.ramBytes || 0)};
+    const last = this.lastAnnounced;
+    const now = this.now();
+    if (last && now - last.at < ANNOUNCE_REPEAT_MS && last.visible === fields.visible &&
+        last.playing === fields.playing && last.needy === fields.needy) {
+      return;
+    }
+    this.lastAnnounced = {...fields, at: now};
+    this.post(fields);
   }
 
   /**

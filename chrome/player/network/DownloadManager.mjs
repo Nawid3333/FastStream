@@ -424,23 +424,36 @@ export class DownloadManager {
   setYield(yielding, holdPlayback = false) {
     if (!this.downloaders) return;
     const hold = yielding && holdPlayback;
-    if (this.holdingPlayback !== hold) {
-      this.holdingPlayback = hold;
-      if (!hold) this.queueNext();
-    }
-    if (this.yielding === yielding) return;
+    const holdChanged = this.holdingPlayback !== hold;
+    const yieldChanged = this.yielding !== yielding;
+    // Both set before anything starts again: queueNext and the client read them.
+    this.holdingPlayback = hold;
     this.yielding = yielding;
-    if (!yielding) {
-      this.client?.predownloadFragments?.();
-      this.queueNext();
-      return;
+    if (yieldChanged && yielding) {
+      // The downloads ahead: queued ones leave the queue, running ones under half done stop.
+      // Not a save's (priority below 0: the user asked for it), not what playback waits for.
+      const cancellable = (entry) => {
+        const priority = entry.priority || 0;
+        return priority >= 0 && priority < PLAYBACK_PRIORITY;
+      };
+      for (const entry of this.queue.filter((queued) => queued.status === DownloadStatus.ENQUEUED && cancellable(queued))) {
+        this.queue.splice(this.queue.indexOf(entry), 1);
+        entry.abort();
+      }
+      for (const downloader of this.downloaders.slice()) {
+        const entry = downloader.entry;
+        if (!entry || downloader.delivering || !cancellable(entry)) continue;
+        const stats = downloader.stats;
+        if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
+        entry.abort();
+      }
     }
-    for (const downloader of this.downloaders.slice()) {
-      const entry = downloader.entry;
-      if (!entry || downloader.delivering || (entry.priority || 0) >= PLAYBACK_PRIORITY) continue;
-      const stats = downloader.stats;
-      if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
-      entry.abort();
+    if (yieldChanged && !yielding) {
+      this.client?.predownloadFragments?.();
+    }
+    if (yieldChanged || holdChanged) {
+      // Freed connections go to what may run now.
+      this.queueNext();
     }
   }
 
@@ -602,13 +615,16 @@ export class DownloadManager {
    * something else called it.
    */
   queueNext() {
-    // A paused player that leaves the network to a watched one starts nothing (setYield).
-    if (this.holdingPlayback) return;
     while (!this.paused && this.queue.length > 0) {
       if (this.queue[0].status !== DownloadStatus.ENQUEUED) {
         this.queue.shift();
         continue;
       }
+      // A paused player that leaves the network to a watched one starts only a save (priority
+      // below 0: the user asked for it), nothing of its own playback (setYield).
+      const index = this.holdingPlayback ?
+        this.queue.findIndex((entry) => entry.status === DownloadStatus.ENQUEUED && (entry.priority || 0) < 0) : 0;
+      if (index === -1) return;
 
       const failCooldown = 1000;
       const waitUntil = Math.max(this.lastFailed + failCooldown, this.holdUntil);
@@ -621,11 +637,11 @@ export class DownloadManager {
       }
 
       const downloader = this.downloaders.find((downloader) => {
-        return downloader.canHandle(this.queue[0].details);
+        return downloader.canHandle(this.queue[index].details);
       });
       if (!downloader) return;
 
-      const entry = this.queue.shift();
+      const entry = this.queue.splice(index, 1)[0];
       downloader.run(entry);
     }
   }

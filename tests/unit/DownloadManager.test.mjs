@@ -179,6 +179,27 @@ describe('DownloadManager', () => {
     expect(manager.downloaders[0].entry).toBe(entry);
   });
 
+  it('yielding never cancels a save, and a paused player that holds still lets a save run', () => {
+    // A save downloads at priority -1 (SaveFragmentFetcher): the user asked for it.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    const saving = {entry: {priority: -1, abort: vi.fn()}, delivering: false, stats: {loaded: 0, total: 100}, canHandle: () => false};
+    manager.downloaders = [saving, idleDownloader()];
+    const queuedAhead = {status: DownloadStatus.ENQUEUED, priority: 0, details: {}, abort: vi.fn()};
+    manager.queue.push(queuedAhead);
+
+    manager.setYield(true, true);
+    expect(saving.entry.abort).not.toHaveBeenCalled();
+    // A download ahead that was queued before the yield does not start behind its back.
+    expect(queuedAhead.abort).toHaveBeenCalledTimes(1);
+    expect(manager.queue).not.toContain(queuedAhead);
+
+    // Held: playback's request waits, the save's next fragment goes.
+    const playback = manager.getFile({url: 'https://example.com/p', responseType: 'arraybuffer'}, {}, 1000).entry;
+    const save = manager.getFile({url: 'https://example.com/s', responseType: 'arraybuffer'}, {}, -1).entry;
+    expect(manager.downloaders[1].entry).toBe(save);
+    expect(playback.status).toBe(DownloadStatus.ENQUEUED);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
