@@ -20,7 +20,7 @@ The player currently supports:
 
 To use the player, simply:
 1. Go to any website you want with a video and toggle the extension on. Any video it detects will be automatically replaced with the FastStream player.
-2. Alternatively, you can also simply click on or navigate to a stream manifest file (m3u8/mpd) to begin playing.
+2. Alternatively, turn on "Use player to play HLS/DASH streams when opening playlist URLs" in the options, then click on or navigate to a stream manifest file (m3u8/mpd) to play it (off by default; the option below it does the same for .mp4 links).
 3. Navigate to a new tab and press the extension icon to go to the player. Play sources detected on other tabs through the Sources Browser. You can also drag and drop video files from your computer.
 
 Notes:
