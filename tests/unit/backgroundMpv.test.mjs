@@ -1366,5 +1366,7 @@ describe('the shortcut\'s MPV, where mpv starts', () => {
   it('starts at the start a play from the start, and a live video', async () => {
     expect(await startFor({duration: 1400, time: 0.2})).toBe(undefined);
     expect(await startFor({duration: null, time: 612.4})).toBe(undefined);
+    // What a live video reports: its duration is Infinity (content.js playedVideo passes it on).
+    expect(await startFor({duration: Infinity, time: 612.4})).toBe(undefined);
   });
 });
