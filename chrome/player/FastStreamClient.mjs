@@ -343,6 +343,9 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
+    // The audio changes of the last second: the tick saves them once a second, and one made
+    // just before the player closed was lost (review).
+    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
     this.resetPlayer();

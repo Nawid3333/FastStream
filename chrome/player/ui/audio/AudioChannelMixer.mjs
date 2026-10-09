@@ -115,7 +115,9 @@ export class AudioChannelMixer extends AbstractAudioModule {
   }
 
   render() {
-    if (!this.channelConfigs) return;
+    // A profile can come before the audio graph (setConfig keeps it for setupNodes): nothing
+    // to draw until the graph's nodes are made.
+    if (!this.channelConfigs || !this.masterNodes.equalizer) return;
 
     if (this.needsAnalyzer()) {
       this.createAnalyzers();

@@ -337,6 +337,22 @@ describe('FastStreamClient, a change of quality', () => {
   });
 });
 
+describe('FastStreamClient.destroy', () => {
+  // The tick saves the audio tools' changes once a second: one made just before the player
+  // closed was lost (review).
+  it('saves the audio changes first', () => {
+    const saveChanges = vi.fn(() => null);
+    const that = {audioConfigManager: {saveChanges}};
+    try {
+      // Up to the first step that needs a whole client.
+      FastStreamClient.prototype.destroy.call(that);
+    } catch (e) {
+      // The rest of a client is not here.
+    }
+    expect(saveChanges).toHaveBeenCalled();
+  });
+});
+
 describe('FastStreamClient, a source opened from an archive', () => {
   it('asks for the archive\'s audio track as well as its video level', async () => {
     // SaveManager names it audioLevel, and this read `audio`: never restored.

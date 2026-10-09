@@ -361,6 +361,8 @@ describe('AudioChannelMixer: a profile before the audio graph', () => {
     const profile = new AudioProfile(1);
     expect(() => mixer.setConfig(profile)).not.toThrow();
     expect(mixer.masterConfig).toBe(profile.master);
+    // And the panel's repaint until the graph comes: it threw on the master's nodes (review).
+    expect(() => mixer.render()).not.toThrow();
   });
 });
 
