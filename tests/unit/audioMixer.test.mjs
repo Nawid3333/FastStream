@@ -345,3 +345,31 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
     expect(mixer.masterNodes.monoNode).toBeTruthy();
   });
 });
+
+// A solo on a strip the audio has not (greyed, the centre of a stereo video) silenced every
+// channel it has (review, 2026-10-09).
+describe('AudioChannelMixer: a solo', () => {
+  /** A mixer of six channels, the given one soloed. */
+  function mixerWithSolo(soloId) {
+    const mixer = Object.create(AudioChannelMixer.prototype);
+    mixer.channelConfigs = [0, 1, 2, 3, 4, 5].map((id) => {
+      const channel = AudioChannelControl.default(id);
+      channel.solo = id === soloId;
+      return channel;
+    });
+    return mixer;
+  }
+
+  it('on a channel the audio has, silences the others', () => {
+    const stereo = AudioUtils.getActiveChannelsForChannelCount(2);
+    const gains = mixerWithSolo(stereo[0]).getChannelGainsFromConfig(stereo);
+    expect(gains.filter((gain, id) => stereo.includes(id) && gain > 0)).toHaveLength(1);
+  });
+
+  it('on a channel the audio has not, silences nothing', () => {
+    const stereo = AudioUtils.getActiveChannelsForChannelCount(2);
+    const greyed = [0, 1, 2, 3, 4, 5].find((id) => !stereo.includes(id));
+    const gains = mixerWithSolo(greyed).getChannelGainsFromConfig(stereo);
+    expect(stereo.every((id) => gains[id] > 0)).toBe(true);
+  });
+});

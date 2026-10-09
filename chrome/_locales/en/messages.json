@@ -725,6 +725,12 @@
     "player_audioconfig_profile": {
         "message": "Profile"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profile $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Unnamed Profile"
     },

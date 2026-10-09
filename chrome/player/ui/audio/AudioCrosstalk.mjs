@@ -194,6 +194,8 @@ export class AudioCrosstalk extends AbstractAudioModule {
     WebUtils.setupTabIndex(this.ui.crosstalkToggle);
 
     this.ui.crosstalkToggle.addEventListener('click', () => {
+      // Before a profile is applied there is nothing to turn on, as for the compressor.
+      if (!this.crosstalkConfig) return;
       this.crosstalkConfig.enabled = !this.crosstalkConfig.enabled;
       this.updateCrosstalk();
       this.emit('upscale');
@@ -213,7 +215,8 @@ export class AudioCrosstalk extends AbstractAudioModule {
     calculatorContainer.appendChild(speakerDistanceContainer);
 
     speakerDistanceInput.addEventListener('input', () => {
-      const val = parseFloat(speakerDistanceInput.value);
+      // A decimal comma, as French and German write it: "35,5" was 35.
+      const val = parseFloat(speakerDistanceInput.value.replace(',', '.'));
       // An emptied or half-typed field is no distance: its NaN became the suggested delay
       // and decay, which the filter then used, and was saved as null, which lost both
       // distances.
@@ -230,6 +233,10 @@ export class AudioCrosstalk extends AbstractAudioModule {
     speakerDistanceInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
     });
+    // Left holding no distance, it shows the one used again.
+    speakerDistanceInput.addEventListener('change', () => {
+      speakerDistanceInput.value = this.speakerDistance + ' cm';
+    });
 
     const headDistanceContainer = WebUtils.create('div', null, 'crosstalk_calculator_input_container');
     const headDistanceLabel = WebUtils.create('label', null, 'crosstalk_calculator_label');
@@ -241,7 +248,7 @@ export class AudioCrosstalk extends AbstractAudioModule {
     calculatorContainer.appendChild(headDistanceContainer);
 
     headDistanceInput.addEventListener('input', () => {
-      const val = parseFloat(headDistanceInput.value);
+      const val = parseFloat(headDistanceInput.value.replace(',', '.'));
       // As the speaker distance's.
       if (!Number.isFinite(val)) {
         return;
@@ -255,6 +262,9 @@ export class AudioCrosstalk extends AbstractAudioModule {
 
     headDistanceInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
+    });
+    headDistanceInput.addEventListener('change', () => {
+      headDistanceInput.value = this.headDistance + ' cm';
     });
 
     this.crosstalkKnobs.decay = createKnob(Localize.getMessage('audiocrosstalk_decay'), -5, -0.01, (val, isSuggested) => {

@@ -108,7 +108,7 @@ export class AudioConfigManager extends AbstractAudioModule {
     const newID = this.getNextProfileID();
     const profile = (copyCurrent && this.currentProfile) ? this.currentProfile.copy() : new AudioProfile(newID);
     profile.id = newID;
-    profile.label = `Profile ${newID}`;
+    profile.label = Localize.getMessage('player_audioconfig_profile_numbered', [String(newID)]);
     this.addProfile(profile);
     Array.from(this.ui.profileDropdown.children[1].children).find((el) => el.dataset.val === 'p' + newID).click();
   }
