@@ -19,6 +19,9 @@ import {EnvUtils} from './EnvUtils.mjs';
 
 const TOAST_MS = 3000;
 
+// Ids of the dialogs' titles and texts (aria-labelledby, aria-describedby).
+let lastId = 0;
+
 // The mark inside each icon's circle.
 const ICON_MARKS = {
   success: '✓',
@@ -75,8 +78,14 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
   const form = /** @type {HTMLFormElement} */ (make('form', 'fs-dialog-form'));
   form.method = 'dialog';
   if (icon) form.append(makeIcon(icon));
-  if (title) form.append(make('h2', 'fs-dialog-title', title));
-  if (text) form.append(make('p', 'fs-dialog-text', text));
+  // What a screen reader names the dialog by, and reads after its name.
+  const said = (element, attribute) => {
+    element.id = `fs-dialog-${++lastId}`;
+    dialog.setAttribute(attribute, element.id);
+    return element;
+  };
+  if (title) form.append(said(make('h2', 'fs-dialog-title', title), 'aria-labelledby'));
+  if (text) form.append(said(make('p', 'fs-dialog-text', text), title ? 'aria-describedby' : 'aria-labelledby'));
   if (content) form.append(content);
 
   /** @type {?HTMLInputElement} */
@@ -117,7 +126,12 @@ function openDialog({icon, title, text, content, input, confirmText, cancelText}
     pressedOutside = e.target === dialog;
   });
   dialog.addEventListener('click', (e) => {
-    if (pressedOutside && e.target === dialog) dialog.close('');
+    if (!pressedOutside || e.target !== dialog) return;
+    // Its own scrollbar and border are the dialog too: only beside its box is the backdrop.
+    const box = dialog.getBoundingClientRect();
+    if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) {
+      dialog.close('');
+    }
   });
 
   document.body.append(dialog);
@@ -236,33 +250,28 @@ export class AlertPolyfill {
     words.append(make('div', 'fs-toast-title', message));
     if (submessage) words.append(make('div', 'fs-toast-text', submessage));
     const bar = make('div', 'fs-toast-progress');
-    bar.style.animationDuration = `${TOAST_MS}ms`;
     toast.append(makeIcon(icon), words, bar);
     corner.append(toast);
 
     return new Promise((resolve) => {
-      let left = TOAST_MS;
-      let since = Date.now();
-      let timer = setTimeout(close, left);
+      // The bar running out is the toast's time, its only timer: paused while the pointer is
+      // on it.
+      const time = bar.animate([{transform: 'scaleX(1)'}, {transform: 'scaleX(0)'}],
+          {duration: TOAST_MS, fill: 'forwards'});
       let closed = false;
       /** Takes the toast away. */
       function close() {
         if (closed) return;
         closed = true;
-        clearTimeout(timer);
+        time.onfinish = null;
+        time.cancel();
         toast.remove();
         if (!corner.children.length && corner.matches(':popover-open')) corner.hidePopover();
         resolve({isConfirmed: false, isDenied: false, isDismissed: true, value: undefined});
       }
-      // Its bar stops with it (dialogs.css, :hover).
-      toast.addEventListener('mouseenter', () => {
-        clearTimeout(timer);
-        left -= Date.now() - since;
-      });
-      toast.addEventListener('mouseleave', () => {
-        since = Date.now();
-        timer = setTimeout(close, Math.max(left, 0));
-      });
+      time.onfinish = close;
+      toast.addEventListener('mouseenter', () => time.pause());
+      toast.addEventListener('mouseleave', () => time.play());
       toast.addEventListener('click', close);
     });
   }

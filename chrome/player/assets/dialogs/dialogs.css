@@ -102,7 +102,6 @@
 
 .fs-dialog-buttons .fs-dialog-confirm {
   background: var(--popwindow-button-active-background-color, rgb(0, 135, 153));
-  color: white;
 }
 
 .fs-dialog-buttons .fs-dialog-confirm:hover {
@@ -223,7 +222,7 @@
   overflow-wrap: anywhere;
 }
 
-/* What is left of its time, running out from right to left. */
+/* What is left of its time, running out from right to left (AlertPolyfill.toast animates it). */
 .fs-toast-progress {
   position: absolute;
   left: 0;
@@ -233,21 +232,4 @@
   background: currentColor;
   opacity: 0.35;
   transform-origin: left;
-  animation-name: fs-toast-time;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-
-.fs-toast:hover .fs-toast-progress {
-  animation-play-state: paused;
-}
-
-@keyframes fs-toast-time {
-  from {
-    transform: scaleX(1);
-  }
-
-  to {
-    transform: scaleX(0);
-  }
 }

@@ -129,18 +129,67 @@ describe('Dialogs', function() {
     expect(shown.toast).toContain('<b id="fs-injected">x</b>');
   });
 
-  it('closes on Escape and on a click beside it, not on one inside', async function() {
+  it('closes on Escape and on a click beside it, not on one inside or on its border', async function() {
     await openPlayer();
     await open('confirm', 'Escape?');
     await browser.keys(['Escape']);
     expect(await answer()).toBe(false);
 
     await open('confirm', 'Beside?');
-    // Inside: on its text. Then beside it: the backdrop, in a corner of the page.
+    // Inside: on its text, and on its border (the dialog element itself, as its backdrop is).
+    // Then beside it: the backdrop, in a corner of the page.
     await (await browser.$('.fs-dialog-text')).click();
+    const border = await browser.execute(() => {
+      const box = document.querySelector('.fs-dialog').getBoundingClientRect();
+      return {x: Math.ceil(box.left), y: Math.round(box.top + box.height / 2)};
+    });
+    await browser.action('pointer').move({origin: 'viewport', x: border.x, y: border.y}).down().up().perform();
     expect(await browser.execute(() => !!document.querySelector('dialog.fs-dialog[open]'))).toBe(true);
-    await browser.action('pointer').move({x: 5, y: 5}).down().up().perform();
+    await browser.action('pointer').move({origin: 'viewport', x: 5, y: 5}).down().up().perform();
     expect(await answer()).toBe(false);
+  });
+
+  it('names a dialog by its title or text for a screen reader', async function() {
+    await openPlayer();
+    await open('confirm', 'Download the whole video?');
+    const confirm = await browser.execute(() => {
+      const dialog = document.querySelector('.fs-dialog');
+      return document.getElementById(dialog.getAttribute('aria-labelledby'))?.textContent;
+    });
+    await browser.keys(['Escape']);
+    await answer();
+    expect(confirm).toBe('Download the whole video?');
+
+    await browser.execute(() => import('/player/utils/AlertPolyfill.mjs').then(({AlertPolyfill}) => {
+      AlertPolyfill.errorSendToDeveloper(new Error('It broke'));
+    }));
+    await browser.waitUntil(async () => browser.execute(() => !!document.querySelector('dialog.fs-dialog[open]')), {timeout: 5000});
+    const error = await browser.execute(() => {
+      const dialog = document.querySelector('.fs-dialog');
+      return document.getElementById(dialog.getAttribute('aria-labelledby'))?.className;
+    });
+    expect(error).toBe('fs-dialog-title');
+  });
+
+  it('runs a toast\'s time on when another comes, and stops it under the pointer', async function() {
+    await openPlayer();
+    const at = await browser.executeAsync((done) => {
+      import('/player/utils/AlertPolyfill.mjs').then(async ({AlertPolyfill}) => {
+        AlertPolyfill.toast('info', 'First');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        AlertPolyfill.toast('info', 'Second');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        done(document.querySelector('.fs-toast .fs-toast-progress').getAnimations()[0].currentTime);
+      });
+    });
+    // Showing the corner again on top for the second does not start the first's time over (a
+    // CSS animation was not restarted either, measured: the corner is hidden and shown in one
+    // task). The time is a Web Animation, the toast's only timer.
+    expect(at).toBeGreaterThan(1400);
+
+    await (await browser.$('.fs-toast')).moveTo();
+    const paused = await browser.execute(() => document.querySelector('.fs-toast .fs-toast-progress').getAnimations()[0].playState);
+    expect(paused).toBe('paused');
   });
 
   it('confirms a prompt on Enter with what was typed, and keeps its keys from the player', async function() {
