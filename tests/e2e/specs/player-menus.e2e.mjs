@@ -263,7 +263,7 @@ describe('Player menus', function() {
     await waitForPicture();
     const loop = () => browser.execute(() => {
       const controls = window.fastStream.interfaceController.loopControls;
-      return {enabled: controls.loopEnabled, running: controls.gifLoopRunning};
+      return {enabled: controls.loopEnabled, running: !!controls.gifLoopRunning};
     });
     const setTime = (name, value) => browser.execute((name, value) => {
       const input = document.querySelector(`.mainplayer input[name="${name}"]`);
