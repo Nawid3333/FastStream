@@ -193,6 +193,8 @@ them.
    "C:\Program Files\nodejs\node.exe" "%LOCALAPPDATA%\FastStreamMpvHost\faststream-mpv-host.mjs" %*
    ```
 
+   The first path is your `node.exe`: `where node` in a command prompt shows it.
+
 3. Create `com.faststream.mpv.json` next to it:
 
    ```json

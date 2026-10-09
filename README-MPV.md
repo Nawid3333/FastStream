@@ -41,7 +41,7 @@ irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.
 ```
 
 Or download mpv-config as a ZIP (**Code ▸ Download ZIP**), extract it and
-double-click **`install.bat`**. No admin rights, Git or Node.js are needed. It:
+double-click **`install.bat`**. It needs no admin rights, no Git and no Node.js. It:
 
 - installs mpv with mpv-config's configuration into `%LOCALAPPDATA%\Programs\mpv`;
 - installs this fork's helper from its latest release (this repository's
