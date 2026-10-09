@@ -74,7 +74,7 @@ mpvAllowlistInput.setAttribute('autocapitalize', 'off');
 mpvAllowlistInput.setAttribute('autocomplete', 'off');
 mpvAllowlistInput.setAttribute('autocorrect', 'off');
 mpvAllowlistInput.setAttribute('spellcheck', false);
-mpvAllowlistInput.placeholder = 'netflix.com\ncrunchyroll.com @anime\n~^https:\\/\\/example\\.com\\/movie\\/';
+mpvAllowlistInput.placeholder = 'netflix.com\ncrunchyroll.com @anime\nhttps://example.com/films/\n~^https:\\/\\/example\\.com\\/movie\\/';
 
 customSourcePatterns.setAttribute('autocapitalize', 'off');
 customSourcePatterns.setAttribute('autocomplete', 'off');
