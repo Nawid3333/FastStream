@@ -785,3 +785,23 @@ describe('FastStreamClient, limits of 0 and no limit', () => {
     expect(ramFull(1e9, 3e9)).toBe(true);
   });
 });
+
+describe('FastStreamClient, "Buffer behind" changed while a video plays', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('applies at once, not only from the next video', () => {
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
+    vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+    expect(client.state.bufferBehind).toBe(20);
+
+    client.setOptions({bufferBehind: 120});
+    expect(client.state.bufferBehind).toBe(120);
+  });
+});

@@ -746,7 +746,9 @@ ramBudgetUnit.addEventListener('change', onRamBudgetChange);
  * @return {number}
  */
 function readNumberField(input, fallback, min, max = Infinity, whole = false) {
-  const value = whole ? parseInt(input.value) : parseFloat(input.value);
+  // A decimal comma, as in the size fields (readLimit): "2,5" seconds was 2.
+  const text = String(input.value).trim().replace(',', '.');
+  const value = whole ? parseInt(text) : parseFloat(text);
   const result = Number.isFinite(value) ? Math.min(Math.max(value, min), max) : fallback;
   input.value = result;
   return result;

@@ -372,6 +372,9 @@ export class FastStreamClient extends EventEmitter {
     this.options.ramBudget = options.ramBudget;
     this.options.bufferAhead = options.bufferAhead;
     this.options.bufferBehind = options.bufferBehind;
+    // At once, as "Buffer ahead" is (updateHasDownloadSpace): a change waited for the next
+    // video. A private window's warning sets both from the options the same way.
+    this.state.bufferBehind = this.options.bufferBehind;
     this.options.seekStepSize = options.seekStepSize;
     this.options.singleClickAction = options.singleClickAction;
     this.options.doubleClickAction = options.doubleClickAction;
@@ -2481,7 +2484,8 @@ export class FastStreamClient extends EventEmitter {
       }
       this.resetFailed();
       this.updateQualityLevels();
-      this.audioConfigManager.updateChannelCount();
+      // None without Web Audio (the constructor makes it only then), as at the other call.
+      this.audioConfigManager?.updateChannelCount();
     }
   }
 
@@ -2691,7 +2695,7 @@ export class FastStreamClient extends EventEmitter {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(1))) {
         this.player.volume = 1;
       }
-      this.audioConfigManager.updateVolume(volume);
+      this.audioConfigManager?.updateVolume(volume);
     } else {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
         this.player.volume = volume;

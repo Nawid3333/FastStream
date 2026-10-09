@@ -75,10 +75,13 @@ export class MpvSuggestion {
 
   /**
    * The options changed (on this page or elsewhere): MPV mode turned on another way
-   * makes the offer moot.
+   * makes the offer moot, and turned off again after the offer was taken makes its "MPV
+   * mode is on" untrue. Both close it; a taken offer does not come back (take() remembered
+   * it as a dismissal).
    */
   optionsChanged() {
-    if (this.state === 'offered' && this.isMpvModeOn()) {
+    if ((this.state === 'offered' && this.isMpvModeOn()) ||
+        (this.state === 'taken' && !this.isMpvModeOn())) {
       this.close();
     }
   }

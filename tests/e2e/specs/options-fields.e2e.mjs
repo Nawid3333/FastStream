@@ -54,6 +54,10 @@ describe('Options page number fields', function() {
     expect(await setField('seekstepsize', '-3')).toBe('0.1');
     expect(await savedOption('seekStepSize')).toBe(0.1);
 
+    // A decimal comma, as French and German write it: "2,5" was 2 (review, 2026-10-09).
+    expect(await setField('seekstepsize', '2,5')).toBe('2.5');
+    expect(await savedOption('seekStepSize')).toBe(2.5);
+
     expect(await setField('replacedelay', 'abc')).toBe('500');
     expect(await setField('replacedelay', '-20')).toBe('0');
     expect(await savedOption('replaceDelay')).toBe(0);
