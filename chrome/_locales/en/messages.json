@@ -1143,7 +1143,7 @@
         "message": "Auto-enable URLs"
     },
     "options_autourl_body": {
-        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
+        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match (https:// and www. can be left out: crunchyroll.com). For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
     },
     "options_autourl_hint": {
         "message": "Hint: Test regex on"
@@ -1176,7 +1176,7 @@
         "message": "MPV Allowlist"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match (https:// and www. can be left out: crunchyroll.com @anime). Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
     },
     "options_mpv_path": {
         "message": "mpv path (optional, used by the native host when mpv is not on PATH)"

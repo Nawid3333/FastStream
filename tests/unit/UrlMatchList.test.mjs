@@ -112,6 +112,44 @@ describe('matches', () => {
     expect(list.matches('HTTPS://EXAMPLE.COM/MOVIE/1')).toBe(true);
   });
 
+  // Users write a site as they see it: `crunchyroll.com` matched nothing, and the
+  // options page's own example, `https://crunchyroll.com`, missed www.crunchyroll.com.
+  it('takes a site without its scheme, on http and https', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['crunchyroll.com']);
+    expect(list.matches('https://crunchyroll.com/watch/1')).toBe(true);
+    expect(list.matches('http://crunchyroll.com/')).toBe(true);
+    expect(list.matches('ftp://crunchyroll.com/')).toBe(false);
+    expect(list.matches('moz-extension://crunchyroll.com/')).toBe(false);
+  });
+
+  it('leaves out a leading www. on both sides', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://crunchyroll.com', 'www.example.com/movie/']);
+    expect(list.matches('https://www.crunchyroll.com/watch/1')).toBe(true);
+    expect(list.matches('https://example.com/movie/1')).toBe(true);
+    expect(list.matches('https://www.example.com/movie/1')).toBe(true);
+    expect(list.matches('https://example.com/other/1')).toBe(false);
+    expect(list.matches('https://beta.crunchyroll.com/')).toBe(false);
+  });
+
+  it('keeps the scheme an entry names', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://example.com/']);
+    expect(list.matches('http://example.com/movie')).toBe(false);
+  });
+
+  it('takes a site, not every host that starts with its name', () => {
+    const list = new UrlMatchList();
+    list.setEntries(['https://crunchyroll.com', 'example.com:8080']);
+    expect(list.matches('https://crunchyroll.com')).toBe(true);
+    expect(list.matches('https://crunchyroll.com?x=1')).toBe(true);
+    expect(list.matches('https://crunchyroll.com.evil.test/')).toBe(false);
+    expect(list.matches('https://crunchyrolls.com/')).toBe(false);
+    expect(list.matches('https://example.com:8080/v')).toBe(true);
+    expect(list.matches('https://example.com:80800/v')).toBe(false);
+  });
+
   it('matches by regex with tilde', () => {
     const list = new UrlMatchList();
     list.setEntries(['~^https:\\/\\/example\\.com\\/(movie|other)\\/']);

@@ -3,7 +3,8 @@
 /**
  * Parses and evaluates a URL allowlist in the same format as the
  * "Auto-enable URLs" option: one entry per line, pages starting with the
- * entry match, `~` marks a regex, `!` marks a negative (exclude) entry and
+ * entry match (without its scheme it matches http and https, and a leading
+ * `www.` counts on neither side; see prefixMatches), `~` marks a regex, `!` marks a negative (exclude) entry and
  * `-` matches by hostname only. Lines starting with `#` are comments.
  *
  * An entry may also carry a trailing content-type tag, separated by
@@ -203,7 +204,34 @@ export class UrlMatchList {
     } else if (entry.regex) {
       return /** @type {RegExp} */ (entry.match).test(normalizedUrl);
     } else {
-      return normalizedUrl.startsWith(/** @type {string} */ (entry.match));
+      return UrlMatchList.prefixMatches(/** @type {string} */ (entry.match), normalizedUrl);
     }
+  }
+
+  /**
+   * Whether a page starts with a plain entry, compared the way users write sites:
+   * `crunchyroll.com` (no scheme) matched nothing, and `https://crunchyroll.com` missed
+   * `https://www.crunchyroll.com/`. So an entry without a scheme matches http and https
+   * pages, a leading `www.` counts on neither side, and an entry that is only a site
+   * matches that site, not `crunchyroll.com.example.net`.
+   * @param {string} match - The entry, lowercased.
+   * @param {string} normalizedUrl - Lowercased URL.
+   * @return {boolean}
+   */
+  static prefixMatches(match, normalizedUrl) {
+    const scheme = /^[a-z][a-z0-9+.-]*:\/\//;
+    const entryScheme = scheme.exec(match)?.[0];
+    const urlScheme = scheme.exec(normalizedUrl)?.[0];
+    if (entryScheme ? entryScheme !== urlScheme : !/^https?:\/\/$/.test(urlScheme || '')) {
+      return false;
+    }
+    const withoutWww = (text) => text.replace(/^www\./, '');
+    const site = withoutWww(match.slice(entryScheme ? entryScheme.length : 0));
+    const page = withoutWww(normalizedUrl.slice(/** @type {string} */ (urlScheme).length));
+    if (!page.startsWith(site)) {
+      return false;
+    }
+    // Only a host (and port): the page's host ends there too.
+    return site === '' || site.includes('/') || /^$|^[/?#:]/.test(page.slice(site.length));
   }
 }

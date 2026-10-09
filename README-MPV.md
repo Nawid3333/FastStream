@@ -98,7 +98,8 @@ FastStream settings → **MPV Mode**:
    https://example.com
    ```
 
-   A line matches any page starting with it. `~` starts a regex, `!` excludes,
+   A line matches any page starting with it; `https://` and `www.` can be left
+   out (`example.com` matches `https://www.example.com/...`). `~` starts a regex, `!` excludes,
    `-` matches by hostname only, `#` is a comment. Later lines win over
    earlier ones.
 
