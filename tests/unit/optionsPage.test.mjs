@@ -106,7 +106,9 @@ describe('the options page once the saved options are read', () => {
   });
 
   it('shows what was saved, and saves a change on top of it', async () => {
-    expect(keybindBox('PlayPause').textContent).toBe('KeyP');
+    // Shown as the key is pressed; the name it is saved under in data-key.
+    expect(keybindBox('PlayPause').textContent).toBe('P');
+    expect(keybindBox('PlayPause').dataset.key).toBe('KeyP');
     expect(byId('autoEnableURLs').value).toBe('https://mine.example');
 
     const mp4 = byId('playmp4urls');
@@ -131,7 +133,8 @@ describe('the options page once the saved options are read', () => {
     expect(optionWrites().at(-1).value.keybinds.Mute).toBe('KeyU');
     expect(box.isConnected).toBe(true);
     expect(doc.activeElement).toBe(box);
-    expect(box.textContent).toBe('KeyU');
+    expect(box.textContent).toBe('U');
+    expect(box.dataset.key).toBe('KeyU');
     expect(byId('keybindslist').children).toEqual(rows);
   });
 
@@ -157,7 +160,7 @@ describe('the options page once the saved options are read', () => {
     // Another page's post, from another window.
     for (const fn of win.listeners.message) fn({origin: win.location.origin, source: {}, data: {type: 'options'}});
     await settle();
-    expect(keybindBox('PlayPause').textContent).toBe('KeyL');
+    expect(keybindBox('PlayPause').dataset.key).toBe('KeyL');
     expect(optionWrites()).toEqual([]);
   });
 

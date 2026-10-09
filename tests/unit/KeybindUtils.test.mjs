@@ -4,7 +4,7 @@ import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOption
 import {
   ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
   MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
-  formatPlaybackRate, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
+  formatPlaybackRate, keyDisplayName, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
@@ -30,6 +30,44 @@ describe('action names', () => {
   it('names each fixed seek after its signed amount', () => {
     for (const [action, seconds] of Object.entries(FIXED_SEEKS)) {
       expect(action).toBe(`Seek${seconds < 0 ? 'Backward' : 'Forward'}${Math.abs(seconds)}s`);
+    }
+  });
+});
+
+// The options page showed the names a binding is saved under: "Shift+KeyW", "BracketLeft",
+// "AltRight". It shows the keys as they are pressed.
+describe('keyDisplayName', () => {
+  it('names a key by what it types, or its own name', () => {
+    expect(keyDisplayName('KeyZ')).toBe('Z');
+    expect(keyDisplayName('Shift+KeyW')).toBe('Shift+W');
+    expect(keyDisplayName('Digit0')).toBe('0');
+    expect(keyDisplayName('BracketLeft')).toBe('[');
+    expect(keyDisplayName('Minus')).toBe('-');
+    expect(keyDisplayName('Period')).toBe('.');
+    expect(keyDisplayName('Backslash')).toBe('\\');
+    expect(keyDisplayName('Shift+ArrowUp')).toBe('Shift+↑');
+    expect(keyDisplayName('AltRight')).toBe('Right Alt');
+    expect(keyDisplayName('Control+Alt+KeyS')).toBe('Ctrl+Alt+S');
+    expect(keyDisplayName('Space')).toBe('Space');
+    expect(keyDisplayName('Shift+Backspace')).toBe('Shift+Backspace');
+    expect(keyDisplayName('F5')).toBe('F5');
+    expect(keyDisplayName('Numpad3')).toBe('Num 3');
+  });
+
+  it('keeps a character the layout types, a "+" among them', () => {
+    expect(keyDisplayName('ß')).toBe('ß');
+    expect(keyDisplayName('+')).toBe('+');
+    expect(keyDisplayName('Control++')).toBe('Ctrl++');
+  });
+
+  it('shows no key as the text it is given', () => {
+    expect(keyDisplayName('None', 'Keine')).toBe('Keine');
+    expect(keyDisplayName('None')).toBe('None');
+  });
+
+  it('shows every default binding as a key, never a saved name', () => {
+    for (const key of Object.values(DefaultKeybinds)) {
+      expect(keyDisplayName(key)).not.toMatch(/Key[A-Z]|Digit|Bracket|Arrow|Period|Comma|Minus|Equal|Backquote/);
     }
   });
 });

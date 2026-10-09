@@ -1,5 +1,5 @@
 import {DefaultKeybinds} from './defaults/DefaultKeybinds.mjs';
-import {conflictPartners, keybindLabel} from './KeybindUtils.mjs';
+import {conflictPartners, keyDisplayName, keybindLabel} from './KeybindUtils.mjs';
 import {EnvUtils} from '../utils/EnvUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
@@ -394,13 +394,19 @@ function createKeybindElement(keybind) {
   keybindInput.tabIndex = 0;
   keybindInput.title = keybindName;
   keybindInput.role = 'button';
-  keybindInput.textContent = Options.keybinds[keybind];
+  // Shown as pressed ("Shift+W"); the saved name ("Shift+KeyW") is in data-key.
+  const showKey = () => {
+    keybindInput.dataset.key = Options.keybinds[keybind];
+    keybindInput.textContent = keyDisplayName(Options.keybinds[keybind], Localize.getMessage('options_keybinds_none') || 'None');
+  };
+  showKey();
 
   keybindInput.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       return;
     } else if (e.key === 'Escape') {
-      keybindInput.textContent = Options.keybinds[keybind] = 'None';
+      Options.keybinds[keybind] = 'None';
+      showKey();
       refreshKeybindConflicts();
       optionChanged();
       keybindInput.blur();
@@ -413,8 +419,8 @@ function createKeybindElement(keybind) {
     if (!e.code && e.key !== ' ') {
       return;
     }
-    keybindInput.textContent = WebUtils.getKeyString(e);
-    Options.keybinds[keybind] = keybindInput.textContent;
+    Options.keybinds[keybind] = WebUtils.getKeyString(e);
+    showKey();
     refreshKeybindConflicts();
     optionChanged();
   });
@@ -429,7 +435,7 @@ function createKeybindElement(keybind) {
   });
 
   keybindInput.addEventListener('blur', (e) => {
-    keybindInput.textContent = Options.keybinds[keybind];
+    showKey();
   });
 
   containerElement.appendChild(keybindInput);

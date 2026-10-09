@@ -230,6 +230,35 @@ export function conflictPartners(keybinds) {
   return partners;
 }
 
+// How a key a binding names is shown: the character it types, or the key's own name.
+const KeyDisplayNames = {
+  ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+  Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Backslash: '\\',
+  Semicolon: ';', Quote: '\'', Backquote: '`', Comma: ',', Period: '.', Slash: '/',
+  AltLeft: 'Left Alt', AltRight: 'Right Alt', ControlLeft: 'Left Ctrl', ControlRight: 'Right Ctrl',
+  ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift', Escape: 'Esc', Dead: 'Dead key',
+};
+
+/**
+ * A binding as the options page shows it: the keys as they are pressed ("Shift+W", "[",
+ * "↑"), where it showed the names it is saved under ("Shift+KeyW", "BracketLeft", "ArrowUp").
+ * @param {string} keyString - The binding (WebUtils.getKeyString), or 'None'.
+ * @param {string} [noneText] - What 'None' is shown as.
+ * @return {string}
+ */
+export function keyDisplayName(keyString, noneText = 'None') {
+  if (!keyString || keyString === 'None') {
+    return noneText;
+  }
+  // The modifiers lead, each with its '+': the key itself may be a typed '+'.
+  const match = /^((?:(?:Meta|Control|Alt|Shift)\+)*)(.+)$/.exec(keyString);
+  const modifiers = match[1] ? match[1].slice(0, -1).split('+').map((m) => (m === 'Control' ? 'Ctrl' : m)) : [];
+  const key = match[2];
+  const named = /^Key([A-Z])$/.exec(key)?.[1] ?? /^Digit(\d)$/.exec(key)?.[1] ??
+    (/^Numpad(\d)$/.test(key) ? 'Num ' + key.slice(6) : KeyDisplayNames[key] ?? key);
+  return [...modifiers, named].join('+');
+}
+
 /**
  * The name the options page shows for an action.
  * @param {string} action - The keybind action name.

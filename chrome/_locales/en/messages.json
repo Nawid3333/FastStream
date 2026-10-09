@@ -1136,6 +1136,9 @@
     "options_keybinds_press": {
         "message": "Press a key"
     },
+    "options_keybinds_none": {
+        "message": "None"
+    },
     "options_keybinds_conflict": {
         "message": "Also used by $1"
     },
