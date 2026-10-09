@@ -505,10 +505,11 @@
   the mention says how many came. Each commit names its files, those this fork still has in
   bold, and "fix?" when its message speaks of a fix, a bug, a crash, a leak or security; a
   commit touching only files this fork does not have is listed apart. **Closing the issue
-  marks its commits reviewed**: the next run starts at the upstream commit in the newest
-  closed issue's `<!-- upstream-head: ... -->` marker (one upstream no longer has, after a
-  force-push: the closed issue before it, then what `main` last merged), so nothing is
-  committed for it (a push to main releases). Another project's text is made safe: `<`
+  marks its commits reviewed**: the next run starts at the closed issues' upstream commit
+  (`<!-- upstream-head: ... -->`) nearest upstream's head, whatever order they were closed
+  in, leaving out one upstream no longer has (a force-push); without one, at what `main`
+  last merged. Nothing is committed for it (a push to main releases). Opening an issue again
+  means "not reviewed after all": its commits are listed again. Another project's text is made safe: `<`
   escaped (a fake marker in a subject was read first), `@` defused, `#123` written as
   upstream's. At most 60 commits and 8 files a commit are listed. Permissions: contents read,
   issues write. "Upstream watch failed" is opened on a failure and closed by the next clean

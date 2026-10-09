@@ -7,8 +7,8 @@ name: Dependency review
 # before the merge. It matters most for the PRs that change the lockfile:
 # Dependabot's and patched-libraries.yml's.
 #
-# patched-libraries.yml's are opened by this repository's token, so their pull_request
-# run waits for the owner's approval, and until 2026-09-30 they were reviewed only if
+# patched-libraries.yml's are opened by this repository's token, so its pull_request
+# runs wait for the owner's approval, and until 2026-09-30 they were reviewed only if
 # the owner clicked "Approve and run". That workflow now starts this one on its branch
 # (workflow_dispatch), next to CI, and update-prs.yml names its result in its comment
 # when it did not pass.

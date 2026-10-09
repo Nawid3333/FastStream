@@ -17,9 +17,11 @@ name: Upstream watch
 #
 # Closing the issue marks its commits reviewed: the next run lists only what came after the
 # upstream commit the closed issue went up to (`<!-- upstream-head: ... -->` in its body).
-# Nothing is committed for it - a push to main releases. Without a closed issue (the first
-# run), the list starts at the last upstream commit main merged. An upstream force-push
-# that drops the reviewed commit falls back to the closed issue before it, then to that.
+# Nothing is committed for it - a push to main releases. Of several closed issues, the one
+# whose commit is nearest upstream's head counts, whatever order they were closed in.
+# Without one (the first run), the list starts at the last upstream commit main merged. An
+# upstream force-push that drops a reviewed commit leaves that issue out. Opening a closed
+# issue again means "not reviewed after all": its commits are listed again.
 #
 # Upstream sends no webhooks to a repository that is not its own: polling once a day is the
 # substitute. GitHub disables scheduled workflows after 60 days without activity;
@@ -85,13 +87,19 @@ jobs:
           OPEN=$(jq -r '[.[] | select(.state == "open")] | sort_by(.number) | last | .number // empty' "$T/issues.json")
           OPEN_HEAD=$(jq -r '[.[] | select(.state == "open")] | sort_by(.number) | last | .head // empty' "$T/issues.json")
 
-          # Reviewed up to the newest closed issue's commit that upstream still has; never
-          # reviewed: from what main last merged of upstream.
+          # Reviewed up to the closed issues' upstream commit nearest upstream's head (of those
+          # upstream still has: a force-push can drop one), whichever order they were closed
+          # in; never reviewed: from what main last merged of upstream. An issue opened again
+          # is open, so its commits are listed again: not reviewed after all.
           BASE=''
-          for head in $(jq -r '[.[] | select(.state == "closed" and .head != null)] | sort_by(.closed_at) | reverse | .[].head' "$T/issues.json"); do
+          nearest=''
+          for head in $(jq -r '.[] | select(.state == "closed" and .head != null) | .head' "$T/issues.json"); do
             if git cat-file -e "$head^{commit}" 2> /dev/null && git merge-base --is-ancestor "$head" "$UP"; then
-              BASE=$head
-              break
+              left=$(git rev-list --count "$head..$UP")
+              if [ -z "$nearest" ] || [ "$left" -lt "$nearest" ]; then
+                BASE=$head
+                nearest=$left
+              fi
             fi
           done
           if [ -z "$BASE" ]; then
@@ -122,7 +130,7 @@ jobs:
             if [ "$shown" -gt "$MAX_COMMITS" ]; then
               break
             fi
-            subject=$(git log -1 --format=%s "$sha" | escape)
+            subject=$(git log -1 --format=%s "$sha" | cut -c1-160 | escape)
             date=$(git log -1 --format=%as "$sha")
             flag=''
             if git log -1 --format='%s%n%b' "$sha" | grep -qiE '(^|[^a-z])(fix|bug|crash|secur|vulnerab|leak|regress|broken|hang|freez)'; then
@@ -131,7 +139,11 @@ jobs:
             have=0
             total=0
             names=()
-            while read -r file; do
+            # Into a file first: a failed list then stops the run (set -e), where a process
+            # substitution would hand the loop nothing and file the commit wrongly. Names as
+            # they are, not quoted with octal escapes (core.quotePath).
+            git -c core.quotePath=false diff-tree --no-commit-id --name-only -r "$sha" > "$T/files.txt"
+            while IFS= read -r file; do
               [ -n "$file" ] || continue
               total=$((total + 1))
               shown_name=$(printf '%s' "$file" | escape)
@@ -141,14 +153,19 @@ jobs:
               else
                 names+=("\`$shown_name\`")
               fi
-            done < <(git diff-tree --no-commit-id --name-only -r "$sha")
-            files=$(printf '%s, ' "${names[@]:0:$MAX_FILES}")
-            files=${files%, }
+            done < "$T/files.txt"
+            if [ "$total" -eq 0 ]; then
+              files='(no files)'
+            else
+              files=$(printf '%s, ' "${names[@]:0:$MAX_FILES}")
+              files=${files%, }
+            fi
             if [ "$total" -gt "$MAX_FILES" ]; then
               files="$files and $((total - MAX_FILES)) more"
             fi
             entry="- [\`${sha:0:8}\`](https://github.com/$UPSTREAM_REPO/commit/$sha) $subject ($date)$flag"$'\n'"  $files"
-            if [ "$have" -gt 0 ]; then
+            # A commit with no files is not one about files this fork lacks.
+            if [ "$have" -gt 0 ] || [ "$total" -eq 0 ]; then
               printf '%s\n' "$entry" >> "$T/have.md"
             else
               printf '%s\n' "$entry" >> "$T/other.md"

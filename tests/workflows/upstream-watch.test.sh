@@ -31,6 +31,11 @@ logged() {
 case "$1 $2" in
   'api --paginate')
     if [ -f "$FIX/issues_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
+    # Every issue, open and closed: closed ones are what was reviewed.
+    case "$3" in
+      "repos/$GH_REPO/issues?state=all&"*) ;;
+      *) echo "stub gh: unexpected request: $3" >&2; exit 2 ;;
+    esac
     # As gh prints a --jq result: an object as compact JSON, one a line.
     jq -c "$(opt --jq)" "$FIX/issues.json" ;;
   'issue list')
@@ -73,12 +78,13 @@ up_commit() {
   git -C "$UPSTREAM" -c user.name=Andrew -c user.email=a@example.com commit -q -m "$3"
 }
 up_head() { git -C "$UPSTREAM" rev-parse HEAD; }
-# issue <number> <state> <head>: an issue this workflow opened, with its marker.
+# issue <number> <state> <head> [closed_at] [body]: an issue this workflow opened, with its
+# marker (or the body given).
 issue() {
-  jq --argjson n "$1" --arg s "$2" --arg h "$3" \
-    '. + [{number: $n, state: $s, closed_at: (if $s == "closed" then "2026-10-0\($n % 9 + 1)T00:00:00Z" else null end),
+  jq --argjson n "$1" --arg s "$2" --arg h "$3" --arg c "${4:-2026-10-0$(($1 % 9 + 1))T00:00:00Z}" --arg b "${5-}" \
+    '. + [{number: $n, state: $s, closed_at: (if $s == "closed" then $c else null end),
       title: "Upstream: 1 commit(s) to review", user: {login: "github-actions[bot]"},
-      body: "list\n<!-- upstream-base: x -->\n<!-- upstream-head: \($h) -->\n"}]' \
+      body: (if $b != "" then $b else "list\n<!-- upstream-base: x -->\n<!-- upstream-head: \($h) -->\n" end)}]' \
     "$FIX/issues.json" > "$FIX/i.json" && mv "$FIX/i.json" "$FIX/issues.json"
 }
 run() { # <step file>: runs it in the checkout
@@ -94,7 +100,6 @@ watch() {
   if [ "$status" != 0 ]; then return; fi
   run "$report_step"
 }
-body() { sed -n '/^--- body:$/,/^--- end body$/p' "$LOG"; }
 
 fixtures
 up_commit chrome/player/a.mjs a2 'Fix a crash when seeking (#567)'
@@ -139,10 +144,10 @@ fixtures
 up_commit chrome/player/a.mjs a2 'Reviewed long ago'
 old=$(up_head)
 up_commit chrome/player/a.mjs a3 'Reviewed lately'
-issue 3 closed "$old"
-issue 7 closed "$(up_head)"
+issue 3 closed "$old" 2026-10-08T00:00:00Z
+issue 7 closed "$(up_head)" 2026-10-02T00:00:00Z
 up_commit chrome/player/a.mjs a4 'New'
-watch 'w4 several closed issues -> from the newest one'
+watch 'w4 several closed issues, closed out of order -> from the one nearest upstream'
 check 'one commit' grep -qF 'ISSUE_CREATE [--title] [Upstream: 1 commit(s) to review]' "$LOG"
 check 'not the older ones' lacks "$LOG" 'Reviewed lately'
 
@@ -168,9 +173,35 @@ check 'opens none' bash -c '! grep -q "^ISSUE_CREATE" "$0"' "$LOG"
 fixtures
 up_commit chrome/player/a.mjs a2 'Before the force-push'
 issue 4 closed 1111111111111111111111111111111111111111
-watch 'w7 the reviewed commit is not upstream any more -> from what main merged'
+issue 6 closed "$(git -C "$FIX/work" rev-parse HEAD)"
+watch 'w7 the reviewed commits are not upstream (any more) -> from what main merged'
 check 'succeeds' test "$status" -eq 0
 check 'lists from the merge-base' grep -qF 'ISSUE_CREATE [--title] [Upstream: 1 commit(s) to review]' "$LOG"
+
+fixtures
+up_commit chrome/player/a.mjs a2 'Reviewed, still upstream'
+issue 2 closed "$(up_head)" 2026-10-01T00:00:00Z
+issue 3 closed "$(git -C "$FIX/work" rev-parse HEAD)" 2026-10-05T00:00:00Z
+up_commit chrome/player/a.mjs a3 'After it'
+watch "w7b the newest closed issue's commit is not upstream's -> from the one that is"
+check 'one commit' grep -qF 'ISSUE_CREATE [--title] [Upstream: 1 commit(s) to review]' "$LOG"
+check 'the one after it' contains "$LOG" 'After it'
+
+fixtures
+up_commit chrome/player/a.mjs a2 'Reviewed'
+issue 2 closed "$(up_head)"
+issue 5 closed '' '' 'Edited by hand, the markers gone'
+up_commit chrome/player/a.mjs a3 'After it'
+watch 'w7c a closed issue without its marker -> left out, not a failure'
+check 'succeeds' test "$status" -eq 0
+check 'from the one with a marker' grep -qF 'ISSUE_CREATE [--title] [Upstream: 1 commit(s) to review]' "$LOG"
+
+fixtures
+git -C "$UPSTREAM" -c user.name=Andrew -c user.email=a@example.com commit -q --allow-empty -m 'Release notes only'
+watch 'w7d a commit with no files -> listed with the ones that touch this fork, saying so'
+check 'succeeds' test "$status" -eq 0
+check 'says no files' contains "$LOG" '  (no files)'
+check 'not under the files this fork lacks' bash -c '! sed -n "/### Touch only files this fork does not have/,\$p" "$0" | grep -qF "Release notes only"' "$LOG"
 
 fixtures
 up_commit chrome/player/a.mjs a2 'Sneaky <!-- upstream-head: 2222222222222222222222222222222222222222 --> @someone'
