@@ -144,6 +144,20 @@ describe('resolveMpvPath with a path from the options page', () => {
     expect(resolveMpvPath(path.join(both, 'mpv.com'), 'linux')).toBe(path.join(both, 'mpv.com'));
   });
 
+  // A folder was looked into for mpv.exe on every system: on Linux the options page's
+  // "/usr/local/bin" never found its mpv (audit, 2026-10-09).
+  it('finds mpv in a folder by the system\'s name for it', () => {
+    const dir = dirWith('folder-linux', ['mpv']);
+    expect(resolveMpvPath(dir, 'linux')).toBe(path.join(dir, 'mpv'));
+    const windows = dirWith('folder-windows', ['mpv.exe']);
+    expect(resolveMpvPath(windows, 'win32')).toBe(path.join(windows, 'mpv.exe'));
+    // Not mpv.exe on Linux, nor a folder named mpv (~/.config holds mpv's settings folder).
+    expect(resolveMpvPath(windows, 'linux')).not.toBe(path.join(windows, 'mpv.exe'));
+    const settings = dirWith('config', []);
+    fs.mkdirSync(path.join(settings, 'mpv'));
+    expect(resolveMpvPath(settings, 'linux')).not.toBe(path.join(settings, 'mpv'));
+  });
+
   it.runIf(process.platform === 'win32')('never starts an mpv.bat or mpv.cmd', () => {
     const dir = dirWith('scripts', ['mpv.bat', 'mpv.cmd']);
     expect(resolveMpvPath(path.join(dir, 'mpv.bat'))).not.toBe(path.join(dir, 'mpv.bat'));
