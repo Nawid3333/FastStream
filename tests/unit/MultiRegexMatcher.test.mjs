@@ -45,14 +45,30 @@ describe('match', () => {
     expect(m.match('https://e.com/movie.mp4')).toBe('mp4');
   });
 
+  // The options page: "applied in order, and the first match is used". The joined regex
+  // answered with the pattern matching earliest in the URL, and grouped patterns by flags.
+  it('answers with the first pattern in order that matches, wherever it matches', () => {
+    const m = build([
+      ['\\.m3u8', '', 'hls'],
+      ['cdn', '', 'dash'],
+    ]);
+    expect(m.match('https://cdn.example/a.m3u8')).toBe('hls');
+    expect(m.match('https://cdn.example/a.mpd')).toBe('dash');
+    const flagged = build([
+      ['^x', 'i', 'X'],
+      ['^a', '', 'Y'],
+      ['^a.*', 'i', 'X'],
+    ]);
+    expect(flagged.match('abc')).toBe('Y');
+  });
+
   it('returns null when nothing matches', () => {
     const m = build([['\\.m3u8', '', 'hls']]);
     expect(m.match('https://e.com/page.html')).toBeNull();
   });
 
   it('groups several patterns under one output correctly', () => {
-    // hls.js accepts both extensions; they must resolve to the same mode
-    // even though they are merged into a single alternation group.
+    // hls.js accepts both extensions; they must resolve to the same mode.
     const m = build([
       ['\\.m3u8', '', 'hls'],
       ['\\.m3u', '', 'hls'],
@@ -63,7 +79,7 @@ describe('match', () => {
     expect(m.match('https://e.com/a.mpd')).toBe('dash');
   });
 
-  it('honours flags, compiling each flag set into its own alternation', () => {
+  it('honours the flags of each pattern', () => {
     const m = build([
       ['\\.M3U8', 'i', 'hls-insensitive'],
       ['\\.mpd', '', 'dash-sensitive'],
