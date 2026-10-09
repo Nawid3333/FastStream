@@ -90,8 +90,13 @@ describe('parseFSA', () => {
     const stream = new WritableStream({write: (chunk) => {
       chunks.push(...chunk);
     }});
-    await FastStreamArchiveUtils.writeFSAToStream(stream, null, [entry([1, 2, 3]), entry([4, 5])]);
-    const {entries} = await FastStreamArchiveUtils.parseFSA(await bufferOf(chunks));
+    const written = [];
+    await FastStreamArchiveUtils.writeFSAToStream(stream, null, [entry([1, 2, 3]), entry([4, 5])], (p) => written.push(p));
+    const read = [];
+    const {entries} = await FastStreamArchiveUtils.parseFSA(await bufferOf(chunks), (p) => read.push(p));
     expect(entries.map((e) => [...e.data])).toEqual([[1, 2, 3], [4, 5]]);
+    // Each entry done counts: the progress stopped at 50 % (0 % for an archive of one).
+    expect(written).toEqual([0.5, 1]);
+    expect(read).toEqual([0.5, 1]);
   });
 });

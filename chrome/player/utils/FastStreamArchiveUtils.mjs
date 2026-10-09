@@ -116,7 +116,7 @@ export class FastStreamArchiveUtils {
 
 
       if (progressCallback) {
-        progressCallback(i / entries.length);
+        progressCallback((i + 1) / entries.length);
       }
     }
   }
@@ -186,7 +186,7 @@ export class FastStreamArchiveUtils {
 
       entries.push(entry);
       if (progressCallback) {
-        progressCallback(i / header.number_of_entries);
+        progressCallback((i + 1) / header.number_of_entries);
       }
     }
 
