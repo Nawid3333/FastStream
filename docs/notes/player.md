@@ -123,6 +123,35 @@ waits for a range to be buffered after a reset can see stale appends that a queu
 is about to delete; wait for idle queues (`toDo` empty, not `updating`) as well.
 `tests/e2e/specs/mp4-seek.e2e.mjs` covers the above.
 
+## MP4 from servers that do not answer ranges (2026-10-09)
+
+`MP4Player` loads a file in 1 MB ranges and takes its length from `Content-Range`
+(`RangeAnswers.mjs` reads the first answer). Two kinds of server broke that:
+
+- **A server that ignores `Range`** answers 200 with the whole file. `FetchLoader` cuts the range
+  out and stops reading, so every range downloaded the file from byte 0 again up to its end:
+  18 whole-file requests for a 17 MB file, about 2 TB for a 2 GB one. Unless the whole file came
+  in that first answer (its `Content-Length`, or fewer bytes than asked), the source goes to
+  Firefox's own player (`PlayerModes.DIRECT`, `FastStreamClient.playDirectly`) at the time it was
+  at, once per source; 3 requests in all. The page's headers go on the element's requests
+  through the background's rule for the URL (`DirectVideoPlayer.setHeaderRule`), minus `Range`
+  and the connection's own (`elementHeaderCommands`). Lost there: FastStream's buffering ahead,
+  the RAM budget, saving the parts already downloaded. A 200 exactly as long as the range is
+  read on, as below: it may be the whole file or only the range.
+- **A 206 without `Content-Range`** (a broken server or proxy) tells no length. A regular MP4's
+  comes from its sample table; a fragmented file's only from the fragments parsed so far, so it
+  ended after the first range (~9 s of 160). It is now read on, range by range, until a range
+  comes back short; a file whose length is a multiple of 1 MB ends at the range after it, which
+  comes back empty or 416 (`MP4Player.endsAt` drops the ranges made past it and ends the
+  stream). An answer longer than the range is cut to it. Firefox's own player refuses a 206
+  without `Content-Range`, so it is no way out there. Saving before the end is known counts as
+  incomplete.
+
+`mp4-without-ranges.e2e.mjs`: each kind of server, a small and a big file, a fragmented file
+played a minute in, and one padded to whole ranges that must fire `ended` with no request past
+the one after its end (without `endsAt`: 11 ranges past the end and no end, or 6 retries of the
+416 and the load error).
+
 ## Player core: what the loaders tell the libraries (2026-09-28)
 
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes

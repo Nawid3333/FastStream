@@ -27,6 +27,8 @@ export class DownloadEntry {
     this.data = null;
     this.dataSize = 0;
     this.responseHeaders = null;
+    // The HTTP status of the answer (FetchLoader): 200 to a range request is the whole file.
+    this.responseStatus = 0;
 
     this.downloader = null;
     this.watchers = [];
@@ -113,6 +115,7 @@ export class DownloadEntry {
     }
 
     this.responseHeaders = response.headers;
+    this.responseStatus = response.status || 0;
 
     try {
       if (this.postProcessor) {

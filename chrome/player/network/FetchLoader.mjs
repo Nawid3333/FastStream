@@ -295,6 +295,9 @@ export class FetchLoader {
 
     const responseObj = {
       url: response.url,
+      // 200 for a range request is the whole file, cut to the range (wholeFile above): what
+      // MP4Player needs to know to tell a server that ignores Range.
+      status: response.status,
       headers: responseHeaders,
       data: data,
     };

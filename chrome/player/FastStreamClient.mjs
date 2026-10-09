@@ -191,6 +191,8 @@ export class FastStreamClient extends EventEmitter {
     this.pastSeeks = [];
     this.pastUnseeks = [];
     this.fragmentsStore = {};
+    // The source (recoverySourceURL) playDirectly handed to Firefox's own player.
+    this.playedDirectly = null;
     this.mainloop();
   }
 
@@ -844,6 +846,11 @@ export class FastStreamClient extends EventEmitter {
    */
   setSource(source, fallbacks = []) {
     const request = ++this.sourceRequests;
+    // A source loaded anew in its own player may be handed over again (a later reload of the
+    // same URL); the hand-over's source is DIRECT and keeps the guard.
+    if (source?.mode !== PlayerModes.DIRECT) {
+      this.playedDirectly = null;
+    }
     const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()});
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
@@ -1718,6 +1725,51 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * Plays the source in Firefox's own player (PlayerModes.DIRECT, DirectVideoPlayer), for one
+   * the MP4 player cannot load in ranges: a server that ignores Range answers each range with
+   * the whole file, and loading it in 1 MB ranges downloaded it from byte 0 again for every
+   * one (RangeAnswers.mjs). Firefox reads it once. At the time it was at; once per source, so
+   * it cannot loop. What is lost there: FastStream's own buffering ahead, the RAM budget and
+   * saving the parts already downloaded - it plays, where it ended in an error or downloaded
+   * terabytes.
+   * @param {Object} player - The player that hands it over.
+   * @param {string} reason
+   * @return {boolean} Whether it plays it directly.
+   */
+  playDirectly(player, reason) {
+    const source = this.source;
+    if (!source || player !== this.player || source.mode !== PlayerModes.ACCELERATED_MP4) {
+      return false;
+    }
+    const url = this.recoverySourceURL(source.url);
+    if (this.playedDirectly === url) {
+      return false;
+    }
+    this.playedDirectly = url;
+    const time = this.currentTime;
+    const wasPlaying = !!this.state.playing || !this.paused;
+    console.warn('Playing the source in Firefox\'s own player: ' + reason);
+
+    const direct = source.copy();
+    direct.mode = PlayerModes.DIRECT;
+    if (time >= 1 && /^https?:/i.test(direct.url)) {
+      try {
+        const withTime = new URL(direct.url);
+        withTime.searchParams.set('faststream-timestamp', String(Math.floor(time)));
+        direct.url = withTime.toString();
+      } catch (e) {
+        // Not a URL after all: from the start.
+      }
+    }
+    this.setSource(direct, this.fallbacks.sources).then(() => {
+      if (wasPlaying) {
+        return this.play();
+      }
+    }).catch((e) => console.warn('Could not play the source directly', e));
+    return true;
+  }
+
+  /**
    * A source's URL without the time recoverPlayer gives it, so its recoveries count as one
    * source's.
    * @param {string} url
@@ -1920,6 +1972,15 @@ export class FastStreamClient extends EventEmitter {
     this.context.on(DefaultPlayerEvents.ENDED, (event) => {
       this.pause();
       this.autoplayNextVideo();
+    });
+
+    // A source this player cannot load (MP4Player, a server that ignores Range): Firefox's own
+    // player plays it, once per source.
+    this.context.on(DefaultPlayerEvents.PLAY_DIRECTLY, (reason) => {
+      if (!this.playDirectly(player, reason)) {
+        const message = Localize.getMessage('player_error_load');
+        this.failedToLoad(message + ' (' + reason + ')');
+      }
     });
 
     this.context.on(DefaultPlayerEvents.ERROR, (reason) => {

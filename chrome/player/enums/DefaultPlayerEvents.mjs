@@ -122,6 +122,13 @@ export const DefaultPlayerEvents = {
   ERROR: 'error',
 
   /**
+   * The player cannot load this source and hands it to Firefox's own player (MP4Player, for a
+   * server that ignores Range): the client plays it in direct mode.
+   * @param {string} reason
+   */
+  PLAY_DIRECTLY: 'playdirectly',
+
+  /**
    * Fired when the player requests a key (DRM not supported)
    */
   NEED_KEY: 'needkey',

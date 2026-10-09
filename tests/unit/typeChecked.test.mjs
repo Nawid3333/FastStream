@@ -30,6 +30,7 @@ const CHECKED = [
   'chrome/player/network/DownloadEntry.mjs',
   'chrome/player/network/OpQueue.mjs',
   'chrome/player/players/DecodingCapabilities.mjs',
+  'chrome/player/players/mp4/RangeAnswers.mjs',
   'chrome/player/utils/AudioUtils.mjs',
   'chrome/player/utils/PlayerErrorUtils.mjs',
   'chrome/player/network/BufferAhead.mjs',
