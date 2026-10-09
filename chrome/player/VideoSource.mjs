@@ -37,7 +37,7 @@ const credentialHeaders = ['cookie', 'authorization', 'proxy-authorization'];
  * @param {Object<string, string>} headers - Header name to value.
  * @return {Object<string, string>} A new object.
  */
-function withoutCredentials(headers) {
+export function withoutCredentials(headers) {
   const kept = {};
   for (const key in headers) {
     if (Object.hasOwn(headers, key) && !credentialHeaders.includes(key.toLowerCase())) {

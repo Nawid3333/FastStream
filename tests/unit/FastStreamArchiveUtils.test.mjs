@@ -85,6 +85,23 @@ describe('parseFSA', () => {
     await expect(FastStreamArchiveUtils.parseFSA(archive)).rejects.toThrow(/out of range/);
   });
 
+  // An archive is a file the user may pass on: the session's login went with it (review).
+  it('keeps the source\'s headers without the login ones', async () => {
+    const chunks = [];
+    const stream = new WritableStream({write: (chunk) => {
+      chunks.push(...chunk);
+    }});
+    const player = {
+      getSource: () => ({url: 'https://cdn.example/a.m3u8', identifier: 'a', mode: 'hls',
+        headers: {'Cookie': 'session=1', 'authorization': 'Bearer x', 'Referer': 'https://site.example/'}}),
+      getCurrentVideoLevelID: () => 0,
+      getCurrentAudioLevelID: () => null,
+    };
+    await FastStreamArchiveUtils.writeFSAToStream(stream, player, [entry([1])]);
+    const {source} = await FastStreamArchiveUtils.parseFSA(await bufferOf(chunks));
+    expect(source.headers).toEqual({'Referer': 'https://site.example/'});
+  });
+
   it('reads back what writeFSAToStream wrote', async () => {
     const chunks = [];
     const stream = new WritableStream({write: (chunk) => {

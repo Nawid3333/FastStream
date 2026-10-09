@@ -2,6 +2,7 @@ import {DownloadStatus} from '../enums/DownloadStatus.mjs';
 import {DownloadEntry} from '../network/DownloadEntry.mjs';
 import {RequestUtils} from './RequestUtils.mjs';
 import {Utils} from './Utils.mjs';
+import {withoutCredentials} from '../VideoSource.mjs';
 
 /**
  * Utility functions for working with FastStream archive files and streams.
@@ -51,7 +52,9 @@ export class FastStreamArchiveUtils {
       sourceObj.url = source.url;
       sourceObj.identifier = source.identifier;
       sourceObj.mode = source.mode;
-      sourceObj.headers = source.headers;
+      // Without the login headers (Cookie, Authorization): an archive is a file the user may
+      // pass on, and it carried the session along (review), as a copied link did (#185).
+      sourceObj.headers = withoutCredentials(source.headers || {});
     }
     const header = new TextEncoder().encode(JSON.stringify({
       version: 1,
@@ -181,7 +184,8 @@ export class FastStreamArchiveUtils {
       entry.dataSize = Utils.getDataByteSize(entry.data);
 
       if (downloadManager) {
-        downloadManager.archiveEntryData(entry);
+        // Awaited: a store that failed was a rejection no one caught.
+        await downloadManager.archiveEntryData(entry);
       }
 
       entries.push(entry);
