@@ -1297,9 +1297,9 @@ export class FastStreamClient extends EventEmitter {
    * Tells the other players how this one is doing, and steps aside for them or not.
    */
   updatePeers() {
-    if (this.destroyed) return;
+    if (this.destroyed || !this.peers) return;
     this.peers.announce();
-    this.downloadManager.setYield(this.peers.shouldYield());
+    this.downloadManager?.setYield?.(this.peers.shouldYield());
   }
 
   /**
