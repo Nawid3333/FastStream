@@ -198,6 +198,9 @@ export function DASHLoaderFactory(player) {
         },
       }, {
         onSuccess: async (entry, xhr) => {
+          if (isSegment) {
+            segmentFailures.delete('url:' + context.url + ':' + (rangeStart ?? '') + '-' + (rangeEnd ?? ''));
+          }
           let data;
           try {
             data = await entry.getDataFromBlob();
@@ -215,7 +218,23 @@ export function DASHLoaderFactory(player) {
 
         },
         onFail: (entry)=> {
-          httpRequest.customData.onFail(entry);
+          if (!isSegment) {
+            httpRequest.customData.onFail(entry);
+            return;
+          }
+          // A segment the fragment store did not have (loadFragmentInternal's fallback):
+          // counted as loadFragmentInternal counts, so that one which keeps failing ends in the
+          // player's error. dash.js's own errors once the stream is up leave it playing
+          // (DashPlayer), and it was asked for forever behind a spinner.
+          const key = 'url:' + context.url + ':' + (rangeStart ?? '') + '-' + (rangeEnd ?? '');
+          const failures = (segmentFailures.get(key) || 0) + 1;
+          segmentFailures.set(key, failures);
+          if (failures < SEGMENT_FAILURES_BEFORE_ERROR) {
+            httpRequest.customData.onAbort(entry);
+          } else {
+            httpRequest.customData.onFail(entry);
+            player.emit(DefaultPlayerEvents.ERROR, 'Segment ' + context.url + ' failed to load');
+          }
         },
         onAbort: (entry) => {
           httpRequest.customData.onAbort(entry);
