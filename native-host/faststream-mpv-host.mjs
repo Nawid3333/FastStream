@@ -510,10 +510,12 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     // Any connect error means there is no live instance of ours: a stale pipe
     // after mpv was closed behaves the same way.
     socket.on('error', () => finish({ok: false, error: 'no mpv ipc'}));
-    // An mpv that quits as the commands arrive (its window closed) closes the pipe without
-    // a reply: it is gone, not busy. The reply timeout ran out 6 s later with "mpv is busy",
-    // where a fresh mpv was what the send needed.
-    socket.on('close', () => finish(replies.length ? {ok: true, replies} : {ok: false, error: 'mpv closed the ipc'}));
+    // An mpv that quits as the commands arrive (its window closed) closes the pipe before it
+    // answered them all: it is gone, not busy, even when it answered a first one. The reply
+    // timeout ran out 6 s later with "mpv is busy", and with one answer in, loadIntoExisting
+    // said "busy" at once, where a fresh mpv was what the send needed. (Once all answers are
+    // in, finish has closed the pipe itself, and this is too late to count.)
+    socket.on('close', () => finish({ok: false, error: 'mpv closed the ipc'}));
 
     socket.on('connect', () => {
       connected = true;

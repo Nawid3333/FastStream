@@ -243,6 +243,19 @@ describe('mpvIpcRequest', () => {
     expect(await result).toEqual({ok: false, error: 'mpv closed the ipc'});
   });
 
+  // An mpv that answered a first command (the fullscreen one) before it quit counted as live:
+  // loadIntoExisting found no loadfile reply and said "busy" (review).
+  it('is not ok when the instance closes the pipe after answering part of it', async () => {
+    const pipe = pipeName('closing-late');
+    const nextRequest = await listen(pipe);
+    fakeBudgets();
+    const result = mpvIpcRequest([{command: ['set_property', 'fullscreen', true]}, {command: ['get_property', 'pid']}],
+        300, 300, pipe);
+    const {socket} = await nextRequest();
+    socket.end(JSON.stringify({request_id: 1, error: 'success'}) + String.fromCharCode(10));
+    expect(await result).toEqual({ok: false, error: 'mpv closed the ipc'});
+  });
+
   it('gives a connected instance the reply time, not the connect time', async () => {
     const pipe = pipeName('slow');
     const nextRequest = await listen(pipe);
