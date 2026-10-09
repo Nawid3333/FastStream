@@ -130,6 +130,25 @@ describe('Player menus', function() {
     console.log('      speed button:', JSON.stringify(state), 'rate', rate);
     expect(state.volume).toBeCloseTo(0.9, 5);
     expect(rate).toBe(1);
+
+    // With its list open, the arrows are the list's: the speed goes one step, the volume stays.
+    const open = await browser.execute(() => {
+      const client = window.fastStream;
+      client.volume = 1;
+      const menu = client.interfaceController.playbackRateChanger;
+      const button = document.querySelector('.mainplayer .fluid_button_playback_rate');
+      menu.openUI();
+      button.focus();
+      button.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true}));
+      const result = {open: menu.isOpen(), rate: client.playbackRate, volume: client.volume};
+      menu.closeUI();
+      // The speed is saved for the next player: back to 1, saved too.
+      menu.setPlaybackRate(1);
+      return result;
+    });
+    expect(open.open).toBe(true);
+    expect(open.rate).toBeCloseTo(1.1, 5);
+    expect(open.volume).toBe(1);
   });
 
   it('keeps the language menu\'s keys to its own tracks, and lets them through once closed', async function() {
