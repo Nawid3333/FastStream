@@ -67,7 +67,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 3;
+export const HostVersion = 4;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -250,10 +250,14 @@ export function resolveMpvPath(messagePath, platform = process.platform) {
     }
     try {
       // Accept both the exe itself and its folder (e.g. the user entered
-      // "C:\Program Files\mpv" instead of "C:\Program Files\mpv\mpv.exe").
+      // "C:\Program Files\mpv" instead of "C:\Program Files\mpv\mpv.exe"; on Linux and
+      // macOS the folder holds "mpv", not "mpv.exe").
       const stat = fs.statSync(candidate);
       if (stat.isDirectory()) {
-        const exe = path.join(candidate, 'mpv.exe');
+        const exe = path.join(candidate, platform === 'win32' ? 'mpv.exe' : 'mpv');
+        if (!fs.statSync(exe).isFile()) {
+          continue;
+        }
         fs.accessSync(exe, fs.constants.X_OK);
         return path.resolve(exe);
       }
@@ -1470,10 +1474,28 @@ async function main() {
   process.exit(0);
 }
 
+/**
+ * Whether this file is the program Node runs, not a module a test suite imports.
+ * Node names the program by its real path (import.meta.url) but leaves argv[1] as it was
+ * given: started through a symlink (a Linux install linking the host into a folder of its
+ * own) the two differed, main() never ran, and the host ended without a word.
+ * @return {boolean}
+ */
+function isProgram() {
+  if (!process.argv[1]) {
+    return false;
+  }
+  try {
+    return url.pathToFileURL(fs.realpathSync(process.argv[1])).href === import.meta.url;
+  } catch (e) {
+    return false;
+  }
+}
+
 // Only run the native-messaging loop when executed directly (the .bat
 // wrapper does `node faststream-mpv-host.mjs`) -- not when a test suite
 // imports this module for its pure functions, which would otherwise block
 // forever on main()'s stdin read.
-if (process.argv[1] && url.pathToFileURL(process.argv[1]).href === import.meta.url) {
+if (isProgram()) {
   main();
 }
