@@ -38,6 +38,7 @@ import {VpnPrompt} from './ui/VpnPrompt.mjs';
 import {describePlayerError} from './utils/PlayerErrorUtils.mjs';
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
+import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
 
 
 /**
@@ -134,7 +135,7 @@ export class FastStreamClient extends EventEmitter {
     this.peers = new PlayerPeers({
       state: () => ({playing: !!this.state.playing, ahead: this.getVideoAhead(), ramBytes: 0}),
       onChange: () => {
-        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield());
+        if (!this.destroyed) this.downloadManager.setYield(this.peers.shouldYield(), !this.state.playing);
       },
     });
     this.peers.start();
@@ -1299,7 +1300,22 @@ export class FastStreamClient extends EventEmitter {
   updatePeers() {
     if (this.destroyed || !this.peers) return;
     this.peers.announce();
-    this.downloadManager?.setYield?.(this.peers.shouldYield());
+    this.downloadManager?.setYield?.(this.peers.shouldYield(), !this.state.playing);
+  }
+
+  /**
+   * Cancels the downloads ahead that run outside the next seconds around the playhead
+   * (PlayheadFirst): their connections serve the fragment playback needs.
+   */
+  cancelFarDownloads() {
+    if (this.isLive() || !this.downloadManager) return;
+    const time = this.state.currentTime;
+    for (const fragments of [this.fragments, this.audioFragments]) {
+      for (const fragment of downloadingOutside(fragments, time, KEEP_BEHIND_S, KEEP_AHEAD_S)) {
+        // A fragment a save or the analyzer holds is theirs to finish.
+        if (fragment.canFree()) this.downloadManager.cancelIfCheap(fragment.getContext());
+      }
+    }
   }
 
   /**
@@ -1310,6 +1326,13 @@ export class FastStreamClient extends EventEmitter {
     // Another player that the user watches needs the network (DownloadManager.setYield).
     if (this.downloadManager.yielding) {
       return false;
+    }
+
+    // Short of video: the next seconds first, on few connections (PlayheadFirst).
+    const wasConcentrating = this.concentrating;
+    this.concentrating = shouldConcentrate(this.getVideoAhead(), !!this.concentrating);
+    if (this.concentrating && !wasConcentrating) {
+      this.cancelFarDownloads();
     }
 
     // Don't pre-download if user is offline
@@ -1341,6 +1364,11 @@ export class FastStreamClient extends EventEmitter {
         if (nextDownload.end < this.state.currentTime - this.state.bufferBehind) {
           break;
         }
+      }
+
+      if (this.concentrating && (this.downloadManager.activeCount() >= URGENT_PARALLEL ||
+          nextDownload.start > this.state.currentTime + KEEP_AHEAD_S)) {
+        break;
       }
 
       if (!this.downloadManager.canGetFile(nextDownload.getContext())) {
@@ -2156,6 +2184,9 @@ export class FastStreamClient extends EventEmitter {
     }
     this.peers?.noteSeek();
     this.updatePeers();
+    // What was downloading for the old place gives way to the new one at once.
+    this.concentrating = true;
+    this.cancelFarDownloads();
     if (this.syncedAudioPlayer) this.syncedAudioPlayer.setCurrentTime(value);
   }
 

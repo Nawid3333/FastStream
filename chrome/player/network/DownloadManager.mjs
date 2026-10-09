@@ -39,6 +39,8 @@ export class DownloadManager {
     this.keepStorageNext = false;
     // Leaving the network to a watched player that is short of video (setYield).
     this.yielding = false;
+    // ...and holding even its own playback's requests: it is paused (setYield).
+    this.holdingPlayback = false;
     this.speedTestBuffer = [];
     this.speedTestSeen = [];
     this.speedTestCount = 0;
@@ -412,10 +414,21 @@ export class DownloadManager {
    * half done, nor one being delivered. A cancelled one is downloaded again later, from the
    * start: DownloadEntry.abort() puts its fragment back to waiting. Not pause(): that is the
    * user's, and stops everything.
+   * A paused player holds its playback's requests too (holdPlayback): they wait in the queue
+   * until it stops yielding. Its player still wanted to buffer ahead, and once its downloads
+   * ahead were cancelled it asked for them itself - measured: three paused MP4 players in
+   * background tabs kept a request each running all through a seek in the watched one.
    * @param {boolean} yielding
+   * @param {boolean} [holdPlayback] - Hold its playback's requests as well.
    */
-  setYield(yielding) {
-    if (!this.downloaders || this.yielding === yielding) return;
+  setYield(yielding, holdPlayback = false) {
+    if (!this.downloaders) return;
+    const hold = yielding && holdPlayback;
+    if (this.holdingPlayback !== hold) {
+      this.holdingPlayback = hold;
+      if (!hold) this.queueNext();
+    }
+    if (this.yielding === yielding) return;
     this.yielding = yielding;
     if (!yielding) {
       this.client?.predownloadFragments?.();
@@ -429,6 +442,41 @@ export class DownloadManager {
       if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) continue;
       entry.abort();
     }
+  }
+
+  /**
+   * Cancels the download of a request, when that is cheap and harmless: not one this player's
+   * playback waits for (priority 1000 and up), not one at least half done, not one being
+   * delivered. A queued one leaves the queue. Its fragment goes back to waiting
+   * (DownloadEntry.abort tells the watchers) and is downloaded again when it is wanted.
+   * @param {Object} details - The request (a fragment's getContext()).
+   * @return {boolean} Whether it was cancelled.
+   */
+  cancelIfCheap(details) {
+    const entry = this.getEntry(details);
+    if (!entry || (entry.priority || 0) >= PLAYBACK_PRIORITY) return false;
+    if (entry.status === DownloadStatus.ENQUEUED) {
+      const index = this.queue.indexOf(entry);
+      if (index !== -1) this.queue.splice(index, 1);
+      entry.abort();
+      return true;
+    }
+    if (entry.status !== DownloadStatus.DOWNLOAD_INITIATED) return false;
+    const downloader = entry.downloader;
+    if (downloader?.delivering) return false;
+    const stats = downloader?.stats;
+    if (stats && stats.total > 0 && stats.loaded / stats.total >= 0.5) return false;
+    entry.abort();
+    return true;
+  }
+
+  /**
+   * Downloads running or waiting in the queue.
+   * @return {number}
+   */
+  activeCount() {
+    if (!this.downloaders) return 0;
+    return this.downloaders.filter((downloader) => downloader.entry).length + this.queue.length;
   }
 
   removeAllDownloaders() {
@@ -554,6 +602,8 @@ export class DownloadManager {
    * something else called it.
    */
   queueNext() {
+    // A paused player that leaves the network to a watched one starts nothing (setYield).
+    if (this.holdingPlayback) return;
     while (!this.paused && this.queue.length > 0) {
       if (this.queue[0].status !== DownloadStatus.ENQUEUED) {
         this.queue.shift();

@@ -164,6 +164,21 @@ describe('DownloadManager', () => {
     expect(client.predownloadFragments).toHaveBeenCalledTimes(1);
   });
 
+  it('a paused player that yields holds even its playback\'s requests until it stops yielding', () => {
+    // Paused MP4 players in background tabs asked for the ranges they buffer ahead
+    // themselves (priority 1000) once their downloads ahead were cancelled.
+    const manager = new DownloadManager({predownloadFragments: vi.fn()});
+    manager.downloaders = [idleDownloader()];
+    manager.setYield(true, true);
+    const entry = manager.getFile({url: 'https://example.com/range', responseType: 'arraybuffer'}, {}, 1000).entry;
+    expect(manager.downloaders[0].entry).toBe(null);
+    expect(entry.status).toBe(DownloadStatus.ENQUEUED);
+
+    // Playing again (still yielding): its playback gets the network.
+    manager.setYield(true, false);
+    expect(manager.downloaders[0].entry).toBe(entry);
+  });
+
   it('reads the downloader limit the same way for the speed test and the key', () => {
     // 0 meant "never add one" to the speed test, and "no limit" to the add-downloader key.
     const limit = (maximumDownloaders) => new DownloadManager({options: {maximumDownloaders}}).downloaderLimit();
