@@ -1133,6 +1133,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.STORE_ANALYZER_DATA) {
     if (Logging) console.log('Analyzer data', msg.data);
     tab.analyzerData = msg.data;
+    // Kept over an unload of this event page (PersistedTabFields).
+    Tabs.saveTabState(tab);
   } else if (msg.type === MessageTypes.SEND_TO_PLAYER) {
     const pframe = tab.getFrame(msg.frameId);
     if (!pframe || !pframe.isPlayer) {
