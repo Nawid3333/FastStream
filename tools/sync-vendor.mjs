@@ -66,16 +66,6 @@ const VENDOR = [
     transform: normaliseText,
   },
   {
-    // pako 3.x ships real ESM with named `deflate`/`inflate` exports, so
-    // (unlike the 2.x UMD build this replaced) it needs no wrapper at all -
-    // just a straight copy. modules/analyzer/VideoAligner.mjs imports the
-    // two functions directly rather than through a synthetic `Pako` object.
-    name: 'pako',
-    from: 'node_modules/pako/dist/pako.mjs',
-    to: 'chrome/player/modules/pako.mjs',
-    transform: normaliseText,
-  },
-  {
     // The complete build already mounts AutoScroll, Remove/Revert, Swap and
     // MultiDrag exactly as the vendored copy did; only the export shape
     // differed. Everything else was "eslint --fix" output, including four

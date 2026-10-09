@@ -4,7 +4,7 @@
 # (Settings > Code security > Dependabot alerts/version updates).
 #
 # A merge to main is a release (auto-release.yml) when it changes what the
-# extension ships - a vendored library such as pako does, a test or build tool
+# extension ships - a vendored library such as fuse.js does, a test or build tool
 # does not and merges without one. Minor and patch updates are grouped into one
 # PR per week; a major update still gets a PR of its own, because it is a
 # decision rather than routine.
@@ -47,7 +47,7 @@ updates:
       # new mediabunny must write files that read back sample for sample
       # (tests/e2e/specs/modules.e2e.mjs).
       shipped-minor-and-patch:
-        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
         update-types: ['minor', 'patch']
       # Stryker's packages come out together, and each requires the others at its own
       # version exactly (@stryker-mutator/vitest-runner's peerDependencies): one pull
@@ -57,7 +57,7 @@ updates:
       stryker:
         patterns: ['@stryker-mutator/*']
       tooling-minor-and-patch:
-        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
         update-types: ['minor', 'patch']
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump

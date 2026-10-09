@@ -333,7 +333,7 @@ what can actually change behaviour.
 
 | Library | Version | Real change beyond lint autofix | Status |
 |---|---|---|---|
-| pako | 3.0.2 | none - 3.x ships real ESM, no wrapper needed at all | **migrated** |
+| pako | 3.0.2 | - | **removed 2026-10-09**: Firefox's own `CompressionStream` (`chrome/player/utils/Compression.mjs`), same zlib format |
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; includes a payload that must stay stripped | **migrated** |
@@ -359,9 +359,12 @@ file (npm build + that line) parses to an **AST identical** to the vendored
 copy, so the replacement needed no patch and no playback test - the parsed
 program is provably the same. Since upgraded to 3.0.x (3.0.2 since 2026-09-25), whose `dist/pako.mjs`
 is real ESM with named `deflate`/`inflate` exports - that appended line has
-nothing to attach to any more, so the wrapper is gone too and this is now a
+nothing to attach to any more, so the wrapper is gone too and this was a
 copy with only line endings normalised and a missing final newline added
-(`tools/sync-vendor.mjs`, `normaliseText`), same as fuse.js.
+(`tools/sync-vendor.mjs`, `normaliseText`), same as fuse.js. Removed on
+2026-10-09: VideoAligner was its only user, and Firefox's `CompressionStream`
+('deflate') writes and reads the same zlib format (other bytes than pako's,
+measured in Firefox; each reads the other's).
 
 **mp4box 2.4.1 was shelved on 2026-09-06 on a misreading, and taken on
 2026-09-25.** The blocker was said to be that rolldown "renames every internal

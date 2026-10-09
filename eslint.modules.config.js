@@ -14,7 +14,6 @@ module.exports = [
       'chrome/player/modules/hls.mjs',
       'chrome/player/modules/hls.worker.js',
       'chrome/player/modules/dash.mjs',
-      'chrome/player/modules/pako.mjs',
       'chrome/player/modules/fuse.mjs',
       'chrome/player/modules/sortable.mjs',
       'chrome/player/modules/sweetalert.mjs',

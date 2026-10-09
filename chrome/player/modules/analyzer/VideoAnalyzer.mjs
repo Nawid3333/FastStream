@@ -80,23 +80,35 @@ export class VideoAnalyzer extends EventEmitter {
     if (EnvUtils.isExtension()) {
       this.introAligner.unsetChangesFlag();
       this.outroAligner.unsetChangesFlag();
-      chrome.runtime.sendMessage({
-        type: MessageTypes.STORE_ANALYZER_DATA,
-        data: {
-          intro: this.introAligner.getMemoryForSave(),
-          outro: this.outroAligner.getMemoryForSave(),
-        },
+      Promise.all([this.introAligner.getMemoryForSave(), this.outroAligner.getMemoryForSave()]).then(([intro, outro]) => {
+        return chrome.runtime.sendMessage({
+          type: MessageTypes.STORE_ANALYZER_DATA,
+          data: {intro, outro},
+        });
+      }).catch((e) => {
+        // Saved with the next changes, or at the next try.
+        this.introAligner.hasMemoryChanges = true;
+        this.outroAligner.hasMemoryChanges = true;
+        console.warn('[VideoAnalyzer] Could not save the analyzer data', e);
       });
     }
   }
 
-  loadAnalyzerData(data) {
+  /**
+   * Takes the data saveAnalyzerData stored for the tab.
+   * @param {Object} data
+   * @return {Promise<void>}
+   */
+  async loadAnalyzerData(data) {
     console.log('[VideoAnalyzer] Loading analyzer data');
-    if (data.intro) {
-      this.introAligner.loadMemoryFromSave(data.intro);
-    }
-    if (data.outro) {
-      this.outroAligner.loadMemoryFromSave(data.outro);
+    try {
+      await Promise.all([
+        data.intro && this.introAligner.loadMemoryFromSave(data.intro),
+        data.outro && this.outroAligner.loadMemoryFromSave(data.outro),
+      ]);
+    } catch (e) {
+      // What was saved does not read: the analyzer starts without it.
+      console.warn('[VideoAnalyzer] Could not load the analyzer data', e);
     }
   }
 

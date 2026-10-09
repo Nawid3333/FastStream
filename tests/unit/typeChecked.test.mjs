@@ -42,6 +42,7 @@ const CHECKED = [
   'chrome/player/utils/StreamLength.mjs',
   'chrome/player/utils/SubtitleSyncUtils.mjs',
   'chrome/player/utils/URLUtils.mjs',
+  'chrome/player/utils/Compression.mjs',
   'native-host/faststream-mpv-host.mjs',
 ];
 

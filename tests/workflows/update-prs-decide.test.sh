@@ -413,10 +413,10 @@ updates:
   - package-ecosystem: 'npm'
     groups:
       shipped-minor-and-patch:
-        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
         update-types: ['minor', 'patch']
       tooling-minor-and-patch:
-        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'pako', 'sortablejs']
+        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
         update-types: ['minor', 'patch']
 EOF
   : > "$STATE/curl.log"
