@@ -1,6 +1,6 @@
 import {AnalyzerEvents} from '../../enums/AnalyzerEvents.mjs';
 import {EventEmitter} from '../eventemitter.mjs';
-import {deflate, inflate} from '../pako.mjs';
+import {deflate, inflate} from '../../utils/Compression.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {dHash} from './dHash.mjs';
 
@@ -324,8 +324,14 @@ export class VideoAligner extends EventEmitter {
   stringifyBuffer(buffer) {
     return buffer.toBase64();
   }
-  getMemoryForSave() {
+  /**
+   * The memory as the background keeps it, its buffers compressed. Taken as it is when called;
+   * only the compression waits.
+   * @return {Promise<Object>}
+   */
+  async getMemoryForSave() {
     const memory = {};
+    const compressions = [];
 
     this.memory.forEach((item, identifier) => {
       if (!item.sequence.length) return;
@@ -342,16 +348,21 @@ export class VideoAligner extends EventEmitter {
         }
       });
 
-      memory[identifier] = {
-        hashBuffer: this.stringifyBuffer(deflate(hashBuffer.buffer)),
-        timeBuffer: this.stringifyBuffer(deflate(timeBuffer.buffer)),
+      const saved = memory[identifier] = {
+        hashBuffer: null,
+        timeBuffer: null,
         deleteIn: item.deleteIn,
         matchStart: item.matchStart,
         matchEnd: item.matchEnd,
         startTime: item.sequence[0].time,
       };
+      compressions.push(Promise.all([deflate(hashBuffer), deflate(timeBuffer)]).then(([hash, time]) => {
+        saved.hashBuffer = this.stringifyBuffer(hash);
+        saved.timeBuffer = this.stringifyBuffer(time);
+      }));
     });
 
+    await Promise.all(compressions);
     return memory;
   }
 
@@ -367,13 +378,22 @@ export class VideoAligner extends EventEmitter {
     return str.join('|');
   }
 
-  loadMemoryFromSave(saved) {
-    //  console.log("Load")
+  /**
+   * Takes the memory getMemoryForSave made. All of it is decompressed first, then it goes in
+   * at once, as it did when this ran in one go.
+   * @param {Object} saved
+   * @return {Promise<void>}
+   */
+  async loadMemoryFromSave(saved) {
+    const identifiers = Object.keys(saved);
+    const buffers = await Promise.all(identifiers.map((identifier) => Promise.all([
+      inflate(Uint8Array.fromBase64(saved[identifier].hashBuffer)),
+      inflate(Uint8Array.fromBase64(saved[identifier].timeBuffer)),
+    ])));
     const memory = this.memory;
-    for (const identifier in saved) {
-      if (!Object.hasOwn(saved, identifier)) continue;
-      const hashBuffer = new Uint32Array(inflate(Uint8Array.fromBase64(saved[identifier].hashBuffer)).buffer);
-      const timeBuffer = new Uint16Array(inflate(Uint8Array.fromBase64(saved[identifier].timeBuffer)).buffer);
+    for (const [n, identifier] of identifiers.entries()) {
+      const hashBuffer = new Uint32Array(buffers[n][0].buffer);
+      const timeBuffer = new Uint16Array(buffers[n][1].buffer);
 
       const sequence = [];
       let startTime = saved[identifier].startTime;

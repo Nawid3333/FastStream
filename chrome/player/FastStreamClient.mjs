@@ -492,9 +492,10 @@ export class FastStreamClient extends EventEmitter {
   /**
    * Loads analyzer data into the video analyzer.
    * @param {Object} data
+   * @return {Promise<void>} Never rejects: data that does not read is left out.
    */
-  loadAnalyzerData(data) {
-    if (data) this.videoAnalyzer.loadAnalyzerData(data);
+  async loadAnalyzerData(data) {
+    if (data) await this.videoAnalyzer.loadAnalyzerData(data);
   }
 
   /**

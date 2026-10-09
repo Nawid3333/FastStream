@@ -144,7 +144,7 @@
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
   updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
-  (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs - the unpatched libraries
+  (fuse.js, mediabunny, onnxruntime-web, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
   `update-prs.yml` merges both when green (the shipped one then releases, see below).

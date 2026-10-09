@@ -7,7 +7,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 // and the first or last five minutes it had pinned (ANALYZER) could never be freed; the
 // half-built player was left as it was.
 
-// VideoAligner needs the vendored pako, which unit tests do not have.
+// A stand-in VideoAligner: these tests are about the background players, not the matching.
 vi.mock('../../chrome/player/modules/analyzer/VideoAligner.mjs', async () => {
   const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
   return {

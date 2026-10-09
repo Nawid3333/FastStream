@@ -69,7 +69,9 @@ describe('patchedDependencies', () => {
     const vendor = fs.readFileSync(new URL('../../tools/sync-vendor.mjs', import.meta.url), 'utf8');
     // A package name after node_modules/, ended by a path separator or the string's end.
     const copied = new Set([...vendor.matchAll(/node_modules\/((?:@[\w.-]+\/)?[\w.-]+)(?=[/'"`])/g)].map((match) => match[1]));
-    expect(copied.size).toBeGreaterThanOrEqual(11);
+    // A floor, so a regex that finds nothing does not pass: 10 since pako left (2026-10-09), 8
+    // once sweetalert2 and gif.js have gone too.
+    expect(copied.size).toBeGreaterThanOrEqual(8);
     const names = (list) => {
       expect(list).not.toBeNull();
       return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1]).sort();
