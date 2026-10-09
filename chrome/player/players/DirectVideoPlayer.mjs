@@ -31,7 +31,7 @@ export function elementHeaderCommands(headers) {
 
 // What a direct video can be saved as. A URL without an extension (".../watch?v=1") was saved
 // as .webm, and one ending in .php as .php: most direct videos are MP4.
-const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'opus']);
+const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'opus', 'weba', 'oga']);
 
 /**
  * The file extension to save a direct source as.
