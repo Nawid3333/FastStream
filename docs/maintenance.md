@@ -2,7 +2,7 @@
 
 Nothing merges itself (your choice, 2026-10-02): every update arrives as a PR and waits for
 your merge. `update-prs.yml` runs after every completed CI run for this repository's
-`dependabot/*`, `toolchain/*`, `patched/*` and `sync/upstream` branches and comments
+`dependabot/*`, `toolchain/*` and `patched/*` branches and comments
 on the PR, assigned to you: **ready to merge** once CI is green and its checks hold (only
 that bot's commits, only the files that kind of update changes, the dependency review
 passed, no package version under 7 days old in its lockfile, and the build unchanged when
@@ -28,7 +28,7 @@ merged themselves.
 | WSL, on your PC | `update-local.cmd` compares your WSL with WSL's latest release (once it is 5 days old); nothing in the repository changes | nothing to merge: answer Y, and it runs `wsl --update` and `wsl --shutdown` | no e-mail: you see it when you run `update-local.cmd` |
 | patched libraries, minor/patch | a PR from `patched-libraries.yml` on `patched/<name>-<version>` with the re-cut patch, CI dispatched on it | "ready to merge"; your merge releases as for the shipped libraries | the PR |
 | patched libraries, major | the same (a re-cut that is not clean comes as an issue instead) | as for minor/patch | the PR |
-| upstream sync | a PR from `sync-upstream.yml` (daily; a push to `main` only closes it once nothing is left), with CI dispatched on it, except when it changes anything under `.github/`: then the PR says so, and you start CI after reading those files (they would run with this repository's secrets) | "ready to merge" when it has no conflict, changes nothing under `.github/`, brings back no file this project deleted, and every commit on it is upstream's own; merge it with **Create a merge commit** (keeping upstream's commits), and it releases as for the shipped libraries | the PR |
+| upstream (Andrews54757/FastStream) | nothing to merge any more: this fork no longer follows upstream (your decision, 2026-10-09). `upstream-watch.yml` (daily) lists upstream's commits you have not reviewed yet, the files each touches and which of them this fork still has, and marks the likely fixes | nothing merges; port a fix by hand if it helps this fork | one issue, "Upstream: N commit(s) to review", updated in place; close it once reviewed |
 | mpv build | one PR from `mpv-updates.yml` on branch `mpv-update`, which moves to each newer build of shinchiro's that passes CI | "ready to merge"; your merge releases nothing (only CI installs this mpv) | the PR (one, not one a day); an issue on failure |
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
@@ -117,10 +117,10 @@ label and is assigned to you. Then:
 
 ### CI green: ready, or look first
 
-"Ready to merge": merge it when you like (an upstream sync with **Create a merge commit**).
+"Ready to merge": merge it when you like.
 Otherwise the comment names the check the PR failed - a tooling update whose build differs
 from the latest release, a file that kind of update does not change, a package version
-under 7 days old, an upstream sync with a conflict or a file this project deleted, a GitHub
+under 7 days old, a GitHub
 Actions update while `UPDATE_PRS_TOKEN` is missing, the `hold` label - and the PR is
 assigned to you. Look at that, then merge it or close it as above. The comment is
 edited in place while the PR keeps waiting, even if the reasons change: a new email
@@ -130,11 +130,11 @@ A CI run that was cancelled or skipped decides nothing. The next completed run
 does: rerun it from the Actions tab, or push. (The weekly toolchain run starts CI on
 its own pull requests when their head has no run that decides.)
 
-A pull request a workflow opened - toolchain, patched library, upstream sync - shows
+A pull request a workflow opened - toolchain, patched library - shows
 its CI and Dependency review runs as "approval required": GitHub holds the
 `pull_request` runs of a pull request its own token opened. You can leave them: the
 workflow that opened the pull request starts CI on its branch itself, and that run
-decides. For a patched-library or upstream-sync PR (both change `pnpm-lock.yaml`) it
+decides. For a patched-library PR (it changes `pnpm-lock.yaml`) it
 starts `dependency-review.yml` there too, and "Review dependency changes" appears among
 the PR's checks; when it did not pass, `update-prs.yml`'s comment names that. A
 toolchain PR leaves the lockfile alone.
@@ -142,8 +142,8 @@ toolchain PR leaves the lockfile alone.
 ### An issue from a watcher
 
 Some failures arrive as an issue rather than a red PR: the mpv build, a runner
-image, a Firefox version, the upstream sync, a patched library whose patch could
-not be cut. Each names what failed. The Firefox, runner-image and sync issues
+image, a Firefox version, the upstream watch, a patched library whose patch could
+not be cut. Each names what failed. The Firefox, runner-image and upstream-watch issues
 close themselves on the next green run, a patched-library one when the patch is
 cut against that version or newer, a "Security alert" one when its alerts are fixed or
 dismissed. If `update-prs.yml`, `toolchain-updates.yml` or `security-alerts.yml` itself
@@ -177,18 +177,16 @@ comment says "ready to merge" only when all of this holds:
 
 - the PR was opened by its bot, targets `main`, is not a draft and has no `hold` label;
 - its commits are that bot's, or the merges of `main` this workflow makes when it updates
-  the branch; an upstream sync's are upstream's own, checked against upstream's repository;
+  the branch;
 - it changes only what that kind of update changes: `package.json` and `pnpm-lock.yaml`
   (Dependabot npm; for pnpm, only the `packageManager` line); `fsaunpack/package.json` and
   `fsaunpack/package-lock.json`; `.nvmrc` (Node); workflow and action files (GitHub
   Actions); the two Dockerfiles (actionlint, zizmor); a re-cut's files (patched libraries);
-  anything but `.github/` (upstream sync, which must also have no conflict and bring back no
-  file this project deleted);
 - its dependency review passed, and every package version it adds to its lockfile is 7 days
   old on the npm registry (Dependabot's cooldown covers only what it bumps);
 - an update not meant to ship (tooling, toolchain, workflows, fsaunpack): CI's build of the
   extension is file-for-file the latest release's, the version number aside, so it releases
-  nothing. A shipped library, a patched library or an upstream sync is meant to ship: CI
+  nothing. A shipped library or a patched library is meant to ship: CI
   then runs on `main` and a green run releases;
 - last: the PR is mergeable and the branch contains the newest `main`, so what you merge is
   what CI tested; if it does not, the workflow runs GitHub's update-branch, CI starts again

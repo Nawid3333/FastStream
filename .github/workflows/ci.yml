@@ -397,8 +397,8 @@ jobs:
   # workflow_run event. A run whose actor is this repository's token sends none: GitHub
   # starts no workflow for what its own token did. That is a run a workflow started
   # (toolchain-updates.yml, patched-libraries.yml, update-prs.yml itself), and the
-  # pull_request run of a pull request a workflow opened (those two, sync-upstream.yml),
-  # even once the owner approved it; the pull request would sit without a word. For such
+  # pull_request run of a pull request a workflow opened (those two), even once the owner
+  # approved it; the pull request would sit without a word. For such
   # a run this job starts update-prs.yml by workflow_dispatch instead, with the run's
   # number; it waits for the run to end. Last, after every other job whatever they
   # concluded, and it checks nothing out. Tried three times over two and a half minutes;
@@ -412,8 +412,7 @@ jobs:
       !cancelled() && github.actor == 'github-actions[bot]' &&
       (startsWith(github.head_ref || github.ref_name, 'dependabot/') ||
        startsWith(github.head_ref || github.ref_name, 'toolchain/') ||
-       startsWith(github.head_ref || github.ref_name, 'patched/') ||
-       (github.head_ref || github.ref_name) == 'sync/upstream')
+       startsWith(github.head_ref || github.ref_name, 'patched/'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

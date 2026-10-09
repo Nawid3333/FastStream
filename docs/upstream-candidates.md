@@ -1,5 +1,10 @@
 # Upstream PR candidates
 
+**Closed 2026-10-09.** Upstream merged #559-#562, #564-#570, #577 and #578 on 2026-10-09; the owner
+closed #563 (embed-page detection) the same day. This fork no longer follows upstream (the
+owner's decision, 2026-10-09): no further upstream PRs, and the `upstream-pr/*` branches that
+backed them are deleted.
+
 **Inactive since 2026-09-10.** Nawid decided to stop tracking upstream
 compatibility as a goal and modernize this fork ("version 4") independently —
 see `docs/modernisation-checkpoint.md`'s "Open decisions" and `CLAUDE.md`. PRs #548–#551 already

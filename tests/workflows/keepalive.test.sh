@@ -91,7 +91,7 @@ check 'and the run URL' contains "$WORKFLOWS_DIR/keepalive.yml" \
 repo=$here/repo
 mkdir -p "$repo/.github/workflows"
 cp "$WORKFLOWS_DIR/keepalive.yml" "$repo/.github/workflows/keepalive.yml"
-cat > "$repo/.github/workflows/sync-upstream.yml" <<'EOF'
+cat > "$repo/.github/workflows/upstream-watch.yml" <<'EOF'
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -163,7 +163,7 @@ workflows='{"total_count":10,"workflows":[
   {"id":108,"name":"Flow style","path":".github/workflows/flow.yml","state":"active"},
   {"id":109,"name":"Nightly","path":".github/workflows/nightly.yaml","state":"active"},
   {"id":110,"name":"My flows","path":".github/workflows/my flows.yml","state":"active"},
-  {"id":101,"name":"Sync upstream","path":".github/workflows/sync-upstream.yml","state":"active"},
+  {"id":101,"name":"Upstream watch","path":".github/workflows/upstream-watch.yml","state":"active"},
   {"id":102,"name":"Reminders","path":".github/workflows/reminders.yml","state":"disabled_inactivity"},
   {"id":103,"name":"On demand","path":".github/workflows/no-schedule.yml","state":"active"},
   {"id":104,"name":"Commented","path":".github/workflows/commented.yml","state":"active"},
@@ -209,7 +209,7 @@ check 'never got to the workflow list' lacks "$FIX/out" 'Scheduled workflow file
 scenario 's2 45 days old: enables exactly the scheduled active and disabled_inactivity ones' \
   "$enable_step" "$(commit 45)" false "$workflows" '[]' ''
 check 'succeeds' test "$status" -eq 0
-check 'enables the active sync-upstream' contains "$LOG" 'ENABLE [101]'
+check 'enables the active upstream-watch' contains "$LOG" 'ENABLE [101]'
 check 're-enables reminders, disabled by inactivity' contains "$LOG" 'ENABLE [102]'
 check 'enables its own keepalive workflow' contains "$LOG" 'ENABLE [106]'
 check 'leaves the owner-disabled live-streams alone' lacks "$LOG" 'ENABLE [105]'

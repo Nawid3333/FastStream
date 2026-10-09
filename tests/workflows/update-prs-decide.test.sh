@@ -229,21 +229,6 @@ case "$1 $2" in
         ref=${path##*ref=}
         if [ "$ref" = "$SHA" ] && [ -f "$STATE/npmlock.head" ]; then cat "$STATE/npmlock.head"; else cat "$STATE/npmlock.base"; fi
         ;;
-      "GET repos/Andrews54757/FastStream/commits/"*)
-        # As GitHub answers: any commit of the fork network is found in upstream's repository,
-        # this repository's own and every commit on the sync branch included (checked with
-        # this repository's release commit ac70bb40, 2026-10-03).
-        oid=${path##*/}
-        jq -n --arg s "$oid" '{sha: $s}' > "$STATE/uc.json"; jqout "$STATE/uc.json"
-        ;;
-      "GET repos/Andrews54757/FastStream/compare/"*...main)
-        # How far a commit is from upstream's main: behind_by 0 for one in its history (those
-        # in upstream_commits), more for any other (ac70bb40...main: behind_by 436).
-        oid=${path#*/compare/}; oid=${oid%...main}
-        b=436; if grep -qx "$oid" "$STATE/upstream_commits" 2> /dev/null; then b=0; fi
-        jq -n --argjson b "$b" '{status: (if $b == 0 then "ahead" else "behind" end), ahead_by: 150, behind_by: $b}' > "$STATE/ucmp.json"
-        jqout "$STATE/ucmp.json"
-        ;;
       "GET repos/me/fs/pulls/"*/commits*)
         # The pull request's commits with GitHub's signature check: Dependabot's commits and the
         # merges GitHub makes for "Update branch" (committer web-flow) are verified, unless
@@ -258,11 +243,6 @@ case "$1 $2" in
           "$STATE/prview.json" > "$STATE/prcommits.json"
         jqout "$STATE/prcommits.json"
         ;;
-      "GET repos/me/fs/pulls/"*/files)
-        if [ -f "$STATE/pr_files_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
-        [ -f "$STATE/pr_files.json" ] || echo '[]' > "$STATE/pr_files.json"
-        jqout "$STATE/pr_files.json"
-        ;;
       "GET repos/me/fs/pulls/"*)
         # The pull request's own counts: those of prview.json unless pr_counts says.
         if [ -f "$STATE/pr_counts_fail" ]; then echo 'stub gh: HTTP 502' >&2; exit 1; fi
@@ -275,13 +255,6 @@ case "$1 $2" in
         # The owner's token works unless token_broken says otherwise.
         if [ "$GH_TOKEN" = owner-token ] && [ -f "$STATE/token_broken" ]; then echo 'stub gh: HTTP 401 Bad credentials' >&2; exit 1; fi
         echo '{"full_name":"me/fs"}' > "$STATE/repo.json"; jqout "$STATE/repo.json"
-        ;;
-      "GET repos/me/fs/commits")
-        # main's history of one path (-f path=...): a commit when deleted_on_main names it.
-        p='' prev=''
-        for a in "${ORIG[@]}"; do if [ "$prev" = -f ]; then case $a in path=*) p=${a#path=} ;; esac; fi; prev=$a; done
-        if grep -qxF -- "$p" "$STATE/deleted_on_main" 2> /dev/null; then echo '[{"sha":"dddd"}]' > "$STATE/hist.json"; else echo '[]' > "$STATE/hist.json"; fi
-        jqout "$STATE/hist.json"
         ;;
       *) unhandled ;;
     esac
@@ -421,7 +394,7 @@ setup() {
   export CONCLUSION=success
   export BRANCH='dependabot/npm_and_yarn/tooling-minor-and-patch-0123abcd'
   export SHA=$sha
-  export MERGE_TOKEN='' UPSTREAM_REPO=Andrews54757/FastStream
+  export MERGE_TOKEN=''
   write_stubs
   : > "$STATE/gh.log"
   echo '[]' > "$STATE/comments.json"
@@ -1105,93 +1078,6 @@ docker_other_file_waits() {
   check 'names the file' grep -qF 'it changes .github/workflows/ci.yml, not only the actionlint and zizmor Dockerfiles' <(last_comment)
 }
 
-upstream_setup() { # [files json]: a sync of one upstream commit, without conflicts
-  setup
-  scenario=${FUNCNAME[1]}
-  export BRANCH='sync/upstream'
-  pr app/github-actions
-  local up
-  up=$(commit 'Andrews54757' 'Bug fixes')
-  jq -r .oid <<< "$up" > "$STATE/upstream_commits"
-  prview "${1:-[\"chrome/player/FastStreamClient.mjs\",\"chrome/player/New.mjs\"]}" \
-    "[$up, $(commit 'github-actions[bot]' "Merge remote-tracking branch 'upstream/main' into sync/upstream")]"
-  echo '[{"filename":"chrome/player/FastStreamClient.mjs","status":"modified"},{"filename":"chrome/player/New.mjs","status":"added"}]' \
-    > "$STATE/pr_files.json"
-  bundle new 1.3.82.40 'play(); upstreamFix()'
-}
-
-upstream_ready() {
-  # Clean, reviewed and green: upstream's bug fixes are ready to merge. A new file of
-  # upstream's (one main never had) is fine.
-  upstream_setup
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'ready to merge' ready
-  check "says to merge it with a merge commit" grep -qF 'Merge it with **Create a merge commit**, not Squash' <(last_comment)
-  check "asked whether its commit is in upstream's main" has_call 'api repos/Andrews54757/FastStream/compare/'
-  check "asked main's history of the added file" has_call 'api -X GET repos/me/fs/commits -f sha=main -f path=chrome/player/New.mjs'
-  check 'no build comparison: it ships' bash -c '! grep -qF "release download" "$0"' "$STATE/gh.log"
-  check 'says merging releases' grep -qF 'once you merge it, CI runs on main, and a green run there releases it to Firefox' <(last_comment)
-  check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
-}
-
-upstream_conflicts_waits() {
-  upstream_setup
-  prview '["chrome/player/FastStreamClient.mjs"]' "[$(commit 'github-actions[bot]' 'merge upstream/main (CONFLICTS - resolve before merging)')]"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'says it conflicts' grep -qF "upstream's commits conflict with main's" <(last_comment)
-  check '@mentions' grep -qF '@nawid CI passes' <(last_comment)
-}
-
-upstream_brings_back_waits() {
-  upstream_setup '["chrome/player/FastStreamClient.mjs","chrome/youtube/YouTubeHandler.mjs","chrome/player/New.mjs"]'
-  echo '[{"filename":"chrome/player/FastStreamClient.mjs","status":"modified"},{"filename":"chrome/youtube/YouTubeHandler.mjs","status":"added"},{"filename":"chrome/player/New.mjs","status":"added"}]' \
-    > "$STATE/pr_files.json"
-  echo 'chrome/youtube/YouTubeHandler.mjs' > "$STATE/deleted_on_main"
-  run_step
-  check 'not called ready' not_ready
-  check 'names the deleted file' grep -qF 'it brings back chrome/youtube/YouTubeHandler.mjs, which this project deleted' <(last_comment)
-  check 'not the new one' bash -c '! grep -qF "New.mjs" <<< "$0"' "$(last_comment)"
-}
-
-upstream_added_list_fails_stops() {
-  # The list of added files could not be read: no merge on a check that did not run.
-  upstream_setup
-  : > "$STATE/pr_files_fail"
-  run_step
-  check 'fails (the failure step reports it), not stopped by the timeout' test "$rc" -eq 1
-  check 'not called ready' not_ready
-}
-
-upstream_young_package_waits() {
-  # Upstream's lockfile change gets the 7-day check as Dependabot's does.
-  upstream_setup
-  lock_adds 'left-pad@9.9.9'
-  published left-pad 9.9.9 "$(hours_ago 5)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'left-pad@9.9.9 (published' <(last_comment)
-}
-
-upstream_github_waits() {
-  upstream_setup '["chrome/player/FastStreamClient.mjs",".github/workflows/release.yml"]'
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF "it changes .github/workflows/release.yml, which run with this repository's tokens and keys" <(last_comment)
-}
-
-upstream_foreign_commit_waits() {
-  # A commit on the sync branch that upstream does not have: someone else's.
-  upstream_setup
-  prview '["chrome/player/FastStreamClient.mjs"]' \
-    "[$(commit 'Andrews54757' 'Bug fixes'), $(commit mallory 'sneaky'), $(commit 'github-actions[bot]' "Merge remote-tracking branch 'upstream/main' into sync/upstream")]"
-  run_step
-  check 'not called ready' not_ready
-  check 'names that commit only' grep -qF "commits from someone else ($(commit mallory sneaky | jq -r '.oid[0:8]'))" <(last_comment)
-}
-
 other_base() {
   setup
   jq '.[0].baseRefName = "release"' "$STATE/prs.json" > "$STATE/p.json" && mv "$STATE/p.json" "$STATE/prs.json"
@@ -1519,17 +1405,8 @@ tooling_that_ships_waits() {
   check 'starts no CI on main' bash -c '! grep -qF "workflow run ci.yml --ref main" "$0"' "$STATE/gh.log"
 }
 
-upstream_red() {
-  setup
-  export BRANCH='sync/upstream' CONCLUSION=failure RUN_ATTEMPT=2
-  pr app/github-actions
-  run_step
-  check 'reported' grep -qF '@nawid CI fails' <(last_comment)
-  check 'upstream hint' grep -qF 'sync-upstream.yml' <(last_comment)
-}
-
-# The sync and patched-library pull requests: sync-upstream.yml and patched-libraries.yml
-# start the dependency review on the branch's head, which is the run's SHA.
+# The patched-library pull requests: patched-libraries.yml starts the dependency review on
+# the branch's head, which is the run's SHA.
 patched_review_passed() {
   patched_setup 1.7.4
   run_step
@@ -1545,9 +1422,9 @@ patched_review_failed() {
   check 'says the review' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is failure' <(last_comment)
 }
 
-upstream_review_missing() {
+patched_review_missing() {
   setup
-  export BRANCH='sync/upstream'
+  export BRANCH='patched/hls.js-1.7.4'
   pr app/github-actions
   echo '{"check_runs":[]}' > "$STATE/checkruns.json"
   run_step
@@ -1555,9 +1432,9 @@ upstream_review_missing() {
   check 'says missing' grep -qF 'its dependency review ("Review dependency changes", started on this branch) is missing' <(last_comment)
 }
 
-upstream_review_pending_then_failed() {
+patched_review_pending_then_failed() {
   setup
-  export BRANCH='sync/upstream'
+  export BRANCH='patched/hls.js-1.7.4'
   pr app/github-actions
   echo 2 > "$STATE/review_pending"
   echo '{"check_runs":[{"conclusion":"failure"}]}' > "$STATE/checkruns.json"
@@ -1577,9 +1454,9 @@ patched_review_newest_decides() {
   check 'names the newest run' grep -qF 'started on this branch) is cancelled' <(last_comment)
 }
 
-upstream_review_rerun_pending_then_success() {
+patched_review_rerun_pending_then_success() {
   setup
-  export BRANCH='sync/upstream'
+  export BRANCH='patched/hls.js-1.7.4'
   pr app/github-actions
   echo 2 > "$STATE/review_pending"
   echo '{"check_runs":[{"id":9,"conclusion":"failure"},{"id":12,"conclusion":null}]}' > "$STATE/checkruns.early.json"
@@ -1589,9 +1466,9 @@ upstream_review_rerun_pending_then_success() {
   check 'names no review' bash -c '! grep -qF "dependency review" <<< "$0"' "$(last_comment)"
 }
 
-upstream_review_unreadable() {
+patched_review_unreadable() {
   setup
-  export BRANCH='sync/upstream'
+  export BRANCH='patched/hls.js-1.7.4'
   pr app/github-actions
   echo 99 > "$STATE/review_errors"
   run_step
@@ -1821,13 +1698,6 @@ counts_unreadable_waits
 docker_ready
 docker_review_failed_waits
 docker_other_file_waits
-upstream_ready
-upstream_conflicts_waits
-upstream_brings_back_waits
-upstream_added_list_fails_stops
-upstream_young_package_waits
-upstream_github_waits
-upstream_foreign_commit_waits
 other_base
 patched_waits
 patched_patch_ready
@@ -1850,14 +1720,13 @@ fsaunpack_other_file_waits
 shipped_young_package_waits
 tooling_that_ships_waits
 held_waits
-upstream_red
 patched_review_passed
 patched_review_failed
-upstream_review_missing
-upstream_review_pending_then_failed
+patched_review_missing
+patched_review_pending_then_failed
 patched_review_newest_decides
-upstream_review_rerun_pending_then_success
-upstream_review_unreadable
+patched_review_rerun_pending_then_success
+patched_review_unreadable
 toolchain_not_reviewed
 closed_before_verdict
 update_refused_head_moved

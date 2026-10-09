@@ -9,17 +9,17 @@
 # PR per week; a major update still gets a PR of its own, because it is a
 # decision rather than routine.
 #
-# What happens to each PR once CI has run is update-prs.yml's job: a red one is
-# reported to the owner, and a green one merged when it is minor or patch, changes only
-# package.json and pnpm-lock.yaml, and adds no package version under 7 days old. A tooling
+# What happens to each PR once CI has run is update-prs.yml's job: it reports, and nothing
+# merges itself (the owner's choice, 2026-10-02: every PR waits for his merge). A red one
+# is reported to the owner; a green one is called ready to merge when it changes only
+# package.json and pnpm-lock.yaml and adds no package version under 7 days old. A tooling
 # update must also leave the built extension identical to the latest release, so it
 # releases nothing. The libraries the extension ships (tools/sync-vendor.mjs copies them
-# into it) are grouped apart, in shipped-minor-and-patch: that PR merges too, and CI then
-# runs on main; a green run there releases it, a red one releases nothing and opens an
-# issue for the owner. update-prs.yml tells that group by its branch, which Dependabot
-# names after it: a rename here must be made there too. A major comes on a branch of its
-# own and merges too (the owner's choice, 2026-10-01): update-prs.yml tells a shipped
-# library's by the patterns of shipped-minor-and-patch below, read from main.
+# into it) are grouped apart, in shipped-minor-and-patch: merging that PR starts CI on
+# main, and a green run there releases it. update-prs.yml tells that group by its branch,
+# which Dependabot names after it: a rename here must be made there too. A major comes on
+# a branch of its own: update-prs.yml tells a shipped library's by the patterns of
+# shipped-minor-and-patch below, read from main.
 #
 # cooldown: a release is proposed once it is 5 days old. A package taken over to
 # publish malware is usually caught and pulled within days, and routine PRs now
@@ -85,8 +85,8 @@ updates:
   # express (fsaunpack/, its own package.json and package-lock.json). It is not
   # part of the extension. CI installs that lockfile and starts the test server on a
   # recorded archive (pnpm run verify:fsaunpack), with install scripts off. update-prs.yml
-  # merges a PR that changes only fsaunpack/package.json and fsaunpack/package-lock.json,
-  # once every version that lockfile adds is 7 days old (since 2026-10-01).
+  # calls a PR ready to merge when it changes only fsaunpack/package.json and
+  # fsaunpack/package-lock.json and every version that lockfile adds is 7 days old.
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
     schedule:

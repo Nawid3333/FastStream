@@ -4,9 +4,8 @@ name: Keepalive
 # repository activity (in practice: without a commit), and it disables the whole file,
 # push trigger included. FastStream is in maintenance mode - most months, only bot
 # updates merge to main and keep it active - so a quiet 60-day stretch would silently
-# stop every one of the scheduled workflows; sync-upstream.yml's cron comment says to
-# re-enable them from the Actions tab. This does that instead, from the API, and
-# commits nothing to main.
+# stop every one of the scheduled workflows, which would have to be re-enabled from the
+# Actions tab. This does that instead, from the API, and commits nothing to main.
 #
 # Once a week it reads how old main's last commit is. Under 45 days there is nothing to
 # do. At 45 or more (or on a dispatch with the force input) it enables every scheduled

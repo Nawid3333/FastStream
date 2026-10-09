@@ -33,6 +33,7 @@ every agent session). Where a note names a section in quotes, this is where it i
 
 The runbooks stay one folder up: `docs/maintenance.md` (the owner's guide to the e-mails
 and PRs), `docs/updating-patched-libraries.md`, `docs/vendored-libraries.md`,
-`docs/amo-linter-warnings.md`, `docs/upstream-sync-log.md`, and
+`docs/amo-linter-warnings.md`, `docs/upstream-sync-log.md` (what was merged from upstream until
+2026-10-09), and
 `docs/modernisation-checkpoint.md` (the record of the modernisation; several of its
 sections no longer hold).

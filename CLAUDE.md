@@ -132,12 +132,12 @@ mpv host's installed copy, WSL): `docs/notes/local-pc.md`.
   in `docs/notes/storage.md` for the bug that hid behind this for months.
 - Branches: `main` is the project and the only long-lived branch. It was
   `dev/mv3-modernization` until 2026-09-19, when that was merged into `main`
-  and deleted. Upstream is never mirrored: `sync-upstream.yml` opens one PR
-  from `sync/upstream` when Andrew has commits `main` lacks. It waits for the owner like
-  every PR (`update-prs.yml` only says whether it is ready). Since 2026-10-09 it is a list of
-  upstream changes to review for fixes that apply here (port the fix, then close it), not
-  something to merge. `docs/upstream-sync-log.md` records what was decided by hand and why. `pr/*`
-  branches, if ever needed, get cut fresh off `upstream/main`.
+  and deleted. **This fork no longer follows upstream** (the owner's decision, 2026-10-09):
+  it is Firefox-only and maintained on its own; nothing of upstream is merged. `upstream-watch.yml`
+  lists upstream's new commits in one issue for review; a fix that helps this fork is ported
+  by hand, then the issue is closed (closing marks the commits reviewed).
+  `sync-upstream.yml` (the daily merge PR) was removed that day; `docs/upstream-sync-log.md`
+  records what was taken while it ran.
 - **A new string needs all 16 locales.** The 16 `chrome/_locales/*/messages.json` files are
   the source (4-space indent); edit those, then `pnpm run combine-locales`. Never
   `split-locales` unless `combined-locales.json` is the file you edited.

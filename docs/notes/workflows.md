@@ -147,14 +147,15 @@
   (fuse.js, mediabunny, onnxruntime-web, pako, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
-  `update-prs.yml` merges both when green (the shipped one then releases, see below).
+  `update-prs.yml` reports on both when CI has run; the owner merges (the shipped one then
+  releases, see below).
 - **`update-prs.yml`** (2026-09-29) runs after every completed CI run (`workflow_run`;
   for a run a workflow's token started, which sends none, `ci.yml`'s hand-off starts it by
   `workflow_dispatch`, and opens "Update PRs hand-off failed" when GitHub refuses all three
-  tries) for this repository's `dependabot/*`, `toolchain/*`, `patched/*` and
-  `sync/upstream` branches, and never checks out PR code. `gh pr list --head` lists a fork's
-  pull request from a branch of the same name too: it, `sync-upstream.yml` and
-  `mpv-updates.yml` drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
+  tries) for this repository's `dependabot/*`, `toolchain/*` and `patched/*` branches
+  (`sync/upstream` too until 2026-10-09), and never checks out PR code. `gh pr list --head`
+  lists a fork's pull request from a branch of the same name too: it and `mpv-updates.yml`
+  drop those (`isCrossRepository`, #169; `tests/unit/workflowGh.test.mjs`
   fails for a `--head` list that does not ask). CI red: CI is started once more
   on the same commit, and that run decides (a new run, not a re-run: a re-run by this
   workflow's token would reach no workflow when it ends); not when CI already failed on
@@ -165,24 +166,19 @@
   **nothing merges itself** (the owner's choice, 2026-10-02; from 2026-10-01 every kind
   did). One comment @mentions the owner, assigned: "ready to merge" for any kind (Dependabot
   npm, fsaunpack, GitHub Actions, the actionlint/zizmor images, toolchain Node and pnpm,
-  patched libraries, the upstream sync) when it is not labelled `hold`, and only when its
+  patched libraries) when it is not labelled `hold`, and only when its
   bot opened it (not a draft,
   against `main`) and its commits are the bot's or this workflow's merges of `main` (the
   owner's, made with their token; Dependabot's and those merges also signed by GitHub, as
-  an author login is only the commit's e-mail, #170; an upstream sync's: in the history of
-  upstream's `main`, `compare/<sha>...main` with `behind_by` 0 - not
-  `repos/Andrews54757/FastStream/commits/<sha>`, which finds any commit of the fork network,
-  this repository's own included), it changes only what its kind
+  an author login is only the commit's e-mail, #170), it changes only what its kind
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
-  the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`;
-  an upstream sync anything but `.github/`, with no "(CONFLICTS - resolve before merging)"
-  commit and no added file that main's history has, i.e. one this project deleted), the
+  the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`), the
   dependency review passed, every version its lockfile adds is 7 days old (fsaunpack's
   `package-lock.json` read with jq), it is mergeable, it contains the newest `main`
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
-  times), and, for an update that must not ship (all but the shipped libraries, patched
-  libraries and the upstream sync), CI's build of the extension (the `faststream-bundles`
+  times), and, for an update that must not ship (all but the shipped and the patched
+  libraries), CI's build of the extension (the `faststream-bundles`
   artifact, both zips) is file-for-file identical to the latest release's zip and xpi
   apart from `manifest.json`'s version - `auto-release.yml`'s own test, so such a merge
   releases nothing. A shipped library's major comes on its own branch: it ships when one of
@@ -192,8 +188,7 @@
   update: that is done with the owner's fine-grained token, secret `UPDATE_PRS_TOKEN` of the
   `update-prs` environment
   (Contents, Pull requests, Workflows: write; docs/maintenance.md, "A token for workflow
-  updates"), used only to bring such a branch up to date. The comment tells the owner to
-  merge an upstream sync with a merge commit, keeping upstream's commits. His merge is his
+  updates"), used only to bring such a branch up to date. His merge is his
   push: CI runs on `main`, and a green run of a merge that ships releases. A green PR that
   fails a check gets one comment @mentioning the owner - CI is green, and what to look at
   before merging - and is assigned to them. A comment with the same verdict
@@ -485,29 +480,42 @@
   after its 2012 pin) and vad-web (37 since 2023-03-30) were behind, StreamSaver and fft.js
   current. `tests/workflows/vendored-sources.test.sh`: 8 scenarios, 10 undone rules caught.
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
-  Since 2026-09-30 it also runs on `workflow_dispatch`, which `sync-upstream.yml` and
-  `patched-libraries.yml` send next to CI's: their PRs are opened by the workflow token, so
-  the `pull_request` run waits for an approval, and the two PR kinds that change the
-  lockfile from outside Dependabot went unreviewed. A dispatched run compares `main` with
+  Since 2026-09-30 it also runs on `workflow_dispatch`, which `patched-libraries.yml` sends
+  next to CI's: its PRs are opened by the workflow token, so the `pull_request` run waits
+  for an approval, and a lockfile change from outside Dependabot went unreviewed (the
+  upstream sync's too, until 2026-10-09). A dispatched run compares `main` with
   the commit's hash (`base-ref`/`head-ref`; the compare API answers 404 for an unencoded
   branch name with a `/`). Checked on two probe branches off `main`: brace-expansion
   2.1.4 -> 2.1.3 failed on its three high advisories, the fixed lockfile passed.
   `update-prs.yml` names a review that did not pass in its comment on those PRs.
 - **`build.yml` was removed**: CI already builds and uploads the same zips.
-- **`sync-upstream.yml`** runs daily (06:00 UTC) and on every push to `main`. The PR is
-  assigned to the owner and @mentions them (a bot PR alone is not emailed); a comment
-  with the mention follows only when upstream itself moved. Upstream release tags on the
-  incoming commits are named in the title (tags fetched to `refs/upstream-tags/`, never
-  `refs/tags/`). A push-triggered run only closes the PR once `main` holds every upstream
-  commit; it never rebuilds it. The failure issue closes on the next clean run.
-  `update-prs.yml` calls the PR ready to merge (with a merge commit) once CI is green when
-  it is clean (no conflict, nothing under `.github/`, no deleted file back, only upstream's
-  commits); otherwise it says what to look at. **A merge that changes anything under
-  `.github/` gets no CI and no dependency review** (#163, 2026-10-03): a dispatched run
-  takes its workflow file from the branch, so upstream's workflow would run with this
-  repository's token and secrets; the PR says so, and the owner starts both after reading
-  the change. `tests/workflows/sync-upstream.test.sh` (real git, stub `gh`). And the secrets
-  that can do harm are no repository secrets any more: the AMO keys are the `release`
+- **The fork no longer follows upstream (2026-10-09, the owner's decision).** FastStream here
+  is Firefox-only and maintained on its own, ahead of upstream (Andrews54757/FastStream,
+  Chrome first); an upstream change matters only as a fix this fork's code may need too,
+  ported by hand. `sync-upstream.yml` (2026-09-10 to 2026-10-09: upstream merged into a
+  `sync/upstream` PR daily, and `update-prs.yml` judged it) was removed, with its tests and
+  every `sync/upstream` case in `update-prs.yml`, `ci.yml`'s hand-off and
+  `dependency-review.yml`. The last sync PR (#368) was closed: of its 18 commits, 13 were the
+  owner's own upstream PRs, the security fix came from his report and was here already, "Fix
+  yt" has no code to apply to, V1.3.78 is a version bump; the aspect-ratio option (#552) is a
+  feature for his decision. `docs/upstream-sync-log.md` keeps the record of the merge years.
+- **`upstream-watch.yml`** (2026-10-09) runs daily (06:00 UTC) and lists upstream's commits
+  not reviewed yet in one issue, "Upstream: N commit(s) to review", assigned to the owner
+  and @mentioning him; when upstream moves again the issue is updated and a comment with
+  the mention says how many came. Each commit names its files, those this fork still has in
+  bold, and "fix?" when its message speaks of a fix, a bug, a crash, a leak or security; a
+  commit touching only files this fork does not have is listed apart. **Closing the issue
+  marks its commits reviewed**: the next run starts at the closed issues' upstream commit
+  (`<!-- upstream-head: ... -->`) nearest upstream's head, whatever order they were closed
+  in, leaving out one upstream no longer has (a force-push); without one, at what `main`
+  last merged. Nothing is committed for it (a push to main releases). Opening an issue again
+  means "not reviewed after all": its commits are listed again. Another project's text is made safe: `<`
+  escaped (a fake marker in a subject was read first), `@` defused, `#123` written as
+  upstream's. At most 60 commits and 8 files a commit are listed. Permissions: contents read,
+  issues write. "Upstream watch failed" is opened on a failure and closed by the next clean
+  run. `tests/workflows/upstream-watch.test.sh` (real git, stub `gh`; the escaping and
+  where the list starts each fail a check when undone).
+- **The secrets** that can do harm are no repository secrets any more: the AMO keys are the `release`
   environment's (main and tags `v*` only), `UPDATE_PRS_TOKEN` the `update-prs` one's (main
   only), so no other branch's workflow can read them; the jobs that use them name the
   environment with `deployment: false` (no deployment records), and
