@@ -248,6 +248,18 @@ describe('bilibili_content.js', () => {
     expect(runSiteScript('bilibili_content.js', [lines]).sent).toHaveLength(1);
   });
 
+  it('reports a video without sound, whose play info has no audio list', () => {
+    // data.dash.audio is null there: forEach threw, and the video was not detected at all
+    // (final review, 2026-10-10).
+    const playInfo = JSON.parse(playInfoScript('silent').textContent.replace('window.__playinfo__=', ''));
+    playInfo.data.dash.audio = null;
+    const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
+    expect(sent).toHaveLength(1);
+    const manifest = manifestOf(sent[0].url);
+    expect(manifest).toContain('silent-video.m4s');
+    expect(manifest.match(/<AdaptationSet/g)).toHaveLength(1);
+  });
+
   it('writes no width or height for a track that has none', () => {
     // An audio track: the manifest read width="undefined".
     const playInfo = {data: {dash: {duration: 10, minBufferTime: 1.5, video: [], audio: [{
