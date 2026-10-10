@@ -152,6 +152,9 @@ export class AudioQualityChanger extends EventEmitter {
     DOMElements.audioTracksBtn.classList.toggle('hidden', !this.hasChoice);
     if (!audioLevels || audioLevels.length < 1) {
       this.enabled = false;
+      // An open list kept the previous video's tracks (final review, 2026-10-10).
+      DOMElements.audioSourceList.replaceChildren();
+      this.closeUI();
       return;
     } else {
       this.enabled = true;
