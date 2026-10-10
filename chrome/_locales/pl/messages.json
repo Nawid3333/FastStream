@@ -740,6 +740,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Główny"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Profil bez nazwy"
     },
@@ -748,15 +754,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil załadowany!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Zapisz profil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Zapisywanie..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil zapisany!"
     },
     "player_audioconfig_profile_download": {
         "message": "Pobierz profil"

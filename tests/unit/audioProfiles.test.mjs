@@ -103,6 +103,28 @@ describe('AudioProfile.fromObj: profiles from storage and files', () => {
     expect([crosstalk.colorgain, crosstalk.lowbypass, crosstalk.highbypass]).toEqual([5, 200, 20000]);
   });
 
+  // A file edited by hand, or from an older version: what it has is kept (review).
+  it('keeps what a profile from a file has: more channels, no label, an EQ gain by its old name', () => {
+    const channels = Array.from({length: 8}, (_, i) => ({id: i, gain: 0.5}));
+    const profile = AudioProfile.fromObj({id: 3, channels,
+      equalizerNodes: [{type: 'peaking', frequency: 1000, gain: 5, gainDb: null}]});
+    expect(profile.channels.map((channel) => channel.gain)).toEqual(Array(MAX_AUDIO_CHANNELS).fill(0.5));
+    expect(profile.label).toBe('Profile 3');
+    expect(profile.master.equalizerNodes.map((node) => node.toObj().gainDb)).toEqual([5]);
+  });
+
+  it('takes the seventh mixer channel of an old profile as its master', () => {
+    const mixerChannels = Array.from({length: 7}, (_, i) => ({id: i, gain: 1}));
+    mixerChannels[6].mono = true;
+    const profile = AudioProfile.fromObj({id: 1, mixerChannels});
+    expect(profile.master.isMaster()).toBe(true);
+    expect(profile.master.mono).toBe(true);
+    // A null among them (a damaged file) threw.
+    const damaged = mixerChannels.map((channel, i) => i === 2 ? null : channel);
+    expect(() => AudioProfile.fromObj({id: 1, mixerChannels: damaged})).not.toThrow();
+    expect(profile.channels.map((channel) => channel.id)).toEqual(Array.from({length: MAX_AUDIO_CHANNELS}, (_, i) => i));
+  });
+
   it('builds every equalizer of a broken profile without a value the browser refuses', () => {
     const profile = AudioProfile.fromObj(broken);
     for (const channel of [...profile.channels, profile.master]) {

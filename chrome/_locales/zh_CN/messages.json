@@ -740,6 +740,12 @@
     "player_audioconfig_profile": {
         "message": "配置"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "配置 $1"
+    },
+    "audiomixer_master": {
+        "message": "主音量"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "未命名配置"
     },
@@ -748,15 +754,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "配置已加载!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "保存配置"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "保存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "配置已保存!"
     },
     "player_audioconfig_profile_download": {
         "message": "下载配置"

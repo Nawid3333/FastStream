@@ -740,6 +740,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Profil tanpa nama"
     },
@@ -748,15 +754,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil dimuat!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Simpan Profil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Menyimpan..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil tersimpan!"
     },
     "player_audioconfig_profile_download": {
         "message": "Unduh Profil"

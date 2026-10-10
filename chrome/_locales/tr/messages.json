@@ -740,6 +740,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Ana Ses"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Adsız profil"
     },
@@ -748,15 +754,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil yüklendi!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Profili Kaydet"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Kaydediliyor..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil kaydedildi!"
     },
     "player_audioconfig_profile_download": {
         "message": "Profili İndir"

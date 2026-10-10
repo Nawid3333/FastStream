@@ -419,6 +419,7 @@ export class AudioEqualizer extends AbstractAudioModule {
 
         DOMElements.playerContainer.removeEventListener('mousemove', mouseMove);
         DOMElements.playerContainer.removeEventListener('mouseup', mouseUp);
+        document.removeEventListener('mouseup', mouseUp);
       };
 
       el.addEventListener('mousedown', (e) => {
@@ -427,6 +428,8 @@ export class AudioEqualizer extends AbstractAudioModule {
         e.stopPropagation();
         DOMElements.playerContainer.addEventListener('mousemove', mouseMove);
         DOMElements.playerContainer.addEventListener('mouseup', mouseUp);
+        // Let go outside the player, the point went on following the mouse.
+        document.addEventListener('mouseup', mouseUp);
       });
 
       el.addEventListener('wheel', (e) => {
@@ -499,6 +502,9 @@ export class AudioEqualizer extends AbstractAudioModule {
 
       el.addEventListener('keydown', (e)=>{
         if (e.key === 'Delete' || e.key === 'Backspace') {
+          // The point's key, not the player's too.
+          e.preventDefault();
+          e.stopPropagation();
           this.equalizerConfig.splice(i, 1);
           this.refreshEQNodes();
           this.emit('change');

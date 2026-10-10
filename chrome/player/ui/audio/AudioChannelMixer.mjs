@@ -71,6 +71,13 @@ export class AudioChannelMixer extends AbstractAudioModule {
     }
 
     this.masterConfig = config.master;
+    // A profile can come before the audio graph is made (setupNodes applies it then): its
+    // nodes threw, and the profile list and the crosstalk were never set up.
+    // masterNodes starts as {}, so the check is on what setupNodes makes (review: a check on
+    // masterNodes itself never held, and the channels' nodes still threw).
+    if (!this.masterNodes.equalizer || this.channelConfigs.some((channel) => !this.channelNodes[channel.id])) {
+      return;
+    }
     this.channelConfigs.forEach((channel, i) => {
       this.channelNodes[channel.id].equalizer.setConfig(channel.equalizerNodes);
       this.channelNodes[channel.id].compressor.setConfig(channel.compressor);
@@ -108,7 +115,9 @@ export class AudioChannelMixer extends AbstractAudioModule {
   }
 
   render() {
-    if (!this.channelConfigs) return;
+    // A profile can come before the audio graph (setConfig keeps it for setupNodes): nothing
+    // to draw until the graph's nodes are made.
+    if (!this.channelConfigs || !this.masterNodes.equalizer) return;
 
     if (this.needsAnalyzer()) {
       this.createAnalyzers();
@@ -116,8 +125,9 @@ export class AudioChannelMixer extends AbstractAudioModule {
       this.destroyAnalyzers();
     }
 
+    // With the clipping check, as the master's: a channel's meter never turned red.
     this.channelConfigs.forEach((channel, i) => {
-      this.renderChannel(this.channelNodes[channel.id], this.mixerChannelElements[channel.id]);
+      this.renderChannel(this.channelNodes[channel.id], this.mixerChannelElements[channel.id], true);
     });
 
     this.renderMaster(this.masterElements);
@@ -360,7 +370,7 @@ export class AudioChannelMixer extends AbstractAudioModule {
 
   createMixerChannel(channel) {
     const els = this.createMixerElements();
-    els.channelTitle.textContent = channel.isMaster() ? 'Master' : CHANNEL_NAMES[channel.id];
+    els.channelTitle.textContent = channel.isMaster() ? Localize.getMessage('audiomixer_master') : CHANNEL_NAMES[channel.id];
 
     // The fader's label, which a screen reader reads as its value: kept up to date by every
     // way of moving the fader (the wheel and the arrow keys left it stale), and with -∞ dB,
@@ -409,12 +419,16 @@ export class AudioChannelMixer extends AbstractAudioModule {
     const mouseUp = (e) => {
       DOMElements.playerContainer.removeEventListener('mousemove', mouseMove);
       DOMElements.playerContainer.removeEventListener('mouseup', mouseUp);
+      document.removeEventListener('mouseup', mouseUp);
     };
 
     els.volumeHandle.addEventListener('mousedown', (e) => {
       e.stopPropagation();
       DOMElements.playerContainer.addEventListener('mousemove', mouseMove);
       DOMElements.playerContainer.addEventListener('mouseup', mouseUp);
+      // Let go outside the player, the fader went on following the mouse: anywhere in the
+      // document, as the progress bar's drag.
+      document.addEventListener('mouseup', mouseUp);
     });
 
     els.volumeHandle.addEventListener('dblclick', (e) => {
@@ -624,12 +638,18 @@ export class AudioChannelMixer extends AbstractAudioModule {
     this.updateNodes();
   }
 
-  getChannelGainsFromConfig() {
+  /**
+   * @param {?number[]} [activeChannels] - The channels the audio has: a solo on one it has
+   *   not (a greyed strip) silenced every channel it has.
+   * @return {?number[]}
+   */
+  getChannelGainsFromConfig(activeChannels = null) {
     if (!this.channelConfigs) {
       return null;
     }
 
-    const soloChannel = this.channelConfigs.find((channel) => channel.solo);
+    const soloChannel = this.channelConfigs.find((channel) => channel.solo &&
+      (!activeChannels || activeChannels.includes(channel.id)));
 
     return this.channelConfigs.map((channel, i) => {
       if (soloChannel && channel !== soloChannel) {
@@ -798,15 +818,15 @@ export class AudioChannelMixer extends AbstractAudioModule {
   }
 
   async updateNodes() {
-    const gains = this.getChannelGainsFromConfig();
-    if (!gains) {
+    if (!this.channelConfigs) {
       return;
     }
 
     const numberOfChannels = await this.getChannelCount();
-    if (numberOfChannels === 0) {
+    if (numberOfChannels === 0 || !this.channelConfigs) {
       return;
     }
+    const gains = this.getChannelGainsFromConfig(AudioUtils.getActiveChannelsForChannelCount(numberOfChannels));
 
     const hasNonUnityMasterGain = this.masterConfig.gain !== 1;
     const isMono = this.masterConfig.mono;

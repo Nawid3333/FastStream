@@ -345,3 +345,49 @@ describe('AudioChannelMixer: channels with and without a compressor', () => {
     expect(mixer.masterNodes.monoNode).toBeTruthy();
   });
 });
+
+// A solo on a strip the audio has not (greyed, the centre of a stereo video) silenced every
+// channel it has (review, 2026-10-09).
+describe('AudioChannelMixer: a profile before the audio graph', () => {
+  // A profile can come before the graph is made (setupNodes applies it then): its nodes
+  // threw, and the profile list and the crosstalk were never set up.
+  it('is kept for the graph, without throwing', () => {
+    const mixer = new AudioChannelMixer({
+      getChannelCount: async () => 2,
+      getOutputMeter: () => ({updateChannelCount() {}, createAnalysers() {}, destroyAnalysers() {}}),
+    });
+    mixer.setupUI(el(), el());
+    mixer.ui.mixer.offsetParent = null;
+    const profile = new AudioProfile(1);
+    expect(() => mixer.setConfig(profile)).not.toThrow();
+    expect(mixer.masterConfig).toBe(profile.master);
+    // And the panel's repaint until the graph comes: it threw on the master's nodes (review).
+    expect(() => mixer.render()).not.toThrow();
+  });
+});
+
+describe('AudioChannelMixer: a solo', () => {
+  /** A mixer of six channels, the given one soloed. */
+  function mixerWithSolo(soloId) {
+    const mixer = Object.create(AudioChannelMixer.prototype);
+    mixer.channelConfigs = [0, 1, 2, 3, 4, 5].map((id) => {
+      const channel = AudioChannelControl.default(id);
+      channel.solo = id === soloId;
+      return channel;
+    });
+    return mixer;
+  }
+
+  it('on a channel the audio has, silences the others', () => {
+    const stereo = AudioUtils.getActiveChannelsForChannelCount(2);
+    const gains = mixerWithSolo(stereo[0]).getChannelGainsFromConfig(stereo);
+    expect(gains.filter((gain, id) => stereo.includes(id) && gain > 0)).toHaveLength(1);
+  });
+
+  it('on a channel the audio has not, silences nothing', () => {
+    const stereo = AudioUtils.getActiveChannelsForChannelCount(2);
+    const greyed = [0, 1, 2, 3, 4, 5].find((id) => !stereo.includes(id));
+    const gains = mixerWithSolo(greyed).getChannelGainsFromConfig(stereo);
+    expect(stereo.every((id) => gains[id] > 0)).toBe(true);
+  });
+});

@@ -740,6 +740,12 @@
     "player_audioconfig_profile": {
         "message": "プロファイル"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "プロファイル $1"
+    },
+    "audiomixer_master": {
+        "message": "マスター"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "無題のプロファイル"
     },
@@ -748,15 +754,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "プロファイルを読み込みました!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "プロファイルを保存"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "保存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "プロファイルを保存しました!"
     },
     "player_audioconfig_profile_download": {
         "message": "プロファイルをダウンロード"
