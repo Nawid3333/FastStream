@@ -17,7 +17,6 @@ import {ClickActions} from './options/defaults/ClickActions.mjs';
 import {VisChangeActions} from './options/defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
 import {SecureMemory} from './modules/SecureMemory.mjs';
-import {CSSFilterUtils} from './utils/CSSFilterUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
 import {AudioAnalyzer} from './modules/analyzer/AudioAnalyzer.mjs';
@@ -38,6 +37,7 @@ import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
+import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 
 
 /**
@@ -81,13 +81,6 @@ export class FastStreamClient extends EventEmitter {
       visChangeAction: VisChangeActions.NOTHING,
       miniSize: 0.25,
       miniPos: MiniplayerPositions.BOTTOM_RIGHT,
-      videoBrightness: 1,
-      videoContrast: 1,
-      videoSaturation: 1,
-      videoGrayscale: 0,
-      videoSepia: 0,
-      videoInvert: 0,
-      videoHueRotate: 0,
       videoZoom: 1,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
@@ -95,7 +88,6 @@ export class FastStreamClient extends EventEmitter {
       videoDelay: 0,
       videoFlip: 0,
       videoRotate: 0,
-      disableVisualFilters: false,
       maximumDownloaders: 6,
       maxPlaybackRate: 8,
     };
@@ -381,17 +373,6 @@ export class FastStreamClient extends EventEmitter {
       this.options.autoplayNext = options.autoplayNext;
     }
 
-    if (sessionStorage) {
-      this.options.disableVisualFilters = sessionStorage.getItem('disableVisualFilters') == 'true';
-    }
-
-    this.options.videoBrightness = options.videoBrightness;
-    this.options.videoContrast = options.videoContrast;
-    this.options.videoSaturation = options.videoSaturation;
-    this.options.videoGrayscale = options.videoGrayscale;
-    this.options.videoSepia = options.videoSepia;
-    this.options.videoInvert = options.videoInvert;
-    this.options.videoHueRotate = options.videoHueRotate;
     this.options.videoZoom = options.videoZoom;
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
@@ -417,7 +398,7 @@ export class FastStreamClient extends EventEmitter {
     // Read by LevelManager at the next pick; what is playing keeps its version.
     this.options.decodingAwareQuality = options.decodingAwareQuality !== false;
 
-    this.updateCSSFilters();
+    this.updateVideoTransform();
 
     if (options.keybinds) {
       this.keybindManager.setKeybinds(options.keybinds);
@@ -443,19 +424,16 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Updates CSS filters and transforms for video elements.
+   * Applies the zoom, flip and rotation to the video elements.
    */
-  updateCSSFilters() {
-    const filterStr = CSSFilterUtils.getFilterString(this.options);
-    const transformStr = CSSFilterUtils.getTransformString(this.options);
+  updateVideoTransform() {
+    const transformStr = VideoTransformUtils.getTransformString(this.options);
 
     if (this.player) {
-      this.player.getVideo().style.filter = filterStr;
       this.player.getVideo().style.transform = transformStr;
     }
 
     if (this.previewPlayer) {
-      this.previewPlayer.getVideo().style.filter = filterStr;
       this.previewPlayer.getVideo().style.transform = transformStr;
     }
   }
@@ -804,7 +782,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.previewPlayer = previewPlayer;
     this.interfaceController.addPreviewVideo(previewPlayer.getVideo());
-    this.updateCSSFilters();
+    this.updateVideoTransform();
   }
 
   initiateWebAudio() {
@@ -974,7 +952,7 @@ export class FastStreamClient extends EventEmitter {
         this.frameExtractor.updateBackground();
       }
 
-      this.updateCSSFilters();
+      this.updateVideoTransform();
 
       this.interfaceController.updateToolVisibility();
 

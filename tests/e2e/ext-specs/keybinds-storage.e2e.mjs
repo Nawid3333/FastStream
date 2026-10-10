@@ -60,7 +60,8 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     expect(options.keybinds.NextChapter).toBeUndefined();
     expect(options.keybinds.PreviousVideo).toBe('Shift+KeyB');
     expect(options.keybinds.RotateVideo).toBe('Shift+KeyR');
-    expect(options.keybinds.ToggleVisualFilters).toBe('Shift+KeyQ');
+    // the video filters' key went with them (2026-10-10): a saved binding of it is dropped
+    expect(options.keybinds.ToggleVisualFilters).toBeUndefined();
     // Not on its old default, so not moved.
     expect(options.keybinds.FlipVideo).toBe('KeyV');
     expect(options.keybinds.SpeedPreset3).toBe('KeyQ');

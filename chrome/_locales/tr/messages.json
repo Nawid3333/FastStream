@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Videoyu çevir/döndür"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Video filtrelerini (parlaklık, kontrast, renkler) aç/kapat"
-    },
     "perms_page_title": {
         "message": "FastStream İzinleri"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Video Gecikmesi"
-    },
-    "options_video_brightness": {
-        "message": "Parlaklık"
-    },
-    "options_video_contrast": {
-        "message": "Kontrast"
-    },
-    "options_video_saturation": {
-        "message": "Doygunluk"
-    },
-    "options_video_grayscale": {
-        "message": "Gri tonlama"
-    },
-    "options_video_sepia": {
-        "message": "Sepya"
-    },
-    "options_video_invert": {
-        "message": "Tersine Çevir"
-    },
-    "options_video_hue": {
-        "message": "Renk Tonu Döndürme"
     },
     "options_general_header": {
         "message": "Genel Seçenekler"

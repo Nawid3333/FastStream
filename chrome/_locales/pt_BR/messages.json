@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Espelhar/girar o vídeo"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Ativar/desativar os filtros de vídeo (brilho, contraste, cores)"
-    },
     "perms_page_title": {
         "message": "Permissões do FastStream"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Atraso de vídeo"
-    },
-    "options_video_brightness": {
-        "message": "Brilho"
-    },
-    "options_video_contrast": {
-        "message": "Contraste"
-    },
-    "options_video_saturation": {
-        "message": "Saturação"
-    },
-    "options_video_grayscale": {
-        "message": "Escala de cinza"
-    },
-    "options_video_sepia": {
-        "message": "Sépia"
-    },
-    "options_video_invert": {
-        "message": "Inverter"
-    },
-    "options_video_hue": {
-        "message": "Rotação de matiz"
     },
     "options_general_header": {
         "message": "Opções gerais"

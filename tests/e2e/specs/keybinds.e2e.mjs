@@ -287,7 +287,7 @@ describe('Keybinds', function() {
     });
     expect(reached).toEqual({
       'Shift+KeyW': ['WindowedFullscreen'], 'Shift+KeyA': [], 'Shift+KeyB': ['PreviousVideo'],
-      'Shift+KeyE': ['FlipVideo'], 'Shift+KeyR': ['RotateVideo'], 'Shift+KeyQ': ['ToggleVisualFilters'],
+      'Shift+KeyE': ['FlipVideo'], 'Shift+KeyR': ['RotateVideo'], 'Shift+KeyQ': [],
       'KeyW': ['SpeedPreset3_5'], 'KeyA': ['SpeedPreset4'], 'KeyB': ['SpeedPreset2_5'],
       'KeyE': ['SpeedPreset8'], 'KeyR': ['SpeedPreset1'], 'KeyQ': ['SpeedPreset3'],
     });
@@ -448,7 +448,8 @@ describe('Keybinds saved before the layout changed', function() {
     expect(map.NextChapter).toBeUndefined();
     expect(map.PreviousVideo).toBe('Shift+KeyB');
     expect(map.RotateVideo).toBe('Shift+KeyR');
-    expect(map.ToggleVisualFilters).toBe('Shift+KeyQ');
+    // the video filters' key went with them (2026-10-10): a saved binding of it is dropped
+    expect(map.ToggleVisualFilters).toBeUndefined();
     // A binding on something other than the old default is not moved.
     expect(map.FlipVideo).toBe('KeyV');
     expect(map.SpeedPreset3).toBe('KeyQ');

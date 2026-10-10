@@ -50,7 +50,6 @@ export const DefaultKeybinds = {
   'ZoomInVideo': 'None',
   'ZoomOutVideo': 'None',
   'ZoomReset': 'None',
-  'ToggleVisualFilters': 'Shift+KeyQ',
   // mpv-style speed presets (user's speed-presets.lua): key sets its speed,
   // pressing the SAME key again reverts to the previously active speed.
   'SpeedPreset1': 'KeyR',

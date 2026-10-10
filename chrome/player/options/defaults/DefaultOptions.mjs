@@ -34,13 +34,6 @@ export const DefaultOptions = {
   // Saved with the options: those saved before carry none, and their maximum size may be a
   // bare number read as bytes (Utils.migrateSizes).
   sizesVersion: 1,
-  videoBrightness: 1,
-  videoContrast: 1,
-  videoSaturation: 1,
-  videoGrayscale: 0,
-  videoSepia: 0,
-  videoInvert: 0,
-  videoHueRotate: 0,
   videoZoom: 1,
   maxSpeed: -1,
   maxVideoSize: 5000000000, // 5GB max size

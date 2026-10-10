@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- 翻转/旋转视频"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- 开启/关闭视频滤镜（亮度、对比度、颜色）"
-    },
     "perms_page_title": {
         "message": "FastStream 权限"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "视频延迟"
-    },
-    "options_video_brightness": {
-        "message": "亮度"
-    },
-    "options_video_contrast": {
-        "message": "对比度"
-    },
-    "options_video_saturation": {
-        "message": "饱和度"
-    },
-    "options_video_grayscale": {
-        "message": "灰度"
-    },
-    "options_video_sepia": {
-        "message": "棕褐色"
-    },
-    "options_video_invert": {
-        "message": "反色"
-    },
-    "options_video_hue": {
-        "message": "色相旋转"
     },
     "options_general_header": {
         "message": "常规选项"

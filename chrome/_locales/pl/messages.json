@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Odbij/obróć wideo"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Włącz/wyłącz filtry wideo (jasność, kontrast, kolory)"
-    },
     "perms_page_title": {
         "message": "Uprawnienia FastStream"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Opóźnienie wideo"
-    },
-    "options_video_brightness": {
-        "message": "Jasność"
-    },
-    "options_video_contrast": {
-        "message": "Kontrast"
-    },
-    "options_video_saturation": {
-        "message": "Nasycenie"
-    },
-    "options_video_grayscale": {
-        "message": "Skala szarości"
-    },
-    "options_video_sepia": {
-        "message": "Sepia"
-    },
-    "options_video_invert": {
-        "message": "Negatyw"
-    },
-    "options_video_hue": {
-        "message": "Obrót odcienia"
     },
     "options_general_header": {
         "message": "Opcje ogólne"

@@ -201,31 +201,31 @@ export class KeybindManager extends EventEmitter {
     this.on('FlipVideo', (e) => {
       const options = this.client.options;
       options.videoFlip = (options.videoFlip + 1) % 4;
-      this.client.updateCSSFilters();
+      this.client.updateVideoTransform();
     });
 
     this.on('RotateVideo', (e) => {
       const options = this.client.options;
       options.videoRotate = (options.videoRotate + 3) % 4;
-      this.client.updateCSSFilters();
+      this.client.updateVideoTransform();
     });
 
     this.on('ZoomInVideo', (e) => {
       const options = this.client.options;
       options.videoZoom = Utils.clamp(options.videoZoom + 0.05, 0, 2);
-      this.client.updateCSSFilters();
+      this.client.updateVideoTransform();
     });
 
     this.on('ZoomOutVideo', (e) => {
       const options = this.client.options;
       options.videoZoom = Utils.clamp(options.videoZoom - 0.05, 0, 2);
-      this.client.updateCSSFilters();
+      this.client.updateVideoTransform();
     });
 
     this.on('ZoomReset', (e) => {
       const options = this.client.options;
       options.videoZoom = 1;
-      this.client.updateCSSFilters();
+      this.client.updateVideoTransform();
     });
 
     this.on('WindowedFullscreen', (e) => {
@@ -246,10 +246,6 @@ export class KeybindManager extends EventEmitter {
 
     this.on('Screenshot', (e) => {
       this.client.interfaceController.saveManager.saveScreenshot(e);
-    });
-
-    this.on('ToggleVisualFilters', (e) => {
-      this.client.interfaceController.toggleVisualFilters();
     });
 
     this.on('PauseDownloaders', (e) => {

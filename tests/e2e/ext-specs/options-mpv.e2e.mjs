@@ -66,7 +66,7 @@ describe('options page: search and export/import cover MPV settings', function()
 
     // A row for an unrelated, single-purpose setting should be hidden by
     // the same query.
-    expect(await isVisibleByDataOption('videoBrightness')).toBe(false);
+    expect(await isVisibleByDataOption('videoDelay')).toBe(false);
 
     // The MPV pause-page and single-instance rows share one
     // .search-target-remove wrapper with the fullscreen row (three labels,

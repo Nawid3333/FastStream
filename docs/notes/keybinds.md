@@ -63,8 +63,9 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   opacity, position; a mutant without `showSpeed` in the preset handler fails it).
 - In that layout (version 2), six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
   PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters. (NextChapter went on 2026-10-10
-  with the chapters, and SkipIntroOutro on S with the intro/outro finder: an old saved binding
-  of either is dropped, as every key the defaults no longer have.)
+  with the chapters, SkipIntroOutro on S with the intro/outro finder, and ToggleVisualFilters
+  on Shift+Q with the video filters: an old saved binding of any of them is dropped, as every
+  key the defaults no longer have.)
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
   field, text area, select or editable element, unless Ctrl, Alt or Meta is held (Right Alt hides
   the player). Ranges, checkboxes and buttons still pass keys through.

@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- отразить/повернуть видео"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- включить/выключить видеофильтры (яркость, контраст, цвета)"
-    },
     "perms_page_title": {
         "message": "Разрешения FastStream"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Задержка видео"
-    },
-    "options_video_brightness": {
-        "message": "Яркость"
-    },
-    "options_video_contrast": {
-        "message": "Контрастность"
-    },
-    "options_video_saturation": {
-        "message": "Насыщенность"
-    },
-    "options_video_grayscale": {
-        "message": "Оттенки серого"
-    },
-    "options_video_sepia": {
-        "message": "Сепия"
-    },
-    "options_video_invert": {
-        "message": "Инвертирование"
-    },
-    "options_video_hue": {
-        "message": "Поворот\nоттенка"
     },
     "options_general_header": {
         "message": "Общие настройки"

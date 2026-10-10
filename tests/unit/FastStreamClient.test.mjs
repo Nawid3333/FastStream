@@ -23,7 +23,7 @@ vi.mock('../../chrome/player/utils/EnvUtils.mjs', () => ({
 }));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key, getLanguageMatchLevel: () => 0}}));
 vi.mock('../../chrome/player/modules/SecureMemory.mjs', () => ({SecureMemory: class {}}));
-vi.mock('../../chrome/player/utils/CSSFilterUtils.mjs', () => ({CSSFilterUtils: {getFilterString: () => '', getTransformString: () => ''}}));
+vi.mock('../../chrome/player/utils/VideoTransformUtils.mjs', () => ({VideoTransformUtils: {getTransformString: () => ''}}));
 vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {mergeOptions: (a) => a}}));
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => ({AudioAnalyzer: class {}}));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => ({PreviewFrameExtractor: class {}}));

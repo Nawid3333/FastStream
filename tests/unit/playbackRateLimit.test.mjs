@@ -25,7 +25,7 @@ vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => stub('InterfaceUti
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => stub('VirtualAudioNode'));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => stub('SyncedAudioPlayer'));
 vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => stub('AlertPolyfill'));
-vi.mock('../../chrome/player/utils/CSSFilterUtils.mjs', () => stub('CSSFilterUtils'));
+vi.mock('../../chrome/player/utils/VideoTransformUtils.mjs', () => stub('VideoTransformUtils'));
 vi.stubGlobal('window', {});
 
 const {FastStreamClient} = await import('../../chrome/player/FastStreamClient.mjs');

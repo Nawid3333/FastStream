@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- 영상 뒤집기/회전"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- 영상 필터(밝기, 대비, 색상) 켜기/끄기"
-    },
     "perms_page_title": {
         "message": "FastStream 권한"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "비디오 지연"
-    },
-    "options_video_brightness": {
-        "message": "밝기"
-    },
-    "options_video_contrast": {
-        "message": "대비"
-    },
-    "options_video_saturation": {
-        "message": "채도"
-    },
-    "options_video_grayscale": {
-        "message": "그레이스케일"
-    },
-    "options_video_sepia": {
-        "message": "세피아"
-    },
-    "options_video_invert": {
-        "message": "반전"
-    },
-    "options_video_hue": {
-        "message": "색상 회전"
     },
     "options_general_header": {
         "message": "일반 옵션"

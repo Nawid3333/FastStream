@@ -163,12 +163,12 @@ describe('Keybinding menu', function() {
   });
 
   it('treats Shift+<key> as a different key from <key>', async function() {
-    await assignKey('Mute', 'KeyQ', {shift: true});
-    expect((await rowState('Mute')).key).toBe('Shift+KeyQ');
-    expect((await rowState('Mute')).shown).toBe('Shift+Q');
-    // Shift+KeyQ is the default of ToggleVisualFilters, so this one does clash.
+    await assignKey('Mute', 'KeyE', {shift: true});
+    expect((await rowState('Mute')).key).toBe('Shift+KeyE');
+    expect((await rowState('Mute')).shown).toBe('Shift+E');
+    // Shift+KeyE is the default of FlipVideo, so this one does clash; KeyE (SpeedPreset8) does not.
     expect((await rowState('Mute')).conflict).toBe(true);
-    expect((await rowState('SpeedPreset3')).conflict).toBe(false);
+    expect((await rowState('SpeedPreset8')).conflict).toBe(false);
   });
 
   // A German (QWERTZ) keyboard: the key labelled Z sends KeyY and types 'z'. Until
@@ -267,7 +267,8 @@ describe('Keybinding menu with options saved before the layout changed', functio
     expect((await rowState('WindowedFullscreen')).key).toBe('Shift+KeyW');
     expect((await rowState('PreviousVideo')).key).toBe('Shift+KeyB');
     expect((await rowState('RotateVideo')).key).toBe('Shift+KeyR');
-    expect((await rowState('ToggleVisualFilters')).key).toBe('Shift+KeyQ');
+    // the video filters' key went with them (2026-10-10): its row and the saved binding are gone
+    expect(await rowState('ToggleVisualFilters')).toBeNull();
     // Not on its old default, so not moved.
     expect((await rowState('FlipVideo')).key).toBe('KeyV');
     expect((await rowState('SpeedPreset3')).key).toBe('KeyQ');

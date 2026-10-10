@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Capovolgi/ruota il video"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Attiva/disattiva i filtri video (luminosità, contrasto, colori)"
-    },
     "perms_page_title": {
         "message": "Autorizzazioni FastStream"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Ritardo Video"
-    },
-    "options_video_brightness": {
-        "message": "Luminosità"
-    },
-    "options_video_contrast": {
-        "message": "Contrasto"
-    },
-    "options_video_saturation": {
-        "message": "Saturazione"
-    },
-    "options_video_grayscale": {
-        "message": "Scala di grigi"
-    },
-    "options_video_sepia": {
-        "message": "Seppia"
-    },
-    "options_video_invert": {
-        "message": "Inverti"
-    },
-    "options_video_hue": {
-        "message": "Rotazione della tonalità"
     },
     "options_general_header": {
         "message": "Opzioni Generali"

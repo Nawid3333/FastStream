@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Balik/putar video"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Nyalakan/matikan filter video (kecerahan, kontras, warna)"
-    },
     "perms_page_title": {
         "message": "Izin FastStream"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "Penundaan Video"
-    },
-    "options_video_brightness": {
-        "message": "Kecerahan"
-    },
-    "options_video_contrast": {
-        "message": "Kontras"
-    },
-    "options_video_saturation": {
-        "message": "Saturasi"
-    },
-    "options_video_grayscale": {
-        "message": "Skala Abu-abu"
-    },
-    "options_video_sepia": {
-        "message": "Sepia"
-    },
-    "options_video_invert": {
-        "message": "Balik Warna"
-    },
-    "options_video_hue": {
-        "message": "Putar Hue"
     },
     "options_general_header": {
         "message": "Opsi Umum"

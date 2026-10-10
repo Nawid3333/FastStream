@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- 動画を反転/回転"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- 動画フィルター (明るさ、コントラスト、色) のオン/オフ"
-    },
     "perms_page_title": {
         "message": "FastStream の権限"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "映像の遅延"
-    },
-    "options_video_brightness": {
-        "message": "明るさ"
-    },
-    "options_video_contrast": {
-        "message": "コントラスト"
-    },
-    "options_video_saturation": {
-        "message": "彩度"
-    },
-    "options_video_grayscale": {
-        "message": "グレースケール"
-    },
-    "options_video_sepia": {
-        "message": "セピア"
-    },
-    "options_video_invert": {
-        "message": "反転"
-    },
-    "options_video_hue": {
-        "message": "色相の回転"
     },
     "options_general_header": {
         "message": "一般設定"

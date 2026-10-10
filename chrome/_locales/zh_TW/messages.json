@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- 翻轉/旋轉影片"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- 開啟/關閉影片濾鏡（亮度、對比、色彩）"
-    },
     "perms_page_title": {
         "message": "FastStream 權限"
     },
@@ -949,27 +946,6 @@
     },
     "options_video_delay": {
         "message": "影片延遲"
-    },
-    "options_video_brightness": {
-        "message": "亮度"
-    },
-    "options_video_contrast": {
-        "message": "對比度"
-    },
-    "options_video_saturation": {
-        "message": "飽和度"
-    },
-    "options_video_grayscale": {
-        "message": "灰階"
-    },
-    "options_video_sepia": {
-        "message": "棕褐色"
-    },
-    "options_video_invert": {
-        "message": "反相"
-    },
-    "options_video_hue": {
-        "message": "色相旋轉"
     },
     "options_general_header": {
         "message": "一般選項"
