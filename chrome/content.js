@@ -57,7 +57,9 @@
   // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
 
-  let resizeDebounce = Date.now();
+  // The resize observers' last update of the players, and the one due after a burst.
+  let resizeDebounce = performance.now();
+  let resizeTrailing = null;
   const Config = {
     softReplaceByDefault: true,
     hasCustomPlaylist: false,
@@ -490,13 +492,7 @@
         }
 
         // Add resize listener
-        pobj.resizeObserver = new ResizeObserver(() => {
-          const now = Date.now();
-          if (now - resizeDebounce > 100) {
-            resizeDebounce = now;
-            updateReplacedPlayers();
-          }
-        });
+        pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
         // An element: a video straight in a shadow root put the player there, with the root
         // as its parent, which a ResizeObserver refuses. The throw left the player without
         // one: it followed the window's size, but not its box on the page.
@@ -1170,6 +1166,27 @@
     }
   }
 
+  /**
+   * Updates the replaced players for a resize: at most every 100 ms, and once more 100 ms
+   * after the last call. The changes skipped inside a burst (a sidebar sliding shut) were
+   * never made up, and the player kept a size from the middle of it; a window being resized
+   * updated them on every event, putting a hard-replaced page video back into the page to
+   * measure it each time.
+   */
+  function updateReplacedPlayersSoon() {
+    clearTimeout(resizeTrailing);
+    const now = performance.now();
+    if (now - resizeDebounce > 100) {
+      resizeDebounce = now;
+      updateReplacedPlayers();
+    } else {
+      resizeTrailing = setTimeout(() => {
+        resizeDebounce = performance.now();
+        updateReplacedPlayers();
+      }, 100);
+    }
+  }
+
   function updateReplacedPlayers(convert = null) {
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.replacedData) {
@@ -1293,8 +1310,9 @@
   }
 
   function pauseOnPlay() {
+    // A call's live stream plays on (playsLiveStream), also one given its stream later.
     // eslint-disable-next-line no-invalid-this
-    this.pause();
+    if (!playsLiveStream(this)) this.pause();
   }
 
   function pauseAllWithin(element) {
@@ -1304,7 +1322,9 @@
     const hooked = new Set();
     const hook = (media) => {
       try {
-        media.pause();
+        // Not a call's live stream: a watch party's voice chat fell silent under a player
+        // over the whole page, as every other pause here already knew (playsLiveStream).
+        if (!playsLiveStream(media)) media.pause();
       } catch (e) {
         console.error(e);
       }
@@ -2004,7 +2024,7 @@
   });
 
   window.addEventListener('resize', () => {
-    updateReplacedPlayers();
+    updateReplacedPlayersSoon();
     resizeMiniPlayers();
   });
 
