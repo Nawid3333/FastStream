@@ -5291,6 +5291,24 @@
         "zh_CN": "脉冲长度",
         "zh_TW": "脈衝長度"
     },
+    "audioconvolver_impulselength_hint": {
+        "en": "In samples: 48000 is 1 second at 48 kHz. Empty: the whole file.",
+        "de": "In Samples: 48000 sind 1 Sekunde bei 48 kHz. Leer: die ganze Datei.",
+        "es": "En muestras: 48000 es 1 segundo a 48 kHz. Vacío: el archivo completo.",
+        "fr": "En échantillons : 48000 correspond à 1 seconde à 48 kHz. Vide : le fichier complet.",
+        "id": "Dalam sampel: 48000 adalah 1 detik pada 48 kHz. Kosong: seluruh berkas.",
+        "it": "In campioni: 48000 è 1 secondo a 48 kHz. Vuoto: l'intero file.",
+        "ja": "サンプル数で指定：48 kHzの場合、48000で1秒です。空欄：ファイル全体を使用。",
+        "ko": "샘플 수: 48 kHz에서 48000은 1초입니다. 비어 있음: 파일 전체 사용.",
+        "ms": "Dalam sampel: 48000 adalah 1 saat pada 48 kHz. Kosong: keseluruhan fail.",
+        "nl": "In samples: 48000 is 1 seconde bij 48 kHz. Leeg: het hele bestand.",
+        "pl": "W próbkach: 48000 to 1 sekunda przy 48 kHz. Puste: cały plik.",
+        "pt_BR": "Em amostras: 48000 é 1 segundo a 48 kHz. Vazio: o arquivo completo.",
+        "ru": "В семплах: 48000 — это 1 секунда при 48 кГц. Пусто: весь файл.",
+        "tr": "Örnek cinsinden: 48 kHz'de 48000 örnek 1 saniyedir. Boş: dosyanın tamamı.",
+        "zh_CN": "以采样数计算：48 kHz 时 48000 为 1 秒。留空：使用整个文件。",
+        "zh_TW": "以取樣數計算：48 kHz 時 48000 為 1 秒。留空：使用整個檔案。"
+    },
     "audioconvolver_impulseresponse": {
         "en": "Impulse Response",
         "de": "Impulsantwort",

@@ -881,6 +881,9 @@
     "audioconvolver_impulselength": {
         "message": "インパルス長"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "サンプル数で指定：48 kHzの場合、48000で1秒です。空欄：ファイル全体を使用。"
+    },
     "audioconvolver_impulseresponse": {
         "message": "インパルス応答"
     },

@@ -881,6 +881,9 @@
     "audioconvolver_impulselength": {
         "message": "İmpuls Uzunluğu"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "Örnek cinsinden: 48 kHz'de 48000 örnek 1 saniyedir. Boş: dosyanın tamamı."
+    },
     "audioconvolver_impulseresponse": {
         "message": "İmpuls Tepkisi"
     },

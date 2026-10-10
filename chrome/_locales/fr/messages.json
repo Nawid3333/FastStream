@@ -881,6 +881,9 @@
     "audioconvolver_impulselength": {
         "message": "Durée de l'impulsion"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "En échantillons : 48000 correspond à 1 seconde à 48 kHz. Vide : le fichier complet."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Réponse impulsionnelle"
     },
