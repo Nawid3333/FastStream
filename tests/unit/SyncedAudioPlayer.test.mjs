@@ -210,6 +210,19 @@ describe('SyncedAudioPlayer', () => {
     expect(current.volume).toBe(1);
   });
 
+  it('gives the kept players a speed changed while the delay was off', async () => {
+    const synced = new SyncedAudioPlayer(makeClient());
+    vi.spyOn(synced, 'resync').mockImplementation(async () => {});
+    await synced.setVideoDelay(300);
+    const players = synced.audioPlayers.slice();
+    expect(players).toHaveLength(2);
+    await synced.setVideoDelay(0);
+    synced.setPlaybackRate(2);
+    await synced.setVideoDelay(300);
+    expect(synced.audioPlayers).toEqual(players);
+    expect(players.map((player) => player.playbackRate)).toEqual([2, 2]);
+  });
+
   it('gives a large drift more than three resyncs', async () => {
     // Tested from the smallest error up, anything over 0.05 s took the first branch.
     const client = makeClient();

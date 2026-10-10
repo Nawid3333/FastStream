@@ -367,10 +367,8 @@ export class SyncedAudioPlayer extends EventEmitter {
   setPlaybackRate(value) {
     this.playbackRate = value;
 
-    if (!this.shouldUseSeparateAudioPlayers() || this.audioPlayers.length < 2) {
-      return;
-    }
-
+    // Also while a delay of 0 keeps them paused: a delay set again reuses them, and they
+    // played at the speed from before, drifting off for good (final review, 2026-10-10).
     this.audioPlayers.forEach((player) => {
       player.playbackRate = value;
     });
