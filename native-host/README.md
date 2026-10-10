@@ -254,8 +254,10 @@ the `.exe` as a child of its own, so the host would raise the wrapper's
 process, which has no window, and mpv stayed behind the browser.
 
 The log: `"debug": true` in `config.json`, or the environment variable
-`FASTSTREAM_MPV_DEBUG=1`, makes the host append every message, the mpv
-command line and the result to `faststream-mpv-host.log` next to itself.
+`FASTSTREAM_MPV_DEBUG=1` (or `true`, `yes`, `on`; anything else, `0` too, is off),
+makes the host append every message, the mpv command line and the result to
+`faststream-mpv-host.log` next to itself. The messages hold the stream and page
+addresses you sent: switch it off again after troubleshooting.
 `config.json` is read on every message, so no restart is needed.
 
 ## Extension-side setup
