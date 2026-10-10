@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Appuyez sur une touche, ou sur Échap pour désactiver"
     },
+    "options_keybinds_none": {
+        "message": "Aucun"
+    },
     "options_keybinds_conflict": {
         "message": "Également utilisé par $1"
     },

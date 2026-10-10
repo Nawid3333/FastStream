@@ -24,7 +24,7 @@ const getStored = () => browser.executeAsync((done) => {
 
 const rowKey = (action) => browser.execute((selector) => {
   const box = document.querySelector(`${selector} .keybind-input`);
-  return box ? box.textContent : null;
+  return box ? box.dataset.key : null;
 }, `.keybind-container[data-keybind="${action}"]`);
 
 // What a profile held before the percent seeks and speed presets, with a binding of the

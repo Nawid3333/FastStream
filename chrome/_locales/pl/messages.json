@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Naciśnij klawisz lub Escape, aby nie ustawiać żadnego"
     },
+    "options_keybinds_none": {
+        "message": "Brak"
+    },
     "options_keybinds_conflict": {
         "message": "Używany także przez $1"
     },

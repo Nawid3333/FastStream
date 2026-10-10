@@ -38,7 +38,9 @@ const rowState = (action) => browser.execute((selector) => {
   const warning = container.querySelector('.keybind-warning');
   return {
     label: container.querySelector('.keybind-name').textContent,
-    key: container.querySelector('.keybind-input').textContent,
+    // The name it is saved under; the box shows the key as pressed (keyDisplayName).
+    key: container.querySelector('.keybind-input').dataset.key,
+    shown: container.querySelector('.keybind-input').textContent,
     conflict: container.classList.contains('keybind-conflict'),
     warning: warning.hidden ? '' : warning.textContent,
   };
@@ -76,7 +78,7 @@ describe('Keybinding menu', function() {
     const shown = await browser.execute(() => {
       const keys = {};
       document.querySelectorAll('.keybind-container').forEach((container) => {
-        keys[container.dataset.keybind] = container.querySelector('.keybind-input').textContent;
+        keys[container.dataset.keybind] = container.querySelector('.keybind-input').dataset.key;
       });
       return keys;
     });
@@ -155,6 +157,7 @@ describe('Keybinding menu', function() {
     }, row('Mute'));
 
     expect((await rowState('Mute')).key).toBe('None');
+    expect((await rowState('Mute')).shown).toBe('None');
     expect(await conflictCount()).toBe(0);
     await waitForSaved((saved) => saved.keybinds.Mute === 'None');
   });
@@ -162,6 +165,7 @@ describe('Keybinding menu', function() {
   it('treats Shift+<key> as a different key from <key>', async function() {
     await assignKey('Mute', 'KeyQ', {shift: true});
     expect((await rowState('Mute')).key).toBe('Shift+KeyQ');
+    expect((await rowState('Mute')).shown).toBe('Shift+Q');
     // Shift+KeyQ is the default of ToggleVisualFilters, so this one does clash.
     expect((await rowState('Mute')).conflict).toBe(true);
     expect((await rowState('SpeedPreset3')).conflict).toBe(false);
@@ -173,11 +177,13 @@ describe('Keybinding menu', function() {
   it('records what a German keyboard types: its Z is KeyZ, its - is Minus', async function() {
     await assignKey('Mute', 'KeyY', {key: 'z'});
     expect((await rowState('Mute')).key).toBe('KeyZ');
+    expect((await rowState('Mute')).shown).toBe('Z');
     // KeyZ is the 60 s seek back's default, KeyY the 5x preset's.
     expect((await rowState('SeekBackward60s')).conflict).toBe(true);
     expect((await rowState('SpeedPreset5')).conflict).toBe(false);
     await assignKey('Mute', 'Slash', {key: '-'});
     expect((await rowState('Mute')).key).toBe('Minus');
+    expect((await rowState('Mute')).shown).toBe('-');
   });
 
   it('restores the defaults, and the clash goes with them', async function() {
@@ -210,9 +216,9 @@ describe('Keybinding menu', function() {
     await browser.pause(300);
     const state = await browser.execute((selector) => {
       const box = document.querySelector(`${selector} .keybind-input`);
-      return {same: box === window.__box, focused: document.activeElement === box, key: box.textContent};
+      return {same: box === window.__box, focused: document.activeElement === box, key: box.dataset.key, shown: box.textContent};
     }, row('Mute'));
-    expect(state).toEqual({same: true, focused: true, key: 'KeyU'});
+    expect(state).toEqual({same: true, focused: true, key: 'KeyU', shown: 'U'});
   });
 
   it('saves the choice with the layout version, and shows it again after a reload', async function() {

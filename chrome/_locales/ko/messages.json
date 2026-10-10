@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "키를 누르세요. 없음으로 하려면 Esc"
     },
+    "options_keybinds_none": {
+        "message": "없음"
+    },
     "options_keybinds_conflict": {
         "message": "$1에서도 사용 중"
     },

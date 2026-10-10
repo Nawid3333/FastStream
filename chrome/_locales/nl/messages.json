@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Druk op een toets, of op Escape voor geen toets"
     },
+    "options_keybinds_none": {
+        "message": "Geen"
+    },
     "options_keybinds_conflict": {
         "message": "Ook gebruikt door $1"
     },

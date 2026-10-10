@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Pulsa una tecla, o Escape para quitar la asignación"
     },
+    "options_keybinds_none": {
+        "message": "Ninguno"
+    },
     "options_keybinds_conflict": {
         "message": "También lo usa $1"
     },

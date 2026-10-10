@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Premi un tasto, o Esc per disattivare"
     },
+    "options_keybinds_none": {
+        "message": "Nessuno"
+    },
     "options_keybinds_conflict": {
         "message": "Usato anche da $1"
     },

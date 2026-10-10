@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "キーを押してください。設定しない場合は Esc キーを押してください。"
     },
+    "options_keybinds_none": {
+        "message": "なし"
+    },
     "options_keybinds_conflict": {
         "message": "$1 でも使用中"
     },

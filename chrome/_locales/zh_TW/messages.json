@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "按任意鍵，按 Escape 則不設定"
     },
+    "options_keybinds_none": {
+        "message": "無"
+    },
     "options_keybinds_conflict": {
         "message": "也被 $1 使用"
     },

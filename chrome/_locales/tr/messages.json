@@ -1193,6 +1193,9 @@
     "options_keybinds_press": {
         "message": "Bir tuşa basın ya da hiçbiri için Escape'e basın"
     },
+    "options_keybinds_none": {
+        "message": "Yok"
+    },
     "options_keybinds_conflict": {
         "message": "Şunun tarafından da kullanılıyor: $1"
     },
