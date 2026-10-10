@@ -66,10 +66,4 @@ describe('theme colours', () => {
         .filter((style) => /(^|;)\s*(background-)?color\s*:(?!\s*var\()/.test(style));
     expect(fixed).toEqual([]);
   });
-
-  it('lets a theme set the mixer\'s "configured" colour', () => {
-    const rule = playerCss.match(/\.mixer_channel_dyn\.configured \{([^}]*)\}/);
-    expect(rule[1]).toContain('var(--mixer-configured-color)');
-    expect(rule[1]).not.toContain('!important');
-  });
 });

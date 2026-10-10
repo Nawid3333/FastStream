@@ -16,7 +16,7 @@ vi.mock('../../chrome/player/modules/analyzer/VideoAnalyzer.mjs', () => stub('Vi
 vi.mock('../../chrome/player/ui/SourcesBrowser.mjs', () => stub('SourcesBrowser'));
 vi.mock('../../chrome/player/players/PlayerLoader.mjs', () => stub('PlayerLoader'));
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {}}));
-vi.mock('../../chrome/player/ui/audio/AudioConfigManager.mjs', () => stub('AudioConfigManager'));
+vi.mock('../../chrome/player/ui/audio/AudioOutput.mjs', () => stub('AudioOutput'));
 vi.mock('../../chrome/player/modules/SecureMemory.mjs', () => stub('SecureMemory'));
 vi.mock('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs', () => stub('AudioAnalyzer'));
 vi.mock('../../chrome/player/modules/analyzer/PreviewFrameExtractor.mjs', () => stub('PreviewFrameExtractor'));
@@ -25,7 +25,7 @@ vi.mock('../../chrome/player/utils/InterfaceUtils.mjs', () => stub('InterfaceUti
 vi.mock('../../chrome/player/ui/audio/VirtualAudioNode.mjs', () => stub('VirtualAudioNode'));
 vi.mock('../../chrome/player/players/SyncedAudioPlayer.mjs', () => stub('SyncedAudioPlayer'));
 vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => stub('AlertPolyfill'));
-vi.mock('../../chrome/player/utils/CSSFilterUtils.mjs', () => stub('CSSFilterUtils'));
+vi.mock('../../chrome/player/utils/VideoTransformUtils.mjs', () => stub('VideoTransformUtils'));
 vi.stubGlobal('window', {});
 
 const {FastStreamClient} = await import('../../chrome/player/FastStreamClient.mjs');

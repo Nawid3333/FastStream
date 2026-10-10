@@ -49,7 +49,6 @@ export const MOVED_IN_VERSION_2 = {
   'PreviousVideo': 'KeyB',
   'FlipVideo': 'KeyE',
   'RotateVideo': 'KeyR',
-  'ToggleVisualFilters': 'KeyQ',
 };
 
 /**

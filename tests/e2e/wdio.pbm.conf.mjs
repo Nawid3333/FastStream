@@ -35,8 +35,8 @@ import {BUILD, config as base, EXTENSION_ID} from './wdio.extension.conf.mjs';
 // BiDi session the other suites use ignores outright. Specs here therefore
 // run under classic: notably, an ArrayBuffer created inside a
 // browser.execute() body is cross-realm there, so anything that hands a
-// buffer to a library that checks `instanceof ArrayBuffer` (ORT, see
-// ext-specs/vad.e2e.mjs) belongs in the BiDi suite, not this one.
+// buffer to a library that checks `instanceof ArrayBuffer` belongs in the BiDi suite,
+// not this one.
 const caps = JSON.parse(JSON.stringify(base.capabilities));
 caps[0]['wdio:enforceWebDriverClassic'] = true;
 caps[0]['moz:firefoxOptions'].prefs['browser.privatebrowsing.autostart'] = true;

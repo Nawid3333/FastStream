@@ -8,7 +8,7 @@
 // only that connect, again on reloadSession(), decides isBidi). There a script runs in a sandbox,
 // so its import() gets a module instance of its own (subtitle-search.e2e.mjs stubbed a
 // RequestUtils the player never used, and saw no request), an ArrayBuffer made in it is
-// from another realm (ORT refuses it: vad.e2e.mjs), and a result with an `error` field
+// from another realm (a library checking instanceof refuses it), and a result with an `error` field
 // reads as a failed command (save-fmp4.e2e.mjs). They failed as flakes.
 //
 // The configs' before hooks call ensureBidi() first, which starts the browser again when

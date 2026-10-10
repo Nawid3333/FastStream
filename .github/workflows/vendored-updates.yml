@@ -2,28 +2,22 @@ name: Vendored updates
 
 # Vendored files no other workflow watches (U1):
 #
-#   chrome/player/modules/vad/silero_vad_half.onnx - snakers4/silero-vad's published
-#     half-precision model, shipped as released and pinned by TAG and SHA256 in
-#     tools/verify-vad.mjs. When a newer release publishes it with other bytes, a pull
-#     request "Vendored model update: silero-vad <tag>" on vendored/silero-vad-<tag>
-#     replaces it and moves the pin, and CI is started on it (this token's push starts
-#     none): the voice detector's reference e2e decides. If the model is not at the path
-#     the pin knows, an issue, "Silero VAD <tag>: the model file moved", instead.
 #   chrome/player/modules/vtt.mjs - dash.js's contrib/videojs-vtt.js/vtt.js with the
 #     changes tools/verify-vtt.mjs re-applies, pinned to a dash.js tag. When the newest
 #     dash.js release changes that file, an issue "vtt.js changed in dash.js <tag>": the
 #     changes may need re-deriving, so a person moves the pin.
 #
-#   The adapted copies of other projects' code in tools/vendored-sources.json (knob.mjs,
-#     StreamSaver.mjs, crosstalk/fft.mjs, vad/vad.mjs; 2026-10-01): when upstream changes the
-#     file one came from after its ref, an issue "Vendored source changed upstream: <name>
-#     (<repo> <commit>)" lists the commits. A copy is adapted, so a person ports what matters
-#     and moves the ref; the issue then closes itself, and a newer upstream change replaces it.
+#   The adapted copies of other projects' code in tools/vendored-sources.json
+#     (StreamSaver.mjs; 2026-10-01; knob.mjs and crosstalk/fft.mjs went with the audio
+#     settings, 2026-10-10): when upstream changes the file one came from after its ref,
+#     an issue "Vendored source changed upstream: <name> (<repo> <commit>)" lists the
+#     commits. A copy is adapted, so a person ports what matters and moves the ref; the
+#     issue then closes itself, and a newer upstream change replaces it.
 #
 # Each is assigned to the owner and @mentions them. A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at
-# its tag or later, and a newer release's item closes the older ones. Nothing merges here:
-# the pull request waits for the owner, as every pull request does.
+# its tag or later, and a newer release's item closes the older ones. (The silero-vad model
+# pull request went with the speech detector, 2026-10-10.)
 
 on:
   schedule:
@@ -37,163 +31,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  model:
-    name: Check snakers4/silero-vad for a new model
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write       # push the vendored/silero-vad-<tag> branch
-      pull-requests: write  # open it, close the ones it replaces
-      issues: write         # the "model file moved" issue; this job's own failure
-      actions: write        # start CI on the branch
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      GH_REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
-      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      UPSTREAM: 'snakers4/silero-vad'
-      MODEL_PATH: 'src/silero_vad/data/silero_vad_half.onnx'
-      VENDORED: 'chrome/player/modules/vad/silero_vad_half.onnx'
-      PREFIX: 'Vendored model update: silero-vad '
-      MOVED_PREFIX: 'Silero VAD '
-      MOVED_SUFFIX: ': the model file moved'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Open a pull request for a new model
-        run: |
-          set -euo pipefail
-          # The token goes to the one git command that needs it; .git/config never holds it.
-          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
-          authgit() { git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" "$@"; }
-          # ge A B: A is B or newer (version order: v6.10 after v6.9).
-          ge() { [ "$1" = "$2" ] || [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$1" ]; }
-
-          pinned_tag=$(sed -n "s/^const TAG = '\(.*\)';\$/\1/p" tools/verify-vad.mjs)
-          pinned_sha=$(sed -n "s/^const SHA256 = '\([0-9a-f]\{64\}\)';\$/\1/p" tools/verify-vad.mjs)
-          if [ -z "$pinned_tag" ] || [ -z "$pinned_sha" ]; then
-            echo "tools/verify-vad.mjs has no TAG or SHA256 line in the form this reads."
-            exit 1
-          fi
-          release=$(gh api "repos/$UPSTREAM/releases/latest")
-          # Another project's data: only a plain version goes into titles, branches and URLs.
-          latest=$(jq -r .tag_name <<< "$release")
-          if ! [[ "$latest" =~ ^v?[0-9]+(\.[0-9]+){0,3}$ ]]; then
-            echo "$UPSTREAM's latest release is tagged '$latest', not a version."
-            exit 1
-          fi
-          release_url="https://github.com/$UPSTREAM/releases/tag/$latest"
-          echo "Pinned: $pinned_tag. Latest release: $latest."
-
-          # This job's items, open or closed: number, state, title.
-          gh api --paginate "repos/$GH_REPO/issues?state=all&per_page=100" \
-            --jq '.[] | select(.user.login == "github-actions[bot]" and ((.title | startswith(env.PREFIX)) or ((.title | startswith(env.MOVED_PREFIX)) and (.title | endswith(env.MOVED_SUFFIX))))) | [.number, .state, (.pull_request != null), .title] | @tsv' \
-            > "$RUNNER_TEMP/mine.tsv"
-
-          # Closes each open item whose release the pin has reached, and, once one for the
-          # latest release exists ($1), every older one.
-          close_pass() {
-            while IFS=$'\t' read -r number state is_pr title; do
-              [ "$state" = open ] || continue
-              tag=${title#"$PREFIX"}
-              tag=${tag#"$MOVED_PREFIX"}
-              tag=${tag%"$MOVED_SUFFIX"}
-              if ge "$pinned_tag" "$tag"; then
-                why="tools/verify-vad.mjs pins silero-vad $pinned_tag now."
-              elif [ -n "${1-}" ] && [ "$tag" != "$latest" ]; then
-                why="silero-vad $latest is out: $1 replaces this one."
-              else
-                continue
-              fi
-              if [ "$is_pr" = true ]; then
-                gh pr close "$number" --delete-branch --comment "$why"
-              else
-                gh issue close "$number" --comment "$why"
-              fi
-              echo "Closed #$number ($title)"
-            done < "$RUNNER_TEMP/mine.tsv"
-          }
-
-          if [ "$latest" = "$pinned_tag" ] || ! ge "$latest" "$pinned_tag"; then
-            echo "Nothing newer than the pin."
-            close_pass
-            exit 0
-          fi
-          pr_title="$PREFIX$latest"
-          moved_title="$MOVED_PREFIX$latest$MOVED_SUFFIX"
-          if awk -F '\t' -v a="$pr_title" -v b="$moved_title" '$4 == a || $4 == b {found = 1} END {exit !found}' "$RUNNER_TEMP/mine.tsv"; then
-            echo "silero-vad $latest was raised before."
-            close_pass "the $latest item"
-            exit 0
-          fi
-
-          code=$(curl -sS --max-time 120 -o "$RUNNER_TEMP/model.onnx" -w '%{http_code}' \
-            "https://raw.githubusercontent.com/$UPSTREAM/$latest/$MODEL_PATH")
-          if [ "$code" = 404 ]; then
-            # shellcheck disable=SC2016 # backticks are Markdown
-            printf '@%s silero-vad %s is out (%s), but `%s` is not there at that tag: the model the extension ships (`%s`, pinned in `tools/verify-vad.mjs`) moved or is gone. Find where the release puts the half-precision model, replace the file and the TAG and SHA256 lines, and run `pnpm run verify:vad`. This issue closes itself once the pin is at %s or later; closing it skips %s.\n' \
-              "$OWNER" "$latest" "$release_url" "$MODEL_PATH" "$VENDORED" "$latest" "$latest" > "$RUNNER_TEMP/body.md"
-            url=$(gh issue create --title "$moved_title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
-            echo "Opened $url"
-            close_pass "$url"
-            exit 0
-          fi
-          if [ "$code" != 200 ]; then
-            echo "The model at $latest answered HTTP $code."
-            exit 1
-          fi
-          new_sha=$(sha256sum "$RUNNER_TEMP/model.onnx" | cut -d' ' -f1)
-          if [ "$new_sha" = "$pinned_sha" ]; then
-            echo "silero-vad $latest publishes the same model, byte for byte: nothing to do."
-            close_pass
-            exit 0
-          fi
-
-          branch="vendored/silero-vad-$latest"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git checkout -q -B "$branch"
-          cp "$RUNNER_TEMP/model.onnx" "$VENDORED"
-          sed -i -e "s/^const TAG = '$pinned_tag';\$/const TAG = '$latest';/" \
-            -e "s/^const SHA256 = '$pinned_sha';\$/const SHA256 = '$new_sha';/" tools/verify-vad.mjs
-          grep -qxF "const TAG = '$latest';" tools/verify-vad.mjs
-          grep -qxF "const SHA256 = '$new_sha';" tools/verify-vad.mjs
-          git add -- "$VENDORED" tools/verify-vad.mjs
-          git commit -q -m "deps(vad): silero-vad $latest's model (was $pinned_tag)"
-          authgit push -q -f origin "$branch"
-
-          # shellcheck disable=SC2016 # backticks are Markdown
-          printf '@%s silero-vad %s is out (%s) and publishes the voice detector'"'"'s model with other bytes. This replaces `%s` with it and moves TAG and SHA256 in `tools/verify-vad.mjs` (was %s).\n\nCI runs on this branch: the voice detector'"'"'s reference e2e decides whether the new model still scores the fixed signal as the reference runtime did. Merge it when green; close it to skip %s.\n' \
-            "$OWNER" "$latest" "$release_url" "$VENDORED" "$pinned_tag" "$latest" > "$RUNNER_TEMP/body.md"
-          url=$(gh pr create --base main --head "$branch" --title "$pr_title" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md")
-          echo "Opened $url"
-          # This token's push starts no workflow; a dispatch does.
-          gh workflow run ci.yml --ref "$branch"
-          close_pass "$url"
-
-      # A failed run of this workflow is emailed only to whoever started it (for the schedule,
-      # whoever last changed the cron line): one issue while it is open, assigned and
-      # @mentioning the owner, as toolchain-updates.yml does. A failure while it is open adds a
-      # comment to it.
-      - name: Report the model job's own failure
-        if: failure()
-        env:
-          TITLE: 'Vendored updates workflow failed (model)'
-        run: |
-          set -euo pipefail
-          number=$(gh issue list --state open --limit 200 --json number,title \
-            --jq '[.[] | select(.title == env.TITLE)][0].number // empty') || number=''
-          if [ -n "$number" ]; then
-            printf '@%s Failed again: %s\n' "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/comment.md"
-            gh issue comment "$number" --body-file "$RUNNER_TEMP/comment.md"
-            exit 0
-          fi
-          printf '@%s vendored-updates.yml failed: %s\n\nThe run log names the failed command. Close this issue once it is fixed; a later failure opens a new one.\n' \
-            "$OWNER" "$RUN_URL" > "$RUNNER_TEMP/body.md"
-          gh issue create --title "$TITLE" --assignee "$OWNER" --body-file "$RUNNER_TEMP/body.md"
-
   vtt:
     name: Check dash.js for a changed vtt.js
     runs-on: ubuntu-latest

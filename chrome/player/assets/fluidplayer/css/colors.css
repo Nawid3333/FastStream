@@ -56,7 +56,6 @@ body[data-theme="default"] {
   --timeline-cue-text-color: black;
   --timeline-tick-color: rgba(255, 255, 255, 0.8);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.9);
-  --timeline-vad-line-color: white;
   --subtitle-tool-color: white;
   --linkui-toggle-color: #f2c94c;
   --soundwave-toggle-color: rgb(4, 217, 255);
@@ -82,11 +81,8 @@ body[data-theme="default"] {
   --volume-control-unity-volume-color: rgb(192, 192, 192);
   --tooltip-background-color: rgb(200, 200, 200);
   --tooltip-text-color: black;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   /* New: link color used by embedded options */
   --link-color: #4da3ff;
-  /* The mixer's buttons are dark grey in every theme, so its "configured" green stays. */
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -162,7 +158,6 @@ body[data-theme="contrast"] {
   --timeline-cue-text-color: #000000;
   --timeline-tick-color: rgba(255, 255, 255, 0.95);
   --timeline-tick-label-color: rgba(255, 255, 255, 1);
-  --timeline-vad-line-color: #ffffff;
 
   --subtitle-tool-color: #ffffff;
   --linkui-toggle-color: #ffeb3b;
@@ -197,9 +192,7 @@ body[data-theme="contrast"] {
 
   --tooltip-background-color: #ffffff;
   --tooltip-text-color: #000000;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.9);
   --link-color: #ffeb3b;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -274,7 +267,6 @@ body[data-theme="arctic"] {
   --timeline-cue-text-color: #0b1320;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #0b1320;
 
   --subtitle-tool-color: #0b1320;
   --linkui-toggle-color: #0a84ff;
@@ -309,9 +301,7 @@ body[data-theme="arctic"] {
 
   --tooltip-background-color: #141414;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #0a84ff;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: #cc3344;
   --initial-play-background-color: #0b1320;
 }
@@ -386,7 +376,6 @@ body[data-theme="ocean"] {
   --timeline-cue-text-color: #0b1220;
   --timeline-tick-color: rgba(255, 255, 255, 0.8);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.9);
-  --timeline-vad-line-color: #e6f7ff;
 
   --subtitle-tool-color: #e6f7ff;
   --linkui-toggle-color: #19b7ff;
@@ -421,9 +410,7 @@ body[data-theme="ocean"] {
 
   --tooltip-background-color: #e0f0ff;
   --tooltip-text-color: #001421;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.85);
   --link-color: #19b7ff;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -498,7 +485,6 @@ body[data-theme="neon"] {
   --timeline-cue-text-color: #0a0a0f;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #ffffff;
 
   --subtitle-tool-color: #ffffff;
   --linkui-toggle-color: #ff2bd6;
@@ -533,9 +519,7 @@ body[data-theme="neon"] {
 
   --tooltip-background-color: #191926;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #00f0ff;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -610,7 +594,6 @@ body[data-theme="sunset"] {
   --timeline-cue-text-color: #231514;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #231514;
 
   --subtitle-tool-color: #231514;
   --linkui-toggle-color: #ff6f61;
@@ -645,9 +628,7 @@ body[data-theme="sunset"] {
 
   --tooltip-background-color: #141414;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #ff6f61;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: #cc3344;
   --initial-play-background-color: #231514;
 }
@@ -722,7 +703,6 @@ body[data-theme="forest"] {
   --timeline-cue-text-color: #0f1a14;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #eaffea;
 
   --subtitle-tool-color: #eaffea;
   --linkui-toggle-color: #2ecc71;
@@ -757,9 +737,7 @@ body[data-theme="forest"] {
 
   --tooltip-background-color: #eaffea;
   --tooltip-text-color: #06140e;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.85);
   --link-color: #2ecc71;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -834,7 +812,6 @@ body[data-theme="slate"] {
   --timeline-cue-text-color: #111418;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #e6f0ff;
 
   --subtitle-tool-color: #e6e9ed;
   --linkui-toggle-color: #4da3ff;
@@ -869,9 +846,7 @@ body[data-theme="slate"] {
 
   --tooltip-background-color: #1a1e24;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #4da3ff;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -946,7 +921,6 @@ body[data-theme="amethyst"] {
   --timeline-cue-text-color: #120f1b;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #f5f0ff;
 
   --subtitle-tool-color: #f5f0ff;
   --linkui-toggle-color: #a78bfa;
@@ -981,9 +955,7 @@ body[data-theme="amethyst"] {
 
   --tooltip-background-color: #1d1528;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(255, 255, 255, 0.75);
   --link-color: #a78bfa;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: rgb(255, 100, 100);
   --initial-play-background-color: rgb(51, 51, 51);
 }
@@ -1058,7 +1030,6 @@ body[data-theme="desert"] {
   --timeline-cue-text-color: #2b1f11;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #2b1f11;
 
   --subtitle-tool-color: #2b1f11;
   --linkui-toggle-color: #c0843d;
@@ -1093,9 +1064,7 @@ body[data-theme="desert"] {
 
   --tooltip-background-color: #141414;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #c0843d;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: #cc3344;
   --initial-play-background-color: #2b1f11;
 }
@@ -1170,7 +1139,6 @@ body[data-theme="mint"] {
   --timeline-cue-text-color: #0a221d;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #0a221d;
 
   --subtitle-tool-color: #0a221d;
   --linkui-toggle-color: #00bfa5;
@@ -1205,9 +1173,7 @@ body[data-theme="mint"] {
 
   --tooltip-background-color: #141414;
   --tooltip-text-color: #ffffff;
-  --eq-tooltip-background-color: rgba(0, 0, 0, 0.75);
   --link-color: #00bfa5;
-  --mixer-configured-color: rgba(80, 255, 80, 0.9);
   --mute-icon-color: #cc3344;
   --initial-play-background-color: #0a221d;
 }

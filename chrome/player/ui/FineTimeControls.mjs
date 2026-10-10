@@ -14,7 +14,6 @@ export class FineTimeControls extends EventEmitter {
     this.resetAudioHandle = this.resetAudio.bind(this);
 
     this.renderFrames = false;
-    this.renderVAD = false;
     this.renderVolume = true;
     this.audioSilenceThreshold = null;
     this.audioSilencePaddingStart = 0;
@@ -225,7 +224,6 @@ export class FineTimeControls extends EventEmitter {
     this.resetAudio();
     this.ui.timelineImages.replaceChildren();
     this.ui.timelineImages.appendChild(this.currentFrameCanvas);
-    this.vadLineColor = window.getComputedStyle(document.body).getPropertyValue('--timeline-vad-line-color');
   }
 
   resetAudio() {
@@ -239,7 +237,6 @@ export class FineTimeControls extends EventEmitter {
     this.started = true;
     this.reset();
 
-    this.client.audioAnalyzer.on('vad', this.analyzerHandle);
     this.client.audioAnalyzer.on('volume', this.analyzerHandle);
     this.client.audioAnalyzer.on('audioLevelChanged', this.resetAudioHandle);
     this.client.audioAnalyzer.addVolumeDependent(this);
@@ -257,7 +254,6 @@ export class FineTimeControls extends EventEmitter {
 
     this.client.audioAnalyzer.removeVolumeDependent(this);
     this.client.audioAnalyzer.removeBackgroundDependent(this);
-    this.client.audioAnalyzer.off('vad', this.analyzerHandle);
     this.client.audioAnalyzer.off('volume', this.analyzerHandle);
     this.client.audioAnalyzer.off('audioLevelChanged', this.resetAudioHandle);
 
@@ -440,7 +436,6 @@ export class FineTimeControls extends EventEmitter {
 
     const audioAnalyzer = this.client.audioAnalyzer;
     const outputRate = audioAnalyzer.getOutputRate();
-    const vadBuffer = audioAnalyzer.getVadData();
     const volumeBuffer = audioAnalyzer.getVolumeData();
     const startFrame = Math.floor(minCanvIndex * 10 * outputRate);
     const endFrame = Math.floor(maxCanvIndex * 10 * outputRate);
@@ -521,19 +516,6 @@ export class FineTimeControls extends EventEmitter {
           context.fillRect((i - startFrame2) / (10 * outputRate) * el.element.width, Math.floor((0.5 - volumeVal / 2) * el.element.height), Math.floor(barWidth / 2), Math.ceil(volumeVal * el.element.height));
         }
       }
-
-      if (this.renderVAD) {
-      // Draw VAD line using buffer
-        context.beginPath();
-        context.strokeStyle = this.vadLineColor;
-        let vadVal = (startFrame2 > 0) ? (vadBuffer[startFrame2 - 1] || 0) : 0;
-        context.moveTo(0, (1 - vadVal / 255) * el.element.height);
-        for (let i = startFrame2; i < endFrame2; i++) {
-          vadVal = (vadBuffer[i] || 0);
-          context.lineTo((i - startFrame2 + 1) / (10 * outputRate) * el.element.width, (1 - vadVal / 255) * el.element.height);
-        }
-        context.stroke();
-      }
     });
   }
 
@@ -589,17 +571,6 @@ export class FineTimeControls extends EventEmitter {
   shouldRenderVolume(value) {
     if (this.renderVolume === value) return;
     this.renderVolume = value;
-    this.resetAudio();
-  }
-
-  shouldRenderVAD(value) {
-    if (this.renderVAD === value) return;
-    this.renderVAD = value;
-    if (value) {
-      this.client.audioAnalyzer.addVadDependent(this);
-    } else {
-      this.client.audioAnalyzer.removeVadDependent(this);
-    }
     this.resetAudio();
   }
 

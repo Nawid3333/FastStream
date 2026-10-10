@@ -208,7 +208,8 @@ describe('Utils.getOptionsFromStorage', () => {
 
     expect(keybindsVersion).toBe(KEYBINDS_VERSION);
     expect(keybinds.WindowedFullscreen).toBe('Shift+KeyW');
-    expect(keybinds.ToggleVisualFilters).toBe('Shift+KeyQ');
+    // the video filters' key went with them (2026-10-10): a saved binding of it is dropped
+    expect(keybinds.ToggleVisualFilters).toBeUndefined();
     expect(keybinds.PlayPause).toBe('KeyK');
     expect(keybinds.SpeedPreset3).toBe('KeyQ');
     expect(keybinds.SeekPercent50).toBe('Digit5');

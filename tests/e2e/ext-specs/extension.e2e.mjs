@@ -35,11 +35,11 @@ describe('the installed extension', function() {
     expect(result.nodes).toBeGreaterThan(20);
   });
 
-  it('compiles WebAssembly under the extension CSP', async function() {
-    // The manifest allows 'wasm-unsafe-eval'. If that were ever dropped, or
-    // Firefox tightened what it means, every wasm feature in the extension
-    // would break - and no http-based test could tell, because the CSP does
-    // not apply there. This compiles the smallest valid module there is.
+  it('refuses WebAssembly under the extension CSP', async function() {
+    // The manifest allowed 'wasm-unsafe-eval' for ONNX Runtime, the speech detector's
+    // engine. Both went on 2026-10-10, and the extension pages' CSP is script-src 'self'
+    // only: nothing on them may compile WebAssembly any more. No http-based test can see
+    // this, because the CSP does not apply there. This tries the smallest valid module.
     await openExtensionPage('/player/index.html');
     const result = await runInPage(async () => {
       const empty = new Uint8Array([
@@ -54,12 +54,13 @@ describe('the installed extension', function() {
     });
 
     console.log('      wasm:', JSON.stringify(result));
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/CompileError|Content Security Policy|wasm-unsafe-eval/i);
   });
 
   it('runs the remuxer\'s modules under the extension\'s CSP', async function() {
     // The module suite runs the remuxer over http, where the manifest's
-    // content_security_policy (script-src 'self' 'wasm-unsafe-eval': no eval, no blob:
+    // content_security_policy (script-src 'self': no eval, no WebAssembly, no blob:
     // workers) is not enforced. Mediabunny is a 1.5 MB bundle: this loads it from the
     // extension origin, as a save does, and has it write a file.
     await openExtensionPage('/player/index.html');

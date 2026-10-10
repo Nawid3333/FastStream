@@ -90,7 +90,7 @@ original developers" is accurate.
   against a live stream (`readyState` reaches 4, `currentTime` advances, no
   `error`), alongside the DASH and MP4 paths in the same spec.
 - `pnpm run test:ext` — extension-loaded checks (WASM under extension CSP,
-  no YouTube surface, VAD/ONNX Runtime) unaffected.
+  no YouTube surface, VAD/ONNX Runtime, both gone since) unaffected.
 
 ## Recommended approach: `pnpm patch`, not wrappers
 
@@ -347,7 +347,7 @@ what can actually change behaviour.
 | vtt.js | dash.js contrib | **proven** - AST-identical to dash.js's bundle plus 8 changes | **verified** |
 | mp4box | 2.4.1 | 5 KB patch: `samples_stored` and `getSampleList`, both FastStream's additions | **migrated; 2.4.1 since 2026-09-25** |
 | libsamplerate-js | none published | - | **removed 2026-09-30** with the re-encoder |
-| knob | `jherrm/knobs@b8a39650` | **verified** - `pnpm run verify:knob` | **verified** |
+| knob | `jherrm/knobs@b8a39650` | was verified by `pnpm run verify:knob` | **removed 2026-10-10** with the audio settings window |
 
 `eventemitter.mjs` is **not** a vendored library - it is FastStream's own
 code and should stay in git.
@@ -499,132 +499,15 @@ Mediabunny above). Its story (a wasm filename that never matched, so it had neve
 worked in any build; `tools/reproduce-libsamplerate-wasm.sh`, which rebuilt it from
 upstream source) is in git history before that date.
 
-### The VAD blobs: the model is published, the runtime is stock
+### The VAD blobs: removed
 
-`vad/` holds the Silero VAD model and the ONNX Runtime files that run it,
-behind subtitle syncing. The model is committed to git; the three
-onnxruntime-web files are generated at sync time and gitignored:
-
-| File | Size | Status |
-|---|---|---|
-| `silero_vad_half.onnx` | 1,280,395 B | **committed** - `pnpm run verify:vad` hashes it against silero-vad v6.2.1 |
-| `ort.wasm.mjs` | 139,505 B | **generated** - the onnxruntime-web 1.30.0 loader, inline source map stripped |
-| `ort-wasm-simd-threaded.mjs` | 24,381 B | **generated** - the same release's emscripten glue, untouched |
-| `ort-wasm-simd-threaded.wasm` | 14,239,897 B | **generated** - the same release's wasm, untouched |
-
-**The model.** `silero_vad_half.onnx` is byte-for-byte the file
-snakers4/silero-vad publishes at tag v6.2.1
-(`src/silero_vad/data/silero_vad_half.onnx`), sha256
-`1e0b195ad4806595ef4466f419d16fca7e4afcfc6669b8c0b5f76ea87547c769`.
-`pnpm run verify:vad` (`tools/verify-vad.mjs`) hashes the file in the tree
-and the file fetched from that tag and fails unless both equal the recorded
-sha256. It was watched failing: one flipped byte in the tree file, exit 1.
-The old byte-overlap measurement - how much of the published `.onnx`
-survived conversion into the vendored `.ort` (96.60%) - is gone with the
-`.ort`.
-
-**The runtime.** `tools/sync-vendor.mjs` copies all three files from
-`node_modules/onnxruntime-web/dist/` exactly as onnxruntime-web 1.30.0
-publishes them; the only edit anywhere is stripping the loader's inline
-source map, so a reviewer can install `onnxruntime-web@1.30.0` and diff all
-three. The extension page is not cross-origin isolated, so ONNX Runtime runs
-single-threaded (`numThreads 1`): no proxy worker, no `blob:` URL, no
-`Worker`. The loader imports the glue beside itself (`importWasmModule`, a
-dynamic `import(url)` of the glue's moz-extension URL), and the glue fetches
-the wasm beside itself (`new URL('ort-wasm-simd-threaded.wasm',
-import.meta.url)`), which is why the three files sit together in `vad/`.
-
-The linter still reports 0 errors, 0 notices and the same 3 warnings.
-`ort.wasm.mjs`'s one `UNSAFE_VAR_ASSIGNMENT` (`await import(url)`,
-`webpackIgnore`d) is generated onnxruntime-web code as before -
-`dynamicImportDefault`, now at line 1440 (1599 in the 1.20.0 file): `async
-(url) => (await import(/* webpackIgnore */ url)).default`, which in 1.30
-loads the glue module. The `blob:` preload path beside it is taken only when
-the runtime is multi-threaded and the glue sits on another origin; in the
-extension it runs single-threaded, from its own origin.
-`docs/amo-linter-warnings.md` has the full note.
-
-**Why stock.** A reduced build has no published counterpart: nothing to diff
-against, and a custom runtime pins the loader to whatever release was
-current when it was built. That is what #23 showed: Dependabot's group PR
-took onnxruntime-web 1.30.0 on 2026-09-25 and the 1.30 loader driving the
-1.20-era custom runtime failed in `checkLastError` on both Linux and
-Windows, so `.github/dependabot.yml` ignored onnxruntime-web from then on.
-Stock files move together - loader, glue and wasm from the same release -
-and onnxruntime-web is in the `shipped-minor-and-patch` Dependabot group
-(weekly, 5-day cooldown; majors get their own PR). `update-prs.yml` hands a
-PR that changes the built extension to the owner instead of merging it, and
-CI runs the reference check below on it first. The cost is size: the
-stock wasm is 14.2 MB (3.66 MB deflated) and the built xpi grows from
-4.41 MB to 7.45 MB.
-
-**The reference test.** `tests/e2e/ext-specs/vad.e2e.mjs` runs the runtime in
-the installed extension, on the extension origin under its real CSP - the
-only place it executes; the VAD is reached only from `AudioAnalyzerNode`,
-behind subtitle syncing. It scores a fixed 600-frame signal (six kinds x 100
-frames: silence, noise, sweep, tremolo+noise, harmonic buzz, loud noise;
-seeded) through `VadJS.createModel()`, the same entry `AudioNodeVAD` uses,
-and compares with `tests/e2e/vad-reference.json`. The test asserts a max
-difference <= 1e-4 and that no frame crosses the 0.5 speech threshold
-differently from the reference. Until 2026-10-03 the file held 600 scores
-recorded in Firefox from the old custom runtime, 105 of the 600 frames
-speech. Since `vad.mjs` gives the model the previous frame's last 64 samples
-with each frame (ricky0123/vad aa048997, issue #127), it holds the scores of
-that path on onnxruntime-web 1.30.0 in Node, 112 frames speech: on the same
-runtime Node gave the old Firefox scores to within 3.4e-6, with no decision
-changed.
-
-Old runtime vs 1.30.0, measured in Firefox 156 on Windows (old: 3 runs;
-1.30.0: 10 runs, each with the same scores):
-
-| | old custom runtime | onnxruntime-web 1.30.0 |
-|---|---|---|
-| largest score difference from the old runtime | - | 3.4e-6 |
-| decisions changed | - | 0 |
-| model load | 16-25 ms | 85-112 ms |
-| per 512-sample frame | 0.257-0.275 ms | 0.248-0.348 ms |
-
-Firefox and Node, on the same 1.30 binary, differ by at most 2.4e-7. Three
-mutations, each caught: the full-precision model instead of the half one
-("input 'sr' is missing"); the old glue+wasm under the new loader
-("wasm2.getValue is not a function", the failure #23 hit); every score
-multiplied by 1.001 (difference 0.00096, over the 1e-4 bound).
-
-**History.** Until 2026-09-30 the wasm and glue were a custom reduced build
-of onnxruntime main at `5c74539ab7` (2024-09-03; MinSizeRel,
-`--minimal_build`, ORT format only), which is why the model beside it had to
-be `silero_vad_half.ort` (1,856,120 B): a reduced runtime loads ORT format
-only, and snakers4/silero-vad publishes no `.ort`, so FastStream converted
-the published `.onnx` itself. The loader was generated from
-onnxruntime-web 1.20.0. `pnpm run verify:ort` read the binary's build
-stamp, `tools/reproduce-ort-wasm.sh` rebuilt it from that commit (the same
-scores on the real model, at four times the size: the operator list it had
-been cut down to could not be recovered), and CI ran an "ONNX Runtime
-provenance" step. All of it left the tree on 2026-09-30: the custom wasm and
-glue, the `.ort`, `tools/verify-ort.mjs`, `tools/reproduce-ort-wasm.sh`, the
-`verify:ort` script and its CI step.
-
-**The glue's own upstream.** `vad/vad.mjs` derives from ricky0123/vad-web:
-the `Silero` and `FrameProcessor` classes, `modelFetcher`,
-`frameSamples: 512`, `positiveSpeechThreshold: 0.5` and `redemptionFrames: 8`
-are all that project's. It ships `.onnx` too, never `.ort` - and so does
-FastStream now: the model in the tree is the `.onnx` exactly as
-snakers4/silero-vad publishes it, hash-checked by `pnpm run verify:vad`.
-
-It cannot be pinned to a release, and after trying, it should not be. vad-web
-publishes a webpack bundle plus per-module CommonJS files; the vendored file
-is neither. It is a 286-line ES module that keeps the three classes it needs
-and drops the microphone capture, the worklet plumbing and the packaging that
-make up most of the original. Declaration matching finds no shared top-level
-declarations with any of 0.0.19, 0.0.20, 0.0.22 or 0.0.24 - not because the
-lineage is in doubt but because the file was restructured rather than copied.
-
-That puts it in a different category from the binaries above, and a better
-one. It is unminified, readable JavaScript a reviewer can simply read - 286
-lines with no build step between the source and what ships. The risk that
-motivated this whole document is code nobody can check; this is code anybody
-can. Recording where it came from is the right treatment, and generating it
-is not available.
+The speech detector went on 2026-10-10 (his decision), and `vad/` with it: the Silero
+VAD model (`silero_vad_half.onnx`, byte-for-byte snakers4/silero-vad v6.2.1, checked by
+`verify:vad`), the stock onnxruntime-web 1.30.0 files that ran it, and `vad.mjs`, the
+glue adapted from ricky0123/vad-web. The manifest's CSP lost `'wasm-unsafe-eval'`, which
+only ONNX Runtime needed. Their story (the hand-built reduced runtime and its `.ort`
+model before 2026-09-30, the reference test `ext-specs/vad.e2e.mjs`) is in git history
+before that date.
 
 ### vtt.js: provenance proven, and re-checkable on demand
 
@@ -969,8 +852,8 @@ low-risk. First, `getTemplateParams` bails to `{}` before ever reaching it
 unless `params.template` is set, and grepping the whole codebase for
 `swal-function-param` or any `<template>`-based Swal config turns up
 nothing - FastStream always calls the plain JS options API. Second, even if
-that were wrong, `build_firefox_amo/manifest.json`'s CSP is `script-src
-'self' 'wasm-unsafe-eval'` - no `'unsafe-eval'` - so `new Function(...)`
+that were wrong, `build_firefox_amo/manifest.json`'s CSP was `script-src
+'self' 'wasm-unsafe-eval'` (`script-src 'self'` since 2026-10-10) - no `'unsafe-eval'` - so `new Function(...)`
 would throw a CSP violation the instant it executed, in this extension,
 regardless of caller.
 
@@ -1149,10 +1032,10 @@ its diff looks additive - only the end-to-end suite settles it. And a
 comparison tool that reports a small number is not the same as a small
 difference: check that the tool can see the shape of the file it is reading.
 
-## The two that stay vendored
+## The one that stays vendored
 
-vtt.js and knob total 116 KB. Neither can be generated from a published
-artifact, and each for a different reason. Documenting their provenance
+vtt.js, 88 KB (knob, 28 KB, was the second until the audio settings went on
+2026-10-10). It cannot be generated from a published artifact. Documenting their provenance
 precisely is what a reviewer actually needs; adding a bundler to the build to
 produce them from pinned commits would replace one unverifiable artifact with
 another, since the reviewer would then have to trust our build pipeline
@@ -1177,66 +1060,19 @@ v4.7.4 through v5.1.0, plus eight changes and an export line.
 
 Imported by `SubtitleTrack.mjs` and `ui/subtitles/SubtitlesManager.mjs`.
 
-### knob — 28 KB, verified on demand
+### knob — removed 2026-10-10
 
-Base pinned: **jherrm/knobs `Knob.js` at `b8a39650`** (2022-11-08, "Modernize the
-vintage javascript"), the repository's head. Until 2026-10-03 the pin was `cf2db70f`
-(2012-05-16), which `tools/find-base.mjs --commits` picked by line count: the head is
-a third larger, but only because its constructor reads options from an `<input>`'s
-attributes, which the copy leaves out. Compared by parsed declarations, the copy is
-the 2022 head: it has the scroll gesture, `angleScrollRatio`, `gestureScrollEnabled`,
-the `change` event and const/let, all upstream commits made after 2012. Against
-`cf2db70f` those upstream commits read as ten FastStream changes, and
-`vendored-updates.yml` raised them as 16 upstream changes to port (#126): there was
-nothing to port.
-
-It cannot be generated - the repository has **no `package.json`**, so no
-package manager can install it, and there is no npm release to pin. So it is
-verified instead, the same way vtt.js is. `pnpm run verify:knob` fetches
-`Knob.js` at that commit and compares parsed declarations:
-
-```
-top-level identical    10 of 13
-top-level ours only    Knob            (upstream keeps it inside an IIFE)
-top-level theirs only  parseBool, parseDirection   (the <input> attribute parsing)
-top-level differing    members
-members identical      39 of 41
-members changed        val, __angleFromValue
-```
-
-Every one of those differences is in the list below, and the script fails if a
-single one appears that is not - it does not check a count, it checks the
-exact sets.
-
-The npm package named `knob` is `mmckegg/knob`, an unrelated canvas widget,
-and jherrm/knobs is not published to npm at all.
-
-Almost all of the text diff is this project's eslint autofix. The real changes:
-
-- the IIFE wrapper is removed and `Knob` is exported
-- the constructor takes the element and the callback and keeps the default options:
-  the `<input>` attribute parsing (`parseBool`, `parseDirection`), the options loop,
-  the `valueMin < valueMax` check and the initial `val()` are dropped with it, since
-  FastStream passes a `<div>` and sets the options afterwards
-- `val(value)` accepts `0` (upstream's `if (value)` ignored it)
-- `__angleFromValue` maps `valueMax` to `angleStart`, the inverse of
-  `__valueFromAngles`; upstream maps `valueMin` there, so a value set by `val()`
-  came back as its mirror image
-
-FastStream's own behaviour around it lives in `ui/components/Knob.mjs`, not in the
-copy: since 2026-10-03 (#296) the wheel passes the knob's left edge to
-`doMouseScroll`, so wheel up always turns the value up instead of following the
-side of the knob the pointer is on.
-
-Upstream: https://github.com/jherrm/knobs
+The rotary control adapted from jherrm/knobs `Knob.js` at `b8a39650`, checked by
+`pnpm run verify:knob`, went with the audio settings window, its only user.
+`tools/ast-compare.mjs`, which `verify-knob.mjs` used, stays for `verify-vtt.mjs`.
 
 ### If this is ever revisited
 
-The stronger version of this is to add each as a pinned git dependency, so
+The stronger version of this is to add it as a pinned git dependency, so
 the lockfile records a commit hash, and bundle at build time. That gives a
 reviewer a hash to check rather than a prose description. It costs a bundler
-in the build and is worth doing only if a reviewer asks - for 153 KB across
-three small, stable libraries, the documentation above is the better trade.
+in the build and is worth doing only if a reviewer asks - for one small,
+stable 88 KB library, the documentation above is the better trade.
 
 ## youtube.js — removed entirely, 2026-09-10
 

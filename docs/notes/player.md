@@ -50,8 +50,8 @@
   waited for it, so it never finished, and autoplay's `autoPlayTriggered` was never set.
   `startAudio()` now starts the context once, without waiting, and starts the background
   analyzer when the audio runs (client-setup.e2e.mjs fakes the never-settling resume).
-  Specs that need actual sound check for it with audio-tools.e2e.mjs's `skipWithoutSound`;
-  without it they skip, except on Linux CI, which has a PulseAudio null sink since
+  Specs that need actual sound (firefox.e2e.mjs's 8x pin; audio-tools.e2e.mjs until the audio
+  settings went, 2026-10-10) check for it; without it they skip, except on Linux CI, which has a PulseAudio null sink since
   2026-10-03 and fails them there (`tests/e2e/soundCheck.mjs`, #265).
 
 - **Nothing else in the tab plays while FastStream's player does (2026-10-04).** Opening

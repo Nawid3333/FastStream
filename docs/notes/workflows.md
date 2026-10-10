@@ -8,11 +8,11 @@
 ## Workflows (reworked 2026-09-25)
 
 - **`ci.yml`** runs what `pnpm run verify` runs (including `test:pbm` and,
-  since 2026-09-25, `verify:vtt`/`verify:knob`/`verify:vad` - `verify:vtt` had been red
-  for three days when nothing ran it - and since 2026-09-30 `verify:fsaunpack`, which
-  installs fsaunpack's own npm lockfile and starts its express test server;
-  `verify:ort` left the chain on 2026-09-30 with the custom ONNX Runtime wasm it
-  stamped), plus a
+  since 2026-09-25, `verify:vtt` - it had been red for three days when nothing ran it -
+  and since 2026-09-30 `verify:fsaunpack`, which installs fsaunpack's own npm lockfile
+  and starts its express test server; `verify:ort` left the chain on 2026-09-30 with the
+  custom ONNX Runtime wasm it stamped, `verify:vad` and `verify:knob` on 2026-10-10 with
+  the speech detector and the audio settings), plus a
   `workflows` job: actionlint with its
   bundled shellcheck over every workflow.
 - **Run it here before pushing, the way CI runs it** (2026-09-25; PR #20 passed locally
@@ -144,7 +144,7 @@
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
   proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
   updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
-  (fuse.js, mediabunny, onnxruntime-web, sortablejs - the unpatched libraries
+  (fuse.js, mediabunny, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
   `update-prs.yml` reports on both when CI has run; the owner merges (the shipped one then
@@ -389,13 +389,11 @@
   merge like every update.
   `tests/unit/checkToolchain.test.mjs` fails for a pin in a form Dependabot does not update. Checked
   against `git ls-remote` when pinned; `dependency-review-action`'s `v5` is a branch.
-- **No CVE watch for the vendored components outside the lockfile** (vtt.js, knob,
-  StreamSaver): measured 2026-09-25, OSV has
+- **No CVE watch for the vendored components outside the lockfile** (vtt.js, StreamSaver;
+  knob until 2026-10-10): measured 2026-09-25, OSV has
   never recorded a vulnerability for any of them, so a workflow could never fire. They are
   covered by the provenance checks instead. The lockfile-backed libraries are covered by
-  Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3);
-  since 2026-09-30 that includes the ONNX Runtime wasm, which ships as `onnxruntime-web`
-  publishes it.
+  Dependabot alerts (OSV's only hls.js record, MAL-2026-3019, is two canary builds, not 1.7.3).
 - **No `reminders.yml` any more** (removed 2026-10-04): it commented on open issues
   labelled `reminder: <month>` on the 1st of that month. The only issue that ever carried
   such a label (#10) was closed, so it had nothing to do.
@@ -457,12 +455,9 @@
   player's `video.src`, the fsaunpack rate limiter, firefox.e2e.mjs) were real but were not
   open alerts: the count matched by chance, a mistake not to repeat.
 - **`vendored-updates.yml`** (daily, 06:45 UTC), 2026-10-01, U1: the two vendored files no
-  other workflow watches. **The silero VAD model:** a newer snakers4/silero-vad release whose
-  half-precision model has other bytes gets a PR on `vendored/silero-vad-<tag>` with the
-  model replaced and TAG/SHA256 moved in `tools/verify-vad.mjs`, and CI dispatched on it
-  (the reference e2e decides); update-prs.yml leaves `vendored/` branches to the owner. A
-  model missing at its path gets an issue, "Silero VAD <tag>: the model file moved".
-  **vtt.js:** a dash.js release that changes `contrib/videojs-vtt.js/vtt.js` gets an issue,
+  other workflow watches. (The silero VAD model's job, which opened a PR on
+  `vendored/silero-vad-<tag>` for a newer model, went with the speech detector on
+  2026-10-10.) **vtt.js:** a dash.js release that changes `contrib/videojs-vtt.js/vtt.js` gets an issue,
   "vtt.js changed in dash.js <tag>", with the changed-line count and a compare link: a
   person moves `tools/verify-vtt.mjs`'s tag and re-runs `verify:vtt`. Each item is assigned
   + @mention, is never raised twice (closing it skips that release), closes itself once its
@@ -471,15 +466,17 @@
   the pins (v6.2.1, v5.1.0). `tests/workflows/vendored-updates.test.sh`: 10 scenarios
   (real git pushing to a local bare origin), and 7 undone rules each fail it.
   **Adapted copies** (job `sources`, 2026-10-01): `tools/vendored-sources.json` lists code
-  copied from other projects and changed here (knob.mjs from jherrm/knobs, StreamSaver.mjs,
-  crosstalk/fft.mjs from indutny/fft.js, vad/vad.mjs from ricky0123/vad), each with the
+  copied from other projects and changed here (StreamSaver.mjs; until 2026-10-10 also
+  knob.mjs from jherrm/knobs, crosstalk/fft.mjs from indutny/fft.js and vad/vad.mjs from
+  ricky0123/vad, which went with the audio settings and the speech detector), each with the
   upstream path and the commit it was taken from. When upstream's newest commit to that path
   is not in the ref (compare status behind or diverged), an issue "Vendored source changed
   upstream: <name> (<repo> <sha8>)" lists the commits after the ref that changed it; port by
   hand, move the ref, and it closes itself. The lists are read on fds 3/4 (gh.exe via WSL
   swallowed stdin and ended the loop after the first source). On 2026-10-01 knob (16 commits
   after its 2012 pin) and vad-web (37 since 2023-03-30) were behind, StreamSaver and fft.js
-  current. `tests/workflows/vendored-sources.test.sh`: 8 scenarios, 10 undone rules caught.
+  current. `tests/workflows/vendored-sources.test.sh`: 8 scenarios, 10 undone rules caught
+  (its fixture still names knob and vad-web: made-up sources, the job reads no real file).
 - **`dependency-review.yml`** fails a PR that adds a package with a high-severity advisory.
   Since 2026-09-30 it also runs on `workflow_dispatch`, which `patched-libraries.yml` sends
   next to CI's: its PRs are opened by the workflow token, so the `pull_request` run waits

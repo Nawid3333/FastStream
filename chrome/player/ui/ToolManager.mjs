@@ -152,11 +152,9 @@ export class ToolManager {
       DOMElements.nextVideo.classList.add('hidden');
     }
 
-    if (!EnvUtils.isWebAudioSupported()) {
-      DOMElements.audioConfigBtn.classList.add('hidden');
-    } else {
-      DOMElements.audioConfigBtn.classList.remove('hidden');
-    }
+    // The audio-track list's button: only where there is a track to choose (2026-10-10; it
+    // opened the audio settings until they went).
+    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.interfaceController.audioQualityChanger?.hasChoice);
 
     const toolSettings = this.client.options.toolSettings;
     const toolElements = {
@@ -173,7 +171,7 @@ export class ToolManager {
       fullscreen: DOMElements.fullscreen,
       windowedfs: DOMElements.windowedFullscreen,
       subtitles: DOMElements.subtitles,
-      audioconfig: DOMElements.audioConfigBtn,
+      audioconfig: DOMElements.audioTracksBtn,
       sources: DOMElements.linkButton,
       settings: DOMElements.settingsButton,
       quality: DOMElements.videoSource,

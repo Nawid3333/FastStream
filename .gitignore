@@ -12,9 +12,6 @@ chrome/player/modules/hls.worker.js
 chrome/player/modules/dash.mjs
 chrome/player/modules/fuse.mjs
 chrome/player/modules/sortable.mjs
-chrome/player/modules/vad/ort.wasm.mjs
-chrome/player/modules/vad/ort-wasm-simd-threaded.mjs
-chrome/player/modules/vad/ort-wasm-simd-threaded.wasm
 chrome/player/modules/remux/mediabunny.mjs
 chrome/player/modules/gif/gif.mjs
 chrome/player/modules/gif/gif.worker.js

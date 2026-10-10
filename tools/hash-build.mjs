@@ -4,7 +4,7 @@
 // Text files are hashed with CRLF collapsed to LF. Without that, a build made
 // on Windows never matches one made on Linux CI even when every byte of
 // meaning is the same - line endings alone change all 620 text hashes. Binary
-// assets (png, wasm, ort) are hashed verbatim.
+// assets (png and the like) are hashed verbatim.
 //
 //   node tools/hash-build.mjs build_firefox_github > before.txt
 //   ...refactor...

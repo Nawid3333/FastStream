@@ -42,10 +42,8 @@ allowBuilds:
   # wdio pulls edgedriver in for Edge sessions, which this project does not run; its
   # install script downloads a driver binary that nothing here would use.
   edgedriver: false
-  onnxruntime-web: false
   core-js: false
   dtrace-provider: false
-  protobufjs: false
   spawn-sync: false
 patchedDependencies:
   '@stryker-mutator/vitest-runner@10.0.0': patches/@stryker-mutator__vitest-runner@10.0.0.patch

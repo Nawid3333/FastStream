@@ -7,9 +7,8 @@
 // only happens under an extension origin:
 //
 //   - the manifest's content_security_policy applies to extension pages only,
-//     so `script-src 'self' 'wasm-unsafe-eval'` is never enforced over http.
-//     Every wasm module in this extension - ONNX Runtime's -
-//     compiles unchecked in the other suite.
+//     so `script-src 'self'` is never enforced over http. (No WebAssembly any more:
+//     ONNX Runtime, its only user, went with the speech detector on 2026-10-10.)
 //   - the background script is not loaded at all over http, so nothing has
 //     ever confirmed it starts without throwing.
 //   - moz-extension:// is an opaque origin with different rules for workers,

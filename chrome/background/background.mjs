@@ -178,6 +178,7 @@ const LiveMediaReportWaitMs = 1000;
 let CustomSourcePatternsMatcher = new MultiRegexMatcher();
 
 BackgroundUtils.openWelcomePageOnInstall();
+BackgroundUtils.forgetRemovedAudioSettingsOnUpdate();
 
 // After the restore, or a woken event page would reset every tab's icon to Off.
 ensureOptions().then(() => BackgroundUtils.queryTabs()).then((ctabs) => {

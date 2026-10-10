@@ -126,21 +126,13 @@ updates through the manifest's `update_url`, as for any self-hosted add-on.
 
 ## Prebuilt binaries
 
-One WebAssembly artifact ships prebuilt rather than being compiled here,
-and the VAD's model is likewise a file published by its upstream. Both
-can be checked against their origins without trusting this repository:
+None since 2026-10-10: the speech detector, with its ONNX Runtime WebAssembly and its
+Silero VAD model, went, and the manifest's CSP no longer allows WebAssembly at all.
 
-| Artifact | Verify with |
-|---|---|
-| ONNX Runtime (`vad/ort-wasm-simd-threaded.wasm`, its glue and the loader) | the stock npm files - `tools/sync-vendor.mjs` copies all three exactly as `onnxruntime-web@1.30.0` publishes them (gitignored; the loader's inline source map is stripped, nothing else); a reviewer can install that version and diff. |
-| Silero VAD model (`vad/silero_vad_half.onnx`) | `pnpm run verify:vad` - hashes the file in the tree against the file snakers4/silero-vad publishes at tag v6.2.1. |
-
-Additional provenance checks for non-npm vendored files:
+The provenance check for the one non-npm vendored file left with one (vtt.js):
 
 ```sh
 pnpm run verify:vtt
-pnpm run verify:vad
-pnpm run verify:knob
 ```
 
 Full narrative provenance for every third-party file - what it is, which
@@ -158,11 +150,9 @@ pnpm run verify
 This runs eslint, TypeScript type-checking, unit tests, all three builds
 (the GitHub zip, the AMO build and the web player), addons-linter against
 both Firefox targets, browser end-to-end tests (WebDriver + Firefox),
-extension-loaded end-to-end tests on the AMO build and on the GitHub build
-(including the VAD reference check, `tests/e2e/ext-specs/vad.e2e.mjs`), the
-extension in private windows (`test:pbm`), and the provenance checks
-`verify:vtt`, `verify:knob`, `verify:vad` and `verify:fsaunpack` (the
-archive-unpacking helper outside the extension).
+extension-loaded end-to-end tests on the AMO build and on the GitHub build,
+the extension in private windows (`test:pbm`), and the checks `verify:vtt`
+and `verify:fsaunpack` (the archive-unpacking helper outside the extension).
 
 The end-to-end tests require a Firefox binary and will download WebDriver
 components on first run; they are not needed to reproduce the package.

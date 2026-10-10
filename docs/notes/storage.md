@@ -154,8 +154,8 @@ Two things about that harness. It needs **WebDriver classic**
 through `browser.setMozContext('chrome')`, which the BiDi session the other
 suites use ignores silently. Under classic, an `ArrayBuffer` built inside a
 `browser.execute` body is cross-realm, so a library that checks `instanceof
-ArrayBuffer` rejects it — that is why `ext-specs/vad.e2e.mjs` (ORT) cannot
-move into this suite, and why an ORT `TypeError: Unexpected argument[0]:
+ArrayBuffer` rejects it — that is why `ext-specs/vad.e2e.mjs` (ORT; gone with the
+speech detector, 2026-10-10) could not move into this suite, and why an ORT `TypeError: Unexpected argument[0]:
 must be 'path' or 'buffer'` here means the harness, not private browsing.
 Second, the `addon.reload()` that applies the permission re-fires
 `runtime.onInstalled`, so a `welcome.html` tab appears at the end of the

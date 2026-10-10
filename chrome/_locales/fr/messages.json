@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Retourner/faire pivoter la vidéo"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Activer/désactiver les filtres vidéo (luminosité, contraste, couleurs)"
-    },
     "perms_page_title": {
         "message": "Autorisations FastStream"
     },
@@ -287,14 +284,8 @@
     "player_sourcesbrowser_close_label": {
         "message": "Fermer le navigateur de sources"
     },
-    "player_audioconfig_title": {
-        "message": "Configuration audio"
-    },
-    "player_audioconfig_open_label": {
-        "message": "Ouvrir la fenêtre de configuration audio"
-    },
-    "player_audioconfig_close_label": {
-        "message": "Fermer la fenêtre de configuration audio"
+    "player_audiotracks_label": {
+        "message": "Pistes audio"
     },
     "player_opensubtitles_title": {
         "message": "Recherche OpenSubtitles"
@@ -728,192 +719,6 @@
     "player_source_clearbtn": {
         "message": "Effacer les sources"
     },
-    "player_audioconfig_duplicate_profile": {
-        "message": "(chargé depuis le fichier le $1)"
-    },
-    "player_audioconfig_create_profile": {
-        "message": "Créer un nouveau profil"
-    },
-    "player_audioconfig_import_profile": {
-        "message": "Importer des profils depuis un fichier"
-    },
-    "player_audioconfig_import_invalid": {
-        "message": "Fichier de profil invalide"
-    },
-    "player_audioconfig_profile": {
-        "message": "Profil"
-    },
-    "player_audioconfig_profile_numbered": {
-        "message": "Profil $1"
-    },
-    "audiomixer_master": {
-        "message": "Master"
-    },
-    "player_audioconfig_profile_unnamed": {
-        "message": "Profil sans nom"
-    },
-    "player_audioconfig_profile_load": {
-        "message": "Charger le profil"
-    },
-    "player_audioconfig_profile_loaded": {
-        "message": "Profil chargé !"
-    },
-    "player_audioconfig_profile_download": {
-        "message": "Télécharger le profil"
-    },
-    "player_audioconfig_profile_downloaded": {
-        "message": "Téléchargé !"
-    },
-    "player_audioconfig_profile_delete": {
-        "message": "Supprimer"
-    },
-    "player_audioconfig_profile_deleting": {
-        "message": "Suppression..."
-    },
-    "player_audioconfig_profile_deleted": {
-        "message": "Supprimé !"
-    },
-    "audiomixer_title": {
-        "message": "Mixeur de canaux audio"
-    },
-    "audiomixer_volume_master_handle_label": {
-        "message": "Le gain de $1 est de $2 dB ($3%). Utilisez les flèches pour ajuster. Appuyez sur M pour basculer en mono"
-    },
-    "audiomixer_volume_handle_label": {
-        "message": "Le gain de $1 est de $2 dB ($3%). Utilisez les flèches pour ajuster. Appuyez sur M pour basculer la mise en sourdine"
-    },
-    "audiomixer_solo_label": {
-        "message": "Solo"
-    },
-    "audiomixer_mute_label": {
-        "message": "Muet"
-    },
-    "audiomixer_mono": {
-        "message": "Mono"
-    },
-    "audiomixer_dynamics_label": {
-        "message": "Modifier la dynamique du canal"
-    },
-    "audiocrosstalk_title": {
-        "message": "Correction de la diaphonie audio"
-    },
-    "audiocrosstalk_enabled": {
-        "message": "Correction de la diaphonie activée"
-    },
-    "audiocrosstalk_disabled": {
-        "message": "Correction de la diaphonie désactivée"
-    },
-    "audiocrosstalk_decay": {
-        "message": "Décroissance"
-    },
-    "audiocrosstalk_colorgain": {
-        "message": "Coloration maximale"
-    },
-    "audiocrosstalk_microdelay": {
-        "message": "Delta T"
-    },
-    "audiocrosstalk_lowbypass": {
-        "message": "Bypass bas"
-    },
-    "audiocrosstalk_highbypass": {
-        "message": "Bypass haut"
-    },
-    "audiocrosstalk_speakerdistance": {
-        "message": "Distance des enceintes"
-    },
-    "audiocrosstalk_headdistance": {
-        "message": "Distance de la tête"
-    },
-    "audiocrosstalk_stereo_note": {
-        "message": "Fonctionne en stéréo : tant qu'elle est activée, le son surround (5.1, 7.1) est réduit à deux canaux."
-    },
-    "audiocompressor_title": {
-        "message": "Compresseur audio"
-    },
-    "audiocompressor_enabled": {
-        "message": "Compresseur activé"
-    },
-    "audiocompressor_disabled": {
-        "message": "Compresseur désactivé"
-    },
-    "audiocompressor_threshold": {
-        "message": "Seuil"
-    },
-    "audiocompressor_knee": {
-        "message": "Knee"
-    },
-    "audiocompressor_ratio": {
-        "message": "Ratio"
-    },
-    "audiocompressor_attack": {
-        "message": "Attaque"
-    },
-    "audiocompressor_release": {
-        "message": "Relâchement"
-    },
-    "audiocompressor_gain": {
-        "message": "Gain"
-    },
-    "audioeq_title": {
-        "message": "Égaliseur audio"
-    },
-    "audioeq_instructions": {
-        "message": "Double-cliquez pour changer le type"
-    },
-    "audioeq_gain": {
-        "message": "Gain : $1 dB"
-    },
-    "audioeq_qscroll_instructions": {
-        "message": "Faites défiler pour modifier le Q"
-    },
-    "audioconvolver_title": {
-        "message": "Filtre de convolution audio"
-    },
-    "audioconvolver_channel": {
-        "message": "Canal"
-    },
-    "audioconvolver_enable": {
-        "message": "Activer"
-    },
-    "audioconvolver_normalize": {
-        "message": "Normaliser"
-    },
-    "audioconvolver_impulselength": {
-        "message": "Durée de l'impulsion"
-    },
-    "audioconvolver_impulselength_hint": {
-        "message": "En échantillons : 48000 correspond à 1 seconde à 48 kHz. Vide : le fichier complet."
-    },
-    "audioconvolver_impulseresponse": {
-        "message": "Réponse impulsionnelle"
-    },
-    "audioconvolver_selectfile": {
-        "message": "Sélectionner un fichier"
-    },
-    "audioconvolver_enabled": {
-        "message": "Convolution activée"
-    },
-    "audioconvolver_convolver": {
-        "message": "Convolueur"
-    },
-    "audioconvolver_disable": {
-        "message": "Désactiver"
-    },
-    "audioconvolver_disabled": {
-        "message": "Convolution désactivée"
-    },
-    "audioconvolver_downmix_on": {
-        "message": "Mixage avant"
-    },
-    "audioconvolver_downmix_off": {
-        "message": "Pas de mixage"
-    },
-    "audioconvolver_decodeerror": {
-        "message": "Ce fichier n'a pas pu être décodé en tant qu'audio. La réponse impulsionnelle n'a pas été modifiée."
-    },
-    "audioconvolver_fileerror": {
-        "message": "Échec de la sauvegarde du fichier de réponse impulsionnelle !"
-    },
     "options_title": {
         "message": "Options de FastStream"
     },
@@ -949,27 +754,6 @@
     },
     "options_video_delay": {
         "message": "Décalage vidéo"
-    },
-    "options_video_brightness": {
-        "message": "Luminosité"
-    },
-    "options_video_contrast": {
-        "message": "Contraste"
-    },
-    "options_video_saturation": {
-        "message": "Saturation"
-    },
-    "options_video_grayscale": {
-        "message": "Niveaux de gris"
-    },
-    "options_video_sepia": {
-        "message": "Sépia"
-    },
-    "options_video_invert": {
-        "message": "Inverser"
-    },
-    "options_video_hue": {
-        "message": "Rotation de teinte"
     },
     "options_general_header": {
         "message": "Options générales"

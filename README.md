@@ -8,7 +8,7 @@ This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andr
 
 1. Watch videos without interruptions by pre-buffering the video in the background. Automatic fragmentation and up to 6 parallel requests make downloads faster.
 2. Advanced subtitling features include: customizable subtitle appearance, built-in OpenSubtitles support to find subtitles on the internet, and an intuitive subtitle syncing tool to adjust subtitle timings on the fly.
-3. Adjustable audio dynamics (equalizer, compressor, mixer, mono mode, volume booster), and video settings (brightness, contrast, saturation, hue) for your unique audiovisual preferences.
+3. A volume booster past 100 %, and the picture zoomed, flipped or rotated.
 4. Over 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
 5. Available in 16 languages.
 6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once. On Windows, one line in PowerShell installs mpv, the helper and this add-on: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (from [mpv-config](https://github.com/Nawid3333/mpv-config#install); it needs no admin rights, no Git and no Node.js). Then restart Firefox, turn on MPV mode in FastStream's settings, and add the sites whose videos should open in mpv to its MPV Allowlist (on any other site, the MPV shortcut, Alt+F, sends the video you start). The manual way, for developers and other setups, is in [README-MPV.md](README-MPV.md).

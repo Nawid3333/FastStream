@@ -10,14 +10,13 @@ import {EventEmitter} from './modules/eventemitter.mjs';
 import {SourcesBrowser} from './ui/SourcesBrowser.mjs';
 import {PlayerLoader} from './players/PlayerLoader.mjs';
 import {DOMElements} from './ui/DOMElements.mjs';
-import {AudioConfigManager} from './ui/audio/AudioConfigManager.mjs';
+import {AudioOutput} from './ui/audio/AudioOutput.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {Localize} from './modules/Localize.mjs';
 import {ClickActions} from './options/defaults/ClickActions.mjs';
 import {VisChangeActions} from './options/defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
 import {SecureMemory} from './modules/SecureMemory.mjs';
-import {CSSFilterUtils} from './utils/CSSFilterUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
 import {AudioAnalyzer} from './modules/analyzer/AudioAnalyzer.mjs';
@@ -38,6 +37,7 @@ import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
+import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 
 
 /**
@@ -81,13 +81,6 @@ export class FastStreamClient extends EventEmitter {
       visChangeAction: VisChangeActions.NOTHING,
       miniSize: 0.25,
       miniPos: MiniplayerPositions.BOTTOM_RIGHT,
-      videoBrightness: 1,
-      videoContrast: 1,
-      videoSaturation: 1,
-      videoGrayscale: 0,
-      videoSepia: 0,
-      videoInvert: 0,
-      videoHueRotate: 0,
       videoZoom: 1,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
@@ -95,7 +88,6 @@ export class FastStreamClient extends EventEmitter {
       videoDelay: 0,
       videoFlip: 0,
       videoRotate: 0,
-      disableVisualFilters: false,
       maximumDownloaders: 6,
       maxPlaybackRate: 8,
     };
@@ -143,9 +135,9 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
     if (EnvUtils.isWebAudioSupported()) {
-      this.audioConfigManager = new AudioConfigManager(this);
+      this.audioOutput = new AudioOutput();
       this.audioContext = new AudioContext();
-      this.audioConfigManager.setupNodes(this.audioContext);
+      this.audioOutput.setupNodes(this.audioContext);
     }
 
     DOMElements.playerContainer.addEventListener('keydown', (e) => {
@@ -333,9 +325,6 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
-    // The audio changes of the last second: the tick saves them once a second, and one made
-    // just before the player closed was lost (review).
-    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
     this.resetPlayer();
@@ -381,17 +370,6 @@ export class FastStreamClient extends EventEmitter {
       this.options.autoplayNext = options.autoplayNext;
     }
 
-    if (sessionStorage) {
-      this.options.disableVisualFilters = sessionStorage.getItem('disableVisualFilters') == 'true';
-    }
-
-    this.options.videoBrightness = options.videoBrightness;
-    this.options.videoContrast = options.videoContrast;
-    this.options.videoSaturation = options.videoSaturation;
-    this.options.videoGrayscale = options.videoGrayscale;
-    this.options.videoSepia = options.videoSepia;
-    this.options.videoInvert = options.videoInvert;
-    this.options.videoHueRotate = options.videoHueRotate;
     this.options.videoZoom = options.videoZoom;
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
@@ -417,7 +395,7 @@ export class FastStreamClient extends EventEmitter {
     // Read by LevelManager at the next pick; what is playing keeps its version.
     this.options.decodingAwareQuality = options.decodingAwareQuality !== false;
 
-    this.updateCSSFilters();
+    this.updateVideoTransform();
 
     if (options.keybinds) {
       this.keybindManager.setKeybinds(options.keybinds);
@@ -443,19 +421,16 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Updates CSS filters and transforms for video elements.
+   * Applies the zoom, flip and rotation to the video elements.
    */
-  updateCSSFilters() {
-    const filterStr = CSSFilterUtils.getFilterString(this.options);
-    const transformStr = CSSFilterUtils.getTransformString(this.options);
+  updateVideoTransform() {
+    const transformStr = VideoTransformUtils.getTransformString(this.options);
 
     if (this.player) {
-      this.player.getVideo().style.filter = filterStr;
       this.player.getVideo().style.transform = transformStr;
     }
 
     if (this.previewPlayer) {
-      this.previewPlayer.getVideo().style.filter = filterStr;
       this.previewPlayer.getVideo().style.transform = transformStr;
     }
   }
@@ -804,7 +779,7 @@ export class FastStreamClient extends EventEmitter {
 
     this.previewPlayer = previewPlayer;
     this.interfaceController.addPreviewVideo(previewPlayer.getVideo());
-    this.updateCSSFilters();
+    this.updateVideoTransform();
   }
 
   initiateWebAudio() {
@@ -817,9 +792,9 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer.setupAnalyzerNodeForMainPlayer(this.player.getVideo(), this.audioOutputNode, this.audioContext, ()=>{
       return this.currentVideo.currentTime + this.options.videoDelay / 1000;
     });
-    this.audioConfigManager.setupNodes(this.audioContext);
-    this.audioConfigManager.getInputNode().connectFrom(this.audioOutputNode);
-    this.audioConfigManager.getOutputNode().connect(this.audioContext.destination);
+    this.audioOutput.setupNodes(this.audioContext);
+    this.audioOutput.getInputNode().connectFrom(this.audioOutputNode);
+    this.audioOutput.getOutputNode().connect(this.audioContext.destination);
   }
 
   /**
@@ -974,7 +949,7 @@ export class FastStreamClient extends EventEmitter {
         this.frameExtractor.updateBackground();
       }
 
-      this.updateCSSFilters();
+      this.updateVideoTransform();
 
       this.interfaceController.updateToolVisibility();
 
@@ -1236,9 +1211,6 @@ export class FastStreamClient extends EventEmitter {
   mainloop() {
     if (this.destroyed) return;
     setTimeout(this.mainloop.bind(this), 1000);
-
-    // The audio tools' changes, kept by themselves.
-    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
 
     if (this.needsUserInteraction()) {
       this.interfaceController.setStatusMessage(StatusTypes.REQINTERACTION, Localize.getMessage('player_needs_interaction'), 'warning clickable');
@@ -2014,7 +1986,7 @@ export class FastStreamClient extends EventEmitter {
         this.playedSource = this.source;
       }
       // Made only where Web Audio is (constructor), as every other use checks
-      this.audioConfigManager?.updateChannelCount();
+      this.audioOutput?.updateChannelCount();
     });
 
 
@@ -2465,7 +2437,7 @@ export class FastStreamClient extends EventEmitter {
       this.resetFailed();
       this.updateQualityLevels();
       // None without Web Audio (the constructor makes it only then), as at the other call.
-      this.audioConfigManager?.updateChannelCount();
+      this.audioOutput?.updateChannelCount();
     }
   }
 
@@ -2675,12 +2647,12 @@ export class FastStreamClient extends EventEmitter {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(1))) {
         this.player.volume = 1;
       }
-      this.audioConfigManager?.updateVolume(volume);
+      this.audioOutput?.updateVolume(volume);
     } else {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
         this.player.volume = volume;
       }
-      if (EnvUtils.isWebAudioSupported()) this.audioConfigManager.updateVolume(1);
+      if (EnvUtils.isWebAudioSupported()) this.audioOutput.updateVolume(1);
     }
   }
 

@@ -13,7 +13,6 @@ export class InterfaceUtils {
       DOMElements.optionsContainer,
       DOMElements.subuiContainer,
       DOMElements.linkuiContainer,
-      DOMElements.audioConfigContainer,
     ];
 
     let wasOpen = false;
@@ -28,7 +27,7 @@ export class InterfaceUtils {
   }
 
   /**
-   * Checks whether any popwindow (sources browser, subtitles, options, audio config) is open.
+   * Checks whether any popwindow (sources browser, subtitles, options) is open.
    * @return {boolean} True if at least one popwindow is open.
    */
   static isAnyWindowOpen() {
@@ -36,7 +35,6 @@ export class InterfaceUtils {
       DOMElements.optionsContainer,
       DOMElements.subuiContainer,
       DOMElements.linkuiContainer,
-      DOMElements.audioConfigContainer,
     ];
 
     return windows.some((box) => box.style.display !== 'none');

@@ -119,9 +119,6 @@
     "welcome_page_keybinds_content26": {
         "message": "- Flip/rotate the video"
     },
-    "welcome_page_keybinds_content27": {
-        "message": "- Video filters (brightness, contrast, colors) on/off"
-    },
     "perms_page_title": {
         "message": "FastStream Permissions"
     },
@@ -287,14 +284,8 @@
     "player_sourcesbrowser_close_label": {
         "message": "Close sources browser"
     },
-    "player_audioconfig_title": {
-        "message": "Audio Configuration"
-    },
-    "player_audioconfig_open_label": {
-        "message": "Open audio config window"
-    },
-    "player_audioconfig_close_label": {
-        "message": "Close audio config window"
+    "player_audiotracks_label": {
+        "message": "Audio tracks"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles Search"
@@ -728,192 +719,6 @@
     "player_source_clearbtn": {
         "message": "Clear Sources"
     },
-    "player_audioconfig_duplicate_profile": {
-        "message": "(loaded from file on $1)"
-    },
-    "player_audioconfig_create_profile": {
-        "message": "Create new profile"
-    },
-    "player_audioconfig_import_profile": {
-        "message": "Import profiles from file"
-    },
-    "player_audioconfig_import_invalid": {
-        "message": "Invalid profile file"
-    },
-    "player_audioconfig_profile": {
-        "message": "Profile"
-    },
-    "player_audioconfig_profile_numbered": {
-        "message": "Profile $1"
-    },
-    "audiomixer_master": {
-        "message": "Master"
-    },
-    "player_audioconfig_profile_unnamed": {
-        "message": "Unnamed Profile"
-    },
-    "player_audioconfig_profile_load": {
-        "message": "Load Profile"
-    },
-    "player_audioconfig_profile_loaded": {
-        "message": "Loaded Profile!"
-    },
-    "player_audioconfig_profile_download": {
-        "message": "Download Profile"
-    },
-    "player_audioconfig_profile_downloaded": {
-        "message": "Downloaded!"
-    },
-    "player_audioconfig_profile_delete": {
-        "message": "Delete"
-    },
-    "player_audioconfig_profile_deleting": {
-        "message": "Deleting..."
-    },
-    "player_audioconfig_profile_deleted": {
-        "message": "Deleted!"
-    },
-    "audiomixer_title": {
-        "message": "Audio Channel Mixer"
-    },
-    "audiomixer_volume_master_handle_label": {
-        "message": "$1 gain is $2 dB ($3%). Use arrows to adjust. Press M to toggle mono"
-    },
-    "audiomixer_volume_handle_label": {
-        "message": "$1 gain is $2 dB ($3%). Use arrows to adjust. Press M to toggle mute"
-    },
-    "audiomixer_solo_label": {
-        "message": "Solo"
-    },
-    "audiomixer_mute_label": {
-        "message": "Mute"
-    },
-    "audiomixer_mono": {
-        "message": "Mono"
-    },
-    "audiomixer_dynamics_label": {
-        "message": "Edit dynamics of channel"
-    },
-    "audiocrosstalk_title": {
-        "message": "Audio Crosstalk Correction"
-    },
-    "audiocrosstalk_enabled": {
-        "message": "Crosstalk Correction Enabled"
-    },
-    "audiocrosstalk_disabled": {
-        "message": "Crosstalk Correction Disabled"
-    },
-    "audiocrosstalk_decay": {
-        "message": "Decay"
-    },
-    "audiocrosstalk_colorgain": {
-        "message": "Max Coloration"
-    },
-    "audiocrosstalk_microdelay": {
-        "message": "Delta T"
-    },
-    "audiocrosstalk_lowbypass": {
-        "message": "Low Bypass"
-    },
-    "audiocrosstalk_highbypass": {
-        "message": "High Bypass"
-    },
-    "audiocrosstalk_speakerdistance": {
-        "message": "Speaker Distance"
-    },
-    "audiocrosstalk_headdistance": {
-        "message": "Head Distance"
-    },
-    "audiocrosstalk_stereo_note": {
-        "message": "Works in stereo: while it is on, surround sound (5.1, 7.1) is mixed down to two channels."
-    },
-    "audiocompressor_title": {
-        "message": "Audio Compressor"
-    },
-    "audiocompressor_enabled": {
-        "message": "Compressor Enabled"
-    },
-    "audiocompressor_disabled": {
-        "message": "Compressor Disabled"
-    },
-    "audiocompressor_threshold": {
-        "message": "Threshold"
-    },
-    "audiocompressor_knee": {
-        "message": "Knee"
-    },
-    "audiocompressor_ratio": {
-        "message": "Ratio"
-    },
-    "audiocompressor_attack": {
-        "message": "Attack"
-    },
-    "audiocompressor_release": {
-        "message": "Release"
-    },
-    "audiocompressor_gain": {
-        "message": "Gain"
-    },
-    "audioeq_title": {
-        "message": "Audio Equalizer"
-    },
-    "audioeq_instructions": {
-        "message": "Double click to change type"
-    },
-    "audioeq_gain": {
-        "message": "Gain: $1dB"
-    },
-    "audioeq_qscroll_instructions": {
-        "message": "Scroll to change Q"
-    },
-    "audioconvolver_title": {
-        "message": "Audio Convolution Filter"
-    },
-    "audioconvolver_channel": {
-        "message": "Channel"
-    },
-    "audioconvolver_enable": {
-        "message": "Enable"
-    },
-    "audioconvolver_normalize": {
-        "message": "Normalize"
-    },
-    "audioconvolver_impulselength": {
-        "message": "Impulse Length"
-    },
-    "audioconvolver_impulselength_hint": {
-        "message": "In samples: 48000 is 1 second at 48 kHz. Empty: the whole file."
-    },
-    "audioconvolver_impulseresponse": {
-        "message": "Impulse Response"
-    },
-    "audioconvolver_selectfile": {
-        "message": "Select File"
-    },
-    "audioconvolver_enabled": {
-        "message": "Convolution Enabled"
-    },
-    "audioconvolver_convolver": {
-        "message": "Convolver"
-    },
-    "audioconvolver_disable": {
-        "message": "Disable"
-    },
-    "audioconvolver_disabled": {
-        "message": "Convolution Disabled"
-    },
-    "audioconvolver_downmix_on": {
-        "message": "Downmix Before"
-    },
-    "audioconvolver_downmix_off": {
-        "message": "No Downmix"
-    },
-    "audioconvolver_decodeerror": {
-        "message": "This file could not be decoded as audio. The impulse response was not changed."
-    },
-    "audioconvolver_fileerror": {
-        "message": "Failed to save the impulse response file!"
-    },
     "options_title": {
         "message": "FastStream Options"
     },
@@ -949,27 +754,6 @@
     },
     "options_video_delay": {
         "message": "Video Delay"
-    },
-    "options_video_brightness": {
-        "message": "Brightness"
-    },
-    "options_video_contrast": {
-        "message": "Contrast"
-    },
-    "options_video_saturation": {
-        "message": "Saturation"
-    },
-    "options_video_grayscale": {
-        "message": "Grayscale"
-    },
-    "options_video_sepia": {
-        "message": "Sepia"
-    },
-    "options_video_invert": {
-        "message": "Invert"
-    },
-    "options_video_hue": {
-        "message": "Hue Rotate"
     },
     "options_general_header": {
         "message": "General Options"

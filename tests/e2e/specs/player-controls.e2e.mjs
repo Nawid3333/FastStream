@@ -1,5 +1,5 @@
-// The player's controls: the volume block's keys, a file dropped on the player, and the
-// messages the save controls show.
+// The player's controls: the volume block's keys and its gain, a file dropped on the
+// player, and the messages the save controls show.
 //
 // Each case opens the web player with no source and hands it one the way main.mjs does,
 // with autoplay and remembered positions off, so that nothing but the case moves the video.
@@ -117,6 +117,29 @@ describe('Player controls', function() {
     console.log('      after ArrowLeft:', JSON.stringify(state));
     expect(state.volume).toBeCloseTo(0.9, 5);
     expect(state.currentTime).toBeCloseTo(6, 1);
+  });
+
+  it('sets the volume to 100% at once', async function() {
+    // The volume is a gain node, which goes 200 ms after the volume is back at 100%; until
+    // then it kept the old volume. (From audio-tools.e2e.mjs, which went with the audio
+    // settings window, 2026-10-10.)
+    await openEmptyPlayer();
+    const gains = await browser.executeAsync((done) => {
+      (async () => {
+        const client = window.fastStream;
+        const gain = () => Math.round((client.audioOutput.gain.gainNode?.gain.value ?? 1) * 100) / 100;
+        const out = [];
+        for (const from of [0.5, 1.5]) {
+          client.volume = from;
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const before = gain();
+          client.volume = 1;
+          out.push({before, after: gain()});
+        }
+        return out;
+      })().then(done, (e) => done({error: String(e)}));
+    });
+    expect(gains).toEqual([{before: 0.5, after: 1}, {before: 1.5, after: 1}]);
   });
 
   it('plays a video dropped together with a .json that is not JSON', async function() {

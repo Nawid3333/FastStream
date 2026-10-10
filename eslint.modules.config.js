@@ -18,8 +18,6 @@ module.exports = [
       'chrome/player/modules/sortable.mjs',
       'chrome/player/modules/mp4box/',
       'chrome/player/modules/coloris.mjs',
-      'chrome/player/modules/vad/ort.wasm.mjs',
-      'chrome/player/modules/vad/ort-wasm-simd-threaded.mjs',
       'chrome/player/modules/remux/mediabunny.mjs',
       'chrome/player/modules/gif/',
       'chrome/player/modules/vtt.mjs',

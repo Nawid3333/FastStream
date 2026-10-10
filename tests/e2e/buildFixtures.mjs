@@ -299,6 +299,25 @@ function ensureHlsFixtures() {
     }, null, 2));
     finishDirectoryFixture(dir, recipe);
   }
+  ensureHlsTwoAudioTracks();
+}
+
+/**
+ * hls-audio/tracks.m3u8: hls-audio's master playlist with its audio rendition listed
+ * twice, as a second track ("audio_2", not the default). The player shows its audio-track
+ * button only where there is a track to choose (player-menus.e2e.mjs). Written from
+ * master.m3u8 on every run: nothing is encoded.
+ */
+function ensureHlsTwoAudioTracks() {
+  const dir = path.join(fixturesDir, 'hls-audio');
+  const master = fs.readFileSync(path.join(dir, 'master.m3u8'), 'utf8');
+  const lines = master.split(/\r?\n/);
+  const audio = lines.findIndex((line) => line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO'));
+  if (audio < 0) throw new Error('hls-audio/master.m3u8 lists no audio rendition');
+  const second = lines[audio].replace(/NAME="[^"]*"/, 'NAME="audio_2"').replace('DEFAULT=YES', 'DEFAULT=NO');
+  if (second === lines[audio]) throw new Error('hls-audio/master.m3u8: its audio rendition has no NAME');
+  lines.splice(audio + 1, 0, second);
+  fs.writeFileSync(path.join(dir, 'tracks.m3u8'), lines.join('\n'));
 }
 
 // sample.mp4's own H.264 - High profile, 300 frames, 250 of them B-frames - cut into

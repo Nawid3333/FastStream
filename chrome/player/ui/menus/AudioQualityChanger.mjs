@@ -1,17 +1,20 @@
 import {Localize} from '../../modules/Localize.mjs';
 import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {WebUtils} from '../../utils/WebUtils.mjs';
 
 export class AudioQualityChanger extends EventEmitter {
   constructor() {
     super();
     this.stayOpen = false;
     this.enabled = false;
+    // More than one track: the button shows only then.
+    this.hasChoice = false;
   }
 
   openUI(dontSetStayVisible = false) {
     this.emit('open', {
-      target: DOMElements.audioConfigBtn,
+      target: DOMElements.audioTracksBtn,
     });
 
     DOMElements.audioSourceList.style.display = '';
@@ -34,18 +37,28 @@ export class AudioQualityChanger extends EventEmitter {
   }
 
   setupUI() {
-    DOMElements.audioConfigBtn.tabIndex = 0;
+    // Its click opened the audio settings window, its right click this list; since the
+    // window went (2026-10-10), both open the list.
+    WebUtils.setupTabIndex(DOMElements.audioTracksBtn);
+    DOMElements.audioTracksBtn.addEventListener('click', (e) => {
+      if (this.isOpen() || !this.enabled) {
+        this.closeUI();
+      } else {
+        this.openUI();
+      }
+      e.stopPropagation();
+    });
 
     let isMouseDown = false;
-    DOMElements.audioConfigBtn.addEventListener('mousedown', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('mousedown', (e) => {
       isMouseDown = true;
     }, true);
 
-    DOMElements.audioConfigBtn.addEventListener('mouseup', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('mouseup', (e) => {
       isMouseDown = false;
     }, true);
 
-    DOMElements.audioConfigBtn.addEventListener('contextmenu', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('contextmenu', (e) => {
       if (this.isOpen() || !this.enabled) {
         this.closeUI();
       } else {
@@ -55,13 +68,13 @@ export class AudioQualityChanger extends EventEmitter {
       e.preventDefault();
     });
 
-    DOMElements.audioConfigBtn.addEventListener('focus', ()=>{
+    DOMElements.audioTracksBtn.addEventListener('focus', ()=>{
       if ( this.enabled &&!this.isOpen() && !isMouseDown) {
         this.openUI(true);
       }
     });
 
-    DOMElements.audioConfigBtn.addEventListener('blur', ()=>{
+    DOMElements.audioTracksBtn.addEventListener('blur', ()=>{
       isMouseDown = false;
       if (!this.stayOpen) {
         this.closeUI();
@@ -80,7 +93,7 @@ export class AudioQualityChanger extends EventEmitter {
       current.classList.remove('candidate');
     });
 
-    DOMElements.audioConfigBtn.addEventListener('keydown', (e) => {
+    DOMElements.audioTracksBtn.addEventListener('keydown', (e) => {
       // The button keeps the focus after a click; with the list closed, its keys are the
       // player's again (the arrows are the volume), not a choice in a list no one sees.
       if (!this.isOpen()) return;
@@ -135,12 +148,12 @@ export class AudioQualityChanger extends EventEmitter {
 
   updateQualityLevels(client) {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
+    this.hasChoice = !!audioLevels && audioLevels.length > 1;
+    DOMElements.audioTracksBtn.classList.toggle('hidden', !this.hasChoice);
     if (!audioLevels || audioLevels.length < 1) {
-    //   DOMElements.audioSource.classList.add('hidden');
       this.enabled = false;
       return;
     } else {
-    //   DOMElements.audioSource.classList.remove('hidden');
       this.enabled = true;
     }
 
