@@ -1,8 +1,10 @@
 // @ts-check
+import {URLUtils} from '../player/utils/URLUtils.mjs';
 
 /**
  * Parses the "Custom source patterns" option: one pattern per line, the source type it
- * detects, then a regex in slashes, `<type> /<regex>/<flags>` (e.g. `hls /\/live\/\d+/i`).
+ * detects as the file extension it would have had, then a regex in slashes,
+ * `<type> /<regex>/<flags>` (e.g. `m3u8 /\/live\/\d+/i`).
  * Empty lines, `#` and `//` comments, and `@` command lines (reserved) are skipped.
  *
  * A malformed line is reported and left out. The old parser took the text between the
@@ -47,6 +49,14 @@ export function parseCustomSourcePatterns(text) {
       new RegExp(regex, flags);
     } catch (e) {
       errors.push({line: i + 1, text: line, reason: 'invalid regex: ' + e.message});
+      continue;
+    }
+    // The type is the file extension the URL would have had: m3u8, mpd, mp4, webm, m3u,
+    // vmpatch, or vtt and srt for subtitles (BackgroundUtils.isSubtitles). Another one
+    // ("hls", "hsl") matched URLs and gave sources of no mode: nothing played, and nothing
+    // said why.
+    if (!URLUtils.getModeFromExtension(ext) && ext !== 'vtt' && ext !== 'srt') {
+      errors.push({line: i + 1, text: line, reason: `unknown source type "${ext}" (use the file extension: m3u8, mpd, mp4, webm, vtt, srt)`});
       continue;
     }
     patterns.push({ext, regex, flags});

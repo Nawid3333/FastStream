@@ -1370,3 +1370,37 @@ describe('the shortcut\'s MPV, where mpv starts', () => {
     expect(await startFor({duration: Infinity, time: 612.4})).toBe(undefined);
   });
 });
+
+describe('the toolbar cycle on a page the MPV allowlist names by its path', () => {
+  const NEWS = 'https://site.test/news';
+
+  /**
+   * The allowlist names the site's /watch pages; tab 1 opens an episode there, which
+   * starts MPV by itself.
+   * @return {Promise<void>}
+   */
+  async function onEpisode() {
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch']}, tabs: [{id: 1, url: PAGE}]});
+    await bg.navigated(1, PAGE);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+  }
+
+  it('keeps the On the user picked when the tab goes on to a page the list does not name', async () => {
+    // Off -> On counted as the list's start: the first page of the site outside the list
+    // turned it off again, where the plain toggle's On stays for the tab (his call,
+    // 2026-10-10).
+    await onEpisode();
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.navigated(1, NEWS);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+  });
+
+  it('still ends the MPV the list started when the tab leaves the list', async () => {
+    await onEpisode();
+    await bg.navigated(1, NEWS);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+  });
+});

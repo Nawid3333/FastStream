@@ -63,7 +63,9 @@ class Bilibili2Dash {
     const duration = dashData.duration;
     const minBufferTime = dashData.minBufferTime;
     const videoAdaptationSet = this.loadDashTracks(dashData.video);
-    const audioAdaptationSet = this.loadDashTracks(dashData.audio);
+    // A video without sound has no audio list (null): only the video then. It threw, and the
+    // video was not detected at all (final review, 2026-10-10).
+    const audioAdaptationSet = dashData.audio?.length ? this.loadDashTracks(dashData.audio) : null;
     // const dolby = dashData.dolby;
     // const flac = dashData.flac;
 
@@ -80,7 +82,7 @@ class Bilibili2Dash {
     MPD.appendChild(Period);
 
     Period.appendChild(videoAdaptationSet);
-    Period.appendChild(audioAdaptationSet);
+    if (audioAdaptationSet) Period.appendChild(audioAdaptationSet);
     return MPD;
   }
 }

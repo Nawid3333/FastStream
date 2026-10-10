@@ -186,6 +186,18 @@ describe('facebook_content.js', () => {
     expect(manifestOf(sent[0].url)).toBe(mpd);
   });
 
+  it('reports a new video that comes in the same batch after one already reported', () => {
+    // The batch's first manifest was the first video's again (Facebook repeats it), and the
+    // new one after it was skipped, its script then marked as read (final review, 2026-10-10).
+    const run = runSiteScript('facebook_content.js', [jsonScript({playlist: '<MPD id="first"/>'})]);
+    run.location.href = 'https://www.example.com/watch/2';
+    run.tick();
+    run.page.push({type: '', ...jsonScript({playlist: '<MPD id="first"/>'})});
+    run.page.push({type: '', ...jsonScript({playlist: '<MPD id="second"/>'})});
+    run.tick();
+    expect(run.sent.map((report) => manifestOf(report.url))).toEqual(['<MPD id="first"/>', '<MPD id="second"/>']);
+  });
+
   singlePageCases('facebook_content.js',
       (name) => jsonScript({playlist: `<MPD id="${name}"/>`}),
       (report) => manifestOf(report.url).match(/id="([^"]*)"/)[1]);
@@ -234,6 +246,18 @@ describe('bilibili_content.js', () => {
     expect(runSiteScript('bilibili_content.js', [trailing]).sent).toHaveLength(1);
     const lines = {textContent: script.textContent.replace('{"data"', '{\n"data"').replace('"dash"', '\n"dash"')};
     expect(runSiteScript('bilibili_content.js', [lines]).sent).toHaveLength(1);
+  });
+
+  it('reports a video without sound, whose play info has no audio list', () => {
+    // data.dash.audio is null there: forEach threw, and the video was not detected at all
+    // (final review, 2026-10-10).
+    const playInfo = JSON.parse(playInfoScript('silent').textContent.replace('window.__playinfo__=', ''));
+    playInfo.data.dash.audio = null;
+    const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
+    expect(sent).toHaveLength(1);
+    const manifest = manifestOf(sent[0].url);
+    expect(manifest).toContain('silent-video.m4s');
+    expect(manifest.match(/<AdaptationSet/g)).toHaveLength(1);
   });
 
   it('writes no width or height for a track that has none', () => {

@@ -27,7 +27,7 @@ Observações:
 - Este player não funciona com conteúdo protegido por DRM (Netflix/Amazon etc). Isso é intencional. Por favor, use esta ferramenta de forma responsável. O FastStream não deve ser usado para violar direitos autorais.
 - Por favor, relate problemas, dificuldades de acessibilidade e sugestões de recursos no Github: https://github.com/Nawid3333/FastStream/issues
 - Para sua privacidade, esta extensão **não coleta dados de telemetria** e não tem servidor próprio. Além dos sites cujos vídeos você reproduz, ela só se conecta ao OpenSubtitles quando você procura legendas e ao GitHub para atualizações. Tudo o que ela executa vem dentro do complemento. Os detalhes, permissão por permissão, estão em [docs/privacy-policy.md](docs/privacy-policy.md) (em inglês).
-- O tamanho máximo padrão para pré-carregamento é de 5GB. Isso pode ser alterado na página de configurações. Fique atento ao espaço de armazenamento do seu computador ao mudar essa configuração. Os navegadores transferem dados da RAM para o SSD se o vídeo for muito grande. Pré-carregar vídeos grandes com frequência pode reduzir a vida útil do seu SSD.
+- O tamanho máximo padrão para pré-carregamento é de 5 GB. Isso pode ser alterado na página de configurações (0 = não pré-carregar nada, vazio = sem limite). Onde o vídeo baixado fica guardado, na RAM ou no disco, também é sua escolha: duas configurações decidem isso, explicadas em [RAM and disk](README.md#ram-and-disk) (em inglês).
 
 ## Compatibilidade com navegadores
 

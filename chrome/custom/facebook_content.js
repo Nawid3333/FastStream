@@ -62,16 +62,15 @@ function scanScripts() {
     return data.stack.includes('video');
   });
 
-  // The first one with its manifest: one without (playlist) was sent as a source whose
-  // manifest was the word "undefined".
-  const found = datas.find((data) => typeof data.value?.playlist === 'string' && data.value.playlist);
+  // The first one with its manifest not reported yet: one without (playlist) was sent as a
+  // source whose manifest was the word "undefined", and a batch whose first manifest was
+  // one already reported dropped a new video after it (final review, 2026-10-10).
+  const found = datas.find((data) => typeof data.value?.playlist === 'string' && data.value.playlist &&
+    !reported.has(data.value.playlist));
   if (!found) {
     return;
   }
   const mpd = found.value.playlist;
-  if (reported.has(mpd)) {
-    return;
-  }
   reported.add(mpd);
   const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
   chrome.runtime.sendMessage({

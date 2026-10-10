@@ -725,7 +725,7 @@ body {
     bottom: 0px;
     right: 0px;
     background-color: var(--button-badge-background-color);
-    font-weight: medium;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
     border-radius: 2px;
     z-index: 2;
@@ -2161,7 +2161,7 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     }
 
     50% {
-        transform: rotate(0eg);
+        transform: rotate(0deg);
     }
 
     75% {
@@ -2183,7 +2183,7 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     }
 
     50% {
-        transform: rotate(0eg);
+        transform: rotate(0deg);
     }
 
     75% {

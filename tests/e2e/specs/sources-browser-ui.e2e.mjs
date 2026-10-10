@@ -223,4 +223,32 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     }
     expect(hidden).toBe(true);
   });
+  it('gives the Play button back when the source fails to load', async function() {
+    // A source whose setSource threw left its button on "Loading..." for good (final
+    // review, 2026-10-10).
+    await openPlayer();
+    await (await browser.$('.mainplayer .fluid_button_link')).click();
+    const url = await browser.$('.linkui-source-url');
+    await url.waitForDisplayed();
+    const state = await browser.executeAsync((url, done) => {
+      const client = window.fastStream;
+      client.setSource = async () => {
+        window.__tried = true;
+        throw new Error('the source would not load');
+      };
+      const input = document.querySelector('.linkui-source-url');
+      input.value = url;
+      // As typing does: input, then change when the field is left.
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      input.dispatchEvent(new Event('change', {bubbles: true}));
+      document.querySelector('.linkui-source-set-button').click();
+      setTimeout(() => {
+        const button = document.querySelector('.linkui-source-set-button');
+        done({loading: button.classList.contains('loading'), text: button.textContent, tried: window.__tried});
+      }, 500);
+    }, globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/missing.mp4');
+    console.log('      after a failed source:', JSON.stringify(state));
+    expect(state.tried).toBe(true);
+    expect(state.loading).toBe(false);
+  });
 });

@@ -161,6 +161,18 @@ describe('SubtitleSyncer: dragging a cue', () => {
     expect(() => fire(playerContainer, 'mousemove', {clientX: 30})).not.toThrow();
   });
 
+  it('stops syncing a track that was removed while another fine-time state was on top', () => {
+    // The removal took the "bring the timeline back" path of a wand click: the timeline
+    // came back with the removed track's cues, and the shift keys went on moving it.
+    const {syncer, track} = grabbed(2);
+    fire(playerContainer, 'mouseup');
+    fineTimeControls.isStateActive = () => false;
+    syncer.toggleTrack(track, true);
+    expect(syncer.trackToSync).toBeNull();
+    expect(syncer.started).toBe(false);
+    expect(fineTimeControls.prioritizeState).not.toHaveBeenCalled();
+  });
+
   it('never lets a cue end before it starts', () => {
     const {cue} = grabbed(8);
     fire(playerContainer, 'mousemove', {clientX: -100});
