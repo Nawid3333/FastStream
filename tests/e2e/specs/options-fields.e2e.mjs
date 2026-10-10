@@ -144,9 +144,9 @@ describe('Options page settings import', function() {
   };
 
   it('says so when the file is no settings file', async function() {
-    const expected = await browser.executeAsync((done) => {
+    const expected = await browser.execute(() => new Promise((done) => {
       import('/player/modules/Localize.mjs').then(({Localize}) => done(Localize.getMessage('options_import_invalid')));
-    });
+    }));
     expect(expected).not.toBe('options_import_invalid');
     expect(await importText('null')).toEqual([expected]);
     expect(await importText('[1, 2]')).toEqual([expected]);
@@ -267,9 +267,9 @@ describe('Options page size fields, typed by hand', function() {
    * @param {string} key
    * @return {Promise<string>}
    */
-  const message = (key) => browser.executeAsync((key, done) => {
+  const message = (key) => browser.execute((key) => new Promise((done) => {
     import('/player/modules/Localize.mjs').then(({Localize}) => done(Localize.getMessage(key)));
-  }, key);
+  }), key);
 
   /**
    * Picks a unit as a person does.

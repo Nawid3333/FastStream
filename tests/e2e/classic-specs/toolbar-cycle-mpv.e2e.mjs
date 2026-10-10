@@ -61,7 +61,7 @@ const clickToolbar = () => clickToolbarIn(siteHandle);
  */
 async function tabMode() {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site + '/'));
       if (!tab) {
@@ -76,7 +76,7 @@ async function tabMode() {
         });
       });
     });
-  }, SITE);
+  }), SITE);
 }
 
 /**
@@ -172,7 +172,7 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
       return false;
     }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-    await browser.executeAsync((site, done) => {
+    await browser.execute((site) => new Promise((done) => {
       chrome.storage.local.set({
         options: JSON.stringify({mpvMode: true, mpvAllowlist: [site]}),
       }, () => {
@@ -181,7 +181,7 @@ describe('The MPV toolbar cycle (MPV -> Off -> On -> MPV)', function() {
           done(true);
         });
       });
-    }, SITE);
+    }), SITE);
     await browser.pause(1000);
 
     siteHandle = (await browser.getWindowHandles()).find((h) => h !== extHandle);

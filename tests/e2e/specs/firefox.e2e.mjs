@@ -58,7 +58,7 @@ describe('Options page', function() {
 describe('Firefox audio at speed', function() {
   // Plays the fixture at one rate for two seconds and reports the level the audio reaches,
   // through an analyser that is not connected to the speakers, and how far the media moved.
-  const measure = (rate) => browser.executeAsync((source, rate, done) => {
+  const measure = (rate) => browser.execute((source, rate) => new Promise((done) => {
     const video = document.createElement('video');
     video.preload = 'auto';
     video.src = source;
@@ -92,7 +92,7 @@ describe('Firefox audio at speed', function() {
         done({level: levels[Math.floor(levels.length / 2)], moved});
       }, 2000);
     }, {once: true});
-  }, globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/long-av.mp4', rate);
+  }), globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/long-av.mp4', rate);
 
   it('is heard up to 8x, which is where the player stops, and not beyond', async function() {
     await browser.setTimeout({script: 60000});

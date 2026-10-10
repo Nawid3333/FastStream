@@ -17,7 +17,7 @@ describe('A subtitle cue with no text', function() {
   });
 
   it('leaves the tracks after it and the rest of the time update running', async function() {
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const client = window.fastStream;
         const ui = client.interfaceController;
@@ -63,7 +63,7 @@ describe('A subtitle cue with no text', function() {
           shown: document.querySelector('.mainplayer .fluid_subtitles_container').textContent,
         });
       }, (e) => done({errors: [String(e)]}));
-    });
+    }));
     console.log('      ', JSON.stringify(result));
 
     // The case is the one described: the first track's cue at this time has no text.

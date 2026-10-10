@@ -22,7 +22,7 @@ describe('Background audio analyzer', function() {
         }),
         {timeout: 60000, timeoutMsg: 'the player never became ready'});
 
-    const outcome = await browser.executeAsync((done) => {
+    const outcome = await browser.execute(() => new Promise((done) => {
       const errors = [];
       window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason?.message || e.reason)));
       window.addEventListener('error', (e) => errors.push(e.message));
@@ -39,7 +39,7 @@ describe('Background audio analyzer', function() {
           analyzer.stopBackgroundAnalyzer();
         }, 500);
       }, (e) => done({failed: String((e && e.message) || e), errors}));
-    });
+    }));
 
     expect(outcome.failed).toBeUndefined();
     expect(outcome.errors).toEqual([]);

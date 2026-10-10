@@ -157,12 +157,12 @@ async function tabMode(prefix = SITE + '/') {
  */
 async function tabIdOf(prefix) {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site));
       done(tab ? tab.id : null);
     });
-  }, prefix);
+  }), prefix);
 }
 
 /**
@@ -172,7 +172,7 @@ async function tabIdOf(prefix) {
  */
 async function modeOfTab(tabId) {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((tabId, done) => {
+  return await browser.execute((tabId) => new Promise((done) => {
     chrome.action.getTitle({tabId}, (title) => {
       chrome.action.getBadgeText({tabId}, (badge) => {
         if (title.includes('MPV')) done('mpv');
@@ -180,7 +180,7 @@ async function modeOfTab(tabId) {
         else done('off');
       });
     });
-  }, tabId);
+  }), tabId);
 }
 
 /**
@@ -189,9 +189,9 @@ async function modeOfTab(tabId) {
  */
 async function urlOfTab(tabId) {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((tabId, done) => {
+  return await browser.execute((tabId) => new Promise((done) => {
     chrome.tabs.get(tabId, (tab) => done(tab.url || ''));
-  }, tabId);
+  }), tabId);
 }
 
 /**
@@ -328,14 +328,14 @@ async function mainPlaying() {
  */
 async function setOptions(options) {
   await browser.switchToWindow(extHandle);
-  await browser.executeAsync((json, done) => {
+  await browser.execute((json) => new Promise((done) => {
     chrome.storage.local.set({options: json}, () => {
       chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
         void chrome.runtime.lastError;
         done(true);
       });
     });
-  }, JSON.stringify(options));
+  }), JSON.stringify(options));
   await browser.pause(500);
 }
 
@@ -631,7 +631,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
 
     // MPV mode on, allowlist empty: nothing here auto-starts MPV, so every
     // switch below is the shortcut's doing.
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       chrome.storage.local.set({
         options: JSON.stringify({mpvMode: true, mpvAllowlist: []}),
       }, () => {
@@ -640,7 +640,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
           done(true);
         });
       });
-    });
+    }));
     await browser.pause(1000);
 
     siteHandle = (await browser.getWindowHandles()).find((h) => h !== extHandle);
@@ -779,9 +779,9 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   // took a second press. Each key now has its own command.
   it('binds Ctrl+Shift+F to the player\'s own command, not the toolbar button', async function() {
     await browser.switchToWindow(extHandle);
-    const commands = await browser.executeAsync((done) => {
+    const commands = await browser.execute(() => new Promise((done) => {
       chrome.commands.getAll().then((all) => done(all.map((c) => [c.name, c.shortcut || ''])));
-    });
+    }));
     expect(Object.fromEntries(commands)).toEqual({
       toggle_player: 'Ctrl+Shift+F',
       toggle_mpv: 'Alt+F',

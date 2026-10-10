@@ -188,7 +188,7 @@ describe('save transport on the installed extension', function() {
   it('downloads a blob URL created inside a partitioned player iframe', async function() {
     await openEmbeddedPlayer();
 
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       const blob = new Blob(['faststream iframe probe'], {type: 'text/plain'});
       const url = URL.createObjectURL(blob);
       chrome.runtime.sendMessage({
@@ -203,7 +203,7 @@ describe('save transport on the installed extension', function() {
           downloadId: resp === undefined ? 'undefined' : resp,
         });
       });
-    });
+    }));
 
     await browser.switchToParentFrame();
     console.log('      iframe download:', JSON.stringify(result));

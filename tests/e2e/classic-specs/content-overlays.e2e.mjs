@@ -217,13 +217,13 @@ const clickToolbar = () => clickToolbarIn(siteHandle);
 /** @return {Promise<string>} The site tab's mode, 'on' or 'off'. */
 async function tabMode() {
   await browser.switchToWindow(extHandle);
-  const mode = await browser.executeAsync((site, done) => {
+  const mode = await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site + '/'));
       if (!tab) return done('none');
       chrome.action.getBadgeText({tabId: tab.id}, (badge) => done(badge === 'On' ? 'on' : 'off'));
     });
-  }, SITE);
+  }), SITE);
   await browser.switchToWindow(siteHandle);
   return mode;
 }

@@ -122,11 +122,11 @@ describe('options page: search and export/import cover MPV settings', function()
     // exactly this).
     // Each change is saved asynchronously (OptionsStore.replace), so wait until storage
     // holds the last of them rather than reading it once straight after the clicks.
-    const readStored = () => browser.executeAsync((done) => {
+    const readStored = () => browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs').then((m) => {
         m.Utils.getOptionsFromStorage().then((opts) => done(opts));
       });
-    });
+    }));
     await browser.waitUntil(async () => {
       const stored = await readStored();
       return stored.mpvMode === true && stored.mpvFullscreen === true &&
@@ -188,14 +188,14 @@ describe('options page: search and export/import cover MPV settings', function()
       autoEnableURLs: ['https://old-site.example/'],
     };
 
-    const merged = await browser.executeAsync((oldExport, done) => {
+    const merged = await browser.execute((oldExport) => new Promise((done) => {
       Promise.all([
         import('/player/utils/Utils.mjs'),
         import('/player/options/defaults/DefaultOptions.mjs'),
       ]).then(([UtilsMod, DefaultsMod]) => {
         done(UtilsMod.Utils.mergeOptions(DefaultsMod.DefaultOptions, oldExport));
       });
-    }, preMpvExport);
+    }), preMpvExport);
 
     expect(merged.mpvMode).toBe(false);
     expect(merged.mpvAllowlist).toEqual([]);

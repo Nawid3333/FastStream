@@ -332,21 +332,21 @@ const clickToolbar = () => clickToolbarIn(siteHandle);
 /** @return {Promise<?number>} The site tab's id. */
 async function siteTabId() {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site + '/'));
       done(tab ? tab.id : null);
     });
-  }, SITE);
+  }), SITE);
 }
 
 /** @return {Promise<string>} The site tab's mode, 'on' or 'off'. */
 async function tabMode() {
   const tabId = await siteTabId();
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((tabId, done) => {
+  return await browser.execute((tabId) => new Promise((done) => {
     chrome.action.getBadgeText({tabId}, (badge) => done(badge === 'On' ? 'on' : 'off'));
-  }, tabId);
+  }), tabId);
 }
 
 /**
@@ -359,14 +359,14 @@ async function tabMode() {
 async function sendToPage(message, within = 0) {
   const tabId = await siteTabId();
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((tabId, message, within, done) => {
+  return await browser.execute((tabId, message, within) => new Promise((done) => {
     if (within) {
       setTimeout(() => done({error: 'no answer'}), within);
     }
     chrome.tabs.sendMessage(tabId, message, {frameId: 0}, (response) => {
       done(chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : response);
     });
-  }, tabId, message, within);
+  }), tabId, message, within);
 }
 
 /**

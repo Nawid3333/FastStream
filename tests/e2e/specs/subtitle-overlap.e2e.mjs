@@ -18,7 +18,7 @@ describe('Overlapping subtitle cues', function() {
   });
 
   it('keeps a long cue on screen over shorter ones, and the lines in start order', async function() {
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const client = window.fastStream;
         const manager = client.interfaceController.subtitlesManager;
@@ -45,7 +45,7 @@ describe('Overlapping subtitle cues', function() {
           at11: shownAt(11),
         });
       }, (e) => done({error: String(e)}));
-    });
+    }));
     console.log('      ', JSON.stringify(result));
 
     expect(result.error).toBeUndefined();

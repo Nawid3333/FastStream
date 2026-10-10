@@ -40,7 +40,7 @@ async function openSearch() {
       {timeout: 30000, timeoutMsg: 'the player never started'});
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
       {timeout: 30000, timeoutMsg: 'the player options never loaded'});
-  const error = await browser.executeAsync((done) => {
+  const error = await browser.execute(() => new Promise((done) => {
     import('/player/utils/RequestUtils.mjs').then(({RequestUtils}) => {
       window.__requests = [];
       RequestUtils.request = (options) => new Promise((resolve, reject) => {
@@ -49,7 +49,7 @@ async function openSearch() {
       window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.openUI();
       done(null);
     }).catch((e) => done(String(e)));
-  });
+  }));
   expect(error).toBe(null);
 }
 
@@ -99,7 +99,7 @@ async function answerSearch(first, subtitles, list = subtitles) {
  * @return {Promise<{titles: string[], message: string, pages: number, requests: number}>}
  */
 async function shown() {
-  return browser.executeAsync((done) => setTimeout(() => {
+  return browser.execute(() => new Promise((done) => setTimeout(() => {
     const subui = window.fastStream.interfaceController.subtitlesManager.openSubtitlesSearch.subui;
     done({
       titles: Array.from(subui.results.querySelectorAll('.subtitle-result-title'), (el) => el.textContent),
@@ -107,7 +107,7 @@ async function shown() {
       pages: subui.pages.children.length,
       requests: window.__requests.length,
     });
-  }, 100));
+  }, 100)));
 }
 
 describe('Subtitle search', function() {

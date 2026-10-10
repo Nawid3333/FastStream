@@ -33,7 +33,7 @@ async function openPlayer() {
   await browser.url('/player/index.html?t=' + Date.now());
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.interfaceController?.subtitlesManager),
       {timeout: 15000, timeoutMsg: 'the player never appeared'});
-  await browser.executeAsync((answers, done) => {
+  await browser.execute((answers) => new Promise((done) => {
     import('/player/utils/RequestUtils.mjs').then(({RequestUtils}) => {
       window.__requests = [];
       RequestUtils.request = async (options) => {
@@ -49,7 +49,7 @@ async function openPlayer() {
       };
       done();
     });
-  }, ANSWERS);
+  }), ANSWERS);
 }
 
 /**

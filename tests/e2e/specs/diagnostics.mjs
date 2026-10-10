@@ -10,7 +10,7 @@ import {browser} from '@wdio/globals';
  * @return {Promise<Object>}
  */
 export async function pageState() {
-  return browser.executeAsync((done) => {
+  return browser.execute(() => new Promise((done) => {
     const video = document.querySelector('video');
     const state = {
       video: video ? {
@@ -28,7 +28,7 @@ export async function pageState() {
     }, (e) => {
       state.opfs = 'unreadable: ' + e.message;
     }).finally(() => done(state));
-  });
+  }));
 }
 
 /**

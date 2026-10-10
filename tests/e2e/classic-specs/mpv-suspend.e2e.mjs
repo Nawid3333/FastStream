@@ -112,7 +112,7 @@ describe('MPV mode across a suspended background', function() {
           return false;
         }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-        await browser.executeAsync((site, done) => {
+        await browser.execute((site) => new Promise((done) => {
           chrome.storage.local.set({
             options: JSON.stringify({mpvMode: true, mpvAllowlist: [site]}),
           }, () => {
@@ -121,7 +121,7 @@ describe('MPV mode across a suspended background', function() {
               done(true);
             });
           });
-        }, SITE);
+        }), SITE);
         await browser.pause(1000);
         await browser.closeWindow();
         await browser.switchToWindow((await browser.getWindowHandles())[0]);

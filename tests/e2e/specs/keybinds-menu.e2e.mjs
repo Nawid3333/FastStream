@@ -58,9 +58,9 @@ const waitForSaved = (check) => browser.waitUntil(
     },
     {timeout: 10000, timeoutMsg: 'the options were never saved'});
 
-const defaults = () => browser.executeAsync((done) => {
+const defaults = () => browser.execute(() => new Promise((done) => {
   import('/player/options/defaults/DefaultKeybinds.mjs').then((m) => done(m.DefaultKeybinds));
-});
+}));
 
 describe('Keybinding menu', function() {
   beforeEach(async function() {
@@ -86,7 +86,7 @@ describe('Keybinding menu', function() {
   });
 
   it('names every row from its action, never with a raw action name', async function() {
-    const labels = await browser.executeAsync((done) => {
+    const labels = await browser.execute(() => new Promise((done) => {
       import('/player/options/KeybindUtils.mjs').then(({keybindLabel}) => {
         done([...document.querySelectorAll('.keybind-container')].map((container) => ({
           action: container.dataset.keybind,
@@ -94,7 +94,7 @@ describe('Keybinding menu', function() {
           expected: keybindLabel(container.dataset.keybind),
         })));
       });
-    });
+    }));
     expect(labels.length).toBeGreaterThan(50);
     for (const {action, shown, expected} of labels) {
       // The action goes into the compared value so a failure says which row it was.

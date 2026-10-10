@@ -83,7 +83,7 @@ describe('An archive written by "dump buffer"', function() {
       // The control: Resource Timing does see the player's manifest downloads.
       expect((await fetchedManifests(manifests)).length).toBeGreaterThan(0);
 
-      const written = await browser.executeAsync((done) => {
+      const written = await browser.execute(() => new Promise((done) => {
         (async () => {
           const client = window.fastStream;
           const {FastStreamArchiveUtils} = await import('/player/utils/FastStreamArchiveUtils.mjs');
@@ -104,7 +104,7 @@ describe('An archive written by "dump buffer"', function() {
           });
           return {stored: entries.map((entry) => entry.url), size: file.size, base64: dataUrl.split(',')[1]};
         })().then(done, (e) => done({error: String(e)}));
-      });
+      }));
       console.log('      archive:', JSON.stringify({error: written.error, stored: written.stored?.length, size: written.size}));
       expect(written.error).toBeUndefined();
 
@@ -118,7 +118,7 @@ describe('An archive written by "dump buffer"', function() {
       await browser.url(`/player/index.html?t=${Date.now()}`);
       await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.interfaceController?.saveManager),
           {timeout: 30000, timeoutMsg: 'the empty player never set up'});
-      const dropped = await browser.executeAsync((base64, done) => {
+      const dropped = await browser.execute((base64) => new Promise((done) => {
         (async () => {
           const client = window.fastStream;
           const {FastStreamArchiveUtils} = await import('/player/utils/FastStreamArchiveUtils.mjs');
@@ -134,7 +134,7 @@ describe('An archive written by "dump buffer"', function() {
           });
           return {fromArchive: !!client.source?.loadedFromArchive};
         })().then(done, (e) => done({error: String(e)}));
-      }, written.base64);
+      }), written.base64);
       console.log('      dropped:', JSON.stringify(dropped));
       expect(dropped.error).toBeUndefined();
       expect(dropped.fromArchive).toBe(true);

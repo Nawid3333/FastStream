@@ -296,7 +296,7 @@ async function saveAndInspectPhases(phase, prepare) {
   phase('downloaded');
   if (prepare) await browser.execute(prepare);
 
-  const saved = await browser.executeAsync((done) => {
+  const saved = await browser.execute(() => new Promise((done) => {
     const info = {
       saveError: null, blobSize: null, decodeOk: null, duration: null,
       trakCount: null, mdatBytes: null, moofs: null,
@@ -377,7 +377,7 @@ async function saveAndInspectPhases(phase, prepare) {
       info.saveError = ((e && e.message) ? e.message + '\n' : '') + ((e && e.stack) || String(e));
       done(info);
     });
-  });
+  }));
   phase('saved');
   return saved;
 }
@@ -572,7 +572,7 @@ describe('Save video (locally generated fMP4)', function() {
           async () => browser.execute(() => document.querySelector('video')?.readyState >= 2),
           {timeout: 30000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
 
-      const result = await browser.executeAsync((done) => {
+      const result = await browser.execute(() => new Promise((done) => {
         import('/player/enums/ReferenceTypes.mjs').then(async ({ReferenceTypes}) => {
           const client = window.fastStream;
           const player = client.player;
@@ -594,7 +594,7 @@ describe('Save video (locally generated fMP4)', function() {
               .map((frag) => `${level}/${frag.sn}`));
           done({saveError, pinned});
         }).catch((e) => done({saveError: 'test setup: ' + e.message, pinned: null}));
-      });
+      }));
       console.log('      result:', JSON.stringify(result));
 
       expect(result.saveError).toBe('Failed to download fragment');

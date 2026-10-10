@@ -44,25 +44,27 @@ async function downloadAll(budget, playlist = '/long.m3u8', timeout = 120000) {
  *     to disk, as leaving), on disk (files), and in all (total).
  */
 async function holdings() {
-  return browser.executeAsync(async (done) => {
-    const client = window.fastStream;
-    const manager = client.downloadManager;
-    const store = manager.blobStore;
-    let files = 0;
-    try {
-      const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('fsblob');
-      for await (const [, dir] of root.entries()) {
-        for await (const [name] of dir.entries()) {
-          if (name !== '_meta.json') files++;
+  return browser.execute(() => new Promise((done) => {
+    (async () => {
+      const client = window.fastStream;
+      const manager = client.downloadManager;
+      const store = manager.blobStore;
+      let files = 0;
+      try {
+        const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('fsblob');
+        for await (const [, dir] of root.entries()) {
+          for await (const [name] of dir.entries()) {
+            if (name !== '_meta.json') files++;
+          }
         }
+      } catch (e) {
+        files = -1;
       }
-    } catch (e) {
-      files = -1;
-    }
-    const total = client.fragments.reduce((sum, fragment) => sum + (fragment?.dataSize || 0), 0);
-    done({ram: manager.ramBytes(), leaving: manager.spillingBytes(), total, files, opfs: !!store.opfsManager,
-      full: manager.memoryFull});
-  });
+      const total = client.fragments.reduce((sum, fragment) => sum + (fragment?.dataSize || 0), 0);
+      done({ram: manager.ramBytes(), leaving: manager.spillingBytes(), total, files, opfs: !!store.opfsManager,
+        full: manager.memoryFull});
+    })();
+  }));
 }
 
 describe('The RAM budget', function() {
@@ -136,18 +138,20 @@ describe('The RAM budget', function() {
     expect(state.files).toBeGreaterThan(0);
 
     // The start, long written to disk, plays again.
-    const played = await browser.executeAsync(async (done) => {
-      const client = window.fastStream;
-      client.currentTime = 1;
-      const video = client.player.getVideo();
-      video.play().catch(() => {});
-      const start = Date.now();
-      while (Date.now() - start < 15000) {
-        if (video.currentTime > 2 && !video.seeking) break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-      done({time: video.currentTime, failed: !!client.interfaceController.failed});
-    });
+    const played = await browser.execute(() => new Promise((done) => {
+      (async () => {
+        const client = window.fastStream;
+        client.currentTime = 1;
+        const video = client.player.getVideo();
+        video.play().catch(() => {});
+        const start = Date.now();
+        while (Date.now() - start < 15000) {
+          if (video.currentTime > 2 && !video.seeking) break;
+          await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+        done({time: video.currentTime, failed: !!client.interfaceController.failed});
+      })();
+    }));
     console.log(`      from disk: ${JSON.stringify(played)}`);
     expect(played.failed).toBe(false);
     expect(played.time).toBeGreaterThan(2);
