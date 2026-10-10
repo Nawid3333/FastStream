@@ -505,20 +505,9 @@ export class SaveManager {
       const ext = URLUtils.get_url_extension(file.name);
 
       if (ext === 'json') {
-        const fsprofile = await file.text();
-        // A .json that is not JSON is skipped, rather than failing the whole drop and
-        // with it the video dropped alongside.
-        let data;
-        try {
-          data = JSON.parse(fsprofile);
-        } catch (e) {
-          console.warn('Skipped a dropped .json that is not JSON:', file.name, e);
-          continue;
-        }
-
-        if (data?.type === 'audioProfile') {
-          this.client.audioConfigManager.loadProfileFile(data);
-        }
+        // An exported audio profile, the only .json the player took: skipped since the
+        // audio settings went (2026-10-10), rather than tried as a video.
+        continue;
       } else if (subtitleFormats.includes(ext)) {
         captions.push({
           url: window.URL.createObjectURL(file),

@@ -147,7 +147,7 @@ runs:
         key: e2e-sample-mp4-${{ steps.mp4-pin.outputs.sha256 }}
 
     # Firefox needs an audio device for the specs that listen to the player (firefox.e2e's
-    # 8x pin, audio-tools): without one its AudioContext never starts and they could only
+    # 8x pin): without one its AudioContext never starts and they could only
     # skip, as they did on every CI job (#265). GitHub's Ubuntu images have no sound server,
     # so the job starts PulseAudio with a null sink, a device that plays into nothing, and
     # those specs fail on Linux CI without sound (tests/e2e/soundCheck.mjs). The daemon is

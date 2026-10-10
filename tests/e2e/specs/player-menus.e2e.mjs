@@ -1,6 +1,6 @@
 // The player's menus and the small controls in them: the quality, audio and language
-// menus' keys, the silence skipper's speed, the loop menu's GIF, and the dropdown and knob
-// components.
+// menus' keys, the audio-track button, the silence skipper's speed, the loop menu's GIF,
+// and the dropdown component.
 //
 // Each case opens the web player with no source and hands it one the way main.mjs does,
 // with autoplay and remembered positions off.
@@ -10,6 +10,8 @@ import {browser, expect} from '@wdio/globals';
 const de = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/de/messages.json', import.meta.url), 'utf8'));
 const mp4Url = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/sample.mp4`;
 const hlsUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/hls-audio/master.m3u8`;
+// The same, with its audio rendition listed twice: two tracks to choose from.
+const twoTracksUrl = () => `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/hls-audio/tracks.m3u8`;
 
 /**
  * Opens the player with no source, autoplay and remembered positions off.
@@ -108,7 +110,7 @@ describe('Player menus', function() {
 
   it('lets the arrow keys through the audio button once its list is closed', async function() {
     await openEmptyPlayer();
-    await addSource(hlsUrl());
+    await addSource(twoTracksUrl());
     await waitForPicture();
     await browser.waitUntil(async () => browser.execute(
         () => document.querySelector('.mainplayer .fluid_audio_sources_list').children.length > 0 &&
@@ -118,6 +120,39 @@ describe('Player menus', function() {
     console.log('      audio button:', JSON.stringify(state));
     expect(state.wasOpen).toBe(true);
     expect(state.volume).toBeCloseTo(0.9, 5);
+  });
+
+  it('shows the audio button only where there is a track to choose, and opens its list', async function() {
+    // It opened the audio settings window until that went (2026-10-10); it is the
+    // audio-track list's button now, and a list of one track offers nothing.
+    await openEmptyPlayer();
+    const state = () => browser.execute(() => {
+      const button = document.querySelector('.mainplayer .fluid_button_soundwave');
+      return {
+        shown: !button.classList.contains('hidden') && button.offsetWidth > 0,
+        label: button.ariaLabel,
+        open: window.fastStream.interfaceController.audioQualityChanger.isOpen(),
+        tracks: document.querySelector('.mainplayer .fluid_audio_sources_list').children.length,
+      };
+    });
+    await addSource(hlsUrl());
+    await waitForPicture();
+    const one = await settle(state, (s) => s.tracks === 1);
+    console.log('      one track:', JSON.stringify(one));
+    expect(one.shown).toBe(false);
+
+    await addSource(twoTracksUrl());
+    await waitForPicture();
+    const two = await settle(state, (s) => s.tracks === 2 && s.shown);
+    console.log('      two tracks:', JSON.stringify(two));
+    expect(two.shown).toBe(true);
+    expect(two.label).toBe('Audio tracks');
+    expect(two.open).toBe(false);
+
+    await browser.execute(() => document.querySelector('.mainplayer .fluid_button_soundwave').click());
+    expect((await state()).open).toBe(true);
+    await browser.execute(() => document.querySelector('.mainplayer .fluid_button_soundwave').click());
+    expect((await state()).open).toBe(false);
   });
 
   // They changed the speed while the list was closed (review, 2026-10-09).
@@ -422,63 +457,5 @@ describe('Player menus', function() {
     expect(shown).toEqual({season: de.player_opensubtitles_seasonnum.message, episode: de.player_opensubtitles_episodenum.message,
       year: de.player_opensubtitles_year.message});
     expect(shown.season).not.toBe('Season #');
-  });
-
-  it('keeps a knob\'s value when its field is emptied and left', async function() {
-    // parseFloat('') is NaN, and the knob handed NaN on to its setting.
-    await openEmptyPlayer();
-    const empty = (suggested) => browser.executeAsync((suggested, done) => {
-      import('/player/ui/components/Knob.mjs').then(({createKnob}) => {
-        const values = [];
-        const knob = createKnob('Gain', 0, 20, (value) => values.push(value), 'dB');
-        document.querySelector('.mainplayer').appendChild(knob.container);
-        setTimeout(() => {
-          knob.knob.val(5);
-          if (suggested !== null) knob.setSuggestedValue(suggested);
-          const field = knob.container.querySelector('.knob_value');
-          field.focus();
-          field.textContent = '';
-          field.blur();
-          // NaN comes back from the page as null.
-          done({values, now: knob.knob.val(), shown: field.textContent});
-        }, 50);
-      }).catch((e) => done({error: String(e)}));
-    }, suggested);
-    const plain = await empty(null);
-    console.log('      knob:', JSON.stringify(plain));
-    expect(plain.values.includes(null)).toBe(false);
-    expect(plain.now).toBe(5);
-    expect(plain.shown).toBe('5.0 dB');
-    // A knob with a suggested value goes to it, which is how its "auto" is chosen.
-    const withSuggestion = await empty(12);
-    console.log('      knob with a suggested value:', JSON.stringify(withSuggestion));
-    expect(withSuggestion.now).toBe(12);
-  });
-
-  it('takes a value typed into a knob\'s field as typed', async function() {
-    // "0,5" was 0, and a value typed within 2 % of the suggested one became the suggested
-    // one: only a drag or the wheel snaps to it.
-    await openEmptyPlayer();
-    const typed = await browser.executeAsync((done) => {
-      import('/player/ui/components/Knob.mjs').then(({createKnob}) => {
-        const values = [];
-        const knob = createKnob('Gain', 0, 20, (value) => values.push(value), 'dB');
-        document.querySelector('.mainplayer').appendChild(knob.container);
-        setTimeout(() => {
-          knob.setSuggestedValue(12);
-          const field = knob.container.querySelector('.knob_value');
-          const type = (text) => {
-            field.focus();
-            field.textContent = text;
-            field.dispatchEvent(new Event('input'));
-            field.blur();
-            return knob.knob.val();
-          };
-          done({comma: type('2,5'), near: type('11,8'), at: type('12'), last: values.at(-1)});
-        }, 50);
-      }).catch((e) => done({error: String(e)}));
-    });
-    console.log('      typed:', JSON.stringify(typed));
-    expect(typed).toEqual({comma: 2.5, near: 11.8, at: 12, last: 12});
   });
 });

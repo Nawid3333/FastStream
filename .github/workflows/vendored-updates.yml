@@ -7,11 +7,12 @@ name: Vendored updates
 #     dash.js release changes that file, an issue "vtt.js changed in dash.js <tag>": the
 #     changes may need re-deriving, so a person moves the pin.
 #
-#   The adapted copies of other projects' code in tools/vendored-sources.json (knob.mjs,
-#     StreamSaver.mjs, crosstalk/fft.mjs; 2026-10-01): when upstream changes the
-#     file one came from after its ref, an issue "Vendored source changed upstream: <name>
-#     (<repo> <commit>)" lists the commits. A copy is adapted, so a person ports what matters
-#     and moves the ref; the issue then closes itself, and a newer upstream change replaces it.
+#   The adapted copies of other projects' code in tools/vendored-sources.json
+#     (StreamSaver.mjs; 2026-10-01; knob.mjs and crosstalk/fft.mjs went with the audio
+#     settings, 2026-10-10): when upstream changes the file one came from after its ref,
+#     an issue "Vendored source changed upstream: <name> (<repo> <commit>)" lists the
+#     commits. A copy is adapted, so a person ports what matters and moves the ref; the
+#     issue then closes itself, and a newer upstream change replaces it.
 #
 # Each is assigned to the owner and @mentions them. A title is never raised twice, open or
 # closed: closing one skips that release for good. Each closes itself once its pin is at

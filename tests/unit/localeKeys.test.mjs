@@ -4,7 +4,7 @@ import {describe, expect, it} from 'vitest';
 
 // Localize.getMessage answers a key the locales lack with the key itself, and
 // chrome.i18n.getMessage with nothing, so a missing key shows on screen as its name (the
-// convolver's store failure alerted "audioconvolver_fileerror") and nothing fails. This
+// audio settings' store failure alerted "audioconvolver_fileerror") and nothing fails. This
 // checks every key the code names against the English locale, which the others fall
 // back to.
 
@@ -79,48 +79,65 @@ describe('Message keys', () => {
   it('writes no English text into the player\'s UI', () => {
     // Text written into the code shows in English in every language ("Type", "Play",
     // "Edit subtitle text" and "Press a key" did); what the user reads goes through
-    // Localize. These stay, each for its reason:
-    const allowed = [
-      // Two abbreviations on a small button, whose tooltip is localized.
-      'player/ui/audio/AudioChannelMixer.mjs: EQ/Comp',
-      // A fallback never shown: CHANNEL_NAMES names every one of the MAX_AUDIO_CHANNELS.
-      'player/ui/audio/OutputConvolver.mjs: Channel',
-    ];
-    const patterns = [
-      /\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*(['"`])([A-Za-z][^'"`]*[a-z][^'"`]*)\1/g,
-      /AlertPolyfill\.(?:alert|prompt|confirm)\(\s*(['"`])([^'"`]+)\1/g,
-      /AlertPolyfill\.toast\(\s*'[a-z]+',\s*(['"`])([^'"`]+)\1/g,
-      /createDropdown\([^,]+,\s*(['"`])([^'"`]+)\1/g,
-      /WebUtils\.setLabels\([^,]+,\s*(['"`])([^'"`]+)\1/g,
-    ];
+    // Localize.
     const found = [];
     for (const file of sourceFiles(path.join(chromeDir, 'player'))) {
       const name = path.relative(chromeDir, file).split(path.sep).join('/');
       // The vendored libraries.
       if (name.startsWith('player/modules/') || !/\.m?js$/.test(name)) continue;
-      const source = fs.readFileSync(file, 'utf8');
-      for (const pattern of patterns) {
-        for (const match of source.matchAll(pattern)) {
-          // Example URLs, and the product's name.
-          if (match[2].includes('://') || match[2].startsWith('FastStream')) continue;
-          found.push(`${name}: ${match[2]}`);
-        }
-      }
-      // A template literal anywhere on the right of the assignment. "Also used by ${...}"
-      // and "${shown} / ${total} matched" got past the patterns above, which stop at the
-      // first quote (the one in join(', ')) and want a letter first.
-      for (const match of source.matchAll(/\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*[^;\n]*?`([^`]*)`/g)) {
-        const text = match[1].replace(/\$\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
-        // A unit, and the product's name.
-        if (!/[A-Za-z]{3,}/.test(text.replace(/\bkbps\b/g, '')) || text.startsWith('FastStream')) continue;
-        found.push(`${name}: ${text}`);
-      }
+      found.push(...englishTexts(name, fs.readFileSync(file, 'utf8')));
     }
-    // The exceptions are found, so the patterns still match.
-    expect(allowed.filter((entry) => !found.includes(entry))).toEqual([]);
-    expect(found.filter((entry) => !allowed.includes(entry))).toEqual([]);
+    expect(found).toEqual([]);
+  });
+
+  it('still finds English text written into the UI', () => {
+    // The two exceptions that proved it went with the audio settings (2026-10-10).
+    const planted = [
+      'button.textContent = \'Play\';',
+      'AlertPolyfill.alert(\'Could not load the file\');',
+      'el.title = `Also used by ${names.join(\', \')}`;',
+    ].join('\n');
+    expect(englishTexts('planted.mjs', planted)).toEqual([
+      'planted.mjs: Play',
+      'planted.mjs: Could not load the file',
+      'planted.mjs: Also used by',
+    ]);
   });
 });
+
+/**
+ * The English text a player script writes into the UI.
+ * @param {string} name - The script's name, for the report.
+ * @param {string} source - Its code.
+ * @return {string[]} `name: text` for each.
+ */
+function englishTexts(name, source) {
+  const patterns = [
+    /\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*(['"`])([A-Za-z][^'"`]*[a-z][^'"`]*)\1/g,
+    /AlertPolyfill\.(?:alert|prompt|confirm)\(\s*(['"`])([^'"`]+)\1/g,
+    /AlertPolyfill\.toast\(\s*'[a-z]+',\s*(['"`])([^'"`]+)\1/g,
+    /createDropdown\([^,]+,\s*(['"`])([^'"`]+)\1/g,
+    /WebUtils\.setLabels\([^,]+,\s*(['"`])([^'"`]+)\1/g,
+  ];
+  const found = [];
+  for (const pattern of patterns) {
+    for (const match of source.matchAll(pattern)) {
+      // Example URLs, and the product's name.
+      if (match[2].includes('://') || match[2].startsWith('FastStream')) continue;
+      found.push(`${name}: ${match[2]}`);
+    }
+  }
+  // A template literal anywhere on the right of the assignment. "Also used by ${...}"
+  // and "${shown} / ${total} matched" got past the patterns above, which stop at the
+  // first quote (the one in join(', ')) and want a letter first.
+  for (const match of source.matchAll(/\.(?:textContent|innerText|title|placeholder|ariaLabel)\s*=\s*[^;\n]*?`([^`]*)`/g)) {
+    const text = match[1].replace(/\$\{[^}]*\}/g, ' ').replace(/\s+/g, ' ').trim();
+    // A unit, and the product's name.
+    if (!/[A-Za-z]{3,}/.test(text.replace(/\bkbps\b/g, '')) || text.startsWith('FastStream')) continue;
+    found.push(`${name}: ${text}`);
+  }
+  return found;
+}
 
 describe('Every locale', () => {
   // A locale is compared with English, not only with combined-locales.json: one that lacks
@@ -155,7 +172,8 @@ describe('combined-locales.json', () => {
         (expected[key] ||= {})[locale] = value.message;
       }
     }
-    expect(Object.keys(expected).length).toBeGreaterThanOrEqual(400);
+    // Read at all: 395 keys since the audio settings went (2026-10-10).
+    expect(Object.keys(expected).length).toBeGreaterThanOrEqual(350);
     expect(combined).toEqual(expected);
   });
 });

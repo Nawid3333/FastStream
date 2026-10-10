@@ -56,6 +56,34 @@ export class BackgroundUtils {
     });
   }
 
+  /**
+   * What the audio settings window kept (removed 2026-10-10): its profiles in storage and the
+   * impulse response files in IndexedDB. Forgotten once, when an update installs.
+   */
+  static forgetRemovedAudioSettingsOnUpdate() {
+    chrome.runtime.onInstalled.addListener((details) => {
+      if (details?.reason !== 'update') return;
+      return BackgroundUtils.forgetRemovedAudioSettings();
+    });
+  }
+
+  /**
+   * @return {Promise<void>} Settled once both are gone, or could not go.
+   */
+  static forgetRemovedAudioSettings() {
+    const profiles = Promise.resolve().then(() => chrome.storage.local.remove(['audioProfiles', 'currentAudioProfile']))
+        .catch((e) => console.warn('Could not forget the old audio profiles', e));
+    // A tab of the old version that still has the database open blocks the delete until it
+    // closes (Firefox closes the extension's pages on an update); it is not dropped.
+    const files = /** @type {Promise<void>} */ (new Promise((resolve) => {
+      const request = indexedDB.deleteDatabase('faststream-impulse-responses');
+      request.onsuccess = request.onerror = () => resolve(undefined);
+    })).catch(() => {
+      // no IndexedDB (a private window may refuse it): nothing was kept there either
+    });
+    return Promise.all([profiles, files]).then(() => {});
+  }
+
   static openWelcomePageOnInstall() {
     chrome.runtime.onInstalled.addListener((object) => {
       chrome.storage.local.get('welcome', (result) => {

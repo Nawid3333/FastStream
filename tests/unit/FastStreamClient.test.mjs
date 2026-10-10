@@ -12,7 +12,7 @@ vi.mock('../../chrome/player/modules/analyzer/VideoAnalyzer.mjs', () => ({VideoA
 vi.mock('../../chrome/player/ui/SourcesBrowser.mjs', () => ({SourcesBrowser: class {}}));
 vi.mock('../../chrome/player/players/PlayerLoader.mjs', () => ({PlayerLoader: class {}}));
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {playerContainer: {style: {}}}}));
-vi.mock('../../chrome/player/ui/audio/AudioConfigManager.mjs', () => ({AudioConfigManager: class {}}));
+vi.mock('../../chrome/player/ui/audio/AudioOutput.mjs', () => ({AudioOutput: class {}}));
 vi.mock('../../chrome/player/utils/EnvUtils.mjs', () => ({
   EnvUtils: {
     isWebAudioSupported: () => false,
@@ -198,7 +198,7 @@ function makeClient(options = {}) {
     audioAnalyzer: {reset: vi.fn(), setLevel: vi.fn(), updateBackgroundAnalyzer: vi.fn()},
     frameExtractor: {reset: vi.fn(), setLevel: vi.fn(), updateBackground: vi.fn()},
     videoAnalyzer: {setLevel: vi.fn(), setSource: vi.fn(async () => {}), pushFrame: () => false},
-    audioConfigManager: {updateChannelCount: vi.fn()},
+    audioOutput: {updateChannelCount: vi.fn()},
     frameStepper: {watch: vi.fn()},
     sourcesBrowser: {updateSources: vi.fn()},
     playerLoader: {createPlayer: vi.fn(async (mode, c, config) => new FakePlayer(null))},
@@ -335,22 +335,6 @@ describe('FastStreamClient, a change of quality', () => {
     expect(saving.status).toBe(DownloadStatus.DOWNLOAD_COMPLETE);
     expect(client.downloadManager.removeFile).toHaveBeenCalledTimes(1);
     expect(client.levelManager.getCurrentVideoLevelID()).toBe('0:1');
-  });
-});
-
-describe('FastStreamClient.destroy', () => {
-  // The tick saves the audio tools' changes once a second: one made just before the player
-  // closed was lost (review).
-  it('saves the audio changes first', () => {
-    const saveChanges = vi.fn(() => null);
-    const that = {audioConfigManager: {saveChanges}};
-    try {
-      // Up to the first step that needs a whole client.
-      FastStreamClient.prototype.destroy.call(that);
-    } catch (e) {
-      // The rest of a client is not here.
-    }
-    expect(saveChanges).toHaveBeenCalled();
   });
 });
 

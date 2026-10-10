@@ -78,63 +78,6 @@ export class FakeAudioContext {
     return this.node('gain', {gain: fakeParam(1)});
   }
 
-  createDelay(maxDelayTime = 1) {
-    return this.node('delay', {delayTime: fakeParam(0), maxDelayTime});
-  }
-
-  createChannelSplitter(numberOfOutputs = 6) {
-    return this.node('splitter', {numberOfOutputs});
-  }
-
-  createChannelMerger(numberOfInputs = 6) {
-    return this.node('merger', {numberOfInputs});
-  }
-
-  createDynamicsCompressor() {
-    return this.node('compressor', {
-      threshold: fakeParam(-24), knee: fakeParam(30), ratio: fakeParam(12),
-      attack: fakeParam(0.003), release: fakeParam(0.25), reduction: 0,
-    });
-  }
-
-  createBiquadFilter() {
-    const node = this.node('biquad', {frequency: fakeParam(350), gain: fakeParam(0), Q: fakeParam(1)});
-    // An enum attribute: a value it does not know is ignored, as in the browser.
-    let type = 'lowpass';
-    Object.defineProperty(node, 'type', {
-      get: () => type,
-      set: (v) => {
-        if (['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'peaking', 'notch', 'allpass'].includes(v)) {
-          type = v;
-        }
-      },
-    });
-    return node;
-  }
-
-  createConvolver() {
-    // Counts what restarts the convolution: each buffer it is given.
-    const node = this.node('convolver', {normalize: true, bufferSets: 0});
-    let buffer = null;
-    Object.defineProperty(node, 'buffer', {
-      get: () => buffer,
-      set: (v) => {
-        node.bufferSets++;
-        buffer = v;
-      },
-    });
-    return node;
-  }
-
-  createBuffer(numberOfChannels, length, sampleRate) {
-    const channels = Array.from({length: numberOfChannels}, () => new Float32Array(length));
-    return {
-      numberOfChannels, length, sampleRate,
-      getChannelData: (i) => channels[i],
-      copyToChannel: (data, i) => channels[i].set(data.subarray(0, length)),
-    };
-  }
-
   /**
    * The edges into a node.
    * @param {FakeNode} node
@@ -151,44 +94,5 @@ export class FakeAudioContext {
    */
   outputsOf(node) {
     return this.edges.filter((edge) => edge.from === node);
-  }
-
-  /**
-   * How long a DynamicsCompressorNode holds the sound back, as Firefox's does: its 6 ms
-   * pre-delay, rounded down to whole frames.
-   * @return {number} seconds
-   */
-  get compressorLookAhead() {
-    return Math.floor(0.006 * this.sampleRate) / this.sampleRate;
-  }
-
-  /**
-   * Every path from one splitter's outputs to one merger's inputs, following a channel
-   * through the mergers and splitters on the way.
-   * @param {FakeNode} splitter
-   * @param {FakeNode} merger
-   * @return {Array<{from: number, to: number, delay: number, compressors: FakeNode[]}>}
-   *   sorted by channel; `delay` adds up the DelayNodes and the compressors' look-ahead.
-   */
-  channelPaths(splitter, merger) {
-    const found = [];
-    const walk = (node, channel, delay, compressors, from) => {
-      for (const edge of this.outputsOf(node)) {
-        // A splitter passes one channel on each output.
-        if (node !== splitter && node.kind === 'splitter' && channel !== null && edge.output !== channel) continue;
-        const start = node === splitter ? edge.output : from;
-        if (edge.to === merger) {
-          found.push({from: start, to: edge.input, delay, compressors});
-          continue;
-        }
-        const to = edge.to;
-        let next = node.kind === 'splitter' ? null : channel;
-        if (to.kind === 'merger') next = edge.input;
-        const added = to.kind === 'delay' ? to.delayTime.value : to.kind === 'compressor' ? this.compressorLookAhead : 0;
-        walk(to, next, delay + added, to.kind === 'compressor' ? [...compressors, to] : compressors, start);
-      }
-    };
-    walk(splitter, null, 0, [], null);
-    return found.sort((a, b) => a.from - b.from || a.to - b.to);
   }
 }

@@ -10,7 +10,7 @@ import {EventEmitter} from './modules/eventemitter.mjs';
 import {SourcesBrowser} from './ui/SourcesBrowser.mjs';
 import {PlayerLoader} from './players/PlayerLoader.mjs';
 import {DOMElements} from './ui/DOMElements.mjs';
-import {AudioConfigManager} from './ui/audio/AudioConfigManager.mjs';
+import {AudioOutput} from './ui/audio/AudioOutput.mjs';
 import {EnvUtils} from './utils/EnvUtils.mjs';
 import {Localize} from './modules/Localize.mjs';
 import {ClickActions} from './options/defaults/ClickActions.mjs';
@@ -135,9 +135,9 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
     if (EnvUtils.isWebAudioSupported()) {
-      this.audioConfigManager = new AudioConfigManager(this);
+      this.audioOutput = new AudioOutput();
       this.audioContext = new AudioContext();
-      this.audioConfigManager.setupNodes(this.audioContext);
+      this.audioOutput.setupNodes(this.audioContext);
     }
 
     DOMElements.playerContainer.addEventListener('keydown', (e) => {
@@ -325,9 +325,6 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
-    // The audio changes of the last second: the tick saves them once a second, and one made
-    // just before the player closed was lost (review).
-    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
     this.resetPlayer();
@@ -795,9 +792,9 @@ export class FastStreamClient extends EventEmitter {
     this.audioAnalyzer.setupAnalyzerNodeForMainPlayer(this.player.getVideo(), this.audioOutputNode, this.audioContext, ()=>{
       return this.currentVideo.currentTime + this.options.videoDelay / 1000;
     });
-    this.audioConfigManager.setupNodes(this.audioContext);
-    this.audioConfigManager.getInputNode().connectFrom(this.audioOutputNode);
-    this.audioConfigManager.getOutputNode().connect(this.audioContext.destination);
+    this.audioOutput.setupNodes(this.audioContext);
+    this.audioOutput.getInputNode().connectFrom(this.audioOutputNode);
+    this.audioOutput.getOutputNode().connect(this.audioContext.destination);
   }
 
   /**
@@ -1214,9 +1211,6 @@ export class FastStreamClient extends EventEmitter {
   mainloop() {
     if (this.destroyed) return;
     setTimeout(this.mainloop.bind(this), 1000);
-
-    // The audio tools' changes, kept by themselves.
-    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
 
     if (this.needsUserInteraction()) {
       this.interfaceController.setStatusMessage(StatusTypes.REQINTERACTION, Localize.getMessage('player_needs_interaction'), 'warning clickable');
@@ -1992,7 +1986,7 @@ export class FastStreamClient extends EventEmitter {
         this.playedSource = this.source;
       }
       // Made only where Web Audio is (constructor), as every other use checks
-      this.audioConfigManager?.updateChannelCount();
+      this.audioOutput?.updateChannelCount();
     });
 
 
@@ -2443,7 +2437,7 @@ export class FastStreamClient extends EventEmitter {
       this.resetFailed();
       this.updateQualityLevels();
       // None without Web Audio (the constructor makes it only then), as at the other call.
-      this.audioConfigManager?.updateChannelCount();
+      this.audioOutput?.updateChannelCount();
     }
   }
 
@@ -2653,12 +2647,12 @@ export class FastStreamClient extends EventEmitter {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(1))) {
         this.player.volume = 1;
       }
-      this.audioConfigManager?.updateVolume(volume);
+      this.audioOutput?.updateVolume(volume);
     } else {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
         this.player.volume = volume;
       }
-      if (EnvUtils.isWebAudioSupported()) this.audioConfigManager.updateVolume(1);
+      if (EnvUtils.isWebAudioSupported()) this.audioOutput.updateVolume(1);
     }
   }
 
