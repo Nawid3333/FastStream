@@ -14,6 +14,11 @@ export class SubtitleTrack {
 
   loadURL(url) {
     return fetch(url).then((response) => {
+      // An error page (404) was read as a subtitle file without cues: the reason was lost
+      // (review). A link typed in the subtitles menu says it already (requestSimple).
+      if (!response.ok) {
+        throw new Error('Bad status code: ' + response.status);
+      }
       return response.arrayBuffer().then((bytes) => {
         return SubtitleUtils.decodeSubtitleBytes(bytes, response.headers.get('Content-Type'));
       });

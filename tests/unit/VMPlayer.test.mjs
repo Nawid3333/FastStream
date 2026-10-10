@@ -109,6 +109,15 @@ describe('VMPlayer.setSource', () => {
     // The empty config has no HLS data: reported, as before.
     expect(that.emit).toHaveBeenCalledWith(DefaultPlayerEvents.ERROR, expect.any(Error));
   });
+
+  // vimeoRequestUrl takes a config address without a query; it was read as the player page.
+  it('asks for a config without a query as a config, and a player page as a page', async () => {
+    const request = vi.spyOn(RequestUtils, 'request').mockResolvedValue({response: {}});
+    await VMPlayer.prototype.setSource.call(player(), {url: 'https://player.vimeo.com/video/1/config', headers: {}});
+    expect(request.mock.lastCall[0].responseType).toBe('json');
+    await VMPlayer.prototype.setSource.call(player(), {url: 'https://player.vimeo.com/video/1?h=abc', headers: {}});
+    expect(request.mock.lastCall[0].responseType).toBe('text');
+  });
 });
 
 // The embed page's config was cut at the first "}" with braces counted inside strings too:

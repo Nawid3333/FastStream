@@ -57,7 +57,9 @@
   // crypto.randomUUID: it needs a secure context, and plain http pages are not one.
   const DocumentKey = Array.from(crypto.getRandomValues(new Uint32Array(4)), (n) => n.toString(36)).join('');
 
-  let resizeDebounce = Date.now();
+  // The resize observers' last update of the players, and the one due after a burst.
+  let resizeDebounce = performance.now();
+  let resizeTrailing = null;
   const Config = {
     softReplaceByDefault: true,
     hasCustomPlaylist: false,
@@ -490,13 +492,7 @@
         }
 
         // Add resize listener
-        pobj.resizeObserver = new ResizeObserver(() => {
-          const now = Date.now();
-          if (now - resizeDebounce > 100) {
-            resizeDebounce = now;
-            updateReplacedPlayers();
-          }
-        });
+        pobj.resizeObserver = new ResizeObserver(updateReplacedPlayersSoon);
         // An element: a video straight in a shadow root put the player there, with the root
         // as its parent, which a ResizeObserver refuses. The throw left the player without
         // one: it followed the window's size, but not its box on the page.
@@ -1170,6 +1166,27 @@
     }
   }
 
+  /**
+   * Updates the replaced players for a resize: at most every 100 ms, and once more 100 ms
+   * after the last call. The changes skipped inside a burst (a sidebar sliding shut) were
+   * never made up, and the player kept a size from the middle of it; a window being resized
+   * updated them on every event, putting a hard-replaced page video back into the page to
+   * measure it each time.
+   */
+  function updateReplacedPlayersSoon() {
+    clearTimeout(resizeTrailing);
+    const now = performance.now();
+    if (now - resizeDebounce > 100) {
+      resizeDebounce = now;
+      updateReplacedPlayers();
+    } else {
+      resizeTrailing = setTimeout(() => {
+        resizeDebounce = performance.now();
+        updateReplacedPlayers();
+      }, 100);
+    }
+  }
+
   function updateReplacedPlayers(convert = null) {
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.replacedData) {
@@ -1293,8 +1310,9 @@
   }
 
   function pauseOnPlay() {
+    // A call's live stream plays on (playsLiveStream), also one given its stream later.
     // eslint-disable-next-line no-invalid-this
-    this.pause();
+    if (!playsLiveStream(this)) this.pause();
   }
 
   function pauseAllWithin(element) {
@@ -1304,7 +1322,9 @@
     const hooked = new Set();
     const hook = (media) => {
       try {
-        media.pause();
+        // Not a call's live stream: a watch party's voice chat fell silent under a player
+        // over the whole page, as every other pause here already knew (playsLiveStream).
+        if (!playsLiveStream(media)) media.pause();
       } catch (e) {
         console.error(e);
       }
@@ -1405,8 +1425,8 @@
 
   /**
    * A copy of SubtitleUtils.decodeSubtitleBytes (a classic script cannot import it; a unit
-   * test keeps the two the same): a subtitle file's bytes as text, Windows-1252 when they
-   * are no UTF-8.
+   * test keeps the two the same): a subtitle file's bytes as text, in the older encoding of
+   * the browser's language when they are no UTF-8.
    * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
    * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
    * @return {string} The file's text.
@@ -1440,7 +1460,17 @@
     try {
       return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
     } catch (e) {
-      return new TextDecoder('windows-1252').decode(bytes);
+      // No UTF-8: the older encoding of the browser's language, as Firefox falls back to.
+      // Read as Windows-1252, a Russian, Polish or Greek file showed wrong letters.
+      const language = String(globalThis.navigator?.language || '').toLowerCase();
+      const legacy = [
+        [/^(ru|uk|be|bg|sr|mk)\b/, 'windows-1251'], [/^(pl|cs|sk|sl|hu|hr|ro|bs)\b/, 'windows-1250'],
+        [/^el\b/, 'windows-1253'], [/^(tr|az)\b/, 'windows-1254'], [/^he\b/, 'windows-1255'],
+        [/^(ar|fa|ur)\b/, 'windows-1256'], [/^(lt|lv|et)\b/, 'windows-1257'], [/^vi\b/, 'windows-1258'],
+        [/^th\b/, 'windows-874'], [/^ja\b/, 'shift_jis'], [/^ko\b/, 'euc-kr'],
+        [/^zh-(tw|hk|mo|hant)/, 'big5'], [/^zh\b/, 'gb18030'],
+      ].find(([pattern]) => pattern.test(language));
+      return new TextDecoder(legacy ? legacy[1] : 'windows-1252').decode(bytes);
     }
   }
 
@@ -1994,7 +2024,7 @@
   });
 
   window.addEventListener('resize', () => {
-    updateReplacedPlayers();
+    updateReplacedPlayersSoon();
     resizeMiniPlayers();
   });
 
@@ -2021,9 +2051,10 @@
   /**
    * What a video plays, for the player to play the same stream (StreamPick.played).
    * @param {HTMLVideoElement|null|undefined} video - The video.
-   * @return {?{src: string, duration: ?number, playing: string}} Its file's URL (not a
-   *   blob: URL, which a detected source never has), its length in seconds (Infinity when
-   *   live), and its currentSrc as it is, blob: or not; or null for no video.
+   * @return {?{src: string, duration: ?number, playing: string, time: number}} Its file's URL
+   *   (not a blob: URL, which a detected source never has), its length in seconds (Infinity
+   *   when live), its currentSrc as it is, blob: or not, and where it plays, in seconds; or
+   *   null for no video.
    */
   function playedVideo(video) {
     if (!video) {
@@ -2034,6 +2065,8 @@
       src: /^https?:\/\//i.test(src) ? src : '',
       duration: video.duration > 0 ? video.duration : null,
       playing: src,
+      // Where it is: mpv starts there (background sendPlayedToMpv).
+      time: Number.isFinite(video.currentTime) ? video.currentTime : 0,
     };
   }
 

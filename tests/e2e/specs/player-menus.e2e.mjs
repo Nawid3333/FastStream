@@ -120,6 +120,37 @@ describe('Player menus', function() {
     expect(state.volume).toBeCloseTo(0.9, 5);
   });
 
+  // They changed the speed while the list was closed (review, 2026-10-09).
+  it('lets the arrow keys through the speed button once its list is closed', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const state = await arrowDownOnClosedMenu('playbackRateChanger', '.mainplayer .fluid_button_playback_rate');
+    const rate = await browser.execute(() => window.fastStream.playbackRate);
+    console.log('      speed button:', JSON.stringify(state), 'rate', rate);
+    expect(state.volume).toBeCloseTo(0.9, 5);
+    expect(rate).toBe(1);
+
+    // With its list open, the arrows are the list's: the speed goes one step, the volume stays.
+    const open = await browser.execute(() => {
+      const client = window.fastStream;
+      client.volume = 1;
+      const menu = client.interfaceController.playbackRateChanger;
+      const button = document.querySelector('.mainplayer .fluid_button_playback_rate');
+      menu.openUI();
+      button.focus();
+      button.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', code: 'ArrowDown', bubbles: true, cancelable: true}));
+      const result = {open: menu.isOpen(), rate: client.playbackRate, volume: client.volume};
+      menu.closeUI();
+      // The speed is saved for the next player: back to 1, saved too.
+      menu.setPlaybackRate(1);
+      return result;
+    });
+    expect(open.open).toBe(true);
+    expect(open.rate).toBeCloseTo(1.1, 5);
+    expect(open.volume).toBe(1);
+  });
+
   it('keeps the language menu\'s keys to its own tracks, and lets them through once closed', async function() {
     // The highlight could rest on the empty cell of a language with no track of that
     // type, and the keys moved it while the menu was closed.
@@ -243,6 +274,123 @@ describe('Player menus', function() {
     expect(state.running).toBe(false);
   });
 
+  // The GIF button turns the loop on to record it, and puts it back after (review): with no
+  // loop to record, it stayed on; switched off during the recording, it came back on.
+  it('leaves the loop as the user has it around a GIF', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const loop = () => browser.execute(() => {
+      const controls = window.fastStream.interfaceController.loopControls;
+      return {enabled: controls.loopEnabled, running: !!controls.gifLoopRunning};
+    });
+    const setTime = (name, value) => browser.execute((name, value) => {
+      const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+    }, name, value);
+    const click = (selector) => browser.execute((selector) => document.querySelector(selector).click(), selector);
+    await browser.execute(() => {
+      // The finished GIF would be downloaded.
+      window.fastStream.interfaceController.loopControls.finishGif = function() {
+        this.gif?.abort();
+        this.gif = null;
+        this.recordingGif = false;
+        this.gifLoopRunning = false;
+      };
+    });
+
+    await setTime('start', '00:00:04');
+    await setTime('end', '00:00:02');
+    await click('.mainplayer .loop_menu_gif_button');
+    expect(await loop()).toEqual({enabled: false, running: false});
+
+    await setTime('start', '00:00:00');
+    await setTime('end', '00:00:04');
+    await click('.mainplayer .loop_menu_toggle_button');
+    await click('.mainplayer .loop_menu_gif_button');
+    expect((await loop()).running).toBe(true);
+    await click('.mainplayer .loop_menu_toggle_button');
+    await browser.waitUntil(async () => !(await loop()).running, {timeout: 10000, timeoutMsg: 'the recording never ended'});
+    expect((await loop()).enabled).toBe(false);
+  });
+
+  // Typing an end time passes times before the start ("3" on the way to "3:00"): that
+  // turned the loop off, and it stayed off once the time was typed (review, 2026-10-09).
+  it('keeps the loop on while a time is typed, and loops once the times make a loop', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const typeTime = (name, value) => browser.execute((name, value) => {
+      const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+      input.value = value;
+      input.dispatchEvent(new Event('input', {bubbles: true}));
+      const loop = window.fastStream.interfaceController.loopControls;
+      return {enabled: loop.loopEnabled, valid: loop.loopRangeValid, invalidMark: input.classList.contains('invalid'),
+        videoLoop: window.fastStream.player.getVideo().loop, start: loop.loopStart, end: loop.loopEnd};
+    }, name, value);
+    // An empty end is the end of the video, and says so.
+    expect(await browser.execute(() => document.querySelector('.mainplayer input[name="end"]').placeholder))
+        .not.toBe('');
+    await typeTime('start', '00:00:02');
+    await browser.execute(() => document.querySelector('.mainplayer .loop_menu_toggle_button').click());
+
+    const halfTyped = await typeTime('end', '1');
+    expect(halfTyped.enabled).toBe(true);
+    expect(halfTyped.valid).toBe(false);
+    expect(halfTyped.invalidMark).toBe(true);
+    expect(halfTyped.videoLoop).toBe(false);
+
+    // A decimal comma, as French and German write it: "4,5" was 4.
+    const typed = await typeTime('end', '00:00:04,5');
+    expect(typed.enabled).toBe(true);
+    expect(typed.valid).toBe(true);
+    expect(typed.invalidMark).toBe(false);
+    expect(typed.videoLoop).toBe(true);
+    expect(typed.end).toBe(4.5);
+  });
+
+  // Back at 0 after a reload, the silence skipper skipped nothing (review, 2026-10-09).
+  it('keeps the silence threshold the user dragged', async function() {
+    await openEmptyPlayer();
+    const loaded = await browser.executeAsync((done) => {
+      const changer = window.fastStream.interfaceController.playbackRateChanger;
+      changer.silenceThreshold = 0.42;
+      changer.saveState().then(() => {
+        changer.silenceThreshold = 0;
+        return changer.loadState();
+      }).then(() => done(changer.silenceThreshold));
+    });
+    expect(loaded).toBeCloseTo(0.42, 5);
+  });
+
+  // In a background tab no animation frames come, and the video played past the loop's end.
+  it('keeps a hidden tab\'s video within its loop', async function() {
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const time = await browser.execute(() => {
+      const loop = window.fastStream.interfaceController.loopControls;
+      for (const [name, value] of [['start', '00:00:01'], ['end', '00:00:02']]) {
+        const input = document.querySelector(`.mainplayer input[name="${name}"]`);
+        input.value = value;
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+      }
+      loop.loopEnabled = true;
+      loop.updateLoopAndGif();
+      // As in a background tab: the animation frames stopped, and only timeupdate comes.
+      loop.loopLoopRunning = true;
+      loop.loopEnabled = true;
+      Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+      window.fastStream.currentTime = 3;
+      window.fastStream.currentVideo.dispatchEvent(new Event('timeupdate'));
+      const after = window.fastStream.currentTime;
+      delete document.hidden;
+      return after;
+    });
+    expect(time).toBe(1);
+  });
+
   it('names a dropdown\'s new value when the keyboard changes it', async function() {
     // Only a click on an item renamed it, so a screen reader kept the old value.
     await openEmptyPlayer();
@@ -305,5 +453,32 @@ describe('Player menus', function() {
     const withSuggestion = await empty(12);
     console.log('      knob with a suggested value:', JSON.stringify(withSuggestion));
     expect(withSuggestion.now).toBe(12);
+  });
+
+  it('takes a value typed into a knob\'s field as typed', async function() {
+    // "0,5" was 0, and a value typed within 2 % of the suggested one became the suggested
+    // one: only a drag or the wheel snaps to it.
+    await openEmptyPlayer();
+    const typed = await browser.executeAsync((done) => {
+      import('/player/ui/components/Knob.mjs').then(({createKnob}) => {
+        const values = [];
+        const knob = createKnob('Gain', 0, 20, (value) => values.push(value), 'dB');
+        document.querySelector('.mainplayer').appendChild(knob.container);
+        setTimeout(() => {
+          knob.setSuggestedValue(12);
+          const field = knob.container.querySelector('.knob_value');
+          const type = (text) => {
+            field.focus();
+            field.textContent = text;
+            field.dispatchEvent(new Event('input'));
+            field.blur();
+            return knob.knob.val();
+          };
+          done({comma: type('2,5'), near: type('11,8'), at: type('12'), last: values.at(-1)});
+        }, 50);
+      }).catch((e) => done({error: String(e)}));
+    });
+    console.log('      typed:', JSON.stringify(typed));
+    expect(typed).toEqual({comma: 2.5, near: 11.8, at: 12, last: 12});
   });
 });

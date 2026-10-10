@@ -337,7 +337,9 @@ export class FetchLoader {
     const reader = response.body.getReader();
     const chunks = [];
     let receivedLength = 0;
+    let keptLength = 0;
     const limit = range ? range.rangeEnd : Infinity;
+    const from = range ? range.rangeStart || 0 : 0;
 
     while (receivedLength < limit) {
       const {done, value} = await reader.read();
@@ -346,8 +348,15 @@ export class FetchLoader {
         throw new DOMException('The attempt was torn down.', 'AbortError');
       }
 
-      chunks.push(value);
+      // Of a whole file, only the range is kept: every byte before it was held in RAM, and
+      // the whole again to cut the range out, for a range near the end of a big file.
+      const chunkStart = receivedLength;
       receivedLength += value.byteLength;
+      if (receivedLength > from) {
+        const kept = value.subarray(Math.max(0, from - chunkStart), Math.max(0, limit - chunkStart));
+        chunks.push(kept);
+        keptLength += kept.byteLength;
+      }
       stats.loaded = receivedLength;
 
       this.rearmTimeout();
@@ -357,14 +366,11 @@ export class FetchLoader {
       reader.cancel().catch(() => {});
     }
 
-    let merged = new Uint8Array(receivedLength);
+    const merged = new Uint8Array(keptLength);
     let offset = 0;
     for (const chunk of chunks) {
       merged.set(chunk, offset);
       offset += chunk.byteLength;
-    }
-    if (range) {
-      merged = merged.slice(range.rangeStart || 0, range.rangeEnd);
     }
 
     return isArrayBuffer ? merged.buffer : new TextDecoder('utf-8').decode(merged);

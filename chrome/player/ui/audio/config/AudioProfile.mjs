@@ -23,17 +23,24 @@ export class AudioProfile {
 
   static fromObj(obj) {
     const profile = new AudioProfile(obj.id);
-    profile.label = obj.label;
+    // A profile without a label (an older one, a file edited by hand) was named "undefined",
+    // and saved so; it keeps the default name.
+    if (typeof obj.label === 'string' && obj.label) profile.label = obj.label;
 
-    if (Array.isArray(obj.channels) && obj.channels.length <= MAX_AUDIO_CHANNELS) {
+    // A list of any length: one with more channels than the mixer has (8, from a file) lost
+    // every channel's settings. The loop below keeps one per ID.
+    if (Array.isArray(obj.channels)) {
       profile.channels = obj.channels.filter((channel) => channel && typeof channel === 'object').map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
     } else if (obj.mixerChannels && obj.mixerChannels.length === 7) { // Legacy
-      profile.channels = obj.mixerChannels.map((channel) => {
+      // Objects only, as above: a null in an old file threw, and the profile list with it.
+      profile.channels = obj.mixerChannels.slice(0, 6).filter((channel) => channel && typeof channel === 'object').map((channel) => {
         return AudioChannelControl.fromObj(channel);
       });
-      profile.master = profile.channels.pop();
+      // The seventh is the master: kept with its number, it was no master (isMaster), and
+      // its mono setting was lost (review).
+      profile.master = AudioChannelControl.fromObj({...obj.mixerChannels[6], id: 'master'});
     }
 
     // One channel per ID, 0 to MAX_AUDIO_CHANNELS - 1, in order, the missing ones default:

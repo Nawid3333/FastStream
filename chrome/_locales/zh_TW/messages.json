@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "點擊播放器，讓它預先下載影片"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "拖曳粉紅色線條，設定要多安靜的片段才會被跳過"
+    },
+    "loop_menu_now": {
+        "message": "使用目前時間"
+    },
+    "player_segment_intro": {
+        "message": "片頭"
+    },
+    "player_segment_outro": {
+        "message": "片尾"
+    },
     "player_skipintro": {
         "message": "跳過片頭"
     },
     "player_skipoutro": {
         "message": "跳過片尾"
+    },
+    "player_nextvideo_auto": {
+        "message": "自動"
     },
     "player_nextvideoin": {
         "message": "下一部影片於 $1s 後播放"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "停止測試"
     },
+    "player_subtitles_url_track": {
+        "message": "來自連結的字幕"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "字幕軌 $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "新增字幕"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "輸入要搜尋的片名"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "上傳檔案"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "起點"
     },
+    "loop_menu_end_placeholder": {
+        "message": "影片結尾"
+    },
     "loop_menu_end": {
         "message": "終點"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "輸入檔案名稱"
+    },
+    "player_screenshot_nopicture": {
+        "message": "沒有可儲存的截圖：檔案只有音訊，或影片還沒有顯示畫面。"
     },
     "player_screenshot_saving": {
         "message": "正在擷圖..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "設定檔"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "設定檔 $1"
+    },
+    "audiomixer_master": {
+        "message": "主音量"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "未命名的設定檔"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "已載入設定檔!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "儲存設定檔"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "儲存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "已儲存設定檔!"
     },
     "player_audioconfig_profile_download": {
         "message": "下載設定檔"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"
     },
+    "options_general_nolimit": {
+        "message": "無限制"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0：不會在播放位置前方下載任何內容，影片可能會停下來載入。留空表示無限制。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0：不會預先下載任何內容，只會在播放位置前方保留下方設定的秒數。留空表示無限制。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0：已下載的影片不保存在記憶體中，而是儲存到磁碟上，只有接下來幾秒會留在記憶體中。隱私視窗不會在磁碟上儲存任何內容，因此不會在播放位置前方下載任何內容。留空表示無限制。"
+    },
+    "options_general_rambudget_none": {
+        "message": "無限制：所有已下載的影片都保留在記憶體中，不會存到磁碟。記憶體較少的電腦上，Firefox 可能會變慢。"
+    },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留緩衝的秒數（預先下載關閉、停止或空間用完時使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0：在播放位置前方不保留任何緩衝，影片會經常停下來載入。留空表示無限制。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "無限制：即使預先下載關閉，也會提前下載整部影片。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。如果上方的下載速度為 0，則不會提前下載任何內容。"
+    },
     "options_general_bufferbehind": {
         "message": "在播放位置後方、修剪前保留緩衝的秒數"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0：已播放的部分會立即釋放；往回跳轉時會重新載入。留空表示無限制。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "無限制：已播放的內容全部保留。先存在記憶體中，上方的記憶體限制用滿後再存到磁碟。"
     },
     "options_general_blockpopups": {
         "message": "封鎖點擊播放器後立即開啟的彈出視窗/底層彈出視窗"
@@ -1137,7 +1194,10 @@
         "message": "回復預設"
     },
     "options_keybinds_press": {
-        "message": "按任意鍵"
+        "message": "按任意鍵，按 Escape 則不設定"
+    },
+    "options_keybinds_none": {
+        "message": "無"
     },
     "options_keybinds_conflict": {
         "message": "也被 $1 使用"
@@ -1146,7 +1206,7 @@
         "message": "自動啟用網址"
     },
     "options_autourl_body": {
-        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。若要讓整個網站不受影響 - 不會自動啟用，其串流連結也不會在播放器中開啟 - 請在網域前面加上減號 (-)。"
+        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配（可省略 https:// 和 www.，例如：crunchyroll.com）。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。若要讓整個網站不受影響 - 不會自動啟用，其串流連結也不會在播放器中開啟 - 請在網域前面加上減號 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此測試正則表達式"
@@ -1179,7 +1239,7 @@
         "message": "MPV 允許清單"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
+        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
     },
     "options_mpv_path": {
         "message": "mpv 路徑（選用：只有在 mpv 主機自己找不到 mpv 時才需要）"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - 正在 MPV 中播放 - 由顯示卡解碼：$1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）。"
+    },
     "options_mpv_test_decoder_hw": {
         "message": "已開啟的 mpv 視窗正在用顯示卡解碼：$1。"
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）。"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "僅與 Firefox VPN 一起使用。Firefox 將其列為瀏覽器代理設定的控制項，但 FastStream 不會變更任何設定：它會以頁面自身請求所經過的相同方式，透過 VPN 傳送自己針對影片的請求。沒有它，將影片綁定到 VPN 位址的網站會拒絕 FastStream。播放器會在首次需要時請求此權限。"
+    },
+    "player_mpv_no_host": {
+        "message": "FastStream mpv 主機沒有回應——是否已安裝？"
     },
     "player_mpv_vpn": {
         "message": "此影片透過 Firefox VPN 傳輸，而 mpv 無法使用 Firefox VPN：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"

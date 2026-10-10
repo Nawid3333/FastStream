@@ -25,9 +25,11 @@ describe('Utils.migrateSizes', () => {
     expect(Utils.migrateSizes({maxVideoSize: 5e9}, null).maxVideoSize).toBe(5e9);
   });
 
-  // The options page reads 0 as no limit now, as an empty field. A speed limit of 0 saved
-  // before held back reading ahead while the field said 0.
-  it('reads a size or speed limit of 0 saved before as no limit', () => {
+  // 0 is none now (nothing predownloaded, nothing read ahead), an empty field no limit. A
+  // size or speed of 0 saved before becomes no limit, as 1.3.82.75 made it for everyone who
+  // updated through it (the speed still read ahead then, in bursts): kept as 0, it stopped
+  // reading ahead altogether for those who skipped that version.
+  it('makes a limit of 0 saved before no limit', () => {
     const stored = {maxVideoSize: 0, maxSpeed: 0};
     const options = Utils.migrateSizes({...stored}, stored);
     expect(options.maxVideoSize).toBe(-1);
@@ -35,7 +37,7 @@ describe('Utils.migrateSizes', () => {
     for (const speed of [-1, 125000]) {
       expect(Utils.migrateSizes({maxSpeed: speed}, {maxSpeed: speed}).maxSpeed).toBe(speed);
     }
-    // Saved since: no page writes 0 any more, and what is there is left as it is.
+    // Saved since: 0 is a limit the user chose, and is left as it is.
     const since = {maxVideoSize: 0, maxSpeed: 0, sizesVersion: 1};
     expect(Utils.migrateSizes({...since}, since)).toMatchObject({maxVideoSize: 0, maxSpeed: 0});
   });

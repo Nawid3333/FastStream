@@ -326,13 +326,14 @@ export class AudioCompressor extends AbstractAudioModule {
 
     this.ui.compressorControls.appendChild(this.compressorKnobs.knee.container);
 
+    // A ratio, 12 : 1, not decibels: it said "12 dB".
     this.compressorKnobs.ratio = createKnob(Localize.getMessage('audiocompressor_ratio'), 1, 20, (val) => {
       if (this.compressorConfig && val !== this.compressorConfig.ratio) {
         this.compressorConfig.ratio = val;
         this.updateCompressor();
         this.emit('change');
       }
-    }, 'dB');
+    }, ': 1');
     this.ui.compressorControls.appendChild(this.compressorKnobs.ratio.container);
 
     this.compressorKnobs.attack = createKnob(Localize.getMessage('audiocompressor_attack'), 0, 1, (val) => {

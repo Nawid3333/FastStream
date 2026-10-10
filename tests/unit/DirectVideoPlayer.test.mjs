@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import {elementHeaderCommands} from '../../chrome/player/players/DirectVideoPlayer.mjs';
+import {elementHeaderCommands, saveExtension} from '../../chrome/player/players/DirectVideoPlayer.mjs';
 
 // A source handed from the MP4 player to Firefox's own (playDirectly) keeps the page's
 // headers through the background's rule for its URL: the Referer or cookie a site asks for.
@@ -27,5 +27,24 @@ describe('elementHeaderCommands', () => {
     expect(elementHeaderCommands(null)).toEqual([]);
     expect(elementHeaderCommands(undefined)).toEqual([]);
     expect(elementHeaderCommands({})).toEqual([]);
+  });
+});
+
+// A URL without an extension was saved as .webm, one ending in .php as .php: most direct
+// videos are MP4 (review, 2026-10-09).
+describe('saveExtension', () => {
+  it('keeps the extension of a media file', () => {
+    expect(saveExtension({url: 'https://cdn.example/a/clip.webm?sig=1'})).toBe('webm');
+    expect(saveExtension({url: 'https://cdn.example/a/clip.MP4'})).toBe('mp4');
+    expect(saveExtension({identifier: 'song.m4a', url: 'blob:x'})).toBe('m4a');
+    // Web audio's own (review): saved as .mp4 before.
+    expect(saveExtension({url: 'https://cdn.example/a/voice.weba'})).toBe('weba');
+    expect(saveExtension({url: 'https://cdn.example/a/voice.OGA'})).toBe('oga');
+  });
+
+  it('saves anything else as mp4', () => {
+    expect(saveExtension({url: 'https://cdn.example/watch?v=abc'})).toBe('mp4');
+    expect(saveExtension({url: 'https://cdn.example/stream/get.php?id=4'})).toBe('mp4');
+    expect(saveExtension(null)).toBe('mp4');
   });
 });

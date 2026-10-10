@@ -108,7 +108,7 @@ export class AudioConfigManager extends AbstractAudioModule {
     const newID = this.getNextProfileID();
     const profile = (copyCurrent && this.currentProfile) ? this.currentProfile.copy() : new AudioProfile(newID);
     profile.id = newID;
-    profile.label = `Profile ${newID}`;
+    profile.label = Localize.getMessage('player_audioconfig_profile_numbered', [String(newID)]);
     this.addProfile(profile);
     Array.from(this.ui.profileDropdown.children[1].children).find((el) => el.dataset.val === 'p' + newID).click();
   }
@@ -204,7 +204,9 @@ export class AudioConfigManager extends AbstractAudioModule {
           } else {
             const profile = this.profiles.find((profile) => profile.id === parseInt(val.substring(1)));
             if (profile) {
-              this.setCurrentProfile(profile);
+              // The changes made to the one left go with it, as they are.
+              this.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
+              this.setCurrentProfile(this.profiles.find((p) => p.id === profile.id) || profile);
             }
           }
         }, (key, displayName)=>{
@@ -256,21 +258,21 @@ export class AudioConfigManager extends AbstractAudioModule {
     return DOMElements.audioConfigContainer.style.display !== 'none';
   }
 
-  saveCurrentProfile() {
-    const profile = this.getDropdownProfile();
-    if (!profile) {
-      this.updateProfileDropdown();
-      console.error('Couldn\'t save profile');
-      return;
-    }
-
-    const newProfile = this.currentProfile.copy();
-    newProfile.label = profile.label;
-    newProfile.id = profile.id;
-
-    const index = this.profiles.indexOf(profile);
-    if (index !== -1) this.profiles.splice(index, 1, newProfile);
-    this.updateProfileDropdown(profile.id);
+  /**
+   * Saves the current profile's changes by themselves: on the player's tick, and before
+   * another profile is picked. A Save button kept them, and without a click they were gone
+   * when the player closed, with nothing to say they were not saved.
+   * @return {?Promise<void>} The save, when there was a change to save.
+   */
+  saveChanges() {
+    const current = this.currentProfile;
+    const saved = current && this.profiles.find((profile) => profile.id === current.id);
+    if (!saved) return null;
+    // The name is the saved one's: it is renamed there, not in the working copy.
+    if (JSON.stringify({...current.toObj(), label: saved.label}) === JSON.stringify(saved.toObj())) return null;
+    const changed = current.copy();
+    changed.label = saved.label;
+    this.profiles.splice(this.profiles.indexOf(saved), 1, changed);
     return this.saveProfilesToStorage();
   }
 
@@ -334,21 +336,7 @@ export class AudioConfigManager extends AbstractAudioModule {
     // });
     // WebUtils.setupTabIndex(this.ui.loadButton);
 
-    // save button
-    this.ui.saveButton = WebUtils.create('div', null, 'textbutton save_button');
-    this.ui.saveButton.textContent = Localize.getMessage('player_audioconfig_profile_save');
-    this.ui.profileManager.appendChild(this.ui.saveButton);
-    let saveTimeout = null;
-    this.ui.saveButton.addEventListener('click', async () => {
-      this.ui.saveButton.textContent = Localize.getMessage('player_audioconfig_profile_saving');
-      await this.saveCurrentProfile();
-      this.ui.saveButton.textContent = Localize.getMessage('player_audioconfig_profile_saved');
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        this.ui.saveButton.textContent = Localize.getMessage('player_audioconfig_profile_save');
-      }, 1000);
-    });
-    WebUtils.setupTabIndex(this.ui.saveButton);
+    // No save button: changes are saved by themselves (saveChanges).
 
     // download button
     this.ui.downloadButton = WebUtils.create('div', null, 'textbutton download_button');

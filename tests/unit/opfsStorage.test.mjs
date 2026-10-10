@@ -274,28 +274,32 @@ describe('opfs-worker: cleaning up other tabs\' sessions', () => {
     // Another player that started a moment ago: its directory is there, its first
     // heartbeat not yet.
     session(`fsblob-${now - 50}-1`);
-    // A tab that crashed a minute ago.
-    session(`fsblob-${now - 60000}-2`, heartbeat(now - 55000));
+    // A tab that crashed two minutes ago.
+    session(`fsblob-${now - 180000}-2`, heartbeat(now - 120000));
     // One that crashed before its first heartbeat.
-    session(`fsblob-${now - 60000}-3`);
+    session(`fsblob-${now - 180000}-3`);
     // A live one, busy writing its heartbeat right now (the file is locked).
     const locked = heartbeat(now - 1000);
     locked.unreadable = true;
-    session(`fsblob-${now - 60000}-4`, locked);
+    session(`fsblob-${now - 180000}-4`, locked);
     // A live one.
-    session(`fsblob-${now - 60000}-5`, heartbeat(now - 2000));
+    session(`fsblob-${now - 180000}-5`, heartbeat(now - 2000));
+    // A live one whose heartbeat is 20 s late: a page in the back-forward cache, or a browser
+    // the computer's sleep stopped.
+    session(`fsblob-${now - 180000}-8`, heartbeat(now - 20000));
     // One whose heartbeat a crash cut short (heartbeats are not flushed): it reads, but is
     // not JSON. Kept as "being written", its fragments stayed on the disk for good.
-    session(`fsblob-${now - 60000}-6`, new FakeFile('{"updated_ti'));
-    session(`fsblob-${now - 60000}-7`, new FakeFile(''));
+    session(`fsblob-${now - 180000}-6`, new FakeFile('{"updated_ti'));
+    session(`fsblob-${now - 180000}-7`, new FakeFile(''));
 
     const manager = await startManager(root);
     try {
       const left = [...fsblob.children.keys()].sort();
       expect(left).toEqual([
         `fsblob-${now - 50}-1`,
-        `fsblob-${now - 60000}-4`,
-        `fsblob-${now - 60000}-5`,
+        `fsblob-${now - 180000}-4`,
+        `fsblob-${now - 180000}-5`,
+        `fsblob-${now - 180000}-8`,
         manager.sessionName,
       ].sort());
     } finally {

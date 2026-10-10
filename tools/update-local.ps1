@@ -300,7 +300,7 @@ Invoke-Step 'The mpv helper' {
     if (-not (Test-Path -LiteralPath $installed)) {
         Note 'mpv helper: not installed on this PC (native-host\install.ps1 installs it)'
     }
-    elseif (-not $script:onMain -and $Apply) {
+    elseif (-not $script:onMain) {
         Note 'mpv helper: left as it is, since the repository is not on a clean main'
     }
     elseif ((Get-FileHash -LiteralPath $installed).Hash -eq (Get-FileHash -LiteralPath $source).Hash) {

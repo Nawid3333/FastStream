@@ -39,7 +39,7 @@ import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.m
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
-import {chooseToRelease, DEFAULT_BUDGET_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
+import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 
 
 /**
@@ -343,6 +343,9 @@ export class FastStreamClient extends EventEmitter {
    */
   destroy() {
     this.destroyed = true;
+    // The audio changes of the last second: the tick saves them once a second, and one made
+    // just before the player closed was lost (review).
+    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
     document.removeEventListener('visibilitychange', this.onPeersVisibility);
     this.peers.stop();
     this.resetPlayer();
@@ -370,8 +373,12 @@ export class FastStreamClient extends EventEmitter {
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.ramBudget = options.ramBudget;
-    this.options.bufferAhead = options.bufferAhead;
-    this.options.bufferBehind = options.bufferBehind;
+    // Seconds; an empty field (-1) is no limit: the whole video ahead, everything played kept.
+    this.options.bufferAhead = FastStreamClient.bufferSeconds(options.bufferAhead);
+    this.options.bufferBehind = FastStreamClient.bufferSeconds(options.bufferBehind);
+    // At once, as "Buffer ahead" is (updateHasDownloadSpace): a change waited for the next
+    // video. A private window's warning sets both from the options the same way.
+    this.state.bufferBehind = this.options.bufferBehind;
     this.options.seekStepSize = options.seekStepSize;
     this.options.singleClickAction = options.singleClickAction;
     this.options.doubleClickAction = options.doubleClickAction;
@@ -662,8 +669,11 @@ export class FastStreamClient extends EventEmitter {
       if (this.hasDownloadSpace && this.options.downloadAll) {
         this.state.bufferBehind = this.options.bufferBehind;
         this.state.bufferAhead = this.options.bufferAhead;
-        const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
-        this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [timestr]), 'warning', 5000);
+        // Without a limit on either, the whole video is buffered all the same: nothing to say.
+        const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
+        if (Number.isFinite(windowSeconds)) {
+          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_buffer_incognito_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+        }
         this.hasDownloadSpace = false;
       }
     } else {
@@ -679,7 +689,8 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
         let storageAvailable = (this.storageAvailable * 8) * 0.6;
-        if (this.options.maxVideoSize > 0 && this.options.maxVideoSize * 8 < storageAvailable) {
+        // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
+        if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
         }
 
@@ -715,8 +726,10 @@ export class FastStreamClient extends EventEmitter {
           // The quality on now may have no fragments yet (just switched to)
           if (fragments) fragments.forEach(grandfather);
           if (this.audioFragments) this.audioFragments.forEach(grandfather);
-          const timestr = StringUtils.formatDuration(this.state.bufferBehind + this.state.bufferAhead);
-          this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [timestr]), 'warning', 5000);
+          const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
+          if (Number.isFinite(windowSeconds)) {
+            this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
+          }
         }
         this.hasDownloadSpace = newHasDownloadSpace || !this.options.downloadAll;
       } else {
@@ -1254,6 +1267,9 @@ export class FastStreamClient extends EventEmitter {
     if (this.destroyed) return;
     setTimeout(this.mainloop.bind(this), 1000);
 
+    // The audio tools' changes, kept by themselves.
+    this.audioConfigManager?.saveChanges()?.catch((e) => console.warn('Could not save the audio profile', e));
+
     if (this.needsUserInteraction()) {
       this.interfaceController.setStatusMessage(StatusTypes.REQINTERACTION, Localize.getMessage('player_needs_interaction'), 'warning clickable');
     } else {
@@ -1318,7 +1334,10 @@ export class FastStreamClient extends EventEmitter {
   keepWithinMemoryBudget() {
     const manager = this.downloadManager;
     if (!manager?.blobStore || !this.peers) return;
-    const budget = this.options.ramBudget > 0 ? this.options.ramBudget : DEFAULT_BUDGET_BYTES;
+    // -1 (an empty field) is no limit, and 0 none: all of it in RAM, or all of it on disk
+    // (DISK_ONLY_ROOM_BYTES).
+    const setting = this.options.ramBudget;
+    const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
     const watched = this.peers.visible() && !!this.state.playing;
     const others = this.peers.livePeers().map((peer) => ({
       ramBytes: peer.ramBytes,
@@ -1327,10 +1346,11 @@ export class FastStreamClient extends EventEmitter {
     const share = shareOf(budget, weightOf(watched), others);
     const held = manager.ramBytes();
     const leaving = manager.spillingBytes();
-    manager.memoryFull = isFull(held, leaving, share, manager.memoryFull);
+    const toDisk = manager.canSpill();
+    const room = budget === 0 && toDisk ? DISK_ONLY_ROOM_BYTES : share;
+    manager.memoryFull = isFull(held, leaving, room, manager.memoryFull);
     if (held - leaving <= share * HIGH) return;
 
-    const toDisk = manager.canSpill();
     const time = this.state.currentTime;
     const current = this.currentFragment;
     const candidates = [];
@@ -1426,9 +1446,14 @@ export class FastStreamClient extends EventEmitter {
       return false;
     }
 
-    // throttle download speed if needed
+    // throttle download speed if needed. A limit of 0 downloads nothing ahead: it held
+    // downloads back only while something downloaded, so videos still read ahead in bursts.
+    // A save fetches its own (SaveFragmentFetcher), and playback's own requests still go.
+    if (this.options.maxSpeed === 0) {
+      return false;
+    }
     const speed = this.downloadManager.getSpeed();
-    if (this.options.maxSpeed >= 0 && speed > this.options.maxSpeed) {
+    if (this.options.maxSpeed > 0 && speed > this.options.maxSpeed) {
       return false;
     }
 
@@ -2355,6 +2380,16 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * The seconds a Buffer ahead or Buffer behind setting keeps: Infinity for no limit (an
+   * empty field, saved as -1), 0 for none.
+   * @param {number} value - The setting as saved.
+   * @return {number}
+   */
+  static bufferSeconds(value) {
+    return typeof value === 'number' && value < 0 ? Infinity : value;
+  }
+
+  /**
    * Whether the video is a live stream. dash.js gives one an infinite duration; hls.js, as
    * HLSPlayer sets it up, the end of its live window, so HLSPlayer says it itself.
    * @return {boolean}
@@ -2473,7 +2508,8 @@ export class FastStreamClient extends EventEmitter {
       }
       this.resetFailed();
       this.updateQualityLevels();
-      this.audioConfigManager.updateChannelCount();
+      // None without Web Audio (the constructor makes it only then), as at the other call.
+      this.audioConfigManager?.updateChannelCount();
     }
   }
 
@@ -2683,7 +2719,7 @@ export class FastStreamClient extends EventEmitter {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(1))) {
         this.player.volume = 1;
       }
-      this.audioConfigManager.updateVolume(volume);
+      this.audioConfigManager?.updateVolume(volume);
     } else {
       if (this.player && (!this.syncedAudioPlayer || !this.syncedAudioPlayer.setVolume(volume))) {
         this.player.volume = volume;

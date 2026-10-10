@@ -2,6 +2,9 @@
  * Utility functions for environment and platform detection.
  */
 export class EnvUtils {
+  /** @type {?string} Firefox's answer to os(). */
+  static knownOs = null;
+
   /**
    * Checks if running as a browser extension.
    * @return {boolean} True if extension, false otherwise.
@@ -54,6 +57,38 @@ export class EnvUtils {
    */
   static isIncognito() {
     return this.isExtension() ? chrome.extension.inIncognitoContext : false;
+  }
+
+  /**
+   * The operating system as Firefox says it ('win', 'mac', 'linux', ...), kept for
+   * isWindows() once it has come. navigator.platform says "Win32" on every system with
+   * privacy.resistFingerprinting on, where the mpv helper's Linux steps were shown as the
+   * Windows ones (review); it is the answer only without a runtime (the web build, tests).
+   * @return {Promise<string>}
+   */
+  static async os() {
+    try {
+      const info = await globalThis.chrome?.runtime?.getPlatformInfo?.();
+      if (info?.os) {
+        EnvUtils.knownOs = info.os;
+        return info.os;
+      }
+    } catch (e) {
+      // No answer: what the page is told.
+    }
+    const platform = String(globalThis.navigator?.platform || '');
+    return platform.startsWith('Win') ? 'win' : platform.startsWith('Mac') ? 'mac' : 'linux';
+  }
+
+  /**
+   * Whether this is Windows, where the mpv helper's setup and update steps differ (a Start
+   * menu entry; Linux and macOS have a manifest): Firefox's answer once os() has it, what
+   * the page is told until then.
+   * @return {boolean}
+   */
+  static isWindows() {
+    if (EnvUtils.knownOs) return EnvUtils.knownOs === 'win';
+    return String(globalThis.navigator?.platform || '').startsWith('Win');
   }
 
   /**

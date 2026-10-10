@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Click the player to let it download the video ahead"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Drag the pink line to set how quiet a part must be to be skipped"
+    },
+    "loop_menu_now": {
+        "message": "Use the current time"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Skip Intro"
     },
     "player_skipoutro": {
         "message": "Skip Outro"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Next Video in $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Stop Testing"
     },
+    "player_subtitles_url_track": {
+        "message": "Subtitles from a link"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Track $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "New subtitle"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Type a title to search for"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Upload File"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Start"
     },
+    "loop_menu_end_placeholder": {
+        "message": "End of video"
+    },
     "loop_menu_end": {
         "message": "End"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Enter a name for the file"
+    },
+    "player_screenshot_nopicture": {
+        "message": "There is no picture to save: the file is audio only, or the video has not shown a picture yet."
     },
     "player_screenshot_saving": {
         "message": "Taking screenshot..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profile"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profile $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Unnamed Profile"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Loaded Profile!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Save Profile"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Saving..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Saved Profile!"
     },
     "player_audioconfig_profile_download": {
         "message": "Download Profile"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"
     },
+    "options_general_nolimit": {
+        "message": "No limit"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: nothing is predownloaded; only the seconds set below are kept ahead. Leave the field empty for no limit."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: downloaded video is not kept in RAM but on disk, all but the next seconds. In a private window, which keeps nothing on disk, nothing is downloaded ahead. Leave the field empty for no limit."
+    },
+    "options_general_rambudget_none": {
+        "message": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down."
+    },
     "options_general_bufferahead": {
         "message": "Seconds to keep buffered ahead of playback when predownload is off, has stopped, or has run out of space"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: nothing is kept buffered ahead, so the video stops to load often. Leave the field empty for no limit."
+    },
+    "options_general_bufferahead_none": {
+        "message": "No limit: the whole video is downloaded ahead, even with predownload off: in RAM, then on disk once the RAM limit above is full. If the download speed above is 0, nothing is downloaded ahead."
+    },
     "options_general_bufferbehind": {
         "message": "Seconds to keep buffered behind playback before trimming"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: played video is dropped at once; seeking back loads it again. Leave the field empty for no limit."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "No limit: everything already played is kept, in RAM and then on disk once the RAM limit above is full."
     },
     "options_general_blockpopups": {
         "message": "Block popups/popunders opened right after clicking the player"
@@ -1137,7 +1194,10 @@
         "message": "Reset to Defaults"
     },
     "options_keybinds_press": {
-        "message": "Press a key"
+        "message": "Press a key, or Escape for none"
+    },
+    "options_keybinds_none": {
+        "message": "None"
     },
     "options_keybinds_conflict": {
         "message": "Also used by $1"
@@ -1146,7 +1206,7 @@
         "message": "Auto-enable URLs"
     },
     "options_autourl_body": {
-        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
+        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match (https:// and www. can be left out: crunchyroll.com). For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
     },
     "options_autourl_hint": {
         "message": "Hint: Test regex on"
@@ -1179,7 +1239,7 @@
         "message": "MPV Allowlist"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match (https:// and www. can be left out: crunchyroll.com @anime). Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
     },
     "options_mpv_path": {
         "message": "mpv path (optional: only if the mpv helper does not find mpv by itself)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - the mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "The open mpv window decodes on the graphics card: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "Sent to mpv. The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Sent to mpv. The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Only used with Firefox VPN. Firefox lists it as control of the browser's proxy settings, but FastStream changes no setting: it sends its own requests for a video the same way the page's own requests went, through the VPN. Without it, a site that ties its video to the VPN's address refuses FastStream. The player asks for it the first time it is needed."
+    },
+    "player_mpv_no_host": {
+        "message": "the FastStream mpv helper did not answer - is it installed?"
     },
     "player_mpv_vpn": {
         "message": "This video comes through Firefox VPN, and mpv cannot use Firefox VPN: the site would refuse mpv. To watch it in mpv, turn Firefox VPN off for this site and reload the page."

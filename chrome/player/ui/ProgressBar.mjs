@@ -137,6 +137,10 @@ export class ProgressBar extends EventEmitter {
   }
 
   reset() {
+    // A drag still going (the next video came mid-scrub) froze the next video's bar, and the
+    // release then seeked it to the old position.
+    // Without playing on: the next video does not start because one was dragged in.
+    this.endDrag?.(null, false);
     DOMElements.progressLoadedContainer.replaceChildren();
     this.progressCache = [];
     this.progressCacheAudio = [];
@@ -248,12 +252,16 @@ export class ProgressBar extends EventEmitter {
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       const entry = cache[i];
-      if (entry.start !== result.start) {
+      // Placed as a part of the duration: a duration that changed (unknown at first, or
+      // growing as a fragmented file is parsed) left them where the old one put them.
+      const rescaled = entry.duration !== duration;
+      entry.duration = duration;
+      if (entry.start !== result.start || rescaled) {
         entry.start = result.start;
         entry.element.style.left = Math.min(result.start / duration * 100, 100) + '%';
       }
 
-      if (entry.width !== result.width) {
+      if (entry.width !== result.width || rescaled) {
         entry.width = result.width;
         entry.element.style.width = Math.min(result.width / duration * 100, 100) + '%';
       }
@@ -343,7 +351,7 @@ export class ProgressBar extends EventEmitter {
         startTime: Utils.clamp(introMatch.startTime, 0, duration),
         endTime: Utils.clamp(introMatch.endTime, 0, duration),
         class: 'intro',
-        name: 'Intro',
+        name: Localize.getMessage('player_segment_intro'),
         skipText: Localize.getMessage('player_skipintro'),
       });
     }
@@ -353,7 +361,7 @@ export class ProgressBar extends EventEmitter {
         startTime: Utils.clamp(outroMatch.startTime, 0, duration),
         endTime: Utils.clamp(outroMatch.endTime, 0, duration),
         class: 'outro',
-        name: 'Outro',
+        name: Localize.getMessage('player_segment_outro'),
         skipText: Localize.getMessage('player_skipoutro'),
       });
     }
@@ -569,6 +577,13 @@ export class ProgressBar extends EventEmitter {
     };
 
     const onProgressbarMouseMove = (event) => {
+      // No button held: it was let go outside the player, where neither mouseup nor
+      // mouseleave may reach this frame. The drag ends where it was, without seeking:
+      // every move went on seeking, and the next click played the video.
+      if (event.type === 'mousemove' && event.buttons === 0) {
+        endDrag(null);
+        return;
+      }
       this.hidePreview();
       const currentY = Math.min(Math.max(event.clientY - WebUtils.getOffsetTop(DOMElements.progressContainer), -100), 50);
       const currentX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
@@ -590,12 +605,19 @@ export class ProgressBar extends EventEmitter {
       shiftTime(currentX);
     };
 
-    const onProgressbarMouseUp = (event) => {
+    // Ends the drag, at the release point of a mouseup (event) or where it was (null).
+    let ended = false;
+    const endDrag = (event, resume = true) => {
+      // Once: a mouseup in the player reaches its listener and the document's.
+      if (ended) return;
+      ended = true;
       DOMElements.playerContainer.removeEventListener('mousemove', onProgressbarMouseMove);
       DOMElements.playerContainer.removeEventListener('touchmove', onProgressbarMouseMove);
       DOMElements.playerContainer.removeEventListener('mouseup', onProgressbarMouseUp);
       DOMElements.playerContainer.removeEventListener('mouseleave', onProgressbarMouseUp);
       DOMElements.playerContainer.removeEventListener('touchend', onProgressbarMouseUp);
+      document.removeEventListener('mouseup', onProgressbarMouseUp);
+      if (this.endDrag === endDrag) this.endDrag = null;
       if (!this.keepPreciseModeOpen) {
         this.endPreciseMode();
       }
@@ -605,9 +627,9 @@ export class ProgressBar extends EventEmitter {
         this.showPreview();
       }
 
-      let clickedX = Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth);
+      let clickedX = event ? Math.min(Math.max(event.clientX - WebUtils.getOffsetLeft(DOMElements.progressContainer), 0), DOMElements.progressContainer.clientWidth) : NaN;
 
-      if (isNaN(clickedX) && !isNaN(initialPosition)) {
+      if (event && isNaN(clickedX) && !isNaN(initialPosition)) {
         clickedX = initialPosition;
       }
       if (!isNaN(clickedX)) {
@@ -617,11 +639,16 @@ export class ProgressBar extends EventEmitter {
 
       DOMElements.progressContainer.classList.remove('freeze');
 
-      if (shouldPlay) {
+      if (shouldPlay && resume) {
         this.client.player?.play();
       }
     };
+    const onProgressbarMouseUp = (event) => endDrag(event);
+    this.endDrag = endDrag;
     shiftTime(initialPosition);
+    // Anywhere in this document: a drag keeps the mouse events in the frame it started in,
+    // wherever the button is let go (FineTimeControls).
+    document.addEventListener('mouseup', onProgressbarMouseUp);
     DOMElements.playerContainer.addEventListener('mouseup', onProgressbarMouseUp);
     DOMElements.playerContainer.addEventListener('touchend', onProgressbarMouseUp, {passive: true});
     DOMElements.playerContainer.addEventListener('mouseleave', onProgressbarMouseUp);

@@ -71,9 +71,22 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
     }
   });
 
+  // Set while a typed value is handed to the knob: it is taken as typed. Only a drag or the
+  // wheel snaps to the suggested value within 2 % of it - a compressor threshold typed as
+  // -23 next to a suggested -24 was -24, and the field showed 23 until it was left (review).
+  let typing = false;
+  /**
+   * The number in the field: a decimal comma too ("0,5" was 0).
+   * @return {number}
+   */
+  function typedValue() {
+    return parseFloat(knobValue.textContent.replace(units, '').replace(',', '.'));
+  }
+
   function checkValueIsSuggested() {
     const val = knob.val();
-    if (suggestedValue !== null && !isNaN(suggestedValue) && (isNaN(val) || Math.abs(val - suggestedValue) < (maxValue - minValue) * 0.02)) {
+    const near = isNaN(val) || (typing ? val === suggestedValue : Math.abs(val - suggestedValue) < (maxValue - minValue) * 0.02);
+    if (suggestedValue !== null && !isNaN(suggestedValue) && near) {
       suggestedValueTracking = true;
       suggestedValueTickDot.classList.add('tracking');
       const prevFlag = shouldCall;
@@ -89,11 +102,13 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
   }
 
   knobValue.addEventListener('input', ()=>{
-    const val = parseFloat(knobValue.textContent.replace(units, ''));
+    const val = typedValue();
     if (isNaN(val)) {
       return;
     }
+    typing = true;
     knob.val(val);
+    typing = false;
   });
 
   knobValue.addEventListener('keydown', (e)=>{
@@ -105,14 +120,16 @@ export function createKnob(name, minValue, maxValue, callback, units = '') {
   });
 
   knobValue.addEventListener('blur', (e)=>{
-    const val = parseFloat(knobValue.textContent.replace(units, ''));
+    const val = typedValue();
     // An emptied field goes to the suggested value, which the callback snaps NaN to. A knob
     // without one handed NaN on to its setting; it keeps its value instead.
     if (isNaN(val) && (suggestedValue === null || isNaN(suggestedValue))) {
       knobValue.textContent = knob.val().toFixed(decimals) + ' ' + units;
       return;
     }
+    typing = true;
     knob.val(val);
+    typing = false;
   });
 
   knob.options.indicatorAutoRotate = true;

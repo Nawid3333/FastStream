@@ -6,6 +6,35 @@ import {SubtitleUtils} from '../../chrome/player/utils/SubtitleUtils.mjs';
 // user reports missing captions. This pins down the pure-string logic
 // (time formatting and SRT->VTT conversion) that has no DOM dependency.
 
+// The outline's width from its text field (SubtitlesSettingsManager.applyOutline).
+describe('outlineWidth', () => {
+  it('reads a decimal comma, a unit, and at most 64 pixels', () => {
+    // "1,5" was 1.
+    expect(SubtitleUtils.outlineWidth('1,5')).toBe(1.5);
+    expect(SubtitleUtils.outlineWidth('1.5px')).toBe(1.5);
+    expect(SubtitleUtils.outlineWidth(' 2 ')).toBe(2);
+    expect(SubtitleUtils.outlineWidth('Infinity')).toBe(64);
+    expect(SubtitleUtils.outlineWidth('1e999')).toBe(64);
+  });
+
+  it('is 0 for nothing, 0, a negative or what is no number', () => {
+    for (const value of ['', '0', '-3', 'abc', undefined, null]) expect(SubtitleUtils.outlineWidth(value)).toBe(0);
+  });
+});
+
+// The name a subtitle track is saved under, ".srt" added after: movie.srt was saved as
+// movie.srt.srt, a typed movie.vtt as movie.vtt.srt, and a name with : or ? not at all.
+describe('downloadName', () => {
+  it('takes off a subtitle extension of its own and what file names refuse', () => {
+    expect(SubtitleUtils.downloadName('movie.srt')).toBe('movie');
+    expect(SubtitleUtils.downloadName('movie.VTT')).toBe('movie');
+    expect(SubtitleUtils.downloadName('Show.S01E01.ass')).toBe('Show.S01E01');
+    expect(SubtitleUtils.downloadName('Episode 1: Pilot?')).toBe('Episode 1_ Pilot_');
+    expect(SubtitleUtils.downloadName('a/b\\c"d<e>f|g*h')).toBe('a_b_c_d_e_f_g_h');
+    expect(SubtitleUtils.downloadName('movie.mp4')).toBe('movie.mp4');
+  });
+});
+
 describe('vttTimeFormat / srtTimeFormat', () => {
   it('zero-pads hours, minutes, seconds and milliseconds', () => {
     expect(SubtitleUtils.vttTimeFormat(0)).toBe('00:00:00.000');
@@ -210,6 +239,12 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('a\\hb')).toBe('a b');
   });
 
+  // It was shown as \n (review, 2026-10-09); \N is the hard break.
+  it('reads an ASS soft line break as a space', () => {
+    expect(SubtitleUtils.convertSubtitleFormatting('one\\ntwo')).toBe('one two');
+    expect(SubtitleUtils.convertSubtitleFormatting('one\\Ntwo')).toBe('one\ntwo');
+  });
+
   it('strips remaining alignment tags it does not translate inline', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('{\\an5}')).toBe('');
   });
@@ -399,5 +434,21 @@ describe('hostile input: linear time', () => {
   it('still turns <br> tags into line breaks', () => {
     expect(SubtitleUtils.convertSrtCue('1\n00:00:01,000 --> 00:00:02,000\na<br>b< BR />c</br>d<br x="1">e<brx>f<br'))
         .toBe('1\n00:00:01.000 --> 00:00:02.000\na\nb\nc\nd\ne<brx>f<br\n\n');
+  });
+});
+
+// A bare 20 in the font size or the bottom margin was refused as CSS, and did nothing
+// (review, 2026-10-09).
+describe('withUnit', () => {
+  it('reads a bare number as pixels, a decimal comma too', () => {
+    expect(SubtitleUtils.withUnit('20')).toBe('20px');
+    expect(SubtitleUtils.withUnit(' 1,5 ')).toBe('1.5px');
+  });
+
+  it('leaves CSS as it is', () => {
+    for (const css of ['3vw', '40px', '1.2em', 'large', '']) {
+      expect(SubtitleUtils.withUnit(css)).toBe(css);
+    }
+    expect(SubtitleUtils.withUnit(undefined)).toBe('');
   });
 });

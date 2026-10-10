@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Klik op de speler zodat deze de video vooruit kan downloaden"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Sleep de roze lijn om in te stellen hoe stil een gedeelte moet zijn om overgeslagen te worden"
+    },
+    "loop_menu_now": {
+        "message": "Gebruik de huidige tijd"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Intro overslaan"
     },
     "player_skipoutro": {
         "message": "Outro overslaan"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Volgende video over $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Test stoppen"
     },
+    "player_subtitles_url_track": {
+        "message": "Ondertitels via een link"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Track $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Nieuwe ondertitel"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Typ een titel om op te zoeken"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Bestand uploaden"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Begin"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Einde van de video"
+    },
     "loop_menu_end": {
         "message": "Einde"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Voer een bestandsnaam in"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Er is geen afbeelding om op te slaan: het bestand bevat alleen audio, of de video heeft nog geen beeld getoond."
     },
     "player_screenshot_saving": {
         "message": "Screenshot maken..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profiel"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profiel $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Naamloos profiel"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profiel geladen!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Profiel opslaan"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Opslaan..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profiel opgeslagen!"
     },
     "player_audioconfig_profile_download": {
         "message": "Profiel downloaden"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
+    "options_general_nolimit": {
+        "message": "Geen limiet"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: er wordt niets vooruit gedownload, dus video's kunnen stoppen om te laden. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: er wordt niets vooraf gedownload; alleen de seconden die hieronder zijn ingesteld, blijven vooruit gebufferd. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: gedownloade video wordt niet in RAM bewaard maar op schijf, op de eerstvolgende seconden na. In een privévenster, dat niets op schijf bewaart, wordt niets vooruit gedownload. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_none": {
+        "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."
+    },
     "options_general_bufferahead": {
         "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Geen limiet: de hele video wordt vooruit gedownload, ook als vooraf downloaden uit staat: eerst in RAM, daarna op schijf zodra de RAM-limiet hierboven vol is. Is de downloadsnelheid hierboven 0, dan wordt er niets vooruit gedownload."
+    },
     "options_general_bufferbehind": {
         "message": "Seconden die achter de afspeelpositie gebufferd blijven voordat ze worden verwijderd"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: afgespeelde video wordt meteen weggegooid; terugspoelen laadt hem opnieuw. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Geen limiet: alles wat al is afgespeeld blijft bewaard, eerst in RAM en daarna op schijf zodra de RAM-limiet hierboven vol is."
     },
     "options_general_blockpopups": {
         "message": "Popups/popunders blokkeren die direct na het klikken op de speler worden geopend"
@@ -1137,7 +1194,10 @@
         "message": "Herstel standaardinstellingen"
     },
     "options_keybinds_press": {
-        "message": "Druk op een toets"
+        "message": "Druk op een toets, of op Escape voor geen toets"
+    },
+    "options_keybinds_none": {
+        "message": "Geen"
     },
     "options_keybinds_conflict": {
         "message": "Ook gebruikt door $1"
@@ -1146,7 +1206,7 @@
         "message": "URL's automatisch inschakelen"
     },
     "options_autourl_body": {
-        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen. Voor regex, plaats een tilde (~) vooraan. Eén regex per regel. Om sites uit te sluiten, plaats een uitroepteken (!). Om een hele site met rust te laten - geen automatisch inschakelen, en de streamlinks worden niet in de speler geopend - plaats een minteken (-) vóór het domein."
+        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en weer uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com). Zet voor regex een tilde (~) vooraan. Eén regex per regel. Zet een uitroepteken (!) vooraan om sites uit te sluiten. Om een hele site met rust te laten – geen automatisch inschakelen, en de streamlinks worden niet in de speler geopend – zet een minteken (-) vóór het domein."
     },
     "options_autourl_hint": {
         "message": "Tip: test regex op"
@@ -1179,7 +1239,7 @@
         "message": "MPV-toelatingslijst"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen komen ook overeen. Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor sites waar dat niet geldt. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
+        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com @anime). Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor anime-sites. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
     },
     "options_mpv_path": {
         "message": "mpv-pad (optioneel: alleen als het mpv-hulpje mpv niet zelf vindt)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream – MPV – het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream – MPV – het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Speelt af in MPV - gedecodeerd door de grafische kaart: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "Het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "Het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "Het geopende mpv-venster decodeert op de grafische kaart: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "Verzonden naar mpv. Het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Verzonden naar mpv. Het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Alleen gebruikt met Firefox VPN. Firefox vermeldt deze als beheer van de proxy-instellingen van de browser, maar FastStream wijzigt geen enkele instelling: het verstuurt zijn eigen verzoeken voor een video op dezelfde manier als de verzoeken van de pagina zelf, via de VPN. Zonder deze machtiging weigert een site die haar video aan het adres van de VPN koppelt FastStream. De speler vraagt erom wanneer deze voor het eerst nodig is."
+    },
+    "player_mpv_no_host": {
+        "message": "het FastStream-mpv-hulpje reageerde niet – is het geïnstalleerd?"
     },
     "player_mpv_vpn": {
         "message": "Deze video komt binnen via Firefox VPN, en mpv kan Firefox VPN niet gebruiken: de site zou mpv weigeren. Om de video in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."

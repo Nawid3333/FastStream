@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Clique no reprodutor para permitir que ele baixe o vídeo antecipadamente"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Arraste a linha rosa para definir o quão silencioso deve ser um trecho para ser pulado"
+    },
+    "loop_menu_now": {
+        "message": "Usar o tempo atual"
+    },
+    "player_segment_intro": {
+        "message": "Abertura"
+    },
+    "player_segment_outro": {
+        "message": "Encerramento"
+    },
     "player_skipintro": {
         "message": "Pular Intro"
     },
     "player_skipoutro": {
         "message": "Pular encerramento"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Próximo vídeo em $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Parar o teste"
     },
+    "player_subtitles_url_track": {
+        "message": "Legendas de um link"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Faixa $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Nova legenda"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Digite um título para pesquisar"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Carregar arquivo"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Início"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Fim do vídeo"
+    },
     "loop_menu_end": {
         "message": "Fim"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Insira um nome para o arquivo"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Não há imagem para salvar: o arquivo tem apenas áudio, ou o vídeo ainda não mostrou nenhuma imagem."
     },
     "player_screenshot_saving": {
         "message": "Capturando tela..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Perfil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Perfil $1"
+    },
+    "audiomixer_master": {
+        "message": "Principal"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Perfil não identificado"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Perfil carregado!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Salvar perfil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Salvando..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Perfil salvo!"
     },
     "player_audioconfig_profile_download": {
         "message": "Baixar perfil"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "RAM para o vídeo em buffer (todas as abas)"
     },
+    "options_general_nolimit": {
+        "message": "Sem limite"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: nada é baixado antes da reprodução, então os vídeos podem parar para carregar. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: nada é pré-baixado; apenas os segundos definidos abaixo são mantidos em buffer à frente da reprodução. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: o vídeo baixado não fica na RAM, mas no disco, exceto os próximos segundos. Em uma janela privativa, que não guarda nada no disco, nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_rambudget_none": {
+        "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Em um computador com pouca memória, o Firefox pode ficar lento."
+    },
     "options_general_bufferahead": {
         "message": "Segundos a manter em buffer à frente da reprodução (usados quando o pré-download está desativado, parou ou ficou sem espaço)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: nada é mantido em buffer à frente, então o vídeo para com frequência para carregar. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Sem limite: o vídeo inteiro é baixado antecipadamente, mesmo com o pré-download desativado: na RAM, e depois no disco, quando o limite de RAM acima for atingido. Se a velocidade de download acima for 0, nada é baixado antecipadamente."
+    },
     "options_general_bufferbehind": {
         "message": "Segundos a manter em buffer atrás da reprodução antes de serem descartados"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: o vídeo já reproduzido é descartado na hora; voltar para trás recarrega o vídeo. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Sem limite: tudo o que já foi reproduzido é mantido, na RAM e depois no disco, quando o limite de RAM acima for atingido."
     },
     "options_general_blockpopups": {
         "message": "Bloquear pop-ups/popunders abertos logo após clicar no reprodutor"
@@ -1137,7 +1194,10 @@
         "message": "Redefinir para os padrões"
     },
     "options_keybinds_press": {
-        "message": "Pressione uma tecla"
+        "message": "Pressione uma tecla, ou Escape para nenhuma"
+    },
+    "options_keybinds_none": {
+        "message": "Nenhuma"
     },
     "options_keybinds_conflict": {
         "message": "Também usado por $1"
@@ -1146,7 +1206,7 @@
         "message": "Habilitar URLs automaticamente"
     },
     "options_autourl_body": {
-        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validadas. Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!). Para deixar um site inteiro de lado - sem ativação automática, e seus links de streaming não são abertos no player - coloque um sinal de menos (-) na frente do domínio."
+        "message": "A extensão será ativada automaticamente ao visitar esses links e desativada ao sair. Um link por linha, as páginas que começam com esse link também serão validadas (https:// e www. podem ser omitidos: crunchyroll.com). Para uma expressão regular, acrescente um til (~). Uma expressão regular por linha. Para excluir sites, coloque um ponto de exclamação (!). Para deixar um site inteiro de lado - sem ativação automática, e seus links de streaming não são abertos no player - coloque um sinal de menos (-) na frente do domínio."
     },
     "options_autourl_hint": {
         "message": "Dica: Teste a expressão regular em"
@@ -1179,7 +1239,7 @@
         "message": "Lista de permissões do MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem. Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo."
+        "message": "Sites nesta lista abrem streams detectados no mpv. Uma URL por linha; páginas que começam com essa URL também correspondem (https:// e www. podem ser omitidos: crunchyroll.com @anime). Use ~ para regex e ! para excluir. Sites sem etiqueta usam Filme por padrão na escolha de shaders do mpv – adicione @anime ao final da linha para sites de anime. @movie também é aceito, se você quiser escrever por extenso. O botão mpv do reprodutor pode substituir isso para cada vídeo."
     },
     "options_mpv_path": {
         "message": "Caminho do mpv (opcional: apenas se o auxiliar do mpv não encontrar o mpv por conta própria)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - o auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - o auxiliar do mpv neste computador está desatualizado: atualize o faststream-mpv-host.mjs para o qual o seu manifesto de native messaging aponta (git pull na sua cópia do repositório do FastStream; veja native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Reproduzindo no MPV - decodificado pela placa de vídeo: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "O auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "O auxiliar do mpv neste computador está desatualizado: atualize o faststream-mpv-host.mjs para o qual o seu manifesto de native messaging aponta (git pull na sua cópia do repositório do FastStream; veja native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "O mpv aberto decodifica na placa de vídeo: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "Enviado para o mpv. O auxiliar do mpv neste computador está desatualizado: execute “Update mpv” no menu Iniciar (em uma cópia do repositório do FastStream: update-local.cmd ou native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Enviado para o mpv. O auxiliar do mpv neste computador está desatualizado: atualize o faststream-mpv-host.mjs para o qual o seu manifesto de native messaging aponta (git pull na sua cópia do repositório do FastStream; veja native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Abrir este stream no mpv (tipo de conteúdo: automático – Filme, a menos que o site esteja marcado com @anime; clique com o botão direito para mudar neste vídeo)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Usada apenas com o Firefox VPN. O Firefox a lista como controle das configurações de proxy do navegador, mas o FastStream não altera nenhuma configuração: ele envia suas próprias solicitações para um vídeo da mesma forma que as solicitações da própria página passaram, através da VPN. Sem ela, um site que vincula seu vídeo ao endereço da VPN recusa o FastStream. O player a solicita na primeira vez em que é necessária."
+    },
+    "player_mpv_no_host": {
+        "message": "o auxiliar mpv do FastStream não respondeu – ele está instalado?"
     },
     "player_mpv_vpn": {
         "message": "O Firefox VPN carrega este vídeo, e o mpv não pode usar o Firefox VPN: o site recusaria o mpv. Para assistir no mpv, desative o Firefox VPN para este site e recarregue a página."

@@ -680,6 +680,83 @@ describe('a player put in a shadow root', () => {
   });
 });
 
+// A player over the whole page pauses the page's media, and again on every play, while it
+// is up (pauseAllWithin). A call's live stream too: a watch party's voice chat fell silent,
+// the case every other pause leaves alone (playsLiveStream).
+describe('a player over the whole page', () => {
+  it('leaves a call\'s live stream alone', async () => {
+    const page = loadContentScript();
+    page.document.documentElement.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.document.body.rect = {x: 0, y: 0, width: 1280, height: 720};
+    page.window.MediaStream = class MediaStream {};
+    const film = page.document.createElement('audio');
+    const call = page.document.createElement('audio');
+    call.srcObject = new page.window.MediaStream();
+    page.document.body.appendChild(film);
+    page.document.body.appendChild(call);
+    film.paused = false;
+    call.paused = false;
+    // No video on the page: opened with force (the toolbar on a page with only a stream).
+    await page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1,
+      attempt: 1, force: true});
+    expect(page.document.querySelectorAll('iframe')).toHaveLength(1);
+    expect([film.paused, call.paused]).toEqual([true, false]);
+
+    // The page starts both again.
+    for (const media of [film, call]) {
+      media.paused = false;
+      media.listeners.filter((l) => l.type === 'play').forEach((l) => l.listener.call(media, {target: media}));
+    }
+    expect([film.paused, call.paused]).toEqual([true, false]);
+  });
+});
+
+// The resize observer updated the player at most every 100 ms and dropped the changes in
+// between: after a box that kept changing (a sidebar sliding shut), the player kept a size
+// from the middle of it until the next resize.
+describe('a player whose box keeps changing', () => {
+  it('takes the box\'s last size', async () => {
+    const {page, wrap} = pageWithVideo();
+    let resized = null;
+    page.window.ResizeObserver = class {
+      constructor(callback) {
+        resized = callback;
+      }
+      observe() {}
+      disconnect() {}
+    };
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    expect(iframe.style.width).toBe('640px');
+
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    resized();
+    expect(iframe.style.width).toBe('800px');
+    wrap.rect = {x: 0, y: 0, width: 960, height: 540};
+    resized();
+    page.advance(150);
+    expect(iframe.style.width).toBe('960px');
+  });
+
+  // A window being resized updated the players on every event: a hard-replaced page video
+  // went back into the page to be measured each time.
+  it('follows a window being resized at most every 100 ms, and to its last size', async () => {
+    const {page, wrap} = pageWithVideo();
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    page.dispatchWindow('resize');
+    expect(iframe.style.width).toBe('800px');
+    wrap.rect = {x: 0, y: 0, width: 900, height: 500};
+    page.dispatchWindow('resize');
+    expect(iframe.style.width).toBe('800px');
+    page.advance(150);
+    expect(iframe.style.width).toBe('900px');
+  });
+});
+
 // Firefox fires beforeunload for a navigation that then never happens: a link answered
 // with a download or a 204, a "Leave page?" the user said no to. The page stays, but it had
 // told the background it left: the background forgot its frames and their streams, and

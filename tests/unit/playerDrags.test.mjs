@@ -230,6 +230,7 @@ describe('the silence-skip threshold line', () => {
   const make = () => ({
     silenceThreshold: 0.5,
     updateSilenceSkipper: vi.fn(),
+    saveState: vi.fn(),
     client: {interfaceController: {fineTimeControls: {ui: {timelineAudio: {clientHeight: 100}}}}},
   });
   const press = (skipper, props) => {
@@ -246,6 +247,8 @@ describe('the silence-skip threshold line', () => {
     releaseInside();
     move({clientY: 460});
     expect(skipper.silenceThreshold).toBeCloseTo(0.7);
+    // Saved once it is let go: after a reload it was back at the default.
+    expect(skipper.saveState).toHaveBeenCalledTimes(1);
   });
 
   it('does not drag on another button', () => {

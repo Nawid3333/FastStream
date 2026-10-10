@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "動画を事前ダウンロードするには、プレーヤーをクリックしてください。"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "ピンク色の線をドラッグして、どれくらい静かな部分をスキップするかを設定します。"
+    },
+    "loop_menu_now": {
+        "message": "現在の再生位置を使用"
+    },
+    "player_segment_intro": {
+        "message": "イントロ"
+    },
+    "player_segment_outro": {
+        "message": "アウトロ"
+    },
     "player_skipintro": {
         "message": "イントロをスキップ"
     },
     "player_skipoutro": {
         "message": "アウトロをスキップ"
+    },
+    "player_nextvideo_auto": {
+        "message": "自動"
     },
     "player_nextvideoin": {
         "message": "次のビデオ $1s 後"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "テストを停止"
     },
+    "player_subtitles_url_track": {
+        "message": "URL から字幕"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "トラック $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "新しい字幕"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "検索するタイトルを入力"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "ファイルをアップロード"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "開始"
     },
+    "loop_menu_end_placeholder": {
+        "message": "動画の終わり"
+    },
     "loop_menu_end": {
         "message": "終了"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "ファイル名を入力"
+    },
+    "player_screenshot_nopicture": {
+        "message": "保存できる画像がありません：ファイルが音声のみか、動画にまだ画像が表示されていません。"
     },
     "player_screenshot_saving": {
         "message": "スクリーンショットを撮影中..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "プロファイル"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "プロファイル $1"
+    },
+    "audiomixer_master": {
+        "message": "マスター"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "無題のプロファイル"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "プロファイルを読み込みました!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "プロファイルを保存"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "保存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "プロファイルを保存しました!"
     },
     "player_audioconfig_profile_download": {
         "message": "プロファイルをダウンロード"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
+    "options_general_nolimit": {
+        "message": "制限なし"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: 再生位置より先には何もダウンロードされないため、動画が読み込みで止まることがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: 事前ダウンロードは行われず、以下に設定された秒数分だけがバッファーに保持されます。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: ダウンロードした動画は、次の数秒を除いて RAM に置かれず、ディスクに保存されます。ディスクに何も保存しないプライベートウィンドウでは、再生位置より先には何もダウンロードされません。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_none": {
+        "message": "制限なし: ダウンロードした動画はすべて RAM に保存され、ディスクには保存されません。メモリの少ない PC では、Firefox の動作が遅くなる可能性があります。"
+    },
     "options_general_bufferahead": {
         "message": "再生位置より先をバッファーに保持する秒数（事前ダウンロードがオフ、停止、または容量不足のときに使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: 再生位置より先をバッファーに保持しないため、動画が頻繁に止まって読み込みます。上限をなくすには、フィールドを空のままにしてください。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "上限なし: 事前ダウンロードがオフでも、動画全体が先にダウンロードされます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。上のダウンロード速度が 0 の場合は、先には何もダウンロードされません。"
+    },
     "options_general_bufferbehind": {
         "message": "再生位置より後ろを切り詰める前にバッファーに保持する秒数"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: 再生済みの部分はすぐに破棄され、シークして戻るともう一度読み込みます。上限をなくすには、フィールドを空のままにしてください。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "上限なし: 再生済みの部分はすべて保持されます。まず RAM に保存され、上で設定した RAM の上限に達すると、続いてディスクに保存されます。"
     },
     "options_general_blockpopups": {
         "message": "プレーヤーをクリックした直後に開かれるポップアップ/ポップアンダーをブロックする"
@@ -1137,7 +1194,10 @@
         "message": "デフォルトにリセット"
     },
     "options_keybinds_press": {
-        "message": "キーを押してください"
+        "message": "キーを押してください。設定しない場合は Esc キーを押してください。"
+    },
+    "options_keybinds_none": {
+        "message": "なし"
     },
     "options_keybinds_conflict": {
         "message": "$1 でも使用中"
@@ -1146,7 +1206,7 @@
         "message": "URL で自動的に有効化"
     },
     "options_autourl_body": {
-        "message": "これらの URL にアクセスすると自動的に拡張機能が有効化され、離れる事で無効化されます。1 行に 1 つの URL があり、その URL で始まるページも一致します。正規表現の場合は、先頭にチルダ (~) を付けます。1 行に 1 つの正規表現となります。サイトを除外するには、先頭に感嘆符 (!) を付けます。サイト全体をそのままにするには - 自動有効化なし、そのサイトのストリームリンクもプレイヤーで開かれません - ドメインの先頭にマイナス記号 (-) を付けます。"
+        "message": "これらの URL にアクセスすると拡張機能が自動的に有効になり、ページを離れると無効になります。URL は 1 行に 1 つで、その URL で始まるページも一致します（https:// と www. は省略できます: crunchyroll.com）。正規表現の場合は、先頭にチルダ（~）を付けます。正規表現も 1 行に 1 つです。サイトを除外するには、先頭に感嘆符（!）を付けます。サイト全体を FastStream の対象から外すには（自動的に有効にせず、そのサイトのストリームリンクもプレーヤーで開かない）、ドメインの先頭にマイナス記号（-）を付けます。"
     },
     "options_autourl_hint": {
         "message": "ヒント: 正規表現のテストができます"
@@ -1179,7 +1239,7 @@
         "message": "MPV 許可リスト"
     },
     "options_mpv_allowlist_hint": {
-        "message": "このリストにあるサイトは、検出されたストリームを mpv で開きます。1 行に 1 つの URL。その URL で始まるページも一致します。正規表現には ~ を、除外には ! を使用します。タグのないサイトは、mpv のシェーダー選択に既定で映画が使われます。該当しないサイトは行末に @anime を追加してください。明示的に書きたい場合は @movie も受け付けます。プレーヤーの mpv ボタンから動画ごとに上書きできます。"
+        "message": "このリストにあるサイトは、検出されたストリームを mpv で開きます。URL は 1 行に 1 つで、その URL で始まるページも一致します（https:// と www. は省略できます: crunchyroll.com @anime）。正規表現には ~ を、除外には ! を使用します。タグのないサイトは、mpv のシェーダー選択用に既定で「映画」に設定されます。アニメサイトは、行の末尾に @anime を追加してください。明示的に書きたい場合は @movie も受け付けます。プレーヤーの mpv ボタンで、動画ごとにこの設定を上書きできます。"
     },
     "options_mpv_path": {
         "message": "mpv のパス（省略可: mpv ヘルパーが mpv を自動的に見つけられない場合のみ入力）"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - このコンピューターの mpv ヘルパーが古くなっています: ネイティブメッセージングマニフェストで指定されている faststream-mpv-host.mjs を更新してください（FastStream リポジトリのチェックアウトでは git pull を実行してください。詳しくは native-host/README.md を参照）"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV で再生中 - グラフィックカードでデコード: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "このコンピューターの mpv ヘルパーが古くなっています: ネイティブメッセージングマニフェストで指定されている faststream-mpv-host.mjs を更新してください（FastStream リポジトリのチェックアウトでは git pull を実行してください。詳しくは native-host/README.md を参照）。"
+    },
     "options_mpv_test_decoder_hw": {
         "message": "開いている mpv ウィンドウはグラフィックカードでデコードしています: $1。"
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "mpv に送信済み。このコンピューターの mpv ヘルパーが古くなっています: スタートメニューの「Update mpv」を実行してください（FastStream リポジトリのチェックアウトでは update-local.cmd または native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "mpv に送信済み。このコンピューターの mpv ヘルパーが古くなっています: ネイティブメッセージングマニフェストで指定されている faststream-mpv-host.mjs を更新してください（FastStream リポジトリのチェックアウトでは git pull を実行してください。詳しくは native-host/README.md を参照）。"
     },
     "player_mpv_content_unset": {
         "message": "このストリームを mpv で開く（コンテンツタイプ：自動 — @anime タグのないサイトでは映画。右クリックでこの動画だけ変更）"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Firefox VPN でのみ使用されます。Firefox はこれをブラウザーのプロキシ設定の制御として表示しますが、FastStream は設定を一切変更しません。動画に対する独自のリクエストを、ページ自身のリクエストと同じ経路で、VPN 経由で送信します。これがないと、動画を VPN のアドレスに紐付けるサイトは FastStream を拒否します。プレイヤーは初めて必要になったときにこれを要求します。"
+    },
+    "player_mpv_no_host": {
+        "message": "mpv ヘルパーから応答がありません。インストールされていますか？"
     },
     "player_mpv_vpn": {
         "message": "この動画は Firefox VPN 経由で送られてきますが、mpv は Firefox VPN を使用できません。そのためサイトは mpv を拒否します。mpv で視聴するには、このサイトで Firefox VPN をオフにして、ページを再読み込みしてください。"

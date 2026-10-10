@@ -53,7 +53,7 @@
                 <div class="video-option search-target-remove" data-option="videoZoom">
                     <div class="label search-target-text" data-i18n="options_video_zoom"></div>
                     <input class="number" type="text" data-i18n-label="options_video_zoom"></input>
-                    <input class="range" type="range" min="0" max="200" value="1" step="1" list="snap-hundred"
+                    <input class="range" type="range" min="10" max="200" value="100" step="1" list="snap-hundred"
                         data-i18n-label="options_video_zoom"></input>
                 </div>
 
@@ -134,44 +134,51 @@
                 <div class="option search-target-remove grid2" style="margin-left: 25px">
                     <div class="label search-target-text" data-i18n="options_general_targetspeed"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="maxspeed" placeholder="∞"
+                        <input class="number" type="text" inputmode="decimal" id="maxspeed" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_targetspeed"></input>
                         <span class="unit">Mbit/s</span>
                     </div>
+                    <div class="limit-hint" id="maxspeedhint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_maxsize"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="maxsize" placeholder="∞"
+                        <input class="number" type="text" inputmode="decimal" id="maxsize" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_maxsize"></input>
                         <select id="maxsizeunit" data-i18n-label="options_general_maxsize">
                             <option value="1000000">MB</option>
                             <option value="1000000000">GB</option>
                         </select>
                     </div>
+                    <div class="limit-hint" id="maxsizehint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-left: 25px; margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_rambudget"></div>
                     <div class="amount">
-                        <input class="number" type="text" inputmode="decimal" id="rambudget"
+                        <input class="number" type="text" inputmode="decimal" id="rambudget" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
                             data-i18n-label="options_general_rambudget"></input>
                         <select id="rambudgetunit" data-i18n-label="options_general_rambudget">
                             <option value="1000000">MB</option>
                             <option value="1000000000">GB</option>
                         </select>
                     </div>
+                    <div class="limit-hint" id="rambudgethint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 5px">
                     <div class="label search-target-text" data-i18n="options_general_bufferahead"></div>
-                    <input class="number" type="text" id="bufferahead" data-i18n-label="options_general_bufferahead"></input>
+                    <input class="number" type="text" inputmode="numeric" id="bufferahead" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
+                        data-i18n-label="options_general_bufferahead"></input>
+                    <div class="limit-hint" id="bufferaheadhint" hidden></div>
                 </div>
 
                 <div class="option search-target-remove grid2" style="margin-top: 3px">
                     <div class="label search-target-text" data-i18n="options_general_bufferbehind"></div>
-                    <input class="number" type="text" id="bufferbehind" data-i18n-label="options_general_bufferbehind"></input>
+                    <input class="number" type="text" inputmode="numeric" id="bufferbehind" placeholder="∞" data-i18n-placeholder="options_general_nolimit"
+                        data-i18n-label="options_general_bufferbehind"></input>
+                    <div class="limit-hint" id="bufferbehindhint" hidden></div>
                 </div>
             </div>
 
@@ -287,8 +294,11 @@
                         <br>
                         <div class="option grid2">
                             <div class="label search-target-text" data-i18n="options_general_minisize"></div>
-                            <input class="number" type="number" id="minisize" step="0.1"
-                                data-i18n-label="options_general_minisize"></input>
+                            <div class="amount">
+                                <input class="number" type="text" inputmode="decimal" id="minisize"
+                                    data-i18n-label="options_general_minisize"></input>
+                                <span class="unit">%</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -321,7 +331,7 @@
                     <br>
                     <div class="option grid2">
                         <div class="label search-target-text" data-i18n="options_general_seekstep"></div>
-                        <input class="number" type="number" id="seekstepsize" step="1"
+                        <input class="number" type="text" inputmode="decimal" id="seekstepsize"
                             data-i18n-label="options_general_seekstep"></input>
                     </div>
                 </div>

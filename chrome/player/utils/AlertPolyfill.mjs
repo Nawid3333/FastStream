@@ -182,13 +182,27 @@ function errorText(error) {
     text = String(error.message);
   } else if (error && typeof error === 'object') {
     try {
-      text = JSON.stringify(error) ?? text;
+      // An Error or DOMException without a message is "{}" as JSON (its own fields are not
+      // listed): its name ("Error", "AbortError") says more.
+      const json = JSON.stringify(error);
+      if (json && json !== '{}') text = json;
     } catch (e) {
       // A cycle: the plain text.
     }
   }
   // An issue's address has a length limit.
   return text.length > 1000 ? text.slice(0, 1000) + '...' : text;
+}
+
+/**
+ * What the error dialog's title says went wrong: error.message alone was "undefined" for
+ * a thrown text or a player's error object.
+ * @param {*} error
+ * @return {string}
+ */
+export function errorTitleText(error) {
+  const text = errorText(error);
+  return text.length > 200 ? text.slice(0, 200) + '...' : text;
 }
 
 /**
@@ -310,7 +324,7 @@ export class AlertPolyfill {
     );
     const result = await openDialog({
       icon: 'error',
-      title: Localize.getMessage('error_popup', [error?.message]),
+      title: Localize.getMessage('error_popup', [errorTitleText(error)]),
       content,
       confirmText: Localize.getMessage('error_popup_send'),
       cancelText: Localize.getMessage('cancel'),

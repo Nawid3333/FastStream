@@ -4,6 +4,7 @@ import {EventEmitter} from '../../modules/eventemitter.mjs';
 import {DOMElements} from '../DOMElements.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {Localize} from '../../modules/Localize.mjs';
+import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 
 export const SubtitlesSettingsManagerEvents = {
   SETTINGS_CHANGED: 'settingsChanged',
@@ -62,7 +63,7 @@ export class SubtitlesSettingsManager extends EventEmitter {
       if (!config) continue;
 
       if (config.type === 'css') {
-        element.style[config.property] = settings[key];
+        element.style[config.property] = config.property === 'font-size' ? SubtitleUtils.withUnit(settings[key]) : settings[key];
       }
     }
     this.applyOutline(element, settings);
@@ -73,10 +74,8 @@ export class SubtitlesSettingsManager extends EventEmitter {
     const outlineWidth = settings.outlineWidth;
     const outlineColor = settings.outlineColor;
     const unit = 'px';
-    // A text field: "Infinity" (or 1e999) passed the check, and the loop below never ended -
-    // the player hung. A width past a few dozen pixels is no outline any more.
-    const outlineWidthValue = Math.min(parseFloat(outlineWidth), 64);
-    if (!Number.isFinite(outlineWidthValue) || outlineWidthValue <= 0) return;
+    const outlineWidthValue = SubtitleUtils.outlineWidth(outlineWidth);
+    if (!outlineWidthValue) return;
 
     // This is a hack to make the outline look better
     // go around the perimeter of the text, circularly

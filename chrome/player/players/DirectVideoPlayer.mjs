@@ -29,6 +29,20 @@ export function elementHeaderCommands(headers) {
   return commands;
 }
 
+// What a direct video can be saved as. A URL without an extension (".../watch?v=1") was saved
+// as .webm, and one ending in .php as .php: most direct videos are MP4.
+const MEDIA_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'ogg', 'mp3', 'm4a', 'aac', 'wav', 'flac', 'opus', 'weba', 'oga']);
+
+/**
+ * The file extension to save a direct source as.
+ * @param {?Object} source
+ * @return {string}
+ */
+export function saveExtension(source) {
+  const extension = URLUtils.get_url_extension(source?.identifier || source?.url || '');
+  return MEDIA_EXTENSIONS.has(extension) ? extension : 'mp4';
+}
+
 export default class DirectVideoPlayer extends EventEmitter {
   constructor(client, config) {
     super();
@@ -155,7 +169,7 @@ export default class DirectVideoPlayer extends EventEmitter {
       canSave: true,
       canStream: true,
       isComplete: true,
-      extension: URLUtils.get_url_extension(this.source.identifier || this.source.url) || 'webm',
+      extension: saveExtension(this.source),
     };
   }
 
@@ -228,7 +242,7 @@ export default class DirectVideoPlayer extends EventEmitter {
     }
 
     return {
-      extension: URLUtils.get_url_extension(this.source?.identifier || this.source?.url) || 'webm',
+      extension: saveExtension(this.source),
       blob: null,
     };
   }

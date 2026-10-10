@@ -274,13 +274,14 @@ export class DownloadManager {
 
   /**
    * How many downloaders may run: the option, from 1 to 6 (a browser's limit per server).
-   * 0 or no value is the default 6. The speed test read 0 as "add none", while the
-   * add-downloader key read it as "no limit".
+   * No value is no limit, 6; 0 is the least that still downloads, 1 (0 is none, as in every
+   * number setting). The speed test read 0 as "add none", the add-downloader key as "no
+   * limit", and this as the default 6, the most.
    * @return {number}
    */
   downloaderLimit() {
     const limit = this.client?.options?.maximumDownloaders;
-    return Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 6) : 6;
+    return Number.isFinite(limit) && limit >= 0 ? Math.min(Math.max(Math.floor(limit), 1), 6) : 6;
   }
 
   addDownloader() {

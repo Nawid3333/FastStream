@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Klik pemain agar ia boleh memuat turun video lebih awal"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Seret garisan merah jambu untuk menetapkan betapa senyapnya sesuatu bahagian perlu agar ia dilangkau"
+    },
+    "loop_menu_now": {
+        "message": "Gunakan masa semasa"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Langkau Pengenalan"
     },
     "player_skipoutro": {
         "message": "Langkau Penutup"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Video seterusnya dalam $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Henti Percubaan"
     },
+    "player_subtitles_url_track": {
+        "message": "Sarikata daripada pautan"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Trek $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Sarikata baharu"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Taip tajuk untuk dicari"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Muat Naik Fail"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Mula"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Akhir video"
+    },
     "loop_menu_end": {
         "message": "Tamat"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Masukkan nama untuk fail"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Tiada gambar untuk disimpan: fail hanya mengandungi audio, atau video belum menunjukkan gambar."
     },
     "player_screenshot_saving": {
         "message": "Mengambil tangkapan skrin..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Profil Tanpa Nama"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil Dimuatkan!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Simpan Profil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Menyimpan..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil Disimpan!"
     },
     "player_audioconfig_profile_download": {
         "message": "Muat turun Profil"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang ditimbal (semua tab)"
     },
+    "options_general_nolimit": {
+        "message": "Tanpa had"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin berhenti untuk memuatkan. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: tiada apa-apa yang dimuat turun awal; hanya bilangan detik yang ditetapkan di bawah dikekalkan di hadapan. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: video yang dimuat turun tidak disimpan dalam RAM, tetapi pada cakera, kecuali beberapa saat berikutnya. Dalam tetingkap peribadi, yang tidak menyimpan apa-apa pada cakera, tiada apa-apa yang dimuat turun di hadapan main balik. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_rambudget_none": {
+        "message": "Tanpa had: semua video yang dimuat turun kekal dalam RAM, tiada yang disimpan pada cakera. Pada PC dengan memori kecil, Firefox mungkin menjadi perlahan."
+    },
     "options_general_bufferahead": {
         "message": "Detik yang dikekalkan dalam penampan di hadapan main balik (digunakan apabila muat turun awal dimatikan, berhenti atau kehabisan ruang)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: tiada apa-apa yang dikekalkan dalam penampan di hadapan, jadi video kerap berhenti untuk memuatkan. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Tanpa had: keseluruhan video dimuat turun di hadapan main balik, walaupun muat turun awal dimatikan: dalam RAM, kemudian pada cakera apabila had RAM di atas telah penuh. Jika kelajuan muat turun di atas ialah 0, tiada apa-apa yang dimuat turun di hadapan main balik."
+    },
     "options_general_bufferbehind": {
         "message": "Detik yang dikekalkan dalam penampan di belakang main balik sebelum dipangkas"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: video yang telah dimainkan terus dibuang; mencari ke belakang memuatkan semula. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Tanpa had: semua yang telah dimainkan dikekalkan, dalam RAM dan kemudian pada cakera apabila had RAM di atas telah penuh."
     },
     "options_general_blockpopups": {
         "message": "Sekat popup/popunder yang dibuka sejurus selepas mengklik pemain"
@@ -1137,7 +1194,10 @@
         "message": "Set Semula ke Lalai"
     },
     "options_keybinds_press": {
-        "message": "Tekan kekunci"
+        "message": "Tekan kekunci, atau Escape untuk tiada"
+    },
+    "options_keybinds_none": {
+        "message": "Tiada"
     },
     "options_keybinds_conflict": {
         "message": "Turut digunakan oleh $1"
@@ -1146,7 +1206,7 @@
         "message": "Auto-aktifkan URL"
     },
     "options_autourl_body": {
-        "message": "Akan mengaktifkan sambungan secara automatik apabila melawat URL ini dan menyahaktifkannya apabila keluar. Satu URL setiap baris, halaman yang bermula dengan URL tersebut juga akan dipadankan. Untuk regex, letakkan tilde (~) di hadapan. Satu regex setiap baris. Untuk mengecualikan tapak, letakkan tanda seru (!) di hadapan. Untuk membiarkan seluruh laman begitu sahaja - tiada pengaktifan automatik, dan pautan strimnya tidak dibuka dalam pemain - letakkan tanda tolak (-) di hadapan domainnya."
+        "message": "Akan mengaktifkan sambungan secara automatik apabila melawati URL ini dan menyahaktifkannya apabila keluar. Satu URL setiap baris, halaman yang bermula dengan URL tersebut juga akan dipadankan (https:// dan www. boleh dibiarkan: crunchyroll.com). Untuk regex, letakkan tilde (~) di hadapan. Satu regex setiap baris. Untuk mengecualikan tapak, letakkan tanda seru (!) di hadapan. Untuk membiarkan seluruh tapak begitu sahaja - tiada pengaktifan automatik, dan pautan strimnya tidak dibuka dalam pemain - letakkan tanda tolak (-) di hadapan domainnya."
     },
     "options_autourl_hint": {
         "message": "Petunjuk: Uji regex pada"
@@ -1179,7 +1239,7 @@
         "message": "Senarai Dibenarkan MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan. Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak yang bukan Filem. @movie juga diterima, jika anda mahu menulisnya dengan penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video."
+        "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan (https:// dan www. boleh dibiarkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak anime. @movie juga diterima, jika anda mahu menuliskannya secara penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video."
     },
     "options_mpv_path": {
         "message": "Laluan mpv (pilihan: hanya jika pembantu mpv tidak menemui mpv dengan sendirinya)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - pembantu mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - pembantu mpv pada komputer ini sudah lapuk: kemas kini fail faststream-mpv-host.mjs yang dirujuk oleh manifes pemesejan asli anda (git pull dalam salinan repositori FastStream anda; lihat native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Dimainkan dalam MPV - dinyahkod oleh kad grafik: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "Pembantu mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "Pembantu mpv pada komputer ini sudah lapuk: kemas kini fail faststream-mpv-host.mjs yang dirujuk oleh manifes pemesejan asli anda (git pull dalam salinan repositori FastStream anda; lihat native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "Tetingkap mpv yang terbuka menyahkod pada kad grafik: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "Dihantar ke mpv. Pembantu mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Dihantar ke mpv. Pembantu mpv pada komputer ini sudah lapuk: kemas kini fail faststream-mpv-host.mjs yang dirujuk oleh manifes pemesejan asli anda (git pull dalam salinan repositori FastStream anda; lihat native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Buka strim ini dalam mpv (jenis kandungan: auto – Filem melainkan tapak ditanda @anime; klik kanan untuk mengatasinya bagi video ini)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Hanya digunakan dengan Firefox VPN. Firefox menyenaraikannya sebagai kawalan tetapan proksi pelayar, tetapi FastStream tidak mengubah sebarang tetapan: ia menghantar permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, tapak yang mengikat videonya pada alamat VPN menolak FastStream. Pemain memintanya apabila pertama kali diperlukan."
+    },
+    "player_mpv_no_host": {
+        "message": "pembantu mpv tidak menjawab – adakah ia dipasang?"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN membawa video ini, dan mpv tidak boleh menggunakan Firefox VPN: tapak akan menolak mpv. Untuk menontonnya dalam mpv, matikan Firefox VPN untuk tapak ini dan muat semula halaman."

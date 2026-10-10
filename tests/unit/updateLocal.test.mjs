@@ -230,7 +230,7 @@ describe('update-local.ps1', () => {
     const upToDate = {
       STUB_NODE: '22.23.3', STUB_NODE_NEWEST: '22.23.3',
       STUB_NPM: '11.9.0', STUB_NPM_NEWEST: '11.9.0',
-      STUB_PNPM: '11.28.0', STUB_BEHIND: '0',
+      STUB_PNPM: '11.28.0', STUB_BEHIND: '0', STUB_BRANCH: 'main',
     };
     // A stand-in: answers what update-local.ps1 asks (a tool's --version; node running
     // newest-release.mjs, %2 being what it looks up; git's four questions), from the
@@ -247,7 +247,7 @@ describe('update-local.ps1', () => {
       'git.cmd': stub([
         'if "%~1"=="remote" (echo origin& exit /b 0)',
         'if "%~1"=="status" exit /b 0',
-        'if "%~1"=="rev-parse" (echo main& exit /b 0)',
+        'if "%~1"=="rev-parse" (echo %STUB_BRANCH%& exit /b 0)',
         'if "%~1"=="rev-list" (echo %STUB_BEHIND%& exit /b 0)',
       ]),
     };
@@ -258,7 +258,11 @@ describe('update-local.ps1', () => {
       ['a newer npm', 2, {STUB_NPM: '11.8.0'}],
       ['pnpm older than the pin', 2, {STUB_PNPM: '11.27.0'}],
       ['main behind origin', 2, {STUB_BEHIND: '3'}],
-    ])('%s: exits %i', (name, code, change) => {
+      ['an mpv helper unlike the repository\'s', 2, {}, true],
+      // Not on main, the repository's helper is not the one to install, and -Apply leaves it:
+      // the check offered it anyway, and -Apply then did nothing and exited 0.
+      ['an mpv helper unlike that of another branch', 0, {STUB_BRANCH: 'fix/x'}, true],
+    ])('%s: exits %i', (name, code, change, helper = false) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-update-check-'));
       const bin = path.join(dir, 'bin');
       const repo = path.join(dir, 'repo');
@@ -279,6 +283,15 @@ describe('update-local.ps1', () => {
         fs.writeFileSync(marker, '{}\n');
         fs.utimesSync(lock, new Date('2026-10-01T10:00:00Z'), new Date('2026-10-01T10:00:00Z'));
         fs.utimesSync(marker, new Date('2026-10-02T10:00:00Z'), new Date('2026-10-02T10:00:00Z'));
+        if (helper) {
+          const installed = path.join(temp, 'FastStreamMpvHost');
+          fs.mkdirSync(installed, {recursive: true});
+          fs.mkdirSync(path.join(repo, 'native-host'), {recursive: true});
+          fs.writeFileSync(path.join(installed, 'faststream-mpv-host.mjs'), '// installed\n');
+          fs.writeFileSync(path.join(installed, 'config.json'), JSON.stringify({mpvPath: 'C:\\mpv\\mpv.exe'}));
+          fs.writeFileSync(path.join(installed, 'com.faststream.mpv.bat'), '@"C:\\node\\node.exe" host.mjs %*\r\n');
+          fs.writeFileSync(path.join(repo, 'native-host', 'faststream-mpv-host.mjs'), '// newer\n');
+        }
         // PowerShell's own modules only: with LOCALAPPDATA in a fresh folder its module
         // analysis cache is gone, and every lookup of a command that is not there
         // (Get-Command wsl.exe) scanned every installed module - hundreds on GitHub's runner,

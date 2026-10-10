@@ -72,6 +72,8 @@ let requestCounter = 0;
  *   A page's answer to a message the background sends it (tabs.sendMessage).
  * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
  *   {ok: true} by default.
+ * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):
+ *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
  *   before the background loads: to make an API fail from the start.
  * @return {Promise<Object>} The background's handle.
@@ -83,6 +85,7 @@ export async function loadBackground({
   fetch = async () => response('', 404),
   onTabMessage = () => undefined,
   onNative = () => ({ok: true, hostVersion: RequiredHostVersion}),
+  os = 'win',
   beforeImport = () => {},
 } = {}) {
   vi.useFakeTimers();
@@ -141,6 +144,7 @@ export async function loadBackground({
       lastError: undefined,
       getURL: (file) => 'moz-extension://bg-test/' + file,
       getManifest: () => ({version: '1.0.0'}),
+      getPlatformInfo: async () => ({os, arch: 'x86-64'}),
       onInstalled: event(),
       onMessage,
       sendNativeMessage: (name, message, callback) => {

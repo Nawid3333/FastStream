@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "点击播放器，让它提前下载视频"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "拖动粉色线条，设置片段需要安静到什么程度才会被跳过"
+    },
+    "loop_menu_now": {
+        "message": "使用当前时间"
+    },
+    "player_segment_intro": {
+        "message": "片头"
+    },
+    "player_segment_outro": {
+        "message": "片尾"
+    },
     "player_skipintro": {
         "message": "跳过片头"
     },
     "player_skipoutro": {
         "message": "跳过片尾"
+    },
+    "player_nextvideo_auto": {
+        "message": "自动"
     },
     "player_nextvideoin": {
         "message": "下一个视频将在 $1s 后播放"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "停止测试"
     },
+    "player_subtitles_url_track": {
+        "message": "来自链接的字幕"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "轨道 $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "新建字幕"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "输入要搜索的片名"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "上传文件"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "开始"
     },
+    "loop_menu_end_placeholder": {
+        "message": "视频结尾"
+    },
     "loop_menu_end": {
         "message": "结束"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "请输入文件名"
+    },
+    "player_screenshot_nopicture": {
+        "message": "没有可保存的画面：文件只有音频，或视频还没有显示画面。"
     },
     "player_screenshot_saving": {
         "message": "正在截屏..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "配置"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "配置 $1"
+    },
+    "audiomixer_master": {
+        "message": "主音量"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "未命名配置"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "配置已加载!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "保存配置"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "保存中..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "配置已保存!"
     },
     "player_audioconfig_profile_download": {
         "message": "下载配置"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
+    "options_general_nolimit": {
+        "message": "无限制"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0：播放位置前方不会下载任何内容，视频可能需要停下来等待加载。将输入框留空即为无限制。"
+    },
+    "options_general_maxsize_zero": {
+        "message": "0：不进行任何预下载；只在播放位置前方保留下方设置的缓冲秒数。将输入框留空即为无限制。"
+    },
+    "options_general_rambudget_zero": {
+        "message": "0：已下载的视频不保存在内存中，而是保存到磁盘上，只有接下来几秒会留在内存中。隐私窗口不会在磁盘上保存任何内容，因此播放位置前方不会下载任何内容。将输入框留空即为无限制。"
+    },
+    "options_general_rambudget_none": {
+        "message": "无限制：已下载的视频全部保存在内存（RAM）中，不写入磁盘。在内存较少的电脑上，Firefox 可能会变慢。"
+    },
     "options_general_bufferahead": {
         "message": "在播放位置前方保留缓冲的秒数（预下载关闭、停止或空间用尽时使用）"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0：播放位置前方不保留任何缓冲，因此视频会经常停下来等待加载。将输入框留空即为无限制。"
+    },
+    "options_general_bufferahead_none": {
+        "message": "无限制：即使预下载关闭，也会提前下载整个视频：先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。如果上方的下载速度为 0，则不会提前下载任何内容。"
+    },
     "options_general_bufferbehind": {
         "message": "在播放位置后方、裁剪前保留缓冲的秒数"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0：已播放的内容会立即丢弃；往回跳转时会重新加载。将输入框留空即为无限制。"
+    },
+    "options_general_bufferbehind_none": {
+        "message": "无限制：已播放的内容会全部保留，先保存在内存（RAM）中，达到上方的内存限制后再转存到磁盘。"
     },
     "options_general_blockpopups": {
         "message": "屏蔽点击播放器后立即打开的弹出窗口/底层弹窗"
@@ -1137,7 +1194,10 @@
         "message": "重置为默认"
     },
     "options_keybinds_press": {
-        "message": "请按任意键"
+        "message": "请按任意键，或按 Esc 表示不设快捷键"
+    },
+    "options_keybinds_none": {
+        "message": "无"
     },
     "options_keybinds_conflict": {
         "message": "也被 $1 使用"
@@ -1146,7 +1206,7 @@
         "message": "自动启用 URL"
     },
     "options_autourl_body": {
-        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配。使用正则时在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。要让整个站点不受影响 - 不自动启用，其流媒体链接也不会在播放器中打开 - 在域名前面加一个减号 (-)。"
+        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com）。使用正则时，在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。要让整个站点不受影响 - 不自动启用，其流媒体链接也不会在播放器中打开 - 在域名前面加一个减号 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此处测试正则"
@@ -1179,7 +1239,7 @@
         "message": "MPV 允许列表"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也匹配。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；如非如此，请在该行结尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
+        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com @anime）。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；动漫网站请在该行末尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
     },
     "options_mpv_path": {
         "message": "mpv 路径（可选：仅当 mpv 辅助程序自己找不到 mpv 时才填写）"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - 这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - 正在 MPV 中播放 - 由显卡解码：$1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
+    },
     "options_mpv_test_decoder_hw": {
         "message": "已打开的 mpv 窗口正在用显卡解码：$1。"
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中打开此视频流（内容类型：自动——除非网站被标记为 @anime，否则为电影；右键点击可为该视频覆盖此设置）"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。"
+    },
+    "player_mpv_no_host": {
+        "message": "FastStream mpv 辅助程序没有响应——是否已安装？"
     },
     "player_mpv_vpn": {
         "message": "此视频通过 Firefox VPN 传输，而 mpv 无法使用 Firefox VPN：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"

@@ -427,7 +427,7 @@ describe('a failed hand-off', () => {
 // extension update and a `git pull`. Until 2026-10-04 an e-mail said to install it again;
 // now the button does, where MPV mode is used.
 describe('an outdated mpv host', () => {
-  const OUTDATED = 'FastStream - MPV - the mpv host on this computer is out of date: ' +
+  const OUTDATED = 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
     'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
 
   it('gets the stream, and the toolbar says to install the host again', async () => {
@@ -450,6 +450,27 @@ describe('an outdated mpv host', () => {
       tabs: [{id: 1, url: PAGE}], session});
     expect(bg.badges.get(1)).toBe('!');
     expect(bg.titles.get(1)).toBe(OUTDATED);
+  });
+
+  // Firefox's word for the system, not navigator.platform: that says "Win32" on every system
+  // with privacy.resistFingerprinting on, and Linux was told to use the Start menu.
+  it('names the Linux and macOS steps there, whatever navigator.platform says', async () => {
+    vi.stubGlobal('navigator', {userAgent: navigator.userAgent, platform: 'Win32'});
+    try {
+      bg = await loadBackground({
+        options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+        tabs: [{id: 1, url: PAGE}],
+        onNative: () => ({ok: true}),
+        os: 'linux',
+      });
+      await bg.navigated(1, PAGE);
+      await bg.request({tabId: 1, url: EPISODE});
+      expect(bg.titles.get(1)).toBe('FastStream - MPV - the mpv helper on this computer is out of date: ' +
+        'update the faststream-mpv-host.mjs that your native messaging manifest points to ' +
+        '(git pull in your FastStream checkout; see native-host/README.md)');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('shows the reason first when the hand-off failed as well', async () => {
@@ -1315,5 +1336,37 @@ describe('a page\'s word about its video, when the tab went on to another site m
     await bg.request({tabId: 1, url: `${CDN}/clip3.mp4`, type: 'media'});
     await bg.wait(3000);
     expect(bg.toMpv()).toEqual([`${CDN}/clip2.mp4`, `${CDN}/clip3.mp4`]);
+  });
+});
+
+// mpv started at 0:00, and the page, paused at the user's place, kept it (review,
+// 2026-10-09). The page's video says where it is when it plays (content.js playedVideo).
+describe('the shortcut\'s MPV, where mpv starts', () => {
+  /** What the open message to the host said of the start, for a video played at a time. */
+  async function startFor(video) {
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await bg.command('toggle_mpv', 1);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', ...video}},
+        {tabId: 1, frameId: 0});
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    const opens = bg.native.filter((m) => m.type === 'open');
+    expect(opens).toHaveLength(1);
+    return opens[0].start;
+  }
+
+  it('starts mpv where the page\'s video was', async () => {
+    expect(await startFor({duration: 1400, time: 612.4})).toBe(612.4);
+  });
+
+  it('starts at the start a play from the start, and a live video', async () => {
+    expect(await startFor({duration: 1400, time: 0.2})).toBe(undefined);
+    expect(await startFor({duration: null, time: 612.4})).toBe(undefined);
+    // What a live video reports: its duration is Infinity (content.js playedVideo passes it on).
+    expect(await startFor({duration: Infinity, time: 612.4})).toBe(undefined);
   });
 });

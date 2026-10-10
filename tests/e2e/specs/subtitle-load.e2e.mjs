@@ -98,7 +98,8 @@ describe('Adding a subtitle file', function() {
     // 'info' is the "downloading" toast.
     expect(await state()).toEqual({tracks: [], toasts: ['info', 'error']});
     await addUrl(VTT);
-    expect(await state()).toEqual({tracks: ['URL Track'], toasts: ['info', 'success']});
+    // Named in the page's language (player_subtitles_url_track): it was English "URL Track".
+    expect(await state()).toEqual({tracks: ['Subtitles from a link'], toasts: ['info', 'success']});
   });
 
   it('reads a Windows-1252 file with its umlauts, from disk and from a URL', async function() {

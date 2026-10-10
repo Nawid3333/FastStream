@@ -5,6 +5,7 @@ import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
+import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
@@ -126,10 +127,12 @@ function resolveMpvContentType(explicit, url) {
 let OptionsLoadPromise = null;
 function ensureOptions() {
   if (!OptionsLoadPromise) {
-    OptionsLoadPromise = Promise.all([
+    // Firefox's word for the system first: the toolbar states restored name the mpv helper's
+    // steps for it (EnvUtils.isWindows).
+    OptionsLoadPromise = EnvUtils.os().then(() => Promise.all([
       loadOptions(),
       Tabs.restoreTabStates(),
-    ]).then(() => leaveMpvWhenOff()).catch((e) => {
+    ])).then(() => leaveMpvWhenOff()).catch((e) => {
       console.error('Loading the options failed', e);
       // The next event tries again. Kept, the failure stood until the event page unloaded,
       // and every event acted on no options: MPV mode and both URL lists off.
@@ -569,7 +572,8 @@ chrome.commands.onCommand.addListener((command, tabobj) => {
  */
 async function onCancelledShortcut(press, tabobj) {
   const commands = await chrome.commands.getAll();
-  const isMac = navigator.platform.startsWith('Mac');
+  // Firefox's word: navigator.platform says "Win32" with privacy.resistFingerprinting on.
+  const isMac = (await EnvUtils.os()) === 'mac';
   const command = commands.find((c) => KeyShortcut.matches(c.shortcut || '', press, isMac));
   if (!command) {
     return;
@@ -826,8 +830,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       leaveMpvWhenOff();
       forgetOffsForNewEntries(allowlistBefore);
     }).catch((e) => console.error('Loading the new options failed', e));
-    // sent to all tabs
-    BackgroundUtils.queryTabs().then((tabs) => {
+    // sent to all tabs - once the tabs are known again: right after a wake (this message
+    // woke it) none were, and no page or player heard of the new options.
+    ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
       tabs.forEach((tab) => {
         if (Tabs.getTab(tab.id)) {
           chrome.tabs.sendMessage(tab.id, {
@@ -2099,6 +2104,9 @@ async function sendSourcesToMainFramePlayers(frame) {
   // for each tab
   for (let i = 0; i < tabs.length; i++) {
     if (!!tabs[i].incognito !== !!from.incognito) continue;
+    // Nor across containers: one container's streams, with its cookies, showed in another's
+    // player tab, which fetched them with its own session.
+    if ((tabs[i].cookieStoreId || null) !== (from.cookieStoreId || null)) continue;
     const tab = Tabs.getTab(tabs[i].id);
     if (!tab || !tab.isOn) continue;
     // if the tab is a faststream tab
@@ -2396,7 +2404,7 @@ function setMpvError(tab, result) {
   let error = null;
   if (!result.ok) {
     error = result.noHost || !result.error ?
-      'the FastStream mpv host did not answer - is it installed?' :
+      chrome.i18n.getMessage('player_mpv_no_host') || 'the FastStream mpv helper did not answer - is it installed?' :
       result.error;
   }
   const hostOutdated = result.hostOutdated === true;
@@ -2559,7 +2567,7 @@ async function onUserPlay(sender, src, video) {
       autoOpenKnownLater(tab, sender.frameId, src, video);
     }
   } else if (source) {
-    sendPlayedToMpv(tab, source);
+    sendPlayedToMpv(tab, source, video);
   } else {
     // None yet, or only another video's by length (findPlayedSource): the next stream the
     // page asks for decides, when its length can be the video's (onSourceRecieved).
@@ -2615,7 +2623,7 @@ async function sendPendingPlay(tab, first) {
         continue;
       }
       if (tab.isOn && tab.isMpv && tab.mpvOnPlay) {
-        sendPlayedToMpv(tab, candidate);
+        sendPlayedToMpv(tab, candidate, tab.mpvPlayedVideo);
       }
       return;
     }
@@ -2776,8 +2784,11 @@ function sendPageMediaHold(tab) {
  *
  * @param {Object} tab - TabHolder the video is in.
  * @param {Object} source - Detected source: url and request headers.
+ * @param {?{time?: number, duration?: ?number}} [video] - The page's video as it played
+ *   (content.js playedVideo): mpv starts where it was. It started at 0:00, and the page,
+ *   paused at the user's place, kept it.
  */
-function sendPlayedToMpv(tab, source) {
+function sendPlayedToMpv(tab, source, video = null) {
   // As autoOpenInMpv: a tab closed while its stream was looked for sends nothing.
   if (!isTabOpen(tab)) {
     return;
@@ -2792,8 +2803,13 @@ function sendPlayedToMpv(tab, source) {
   tab.mpvLastPlaySend = {url: source.url, time: now};
   Tabs.saveTabState(tab);
   const page = tab.mpvPage;
+  // Only a video of a known length (not a live one), and past its first seconds: a play
+  // from the start starts at the start.
+  const time = video?.time;
+  const startTime = Number.isFinite(video?.duration) && typeof time === 'number' && time > 5 ? time : undefined;
   tabTitle(tab.tabId).then((title) =>
-    openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title)).then((result) => {
+    openInMpv(tab.tabId, source.url, null, source.headers, resolveMpvContentType(null, tab.url), tab.url, title,
+        {startTime})).then((result) => {
     if (Logging) console.log('[MPV] user play result:', source.url, JSON.stringify(result));
     if (!isHandOffPage(tab, page)) {
       return;

@@ -125,6 +125,8 @@ export class SourcesBrowser {
         copyURL = source.toCopyURL().toString();
       } catch (e) {
       }
+      // Nothing to copy: the clipboard was emptied, and the button said "Copied".
+      if (!copyURL) return;
 
       await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 

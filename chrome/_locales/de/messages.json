@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Klicke auf den Player, damit dieser das Video vorab herunterlädt."
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Ziehe die rosa Linie, um festzulegen, wie leise ein Abschnitt sein muss, damit er übersprungen wird."
+    },
+    "loop_menu_now": {
+        "message": "Aktuelle Zeit verwenden"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Intro überspringen"
     },
     "player_skipoutro": {
         "message": "Outro überspringen"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Nächstes Video in $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Aufhören zu testen"
     },
+    "player_subtitles_url_track": {
+        "message": "Untertitel von einer URL"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Spur $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Neuer Untertitel"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Gib einen Titel ein, nach dem du suchen möchtest"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Datei hochladen"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Anfang"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Ende des Videos"
+    },
     "loop_menu_end": {
         "message": "Ende"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Gib einen Namen für die Datei ein"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Es gibt kein Bild, das gespeichert werden kann: Die Datei enthält nur Audio, oder das Video hat noch kein Bild angezeigt."
     },
     "player_screenshot_saving": {
         "message": "Nehme Bildschirmaufnahme auf..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Unbenanntes Profil"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil geladen!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Profil speichern"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Speichern..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil gespeichert!"
     },
     "player_audioconfig_profile_download": {
         "message": "Profil herunterladen"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
+    "options_general_nolimit": {
+        "message": "Keine Begrenzung"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: Es wird nichts vorab heruntergeladen, daher können Videos anhalten, um zu laden. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: Es wird nichts vorab geladen; nur die unten eingestellte Anzahl von Sekunden wird im Voraus zwischengespeichert. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_none": {
+        "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."
+    },
     "options_general_bufferahead": {
         "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, wenn Vorab-Laden deaktiviert ist, gestoppt wurde oder der Speicherplatz ausgeht)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Keine Begrenzung: Das gesamte Video wird vorgeladen, auch wenn Vorab-Laden deaktiviert ist – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist. Ist die obige Download-Geschwindigkeit 0, wird nichts vorgeladen."
+    },
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: Bereits abgespieltes Video wird sofort verworfen; beim Zurückspulen wird es neu geladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Keine Begrenzung: Alles, was bereits abgespielt wurde, bleibt erhalten – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist."
     },
     "options_general_blockpopups": {
         "message": "Popups/Pop-unders blockieren, die direkt nach dem Klick auf den Player geöffnet werden"
@@ -1137,7 +1194,10 @@
         "message": "Auf Standard zurücksetzen"
     },
     "options_keybinds_press": {
-        "message": "Drücke eine Taste"
+        "message": "Drücke eine Taste oder Esc, um keine Tastenbelegung festzulegen"
+    },
+    "options_keybinds_none": {
+        "message": "Keine"
     },
     "options_keybinds_conflict": {
         "message": "Auch belegt von $1"
@@ -1146,7 +1206,7 @@
         "message": "URLs für automatische Aktivierung"
     },
     "options_autourl_body": {
-        "message": "Aktiviert die Erweiterung automatisch beim Besuch dieser URLs und deaktiviert sie beim Verlassen wieder. Eine URL pro Zeile, Seiten, die mit der URL anfangen, passen ebenfalls. Für Regex stell eine Tilde (~) voran. Ein Regex pro Zeile. Um Seiten auszuschließen, stell ein Ausrufezeichen (!) voran. Um eine ganze Website in Ruhe zu lassen - keine automatische Aktivierung, und ihre Stream-Links werden nicht im Player geöffnet - stell ihrer Domain ein Minuszeichen (-) voran."
+        "message": "Die Erweiterung wird automatisch aktiviert, wenn diese URLs besucht werden, und beim Verlassen der Seite wieder deaktiviert. Eine URL pro Zeile, Seiten, die mit dieser URL beginnen, passen ebenfalls (https:// und www. können weggelassen werden: crunchyroll.com). Für reguläre Ausdrücke (Regex) stelle eine Tilde (~) voran. Ein regulärer Ausdruck pro Zeile. Um Seiten auszuschließen, stelle ein Ausrufezeichen (!) voran. Um eine ganze Website in Ruhe zu lassen - keine automatische Aktivierung, und ihre Stream-Links werden nicht im Player geöffnet - stelle ihrer Domain ein Minuszeichen (-) voran."
     },
     "options_autourl_hint": {
         "message": "Hinweis: Teste Regex auf"
@@ -1179,7 +1239,7 @@
         "message": "MPV-Zulassungsliste"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Seiten auf dieser Liste öffnen erkannte Streams in mpv. Eine URL pro Zeile; Seiten, die mit dieser URL beginnen, passen ebenfalls. Nutze ~ für Regex und ! zum Ausschließen. Seiten ohne Markierung verwenden für die Shader-Auswahl von mpv standardmäßig Film – hänge bei Anime-Seiten @anime ans Zeilenende an. @movie wird auch akzeptiert, falls du es ausgeschrieben haben willst. Die mpv-Schaltfläche des Players kann dies pro Video überschreiben."
+        "message": "Seiten auf dieser Liste öffnen erkannte Streams in mpv. Eine URL pro Zeile; Seiten, die mit dieser URL beginnen, passen ebenfalls (https:// und www. können weggelassen werden: crunchyroll.com @anime). Nutze ~ für reguläre Ausdrücke und ! zum Ausschließen. Seiten ohne Markierung verwenden für die Shader-Auswahl von mpv standardmäßig Film – hänge bei Anime-Seiten @anime ans Zeilenende an. @movie wird auch akzeptiert, falls du es ausgeschrieben haben willst. Die mpv-Schaltfläche des Players kann dies pro Video überschreiben."
     },
     "options_mpv_path": {
         "message": "mpv-Pfad (optional: nur, wenn der mpv-Helfer mpv nicht selbst findet)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - der mpv-Helfer auf diesem Computer ist veraltet: Aktualisiere die faststream-mpv-host.mjs-Datei, auf die dein Native-Messaging-Manifest verweist (git pull in deinem FastStream-Checkout; siehe native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Wiedergabe in MPV - von der Grafikkarte dekodiert: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "Der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "Der mpv-Helfer auf diesem Computer ist veraltet: Aktualisiere die faststream-mpv-host.mjs-Datei, auf die dein Native-Messaging-Manifest verweist (git pull in deinem FastStream-Checkout; siehe native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "Das geöffnete mpv-Fenster dekodiert auf der Grafikkarte: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "An mpv gesendet. Der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "An mpv gesendet. Der mpv-Helfer auf diesem Computer ist veraltet: Aktualisiere die faststream-mpv-host.mjs-Datei, auf die dein Native-Messaging-Manifest verweist (git pull in deinem FastStream-Checkout; siehe native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Automatisch – Film, außer die Seite ist mit @anime markiert; Rechtsklick, um es für dieses Video zu ändern)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Nur mit Firefox VPN. Firefox führt sie als Steuerung der Proxy-Einstellungen des Browsers, aber FastStream ändert keine Einstellung: Es schickt seine eigenen Anfragen für ein Video denselben Weg wie die Seite, über das VPN. Ohne diese Berechtigung lehnt eine Seite, die ihr Video an die Adresse des VPN bindet, FastStream ab. Der Player fragt danach, wenn sie das erste Mal gebraucht wird."
+    },
+    "player_mpv_no_host": {
+        "message": "Der FastStream-mpv-Helfer hat nicht geantwortet – ist er installiert?"
     },
     "player_mpv_vpn": {
         "message": "Dieses Video wird über Firefox VPN übertragen, und mpv kann Firefox VPN nicht nutzen: Die Seite würde mpv ablehnen. Um es in mpv anzusehen, schalte Firefox VPN für diese Seite aus und lade die Seite neu."

@@ -11,14 +11,25 @@ export class LoopMenu extends EventEmitter {
 
     this.client = client;
     this.loopEnabled = false;
+    // Whether the two times make a loop: one half typed (the end at 3 on the way to 3:00) does
+    // not, and looping waits. It turned the loop off, and it stayed off once the time was typed.
+    this.loopRangeValid = true;
     this.loopStart = null;
     this.loopEnd = null;
+    // An empty end is the end of the video: "00:00:00.000" there read as "end at 0".
     this.loopTimeSettings = {
       start: '00:00:00.000',
-      end: '00:00:00.000',
+      end: '',
     };
+    this.timeInputs = {};
 
     this.loopHandler = this.checkLoopLoop.bind(this);
+    // A background tab gets no animation frames: the video played past the loop's end. Its
+    // timeupdate (four a second, also in the background) keeps it within the loop there.
+    this.timeupdateHandler = () => {
+      if (document.hidden) this.keepWithinLoop();
+    };
+    this.timeupdateVideo = null;
   }
 
   reset() {
@@ -91,7 +102,9 @@ export class LoopMenu extends EventEmitter {
       input.name = name;
       input.type = 'text';
       input.value = value;
+      if (name === 'end') input.placeholder = Localize.getMessage('loop_menu_end_placeholder');
       input.ariaLabel = label.textContent;
+      this.timeInputs[name] = input;
       input.setAttribute('autocomplete', 'off');
       input.setAttribute('autocorrect', 'off');
       input.setAttribute('autocapitalize', 'off');
@@ -116,6 +129,9 @@ export class LoopMenu extends EventEmitter {
       nowButton.role = 'button';
       nowButton.classList.add('now_button');
       nowButton.textContent = '→';
+      // An arrow alone said nothing of what it does.
+      nowButton.title = Localize.getMessage('loop_menu_now');
+      nowButton.ariaLabel = nowButton.title;
       nowButton.addEventListener('click', () => {
         input.value = this.currentTimeToTimecode(this.client.currentTime);
         this.loopTimeSettings[name] = input.value;
@@ -151,9 +167,18 @@ export class LoopMenu extends EventEmitter {
     gifButton.role = 'button';
     gifButton.classList.add('loop_menu_gif_button');
     gifButton.addEventListener('click', (e) => {
+      // Put back once the GIF is made: it turned a loop the user had on off.
+      if (!this.gifLoopRunning) this.loopWasEnabled = this.loopEnabled;
       this.loopEnabled = true;
       this.updateLoopAndGif();
       this.recordGif();
+      // Nothing to record (the times make no loop): the loop as it was. It stayed on, and
+      // started by itself once the times were put right (review).
+      if (!this.gifLoopRunning) {
+        this.loopEnabled = !!this.loopWasEnabled;
+        this.loopWasEnabled = false;
+        this.updateLoopAndGif();
+      }
       e.stopPropagation();
     });
     WebUtils.setupTabIndex(gifButton);
@@ -166,7 +191,8 @@ export class LoopMenu extends EventEmitter {
   }
 
   timecodeToSeconds(timecode) {
-    const split = timecode.split(':');
+    // A decimal comma, as French and German write it: "10,5" was 10.
+    const split = timecode.replace(',', '.').split(':');
     const seconds = parseFloat(split.pop());
     const minutes = parseInt(split.pop() || 0);
     const hours = parseInt(split.pop() || 0);
@@ -192,15 +218,22 @@ export class LoopMenu extends EventEmitter {
         this.loopEnd = this.client.duration;
       }
 
-      if (this.loopStart >= this.loopEnd || this.loopStart >= this.client.duration) {
-        this.loopEnabled = false;
-      } else {
+      this.loopRangeValid = this.loopStart < this.loopEnd && this.loopStart < this.client.duration;
+      if (this.loopRangeValid) {
         this.loopStart = Utils.clamp(this.loopStart, 0, this.client.duration);
         this.loopEnd = Utils.clamp(this.loopEnd, 0, this.client.duration);
+      } else {
+        this.loopStart = null;
+        this.loopEnd = null;
       }
     } else {
+      this.loopRangeValid = true;
       this.loopStart = null;
       this.loopEnd = null;
+    }
+    for (const input of Object.values(this.timeInputs)) {
+      input.classList.toggle('invalid', !this.loopRangeValid);
+      input.setAttribute('aria-invalid', String(!this.loopRangeValid));
     }
 
     this.toggleLoopButton.textContent = Localize.getMessage('loop_menu_toggle_' + (this.loopEnabled ? 'enabled' : 'disabled'));
@@ -211,7 +244,13 @@ export class LoopMenu extends EventEmitter {
     }
 
     if (player) {
-      if (this.loopEnabled) {
+      const video = player.getVideo();
+      if (this.timeupdateVideo !== video) {
+        this.timeupdateVideo?.removeEventListener('timeupdate', this.timeupdateHandler);
+        this.timeupdateVideo = video;
+        video?.addEventListener('timeupdate', this.timeupdateHandler);
+      }
+      if (this.loopEnabled && this.loopRangeValid) {
         player.getVideo().loop = true;
         this.startLoopLoop();
       } else {
@@ -245,7 +284,7 @@ export class LoopMenu extends EventEmitter {
   }
 
   recordGif() {
-    if (!this.loopEnabled || this.gifLoopRunning) {
+    if (!this.loopEnabled || !this.loopRangeValid || this.gifLoopRunning) {
       return;
     }
     this.gif = new GIF({
@@ -297,6 +336,9 @@ export class LoopMenu extends EventEmitter {
   }
 
   gifLoop() {
+    // A frame still asked for when the recording was reset (the next video came) ran the end
+    // below, and paused the next video.
+    if (!this.gifLoopRunning) return;
     const player = this.client.player;
     if (!player) {
       this.gifLoopRunning = false;
@@ -327,7 +369,10 @@ export class LoopMenu extends EventEmitter {
     if (reachedEnd || !this.loopEnabled || !this.recordingGif) {
       console.log('gif recording reached end');
       this.gifLoopRunning = false;
-      this.loopEnabled = false;
+      // As it was before the GIF, unless the user switched the loop off meanwhile: that ended
+      // the recording, and was undone here (review).
+      this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
+      this.loopWasEnabled = false;
       this.client.pause();
       this.client.playbackRate = this.previousPlaybackRate;
       this.updateLoopAndGif();
@@ -378,7 +423,7 @@ export class LoopMenu extends EventEmitter {
 
   checkLoopLoop() {
     const player = this.client.player;
-    if (!player || !this.loopEnabled) {
+    if (!player || !this.loopEnabled || !this.loopRangeValid) {
       this.loopLoopRunning = false;
       return;
     }
@@ -394,9 +439,16 @@ export class LoopMenu extends EventEmitter {
       return;
     }
 
+    this.keepWithinLoop();
+  }
+
+  /** Seeks back into the loop when the video is outside it (not while a GIF records). */
+  keepWithinLoop() {
+    if (!this.client.player || !this.loopEnabled || !this.loopRangeValid || this.gifLoopRunning) return;
+    const currentTime = this.client.currentTime;
     if (currentTime >= this.loopEnd) {
       this.client.currentTime = this.loopStart;
-    } else if (this.loopStart > 0 && !this.gifLoopRunning) {
+    } else if (this.loopStart > 0) {
       if (currentTime < this.loopStart) {
         this.client.currentTime = this.loopStart;
       }

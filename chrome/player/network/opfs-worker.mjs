@@ -9,7 +9,10 @@ import {OpQueue} from './OpQueue.mjs';
 // serializing is simpler and cheaper than per-identifier locking. The
 // identifiers it gets are file names OPFSManager.fileName() chose.
 
-const STALE_MS = 10000; // matches IndexedDBManager's own staleness window
+// Matches IndexedDBManager's staleness window. 10 s took live sessions for dead ones: a page
+// in the back-forward cache, or a whole browser after the computer slept, writes no
+// heartbeat for a while, and the next player to start deleted their stored video.
+const STALE_MS = 60000;
 const HEARTBEAT_MS = 1000;
 const META_FILE = '_meta.json';
 

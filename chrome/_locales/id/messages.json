@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Klik pemutar untuk mengizinkannya mengunduh video terlebih dahulu"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Seret garis merah muda untuk mengatur seberapa senyap bagian harus agar dapat dilewati"
+    },
+    "loop_menu_now": {
+        "message": "Gunakan waktu saat ini"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Lewati Intro"
     },
     "player_skipoutro": {
         "message": "Lewati Outro"
+    },
+    "player_nextvideo_auto": {
+        "message": "Auto"
     },
     "player_nextvideoin": {
         "message": "Video berikutnya dalam $1s"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Hentikan tes"
     },
+    "player_subtitles_url_track": {
+        "message": "Subtitle dari tautan"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Trek $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Subtitle baru"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Ketik judul untuk mencari"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Unggah file"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Mulai"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Akhir video"
+    },
     "loop_menu_end": {
         "message": "Akhir"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Masukkan nama file"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Tidak ada gambar untuk disimpan: berkas hanya berisi audio, atau video belum menampilkan gambar."
     },
     "player_screenshot_saving": {
         "message": "Mengambil tangkapan layar..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Master"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Profil tanpa nama"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil dimuat!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Simpan Profil"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Menyimpan..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil tersimpan!"
     },
     "player_audioconfig_profile_download": {
         "message": "Unduh Profil"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
+    "options_general_nolimit": {
+        "message": "Tidak ada batasan"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: tidak ada yang diunduh di depan pemutaran, jadi video mungkin berhenti untuk memuat. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: tidak ada yang dipraunduh; hanya detik yang diatur di bawah yang disimpan di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: video yang diunduh tidak disimpan di RAM, melainkan di disk, kecuali beberapa detik berikutnya. Di jendela privat, yang tidak menyimpan apa pun di disk, tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_rambudget_none": {
+        "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."
+    },
     "options_general_bufferahead": {
         "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti, atau kehabisan ruang)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat. Biarkan kolom kosong untuk tanpa batas."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Tanpa batas: seluruh video diunduh di depan, bahkan saat predownload nonaktif: di RAM, lalu pindah ke disk setelah batas RAM di atas penuh. Jika kecepatan unduhan di atas adalah 0, tidak ada yang diunduh di depan."
+    },
     "options_general_bufferbehind": {
         "message": "Detik yang tetap dibuffer di belakang pemutaran sebelum dipangkas"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: video yang sudah diputar langsung dibuang; mundur ke bagian sebelumnya akan memuatnya lagi. Biarkan kolom kosong untuk tanpa batas."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Tanpa batas: semua yang sudah diputar tetap disimpan, di RAM lalu pindah ke disk setelah batas RAM di atas penuh."
     },
     "options_general_blockpopups": {
         "message": "Blokir popup/popunder yang dibuka tepat setelah mengklik pemutar"
@@ -1137,7 +1194,10 @@
         "message": "Kembalikan ke Default"
     },
     "options_keybinds_press": {
-        "message": "Tekan tombol"
+        "message": "Tekan tombol, atau Escape untuk tidak ada pintasan"
+    },
+    "options_keybinds_none": {
+        "message": "Tidak ada"
     },
     "options_keybinds_conflict": {
         "message": "Juga dipakai oleh $1"
@@ -1146,7 +1206,7 @@
         "message": "Aktifkan Otomatis untuk URL"
     },
     "options_autourl_body": {
-        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok. Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!). Untuk membiarkan seluruh situs apa adanya - tanpa pengaktifan otomatis, dan tautan streamingnya tidak dibuka di pemutar - tambahkan tanda minus (-) di depan domainnya."
+        "message": "Akan otomatis mengaktifkan ekstensi saat mengunjungi URL ini dan menonaktifkannya saat meninggalkan. Satu URL per baris; halaman yang dimulai dengan URL tersebut juga akan cocok (https:// dan www. bisa dihilangkan: crunchyroll.com). Untuk regex, awali dengan tilde (~). Satu regex per baris. Untuk mengecualikan situs, awali dengan tanda seru (!). Untuk membiarkan satu situs sepenuhnya tidak diganggu - tanpa pengaktifan otomatis, dan tautan streamingnya tidak dibuka di pemutar - awali domainnya dengan tanda minus (-)."
     },
     "options_autourl_hint": {
         "message": "Petunjuk: Uji regex di"
@@ -1179,7 +1239,7 @@
         "message": "Daftar Izin MPV"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok. Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs yang bukan Film. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
+        "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok (https:// dan www. bisa dihilangkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs anime. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
     },
     "options_mpv_path": {
         "message": "Jalur mpv (opsional: hanya jika program penghubung mpv tidak menemukan mpv secara otomatis)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Diputar di MPV - didekode oleh kartu grafis: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "Program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "Program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "Jendela mpv yang terbuka mendekode di kartu grafis: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "Terkirim ke mpv. Program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Terkirim ke mpv. Program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Buka stream ini di mpv (jenis konten: otomatis – Film kecuali situsnya ditandai @anime; klik kanan untuk mengubahnya untuk video ini)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Hanya digunakan dengan Firefox VPN. Firefox mencantumkannya sebagai kontrol pengaturan proxy browser, tetapi FastStream tidak mengubah pengaturan apa pun: ia mengirim permintaannya sendiri untuk video dengan cara yang sama seperti permintaan halaman itu sendiri, melalui VPN. Tanpanya, situs yang mengaitkan videonya ke alamat VPN menolak FastStream. Pemutar memintanya saat pertama kali dibutuhkan."
+    },
+    "player_mpv_no_host": {
+        "message": "program penghubung mpv FastStream tidak merespons - apakah sudah terpasang?"
     },
     "player_mpv_vpn": {
         "message": "Video ini berasal dari Firefox VPN, dan mpv tidak dapat menggunakan Firefox VPN: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."

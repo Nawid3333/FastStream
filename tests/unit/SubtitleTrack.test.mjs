@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 
 import {installFakeDom} from './fakeCueDom.mjs';
 
@@ -44,5 +44,18 @@ describe('SubtitleTrack.loadText', () => {
     const text = 'WEBVTT\n\n00:10.000 --> 00:12.000\nl1\n\n00:00.000 --> 01:40.000\nSIGN\n\n' +
       '00:11.000 --> 00:13.000\nl2\n';
     expect(load(text)).toEqual([[0, 100, 'SIGN'], [10, 12, 'l1'], [11, 13, 'l2']]);
+  });
+});
+
+describe('SubtitleTrack.loadURL', () => {
+  // An embedding page's subtitle link that answered 404 was read as a file without cues.
+  it('says the server refused the file', async () => {
+    vi.stubGlobal('fetch', async () => ({ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0),
+      headers: {get: () => 'text/html'}}));
+    try {
+      await expect(new SubtitleTrack('a').loadURL('https://example.com/a.srt')).rejects.toThrow('Bad status code: 404');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

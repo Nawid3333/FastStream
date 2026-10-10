@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import * as acorn from 'acorn';
 import {describe, expect, it} from 'vitest';
 
-import {errorReportURL} from '../../chrome/player/utils/AlertPolyfill.mjs';
+import {errorReportURL, errorTitleText} from '../../chrome/player/utils/AlertPolyfill.mjs';
 
 // The player's dialogs and toasts (AlertPolyfill): Firefox's own <dialog> and popover since
 // sweetalert2 left (2026-10-09). What they show is opened and clicked in Firefox by
@@ -44,6 +44,17 @@ describe('AlertPolyfill', () => {
     expect(url.searchParams.get('title')).toBe('Error report');
     expect(url.searchParams.get('body')).toBe('## Version:\n1.3.82.72\n\n## Error message:\nBad <b>thing</b> & more\n\n' +
       '## Stack trace:\n```\nError: Bad thing\n    at play (FastStreamClient.mjs:1:2)\n```');
+  });
+
+  // The dialog's title was "Error: undefined" for anything but an Error.
+  it('names in the dialog\'s title what was thrown, whatever it is', () => {
+    expect(errorTitleText(new Error('It broke'))).toBe('It broke');
+    expect(errorTitleText('just a string')).toBe('just a string');
+    expect(errorTitleText({type: 'networkError', details: 'fragLoadError'})).toBe('{"type":"networkError","details":"fragLoadError"}');
+    expect(errorTitleText('x'.repeat(300))).toBe('x'.repeat(200) + '...');
+    // No message: the title said "{}".
+    expect(errorTitleText(new Error())).toBe('Error');
+    expect(errorTitleText(new DOMException('', 'AbortError'))).toBe('AbortError');
   });
 
   it('reports what was thrown when it is no Error', () => {

@@ -225,6 +225,27 @@ describe('bilibili_content.js', () => {
     const text = 'window.__playinfo__={"data":{}};window.__INITIAL_STATE__={"a":1}';
     expect(() => runSiteScript('bilibili_content.js', [{textContent: text}])).not.toThrow();
   });
+
+  // The play info was read up to the line's last "}": with more code after it, or over
+  // more than one line, the video was not detected (review).
+  it('reads the play info with more code after it, or over several lines', () => {
+    const script = playInfoScript('next');
+    const trailing = {textContent: script.textContent + ';window.__INITIAL_STATE__={"title":"a } \\" b"}'};
+    expect(runSiteScript('bilibili_content.js', [trailing]).sent).toHaveLength(1);
+    const lines = {textContent: script.textContent.replace('{"data"', '{\n"data"').replace('"dash"', '\n"dash"')};
+    expect(runSiteScript('bilibili_content.js', [lines]).sent).toHaveLength(1);
+  });
+
+  it('writes no width or height for a track that has none', () => {
+    // An audio track: the manifest read width="undefined".
+    const playInfo = {data: {dash: {duration: 10, minBufferTime: 1.5, video: [], audio: [{
+      id: 2, baseUrl: 'https://cdn.example.com/a.m4s', bandwidth: 1000, mimeType: 'audio/mp4', codecs: 'mp4a.40.2',
+      SegmentBase: {indexRange: '0-99', Initialization: '0-9'},
+    }]}}};
+    const {sent} = runSiteScript('bilibili_content.js', [{textContent: `window.__playinfo__=${JSON.stringify(playInfo)}`}]);
+    expect(sent).toHaveLength(1);
+    expect(manifestOf(sent[0].url)).not.toContain('undefined');
+  });
 });
 
 describe('instagram_content.js', () => {
@@ -243,6 +264,15 @@ describe('instagram_content.js', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].ext).toBe('mpd');
     expect(manifestOf(sent[0].url)).toBe('<MPD>é</MPD>');
+  });
+
+  // Instagram fetches a video's data more than once; each report was kept as another source.
+  it('reports a manifest once', () => {
+    const {sent, listeners} = runSiteScript('instagram_content.js');
+    post(listeners, {type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'});
+    post(listeners, {type: 'fs_source_detected', value: '<MPD/>', ext: 'mpd'});
+    post(listeners, {type: 'fs_source_detected', value: '<MPD>2</MPD>', ext: 'mpd'});
+    expect(sent).toHaveLength(2);
   });
 
   it('passes on no report of another type, or with no manifest', () => {

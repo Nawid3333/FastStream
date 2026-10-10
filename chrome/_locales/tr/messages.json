@@ -233,11 +233,26 @@
     "player_needs_interaction": {
         "message": "Videoyu önceden indirebilmesi için oynatıcıya tıklayın"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Bir bölümün ne kadar sessiz olursa atlanacağını ayarlamak için pembe çizgiyi sürükleyin"
+    },
+    "loop_menu_now": {
+        "message": "Şu anki zamanı kullanın"
+    },
+    "player_segment_intro": {
+        "message": "Giriş"
+    },
+    "player_segment_outro": {
+        "message": "Kapanış"
+    },
     "player_skipintro": {
         "message": "İntroyu atla"
     },
     "player_skipoutro": {
         "message": "Outroyu atla"
+    },
+    "player_nextvideo_auto": {
+        "message": "Otomatik"
     },
     "player_nextvideoin": {
         "message": "Sonraki video $1s içinde"
@@ -386,6 +401,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Testi durdur"
     },
+    "player_subtitles_url_track": {
+        "message": "Bağlantıdan gelen altyazı"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Parça $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Yeni altyazı"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Aramak için bir ad yazın"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Dosya yükle"
     },
@@ -497,6 +524,9 @@
     "loop_menu_start": {
         "message": "Başlangıç"
     },
+    "loop_menu_end_placeholder": {
+        "message": "Videonun sonu"
+    },
     "loop_menu_end": {
         "message": "Bitiş"
     },
@@ -550,6 +580,9 @@
     },
     "player_filename_prompt": {
         "message": "Dosya için bir isim girin"
+    },
+    "player_screenshot_nopicture": {
+        "message": "Kaydedilecek bir görüntü yok: dosya yalnızca ses içeriyor ya da video henüz bir görüntü göstermedi."
     },
     "player_screenshot_saving": {
         "message": "Ekran görüntüsü alınıyor..."
@@ -728,6 +761,12 @@
     "player_audioconfig_profile": {
         "message": "Profil"
     },
+    "player_audioconfig_profile_numbered": {
+        "message": "Profil $1"
+    },
+    "audiomixer_master": {
+        "message": "Ana Ses"
+    },
     "player_audioconfig_profile_unnamed": {
         "message": "Adsız profil"
     },
@@ -736,15 +775,6 @@
     },
     "player_audioconfig_profile_loaded": {
         "message": "Profil yüklendi!"
-    },
-    "player_audioconfig_profile_save": {
-        "message": "Profili Kaydet"
-    },
-    "player_audioconfig_profile_saving": {
-        "message": "Kaydediliyor..."
-    },
-    "player_audioconfig_profile_saved": {
-        "message": "Profil kaydedildi!"
     },
     "player_audioconfig_profile_download": {
         "message": "Profili İndir"
@@ -971,11 +1001,38 @@
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
+    "options_general_nolimit": {
+        "message": "Sınırsız"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: oynatma noktasının ilerisinde hiçbir şey indirilmez, bu yüzden videolar yükleme için durabilir. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: hiçbir şey önceden indirilmez; yalnızca aşağıda ayarlanan saniye sayısı oynatma noktasının ilerisinde tutulur. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_none": {
+        "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."
+    },
     "options_general_bufferahead": {
         "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme kapalıysa, durduysa veya yer kalmadıysa kullanılır)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Sınırsız: ön indirme kapalıyken bile videonun tamamı önceden indirilir; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur. Yukarıdaki indirme hızı 0 ise, hiçbir şey önceden indirilmez."
+    },
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: oynatılmış kısım hemen atılır; geriye sarmak onu yeniden yükler. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Sınırsız: oynatılmış her şey tutulur; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur."
     },
     "options_general_blockpopups": {
         "message": "Oynatıcıya tıkladıktan hemen sonra açılan açılır pencereleri/popunder'ları engelle"
@@ -1137,7 +1194,10 @@
         "message": "Varsayılara Sıfırla"
     },
     "options_keybinds_press": {
-        "message": "Bir tuşa basın"
+        "message": "Bir tuşa basın ya da hiçbiri için Escape'e basın"
+    },
+    "options_keybinds_none": {
+        "message": "Yok"
     },
     "options_keybinds_conflict": {
         "message": "Şunun tarafından da kullanılıyor: $1"
@@ -1146,7 +1206,7 @@
         "message": "Otomatik Etkinleştirilen URL'ler"
     },
     "options_autourl_body": {
-        "message": "Bu URL'leri ziyaret ettiğinizde uzantıyı otomatik olarak etkinleştirir ve ayrılınca devre dışı bırakır. Her satıra bir URL yazın; o URL ile başlayan sayfalar da eşleşir. Regex için başına tilde (~) koyun. Her satıra bir regex. Siteleri hariç tutmak için başına ünlem işareti (!) ekleyin. Bir sitenin tamamını kendi haline bırakmak için - otomatik etkinleştirme olmaz ve akış bağlantıları oynatıcıda açılmaz - alan adının başına eksi işareti (-) koyun."
+        "message": "Bu URL'leri ziyaret ettiğinizde uzantıyı otomatik olarak etkinleştirir ve ayrılınca devre dışı bırakır. Her satıra bir URL yazın; o URL ile başlayan sayfalar da eşleşir (https:// ve www. yazılmayabilir; örneğin crunchyroll.com). Regex için başına tilde (~) koyun. Her satıra bir regex. Siteleri hariç tutmak için başına ünlem işareti (!) ekleyin. Bir sitenin tamamını kendi haline bırakmak için - otomatik etkinleştirme olmaz ve akış bağlantıları oynatıcıda açılmaz - alan adının başına eksi işareti (-) koyun."
     },
     "options_autourl_hint": {
         "message": "İpucu: Regex'i burada test edin"
@@ -1179,7 +1239,7 @@
         "message": "MPV izin listesi"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir. Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — Film olmayan siteler için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir."
+        "message": "Bu listedeki siteler algılanan akışları mpv'de açar. Satır başına bir URL; o URL ile başlayan sayfalar da eşleşir (https:// ve www. yazılmayabilir; örneğin crunchyroll.com @anime). Regex için ~, hariç tutmak için ! kullanın. Etiketsiz siteler mpv'nin shader seçiminde varsayılan olarak Film'i kullanır — anime siteleri için satır sonuna @anime ekleyin. Açıkça yazmak isterseniz @movie de kabul edilir. Oynatıcının mpv düğmesi bunu video başına geçersiz kılabilir."
     },
     "options_mpv_path": {
         "message": "mpv yolu (isteğe bağlı: mpv yardımcısı mpv'yi kendisi bulamıyorsa)"
@@ -1247,6 +1307,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - bu bilgisayardaki mpv yardımcısı güncel değil: native messaging manifestinizin işaret ettiği faststream-mpv-host.mjs dosyasını güncelleyin (FastStream depo kopyanızda git pull yapın; native-host/README.md dosyasına bakın)"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - MPV'de oynatılıyor - ekran kartı tarafından çözülüyor: $1"
     },
@@ -1256,6 +1319,9 @@
     "options_mpv_test_outdated": {
         "message": "Bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)."
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "Bu bilgisayardaki mpv yardımcısı güncel değil: native messaging manifestinizin işaret ettiği faststream-mpv-host.mjs dosyasını güncelleyin (FastStream depo kopyanızda git pull yapın; native-host/README.md dosyasına bakın)."
+    },
     "options_mpv_test_decoder_hw": {
         "message": "Açık mpv penceresi ekran kartında çözüyor: $1."
     },
@@ -1264,6 +1330,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv yardımcısı güncel değil: Başlat menüsünden \"Update mpv\" öğesini çalıştırın (bir FastStream depo kopyasında: update-local.cmd veya native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "mpv'ye gönderildi. Bu bilgisayardaki mpv yardımcısı güncel değil: native messaging manifestinizin işaret ettiği faststream-mpv-host.mjs dosyasını güncelleyin (FastStream depo kopyanızda git pull yapın; native-host/README.md dosyasına bakın)."
     },
     "player_mpv_content_unset": {
         "message": "Bu akışı mpv'de aç (içerik türü: otomatik — site @anime ile etiketli değilse Film; bu video için değiştirmek üzere sağ tıklayın)"
@@ -1342,6 +1411,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Yalnızca Firefox VPN ile kullanılır. Firefox bunu tarayıcının proxy ayarlarının denetimi olarak listeler, ancak FastStream hiçbir ayarı değiştirmez: bir video için kendi isteklerini, sayfanın kendi isteklerinin izlediği yolla, VPN üzerinden gönderir. Bu olmadan, videosunu VPN'nin adresine bağlayan bir site FastStream'i reddeder. Oynatıcı, ilk gerektiğinde bunu ister."
+    },
+    "player_mpv_no_host": {
+        "message": "FastStream mpv yardımcısı yanıt vermedi - kurulu mu?"
     },
     "player_mpv_vpn": {
         "message": "Bu video Firefox VPN üzerinden geliyor ve mpv Firefox VPN'i kullanamıyor: site mpv'yi reddeder. mpv'de izlemek için bu sitede Firefox VPN'i kapatın ve sayfayı yeniden yükleyin."
