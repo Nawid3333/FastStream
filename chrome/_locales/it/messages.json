@@ -750,7 +750,7 @@
         "message": "Opzioni Video"
     },
     "options_video_body": {
-        "message": "Modifica l'aspetto del video: luminosità, contrasto, colori e altro. Non funziona in picture-in-picture."
+        "message": "Ingrandisci l'immagine o regola il ritardo video rispetto al suono. Lo zoom video non funziona in picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Zoom Video"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menta Fresca"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Nero OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Attiva/disattiva il picture-in-picture"

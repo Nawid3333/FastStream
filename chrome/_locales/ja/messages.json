@@ -750,7 +750,7 @@
         "message": "動画のオプション"
     },
     "options_video_body": {
-        "message": "動画の見え方（明るさ、コントラスト、色など）を変更します。ピクチャーインピクチャーでは機能しません。"
+        "message": "ビデオズームで映像を拡大するか、映像の遅延で音とのタイミングを調整します。ビデオズームはピクチャーインピクチャーでは機能しません。"
     },
     "options_video_zoom": {
         "message": "ビデオズーム"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "フレッシュミント"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLEDブラック"
     },
     "options_general_vischangeaction_pip": {
         "message": "ピクチャー イン ピクチャー (PiP) を切り替え"

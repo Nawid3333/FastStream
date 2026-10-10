@@ -750,7 +750,7 @@
         "message": "Opcje wideo"
     },
     "options_video_body": {
-        "message": "Zmienia wygląd wideo: jasność, kontrast, kolory i inne. Nie działa w trybie obrazu w obrazie."
+        "message": "Powiększ obraz lub dostosuj opóźnienie wideo względem dźwięku. Powiększenie wideo nie działa w trybie obrazu w obrazie."
     },
     "options_video_zoom": {
         "message": "Powiększenie wideo"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Miętowa świeżość"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Czerń OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Przełącz obraz w obrazie"

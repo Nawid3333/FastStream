@@ -750,7 +750,7 @@
         "message": "Video-opties"
     },
     "options_video_body": {
-        "message": "Verandert hoe de video eruitziet: helderheid, contrast, kleuren en meer. Werkt niet in beeld-in-beeld."
+        "message": "Zoom in op het beeld of pas de videovertraging ten opzichte van het geluid aan. De videozoom werkt niet in beeld-in-beeld."
     },
     "options_video_zoom": {
         "message": "Videozoom"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Frisse munt"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED-zwart"
     },
     "options_general_vischangeaction_pip": {
         "message": "Beeld-in-beeld in-/uitschakelen"

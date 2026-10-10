@@ -750,7 +750,7 @@
         "message": "Video Seçenekleri"
     },
     "options_video_body": {
-        "message": "Videonun görünümünü değiştirir: parlaklık, kontrast, renkler ve daha fazlası. Resim içinde resim ile çalışmaz."
+        "message": "Görüntüyü yakınlaştırın veya sese göre video gecikmesini ayarlayın. Video yakınlaştırma resim içinde resim ile çalışmaz."
     },
     "options_video_zoom": {
         "message": "Video Yakınlaştırma"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Taze Nane"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED Siyah"
     },
     "options_general_vischangeaction_pip": {
         "message": "Resim içinde resim aç/kapa"

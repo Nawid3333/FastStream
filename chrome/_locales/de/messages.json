@@ -750,7 +750,7 @@
         "message": "Videooptionen"
     },
     "options_video_body": {
-        "message": "Ändert das Aussehen des Videos: Helligkeit, Kontrast, Farben und mehr. Funktioniert nicht im Bild-in-Bild-Modus."
+        "message": "Vergrößern Sie das Bild oder passen Sie die Videoverzögerung gegenüber dem Ton an. Die Videovergrößerung funktioniert nicht im Bild-in-Bild-Modus."
     },
     "options_video_zoom": {
         "message": "Videovergrößerung"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Frische Minze"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED-Schwarz"
     },
     "options_general_vischangeaction_pip": {
         "message": "Bild-in-Bild umschalten"

@@ -750,7 +750,7 @@
         "message": "Opções de vídeo"
     },
     "options_video_body": {
-        "message": "Altera a aparência do vídeo: brilho, contraste, cores e mais. Não funciona no modo sobreposição (picture-in-picture)."
+        "message": "Dê zoom na imagem ou ajuste o atraso de vídeo em relação ao som. O zoom de vídeo não funciona no modo sobreposição (picture-in-picture)."
     },
     "options_video_zoom": {
         "message": "Zoom de vídeo"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menta Fresca"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Preto OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Alternar imagem sobreposta (pip)"

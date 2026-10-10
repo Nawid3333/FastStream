@@ -750,7 +750,7 @@
         "message": "Pilihan Video"
     },
     "options_video_body": {
-        "message": "Menukar rupa video: kecerahan, kontras, warna dan banyak lagi. Tidak berfungsi dalam gambar-dalam-gambar."
+        "message": "Zum gambar atau sesuaikan tangguhan video berbanding dengan bunyi. Zum video tidak berfungsi dalam gambar-dalam-gambar."
     },
     "options_video_zoom": {
         "message": "Zum Video"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Pudina Segar"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Hitam OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Togol gambar dalam gambar"

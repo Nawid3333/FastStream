@@ -54,6 +54,11 @@ updates:
       # ignored below and move together through the Patched libraries workflow.
       stryker:
         patterns: ['@stryker-mutator/*']
+      # WebdriverIO's packages come out together and only work at the same version: one pull
+      # request for all of them, majors included (10.0.0 came as four, each red alone,
+      # 2026-10-10). Before tooling-minor-and-patch, which would take them otherwise.
+      wdio:
+        patterns: ['@wdio/*', 'webdriverio']
       tooling-minor-and-patch:
         exclude-patterns: ['fuse.js', 'mediabunny', 'sortablejs']
         update-types: ['minor', 'patch']

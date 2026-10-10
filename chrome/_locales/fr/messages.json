@@ -750,7 +750,7 @@
         "message": "Options vidéo"
     },
     "options_video_body": {
-        "message": "Modifie l'apparence de la vidéo : luminosité, contraste, couleurs, etc. Ne fonctionne pas en mode image dans l'image."
+        "message": "Zoomez sur l'image ou ajustez le décalage vidéo par rapport au son. Le zoom vidéo ne fonctionne pas en mode image dans l'image."
     },
     "options_video_zoom": {
         "message": "Zoom vidéo"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menthe fraîche"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Noir OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Basculer l'image dans l'image"

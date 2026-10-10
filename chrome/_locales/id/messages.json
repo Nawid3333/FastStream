@@ -750,7 +750,7 @@
         "message": "Opsi Video"
     },
     "options_video_body": {
-        "message": "Mengubah tampilan video: kecerahan, kontras, warna, dan lainnya. Tidak berfungsi di picture-in-picture."
+        "message": "Perbesar gambar atau atur penundaan video terhadap suara. Perbesaran video tidak berfungsi di picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Perbesaran Video"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Mint Segar"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Hitam OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Beralih gambar-dalam-gambar"

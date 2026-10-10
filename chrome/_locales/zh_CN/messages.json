@@ -750,7 +750,7 @@
         "message": "视频选项"
     },
     "options_video_body": {
-        "message": "调整视频的外观：亮度、对比度、颜色等。在画中画模式下不起作用。"
+        "message": "缩放视频画面，或调整视频延迟以同步声音。视频缩放在画中画模式下不起作用。"
     },
     "options_video_zoom": {
         "message": "视频缩放"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "薄荷清新"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED 纯黑"
     },
     "options_general_vischangeaction_pip": {
         "message": "切换画中画"

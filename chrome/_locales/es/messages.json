@@ -750,7 +750,7 @@
         "message": "Opciones de video"
     },
     "options_video_body": {
-        "message": "Cambia el aspecto del video: brillo, contraste, colores y más. No funciona en la ventana pequeña (imagen en imagen)."
+        "message": "Aplique zoom a la imagen o ajuste el retraso de video respecto al sonido. El zoom de video no funciona en la ventana pequeña (imagen en imagen)."
     },
     "options_video_zoom": {
         "message": "Zoom de Video"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menta Fresca"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Negro OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Alternar imagen en imagen"

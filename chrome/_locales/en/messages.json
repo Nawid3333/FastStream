@@ -750,7 +750,7 @@
         "message": "Video Options"
     },
     "options_video_body": {
-        "message": "Changes how the video looks: brightness, contrast, colors and more. Does not work in picture-in-picture."
+        "message": "Zoom the picture, or delay it against the sound. The zoom does not apply in picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Video Zoom"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Mint Fresh"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED Black"
     },
     "options_general_vischangeaction_pip": {
         "message": "Toggle picture-in-picture"

@@ -750,7 +750,7 @@
         "message": "비디오 옵션"
     },
     "options_video_body": {
-        "message": "비디오의 밝기, 대비, 색상 등 모습을 바꿉니다. PIP(화면 속 화면) 모드에서는 작동하지 않습니다."
+        "message": "화면을 확대하거나 소리에 맞춰 비디오 지연 시간을 조절하세요. 비디오 확대는 PIP(화면 속 화면) 모드에서는 작동하지 않습니다."
     },
     "options_video_zoom": {
         "message": "비디오 확대"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "상쾌한 민트"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED 블랙"
     },
     "options_general_vischangeaction_pip": {
         "message": "화면 속 화면 전환"

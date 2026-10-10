@@ -750,7 +750,7 @@
         "message": "影片選項"
     },
     "options_video_body": {
-        "message": "調整影片外觀：亮度、對比、色彩等。畫中畫模式下無法使用。"
+        "message": "縮放影片畫面，或調整影片延遲以同步聲音。影片縮放在畫中畫模式下無法使用。"
     },
     "options_video_zoom": {
         "message": "影片縮放"
@@ -943,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "薄荷清新"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED 純黑"
     },
     "options_general_vischangeaction_pip": {
         "message": "切換畫中畫"
