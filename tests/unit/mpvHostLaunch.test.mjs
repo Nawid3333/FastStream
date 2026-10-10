@@ -27,9 +27,24 @@ describe('wmiLaunchResult', () => {
   });
 
   it('passes WMI\'s own failures on', () => {
-    expect(wmiLaunchResult('RC=9 PID=0')).toEqual({ok: false, error: 'WMI Create returned 9'});
+    expect(wmiLaunchResult('RC=9 PID=0')).toEqual(
+        {ok: false, error: 'Windows could not start mpv (WMI code 9: mpv was not found at its path)'});
+    expect(wmiLaunchResult('RC=2 PID=0')).toEqual({ok: false, error: 'Windows could not start mpv (WMI code 2: access denied)'});
+    expect(wmiLaunchResult('RC=17 PID=0')).toEqual({ok: false, error: 'Windows could not start mpv (WMI code 17)'});
     expect(wmiLaunchResult('')).toEqual({ok: false, error: 'unexpected WMI output: '});
   });
+
+  // PowerShell's reason, when it failed (runPowerShell's ERROR= line): the launch said
+  // "unexpected WMI output: " with nothing after it.
+  it('passes PowerShell\'s reason on', () => {
+    expect(wmiLaunchResult('ERROR=Invoke-CimMethod : Access denied')).toEqual(
+        {ok: false, error: 'PowerShell could not start mpv: Invoke-CimMethod : Access denied'});
+  });
+
+  it.runIf(process.platform === 'win32')('gets PowerShell\'s reason from a script that fails', async () => {
+    const out = await runPowerShell(['throw "no WMI here"'], 60000);
+    expect(out).toMatch(/^ERROR=.*no WMI here/m);
+  }, 60000);
 });
 
 describe('focusOutcome', () => {

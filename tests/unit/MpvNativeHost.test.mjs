@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, SubtitleDirPrefix, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxLogBytes, SubtitleDirPrefix, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -115,8 +115,8 @@ describe('loadIntoExisting', () => {
     expect(loadfileOf(sent)).toEqual({
       name: 'loadfile',
       url: 'https://example.com/video.m3u8',
+      // No index: mpv before 0.38 has no such argument and refuses the command.
       flags: 'replace',
-      index: -1,
       options: {
         'http-header-fields': 'Referer: https://a.test/x?a=1\\,b=2,User-Agent: UA (x\\, y)',
         'force-media-title': 'A title',
@@ -231,6 +231,31 @@ describe('mpvIpcRequest', () => {
     expect(await result).toEqual({ok: false, busy: true, error: 'mpv did not answer'});
   });
 
+  // mpv quitting as the request arrives (its window closed) closes the pipe: it is gone,
+  // and a fresh mpv is what the send needs. The reply budget ran out 6 s later with "busy".
+  it('is not busy when the instance closes the pipe without answering', async () => {
+    const pipe = pipeName('closing');
+    const nextRequest = await listen(pipe);
+    fakeBudgets();
+    const result = mpvIpcRequest([{command: ['get_property', 'pid']}], 300, 300, pipe);
+    const {socket} = await nextRequest();
+    socket.destroy();
+    expect(await result).toEqual({ok: false, error: 'mpv closed the ipc'});
+  });
+
+  // An mpv that answered a first command (the fullscreen one) before it quit counted as live:
+  // loadIntoExisting found no loadfile reply and said "busy" (review).
+  it('is not ok when the instance closes the pipe after answering part of it', async () => {
+    const pipe = pipeName('closing-late');
+    const nextRequest = await listen(pipe);
+    fakeBudgets();
+    const result = mpvIpcRequest([{command: ['set_property', 'fullscreen', true]}, {command: ['get_property', 'pid']}],
+        300, 300, pipe);
+    const {socket} = await nextRequest();
+    socket.end(JSON.stringify({request_id: 1, error: 'success'}) + String.fromCharCode(10));
+    expect(await result).toEqual({ok: false, error: 'mpv closed the ipc'});
+  });
+
   it('gives a connected instance the reply time, not the connect time', async () => {
     const pipe = pipeName('slow');
     const nextRequest = await listen(pipe);
@@ -247,6 +272,23 @@ describe('mpvIpcRequest', () => {
 // The mpv URL fragment is how gpu-toggles.lua learns a stream's anime/movie
 // tag on the mpv side: fragments are never sent to the HTTP server, so this
 // cannot break a signed/tokenized CDN URL, unlike a query parameter would.
+
+// 'mpv executable not found' left a user who had typed a path in the options wondering what
+// was wrong with it, and one who had none what to do.
+describe('mpvNotFoundError', () => {
+  it('names the path the options gave', () => {
+    expect(mpvNotFoundError('D:\\Tools\\mpv-x.exe', 'win32')).toBe('mpv was not found at "D:\\Tools\\mpv-x.exe" ' +
+      '(the mpv path in FastStream\'s options): give the full path of mpv.exe, or of the folder it is in');
+    expect(mpvNotFoundError('/opt/mpv', 'linux')).toContain('give the full path of mpv, or of the folder');
+  });
+
+  it('says what to do without one', () => {
+    for (const path of [undefined, '', '  ', 'mpv']) {
+      expect(mpvNotFoundError(path, 'win32')).toBe(
+          'mpv was not found: install mpv, or give its path in FastStream\'s options (MPV section)');
+    }
+  });
+});
 
 describe('withContentTypeFragment', () => {
   it('appends a fragment marker when there is none yet', () => {

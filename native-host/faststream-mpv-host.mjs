@@ -67,7 +67,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 4;
+export const HostVersion = 5;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -272,6 +272,23 @@ export function resolveMpvPath(messagePath, platform = process.platform) {
   }
 
   return null;
+}
+
+/**
+ * What a send says when no mpv was found: "mpv executable not found" left the user who had
+ * just typed a path in the options wondering what was wrong with it, and the one who had
+ * none what to do.
+ * @param {*} messagePath - The options page's mpv path.
+ * @param {string} [platform] - process.platform, or a stand-in.
+ * @return {string}
+ */
+export function mpvNotFoundError(messagePath, platform = process.platform) {
+  if (typeof messagePath === 'string' && messagePath.trim() && messagePath !== 'mpv') {
+    const exe = platform === 'win32' ? 'mpv.exe' : 'mpv';
+    return `mpv was not found at "${messagePath}" (the mpv path in FastStream's options): ` +
+      `give the full path of ${exe}, or of the folder it is in`;
+  }
+  return 'mpv was not found: install mpv, or give its path in FastStream\'s options (MPV section)';
 }
 
 /**
@@ -493,6 +510,12 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     // Any connect error means there is no live instance of ours: a stale pipe
     // after mpv was closed behaves the same way.
     socket.on('error', () => finish({ok: false, error: 'no mpv ipc'}));
+    // An mpv that quits as the commands arrive (its window closed) closes the pipe before it
+    // answered them all: it is gone, not busy, even when it answered a first one. The reply
+    // timeout ran out 6 s later with "mpv is busy", and with one answer in, loadIntoExisting
+    // said "busy" at once, where a fresh mpv was what the send needed. (Once all answers are
+    // in, finish has closed the pipe itself, and this is too late to count.)
+    socket.on('close', () => finish({ok: false, error: 'mpv closed the ipc'}));
 
     socket.on('connect', () => {
       connected = true;
@@ -842,12 +865,14 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
   // The file with its own headers and title: one command (perFileOptions). Named
-  // arguments, since loadfile's options come after its index (mpv 0.38 and later).
+  // arguments, since loadfile's options come after its index from mpv 0.38 on. No index:
+  // -1 is its default there (player/command.c), and mpv before 0.38 has none and refused
+  // the whole command, so the open window of a distro's mpv (Ubuntu 24.04: 0.37) took no
+  // second video.
   commands.push({command: {
     name: 'loadfile',
     url: mpvTargetUrl(message),
     flags: 'replace',
-    index: -1,
     options: perFileOptions(headerFields, title, extras),
   }});
   commands.push({command: ['get_property', 'pid']});
@@ -1082,7 +1107,9 @@ function focusWindowLines(pidExpr) {
  * @param {Array<string>} lines - Script lines.
  * @param {number} timeoutMs - Kill the shell after this long.
  * @param {Object<string, string>} [env] - Extra environment variables for the script.
- * @return {Promise<string>} Captured stdout, empty on failure.
+ * @return {Promise<string>} Captured stdout; after a failure (a timeout, PowerShell or WMI
+ *   refusing), an ERROR= line with the reason: the launch said "unexpected WMI output: "
+ *   with nothing after it, and the user had nothing to go on.
  */
 export function runPowerShell(lines, timeoutMs, env = {}) {
   const encoded = Buffer.from(lines.join(String.fromCharCode(10)), 'utf16le')
@@ -1091,7 +1118,11 @@ export function runPowerShell(lines, timeoutMs, env = {}) {
     execFile('powershell.exe',
         ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
         {timeout: timeoutMs, windowsHide: true, env: {...process.env, ...env}},
-        (error, stdout) => resolve(String(stdout || '')));
+        (error, stdout, stderr) => {
+          const out = String(stdout || '');
+          const why = error ? String(stderr || '').trim() || error.message || String(error) : '';
+          resolve(why ? out + String.fromCharCode(10) + 'ERROR=' + why.replace(/\s+/g, ' ').slice(0, 300) : out);
+        });
   });
 }
 
@@ -1155,6 +1186,15 @@ export function focusOutcome(text) {
   return outcome;
 }
 
+// Win32_Process.Create's return codes (its documentation), as the user can act on them.
+const WmiCreateErrors = new Map([
+  ['2', 'access denied'],
+  ['3', 'not enough rights'],
+  ['8', 'unknown failure'],
+  ['9', 'mpv was not found at its path'],
+  ['21', 'invalid parameter'],
+]);
+
 /**
  * What the WMI launch script's output (wmiLaunchLines) means.
  *
@@ -1168,10 +1208,13 @@ export function focusOutcome(text) {
 export function wmiLaunchResult(text) {
   const match = /RC=(\d+)(?:\s+PID=(\d*))?/.exec(text);
   if (!match) {
-    return {ok: false, error: 'unexpected WMI output: ' + text};
+    const why = /ERROR=(.*)/.exec(text);
+    return {ok: false, error: why ? 'PowerShell could not start mpv: ' + why[1] : 'unexpected WMI output: ' + text};
   }
   if (match[1] !== '0') {
-    return {ok: false, error: 'WMI Create returned ' + match[1]};
+    // Win32_Process.Create's codes, named: "WMI Create returned 9" said nothing to act on.
+    const reason = WmiCreateErrors.get(match[1]);
+    return {ok: false, error: 'Windows could not start mpv (WMI code ' + match[1] + (reason ? ': ' + reason : '') + ')'};
   }
   const outcome = focusOutcome(text);
   if (outcome.focus === 'gone' || outcome.focus === 'quit') {
@@ -1459,7 +1502,7 @@ async function main() {
     }
     const mpvPath = resolveMpvPath(message.mpvPath);
     if (!mpvPath) {
-      await sendMessage({ok: false, error: 'mpv executable not found'});
+      await sendMessage({ok: false, error: mpvNotFoundError(message.mpvPath)});
       process.exit(0);
       return;
     }
