@@ -144,7 +144,7 @@ describe('The RAM budget', function() {
     expect(released).toBeGreaterThan(20);
 
     // The start, let go of long ago, is downloaded again and plays.
-    const played = await browser.executeAsync(async (done) => {
+    const played = await browser.execute(async () => {
       const client = window.fastStream;
       client.currentTime = 1;
       const video = client.player.getVideo();
@@ -154,7 +154,7 @@ describe('The RAM budget', function() {
         if (video.currentTime > 2 && !video.seeking) break;
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
-      done({time: video.currentTime, failed: !!client.interfaceController.failed});
+      return {time: video.currentTime, failed: !!client.interfaceController.failed};
     });
     console.log(`      downloaded again: ${JSON.stringify(played)}`);
     expect(played.failed).toBe(false);

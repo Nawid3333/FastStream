@@ -139,11 +139,11 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
       SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
     }});
 
-    const options = await browser.executeAsync((done) => {
+    const options = await browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs')
           .then(({Utils}) => Utils.getOptionsFromStorage())
           .then(done, (e) => done({failed: String(e)}));
-    });
+    }));
     expect(options.failed).toBeUndefined();
     expect(options.keybindsVersion).toBe(4);
     expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');

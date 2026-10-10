@@ -187,7 +187,9 @@ describe('Dialogs', function() {
     // task). The time is a Web Animation, the toast's only timer.
     expect(at).toBeGreaterThan(1400);
 
-    await (await browser.$('.fs-toast')).moveTo();
+    // The first of the two, which the lines around read (querySelector): a plain $() of two
+    // is an error from WebdriverIO 10 on (strict selectors).
+    await (await browser.$$('.fs-toast'))[0].moveTo();
     const paused = await browser.execute(() => document.querySelector('.fs-toast .fs-toast-progress').getAnimations()[0].playState);
     expect(paused).toBe('paused');
   });

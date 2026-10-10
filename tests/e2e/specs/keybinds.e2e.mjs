@@ -870,7 +870,7 @@ describe('The 16x key', function() {
     expect(await browser.execute(() => window.fastStream.options.maxPlaybackRate)).toBe(8);
     await reset();
     await pressKey('KeyH');
-    const fast = await browser.executeAsync((done) => {
+    const fast = await browser.execute(() => new Promise((done) => {
       const video = window.fastStream.player.getVideo();
       const osd = document.querySelector('.mainplayer .osd').textContent;
       const from = video.currentTime;
@@ -880,7 +880,7 @@ describe('The 16x key', function() {
         const seconds = (performance.now() - start) / 1000;
         done({rate: video.playbackRate, osd, pace: (video.currentTime - from) / seconds});
       }, 1500);
-    });
+    }));
     console.log(`      16x key: ${JSON.stringify(fast)}`);
     expect(fast.rate).toBe(16);
     expect(fast.osd).toBe(`16× · ${en.player_speed_nosound.message}`);

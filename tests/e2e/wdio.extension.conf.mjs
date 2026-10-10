@@ -35,6 +35,7 @@ import {mozLogHooks} from './mozLog.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {testTimeout} from './testTimeout.mjs';
 import {ensureBidi} from './bidi.mjs';
+import {restoreSwitchFrame} from './switchFrame.mjs';
 import {guardSetup, rootHooks} from './setupGuard.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
 import {ensureFixtures} from './buildFixtures.mjs';
@@ -308,6 +309,8 @@ export const config = {
       // Before the add-on: a browser started again has none. (The classic and pbm suites
       // share this hook and ask for classic, which it leaves alone.)
       await ensureBidi();
+      // switchFrame for BiDi sessions, which WebdriverIO 10 dropped (switchFrame.mjs).
+      restoreSwitchFrame(browser);
       // Temporary rather than permanent: the package is unsigned, and a
       // temporary install is exactly how a reviewer or a developer loads it.
       await browser.installAddOn(fs.readFileSync(XPI).toString('base64'), true);

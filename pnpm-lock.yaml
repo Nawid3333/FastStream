@@ -116,6 +116,9 @@ importers:
       web-ext:
         specifier: ^10.7.0
         version: 10.7.0(jiti@2.7.0)(supports-color@8.1.1)
+      webdriverio:
+        specifier: ^10.0.0
+        version: 10.0.0(supports-color@8.1.1)(yauzl@3.4.0)
 
 packages:
 
@@ -5212,7 +5215,7 @@ snapshots:
       '@wdio/logger': 10.0.0
       '@wdio/types': 10.0.0
       '@wdio/utils': 10.0.0(supports-color@8.1.1)(yauzl@3.4.0)
-      acorn: 8.18.0
+      acorn: 8.19.0
       expect-webdriverio: 8.0.0-alpha.3(@wdio/types@10.0.0)(webdriverio@10.0.0(supports-color@8.1.1)(yauzl@3.4.0))
       get-port: 7.2.0
       image-size: 2.0.4
