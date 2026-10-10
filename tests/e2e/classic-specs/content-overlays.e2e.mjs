@@ -572,8 +572,13 @@ describe('A site\'s overlays around an in-page player', function() {
       return frame.isExisting();
     }, {timeout: 15000, timeoutMsg: 'the player never came up'});
     await browser.switchFrame(frame);
-    await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.interfaceController),
-        {timeout: 15000, timeoutMsg: 'the player never started'});
+    // Its video loaded, not just the interface there: setting the source resets the player
+    // (big play button back, not playing), and that could come after the playing state set
+    // below, and the bar rightly stayed up (2026-10-10: main and #422 on CI, once in six runs
+    // locally; the case's report read bigPlay true, playing false).
+    await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.source &&
+        window.fastStream.player?.getVideo?.()?.readyState >= 1),
+    {timeout: 15000, timeoutMsg: 'the player never loaded its video'});
     await browser.execute(() => {
       window.fastStream.interfaceController.hideBigPlayButton();
       window.fastStream.state.playing = true;
