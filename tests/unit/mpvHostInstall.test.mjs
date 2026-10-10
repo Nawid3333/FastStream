@@ -200,7 +200,11 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
 
     await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', '.\\portable\\mpv.exe', '-NodePath', process.execPath],
         undefined, dir);
-    expect(JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).mpvPath).toBe(mpv);
+    const saved = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).mpvPath;
+    // The same file, by its real path: the runner's TEMP is a short name (RUNNER~1), which
+    // PowerShell writes out long.
+    expect(path.isAbsolute(saved)).toBe(true);
+    expect(fs.realpathSync.native(saved)).toBe(fs.realpathSync.native(mpv));
 
     await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', 'mpv', '-NodePath', process.execPath],
         undefined, dir);
