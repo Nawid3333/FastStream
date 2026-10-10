@@ -183,6 +183,33 @@ describe('SyncedAudioPlayer', () => {
     expect(client.player.volume).toBe(1);
   });
 
+  it('pauses the muted player again when the resync could not sync it', async () => {
+    // Played for the swap, it went on decoding in silence until the next resync.
+    const synced = new SyncedAudioPlayer(makeClient());
+    synced.videoDelay = 300;
+    const next = audioPlayer();
+    synced.audioPlayers = [audioPlayer(), next];
+    Utils.timeoutableEvent.mockResolvedValueOnce(false);
+    await expect(synced.silentResyncInternal()).resolves.toBe(false);
+    expect(next.play).toHaveBeenCalled();
+    expect(next.getVideo().paused).toBe(true);
+  });
+
+  it('pauses the muted player again when the resync left it further off', async () => {
+    const synced = new SyncedAudioPlayer(makeClient());
+    synced.videoDelay = 300;
+    const current = audioPlayer();
+    current.getVideo().currentTime = 10.2;
+    const next = audioPlayer();
+    // Its seeks do not take: 10.3 s off, where the current one is 0.1 s off.
+    Object.defineProperty(next.getVideo(), 'currentTime', {get: () => 0, set: () => {}});
+    synced.audioPlayers = [current, next];
+    await expect(synced.silentResyncInternal()).resolves.toBe(false);
+    expect(next.play).toHaveBeenCalled();
+    expect(next.getVideo().paused).toBe(true);
+    expect(current.volume).toBe(1);
+  });
+
   it('gives a large drift more than three resyncs', async () => {
     // Tested from the smallest error up, anything over 0.05 s took the first branch.
     const client = makeClient();

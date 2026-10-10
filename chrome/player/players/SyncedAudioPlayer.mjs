@@ -324,6 +324,9 @@ export class SyncedAudioPlayer extends EventEmitter {
     const res = await this.syncTime(next, this.client.player, this.videoDelay / 1000);
     if (!res) {
       console.error('Failed to sync audio');
+      // Played muted for the swap: left playing, it decoded for nothing until the next
+      // resync (final review, 2026-10-10).
+      await next.pause();
       return false;
     }
 
@@ -335,6 +338,7 @@ export class SyncedAudioPlayer extends EventEmitter {
     const newError = (this.client.currentVideo.currentTime + offset) - next.getVideo().currentTime;
     if (Math.abs(newError) > Math.abs(error)) {
       console.error('Failed to resync audio. New error is bigger than old error', newError, error);
+      await next.pause();
       return false;
     }
 
