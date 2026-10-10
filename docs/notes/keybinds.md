@@ -61,7 +61,7 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   volume or seeks) and top left. Tests: `KeybindUtils.test.mjs` "formatPlaybackRate" and
   `keybinds.e2e.mjs` "a speed key shows the speed top left over the video for a moment" (text,
   opacity, position; a mutant without `showSpeed` in the preset handler fails it).
-- Six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
+- In that layout (version 2), six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
   PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters. (NextChapter went on 2026-10-10
   with the chapters, and SkipIntroOutro on S with the intro/outro finder: an old saved binding
   of either is dropped, as every key the defaults no longer have.)
