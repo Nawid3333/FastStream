@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Forceer retry-toets - gebruik deze om mislukte downloads opnieuw te proberen"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Intro/outro overslaan indien van toepassing"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Speler verbergen/tonen"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Volgende/vorige video"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Volgend hoofdstuk"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Video opslaan"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Gebruik de huidige tijd"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Intro overslaan"
-    },
-    "player_skipoutro": {
-        "message": "Outro overslaan"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Geef de voorkeur aan de versie die je grafische kaart kan decoderen (hardwaredecodering), daarna een hogere framerate en efficiëntere codecs zoals AV1. Verlaagt nooit de gekozen resolutie"
-    },
-    "options_general_analyze": {
-        "message": "Analyseer automatisch opeenvolgende video's op intro's/outro's\n(schakel uit bij CPU-prestatieproblemen)"
     },
     "options_general_storeprogress": {
         "message": "Video's afspelen vanaf de laatst bekeken positie"

@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- 強制再試行キー - これを使用する事で失敗をしたダウンロードを再試行します"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- 該当時にイントロ/アウトロをスキップ"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- プレーヤーを表示/非表示"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- 次/前のビデオ"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- 次のチャプター"
     },
     "welcome_page_keybinds_content23": {
         "message": "- 動画を保存"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "現在の再生位置を使用"
-    },
-    "player_segment_intro": {
-        "message": "イントロ"
-    },
-    "player_segment_outro": {
-        "message": "アウトロ"
-    },
-    "player_skipintro": {
-        "message": "イントロをスキップ"
-    },
-    "player_skipoutro": {
-        "message": "アウトロをスキップ"
     },
     "player_nextvideo_auto": {
         "message": "自動"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "グラフィックカードでデコードできるバージョン（ハードウェアデコード）を優先し、次に高いフレームレートと AV1 などの効率的なコーデックを優先します。選択した解像度は下げません"
-    },
-    "options_general_analyze": {
-        "message": "連続する動画のイントロ/アウトロを自動的に解析する\n(CPU パフォーマンスに問題がある場合は OFF にしてください)"
     },
     "options_general_storeprogress": {
         "message": "最後に視聴した位置から動画を再生する"

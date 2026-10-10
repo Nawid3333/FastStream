@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Forçar nova tentativa - use-a para tentar novamente os downloads que falharam"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Pular a introdução/encerramento, se for o caso"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Ocultar/mostrar o player"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Próximo vídeo/vídeo anterior"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Próximo capítulo"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Salvar o vídeo"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Usar o tempo atual"
-    },
-    "player_segment_intro": {
-        "message": "Abertura"
-    },
-    "player_segment_outro": {
-        "message": "Encerramento"
-    },
-    "player_skipintro": {
-        "message": "Pular Intro"
-    },
-    "player_skipoutro": {
-        "message": "Pular encerramento"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Preferir a versão que sua placa de vídeo consegue decodificar (decodificação por hardware), depois uma taxa de quadros maior e codecs mais eficientes como AV1. Nunca reduz a resolução escolhida"
-    },
-    "options_general_analyze": {
-        "message": "Analisa automaticamente vídeos sequenciais para introduções/outros\n(desligue se você tiver problemas de desempenho do CPU)"
     },
     "options_general_storeprogress": {
         "message": "Reproduzir vídeos a partir da última posição assistida"

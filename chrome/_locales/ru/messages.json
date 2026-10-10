@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- принудительное повторение, использовать при неудачной загрузке"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- пропустить вступление/окончание, по возможности"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- скрыть/показать плеер"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- следующее/предыдущее видео"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- следующая глава"
     },
     "welcome_page_keybinds_content23": {
         "message": "- сохранить видео"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Использовать текущее время"
-    },
-    "player_segment_intro": {
-        "message": "Интро"
-    },
-    "player_segment_outro": {
-        "message": "Аутро"
-    },
-    "player_skipintro": {
-        "message": "Пропустить вступление"
-    },
-    "player_skipoutro": {
-        "message": "Пропустить окончание"
     },
     "player_nextvideo_auto": {
         "message": "Авто"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Предпочитать версию, которую может декодировать видеокарта (аппаратное декодирование), затем более высокую частоту кадров и более эффективные кодеки, такие как AV1. Никогда не снижает выбранное разрешение"
-    },
-    "options_general_analyze": {
-        "message": "Автоматически анализировать последовательные видео на наличие вступлений/окончаний\n(Отключите при проблемах с производительностью)"
     },
     "options_general_storeprogress": {
         "message": "Воспроизводить видео с последней просмотренной позиции"

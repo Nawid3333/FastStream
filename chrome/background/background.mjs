@@ -1135,11 +1135,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
     }
     return true;
-  } else if (msg.type === MessageTypes.STORE_ANALYZER_DATA) {
-    if (Logging) console.log('Analyzer data', msg.data);
-    tab.analyzerData = msg.data;
-    // Kept over an unload of this event page (PersistedTabFields).
-    Tabs.saveTabState(tab);
   } else if (msg.type === MessageTypes.SEND_TO_PLAYER) {
     const pframe = tab.getFrame(msg.frameId);
     if (!pframe || !pframe.isPlayer) {
@@ -2039,7 +2034,6 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
 
     const response = {
       mediaInfo: getMediaInfoFromTab(sender?.tab),
-      analyzerData: tab.analyzerData,
       isMainPlayer,
     };
 
@@ -2050,7 +2044,6 @@ function acceptPlayer(tab, frame, sender, sendResponse) {
     frame.pageFrame = tab.getFrameOrCreate(0);
     sendResponse({
       mediaInfo: getMediaInfoFromTab(sender?.tab),
-      analyzerData: tab.analyzerData,
       isMainPlayer,
     });
   });

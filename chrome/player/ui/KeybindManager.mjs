@@ -39,19 +39,6 @@ export class KeybindManager extends EventEmitter {
       this.client.interfaceController.toggleControlBar();
     });
 
-    this.on('NextChapter', (e) => {
-      const chapters = this.client.chapters;
-      const time = this.client.currentTime;
-      const chapter = chapters.findIndex((chapter) => chapter.startTime <= time && chapter.endTime >= time);
-      if (chapter === -1) {
-        return;
-      }
-
-      if (chapter + 1 < chapters.length) {
-        this.client.currentTime = chapters[chapter + 1].startTime;
-      }
-    });
-
     this.on('GoToStart', (e) => {
       this.client.currentTime = 0;
     });
@@ -195,10 +182,6 @@ export class KeybindManager extends EventEmitter {
         this.client.downloadManager.addDownloader();
         this.client.interfaceController.updateFragmentsLoaded();
       }
-    });
-
-    this.on('SkipIntroOutro', (e) => {
-      this.client.interfaceController.skipSegment();
     });
 
     // Only act while a track is open in the subtitle resync tool.

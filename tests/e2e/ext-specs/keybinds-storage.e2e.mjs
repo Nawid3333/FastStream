@@ -56,7 +56,8 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     expect(options.failed).toBeUndefined();
     expect(options.keybindsVersion).toBe(3);
     expect(options.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
-    expect(options.keybinds.NextChapter).toBe('Shift+KeyA');
+    // Chapters are gone: the old binding is dropped.
+    expect(options.keybinds.NextChapter).toBeUndefined();
     expect(options.keybinds.PreviousVideo).toBe('Shift+KeyB');
     expect(options.keybinds.RotateVideo).toBe('Shift+KeyR');
     expect(options.keybinds.ToggleVisualFilters).toBe('Shift+KeyQ');

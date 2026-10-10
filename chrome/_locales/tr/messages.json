@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Zorla tekrar dene tuşu - başarısız indirmeleri yeniden denemek için kullanın"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Giriş/çıkışları atla (uygunsa)"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Oynatıcıyı gizle/göster"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Sonraki/önceki video"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Sonraki bölüm"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Videoyu kaydet"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Şu anki zamanı kullanın"
-    },
-    "player_segment_intro": {
-        "message": "Giriş"
-    },
-    "player_segment_outro": {
-        "message": "Kapanış"
-    },
-    "player_skipintro": {
-        "message": "İntroyu atla"
-    },
-    "player_skipoutro": {
-        "message": "Outroyu atla"
     },
     "player_nextvideo_auto": {
         "message": "Otomatik"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Ekran kartının çözebildiği sürümü tercih et (donanımsal kod çözme), ardından daha yüksek kare hızı ve AV1 gibi daha verimli codec'ler. Seçilen çözünürlüğü asla düşürmez"
-    },
-    "options_general_analyze": {
-        "message": "Giriş/çıkış bölümlerini tespit etmek için ardışık videoları otomatik olarak analiz et\n(CPU performansı sorunları yaşıyorsanız kapatın)"
     },
     "options_general_storeprogress": {
         "message": "Videoları son izlenen konumdan oynat"

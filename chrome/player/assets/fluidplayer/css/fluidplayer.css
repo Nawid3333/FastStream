@@ -418,15 +418,12 @@ body {
 }
 
 .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_progress,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_buffered,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.skip_freeze .fluid_controls_progress,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.skip_freeze .fluid_controls_buffered {
+.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_buffered {
     margin-top: -1px;
     height: 5px;
 }
 
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_progress .fluid_controls_currentprogress,
-.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.skip_freeze .fluid_controls_progress .fluid_controls_currentprogress {
+.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container .fluid_controls_progress_container.freeze .fluid_controls_progress .fluid_controls_currentprogress {
     height: 5px;
 }
 
@@ -666,7 +663,6 @@ body {
 
 /* Where the keyboard is. */
 .fluid_button:focus-visible,
-.skip_button:focus-visible,
 .next_video_button:focus-visible,
 .fluid_control_playpause_big_circle:focus-visible {
     outline: 2px solid var(--menu-text-color);
@@ -1049,32 +1045,6 @@ body {
     margin-right: 4px;
 }
 
-.intro_outro_container {
-    position: absolute;
-    inset: 0px;
-    z-index: 1;
-}
-
-.intro_outro_container>div {
-    border-radius: 1px;
-    position: absolute;
-    top: 3px;
-    bottom: 0px;
-    background-color: var(--intro-outro-bar-color);
-}
-
-.intro_outro_container>.skip_segment {
-    min-width: 3px;
-}
-
-.intro_outro_container>div.chapter {
-    background-color: var(--chapter-marker-color);
-    border-radius: 0px;
-    top: 0px;
-    bottom: 0px;
-    width: 2px;
-}
-
 .hide_button {
     color: var(--popbutton-text-color);
     position: absolute;
@@ -1100,8 +1070,7 @@ body {
     border: var(--popbutton-hover-border);
 }
 
-.next_video_button,
-.skip_button {
+.next_video_button {
     color: var(--popbutton-text-color);
     position: absolute;
     bottom: 50px;
@@ -1112,10 +1081,6 @@ body {
     font-size: 18px;
     cursor: pointer;
     transition: bottom 0.5s;
-}
-
-.skip_button.shiftup {
-    bottom: 88px;
 }
 
 /* VpnPrompt.mjs: above everything at the top, where a failed load's message leaves room. */
@@ -1141,17 +1106,11 @@ body {
 }
 
 .fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .hide_button,
-.fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .skip_button,
 .fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .next_video_button {
     bottom: 130px;
 }
 
-.fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .skip_button.shiftup {
-    bottom: 168px;
-}
-
-.next_video_button:hover,
-.skip_button:hover {
+.next_video_button:hover {
     background-color: var(--popbutton-hover-background-color);
     border: var(--popbutton-hover-border);
 }
@@ -1181,8 +1140,7 @@ body {
     display: none;
 }
 
-.fluid_controls_progress_container:hover .seek_marker,
-.fluid_controls_progress_container.skip_freeze .seek_marker {
+.fluid_controls_progress_container:hover .seek_marker {
     display: block;
 }
 

@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- 强制重试键 - 用于重试失败的下载"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- 跳过片头/片尾（如适用）"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- 隐藏/显示播放器"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- 下一个/上一个视频"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- 下一章节"
     },
     "welcome_page_keybinds_content23": {
         "message": "- 保存视频"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "使用当前时间"
-    },
-    "player_segment_intro": {
-        "message": "片头"
-    },
-    "player_segment_outro": {
-        "message": "片尾"
-    },
-    "player_skipintro": {
-        "message": "跳过片头"
-    },
-    "player_skipoutro": {
-        "message": "跳过片尾"
     },
     "player_nextvideo_auto": {
         "message": "自动"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "优先选择显卡可以解码的版本（硬件解码），其次是更高的帧率和更高效的编码（如 AV1）。绝不降低所选分辨率"
-    },
-    "options_general_analyze": {
-        "message": "自动分析连续视频以检测片头/片尾\n（如果有 CPU 性能问题请关闭）"
     },
     "options_general_storeprogress": {
         "message": "从上次观看位置播放视频"

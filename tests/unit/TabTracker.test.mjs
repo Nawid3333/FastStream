@@ -701,38 +701,4 @@ describe('saveTabState', () => {
       delete globalThis.chrome.storage;
     }
   });
-
-  // What the intro and outro finder saw of the episodes before lived in the background
-  // alone: an unload of the idle event page between two episodes took it, and the next
-  // episode had nothing to match (audit, 2026-10-09).
-  it('keeps the intro and outro finder\'s data over an unload of the background', async () => {
-    const session = {};
-    globalThis.chrome.storage = {session: {
-      set: async (entry) => Object.assign(session, structuredClone(entry)),
-      get: async () => structuredClone(session),
-    }};
-    try {
-      const data = {intro: {'video-1': {hashBuffer: 'AAAA', timeBuffer: 'BBBB'}}, outro: {}};
-      const before = new TabTracker();
-      const tab = before.getTabOrCreate(9);
-      tab.isOn = true;
-      tab.analyzerData = data;
-      await before.saveTabState(tab);
-
-      // The woken background: a new tracker, from session storage.
-      const after = new TabTracker();
-      await after.restoreTabStates();
-      expect(after.getTab(9).analyzerData).toEqual(data);
-      expect(after.getTab(9).isOn).toBe(true);
-
-      // Another site starts afresh (reset), and that is what is kept.
-      after.getTab(9).reset();
-      await after.saveTabState(after.getTab(9));
-      const again = new TabTracker();
-      await again.restoreTabStates();
-      expect(again.getTab(9).analyzerData).toBeNull();
-    } finally {
-      delete globalThis.chrome.storage;
-    }
-  });
 });

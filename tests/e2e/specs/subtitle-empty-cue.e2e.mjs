@@ -44,21 +44,22 @@ describe('A subtitle cue with no text', function() {
         attempt('activate the empty cue\'s track', () => manager.activateTrack(empty));
         attempt('activate the other track', () => manager.activateTrack(other));
 
-        let skipSegmentUpdates = 0;
-        const updateSkipSegments = ui.updateSkipSegments;
-        ui.updateSkipSegments = function(...args) {
-          skipSegmentUpdates++;
-          return updateSkipSegments.apply(this, args);
+        // The last thing timeUpdated does: it ran to the end.
+        let bannerUpdates = 0;
+        const updateNextVideoBanner = ui.progressBar.updateNextVideoBanner;
+        ui.progressBar.updateNextVideoBanner = function(...args) {
+          bannerUpdates++;
+          return updateNextVideoBanner.apply(this, args);
         };
         attempt('timeUpdated', () => ui.timeUpdated());
-        ui.updateSkipSegments = updateSkipSegments;
+        ui.progressBar.updateNextVideoBanner = updateNextVideoBanner;
 
         done({
           time: client.state.currentTime,
           cueTexts: empty.cues.map((cue) => cue.text),
           active: manager.activeTracks.map((track) => track.label),
           errors,
-          skipSegmentUpdates,
+          bannerUpdates,
           shown: document.querySelector('.mainplayer .fluid_subtitles_container').textContent,
         });
       }, (e) => done({errors: [String(e)]}));
@@ -70,7 +71,7 @@ describe('A subtitle cue with no text', function() {
     expect(result.active).toEqual(['Empty cue', 'Other']);
 
     expect(result.errors).toEqual([]);
-    expect(result.skipSegmentUpdates).toBe(1);
+    expect(result.bannerUpdates).toBe(1);
     expect(result.shown).toContain('Shown');
   });
 });

@@ -6,41 +6,13 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 
-// What updateElement last wrote to each element's inline style.
-const writtenStyles = new WeakMap();
-
-/**
- * Sets an element's class and inline styles, writing only what changed. The skip segments
- * and chapters are redrawn on every time update (each frame for a short video), and
- * rewriting the same class and positions restyled every one of them each time.
- * @param {HTMLElement} element - The element.
- * @param {string} className - Its whole class attribute.
- * @param {Object<string, string>} style - The inline style properties to set.
- */
-function updateElement(element, className, style) {
-  if (element.className !== className) {
-    element.className = className;
-  }
-  const written = writtenStyles.get(element) || {};
-  for (const [property, value] of Object.entries(style)) {
-    if (written[property] !== value) {
-      element.style[property] = value;
-      written[property] = value;
-    }
-  }
-  writtenStyles.set(element, written);
-}
-
 export class ProgressBar extends EventEmitter {
   constructor(client) {
     super();
     this.client = client;
     this.progressCache = [];
     this.progressCacheAudio = [];
-    this.skipSegments = [];
-    this.skipSegmentsCache = [];
-    this.chapterCache = [];
-    this.hasShownSkip = false;
+    this.hasShownNextVideo = false;
     this.isSeeking = false;
     this.isMouseOverProgressbar = false;
 
@@ -106,11 +78,6 @@ export class ProgressBar extends EventEmitter {
     DOMElements.markerContainer.appendChild(this.unseekMarker);
     this.unseekMarker.style.display = 'none';
 
-    this.videoAnalyzerMarker = document.createElement('div');
-    this.videoAnalyzerMarker.classList.add('analyzer_marker');
-    DOMElements.markerContainer.appendChild(this.videoAnalyzerMarker);
-    this.videoAnalyzerMarker.style.display = 'none';
-
     this.audioAnalyzerMarker = document.createElement('div');
     this.audioAnalyzerMarker.classList.add('analyzer_marker');
     this.audioAnalyzerMarker.style.backgroundColor = '#ff0';
@@ -144,18 +111,10 @@ export class ProgressBar extends EventEmitter {
     DOMElements.progressLoadedContainer.replaceChildren();
     this.progressCache = [];
     this.progressCacheAudio = [];
-    this.skipSegments = [];
-    this.hasShownSkip = false;
-    // updateSkipSegments() redraws these only once the next video has a duration, and one
-    // that never gets one kept the previous video's markers and skip button.
-    this.skipSegmentsCache.forEach((element) => element.remove());
-    this.skipSegmentsCache = [];
-    this.chapterCache.forEach((element) => element.remove());
-    this.chapterCache = [];
-    DOMElements.skipButton.style.display = 'none';
-    DOMElements.skipButton.classList.remove('shiftup');
+    // updateNextVideoBanner() runs only once the next video has a duration, and one that
+    // never gets one kept the previous video's banner.
+    this.hasShownNextVideo = false;
     DOMElements.nextVideoBannerButton.style.display = 'none';
-    DOMElements.progressContainer.classList.remove('skip_freeze');
   }
 
   collectProgressbarData(fragments) {
@@ -333,158 +292,25 @@ export class ProgressBar extends EventEmitter {
     };
   }
 
-  updateSkipSegments() {
-    // DOMElements.skipSegmentsContainer.replaceChildren();
-
-    const introMatch = this.client.videoAnalyzer.getIntro();
-    const outroMatch = this.client.videoAnalyzer.getOutro();
-
+  /**
+   * The next video's banner, for its last 10 seconds when the next video plays by itself.
+   */
+  updateNextVideoBanner() {
     const duration = this.client.duration;
     if (!duration) {
       return;
     }
-
-    const skipSegments = [];
-
-    if (introMatch) {
-      skipSegments.push({
-        startTime: Utils.clamp(introMatch.startTime, 0, duration),
-        endTime: Utils.clamp(introMatch.endTime, 0, duration),
-        class: 'intro',
-        name: Localize.getMessage('player_segment_intro'),
-        skipText: Localize.getMessage('player_skipintro'),
-      });
-    }
-
-    if (outroMatch) {
-      skipSegments.push({
-        startTime: Utils.clamp(outroMatch.startTime, 0, duration),
-        endTime: Utils.clamp(outroMatch.endTime, 0, duration),
-        class: 'outro',
-        name: Localize.getMessage('player_segment_outro'),
-        skipText: Localize.getMessage('player_skipoutro'),
-      });
-    }
-
-    this.client.skipSegments.forEach((segment) => {
-      skipSegments.push({
-        ...segment,
-        startTime: Utils.clamp(segment.startTime, 0, duration),
-        endTime: Utils.clamp(segment.endTime, 0, duration),
-      });
-    });
-
-    let currentSegment = null;
-    const time = this.client.currentTime;
-
-    if (this.skipSegmentsCache.length > skipSegments.length) {
-      // Remove elements
-      for (let i = skipSegments.length; i < this.skipSegmentsCache.length; i++) {
-        this.skipSegmentsCache[i].remove();
-      }
-      this.skipSegmentsCache.length = skipSegments.length;
-    } else if (this.skipSegmentsCache.length < skipSegments.length) {
-      // Add elements
-      for (let i = this.skipSegmentsCache.length; i < skipSegments.length; i++) {
-        const segmentElement = document.createElement('div');
-        DOMElements.skipSegmentsContainer.appendChild(segmentElement);
-        this.skipSegmentsCache.push(segmentElement);
-      }
-    }
-
-
-    skipSegments.forEach((segment, i) => {
-      const segmentElement = this.skipSegmentsCache[i];
-      let active = false;
-      if (!currentSegment && time >= segment.startTime && time < segment.endTime) {
-        currentSegment = segment;
-        active = true;
-      }
-      // A segment with no colour of its own no longer keeps the colour of the segment
-      // whose element it took over.
-      updateElement(segmentElement, 'skip_segment ' + segment.class + (active ? ' active' : ''), {
-        left: segment.startTime / duration * 100 + '%',
-        width: (segment.endTime - segment.startTime) / duration * 100 + '%',
-        backgroundColor: segment.color || '',
-      });
-    });
-
-    this.skipSegments = skipSegments;
-
-    if (currentSegment) {
-      DOMElements.skipButton.style.display = '';
-      DOMElements.skipButton.textContent = currentSegment.skipText;
-      DOMElements.skipButton.ariaLabel = currentSegment.skipText;
-      DOMElements.progressContainer.classList.add('skip_freeze');
-    } else {
-      DOMElements.progressContainer.classList.remove('skip_freeze');
-      DOMElements.skipButton.style.display = 'none';
-    }
-
-    if (this.client.options.autoplayNext && this.client.hasNextVideo() && (currentSegment?.class === 'outro' || Math.ceil(duration - time) <= 10)) { // Outro
+    const left = Math.ceil(duration - this.client.currentTime);
+    if (this.client.options.autoplayNext && this.client.hasNextVideo() && left <= 10) {
       DOMElements.nextVideoBannerButton.style.display = '';
-      DOMElements.nextVideoBannerButton.textContent = Localize.getMessage('player_nextvideoin', [Math.ceil(duration - time)]);
-      DOMElements.skipButton.classList.add('shiftup');
+      DOMElements.nextVideoBannerButton.textContent = Localize.getMessage('player_nextvideoin', [left]);
+      if (!this.hasShownNextVideo) {
+        this.hasShownNextVideo = true;
+        this.emit('show-next-video');
+      }
     } else {
       DOMElements.nextVideoBannerButton.style.display = 'none';
-      DOMElements.skipButton.classList.remove('shiftup');
-    }
-
-    if (DOMElements.skipButton.style.display !== 'none' || DOMElements.nextVideoBannerButton.style.display !== 'none') {
-      if (!this.hasShownSkip) {
-        this.hasShownSkip = true;
-
-        if (currentSegment && currentSegment.autoSkip) {
-          this.skipSegment();
-        } else {
-          this.emit('show-skip', currentSegment);
-        }
-      }
-    } else {
-      this.hasShownSkip = false;
-    }
-
-    const chapters = [];
-    this.client.chapters.forEach((chapter) => {
-      if (chapter.startTime > 0) {
-        chapters.push({
-          ...chapter,
-          startTime: Utils.clamp(chapter.startTime, 0, duration),
-          endTime: Utils.clamp(chapter.endTime, 0, duration),
-        });
-      }
-    });
-
-    if (this.chapterCache.length > chapters.length) {
-      // Remove elements
-      for (let i = chapters.length; i < this.chapterCache.length; i++) {
-        this.chapterCache[i].remove();
-      }
-      this.chapterCache.length = chapters.length;
-    } else if (this.chapterCache.length < chapters.length) {
-      // Add elements
-      for (let i = this.chapterCache.length; i < chapters.length; i++) {
-        const chapterElement = document.createElement('div');
-        DOMElements.skipSegmentsContainer.appendChild(chapterElement);
-        this.chapterCache.push(chapterElement);
-      }
-    }
-
-    chapters.forEach((chapter, i) => {
-      updateElement(this.chapterCache[i], 'chapter', {left: chapter.startTime / duration * 100 + '%'});
-    });
-  }
-
-  skipSegment() {
-    const time = this.client.currentTime;
-    const currentSegment = this.skipSegments.find((segment) => segment.startTime <= time && segment.endTime >= time);
-    if (!currentSegment) {
-      return;
-    }
-    this.client.currentTime = currentSegment.endTime;
-
-    if (currentSegment.onSkip) {
-      currentSegment.onSkip();
+      this.hasShownNextVideo = false;
     }
   }
 
@@ -493,26 +319,9 @@ export class ProgressBar extends EventEmitter {
     const totalWidth = DOMElements.progressContainer.clientWidth;
 
     const time = this.client.duration * currentX / totalWidth;
-    const chapter = this.client.chapters.find((chapter) => chapter.startTime <= time && chapter.endTime >= time);
-    const segment = this.skipSegments.find((segment) => segment.startTime <= time && segment.endTime >= time);
 
-    let text = '';
-    let offset = 25;
-
-    if (segment) {
-      text += segment.name + '\n';
-      offset += 25;
-    }
-
-    if (chapter) {
-      text += chapter.name + '\n';
-      offset += 25;
-    }
-
-    DOMElements.seekPreviewVideo.style.bottom = offset + 'px';
-
-    text += StringUtils.formatTime(time);
-    DOMElements.seekPreviewText.innerText = text;
+    DOMElements.seekPreviewVideo.style.bottom = '25px';
+    DOMElements.seekPreviewText.innerText = StringUtils.formatTime(time);
 
     const maxWidth = Math.max(DOMElements.seekPreviewVideo.clientWidth, DOMElements.seekPreview.clientWidth);
 
@@ -705,7 +514,6 @@ export class ProgressBar extends EventEmitter {
     this.placeMarker(this.seekMarker, pastSeeks.length ? pastSeeks[pastSeeks.length - 1] : null, duration);
     const pastUnseeks = this.client.pastUnseeks;
     this.placeMarker(this.unseekMarker, pastUnseeks.length ? pastUnseeks[pastUnseeks.length - 1] : null, duration);
-    this.placeMarker(this.videoAnalyzerMarker, this.client.videoAnalyzer.getMarkerPosition(), duration);
     this.placeMarker(this.audioAnalyzerMarker, this.client.audioAnalyzer.getMarkerPosition(), duration);
     this.placeMarker(this.frameExtractorMarker, this.client.frameExtractor.getMarkerPosition(), duration);
   }

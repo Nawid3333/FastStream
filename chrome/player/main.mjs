@@ -280,7 +280,6 @@ async function setup() {
       if (!data) {
         return;
       }
-      window.fastStream.loadAnalyzerData(data.analyzerData);
       window.fastStream.setMediaInfo(data.mediaInfo);
       window.fastStream.setNeedsUserInteraction(!data.isMainPlayer);
 

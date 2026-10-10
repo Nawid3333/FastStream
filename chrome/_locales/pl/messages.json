@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Klawisz wymuszenia ponowienia - użyj, aby ponowić nieudane pobrania"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Pomiń intro/outro, jeśli dotyczy"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Ukryj/pokaż odtwarzacz"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Następne/poprzednie wideo"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Następny rozdział"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Zapisz wideo"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Użyj bieżącego czasu"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Pomiń intro"
-    },
-    "player_skipoutro": {
-        "message": "Pomiń outro"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Preferuj wersję, którą karta graficzna może dekodować (dekodowanie sprzętowe), potem wyższą liczbę klatek i wydajniejsze kodeki, takie jak AV1. Nigdy nie obniża wybranej rozdzielczości"
-    },
-    "options_general_analyze": {
-        "message": "Automatycznie analizuj kolejne wideo pod kątem intro/outro\n(wyłącz, jeśli masz problemy z wydajnością CPU)"
     },
     "options_general_storeprogress": {
         "message": "Odtwarzaj filmy od ostatnio oglądanej pozycji"

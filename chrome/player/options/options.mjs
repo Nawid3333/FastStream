@@ -19,7 +19,6 @@ import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 
 let Options = {};
-const analyzeVideos = document.getElementById('analyzevideos');
 const playStreamURLs = document.getElementById('playstreamurls');
 const playMP4URLs = document.getElementById('playmp4urls');
 const downloadAll = document.getElementById('downloadall');
@@ -119,7 +118,6 @@ OptionsStore.init().then(() => {
 
 
 if (!EnvUtils.isExtension()) {
-  analyzeVideos.disabled = true;
   playStreamURLs.disabled = true;
   playMP4URLs.disabled = true;
   autoSub.disabled = true;
@@ -144,7 +142,6 @@ async function loadOptions(newOptions) {
   downloadAll.checked = !!Options.downloadAll;
   maxSize.disabled = !downloadAll.checked;
   maxSizeUnit.disabled = !downloadAll.checked;
-  analyzeVideos.checked = !!Options.analyzeVideos;
   playStreamURLs.checked = !!Options.playStreamURLs;
   playMP4URLs.checked = !!Options.playMP4URLs;
   mpvModeToggle.checked = !!Options.mpvMode;
@@ -594,11 +591,6 @@ mpvTestButton.addEventListener('click', () => {
   } else {
     sendTest();
   }
-});
-
-analyzeVideos.addEventListener('change', () => {
-  Options.analyzeVideos = analyzeVideos.checked;
-  optionChanged();
 });
 
 downloadAll.addEventListener('change', () => {

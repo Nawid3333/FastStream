@@ -30,8 +30,6 @@ export const DefaultKeybinds = {
   'PauseDownloaders': 'BracketLeft',
   'SaveVideo': 'KeyD',
   'Screenshot': 'Shift+KeyS',
-  'SkipIntroOutro': 'KeyS',
-  'NextChapter': 'Shift+KeyA',
   'GoToStart': 'Digit0',
   'SeekPercent10': 'Digit1',
   'SeekPercent20': 'Digit2',

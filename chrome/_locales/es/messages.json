@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Tecla de reintento forzado - utilízala para volver a intentar descargas fallidas"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Omitir intro/outro si corresponde"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Ocultar/mostrar el reproductor"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Video siguiente/anterior"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Siguiente capítulo"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Guardar video"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Usar la posición actual"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Omitir Intro"
-    },
-    "player_skipoutro": {
-        "message": "Omitir Outro"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Preferir la versión que tu tarjeta gráfica puede decodificar (decodificación por hardware), luego una mayor tasa de fotogramas y códecs más eficientes como AV1. Nunca baja la resolución elegida"
-    },
-    "options_general_analyze": {
-        "message": "Analiza automáticamente videos secuenciales para intros/outros\n(desactiva si tienes problemas de rendimiento de CPU)"
     },
     "options_general_storeprogress": {
         "message": "Reproducir videos desde la última posición vista"

@@ -62,7 +62,9 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `keybinds.e2e.mjs` "a speed key shows the speed top left over the video for a moment" (text,
   opacity, position; a mutant without `showSpeed` in the preset handler fails it).
 - Six defaults moved to `Shift+<letter>` for those letters: WindowedFullscreen, NextChapter,
-  PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters.
+  PreviousVideo, FlipVideo, RotateVideo, ToggleVisualFilters. (NextChapter went on 2026-10-10
+  with the chapters, and SkipIntroOutro on S with the intro/outro finder: an old saved binding
+  of either is dropped, as every key the defaults no longer have.)
 - **Typing is not a command.** `KeybindManager.onKeyDown` ignores a press whose target is a text
   field, text area, select or editable element, unless Ctrl, Alt or Meta is held (Right Alt hides
   the player). Ranges, checkboxes and buttons still pass keys through.

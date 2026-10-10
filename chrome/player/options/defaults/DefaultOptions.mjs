@@ -16,7 +16,6 @@ export const DefaultOptions = {
   mpvFullscreen: false,
   mpvPausePage: true,
   mpvSingleInstance: true,
-  analyzeVideos: false,
   downloadAll: true,
   blockPopupsWhilePlaying: true,
   previewEnabled: true,
