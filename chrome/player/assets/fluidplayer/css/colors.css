@@ -56,7 +56,6 @@ body[data-theme="default"] {
   --timeline-cue-text-color: black;
   --timeline-tick-color: rgba(255, 255, 255, 0.8);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.9);
-  --timeline-vad-line-color: white;
   --subtitle-tool-color: white;
   --linkui-toggle-color: #f2c94c;
   --soundwave-toggle-color: rgb(4, 217, 255);
@@ -162,7 +161,6 @@ body[data-theme="contrast"] {
   --timeline-cue-text-color: #000000;
   --timeline-tick-color: rgba(255, 255, 255, 0.95);
   --timeline-tick-label-color: rgba(255, 255, 255, 1);
-  --timeline-vad-line-color: #ffffff;
 
   --subtitle-tool-color: #ffffff;
   --linkui-toggle-color: #ffeb3b;
@@ -274,7 +272,6 @@ body[data-theme="arctic"] {
   --timeline-cue-text-color: #0b1320;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #0b1320;
 
   --subtitle-tool-color: #0b1320;
   --linkui-toggle-color: #0a84ff;
@@ -386,7 +383,6 @@ body[data-theme="ocean"] {
   --timeline-cue-text-color: #0b1220;
   --timeline-tick-color: rgba(255, 255, 255, 0.8);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.9);
-  --timeline-vad-line-color: #e6f7ff;
 
   --subtitle-tool-color: #e6f7ff;
   --linkui-toggle-color: #19b7ff;
@@ -498,7 +494,6 @@ body[data-theme="neon"] {
   --timeline-cue-text-color: #0a0a0f;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #ffffff;
 
   --subtitle-tool-color: #ffffff;
   --linkui-toggle-color: #ff2bd6;
@@ -610,7 +605,6 @@ body[data-theme="sunset"] {
   --timeline-cue-text-color: #231514;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #231514;
 
   --subtitle-tool-color: #231514;
   --linkui-toggle-color: #ff6f61;
@@ -722,7 +716,6 @@ body[data-theme="forest"] {
   --timeline-cue-text-color: #0f1a14;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #eaffea;
 
   --subtitle-tool-color: #eaffea;
   --linkui-toggle-color: #2ecc71;
@@ -834,7 +827,6 @@ body[data-theme="slate"] {
   --timeline-cue-text-color: #111418;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #e6f0ff;
 
   --subtitle-tool-color: #e6e9ed;
   --linkui-toggle-color: #4da3ff;
@@ -946,7 +938,6 @@ body[data-theme="amethyst"] {
   --timeline-cue-text-color: #120f1b;
   --timeline-tick-color: rgba(255, 255, 255, 0.85);
   --timeline-tick-label-color: rgba(255, 255, 255, 0.95);
-  --timeline-vad-line-color: #f5f0ff;
 
   --subtitle-tool-color: #f5f0ff;
   --linkui-toggle-color: #a78bfa;
@@ -1058,7 +1049,6 @@ body[data-theme="desert"] {
   --timeline-cue-text-color: #2b1f11;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #2b1f11;
 
   --subtitle-tool-color: #2b1f11;
   --linkui-toggle-color: #c0843d;
@@ -1170,7 +1160,6 @@ body[data-theme="mint"] {
   --timeline-cue-text-color: #0a221d;
   --timeline-tick-color: rgba(0, 0, 0, 0.7);
   --timeline-tick-label-color: rgba(0, 0, 0, 0.85);
-  --timeline-vad-line-color: #0a221d;
 
   --subtitle-tool-color: #0a221d;
   --linkui-toggle-color: #00bfa5;

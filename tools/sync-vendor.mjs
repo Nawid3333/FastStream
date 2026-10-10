@@ -77,34 +77,6 @@ const VENDOR = [
     transform: addSortableNamedExport,
   },
   {
-    // The vendored copy of this was hand-minified by the upstream author
-    // ("Minified to reduce loading time (https://minify-js.com/)"), which is
-    // the one thing AMO's policy on minified code is explicitly about: a
-    // reviewer cannot read it and it corresponds to no published artifact.
-    // onnxruntime-web publishes an unminified ESM build of exactly this
-    // bundle, with an identical export list, so use that instead.
-    name: 'onnxruntime-web',
-    from: 'node_modules/onnxruntime-web/dist/ort.wasm.mjs',
-    to: 'chrome/player/modules/vad/ort.wasm.mjs',
-    transform: stripInlineSourceMap,
-  },
-  {
-    // The runtime that loader drives, from the same release, as published: it
-    // imports the emscripten glue beside itself, and the glue fetches the wasm
-    // beside itself. The loader and the runtime must be one release. The
-    // custom 1 MB runtime shipped until 1.3.82.44 was built from a commit two
-    // months before 1.20.0, and a 1.30.0 loader on it failed (#23); see
-    // docs/vendored-libraries.md, "The VAD blobs".
-    name: 'onnxruntime-web',
-    from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs',
-    to: 'chrome/player/modules/vad/ort-wasm-simd-threaded.mjs',
-  },
-  {
-    name: 'onnxruntime-web',
-    from: 'node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm',
-    to: 'chrome/player/modules/vad/ort-wasm-simd-threaded.wasm',
-  },
-  {
     // mp4box 2.x is TypeScript that rolldown bundles into an ES module entry
     // point importing two shared chunks. The browser resolves those imports
     // itself, so the three files are copied as published, side by side, and
@@ -174,23 +146,6 @@ const VENDOR = [
     transform: normaliseText,
   },
 ];
-
-/**
- * Drops a trailing inline base64 sourcemap.
- *
- * onnxruntime-web's unminified bundle is 539 KB, of which 410 KB is an inline
- * sourcemap pointing at TypeScript sources we do not ship. Removing it leaves
- * 129 KB of readable JavaScript - still far more reviewable than the 47 KB of
- * hand-minified code it replaces, and without shipping a map that resolves to
- * nothing.
- *
- * @param {string} src file contents
- * @return {string} contents without the inline sourcemap
- */
-function stripInlineSourceMap(src) {
-  return normaliseText(src)
-      .replace(/\n\/\/# sourceMappingURL=data:[^\n]*\n?$/, '\n');
-}
 
 /**
  * Adds the named export FastStream imports.

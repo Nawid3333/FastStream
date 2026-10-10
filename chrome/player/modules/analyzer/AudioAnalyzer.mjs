@@ -14,10 +14,8 @@ export class AudioAnalyzer extends EventEmitter {
     super();
     this.client = client;
     this.outputRate = 10;
-    this.vadBuffer = [];
     this.volumeBuffer = [];
 
-    this.vadNeededBy = [];
     this.volumeNeededBy = [];
     this.backgroundNeededBy = [];
 
@@ -30,19 +28,10 @@ export class AudioAnalyzer extends EventEmitter {
     this.backgroundStarts = 0;
   }
 
-  onVadFrameProcessed(time, isSpeechProb) {
-    const frame = Math.floor(time * this.outputRate);
-    // The first ~20 ms of playback come stamped just before 0: there is no frame -1.
-    if (frame >= 0) {
-      this.vadBuffer[frame] = isSpeechProb;
-    }
-    this.emit('vad', time, isSpeechProb);
-  }
-
   onVolumeFrameProcessed(time, volume) {
     const frame = Math.floor(time * this.outputRate);
-    // As for the voice detector above: the first ~20 ms come stamped just before 0, and
-    // frame -1 became a property of the array.
+    // The first ~20 ms of playback come stamped just before 0, and frame -1 became a
+    // property of the array.
     if (frame < 0) {
       this.emit('volume', time, volume, 0);
       return;
@@ -67,22 +56,6 @@ export class AudioAnalyzer extends EventEmitter {
       }
     }
     this.emit('volume', time, volume, interp);
-  }
-
-  addVadDependent(dependent) {
-    if (this.vadNeededBy.includes(dependent)) return;
-    this.vadNeededBy.push(dependent);
-
-    this.sendConfigToAnalyzerNodes();
-  }
-
-  removeVadDependent(dependent) {
-    const index = this.vadNeededBy.indexOf(dependent);
-    if (index !== -1) {
-      this.vadNeededBy.splice(index, 1);
-    }
-
-    this.sendConfigToAnalyzerNodes();
   }
 
   addVolumeDependent(dependent) {
@@ -118,17 +91,15 @@ export class AudioAnalyzer extends EventEmitter {
   }
 
   sendConfigToAnalyzerNodes() {
-    const vad = this.vadNeededBy.length > 0;
     const volume = this.volumeNeededBy.length > 0;
 
     this.analyzerNodes.forEach((node) => {
-      node.configure({vad, volume});
+      node.configure({volume});
     });
   }
 
   reset() {
     try {
-      this.vadBuffer = [];
       this.volumeBuffer = [];
       this.backgroundDoneRanges = [];
 
@@ -142,10 +113,6 @@ export class AudioAnalyzer extends EventEmitter {
     } catch (e) {
       console.error(e);
     }
-  }
-
-  getVadData() {
-    return this.vadBuffer;
   }
 
   getVolumeData() {
@@ -164,11 +131,9 @@ export class AudioAnalyzer extends EventEmitter {
     const mainAnalyzerNode = new AudioAnalyzerNode();
     this.analyzerNodes.set('main', mainAnalyzerNode);
     mainAnalyzerNode.attach(videoElement, audioOutputNode, audioContext, getTime);
-    mainAnalyzerNode.on('vad', this.onVadFrameProcessed.bind(this));
     mainAnalyzerNode.on('volume', this.onVolumeFrameProcessed.bind(this));
 
     mainAnalyzerNode.configure({
-      vad: this.vadNeededBy.length > 0,
       volume: this.volumeNeededBy.length > 0,
     });
   }
@@ -265,10 +230,8 @@ export class AudioAnalyzer extends EventEmitter {
     });
     const audioSource = audioContext.createMediaElementSource(player.getVideo());
     audioAnalyzerNode.attach(player.getVideo(), audioSource, audioContext);
-    audioAnalyzerNode.on('vad', this.onVadFrameProcessed.bind(this));
     audioAnalyzerNode.on('volume', this.onVolumeFrameProcessed.bind(this));
     audioAnalyzerNode.configure({
-      vad: false,
       volume: true,
     });
 
@@ -491,7 +454,6 @@ export class AudioAnalyzer extends EventEmitter {
       this.backgroundAnalyzerPlayer.setCurrentAudioLevelID(audioLevel);
       if (audioLevel === null ? changedVideo : changedAudio) {
         this.backgroundDoneRanges.length = 0;
-        this.vadBuffer = [];
         this.volumeBuffer = [];
         if (this.backgroundAnalyzerStatus !== AnalyzerStatus.RUNNING) {
           this.reset();

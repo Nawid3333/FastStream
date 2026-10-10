@@ -27,7 +27,7 @@ describe('timesFromLog', () => {
   it('starts again at each run, and counts a failed attempt as a line before the next', () => {
     const log = [
       line(EXT, '30:00.0000000', started(2)),
-      line(EXT, '30:30.0000000', '[0-0] FAILED in firefox - ' + spec('ext-specs/vad.e2e.mjs')),
+      line(EXT, '30:30.0000000', '[0-0] FAILED in firefox - ' + spec('ext-specs/options-mpv.e2e.mjs')),
       line(EXT, '30:40.0000000', '[0-1] PASSED in firefox - ' + spec('ext-specs/mpv.e2e.mjs')),
       // The classic suite's run, in the same step: its own onPrepare is not timed.
       line(EXT, '31:30.0000000', started(1)),

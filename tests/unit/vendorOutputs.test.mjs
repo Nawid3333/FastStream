@@ -21,7 +21,7 @@ describe('sync-vendor outputs', () => {
   });
 
   it('are gitignored and not committed', () => {
-    expect(outputs.length).toBeGreaterThanOrEqual(15);
+    expect(outputs.length).toBeGreaterThanOrEqual(12);
     const ignored = fs.readFileSync(path.join(root, '.gitignore'), 'utf8').split('\n').map((line) => line.trim());
     const isIgnored = (file) => ignored.some((line) => line === file || (line.endsWith('/') && file.startsWith(line)));
     expect(outputs.filter((file) => !isIgnored(file))).toEqual([]);

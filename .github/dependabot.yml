@@ -42,12 +42,10 @@ updates:
       - 'dependencies'
     groups:
       # Keep in step with tools/sync-vendor.mjs: the unpatched libraries it copies.
-      # The patched ones are ignored below. A new onnxruntime-web must score the voice
-      # detector's reference signal as before (tests/e2e/ext-specs/vad.e2e.mjs), and a
-      # new mediabunny must write files that read back sample for sample
-      # (tests/e2e/specs/modules.e2e.mjs).
+      # The patched ones are ignored below. A new mediabunny must write files that read
+      # back sample for sample (tests/e2e/specs/modules.e2e.mjs).
       shipped-minor-and-patch:
-        patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
+        patterns: ['fuse.js', 'mediabunny', 'sortablejs']
         update-types: ['minor', 'patch']
       # Stryker's packages come out together, and each requires the others at its own
       # version exactly (@stryker-mutator/vitest-runner's peerDependencies): one pull
@@ -57,7 +55,7 @@ updates:
       stryker:
         patterns: ['@stryker-mutator/*']
       tooling-minor-and-patch:
-        exclude-patterns: ['fuse.js', 'mediabunny', 'onnxruntime-web', 'sortablejs']
+        exclude-patterns: ['fuse.js', 'mediabunny', 'sortablejs']
         update-types: ['minor', 'patch']
     # These libraries ship with a pnpm patch (pnpm-workspace.yaml,
     # patchedDependencies), and each patch is keyed to its exact version. A bump

@@ -79,10 +79,8 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
-  '.wasm': 'application/wasm',
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
-  '.onnx': 'application/octet-stream',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   // The local HLS fixtures, with the types HLS servers send.

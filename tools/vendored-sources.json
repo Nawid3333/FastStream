@@ -21,13 +21,6 @@
       "repo": "indutny/fft.js",
       "path": "lib/fft.js",
       "ref": "d73c1546ec9e43757a6d5a7a24fa3e1061b67f84"
-    },
-    {
-      "name": "vad-web",
-      "copy": "chrome/player/modules/vad/vad.mjs",
-      "repo": "ricky0123/vad",
-      "path": "packages/web/src",
-      "ref": "43e20495ffdfbf4320c88bc910febaf032a06829"
     }
   ]
 }

@@ -249,7 +249,6 @@ export class SubtitleSyncer extends EventEmitter {
     fineTimeControls.on('render', this.renderHandle);
     fineTimeControls.ui.timelineTrackContainer.appendChild(this.ui.timelineTrack);
     fineTimeControls.ui.timelineAudio.style.height = '22px';
-    fineTimeControls.shouldRenderVAD(true);
 
     this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_resynctool_instructions'), 'info', 5000);
   }
@@ -259,7 +258,6 @@ export class SubtitleSyncer extends EventEmitter {
     fineTimeControls.off('render', this.renderHandle);
     fineTimeControls.ui.timelineAudio.style.height = '';
     this.ui.timelineTrack.remove();
-    fineTimeControls.shouldRenderVAD(false);
 
     this.client.interfaceController.setStatusMessage('subtitles');
   }

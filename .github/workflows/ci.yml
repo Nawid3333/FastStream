@@ -141,8 +141,8 @@ jobs:
       # docs/vendored-libraries.md lists, and compares. An edit to one of those files that
       # is not added to its check fails here - verify:vtt was red for three days
       # (2026-09-22 to 09-25) when nothing ran it. Early, because they take seconds.
-      - name: Vendored file provenance (vtt.js, knob, VAD model)
-        run: pnpm run verify:vtt && pnpm run verify:knob && pnpm run verify:vad
+      - name: Vendored file provenance (vtt.js, knob)
+        run: pnpm run verify:vtt && pnpm run verify:knob
 
       # fsaunpack, the .fsa archive helper, has its own npm lockfile and nothing else runs
       # it: this installs that lockfile (install scripts off) and starts its test server,
