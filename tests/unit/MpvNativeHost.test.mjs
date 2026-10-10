@@ -665,5 +665,22 @@ describe('the debug log', () => {
     debugLog({debug: true}, 'again', {n: 2}, file);
     expect(fs.readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(2);
   });
+
+  it('logs for FASTSTREAM_MPV_DEBUG=1, not for 0', () => {
+    // Any value turned it on, "0" too (final review, 2026-10-10).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-log-'));
+    dirs.push(dir);
+    const file = path.join(dir, 'faststream-mpv-host.log');
+    try {
+      vi.stubEnv('FASTSTREAM_MPV_DEBUG', '0');
+      debugLog({}, 'off', {}, file);
+      expect(fs.existsSync(file)).toBe(false);
+      vi.stubEnv('FASTSTREAM_MPV_DEBUG', '1');
+      debugLog({}, 'on', {}, file);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).label).toBe('on');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 

@@ -97,7 +97,9 @@ export const MaxLogBytes = 5 * 1024 * 1024;
  * @return {void}
  */
 export function debugLog(config, label, detail, file = path.join(__dirname, 'faststream-mpv-host.log')) {
-  if (!config.debug && !process.env.FASTSTREAM_MPV_DEBUG) {
+  // Set and not "0": any value turned it on, "0" too.
+  const envDebug = process.env.FASTSTREAM_MPV_DEBUG;
+  if (!config.debug && (!envDebug || envDebug === '0')) {
     return;
   }
   try {
