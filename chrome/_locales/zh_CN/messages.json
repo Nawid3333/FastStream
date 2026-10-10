@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "与播放器交互以启用下载加速"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "拖动粉色线条，设置片段需要安静到什么程度才会被跳过"
+    },
+    "loop_menu_now": {
+        "message": "使用当前时间"
+    },
+    "player_segment_intro": {
+        "message": "片头"
+    },
+    "player_segment_outro": {
+        "message": "片尾"
+    },
     "player_skipintro": {
         "message": "跳过片头"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "开始"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "视频结尾"
     },
     "loop_menu_end": {
         "message": "结束"

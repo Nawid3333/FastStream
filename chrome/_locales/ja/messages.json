@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "ダウンロードの高速化を有効にするには、動画を再生してください"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "ピンク色の線をドラッグして、どれくらい静かな部分をスキップするかを設定します。"
+    },
+    "loop_menu_now": {
+        "message": "現在の再生位置を使用"
+    },
+    "player_segment_intro": {
+        "message": "イントロ"
+    },
+    "player_segment_outro": {
+        "message": "アウトロ"
+    },
     "player_skipintro": {
         "message": "イントロをスキップ"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "開始"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "動画の終わり"
     },
     "loop_menu_end": {
         "message": "終了"

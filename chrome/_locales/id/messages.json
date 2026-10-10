@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Berinteraksi untuk mengaktifkan percepatan unduhan"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Seret garis merah muda untuk mengatur seberapa senyap bagian harus agar dapat dilewati"
+    },
+    "loop_menu_now": {
+        "message": "Gunakan waktu saat ini"
+    },
+    "player_segment_intro": {
+        "message": "Intro"
+    },
+    "player_segment_outro": {
+        "message": "Outro"
+    },
     "player_skipintro": {
         "message": "Lewati Intro"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Mulai"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Akhir video"
     },
     "loop_menu_end": {
         "message": "Akhir"

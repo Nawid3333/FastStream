@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "다운로드 가속을 사용하려면 상호작용하세요."
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "분홍 선을 끌어서 건너뛸 구간이 얼마나 조용해야 하는지 설정하세요"
+    },
+    "loop_menu_now": {
+        "message": "현재 시간 사용"
+    },
+    "player_segment_intro": {
+        "message": "인트로"
+    },
+    "player_segment_outro": {
+        "message": "아웃트로"
+    },
     "player_skipintro": {
         "message": "인트로 건너뛰기"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "시작"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "비디오 끝"
     },
     "loop_menu_end": {
         "message": "끝"

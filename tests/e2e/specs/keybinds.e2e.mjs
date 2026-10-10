@@ -388,6 +388,34 @@ describe('Keybinds', function() {
       expect(await rate()).toBe(3);
     });
   }
+
+  // AltGr types a character (@, €, { on a German keyboard), and Windows reports it as
+  // Ctrl+Alt: typed into a field, it fired Right Alt's "hide player" (review, 2026-10-09).
+  it('does not hide the player for AltGr typed in a field, while Right Alt still does', async function() {
+    const altGr = (target) => browser.execute((target) => {
+      const element = target ? document.getElementById(target) : document.body;
+      element.dispatchEvent(new KeyboardEvent('keydown', {key: 'AltGraph', code: 'AltRight', ctrlKey: true,
+        altKey: true, modifierAltGraph: true, bubbles: true, cancelable: true}));
+      return window.fastStream.interfaceController.hidden;
+    }, target);
+    await browser.execute(() => {
+      const field = document.createElement('input');
+      field.id = 'e2e-typing';
+      document.body.appendChild(field);
+      field.focus();
+    });
+    expect(await altGr('e2e-typing')).toBeFalsy();
+
+    // Right Alt where it is no AltGr (a US keyboard), outside a field: the player hides.
+    await browser.execute(() => {
+      document.getElementById('e2e-typing').remove();
+      document.activeElement?.blur();
+      document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Alt', code: 'AltRight', altKey: true,
+        bubbles: true, cancelable: true}));
+    });
+    expect(await browser.execute(() => window.fastStream.interfaceController.hidden)).toBe(true);
+    await browser.execute(() => window.fastStream.interfaceController.toggleHide());
+  });
 });
 
 describe('Keybinds saved before the layout changed', function() {

@@ -200,6 +200,10 @@ export class InterfaceController {
     this.failed = false;
     this.setStatusMessage('error', null, 'error');
     this.setStatusMessage('chapter', null, 'error');
+    // The last video's download line stayed up over a next video that never loaded.
+    this.setStatusMessage('download', null, 'success');
+    // And its "all buffered" was the next one's: one buffered from the start never said so.
+    this.shownDownloadComplete = false;
     // The next video may never have fragments to count, and then nothing else hides it.
     DOMElements.resetFailed.style.display = 'none';
     this.stopProgressLoop();
@@ -297,12 +301,14 @@ export class InterfaceController {
       this.lastSpeed = newSpeed;
     }
 
+    // In Mbit/s, the unit of the speed setting and of speed tests: MB/s here beside a limit in
+    // Mbit/s read 8 times too low. The downloader count ("3C") meant nothing to a user.
     let speed = this.lastSpeed; // bytes per second
-    speed = Math.round(speed / 1000 / 1000 * 10) / 10; // MB per second
+    speed = Math.round(speed * 8 / 1000 / 1000 * 10) / 10; // Mbit per second
 
     if (total === 0 || loaded < total) {
       this.shownDownloadComplete = false;
-      this.setStatusMessage('download', `${this.client.downloadManager.downloaders.length}C ↓${speed}MB/s ${percentDone}%`, 'success');
+      this.setStatusMessage('download', `↓${speed} Mbit/s ${percentDone}%`, 'success');
     } else if (!this.shownDownloadComplete) {
       this.shownDownloadComplete = true;
       this.setStatusMessage('download', Localize.getMessage('player_fragment_allbuffered'), 'success', 2000);
@@ -1089,6 +1095,9 @@ export class InterfaceController {
       }
     }
 
+    // Nothing to copy (no source, or none that can be copied): the clipboard was emptied, and
+    // "Link copied" said otherwise.
+    if (!copyURL) return;
     await WebUtils.copyText(copyURL, DOMElements.playerContainer);
 
     this.setStatusMessage(StatusTypes.COPY, Localize.getMessage('source_copied'), 'info', 2000);

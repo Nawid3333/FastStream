@@ -233,6 +233,18 @@
     "player_needs_interaction": {
         "message": "Взаимодействуйте со страницей, чтобы включить ускорение загрузки"
     },
+    "player_silenceskip_threshold_hint": {
+        "message": "Перетащите розовую линию, чтобы задать, насколько тихим должен быть участок, чтобы его пропускали"
+    },
+    "loop_menu_now": {
+        "message": "Использовать текущее время"
+    },
+    "player_segment_intro": {
+        "message": "Интро"
+    },
+    "player_segment_outro": {
+        "message": "Аутро"
+    },
     "player_skipintro": {
         "message": "Пропустить вступление"
     },
@@ -493,6 +505,9 @@
     },
     "loop_menu_start": {
         "message": "Начало"
+    },
+    "loop_menu_end_placeholder": {
+        "message": "Конец видео"
     },
     "loop_menu_end": {
         "message": "Конец"
