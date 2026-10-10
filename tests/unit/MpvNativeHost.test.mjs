@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, SubtitleDirPrefix, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -664,6 +664,32 @@ describe('the debug log', () => {
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).label).toBe('next');
     debugLog({debug: true}, 'again', {n: 2}, file);
     expect(fs.readFileSync(file, 'utf8').trim().split('\n')).toHaveLength(2);
+  });
+
+  it('logs for FASTSTREAM_MPV_DEBUG=1, not for 0', () => {
+    // Any value turned it on, "0" too (final review, 2026-10-10).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-host-log-'));
+    dirs.push(dir);
+    const file = path.join(dir, 'faststream-mpv-host.log');
+    try {
+      vi.stubEnv('FASTSTREAM_MPV_DEBUG', '0');
+      debugLog({}, 'off', {}, file);
+      expect(fs.existsSync(file)).toBe(false);
+      vi.stubEnv('FASTSTREAM_MPV_DEBUG', '1');
+      debugLog({}, 'on', {}, file);
+      expect(JSON.parse(fs.readFileSync(file, 'utf8')).label).toBe('on');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('takes 1, true, yes and on as on, anything else as off', () => {
+    for (const value of ['1', 'true', 'TRUE', 'yes', 'On', ' 1 ']) {
+      expect(debugFromEnvironment(value)).toBe(true);
+    }
+    for (const value of [undefined, '', '0', 'false', 'off', 'no', '2', 'debug']) {
+      expect(debugFromEnvironment(value)).toBe(false);
+    }
   });
 });
 

@@ -67,7 +67,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 5;
+export const HostVersion = 6;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -84,6 +84,17 @@ const DefaultMpvPaths = [
 export const MaxLogBytes = 5 * 1024 * 1024;
 
 /**
+ * Whether FASTSTREAM_MPV_DEBUG switches the debug log on: 1, true, yes or on, in any case.
+ * Any value did, "0" and "false" too, and someone who set it to 0 to be sure got a log of
+ * every stream and page they sent to mpv (final review, 2026-10-10).
+ * @param {string|undefined} value - The variable's value.
+ * @return {boolean}
+ */
+export function debugFromEnvironment(value) {
+  return typeof value === 'string' && /^\s*(1|true|yes|on)\s*$/i.test(value);
+}
+
+/**
  * Appends one line to the debug log, when debugging is switched on with
  * `{"debug": true}` in config.json or FASTSTREAM_MPV_DEBUG=1.
  *
@@ -97,7 +108,7 @@ export const MaxLogBytes = 5 * 1024 * 1024;
  * @return {void}
  */
 export function debugLog(config, label, detail, file = path.join(__dirname, 'faststream-mpv-host.log')) {
-  if (!config.debug && !process.env.FASTSTREAM_MPV_DEBUG) {
+  if (!config.debug && !debugFromEnvironment(process.env.FASTSTREAM_MPV_DEBUG)) {
     return;
   }
   try {

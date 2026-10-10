@@ -47,13 +47,14 @@ function stopTree(child) {
  * Runs install.ps1 with the given arguments.
  * @param {string[]} args - Script arguments.
  * @param {string} [script] - The script; the repository's by default.
+ * @param {string} [cwd] - The folder it runs in; this process's by default.
  * @return {Promise<string>} Its output, warnings included.
  */
-function install(args, script = path.join(root, 'native-host', 'install.ps1')) {
+function install(args, script = path.join(root, 'native-host', 'install.ps1'), cwd = undefined) {
   return new Promise((resolve, reject) => {
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
       '-File', script, ...args],
-    {windowsHide: true}, (error, stdout, stderr) => {
+    {windowsHide: true, cwd}, (error, stdout, stderr) => {
       if (error) reject(new Error(`install.ps1 failed: ${error.message}\n${stdout}\n${stderr}`));
       else resolve(stdout + stderr);
     });
@@ -188,6 +189,23 @@ describe.runIf(process.platform === 'win32')('install.ps1 run again', () => {
     const config = JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8'));
     expect(config).toEqual({mpvPath: mpv, ipcToken: expect.stringMatching(/^[0-9a-f]{32}$/)});
   }, 60000);
+
+  // Saved as it was, a relative path was read from the folder Firefox starts the host in,
+  // and no mpv was found there (final review, 2026-10-10). A bare name stays for PATH.
+  it('saves a relative mpv path as the full path, and a bare name as it is', async () => {
+    const installDir = path.join(dir, 'FastStreamMpvHost');
+    const mpv = path.join(dir, 'portable', 'mpv.exe');
+    fs.mkdirSync(path.dirname(mpv));
+    fs.writeFileSync(mpv, '');
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', '.\\portable\\mpv.exe', '-NodePath', process.execPath],
+        undefined, dir);
+    expect(JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).mpvPath).toBe(mpv);
+
+    await install(['-InstallDir', installDir, '-NoRegister', '-MpvPath', 'mpv', '-NodePath', process.execPath],
+        undefined, dir);
+    expect(JSON.parse(fs.readFileSync(path.join(installDir, 'config.json'), 'utf8')).mpvPath).toBe('mpv');
+  }, 90000);
 });
 
 describe.runIf(process.platform === 'win32')('install.ps1 under unusual folder names (#242)', () => {
