@@ -451,9 +451,11 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
           // On -> MPV
           await startMpv(tab);
         } else {
-          // Off -> On
+          // Off -> On: the user's own On, as the plain toggle's, not the list's. Marked as
+          // the list's start (regexMatched), it went off again on the first page of the
+          // site outside the list (his call, 2026-10-10: it stays for the tab).
           tab.isOn = true;
-          tab.regexMatched = true;
+          tab.regexMatched = false;
           BackgroundUtils.updateTabIcon(tab);
           openPlayersWithSources(tab);
         }
