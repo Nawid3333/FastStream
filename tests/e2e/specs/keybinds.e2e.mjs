@@ -884,8 +884,10 @@ describe('The 16x key', function() {
     console.log(`      16x key: ${JSON.stringify(fast)}`);
     expect(fast.rate).toBe(16);
     expect(fast.osd).toBe(`16× · ${en.player_speed_nosound.message}`);
-    // Faster than 8x: the video does run past the sound.
-    expect(fast.pace).toBeGreaterThan(8);
+    // Well past 1x: a video taken by Web Audio without an audio track stays at 1x whatever
+    // the rate (sample.mp4, above). How fast it really goes is the decoder's: 15.6x here, 4.5x
+    // on a Linux CI runner (2026-10-10).
+    expect(fast.pace).toBeGreaterThan(2);
 
     // The speed-up key leaves it there (min() took it down to 8x).
     await pressKey('KeyD');
