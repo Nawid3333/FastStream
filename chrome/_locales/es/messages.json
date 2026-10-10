@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM para el vídeo en búfer (todas las pestañas)"
     },
+    "options_general_nolimit": {
+        "message": "Sin límite"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: no se descarga nada por adelantado, por lo que los videos podrían detenerse para cargar. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: no se predescarga nada; solo se mantienen en el búfer los segundos establecidos a continuación. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: el video descargado no se guarda en la RAM, sino en el disco, salvo los próximos segundos. En una ventana privada, que no guarda nada en el disco, no se descarga nada por adelantado. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_rambudget_none": {
+        "message": "Sin límite: todo el video descargado permanece en la RAM, nada se guarda en el disco. En un PC con poca memoria, Firefox puede volverse más lento."
+    },
     "options_general_bufferahead": {
         "message": "Segundos de vídeo que se mantienen en el búfer por delante de la reproducción (se usa cuando la descarga previa está desactivada, se ha detenido o se queda sin espacio)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: no se mantiene nada en el búfer por delante de la reproducción, así que el video suele detenerse para cargar. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Sin límite: se descarga todo el video por adelantado, incluso con la descarga previa desactivada: primero en RAM y luego en el disco cuando se llena el límite de RAM de arriba. Si la velocidad de descarga de arriba es 0, no se descarga nada por adelantado."
+    },
     "options_general_bufferbehind": {
         "message": "Segundos que se mantienen en el búfer por detrás de la reproducción antes de descartarse"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: el video ya reproducido se descarta de inmediato; si retrocedes, se vuelve a cargar. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Sin límite: se conserva todo lo que ya se ha reproducido, primero en RAM y luego en el disco cuando se llena el límite de RAM de arriba."
     },
     "options_general_blockpopups": {
         "message": "Bloquear los popups/popunders que se abren justo después de hacer clic en el reproductor"
@@ -1134,7 +1161,7 @@
         "message": "Restablecer a los valores predeterminados"
     },
     "options_keybinds_press": {
-        "message": "Pulse una tecla"
+        "message": "Pulsa una tecla, o Escape para quitar la asignación"
     },
     "options_keybinds_conflict": {
         "message": "También lo usa $1"

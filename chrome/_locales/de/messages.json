@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
+    "options_general_nolimit": {
+        "message": "Keine Begrenzung"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: Es wird nichts vorab heruntergeladen, daher können Videos anhalten, um zu laden. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: Es wird nichts vorab geladen; nur die unten eingestellte Anzahl von Sekunden wird im Voraus zwischengespeichert. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_none": {
+        "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."
+    },
     "options_general_bufferahead": {
         "message": "Sekunden, die ab der Wiedergabeposition im Voraus gepuffert bleiben (genutzt, wenn Vorab-Laden deaktiviert ist, gestoppt wurde oder der Speicherplatz ausgeht)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: Nichts wird im Voraus gepuffert, daher bleibt das Video oft zum Laden stehen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Keine Begrenzung: Das gesamte Video wird vorgeladen, auch wenn Vorab-Laden deaktiviert ist – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist. Ist die obige Download-Geschwindigkeit 0, wird nichts vorgeladen."
+    },
     "options_general_bufferbehind": {
         "message": "Sekunden, die hinter der Wiedergabeposition gepuffert bleiben, bevor sie verworfen werden"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: Bereits abgespieltes Video wird sofort verworfen; beim Zurückspulen wird es neu geladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Keine Begrenzung: Alles, was bereits abgespielt wurde, bleibt erhalten – erst im Arbeitsspeicher, dann auf der Festplatte, sobald das obige Arbeitsspeicher-Limit voll ist."
     },
     "options_general_blockpopups": {
         "message": "Popups/Pop-unders blockieren, die direkt nach dem Klick auf den Player geöffnet werden"
@@ -1134,7 +1161,7 @@
         "message": "Auf Standard zurücksetzen"
     },
     "options_keybinds_press": {
-        "message": "Drücke eine Taste"
+        "message": "Drücke eine Taste oder Esc, um keine Tastenbelegung festzulegen"
     },
     "options_keybinds_conflict": {
         "message": "Auch belegt von $1"

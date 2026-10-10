@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
+    "options_general_nolimit": {
+        "message": "Sınırsız"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: oynatma noktasının ilerisinde hiçbir şey indirilmez, bu yüzden videolar yükleme için durabilir. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: hiçbir şey önceden indirilmez; yalnızca aşağıda ayarlanan saniye sayısı oynatma noktasının ilerisinde tutulur. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_none": {
+        "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."
+    },
     "options_general_bufferahead": {
         "message": "Oynatma noktasının ilerisinde arabellekte tutulacak saniye sayısı (ön indirme kapalıysa, durduysa veya yer kalmadıysa kullanılır)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: oynatma noktasının ilerisinde hiçbir şey arabellekte tutulmaz, bu yüzden video sık sık yükleme için durur. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Sınırsız: ön indirme kapalıyken bile videonun tamamı önceden indirilir; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur. Yukarıdaki indirme hızı 0 ise, hiçbir şey önceden indirilmez."
+    },
     "options_general_bufferbehind": {
         "message": "Oynatma noktasının gerisinde, budamadan önce arabellekte tutulacak saniye sayısı"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: oynatılmış kısım hemen atılır; geriye sarmak onu yeniden yükler. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Sınırsız: oynatılmış her şey tutulur; önce RAM'de, yukarıdaki RAM sınırı dolunca diskte tutulur."
     },
     "options_general_blockpopups": {
         "message": "Oynatıcıya tıkladıktan hemen sonra açılan açılır pencereleri/popunder'ları engelle"
@@ -1134,7 +1161,7 @@
         "message": "Varsayılara Sıfırla"
     },
     "options_keybinds_press": {
-        "message": "Bir tuşa basın"
+        "message": "Bir tuşa basın ya da hiçbiri için Escape'e basın"
     },
     "options_keybinds_conflict": {
         "message": "Şunun tarafından da kullanılıyor: $1"

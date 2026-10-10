@@ -534,6 +534,18 @@ button:focus-visible {
 
 /* A number with its unit: a picker (MB, GB) or a fixed one (Mbit/s). Typed by hand, "10 Mb"
    or "10 Mo" left users unsure what the field took (#378). */
+/* What 0 or no limit does, under a limit's field (options.mjs showLimitHint). */
+.option.grid2 .limit-hint {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+  opacity: 0.8;
+  margin-top: calc(-1 * var(--space-1));
+}
+
+.option.grid2 .limit-hint[hidden] {
+  display: none;
+}
+
 .option.grid2 .amount {
   grid-column: 2;
   display: flex;

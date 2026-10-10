@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
     },
+    "options_general_nolimit": {
+        "message": "Pas de limite"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0 : rien n'est téléchargé à l'avance, les vidéos peuvent donc s'arrêter pour charger. Laissez le champ vide pour supprimer la limite."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0 : rien n'est préchargé ; seules les secondes définies ci-dessous sont conservées en mémoire tampon. Laissez le champ vide pour supprimer la limite."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0 : la vidéo téléchargée n'est pas conservée en mémoire vive, mais sur le disque, à l'exception des prochaines secondes. Dans une fenêtre de navigation privée, qui ne conserve rien sur le disque, rien n'est téléchargé à l'avance. Laissez le champ vide pour supprimer la limite."
+    },
+    "options_general_rambudget_none": {
+        "message": "Pas de limite : toute la vidéo téléchargée reste dans la mémoire vive, rien n'est transféré sur le disque. Sur un PC avec peu de mémoire, Firefox peut ralentir."
+    },
     "options_general_bufferahead": {
         "message": "Secondes à conserver en mémoire tampon devant la lecture (utilisé lorsque le pré-téléchargement est désactivé, arrêté ou à court d'espace)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0 : rien n'est conservé en mémoire tampon devant la lecture, la vidéo s'arrête donc souvent pour charger. Laissez le champ vide pour ne définir aucune limite."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Aucune limite : toute la vidéo est téléchargée à l'avance, même si le pré-téléchargement est désactivé : dans la mémoire vive, puis sur le disque une fois la limite de mémoire vive ci-dessus atteinte. Si la vitesse de téléchargement ci-dessus est de 0, rien n'est téléchargé à l'avance."
+    },
     "options_general_bufferbehind": {
         "message": "Secondes à conserver en mémoire tampon derrière la lecture avant leur suppression"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0 : la vidéo déjà lue est immédiatement supprimée ; revenir en arrière la recharge. Laissez le champ vide pour ne définir aucune limite."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Aucune limite : tout ce qui a déjà été lu est conservé dans la mémoire vive, puis sur le disque une fois la limite de mémoire vive ci-dessus atteinte."
     },
     "options_general_blockpopups": {
         "message": "Bloquer les popups/popunders ouverts juste après avoir cliqué sur le lecteur"
@@ -1134,7 +1161,7 @@
         "message": "Réinitialiser aux valeurs par défaut"
     },
     "options_keybinds_press": {
-        "message": "Appuyez sur une touche"
+        "message": "Appuyez sur une touche, ou sur Échap pour désactiver"
     },
     "options_keybinds_conflict": {
         "message": "Également utilisé par $1"

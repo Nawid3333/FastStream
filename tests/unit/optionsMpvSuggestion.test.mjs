@@ -200,6 +200,20 @@ describe('the offer to turn MPV mode on', () => {
     expect(page.banner().hidden).toBe(true);
   });
 
+  // Its "MPV mode is on" stayed up, untrue, until closed by hand (review, 2026-10-09).
+  it('goes once taken when MPV mode is turned off again', async () => {
+    const page = await openOptionsPage();
+    page.byId('mpvsuggestyes').fire('click');
+    await settle();
+    expect(page.banner().hidden).toBe(false);
+    const toggle = page.byId('mpvmode');
+    toggle.checked = false;
+    toggle.fire('change');
+    await settle();
+    expect(page.savedOptions().mpvMode).toBe(false);
+    expect(page.banner().hidden).toBe(true);
+  });
+
   it('goes when MPV mode is turned on with the checkbox instead', async () => {
     const page = await openOptionsPage();
     expect(page.banner().hidden).toBe(false);

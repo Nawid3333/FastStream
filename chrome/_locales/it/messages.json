@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM per il video nel buffer (tutte le schede)"
     },
+    "options_general_nolimit": {
+        "message": "Nessun limite"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: non viene scaricato nulla in anticipo, quindi i video potrebbero interrompersi per caricare. Lascia vuoto il campo per rimuovere il limite."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: non viene precaricato nulla; solo i secondi impostati qui sotto vengono mantenuti davanti alla riproduzione. Lascia vuoto il campo per rimuovere il limite."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: il video scaricato non viene tenuto in RAM ma su disco, tranne i prossimi secondi. In una finestra privata, che non salva nulla su disco, non viene scaricato nulla in anticipo. Lascia vuoto il campo per rimuovere il limite."
+    },
+    "options_general_rambudget_none": {
+        "message": "Nessun limite: tutto il video scaricato rimane nella RAM, nulla viene salvato su disco. Su un PC con poca memoria, Firefox potrebbe rallentare."
+    },
     "options_general_bufferahead": {
         "message": "Secondi da mantenere nel buffer davanti alla riproduzione (usato quando lo scaricamento anticipato è disattivato, si è arrestato o ha esaurito lo spazio)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: non viene mantenuto nulla nel buffer davanti alla riproduzione, quindi il video si ferma spesso per caricare. Lascia il campo vuoto per non avere limiti."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Nessun limite: l'intero video viene scaricato in anticipo, anche quando lo scaricamento anticipato è disattivato: in RAM, poi su disco una volta raggiunto il limite di RAM sopra. Se la velocità di download sopra è 0, non viene scaricato nulla in anticipo."
+    },
     "options_general_bufferbehind": {
         "message": "Secondi da mantenere nel buffer dietro la posizione di riproduzione prima di scartarli"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: il video già riprodotto viene eliminato subito; tornando indietro viene ricaricato. Lascia il campo vuoto per non avere limiti."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Nessun limite: tutto quello che è già stato riprodotto viene mantenuto, in RAM e poi su disco una volta raggiunto il limite di RAM sopra."
     },
     "options_general_blockpopups": {
         "message": "Blocca i popup/popunder aperti subito dopo un clic sul lettore"
@@ -1134,7 +1161,7 @@
         "message": "Ripristina Impostazioni Predefinite"
     },
     "options_keybinds_press": {
-        "message": "Premi un tasto"
+        "message": "Premi un tasto, o Esc per disattivare"
     },
     "options_keybinds_conflict": {
         "message": "Usato anche da $1"

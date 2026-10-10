@@ -968,11 +968,38 @@
     "options_general_rambudget": {
         "message": "RAM na buforowane wideo (wszystkie karty)"
     },
+    "options_general_nolimit": {
+        "message": "Brak limitu"
+    },
+    "options_general_targetspeed_zero": {
+        "message": "0: nic nie jest pobierane z wyprzedzeniem, więc wideo może zatrzymywać się, żeby się wczytać. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_maxsize_zero": {
+        "message": "0: nic nie jest wstępnie pobierane; w buforze trzymane są tylko sekundy ustawione poniżej. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_rambudget_zero": {
+        "message": "0: pobrane wideo nie jest trzymane w RAM, lecz na dysku – z wyjątkiem kolejnych sekund. W oknie prywatnym, które niczego nie zapisuje na dysku, nic nie jest pobierane z wyprzedzeniem. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_rambudget_none": {
+        "message": "Brak limitu: całe pobrane wideo zostaje w RAM, a nic nie trafia na dysk. Na komputerze z małą ilością pamięci Firefox może zwalniać."
+    },
     "options_general_bufferahead": {
         "message": "Sekundy jeszcze nieodtworzonego wideo trzymane w buforze (używane, gdy wstępne pobieranie jest wyłączone, zatrzymane lub skończyło się miejsce)"
     },
+    "options_general_bufferahead_zero": {
+        "message": "0: nic nie jest trzymane w buforze z wyprzedzeniem, więc wideo często zatrzymuje się, żeby się wczytać. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_bufferahead_none": {
+        "message": "Brak limitu: całe wideo jest pobierane z wyprzedzeniem, nawet gdy wstępne pobieranie jest wyłączone: najpierw w RAM, a gdy wyczerpie się powyższy limit RAM, na dysku. Jeśli powyższa szybkość pobierania wynosi 0, nic nie jest pobierane z wyprzedzeniem."
+    },
     "options_general_bufferbehind": {
         "message": "Sekundy już odtworzonego wideo trzymane w buforze, zanim zostaną usunięte"
+    },
+    "options_general_bufferbehind_zero": {
+        "message": "0: odtworzone wideo jest od razu usuwane; przewinięcie w tył wczytuje je ponownie. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_bufferbehind_none": {
+        "message": "Brak limitu: wszystko, co już odtworzono, jest trzymane najpierw w RAM, a gdy wyczerpie się powyższy limit RAM, na dysku."
     },
     "options_general_blockpopups": {
         "message": "Blokuj pop-upy/pop-undery otwierane od razu po kliknięciu odtwarzacza"
@@ -1134,7 +1161,7 @@
         "message": "Przywróć domyślne"
     },
     "options_keybinds_press": {
-        "message": "Naciśnij klawisz"
+        "message": "Naciśnij klawisz lub Escape, aby nie ustawiać żadnego"
     },
     "options_keybinds_conflict": {
         "message": "Używany także przez $1"

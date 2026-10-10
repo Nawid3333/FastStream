@@ -49,11 +49,14 @@ export class CSSFilterUtils {
    */
   static getTransformString(options) {
     const transforms = [];
+    // A zoom of 0 (or none at all) is no zoom: scale(0) hid the video. An emptied zoom field
+    // was saved as 0 by older versions, and the slider went down to 0 % (review).
+    const zoom = options.videoZoom > 0 ? options.videoZoom : 1;
 
     if (options.videoFlip !== 0) {
-      transforms.push(`scaleX(${options.videoFlip % 2 === 0 ? options.videoZoom : -options.videoZoom}) scaleY(${options.videoFlip > 1 ? -options.videoZoom : options.videoZoom})`);
-    } else if (options.videoZoom !== 1) {
-      transforms.push(`scale(${options.videoZoom})`);
+      transforms.push(`scaleX(${options.videoFlip % 2 === 0 ? zoom : -zoom}) scaleY(${options.videoFlip > 1 ? -zoom : zoom})`);
+    } else if (zoom !== 1) {
+      transforms.push(`scale(${zoom})`);
     }
 
     if (options.videoRotate !== 0) {
