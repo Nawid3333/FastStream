@@ -32,9 +32,9 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs by one, then put the new values here (a failure prints
 // the hashes).
 const RECORDED = {
-  version: 5,
-  host: 'fe2cb99c98d334ad28986693a2107d8bc7c267d0e5b70a2948a7bc80a6acc806',
-  installer: '40301c0365877f54d34f56b4e75ad27382d317cfaed6ab2018437acc79daef4c',
+  version: 6,
+  host: 'a5b54b39f778e5a61b7d6b89b951b889ef8c432b8ec3d371e3200d5712224500',
+  installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
 // Stryker runs this suite on a copy of the host with every mutant written into it

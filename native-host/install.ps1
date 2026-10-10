@@ -69,6 +69,12 @@ if (Test-Path -LiteralPath $configPath) {
 if (-not $PSBoundParameters.ContainsKey('MpvPath') -and $config['mpvPath'] -is [string] -and $config['mpvPath']) {
     $MpvPath = $config['mpvPath']
 }
+# A relative path (.\mpv\mpv.exe) was saved as it was, and the host, which Firefox starts
+# in a folder of its own, found no mpv there: it is saved as the full path. A bare name
+# (mpv) stays, for the host's lookup on PATH.
+if ($MpvPath -match '[\\/]' -and -not [System.IO.Path]::IsPathRooted($MpvPath)) {
+    $MpvPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($MpvPath)
+}
 $config['mpvPath'] = $MpvPath
 # The host's pipe to the mpv it starts carries this in its name (ipcPipeFor in the host):
 # pipe names are machine-wide, and another account must not be able to take ours. Random,
