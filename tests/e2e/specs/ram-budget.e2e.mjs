@@ -1,5 +1,6 @@
 // Downloaded video stays in RAM up to the RAM budget, and only what does not fit goes to disk
-// (FastStreamClient.enforceMemoryBudget, MemoryBudget). Every fragment used to be written to
+// (FastStreamClient.enforceMemoryBudget, MemoryBudget) - or, with "Keep video on disk" off,
+// is let go of and downloaded again when needed. Every fragment used to be written to
 // OPFS at once - 44 ms for a 1.5 MB fragment, measured - even for a video that fits in RAM
 // many times over.
 
@@ -23,16 +24,19 @@ let server;
  * @param {number} budget - Bytes.
  * @param {string} [playlist] - /long.m3u8, or /slow/long.m3u8: its segments come 150 ms late.
  * @param {number} [timeout] - For all of it to be downloaded.
+ * @param {boolean} [disk] - "Keep video on disk when this RAM is full".
  * @return {Promise<void>}
  */
-async function downloadAll(budget, playlist = '/long.m3u8', timeout = 120000) {
+async function downloadAll(budget, playlist = '/long.m3u8', timeout = 120000, disk = true) {
   await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}${playlist}`);
-  await browser.waitUntil(async () => browser.execute((bytes) => {
+  await browser.waitUntil(async () => browser.execute((bytes, disk) => {
     const client = window.fastStream;
     if (!client?.player || !client.fragments?.length) return false;
     client.options.ramBudget = bytes;
+    client.options.bufferToDisk = disk;
+    client.downloadManager.setBufferToDisk(disk);
     return true;
-  }, budget), {timeout: 60000, interval: 250, timeoutMsg: 'the stream never loaded'});
+  }, budget, disk), {timeout: 60000, interval: 250, timeoutMsg: 'the stream never loaded'});
   await browser.waitUntil(async () => browser.execute(() => {
     const fragments = window.fastStream.fragments;
     return fragments.length > 50 && fragments.every((fragment) => fragment && fragment.status === 3);
@@ -116,6 +120,44 @@ describe('The RAM budget', function() {
     expect(state.total).toBeGreaterThan(0);
     // All of it, and the playlist.
     expect(state.ram).toBeGreaterThanOrEqual(state.total);
+  });
+
+  it('with "Keep video on disk" off, lets go of what does not fit, writes none of it, and plays it again', async function() {
+    // The option (2026-10-10): as in a private window, what does not fit in the budget is let
+    // go of and downloaded again when needed. All of it in first (it fits in 2 GB), then a
+    // budget it does not fit in.
+    await downloadAll(2e9, '/long.m3u8', 120000, false);
+    await browser.execute(() => {
+      window.fastStream.options.ramBudget = 2e6;
+    });
+    const bound = 2e6 + 4e6;
+    let state;
+    await browser.waitUntil(async () => {
+      state = await holdings();
+      return state.ram < bound;
+    }, {timeout: 30000, interval: 500, timeoutMsg: `still more in RAM than its share: ${JSON.stringify(state)}`});
+    const released = await browser.execute(() => window.fastStream.fragments.filter((fragment) => fragment && fragment.status !== 3).length);
+    console.log(`      no disk, over the budget: ${JSON.stringify(state)}, ${released} fragments let go`);
+    expect(state.files).toBe(0);
+    expect(released).toBeGreaterThan(20);
+
+    // The start, let go of long ago, is downloaded again and plays.
+    const played = await browser.executeAsync(async (done) => {
+      const client = window.fastStream;
+      client.currentTime = 1;
+      const video = client.player.getVideo();
+      video.play().catch(() => {});
+      const start = Date.now();
+      while (Date.now() - start < 15000) {
+        if (video.currentTime > 2 && !video.seeking) break;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      done({time: video.currentTime, failed: !!client.interfaceController.failed});
+    });
+    console.log(`      downloaded again: ${JSON.stringify(played)}`);
+    expect(played.failed).toBe(false);
+    expect(played.time).toBeGreaterThan(2);
+    expect((await holdings()).files).toBe(0);
   });
 
   it('writes what does not fit to disk, and still plays it from there', async function() {

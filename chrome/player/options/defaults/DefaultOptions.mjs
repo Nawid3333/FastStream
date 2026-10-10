@@ -38,6 +38,7 @@ export const DefaultOptions = {
   maxSpeed: -1,
   maxVideoSize: 5000000000, // 5GB max size
   ramBudget: 2000000000, // downloaded video kept in RAM, all players together; beyond it: disk (private windows: let go)
+  bufferToDisk: true, // beyond the RAM budget: on disk; false: let go, downloaded again when needed (as in private windows)
   bufferAhead: 300, // seconds to keep buffered ahead of playback when predownloading is off/unavailable
   bufferBehind: 20, // seconds to keep buffered behind playback before trimming
   seekStepSize: DEFAULT_SEEK_STEP_SIZE,

@@ -93,7 +93,7 @@
         "message": "- 重做已復原的跳轉"
     },
     "welcome_page_keybinds_content17": {
-        "message": "方向鍵 - 加快/減慢播放"
+        "message": "鍵 - 加快/減慢播放 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- 開啟/關閉字幕"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "音訊軌"
+    },
+    "player_speed_nosound": {
+        "message": "無聲"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles 搜尋"
@@ -747,7 +750,7 @@
         "message": "影片選項"
     },
     "options_video_body": {
-        "message": "調整影片外觀：亮度、對比、色彩等。畫中畫模式下無法使用。"
+        "message": "縮放影片畫面，或調整影片延遲以同步聲音。影片縮放在畫中畫模式下無法使用。"
     },
     "options_video_zoom": {
         "message": "影片縮放"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"
     },
+    "options_general_buffertodisk": {
+        "message": "當此記憶體滿時將影片儲存在磁碟上（關閉：捨棄並在需要時重新下載，因此不會向磁碟寫入任何內容）"
+    },
     "options_general_nolimit": {
         "message": "無限制"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0：已下載的影片不保存在記憶體中，而是儲存到磁碟上，只有接下來幾秒會留在記憶體中。隱私視窗不會在磁碟上儲存任何內容，因此不會在播放位置前方下載任何內容。留空表示無限制。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0：不會保留任何已下載的影片，且在「當此記憶體滿時將影片儲存在磁碟上」關閉時，不會在播放位置前方下載任何內容，因此影片可能會停止載入。留空表示無限制。"
     },
     "options_general_rambudget_none": {
         "message": "無限制：所有已下載的影片都保留在記憶體中，不會存到磁碟。記憶體較少的電腦上，Firefox 可能會變慢。"
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "薄荷清新"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED 純黑"
     },
     "options_general_vischangeaction_pip": {
         "message": "切換畫中畫"

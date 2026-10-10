@@ -93,7 +93,7 @@
         "message": "- Rétablir le saut annulé"
     },
     "welcome_page_keybinds_content17": {
-        "message": "Touches fléchées - lecture plus rapide/lente"
+        "message": "Touches - lecture plus rapide/lente de 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Activer/désactiver les sous-titres"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Pistes audio"
+    },
+    "player_speed_nosound": {
+        "message": "sans son"
     },
     "player_opensubtitles_title": {
         "message": "Recherche OpenSubtitles"
@@ -747,7 +750,7 @@
         "message": "Options vidéo"
     },
     "options_video_body": {
-        "message": "Modifie l'apparence de la vidéo : luminosité, contraste, couleurs, etc. Ne fonctionne pas en mode image dans l'image."
+        "message": "Zoomez sur l'image ou ajustez le décalage vidéo par rapport au son. Le zoom vidéo ne fonctionne pas en mode image dans l'image."
     },
     "options_video_zoom": {
         "message": "Zoom vidéo"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "Mémoire vive pour la vidéo en mémoire tampon (tous les onglets)"
     },
+    "options_general_buffertodisk": {
+        "message": "Conserver la vidéo sur le disque lorsque cette mémoire vive est pleine (désactivé : la supprimer et la télécharger à nouveau si besoin, pour ne rien écrire sur le disque)"
+    },
     "options_general_nolimit": {
         "message": "Pas de limite"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0 : la vidéo téléchargée n'est pas conservée en mémoire vive, mais sur le disque, à l'exception des prochaines secondes. Dans une fenêtre de navigation privée, qui ne conserve rien sur le disque, rien n'est téléchargé à l'avance. Laissez le champ vide pour supprimer la limite."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0 : aucune vidéo téléchargée n'est conservée et, avec « Conserver la vidéo sur le disque » désactivé, rien n'est téléchargé à l'avance, ce qui peut provoquer des interruptions de lecture. Laissez le champ vide pour supprimer la limite."
     },
     "options_general_rambudget_none": {
         "message": "Pas de limite : toute la vidéo téléchargée reste dans la mémoire vive, rien n'est transféré sur le disque. Sur un PC avec peu de mémoire, Firefox peut ralentir."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menthe fraîche"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Noir OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Basculer l'image dans l'image"

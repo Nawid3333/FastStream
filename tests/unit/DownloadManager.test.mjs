@@ -5,12 +5,19 @@ import {DownloadStatus} from '../../chrome/player/enums/DownloadStatus.mjs';
 // and imports the player's UI on the way. DownloadManager only opens and closes it here.
 vi.mock('../../chrome/player/modules/FSBlob.mjs', () => ({
   FSBlob: class {
+    constructor({memoryOnly = false} = {}) {
+      this.memoryOnly = memoryOnly;
+    }
+    setMemoryOnly(memoryOnly) {
+      this.memoryOnly = memoryOnly;
+    }
     close() {}
     async clear() {}
   },
 }));
 
 const {DownloadManager} = await import('../../chrome/player/network/DownloadManager.mjs');
+const {EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs');
 const {StandardDownloader} = await import('../../chrome/player/network/StandardDownloader.mjs');
 
 describe('DownloadManager', () => {
@@ -20,6 +27,28 @@ describe('DownloadManager', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('keeps the buffer off the disk with "Keep video on disk" off, and in a private window always', () => {
+    // The option (2026-10-10): what does not fit in the RAM budget is let go of instead
+    // (FastStreamClient.keepWithinMemoryBudget asks canSpill).
+    expect(new DownloadManager(null).canSpill()).toBe(true);
+    const manager = new DownloadManager({options: {bufferToDisk: false}});
+    expect(manager.canSpill()).toBe(false);
+    manager.setBufferToDisk(true);
+    expect(manager.canSpill()).toBe(true);
+    manager.setBufferToDisk(false);
+    expect(manager.canSpill()).toBe(false);
+
+    const incognito = vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    try {
+      const privateManager = new DownloadManager({options: {bufferToDisk: true}});
+      expect(privateManager.canSpill()).toBe(false);
+      privateManager.setBufferToDisk(true);
+      expect(privateManager.canSpill()).toBe(false);
+    } finally {
+      incognito.mockRestore();
+    }
   });
 
   it('leaves no retry behind once destroyed', () => {

@@ -39,7 +39,7 @@ export class LoopMenu extends EventEmitter {
         this.gif.abort();
         this.gif = null;
       }
-      this.client.playbackRate = this.previousPlaybackRate;
+      this.client.setPlaybackRate(this.previousPlaybackRate, true);
     }
     this.recordingGif = false;
     this.loopEnabled = false;
@@ -374,7 +374,7 @@ export class LoopMenu extends EventEmitter {
       this.loopEnabled = this.loopEnabled && !!this.loopWasEnabled;
       this.loopWasEnabled = false;
       this.client.pause();
-      this.client.playbackRate = this.previousPlaybackRate;
+      this.client.setPlaybackRate(this.previousPlaybackRate, true);
       this.updateLoopAndGif();
       this.finishGif();
       return;

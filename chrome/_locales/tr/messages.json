@@ -93,7 +93,7 @@
         "message": "- Geri alınan sarmayı yinele"
     },
     "welcome_page_keybinds_content17": {
-        "message": "yön tuşları - daha hızlı/yavaş oynat"
+        "message": "tuşlar - 0.1x daha hızlı/yavaş oynat"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Altyazıları aç/kapat"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Ses parçaları"
+    },
+    "player_speed_nosound": {
+        "message": "ses yok"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles Arama"
@@ -747,7 +750,7 @@
         "message": "Video Seçenekleri"
     },
     "options_video_body": {
-        "message": "Videonun görünümünü değiştirir: parlaklık, kontrast, renkler ve daha fazlası. Resim içinde resim ile çalışmaz."
+        "message": "Görüntüyü yakınlaştırın veya sese göre video gecikmesini ayarlayın. Video yakınlaştırma resim içinde resim ile çalışmaz."
     },
     "options_video_zoom": {
         "message": "Video Yakınlaştırma"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
+    "options_general_buffertodisk": {
+        "message": "Bu RAM dolduğunda videoyu diskte tut (kapalı: sil ve gerektiğinde tekrar indir, böylece diske hiçbir şey yazılmaz)"
+    },
     "options_general_nolimit": {
         "message": "Sınırsız"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: indirilen hiçbir video tutulmaz ve \"Bu RAM dolduğunda videoyu diskte tut\" kapalıyken oynatma noktasının ilerisinde hiçbir şey indirilmez, bu nedenle videolar yüklenirken durabilir. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_rambudget_none": {
         "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Taze Nane"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED Siyah"
     },
     "options_general_vischangeaction_pip": {
         "message": "Resim içinde resim aç/kapa"

@@ -93,7 +93,7 @@
         "message": "- Ongedaan gemaakte sprong opnieuw uitvoeren"
     },
     "welcome_page_keybinds_content17": {
-        "message": "pijltjestoetsen - sneller/langzamer afspelen"
+        "message": "toetsen - 0.1x sneller/langzamer afspelen"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Ondertitels aan/uit"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audiotracks"
+    },
+    "player_speed_nosound": {
+        "message": "geen geluid"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles zoeken"
@@ -747,7 +750,7 @@
         "message": "Video-opties"
     },
     "options_video_body": {
-        "message": "Verandert hoe de video eruitziet: helderheid, contrast, kleuren en meer. Werkt niet in beeld-in-beeld."
+        "message": "Zoom in op het beeld of pas de videovertraging ten opzichte van het geluid aan. De videozoom werkt niet in beeld-in-beeld."
     },
     "options_video_zoom": {
         "message": "Videozoom"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
+    "options_general_buffertodisk": {
+        "message": "Video op schijf bewaren als deze RAM vol is (uit: weggooien en opnieuw downloaden indien nodig, zodat er niets op de schijf wordt geschreven)"
+    },
     "options_general_nolimit": {
         "message": "Geen limiet"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: gedownloade video wordt niet in RAM bewaard maar op schijf, op de eerstvolgende seconden na. In een privévenster, dat niets op schijf bewaart, wordt niets vooruit gedownload. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: gedownloade video wordt niet bewaard en als \"Video op schijf bewaren\" uitstaat, wordt er niets vooruit gedownload, waardoor video's kunnen stoppen met laden. Laat het veld leeg voor geen limiet."
     },
     "options_general_rambudget_none": {
         "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Frisse munt"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED-zwart"
     },
     "options_general_vischangeaction_pip": {
         "message": "Beeld-in-beeld in-/uitschakelen"

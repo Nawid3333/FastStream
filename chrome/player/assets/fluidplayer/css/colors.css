@@ -1177,3 +1177,113 @@ body[data-theme="mint"] {
   --mute-icon-color: #cc3344;
   --initial-play-background-color: #0a221d;
 }
+
+/* =========================
+   OLED Black
+   True black (#000) behind the video, the bar, the menus and the windows, so an OLED
+   screen's pixels stay off; white text, thin grey edges, the default theme's red accent.
+   ========================= */
+body[data-theme="oled"] {
+  --mainplayer-background-color: #000000;
+  --controls-background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.7) 35%, #000000 100%);
+  --progress-bar-background-color: rgba(255, 255, 255, 0.22);
+  --progress-bar-current-progress-color: #ff2d2d;
+  --progress-bar-knob-color: #ffffff;
+  --volume-slider-background-color: rgba(255, 255, 255, 0.25);
+  --volume-slider-knob-color: #ffffff;
+
+  --menu-background-color: #000000;
+  --menu-text-color: #ffffff;
+  --menu-border: 1px solid rgba(255, 255, 255, 0.16);
+  --menu-list-item-hover-background-color: rgba(255, 255, 255, 0.1);
+  --menu-list-item-active-background-color: rgba(255, 255, 255, 0.16);
+  --menu-textbutton-background-color: #000000;
+  --menu-textbutton-text-color: #ffffff;
+  --menu-textbutton-hover-background-color: rgba(255, 255, 255, 0.1);
+  --menu-quality-sublist-indent-shadow-color: rgb(200, 200, 200);
+  --menu-quality-sublist-indent-shadow-color-active: rgb(150, 150, 150);
+
+  --seek-preview-background-color: #000000;
+  --seek-preview-text-color: rgba(255, 255, 255, 0.92);
+  --seek-preview-detached-tip-color: rgba(255, 255, 255, 0.92);
+
+  --progress-download-initiated-color: rgba(80, 255, 80, 0.7);
+  --progress-download-complete-color: rgba(255, 255, 255, 0.2);
+  --progress-download-failed-color: rgba(255, 100, 100, 1);
+
+  --popbutton-background-color: #000000;
+  --popbutton-text-color: #ffffff;
+  --popbutton-border: 1px solid rgba(255, 255, 255, 0.16);
+  --popbutton-hover-background-color: #000000;
+  --popbutton-hover-border: 1px solid rgba(255, 255, 255, 0.55);
+
+  --seek-marker-undo-color: #54f4ff;
+  --seek-marker-redo-color: #F4FF54;
+  --analyzer-marker-color: rgb(199, 199, 199);
+
+  --close-button-color: rgba(255, 0, 0, .55);
+  --close-button-hover-color: rgba(255, 0, 0, 1);
+
+  --popwindow-border: 1px solid rgba(255, 255, 255, 0.16);
+  --popwindow-background-color: #000000;
+  --popwindow-text-color: rgba(255, 255, 255, 0.88);
+  --popwindow-button-background-color: #000000;
+  --popwindow-button-text-color: rgb(220, 220, 220);
+  --popwindow-button-titletext-color: rgb(170, 170, 170);
+  --popwindow-button-hover-background-color: rgb(24, 24, 24);
+  --popwindow-button-active-background-color: rgb(0, 135, 153);
+  --popwindow-dropdown-item-background-color: #000000;
+  --popwindow-dropdown-item-odd-background-color: rgb(10, 10, 10);
+  --popwindow-dropdown-item-selected-background-color: rgb(28, 28, 28);
+  --popwindow-dropdown-item-hover-background-color: rgb(36, 36, 36);
+  --popwindow-dropdown-text-focus-outline: 1px solid rgba(255, 255, 255, 0.55);
+  --popwindow-textinput-focus-border-color: rgba(255, 255, 255, 0.55);
+
+  --source-delete-button-color: rgb(120, 0, 0);
+  --source-delete-button-hover-color: rgb(100, 0, 0);
+  --source-active-url-color: rgb(0, 170, 0);
+  --source-headers-invalid-border: 1px solid rgb(200, 0, 0);
+
+  --timeline-current-position-color: rgba(255, 80, 80, 0.95);
+  --timeline-cue-background-color: rgba(255, 255, 255, 0.6);
+  --timeline-cue-text-color: black;
+  --timeline-tick-color: rgba(255, 255, 255, 0.8);
+  --timeline-tick-label-color: rgba(255, 255, 255, 0.9);
+
+  --subtitle-tool-color: white;
+  --linkui-toggle-color: #f2c94c;
+  --soundwave-toggle-color: rgb(4, 217, 255);
+
+  --status-success-color: rgb(15, 238, 75);
+  --status-error-color: rgb(230, 30, 30);
+  --status-warning-color: rgb(255, 255, 0);
+
+  --subtitles-toggle-color: rgb(212, 169, 255);
+  --subtitles-track-enabled-color: rgb(0, 255, 0);
+  --subtitles-track-disabled-color: rgb(255, 100, 50);
+
+  --button-badge-background-color: rgb(180, 0, 0);
+  --nextvideo-badge-background-color: rgb(80, 180, 180);
+  --update-notif-badge-text-color: yellow;
+  --save-notif-badge-text-color: rgb(0, 240, 0);
+
+  --seek-preview-video-border-color: rgba(255, 255, 255, 0.2);
+
+  --input-border: 1px solid rgba(255, 255, 255, 0.3);
+  --input-background-color: #000000;
+  --input-text-color: white;
+  --input-focus-border: 1px solid rgba(255, 255, 255, 0.55);
+
+  --loudness-threshold-bar-color: rgba(255, 0, 217, 1);
+
+  --playback-rate-menu-background: #000000;
+  --playback-rate-menu-item-border: 1px solid rgba(255, 255, 255, 0.12);
+
+  --volume-control-unity-volume-color: rgb(192, 192, 192);
+
+  --tooltip-background-color: rgb(220, 220, 220);
+  --tooltip-text-color: black;
+  --link-color: #4da3ff;
+  --mute-icon-color: rgb(255, 100, 100);
+  --initial-play-background-color: #000000;
+}

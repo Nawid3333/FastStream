@@ -240,6 +240,22 @@ each): reads are not the bottleneck at one piece per 4 s of video; the writes we
   needed. A save is the user's own request to write the video to disk: its converters
   (`hls2mp4`, `mp4merger`, `remuxer`, `StreamSaver`) still stage in Firefox's encrypted
   private storage.
+- **"Keep video on disk when this RAM is full"** (Options > General, under the budget; the
+  owner's decision of 2026-10-10, for those who want no SSD writes for buffering): on by
+  default, as before. Off, a normal window's player works like a private one's: what does not
+  fit is let go of and downloaded again when needed (`DownloadManager.setBufferToDisk` ->
+  `FSBlob.setMemoryOnly`, at once, also mid-video; what is on disk already is read from there
+  until it is deleted). Only the buffer: watch progress (`SecureMemory`, IndexedDB) and saves
+  keep their storage. Every budget works with it: what is kept has to fit below `LOW` of the
+  budget (`updateHasDownloadSpace`, `ramAheadSeconds`), so a video that fits (2 GB, 8 GB...)
+  is predownloaded whole, a bigger one keeps what fits ahead with the storage warning and
+  nothing pinned (grandfathered fragments could not be let go of), 0 keeps nothing ahead (its
+  hint says so, `options_general_rambudget_zero_nodisk`), and an empty field is no limit, all
+  in RAM, as with the disk. Kept beyond the budget, the far end was let go of and fetched again
+  by the downloads ahead, round and round - private windows did that with "Buffer ahead" (300 s)
+  in a small budget; they get the same cap. (ram-budget.e2e: with the switch off and a 2 MB
+  budget, 64 fragments let go, 2.9 MB in RAM, 0 files, and the start downloaded again and
+  played.)
 - **The Cache API backend** (a normal window without OPFS, the save converters) checks what it
   stored without reading it back (`match()`, body cancelled) and reads it when asked
   (`getBlob` then answers a promise; every caller awaits it).
@@ -257,7 +273,9 @@ throw (it is wrapped). Saves are never cancelled or held by the network yield (p
 
 **Tests.** `ram-budget.e2e.mjs` (a two-minute stream that fits stays in RAM, no file written;
 with a 2 MB budget 64 fragments went to disk, 2.9 MB stayed, and the start played again from
-disk); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
+disk; the same with "Keep video on disk" off: let go, no file, played again);
+`FastStreamClient.test.mjs` "the RAM budget with nothing on disk" (2 GB, 8 GB, 500 MB, 100 MB,
+0, empty, a private window); `options-fields.e2e.mjs` (the switch is saved, the 0 hint follows it); `private-browsing.e2e.mjs` (the player's store is memory-only and holds the video);
 `MemoryBudget.test.mjs`; `opfsStorage.test.mjs` (deferred saves, spill, `memoryOnly`, an old
 write racing a new save); `DownloadEntry.test.mjs`, `DownloadManager.test.mjs` (lost data).
 

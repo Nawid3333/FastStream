@@ -93,7 +93,7 @@
         "message": "- Rehacer la búsqueda deshecha"
     },
     "welcome_page_keybinds_content17": {
-        "message": "teclas de flecha - reproducir más rápido/lento"
+        "message": "teclas - reproducir 0.1x más rápido/lento"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Activar/desactivar los subtítulos"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Pistas de audio"
+    },
+    "player_speed_nosound": {
+        "message": "sin sonido"
     },
     "player_opensubtitles_title": {
         "message": "Búsqueda en OpenSubtitles"
@@ -747,7 +750,7 @@
         "message": "Opciones de video"
     },
     "options_video_body": {
-        "message": "Cambia el aspecto del video: brillo, contraste, colores y más. No funciona en la ventana pequeña (imagen en imagen)."
+        "message": "Aplique zoom a la imagen o ajuste el retraso de video respecto al sonido. El zoom de video no funciona en la ventana pequeña (imagen en imagen)."
     },
     "options_video_zoom": {
         "message": "Zoom de Video"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "RAM para el vídeo en búfer (todas las pestañas)"
     },
+    "options_general_buffertodisk": {
+        "message": "Guardar el vídeo en el disco cuando esta RAM esté llena (desactivado: descartarlo y volverlo a descargar cuando sea necesario, para que no se escriba nada en el disco)"
+    },
     "options_general_nolimit": {
         "message": "Sin límite"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: el video descargado no se guarda en la RAM, sino en el disco, salvo los próximos segundos. En una ventana privada, que no guarda nada en el disco, no se descarga nada por adelantado. Deja el campo vacío para que no haya límite."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: no se guarda ningún vídeo descargado y, con \"Guardar el vídeo en el disco\" desactivado, no se descarga nada por adelantado, por lo que los vídeos podrían detenerse. Deja el campo vacío para que no haya límite."
     },
     "options_general_rambudget_none": {
         "message": "Sin límite: todo el video descargado permanece en la RAM, nada se guarda en el disco. En un PC con poca memoria, Firefox puede volverse más lento."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menta Fresca"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Negro OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Alternar imagen en imagen"
