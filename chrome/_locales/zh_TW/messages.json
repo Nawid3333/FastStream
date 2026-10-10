@@ -1197,7 +1197,7 @@
         "message": "自動啟用網址"
     },
     "options_autourl_body": {
-        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。若要讓整個網站不受影響 - 不會自動啟用，其串流連結也不會在播放器中開啟 - 請在網域前面加上減號 (-)。"
+        "message": "造訪這些網址時會自動啟用擴充功能，離開時會自動停用。每行一個網址，且以該網址開頭的頁面也會被匹配（可省略 https:// 和 www.，例如：crunchyroll.com）。若為正則表達式，請在前面加上波浪號 (~)，每行一個正則。若要排除網站，請在前面加上驚嘆號 (!)。若要讓整個網站不受影響 - 不會自動啟用，其串流連結也不會在播放器中開啟 - 請在網域前面加上減號 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此測試正則表達式"
@@ -1230,7 +1230,7 @@
         "message": "MPV 允許清單"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
+        "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
     },
     "options_mpv_path": {
         "message": "mpv 路徑（選用，當 mpv 不在 PATH 中時由原生主機使用）"
@@ -1298,6 +1298,9 @@
     "extension_toggle_label_mpv_outdated": {
         "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）"
     },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - 這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）"
+    },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - 正在 MPV 中播放 - 由顯示卡解碼：$1"
     },
@@ -1307,6 +1310,9 @@
     "options_mpv_test_outdated": {
         "message": "這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
     },
+    "options_mpv_test_outdated_unix": {
+        "message": "這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）。"
+    },
     "options_mpv_test_decoder_hw": {
         "message": "已開啟的 mpv 正在用顯示卡解碼：$1。"
     },
@@ -1315,6 +1321,9 @@
     },
     "player_mpv_sent_outdated": {
         "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）。"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中開啟此串流（內容類型：自動——除非網站標記 @anime，否則為電影；右鍵點擊可為此影片覆蓋）"
@@ -1393,6 +1402,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "僅與 Firefox VPN 一起使用。Firefox 將其列為瀏覽器代理設定的控制項，但 FastStream 不會變更任何設定：它會以頁面自身請求所經過的相同方式，透過 VPN 傳送自己針對影片的請求。沒有它，將影片綁定到 VPN 位址的網站會拒絕 FastStream。播放器會在首次需要時請求此權限。"
+    },
+    "player_mpv_no_host": {
+        "message": "FastStream mpv 主機沒有回應——是否已安裝？"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN 正在傳輸此影片，而 mpv 無法使用它：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"

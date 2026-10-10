@@ -1197,7 +1197,7 @@
         "message": "Auto-enable URLs"
     },
     "options_autourl_body": {
-        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match. For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
+        "message": "Will automatically enable the extension upon visiting these URLs and disable upon leaving. One URL per line, pages starting with that URL will also match (https:// and www. can be left out: crunchyroll.com). For regex, prepend with a tilde (~). One regex per line. To exclude sites, prepend with an exclamation mark (!). To leave a whole site alone - no auto-enable, and its stream links not opened in the player - prepend its domain with a minus sign (-)."
     },
     "options_autourl_hint": {
         "message": "Hint: Test regex on"
@@ -1230,7 +1230,7 @@
         "message": "MPV Allowlist"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match. Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
+        "message": "Sites on this list open detected streams in mpv. One URL per line; pages starting with that URL also match (https:// and www. can be left out: crunchyroll.com @anime). Use ~ for regex and ! to exclude. Untagged sites default to Movie for mpv's shader selection -- add @anime at the end of a line for anime sites. @movie is also accepted, if you want it written out. The player's mpv button can override this per video."
     },
     "options_mpv_path": {
         "message": "mpv path (optional, used by the native host when mpv is not on PATH)"
@@ -1296,7 +1296,10 @@
         "message": "FastStream - MPV - the stream did not open: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - the mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
+        "message": "FastStream - MPV - the mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)"
+    },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - the mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Playing in MPV - decoded by the graphics card: $1"
@@ -1305,7 +1308,10 @@
         "message": "FastStream - Playing in MPV - decoded by the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card"
     },
     "options_mpv_test_outdated": {
-        "message": "The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+        "message": "The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+    },
+    "options_mpv_test_outdated_unix": {
+        "message": "The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "The open mpv decodes on the graphics card: $1."
@@ -1314,7 +1320,10 @@
         "message": "The open mpv decodes on the processor ($1): add hwdec=auto-safe to mpv.conf to decode on the graphics card."
     },
     "player_mpv_sent_outdated": {
-        "message": "Sent to mpv. The mpv host on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+        "message": "Sent to mpv. The mpv helper on this computer is out of date: run \"Update mpv\" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Sent to mpv. The mpv helper on this computer is out of date: update the faststream-mpv-host.mjs that your native messaging manifest points to (git pull in your FastStream checkout; see native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Open this stream in mpv (content type: auto -- Movie unless the site is tagged @anime; right-click to override for this video)"
@@ -1393,6 +1402,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Only used with Firefox VPN. Firefox lists it as control of the browser's proxy settings, but FastStream changes no setting: it sends its own requests for a video the same way the page's own requests went, through the VPN. Without it, a site that ties its video to the VPN's address refuses FastStream. The player asks for it the first time it is needed."
+    },
+    "player_mpv_no_host": {
+        "message": "the FastStream mpv helper did not answer - is it installed?"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN carries this video, and mpv cannot use it: the site would refuse mpv. To watch it in mpv, turn Firefox VPN off for this site and reload the page."

@@ -1197,7 +1197,7 @@
         "message": "URL's automatisch inschakelen"
     },
     "options_autourl_body": {
-        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen. Voor regex, plaats een tilde (~) vooraan. Eén regex per regel. Om sites uit te sluiten, plaats een uitroepteken (!). Om een hele site met rust te laten - geen automatisch inschakelen, en de streamlinks worden niet in de speler geopend - plaats een minteken (-) vóór het domein."
+        "message": "Schakelt de extensie automatisch in bij het bezoeken van deze URL's en weer uit bij het verlaten. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com). Zet voor regex een tilde (~) vooraan. Eén regex per regel. Zet een uitroepteken (!) vooraan om sites uit te sluiten. Om een hele site met rust te laten – geen automatisch inschakelen, en de streamlinks worden niet in de speler geopend – zet een minteken (-) vóór het domein."
     },
     "options_autourl_hint": {
         "message": "Tip: test regex op"
@@ -1230,7 +1230,7 @@
         "message": "MPV-toelatingslijst"
     },
     "options_mpv_allowlist_hint": {
-        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen komen ook overeen. Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor sites waar dat niet geldt. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
+        "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com @anime). Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor anime-sites. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
     },
     "options_mpv_path": {
         "message": "mpv-pad (optioneel, gebruikt door de native host als mpv niet in PATH staat)"
@@ -1296,7 +1296,10 @@
         "message": "FastStream - MPV - de stream is niet geopend: $1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - de mpv-host op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)"
+        "message": "FastStream – MPV – het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)"
+    },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream – MPV – het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - Speelt af in MPV - gedecodeerd door de grafische kaart: $1"
@@ -1305,7 +1308,10 @@
         "message": "FastStream - Speelt af in MPV - gedecodeerd door de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen"
     },
     "options_mpv_test_outdated": {
-        "message": "De mpv-host op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
+        "message": "Het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
+    },
+    "options_mpv_test_outdated_unix": {
+        "message": "Het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
         "message": "De geopende mpv decodeert op de grafische kaart: $1."
@@ -1314,7 +1320,10 @@
         "message": "De geopende mpv decodeert op de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen."
     },
     "player_mpv_sent_outdated": {
-        "message": "Verzonden naar mpv. De mpv-host op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
+        "message": "Verzonden naar mpv. Het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "Verzonden naar mpv. Het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)."
     },
     "player_mpv_content_unset": {
         "message": "Deze stream openen in mpv (inhoudstype: auto – Film tenzij de site als @anime is gelabeld; rechtsklikken om dit voor deze video te overschrijven)"
@@ -1393,6 +1402,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "Alleen gebruikt met Firefox VPN. Firefox vermeldt deze als beheer van de proxy-instellingen van de browser, maar FastStream wijzigt geen enkele instelling: het verstuurt zijn eigen verzoeken voor een video op dezelfde manier als de verzoeken van de pagina zelf, via de VPN. Zonder deze machtiging weigert een site die haar video aan het adres van de VPN koppelt FastStream. De speler vraagt erom wanneer deze voor het eerst nodig is."
+    },
+    "player_mpv_no_host": {
+        "message": "het FastStream-mpv-hulpje reageerde niet – is het geïnstalleerd?"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN draagt deze video en mpv kan die niet gebruiken: de site zou mpv weigeren. Om het in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."

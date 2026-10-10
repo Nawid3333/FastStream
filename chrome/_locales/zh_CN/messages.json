@@ -1197,7 +1197,7 @@
         "message": "自动启用 URL"
     },
     "options_autourl_body": {
-        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配。使用正则时在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。要让整个站点不受影响 - 不自动启用，其流媒体链接也不会在播放器中打开 - 在域名前面加一个减号 (-)。"
+        "message": "访问这些 URL 时会自动启用扩展，离开时会自动禁用。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com）。使用正则时，在前面加波浪号 (~)，每行一个正则。要排除站点，在前面加感叹号 (!)。要让整个站点不受影响 - 不自动启用，其流媒体链接也不会在播放器中打开 - 在域名前面加一个减号 (-)。"
     },
     "options_autourl_hint": {
         "message": "提示：在此处测试正则"
@@ -1230,7 +1230,7 @@
         "message": "MPV 允许列表"
     },
     "options_mpv_allowlist_hint": {
-        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也匹配。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；如非如此，请在该行结尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
+        "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com @anime）。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；动漫网站请在该行末尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
     },
     "options_mpv_path": {
         "message": "mpv 路径（可选，当 mpv 不在 PATH 中时由原生主机使用）"
@@ -1296,7 +1296,10 @@
         "message": "FastStream - MPV - 流未能打开：$1"
     },
     "extension_toggle_label_mpv_outdated": {
-        "message": "FastStream - MPV - 这台电脑上的 mpv 主机已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）"
+        "message": "FastStream - MPV - 这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）"
+    },
+    "extension_toggle_label_mpv_outdated_unix": {
+        "message": "FastStream - MPV - 这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）"
     },
     "extension_toggle_label_mpv_hw": {
         "message": "FastStream - 正在 MPV 中播放 - 由显卡解码：$1"
@@ -1305,7 +1308,10 @@
         "message": "FastStream - 正在 MPV 中播放 - 由处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码"
     },
     "options_mpv_test_outdated": {
-        "message": "这台电脑上的 mpv 主机已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+        "message": "这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+    },
+    "options_mpv_test_outdated_unix": {
+        "message": "这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
     },
     "options_mpv_test_decoder_hw": {
         "message": "已打开的 mpv 正在用显卡解码：$1。"
@@ -1314,7 +1320,10 @@
         "message": "已打开的 mpv 正在用处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码。"
     },
     "player_mpv_sent_outdated": {
-        "message": "已发送到 mpv。这台电脑上的 mpv 主机已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+        "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
+    },
+    "player_mpv_sent_outdated_unix": {
+        "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
     },
     "player_mpv_content_unset": {
         "message": "在 mpv 中打开此视频流（内容类型：自动——除非网站被标记为 @anime，否则为电影；右键点击可为该视频覆盖此设置）"
@@ -1393,6 +1402,9 @@
     },
     "perms_page_breakdown_perm9d": {
         "message": "仅与 Firefox VPN 一起使用。Firefox 将其列为浏览器代理设置的控制项，但 FastStream 不会更改任何设置：它会以页面自身请求所经过的相同方式，通过 VPN 发送自己针对视频的请求。没有它，将视频绑定到 VPN 地址的网站会拒绝 FastStream。播放器在首次需要它时请求它。"
+    },
+    "player_mpv_no_host": {
+        "message": "FastStream mpv 辅助程序没有响应——是否已安装？"
     },
     "player_mpv_vpn": {
         "message": "Firefox VPN 正在传输此视频，而 mpv 无法使用它：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"

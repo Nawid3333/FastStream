@@ -4,6 +4,12 @@ function base64Utf8(text) {
   return new TextEncoder().encode(text).toBase64();
 }
 
+// The manifests already reported: Instagram fetches the same video's data more than once
+// (prefetch, then play), and each answer reported it again - the background keeps every
+// report as another source of the tab (review). As bilibili_content.js and
+// facebook_content.js do.
+const reported = new Set();
+
 // Listen for messages
 window.addEventListener('message', (event) => {
   if (event.origin !== window.location.origin) {
@@ -24,6 +30,10 @@ window.addEventListener('message', (event) => {
       return;
     }
     const mpd = value;
+    if (reported.has(mpd)) {
+      return;
+    }
+    reported.add(mpd);
     const url = `data:application/dash+xml;base64,${base64Utf8(mpd)}`;
     chrome.runtime.sendMessage({
       type: 'DETECTED_SOURCE',

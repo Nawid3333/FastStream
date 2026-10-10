@@ -74,7 +74,7 @@ mpvAllowlistInput.setAttribute('autocapitalize', 'off');
 mpvAllowlistInput.setAttribute('autocomplete', 'off');
 mpvAllowlistInput.setAttribute('autocorrect', 'off');
 mpvAllowlistInput.setAttribute('spellcheck', false);
-mpvAllowlistInput.placeholder = 'https://netflix.com\nhttps://crunchyroll.com @anime\n~^https:\\/\\/example\\.com\\/movie\\/';
+mpvAllowlistInput.placeholder = 'netflix.com\ncrunchyroll.com @anime\nhttps://example.com/films/\n~^https:\\/\\/example\\.com\\/movie\\/';
 
 customSourcePatterns.setAttribute('autocapitalize', 'off');
 customSourcePatterns.setAttribute('autocomplete', 'off');
@@ -102,6 +102,8 @@ const mpvSuggestion = EnvUtils.isExtension() ? new MpvSuggestion({
   },
 }) : null;
 let pageSeen = false;
+// Firefox's word for the system, for the mpv helper's steps (EnvUtils.isWindows).
+EnvUtils.os();
 const offerMpvWhenReady = () => {
   if (mpvSuggestion && optionsLoaded && pageSeen) {
     mpvSuggestion.check().catch((e) => console.error('Asking the mpv host failed', e));
@@ -556,7 +558,9 @@ mpvTestButton.addEventListener('click', () => {
       // (MpvBackend's RequiredHostVersion): the copy on this PC was not installed again
       // after the host changed.
       if (response.ok && response.hostOutdated) {
-        mpvTestResult.textContent += ' ' + window.getI18nMessage('options_mpv_test_outdated');
+        // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
+        mpvTestResult.textContent += ' ' + window.getI18nMessage(EnvUtils.isWindows() ?
+          'options_mpv_test_outdated' : 'options_mpv_test_outdated_unix');
       }
       // An mpv the host started is open: which decoder it plays with, as mpv says. On the
       // processor, only a hint: mpv.conf is the user's, and FastStream never overrides it.
