@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "輸入檔案名稱"
     },
+    "player_screenshot_nopicture": {
+        "message": "沒有可儲存的截圖：檔案只有音訊，或影片還沒有顯示畫面。"
+    },
     "player_screenshot_saving": {
         "message": "正在擷圖..."
     },

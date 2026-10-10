@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Masukkan nama untuk fail"
     },
+    "player_screenshot_nopicture": {
+        "message": "Tiada gambar untuk disimpan: fail hanya mengandungi audio, atau video belum menunjukkan gambar."
+    },
     "player_screenshot_saving": {
         "message": "Mengambil tangkapan skrin..."
     },

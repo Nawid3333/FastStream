@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Dosya için bir isim girin"
     },
+    "player_screenshot_nopicture": {
+        "message": "Kaydedilecek bir görüntü yok: dosya yalnızca ses içeriyor ya da video henüz bir görüntü göstermedi."
+    },
     "player_screenshot_saving": {
         "message": "Ekran görüntüsü alınıyor..."
     },

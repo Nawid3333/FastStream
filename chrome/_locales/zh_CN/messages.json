@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "请输入文件名"
     },
+    "player_screenshot_nopicture": {
+        "message": "没有可保存的画面：文件只有音频，或视频还没有显示画面。"
+    },
     "player_screenshot_saving": {
         "message": "正在截屏..."
     },

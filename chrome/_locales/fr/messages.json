@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Entrez un nom de fichier"
     },
+    "player_screenshot_nopicture": {
+        "message": "Il n'y a pas d'image à enregistrer : le fichier ne contient que de l'audio, ou la vidéo n'a pas encore affiché d'image."
+    },
     "player_screenshot_saving": {
         "message": "Capture d'écran en cours..."
     },

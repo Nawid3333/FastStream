@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Insira um nome para o arquivo"
     },
+    "player_screenshot_nopicture": {
+        "message": "Não há imagem para salvar: o arquivo tem apenas áudio, ou o vídeo ainda não mostrou nenhuma imagem."
+    },
     "player_screenshot_saving": {
         "message": "Capturando tela..."
     },

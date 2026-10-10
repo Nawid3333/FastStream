@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Введите имя файла"
     },
+    "player_screenshot_nopicture": {
+        "message": "Нет изображения, которое можно сохранить: файл содержит только звук, или видео ещё не показало изображение."
+    },
     "player_screenshot_saving": {
         "message": "Делаем скриншот…"
     },

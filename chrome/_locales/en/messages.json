@@ -575,6 +575,9 @@
     "player_filename_prompt": {
         "message": "Enter a name for the file"
     },
+    "player_screenshot_nopicture": {
+        "message": "There is no picture to save: the file is audio only, or the video has not shown a picture yet."
+    },
     "player_screenshot_saving": {
         "message": "Taking screenshot..."
     },

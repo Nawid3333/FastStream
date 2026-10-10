@@ -3455,6 +3455,24 @@
         "zh_CN": "请输入文件名",
         "zh_TW": "輸入檔案名稱"
     },
+    "player_screenshot_nopicture": {
+        "en": "There is no picture to save: the file is audio only, or the video has not shown a picture yet.",
+        "de": "Es gibt kein Bild, das gespeichert werden kann: Die Datei enthält nur Audio, oder das Video hat noch kein Bild angezeigt.",
+        "es": "No hay ninguna imagen que guardar: el archivo es solo de audio, o el vídeo todavía no ha mostrado ninguna imagen.",
+        "fr": "Il n'y a pas d'image à enregistrer : le fichier ne contient que de l'audio, ou la vidéo n'a pas encore affiché d'image.",
+        "id": "Tidak ada gambar untuk disimpan: berkas hanya berisi audio, atau video belum menampilkan gambar.",
+        "it": "Non è disponibile alcuna immagine da salvare: il file è solo audio, oppure il video non ha ancora mostrato alcuna immagine.",
+        "ja": "保存できる画像がありません：ファイルが音声のみか、動画にまだ画像が表示されていません。",
+        "ko": "저장할 화면이 없습니다: 파일이 오디오 전용이거나, 동영상에 아직 화면이 표시되지 않았습니다.",
+        "ms": "Tiada gambar untuk disimpan: fail hanya mengandungi audio, atau video belum menunjukkan gambar.",
+        "nl": "Er is geen afbeelding om op te slaan: het bestand bevat alleen audio, of de video heeft nog geen beeld getoond.",
+        "pl": "Nie ma obrazu do zapisania: plik zawiera tylko dźwięk, albo wideo jeszcze nie pokazało obrazu.",
+        "pt_BR": "Não há imagem para salvar: o arquivo tem apenas áudio, ou o vídeo ainda não mostrou nenhuma imagem.",
+        "ru": "Нет изображения, которое можно сохранить: файл содержит только звук, или видео ещё не показало изображение.",
+        "tr": "Kaydedilecek bir görüntü yok: dosya yalnızca ses içeriyor ya da video henüz bir görüntü göstermedi.",
+        "zh_CN": "没有可保存的画面：文件只有音频，或视频还没有显示画面。",
+        "zh_TW": "沒有可儲存的截圖：檔案只有音訊，或影片還沒有顯示畫面。"
+    },
     "player_screenshot_saving": {
         "en": "Taking screenshot...",
         "de": "Nehme Bildschirmaufnahme auf...",
