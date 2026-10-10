@@ -250,6 +250,46 @@ async function visibilities(ids) {
 }
 
 /**
+ * Enters fullscreen with the player's fullscreen button, in the player frame the session is
+ * in. On CI on main the click sometimes did not start it (2026-10-10: Windows the first
+ * time, Linux the second, never on the PR or locally), so it clicks again while nothing
+ * started - the path stays the button - and, if it never starts, says what the frames knew:
+ * focus, Firefox's fullscreenerror events, what the iframe allows.
+ * @param {WebdriverIO.Element} button - The fullscreen button.
+ * @param {string} what - For the error.
+ * @return {Promise<void>}
+ */
+async function enterFullscreenWithButton(button, what) {
+  await browser.execute(() => {
+    if (window.__fullscreenErrors !== undefined) return;
+    window.__fullscreenErrors = 0;
+    document.addEventListener('fullscreenerror', () => window.__fullscreenErrors++);
+  });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if (await browser.execute(() => !!document.fullscreenElement)) return;
+    await button.click();
+    const started = await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
+        {timeout: 3000, interval: 100}).then(() => true, () => false);
+    if (started) {
+      if (attempt > 1) console.log(`      ${what}: started on click ${attempt}`);
+      return;
+    }
+    await browser.pause(1000);
+  }
+  const frame = await browser.execute(() => ({
+    enabled: document.fullscreenEnabled, focus: document.hasFocus(), errors: window.__fullscreenErrors,
+    visibility: document.visibilityState,
+  }));
+  await browser.switchFrame(null);
+  const page = await browser.execute(() => ({
+    fullscreen: !!document.fullscreenElement, focus: document.hasFocus(),
+    allow: document.querySelector('iframe[src*="player/index.html"]')?.getAttribute('allow'),
+    allowfullscreen: document.querySelector('iframe[src*="player/index.html"]')?.hasAttribute('allowfullscreen'),
+  }));
+  throw new Error(`${what}: ${JSON.stringify({frame, page})}`);
+}
+
+/**
  * Loads a page of the site, and waits until the video the player takes has data.
  * @param {string} pathname - The page.
  * @param {boolean} [embedded] - Whether the video is in the page's iframe.
@@ -539,16 +579,18 @@ describe('A site\'s overlays around an in-page player', function() {
       window.fastStream.state.playing = true;
     });
     const fullscreen = await browser.$('.mainplayer .fluid_control_fullscreen');
-    await fullscreen.click();
-    await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
-        {timeout: 5000, timeoutMsg: 'fullscreen never started'});
+    await enterFullscreenWithButton(fullscreen, 'fullscreen never started');
     await browser.pause(500);
     await browser.keys(['Escape']);
     await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement),
         {timeout: 5000, timeoutMsg: 'Escape never left fullscreen'});
-    await fullscreen.click();
-    await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
-        {timeout: 5000, timeoutMsg: 'fullscreen never started again'});
+    // The page leaves it after the player's frame: a request before that was refused.
+    await browser.switchFrame(null);
+    await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement),
+        {timeout: 5000, timeoutMsg: 'the page never left fullscreen'});
+    await browser.switchFrame(frame);
+    await browser.pause(500);
+    await enterFullscreenWithButton(fullscreen, 'fullscreen never started again');
     await browser.pause(3000);
     try {
       await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),
