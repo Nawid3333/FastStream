@@ -93,7 +93,7 @@
         "message": "- Buat semula carian yang dibuat asal"
     },
     "welcome_page_keybinds_content17": {
-        "message": "kekunci anak panah - main lebih laju/perlahan"
+        "message": "kekunci - main lebih laju/perlahan sebanyak 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Hidupkan/matikan sarikata"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Trek audio"
+    },
+    "player_speed_nosound": {
+        "message": "tiada bunyi"
     },
     "player_opensubtitles_title": {
         "message": "Carian OpenSubtitles"

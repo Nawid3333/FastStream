@@ -20,7 +20,7 @@ import {DefaultKeybinds, KeybindsWithModifiers} from './defaults/DefaultKeybinds
  *    video-only screenshot), and the frame step from Shift+Left/Right to `,`/`.`, which
  *    held SeekForwardLarge/SeekBackwardLarge (10 s, what J/K do now; both actions are gone).
  */
-export const KEYBINDS_VERSION = 3;
+export const KEYBINDS_VERSION = 4;
 
 /**
  * Seconds the skip buttons seek. They were 5 x seekStepSize, which was 10 s at the old
@@ -39,6 +39,11 @@ export const SEEK_PERCENTS = [10, 20, 30, 40, 50, 60, 70, 80, 90];
 
 /** Speeds the preset keys set. */
 export const SPEED_PRESETS = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
+
+// The fastest a speed preset plays: Firefox's own limit for a media element. Above the
+// player's maxPlaybackRate (8) Firefox plays no sound, measured; the 16x key plays 16x
+// anyway, silent, as mpv's does (his decision, 2026-10-10).
+export const SILENT_MAX_PLAYBACK_RATE = 16;
 
 /**
  * The plain-letter defaults that version 2 moved out of the way, by action.
@@ -93,12 +98,24 @@ export const FIXED_SEEKS = {
 export const ADDED_IN_VERSION_3 = Object.keys(FIXED_SEEKS);
 
 /**
+ * The defaults version 4 moved (2026-10-10), by action, with the key they had: the speed
+ * steps to S and D, as in mpv, and Save video off D to Shift+D. Save video first, so D is
+ * free when the speed-up comes to it.
+ */
+export const MOVED_IN_VERSION_4 = {
+  'SaveVideo': 'KeyD',
+  'IncreasePlaybackRate': 'Shift+ArrowUp',
+  'DecreasePlaybackRate': 'Shift+ArrowDown',
+};
+
+/**
  * The layout changes, oldest first. `moved` maps an action to the old default a saved
  * binding is moved away from; `added` lists the actions that version introduced.
  */
 const MIGRATIONS = [
   {version: 2, moved: MOVED_IN_VERSION_2, added: ADDED_IN_VERSION_2},
   {version: 3, moved: MOVED_IN_VERSION_3, added: ADDED_IN_VERSION_3},
+  {version: 4, moved: MOVED_IN_VERSION_4, added: []},
 ];
 
 /**
@@ -124,12 +141,12 @@ const RATE_EPSILON = 0.0001;
  * Pressing a preset sets its speed. Pressing the same key again reverts to the speed that
  * was active just before that key took effect, remembered per key, falling back to 1x when
  * the preset was already active on its first press (a rate restored from an earlier
- * session, say). The speed is clamped to the largest rate the browser allows, which is 8
- * on Firefox, so there the 16x key gives 8x.
+ * session, say). The speed is clamped to the largest rate given: SILENT_MAX_PLAYBACK_RATE,
+ * so the 16x key plays 16x, without sound in Firefox (above 8x).
  *
  * @param {number} preset - The preset's speed.
  * @param {number} currentRate - The current playback rate.
- * @param {number} maxRate - The largest rate the browser allows.
+ * @param {number} maxRate - The largest rate a preset may set.
  * @param {number|undefined} remembered - What this key remembered, if it has yet.
  * @return {{rate: number, remembered: (number|undefined)}} The rate to set, and what the key
  *   remembers from now on.
@@ -337,14 +354,14 @@ export function migrateKeybinds(options, stored) {
     const saved = stored.keybinds && typeof stored.keybinds === 'object' ? stored.keybinds : {};
     const keybinds = options.keybinds;
 
-    // Gives an action a key only if nothing else already answers to it.
+    // Gives an action a key only if no press would then fire it and another action: the
+    // key itself taken, or, for an action that ignores extra modifiers (Save video on
+    // Shift+D), another's Ctrl+Shift+D.
     const assign = (action, key) => {
-      const others = Object.entries(keybinds).filter(([name]) => name !== action);
-      if (key !== 'None' && actionsForKey(key, others).length > 0) {
+      keybinds[action] = key;
+      if (key !== 'None' && findKeybindConflicts(keybinds).some(({actions}) => actions.includes(action))) {
         console.info(`Keybind ${action} left unbound: ${key} is already taken`);
         keybinds[action] = 'None';
-      } else {
-        keybinds[action] = key;
       }
     };
 
@@ -382,4 +399,15 @@ export function migrateKeybinds(options, stored) {
  */
 export function formatPlaybackRate(rate) {
   return `${Math.round(rate * 100) / 100}×`;
+}
+
+/**
+ * What the on-screen indicator shows for a rate: above the rate with sound, it says so.
+ * @param {number} rate - The playback rate.
+ * @param {number} soundMax - The fastest rate with sound (options.maxPlaybackRate).
+ * @param {string} noSound - The localized "no sound".
+ * @return {string}
+ */
+export function describePlaybackRate(rate, soundMax, noSound) {
+  return rate > soundMax + RATE_EPSILON ? `${formatPlaybackRate(rate)} · ${noSound}` : formatPlaybackRate(rate);
 }

@@ -36,6 +36,7 @@ import {isDecodeError, isSamePlace, pastBrokenMedia} from './utils/BrokenMedia.m
 import {PlayerPeers} from './network/PlayerPeers.mjs';
 import {aheadOfPlayhead} from './network/BufferAhead.mjs';
 import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGENT_PARALLEL} from './network/PlayheadFirst.mjs';
+import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
 
@@ -2731,7 +2732,20 @@ export class FastStreamClient extends EventEmitter {
    * @param {number} value
    */
   set playbackRate(value) {
-    value = Utils.clamp(value, 0.1, this.options.maxPlaybackRate);
+    this.setPlaybackRate(value);
+  }
+
+  /**
+   * Sets the playback rate, as the setter does; a speed preset (the 16x key) may go past the
+   * cap, without sound, up to Firefox's own limit, and so may putting such a rate back.
+   * @param {number} value
+   * @param {boolean} [silentAllowed] - Whether a rate beyond the sound (above
+   *   options.maxPlaybackRate, up to SILENT_MAX_PLAYBACK_RATE) is wanted.
+   */
+  setPlaybackRate(value, silentAllowed = false) {
+    // Firefox refuses a media element anything past 16.
+    const max = silentAllowed ? SILENT_MAX_PLAYBACK_RATE : this.options.maxPlaybackRate;
+    value = Utils.clamp(value, 0.1, max);
     this.state.playbackRate = value;
     if (this.player) {
       this.player.playbackRate = value;

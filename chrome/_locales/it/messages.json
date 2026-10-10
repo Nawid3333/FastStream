@@ -93,7 +93,7 @@
         "message": "- Ripristina lo spostamento annullato"
     },
     "welcome_page_keybinds_content17": {
-        "message": "tasti freccia - riproduci più veloce/lento"
+        "message": "- riproduci 0.1x più veloce/lento"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Attiva/disattiva i sottotitoli"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Tracce audio"
+    },
+    "player_speed_nosound": {
+        "message": "senza audio"
     },
     "player_opensubtitles_title": {
         "message": "Ricerca di OpenSubtitles"

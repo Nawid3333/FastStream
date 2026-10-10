@@ -93,7 +93,7 @@
         "message": "- вернуть отменённую перемотку"
     },
     "welcome_page_keybinds_content17": {
-        "message": "клавиши со стрелками - быстрее/медленнее"
+        "message": "клавиши - быстрее/медленнее на 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- включить/выключить субтитры"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Звуковые дорожки"
+    },
+    "player_speed_nosound": {
+        "message": "без звука"
     },
     "player_opensubtitles_title": {
         "message": "Поиск по OpenSubtitles"

@@ -93,7 +93,7 @@
         "message": "- Rétablir le saut annulé"
     },
     "welcome_page_keybinds_content17": {
-        "message": "Touches fléchées - lecture plus rapide/lente"
+        "message": "Touches - lecture plus rapide/lente de 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Activer/désactiver les sous-titres"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Pistes audio"
+    },
+    "player_speed_nosound": {
+        "message": "sans son"
     },
     "player_opensubtitles_title": {
         "message": "Recherche OpenSubtitles"

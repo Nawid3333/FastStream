@@ -42,6 +42,7 @@ function client() {
     player: {playbackRate: 1},
     syncedAudioPlayer: {setPlaybackRate: vi.fn()},
     interfaceController: {updatePlaybackRate: vi.fn()},
+    setPlaybackRate: FastStreamClient.prototype.setPlaybackRate,
   };
 }
 
@@ -64,6 +65,19 @@ describe('FastStreamClient.playbackRate', () => {
     fake.options.maxPlaybackRate = 4;
     setRate.call(fake, 5);
     expect(fake.player.playbackRate).toBe(4);
+  });
+
+  it('lets a speed preset past the sound, up to 16x, and no further', () => {
+    // The 16x key plays 16x, silent (2026-10-10); Firefox allows no more.
+    const fake = client();
+    fake.setPlaybackRate(16, true);
+    expect(fake.player.playbackRate).toBe(16);
+    expect(fake.syncedAudioPlayer.setPlaybackRate).toHaveBeenLastCalledWith(16);
+    fake.setPlaybackRate(32, true);
+    expect(fake.player.playbackRate).toBe(16);
+    // Anyone else still stops at the sound.
+    setRate.call(fake, 16);
+    expect(fake.player.playbackRate).toBe(8);
   });
 
   it('never goes below 0.1, the menu\'s lowest step', () => {

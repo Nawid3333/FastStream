@@ -93,7 +93,7 @@
         "message": "- Redo the undone seek"
     },
     "welcome_page_keybinds_content17": {
-        "message": "arrow keys - Play faster/slower"
+        "message": "keys - Play faster/slower by 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Subtitles on/off"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audio tracks"
+    },
+    "player_speed_nosound": {
+        "message": "no sound"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles Search"

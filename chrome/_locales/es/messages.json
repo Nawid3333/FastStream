@@ -93,7 +93,7 @@
         "message": "- Rehacer la búsqueda deshecha"
     },
     "welcome_page_keybinds_content17": {
-        "message": "teclas de flecha - reproducir más rápido/lento"
+        "message": "teclas - reproducir 0.1x más rápido/lento"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Activar/desactivar los subtítulos"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Pistas de audio"
+    },
+    "player_speed_nosound": {
+        "message": "sin sonido"
     },
     "player_opensubtitles_title": {
         "message": "Búsqueda en OpenSubtitles"

@@ -202,7 +202,7 @@ describe('Keybinding menu', function() {
 
     const expected = Object.entries(await defaults()).sort();
     await waitForSaved((saved) => JSON.stringify(Object.entries(saved.keybinds).sort()) === JSON.stringify(expected));
-    expect((await savedOptions()).keybindsVersion).toBe(3);
+    expect((await savedOptions()).keybindsVersion).toBe(4);
   });
 
   it('keeps the box a key was set in, and its focus, after the save', async function() {
@@ -225,7 +225,7 @@ describe('Keybinding menu', function() {
     await assignKey('SeekPercent50', 'KeyU');
     await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
     const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(3);
+    expect(saved.keybindsVersion).toBe(4);
 
     await openOptions();
     expect((await rowState('SeekPercent50')).key).toBe('KeyU');
@@ -282,7 +282,7 @@ describe('Keybinding menu with options saved before the layout changed', functio
     await assignKey('SeekPercent50', 'KeyU');
     await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
     const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(3);
+    expect(saved.keybindsVersion).toBe(4);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.FlipVideo).toBe('KeyV');
     expect(saved.keybinds.SpeedPreset5).toBe('None');

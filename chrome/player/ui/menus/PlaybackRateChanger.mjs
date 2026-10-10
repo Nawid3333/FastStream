@@ -4,6 +4,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {AudioUtils} from '../../utils/AudioUtils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {DOMElements} from '../DOMElements.mjs';
+import {SILENT_MAX_PLAYBACK_RATE} from '../../options/KeybindUtils.mjs';
 
 export class PlaybackRateChanger extends EventEmitter {
   constructor(client) {
@@ -54,6 +55,8 @@ export class PlaybackRateChanger extends EventEmitter {
       // audioPaddingEnd: 0.25,
     });
 
+    // Through the setter's cap of 8 on purpose: a silent 16x left by the 16x key starts the
+    // next video at 8x, with sound.
     this.client.playbackRate = state.playbackRate;
     // Saved by a build with a higher cap, it went to the video as it was.
     this.silenceSkipSpeed = Utils.clamp(state.silenceSkipSpeed, 0.1, this.maxPlaybackRate);
@@ -263,8 +266,18 @@ export class PlaybackRateChanger extends EventEmitter {
     }
   }
 
+  /**
+   * The menu's entry for a rate: past its last one (the 16x key, silent), the last.
+   * @param {HTMLElement[]} elements - The entries, 0.1x to the cap.
+   * @param {number} rate
+   * @return {HTMLElement}
+   */
+  entryFor(elements, rate) {
+    return elements[Utils.clamp(Math.round(rate * 10), 1, elements.length) - 1];
+  }
+
   scrollToPosition() {
-    const element = this.playbackElements[Math.round(this.playbackRate * 10) - 1];
+    const element = this.entryFor(this.playbackElements, this.playbackRate);
     this.speedList.scrollTop = element.offsetTop - this.speedList.clientHeight / 2 + element.clientHeight / 2;
   }
 
@@ -358,7 +371,7 @@ export class PlaybackRateChanger extends EventEmitter {
       })(i);
     }
 
-    els[Math.round(this.playbackRate * 10) - 1].classList.add('rate-selected');
+    this.entryFor(els, this.playbackRate).classList.add('rate-selected');
 
     this.playbackElements = els;
 
@@ -390,16 +403,21 @@ export class PlaybackRateChanger extends EventEmitter {
   }
 
   shiftPlaybackRate(shift) {
+    // Faster from the 16x key's silent rate, past the menu's last entry: it stays (taken
+    // down to 8x, it went slower).
+    if (shift > 0 && this.playbackRate >= this.maxPlaybackRate) return;
     this.setPlaybackRate(Math.round((this.playbackRate + shift) * 10) / 10);
   }
 
   setPlaybackRate(rate, noEmit = false) {
-    this.playbackRate = Utils.clamp(rate, 0.1, this.maxPlaybackRate);
+    // The client's rate shown as it is: past the menu's last entry only from a speed preset
+    // (the 16x key, silent), which the menu marks at its top.
+    this.playbackRate = Utils.clamp(rate, 0.1, noEmit ? SILENT_MAX_PLAYBACK_RATE : this.maxPlaybackRate);
     this.playbackElements.forEach((el) => {
       el.classList.remove('rate-selected');
     });
 
-    const element = this.playbackElements[Math.round(this.playbackRate * 10) - 1];
+    const element = this.entryFor(this.playbackElements, this.playbackRate);
     this.scrollToPosition();
     element.classList.add('rate-selected');
 

@@ -93,7 +93,7 @@
         "message": "- Ponów cofnięte przewinięcie"
     },
     "welcome_page_keybinds_content17": {
-        "message": "klawisze strzałek - szybciej/wolniej"
+        "message": "klawisze - szybciej/wolniej o 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Włącz/wyłącz napisy"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Ścieżki dźwiękowe"
+    },
+    "player_speed_nosound": {
+        "message": "bez dźwięku"
     },
     "player_opensubtitles_title": {
         "message": "Wyszukiwanie OpenSubtitles"

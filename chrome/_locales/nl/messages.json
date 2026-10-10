@@ -93,7 +93,7 @@
         "message": "- Ongedaan gemaakte sprong opnieuw uitvoeren"
     },
     "welcome_page_keybinds_content17": {
-        "message": "pijltjestoetsen - sneller/langzamer afspelen"
+        "message": "toetsen - 0.1x sneller/langzamer afspelen"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Ondertitels aan/uit"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audiotracks"
+    },
+    "player_speed_nosound": {
+        "message": "geen geluid"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles zoeken"

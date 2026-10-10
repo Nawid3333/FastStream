@@ -93,7 +93,7 @@
         "message": "- 취소한 탐색 다시 실행"
     },
     "welcome_page_keybinds_content17": {
-        "message": "화살표 키 - 재생 속도 빠르게/느리게"
+        "message": "키 - 재생 속도 0.1x 빠르게/느리게"
     },
     "welcome_page_keybinds_content18": {
         "message": "- 자막 켜기/끄기"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "오디오 트랙"
+    },
+    "player_speed_nosound": {
+        "message": "소리 없음"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles 검색"

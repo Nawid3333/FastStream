@@ -93,7 +93,7 @@
         "message": "- Ulangi lompatan yang dibatalkan"
     },
     "welcome_page_keybinds_content17": {
-        "message": "tombol panah - putar lebih cepat/lambat"
+        "message": "tombol - putar lebih cepat/lambat 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Nyalakan/matikan subtitle"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Trek audio"
+    },
+    "player_speed_nosound": {
+        "message": "tanpa suara"
     },
     "player_opensubtitles_title": {
         "message": "Pencarian OpenSubtitles"

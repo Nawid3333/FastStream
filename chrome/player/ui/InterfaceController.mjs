@@ -416,7 +416,8 @@ export class InterfaceController {
           }
           wasPlaying = this.state.playing;
           lastSpeed = this.client.playbackRate;
-          this.client.playbackRate = lastSpeed * 2;
+          // Twice as fast, up to the rate with sound; never slower than it was (the 16x key).
+          this.client.setPlaybackRate(Math.max(lastSpeed, Math.min(lastSpeed * 2, this.client.options.maxPlaybackRate)), true);
 
           this.client.play();
         }, 800);
@@ -425,7 +426,8 @@ export class InterfaceController {
 
     const stopSpeedUp = () => {
       if (lastSpeed !== null) {
-        this.client.playbackRate = lastSpeed;
+        // What it was, a silent 16x too.
+        this.client.setPlaybackRate(lastSpeed, true);
         lastSpeed = null;
 
         if (!wasPlaying) {

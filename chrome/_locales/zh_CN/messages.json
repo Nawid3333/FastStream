@@ -93,7 +93,7 @@
         "message": "- 重做已撤销的跳转"
     },
     "welcome_page_keybinds_content17": {
-        "message": "方向键 - 加快/减慢播放"
+        "message": "键 - 加快/减慢播放 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- 开启/关闭字幕"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "音轨"
+    },
+    "player_speed_nosound": {
+        "message": "无声"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles 搜索"

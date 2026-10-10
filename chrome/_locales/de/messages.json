@@ -93,7 +93,7 @@
         "message": "- Rückgängig gemachtes Spulen wiederholen"
     },
     "welcome_page_keybinds_content17": {
-        "message": "Pfeiltasten - schneller/langsamer abspielen"
+        "message": "Tasten - um 0.1x schneller/langsamer abspielen"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Untertitel an/aus"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audiospuren"
+    },
+    "player_speed_nosound": {
+        "message": "kein Ton"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles-Suche"

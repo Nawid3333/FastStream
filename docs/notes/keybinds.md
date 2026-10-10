@@ -43,11 +43,28 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `R G B Q W A Y E H`. A press sets the speed; the same key again reverts to the speed active
   before it (per-key memory, fallback 1x; `applySpeedPreset`). One deliberate difference from
   the lua: a remembered speed equal to the preset itself falls back to 1x, so the key never goes
-  dead. The target is clamped to `options.maxPlaybackRate`, which is 8, so the 16x key gives
-  8x, the same as the 8x key. 8 is where Firefox stops playing audio: measured on Firefox 156,
-  a tone is at full level at 8x and silent at 10x and 16x, while the picture still runs at the
-  requested pace. `tests/e2e/specs/firefox.e2e.mjs` pins it, so a Firefox that plays faster audio
-  shows up as a failure and the cap can move.
+  dead. 8 (`options.maxPlaybackRate`) is where Firefox stops playing audio: measured on Firefox
+  156, a tone is at full level at 8x and silent at 10x and 16x, while the picture still runs at
+  the requested pace; `tests/e2e/specs/firefox.e2e.mjs` pins it, so a Firefox that plays faster
+  audio shows up as a failure and the cap can move. Everything that should be heard stops there:
+  the menu, the speed steps, holding the video, the silence skipper, the embed API. **The 16x key
+  plays 16x anyway, silent** (Nawid's decision, 2026-10-10: mpv's 16x is silent too; until then
+  it gave 8x, the same as the 8x key): the presets go up to `SILENT_MAX_PLAYBACK_RATE` (16,
+  Firefox's own limit) through `FastStreamClient.setPlaybackRate(rate, true)`, and putting such
+  a rate back (after holding the video, after a GIF) does too. The speed menu marks its top entry
+  then; the speed-up step leaves it where it is (`min()` took it down to 8x). Measured in the
+  player: 15.6x on long-av.mp4 (`keybinds.e2e.mjs` "The 16x key"). **Firefox plays a video
+  without an audio track at 1x once Web Audio takes its sound, whatever the rate** (2026-10-10:
+  a plain element 1.9x at 2x, 0.95x once captured; with an audio track 15.8x either way); the
+  player takes every video's sound (the volume above 100 %), so on a silent video the speed keys
+  do nothing - sample.mp4 has no audio, which is why that case uses long-av.mp4.
+- **Speed steps on S and D** (layout version 4, 2026-10-10, as in Nawid's mpv `input.conf`:
+  s -0.1, d +0.1): `DecreasePlaybackRate` on S, `IncreasePlaybackRate` on D (Shift+Down/Up
+  before), and `SaveVideo` moved from D to Shift+D (still with any extra modifier:
+  `KeybindsWithModifiers`; a plain D is the speed-up alone). `MOVED_IN_VERSION_4` moves a saved
+  binding only if it is still the old default, Save video first so D is free; a new key the user
+  already has elsewhere leaves the action unbound (`KeybindUtils.test.mjs` "to version 4",
+  `keybinds-storage.e2e.mjs`).
 - **Speed shown on screen** (2026-10-07), like mpv's OSD. Every speed key
   (`IncreasePlaybackRate`, `DecreasePlaybackRate`, `ResetPlaybackRate`, the `SpeedPreset` keys)
   calls `KeybindManager.showSpeed()`, which shows the rate now in effect top left over the
@@ -56,8 +73,8 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   outside the control bar's container so it shows with the controls hidden; white bold text on
   rgba(0,0,0,0.6) in `fluidplayer.css`), `aria-hidden` because the rate button carries the
   label. The text comes from `formatPlaybackRate` in KeybindUtils ("2×", "2.5×"), rounded to 2
-  decimals so the 0.1 steps' float leftovers show as "1.2×". A preset clamped to
-  `maxPlaybackRate` shows the real rate (the 16x key shows "8×"). Nawid chose speed only (not
+  decimals so the 0.1 steps' float leftovers show as "1.2×"; above the rate with sound,
+  `describePlaybackRate` adds the localized "no sound" ("16× · no sound"). Nawid chose speed only (not
   volume or seeks) and top left. Tests: `KeybindUtils.test.mjs` "formatPlaybackRate" and
   `keybinds.e2e.mjs` "a speed key shows the speed top left over the video for a moment" (text,
   opacity, position; a mutant without `showSpeed` in the preset handler fails it).
