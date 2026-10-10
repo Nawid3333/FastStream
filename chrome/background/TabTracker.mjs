@@ -632,6 +632,7 @@ export class TabTracker {
     }
     // Only tabs that are still there: the tabs.onRemoved that woke the page may have run
     // removeTab between the read above and here, and its tab came back for the session.
+    /** @type {Set<number|undefined>|null} */
     let live = null;
     try {
       live = new Set((await chrome.tabs.query({})).map((tab) => tab.id));
