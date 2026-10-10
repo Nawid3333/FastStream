@@ -28,6 +28,9 @@ export class SpeedTracker {
   getSpeed() {
     this.prune();
     if (this.buffer.length === 0) return 0;
+    // Nothing came for the whole window: the two entries prune() keeps were counted over an
+    // ever longer time, a speed that never reached 0 once the downloads had stopped.
+    if (this.buffer[this.buffer.length - 1].end < performance.now() - this.cutoffSize) return 0;
     let totalData = 0;
     this.buffer.forEach((entry) => {
       totalData += entry.dataSize;

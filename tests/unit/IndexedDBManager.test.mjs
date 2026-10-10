@@ -99,7 +99,7 @@ describe('IndexedDBManager.prune', () => {
       return db;
     });
     vi.spyOn(IndexedDBManager, 'getValue').mockImplementation(async (db) =>
-      db.name === 'faststream-temp-live' ? Date.now() - 1000 : Date.now() - 60000);
+      db.name === 'faststream-temp-live' ? Date.now() - 1000 : Date.now() - 120000);
     const deleteDB = vi.spyOn(IndexedDBManager, 'deleteDB').mockResolvedValue();
 
     await new IndexedDBManager().prune();
@@ -108,5 +108,19 @@ describe('IndexedDBManager.prune', () => {
     expect(connections.get('faststream-temp-live').close).toHaveBeenCalledTimes(1);
     expect(connections.get('faststream-temp-stale').close).toHaveBeenCalledTimes(1);
     expect(deleteDB.mock.calls).toEqual([['faststream-temp-stale']]);
+  });
+
+  // A live tab writes its time each second, but Firefox runs a hidden tab's timers up to 15 s
+  // late: one 10 s behind was taken for a dead one, and its videos were deleted under it.
+  it('keeps the database of a hidden tab whose timers run late', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    window.indexedDB = {databases: async () => [{name: 'faststream-temp-hidden'}]};
+    vi.spyOn(IndexedDBManager, 'requestDB').mockImplementation(async (name) => ({name, close: vi.fn()}));
+    vi.spyOn(IndexedDBManager, 'getValue').mockImplementation(async () => Date.now() - 20000);
+    const deleteDB = vi.spyOn(IndexedDBManager, 'deleteDB').mockResolvedValue();
+
+    await new IndexedDBManager().prune();
+
+    expect(deleteDB).not.toHaveBeenCalled();
   });
 });
