@@ -537,6 +537,42 @@ describe('Player controls, hiding by themselves', function() {
         {timeout: 5000, timeoutMsg: 'the bar the key showed stayed up'});
   });
 
+  // A click on a button focuses it, and the bar stayed up while it had the focus: after a
+  // click on fullscreen, until the video was played or paused by a click on it (#392).
+  it('hides the bar after a click on one of its buttons', async function() {
+    await playerWithPointerAway();
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
+    const mute = await browser.$('.mainplayer .fluid_control_mute');
+    await mute.click();
+    await mute.click();
+    const player = await browser.$('.mainplayer');
+    const {width, height} = await player.getSize();
+    await browser.action('pointer')
+        .move({origin: player, x: -Math.floor(width / 2) + 10, y: -Math.floor(height / 2) + 10})
+        .perform();
+    const focused = await browser.execute(() =>
+      document.querySelector('.mainplayer .fluid_controls_container').contains(document.activeElement));
+    console.log('      focus in the bar after the clicks:', focused);
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 6000, timeoutMsg: 'the bar stayed up after a click on one of its buttons'});
+  });
+
+  it('keeps the bar up while the keyboard is in it', async function() {
+    await playerWithPointerAway();
+    // Tab until a button of the bar has the focus.
+    let inBar = false;
+    for (let i = 0; i < 40 && !inBar; i++) {
+      await browser.keys(['Tab']);
+      inBar = await browser.execute(() =>
+        document.querySelector('.mainplayer .fluid_controls_container').contains(document.activeElement));
+    }
+    expect(inBar).toBe(true);
+    await browser.execute(() => window.fastStream.interfaceController.queueControlsHide(50));
+    await browser.pause(2600);
+    expect(await controlsVisible()).toBe(true);
+  });
+
   it('hides the bar once it may, after a hide was refused', async function() {
     await playerWithPointerAway();
     // Refused while paused; then played on by a way that asks for no hide.
