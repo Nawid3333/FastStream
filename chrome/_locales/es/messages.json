@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Deja de Probar"
     },
+    "player_subtitles_url_track": {
+        "message": "Subtítulos desde un enlace"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Pista $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Nuevo subtítulo"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Escribe un título para buscar"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Subir Archivo"
     },

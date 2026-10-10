@@ -119,7 +119,7 @@ export class SubtitleSyncer extends EventEmitter {
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       } else {
         // create new cue at this time with default duration of 2 seconds
-        const newCue = new VTTCue(time, time + 2, 'New subtitle');
+        const newCue = new VTTCue(time, time + 2, Localize.getMessage('player_subtitles_new_cue'));
         this.trackToSync.cues.push(newCue);
         // sort cues by start time
         this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
@@ -173,6 +173,9 @@ export class SubtitleSyncer extends EventEmitter {
       if (isGrabbingTrack && this.trackToSync) {
         const delta = e.clientX - grabStartTrack;
         grabStartTrack = e.clientX;
+        // No length to measure by (a live stream, or none known yet): every cue went to NaN,
+        // and the track stayed blank for good.
+        if (!(Number.isFinite(video.duration) && video.duration > 0)) return;
         const amount = delta / this.ui.timelineTrack.clientWidth * video.duration;
         if (grabbedCue) {
           if (grabbedEdge === 'right') {

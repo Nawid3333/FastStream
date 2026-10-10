@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Zatrzymaj test"
     },
+    "player_subtitles_url_track": {
+        "message": "Napisy z linku"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Ścieżka $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Nowy napis"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Wpisz tytuł do wyszukania"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Prześlij plik"
     },

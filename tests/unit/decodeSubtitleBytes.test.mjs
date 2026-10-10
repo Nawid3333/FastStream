@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {RequestUtils} from '../../chrome/player/utils/RequestUtils.mjs';
 import {SubtitleUtils} from '../../chrome/player/utils/SubtitleUtils.mjs';
@@ -38,6 +38,28 @@ describe('decodeSubtitleBytes', () => {
     // As UTF-8 every one of these letters was U+FFFD.
     expect(SubtitleUtils.decodeSubtitleBytes(windows1252(SRT))).toBe(SRT);
     expect(SubtitleUtils.decodeSubtitleBytes(windows1252(SRT).buffer)).toBe(SRT);
+  });
+
+  // Outside Western Europe, an older file is in another encoding: read as Windows-1252, a
+  // Russian one showed Latin letters with accents. The browser's language picks it, as
+  // Firefox's own fallback does.
+  it('reads a file that is no UTF-8 in the older encoding of the browser\'s language', () => {
+    const decode = (language, bytes) => {
+      vi.stubGlobal('navigator', {language});
+      try {
+        return SubtitleUtils.decodeSubtitleBytes(Uint8Array.from(bytes));
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    };
+    // "Привет" in Windows-1251, "Łódź" in Windows-1250, "Γειά" in Windows-1253.
+    const russian = [0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2];
+    expect(decode('ru-RU', russian)).toBe('Привет');
+    expect(decode('pl', [0xa3, 0xf3, 0x64, 0x9f])).toBe('Łódź');
+    expect(decode('el-GR', [0xc3, 0xe5, 0xe9, 0xdc])).toBe('Γειά');
+    // Western languages, and none known, as before.
+    expect(decode('de-DE', windows1252(GERMAN))).toBe(GERMAN);
+    expect(decode('', windows1252(GERMAN))).toBe(GERMAN);
   });
 
   it('leaves a valid UTF-8 file as it was', () => {

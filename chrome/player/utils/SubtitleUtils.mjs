@@ -11,11 +11,48 @@ const SRT_CUE_START = new RegExp('^\\s*' + SRT_TIMESTAMP.source);
  */
 export class SubtitleUtils {
   /**
+   * A subtitle size setting as CSS: a bare number ("20", or "1,5" with a decimal comma) is
+   * pixels, as the outline width already read it. The font size and the bottom margin took
+   * only CSS ("3vw", "40px"): a bare 20 was refused, and the setting did nothing.
+   * @param {string} value
+   * @return {string}
+   */
+  static withUnit(value) {
+    const text = String(value ?? '').trim();
+    return /^\d+([.,]\d+)?$/.test(text) ? text.replace(',', '.') + 'px' : text;
+  }
+
+  /**
+   * The subtitle outline's width in pixels, from its text field: a decimal comma too, as in
+   * the size fields ("1,5" was 1), and at most 64: "Infinity" (or 1e999) passed, and the
+   * outline's loop never ended - the player hung. 0 for none, or for what is no number.
+   * @param {*} value
+   * @return {number}
+   */
+  static outlineWidth(value) {
+    const width = Math.min(parseFloat(String(value ?? '').replace(',', '.')), 64);
+    return Number.isFinite(width) && width > 0 ? width : 0;
+  }
+
+  /**
+   * A subtitle track's file name to save it under, before ".srt" is added: what Windows (and
+   * Firefox's downloads) refuse replaced, and an extension of its own taken off - a track
+   * loaded from movie.srt was saved as movie.srt.srt, and one typed as movie.vtt as
+   * movie.vtt.srt (the file is SubRip whatever it was loaded as).
+   * @param {string} name
+   * @return {string}
+   */
+  static downloadName(name) {
+    return String(name).replace(/[\\/:*?"<>|]/g, '_').replace(/\.(srt|vtt|ass|ssa)$/i, '');
+  }
+
+  /**
    * Reads a subtitle file's bytes as text, as the browser did (a byte order mark first, then
    * a charset the server declared), except that bytes that are no UTF-8 are read as
    * Windows-1252: most older SubRip files from Western Europe are, and read as UTF-8 every
    * accented letter in them showed as U+FFFD. Every place that reads a subtitle file's bytes
    * uses this; content.js, which cannot import it, carries a copy a test keeps the same.
+   * Outside Western Europe the older encoding is another: the browser's language picks it.
    * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
    * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
    * @return {string} The file's text.
@@ -49,7 +86,17 @@ export class SubtitleUtils {
     try {
       return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
     } catch (e) {
-      return new TextDecoder('windows-1252').decode(bytes);
+      // No UTF-8: the older encoding of the browser's language, as Firefox falls back to.
+      // Read as Windows-1252, a Russian, Polish or Greek file showed wrong letters.
+      const language = String(globalThis.navigator?.language || '').toLowerCase();
+      const legacy = [
+        [/^(ru|uk|be|bg|sr|mk)\b/, 'windows-1251'], [/^(pl|cs|sk|sl|hu|hr|ro|bs)\b/, 'windows-1250'],
+        [/^el\b/, 'windows-1253'], [/^(tr|az)\b/, 'windows-1254'], [/^he\b/, 'windows-1255'],
+        [/^(ar|fa|ur)\b/, 'windows-1256'], [/^(lt|lv|et)\b/, 'windows-1257'], [/^vi\b/, 'windows-1258'],
+        [/^th\b/, 'windows-874'], [/^ja\b/, 'shift_jis'], [/^ko\b/, 'euc-kr'],
+        [/^zh-(tw|hk|mo|hant)/, 'big5'], [/^zh\b/, 'gb18030'],
+      ].find(([pattern]) => pattern.test(language));
+      return new TextDecoder(legacy ? legacy[1] : 'windows-1252').decode(bytes);
     }
   }
 
@@ -392,6 +439,8 @@ export class SubtitleUtils {
         // An ASS hard line break. Several in a row, with or without a real line break after
         // each, make one: an empty line would end the cue.
         .replace(/(?:\\N(?:\r?\n)?)+/g, '\n')
+        // An ASS soft line break: a space where the line need not break. It was shown as \n.
+        .replace(/\\n/g, ' ')
         .replace(/\\h/gi, ' '); // convert hard spaces to regular spaces
   }
 }

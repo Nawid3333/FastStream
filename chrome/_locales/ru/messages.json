@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Прекратить тестирование"
     },
+    "player_subtitles_url_track": {
+        "message": "Субтитры по ссылке"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Дорожка $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Новый субтитр"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Введите название для поиска"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Загрузить субтитры"
     },

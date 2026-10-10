@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "停止測試"
     },
+    "player_subtitles_url_track": {
+        "message": "來自連結的字幕"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "字幕軌 $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "新增字幕"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "輸入要搜尋的片名"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "上傳檔案"
     },

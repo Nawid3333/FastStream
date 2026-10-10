@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "Parar o teste"
     },
+    "player_subtitles_url_track": {
+        "message": "Legendas de um link"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "Faixa $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "Nova legenda"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "Digite um título para pesquisar"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "Carregar arquivo"
     },

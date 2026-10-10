@@ -4,6 +4,7 @@ import {WebVTT} from '../../modules/vtt.mjs';
 import {SubtitleTrack} from '../../SubtitleTrack.mjs';
 import {AlertPolyfill} from '../../utils/AlertPolyfill.mjs';
 import {RequestUtils} from '../../utils/RequestUtils.mjs';
+import {SubtitleSyncUtils} from '../../utils/SubtitleSyncUtils.mjs';
 import {SubtitleUtils} from '../../utils/SubtitleUtils.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
@@ -138,7 +139,17 @@ export class SubtitlesManager extends EventEmitter {
   }
 
   onSettingsChanged(settings) {
-    this.openSubtitlesSearch.setLanguageInputValue(settings.defaultLanguage);
+    // Only when the default language changes: any other setting (the font size) put it back
+    // over a language typed into the search.
+    const first = this.lastDefaultLanguage === undefined;
+    if (settings.defaultLanguage !== this.lastDefaultLanguage) {
+      this.lastDefaultLanguage = settings.defaultLanguage;
+      // The first time (the player starting) only into an empty field: a language the last
+      // search used, restored from the session, stays.
+      if (!first || !this.openSubtitlesSearch.subui.languageInput.value) {
+        this.openSubtitlesSearch.setLanguageInputValue(settings.defaultLanguage);
+      }
+    }
     this.refreshSubtitleStyles();
     this.renderSubtitles();
   }
@@ -167,6 +178,8 @@ export class SubtitlesManager extends EventEmitter {
       return false;
     }
     DOMElements.subtitlesMenu.style.display = 'none';
+    // Opened again, it showed the settings it was closed on, not the list of tracks.
+    this.settingsManager.closeUI();
     WebUtils.setLabels(DOMElements.subtitles, Localize.getMessage('player_subtitlesmenu_open_label'));
     return true;
   }
@@ -213,7 +226,7 @@ export class SubtitlesManager extends EventEmitter {
     filechooser.style.display = 'none';
     filechooser.accept = '.vtt, .srt';
     filechooser.ariaHidden = true;
-    filechooser.ariaLabel = 'Upload subtitle file';
+    filechooser.ariaLabel = Localize.getMessage('player_subtitlesmenu_uploadbtn');
 
     filechooser.addEventListener('change', () => {
       const files = filechooser.files;
@@ -229,7 +242,10 @@ export class SubtitlesManager extends EventEmitter {
         track.loadText(SubtitleUtils.decodeSubtitleBytes(bytes));
         track.checkHasCues();
 
-        this.addTrack(track);
+        // On, as a downloaded one is: it was only listed, and nothing showed.
+        this.activateTrack(this.addTrack(track));
+        // As the URL path says: nothing else showed that the file was taken.
+        AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
       }).catch((e) => {
         AlertPolyfill.toast('error', Localize.getMessage('player_subtitles_addtrack_error'), e?.message);
       });
@@ -261,12 +277,12 @@ export class SubtitlesManager extends EventEmitter {
         RequestUtils.requestSimple({url, responseType: 'arraybuffer'}, (err, req, body) => {
           if (!err && body) {
             try {
-              const track = new SubtitleTrack('URL Track', null);
+              const track = new SubtitleTrack(Localize.getMessage('player_subtitles_url_track'), null);
               track.loadText(SubtitleUtils.decodeSubtitleBytes(body, req.getResponseHeader('Content-Type')));
               // A web page (a login, an error page) added an empty track, and said "added".
               track.checkHasCues();
 
-              this.addTrack(track);
+              this.activateTrack(this.addTrack(track));
 
               AlertPolyfill.toast('success', Localize.getMessage('player_subtitles_addtrack_success'));
             } catch (e) {
@@ -384,11 +400,13 @@ export class SubtitlesManager extends EventEmitter {
         return;
       }
       // The track's name, as its tooltip has it: the row shows it cut to 30 characters and,
-      // with more than one track on, after its place ("1: ").
-      const suggestedName = (trackName.title || trackElement.textContent).replaceAll(' ', '_');
+      // with more than one track on, after its place ("1: "). Suggested and typed alike as a
+      // file name (SubtitleUtils.downloadName).
+      const suggestedName = SubtitleUtils.downloadName((trackName.title || trackElement.textContent).replaceAll(' ', '_'));
       // Asked in a private window too: a Firefox save lands straight in the download
       // directory under whatever name is passed, as SaveManager says.
-      const dlname = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+      const typed = await AlertPolyfill.prompt(Localize.getMessage('player_filename_prompt'), suggestedName);
+      const dlname = typed && SubtitleUtils.downloadName(typed);
 
       if (!dlname) {
         return;
@@ -423,7 +441,8 @@ export class SubtitlesManager extends EventEmitter {
     shiftLTrack.addEventListener('click', (e) => {
       this.tracks[i].shift(-0.2);
       this.renderSubtitles();
-      this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', ['-0.2']), 'info', 700);
+      // The shift so far, not the click's: five clicks said "-0.2" five times.
+      this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', [SubtitleSyncUtils.formatShift(this.tracks[i].shiftTotal)]), 'info', 1500);
       e.stopPropagation();
     }, true);
 
@@ -436,7 +455,7 @@ export class SubtitlesManager extends EventEmitter {
     shiftRTrack.addEventListener('click', (e) => {
       this.tracks[i].shift(0.2);
       this.renderSubtitles();
-      this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', ['+0.2']), 'info', 700);
+      this.client.interfaceController.setStatusMessage('subtitles', Localize.getMessage('player_subtitlesmenu_shifttool_message', [SubtitleSyncUtils.formatShift(this.tracks[i].shiftTotal)]), 'info', 1500);
       e.stopPropagation();
     }, true);
 
@@ -479,7 +498,7 @@ export class SubtitlesManager extends EventEmitter {
       update: () => {
         const track = this.tracks[i];
         const activeIndex = this.activeTracks.indexOf(track);
-        const nameCandidate = (track.language ? ('(' + track.language + ') ') : '') + (track.label || `Track ${i + 1}`);
+        const nameCandidate = (track.language ? ('(' + track.language + ') ') : '') + (track.label || Localize.getMessage('player_subtitles_track_numbered', [String(i + 1)]));
         let name = nameCandidate;
         // limit to 30 chars
         if (name.length > 30) {
@@ -732,8 +751,8 @@ export class SubtitlesManager extends EventEmitter {
 
     if (subtitlesVisible) {
       DOMElements.subtitlesContainer.style.display = '';
-      const margin = this.settingsManager.getSettings().bottomMargin;
-      DOMElements.subtitlesContainer.style.bottom = margin === '40px' ? '' : this.settingsManager.getSettings().bottomMargin;
+      const margin = SubtitleUtils.withUnit(this.settingsManager.getSettings().bottomMargin);
+      DOMElements.subtitlesContainer.style.bottom = margin === '40px' ? '' : margin;
     } else {
       DOMElements.subtitlesContainer.style.display = 'none';
     }

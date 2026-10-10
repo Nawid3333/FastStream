@@ -1405,8 +1405,8 @@
 
   /**
    * A copy of SubtitleUtils.decodeSubtitleBytes (a classic script cannot import it; a unit
-   * test keeps the two the same): a subtitle file's bytes as text, Windows-1252 when they
-   * are no UTF-8.
+   * test keeps the two the same): a subtitle file's bytes as text, in the older encoding of
+   * the browser's language when they are no UTF-8.
    * @param {ArrayBuffer|ArrayBufferView} data - The file's bytes.
    * @param {?string} [contentType] - The Content-Type it came with over HTTP, if any.
    * @return {string} The file's text.
@@ -1440,7 +1440,17 @@
     try {
       return new TextDecoder('utf-8', {fatal: true}).decode(bytes);
     } catch (e) {
-      return new TextDecoder('windows-1252').decode(bytes);
+      // No UTF-8: the older encoding of the browser's language, as Firefox falls back to.
+      // Read as Windows-1252, a Russian, Polish or Greek file showed wrong letters.
+      const language = String(globalThis.navigator?.language || '').toLowerCase();
+      const legacy = [
+        [/^(ru|uk|be|bg|sr|mk)\b/, 'windows-1251'], [/^(pl|cs|sk|sl|hu|hr|ro|bs)\b/, 'windows-1250'],
+        [/^el\b/, 'windows-1253'], [/^(tr|az)\b/, 'windows-1254'], [/^he\b/, 'windows-1255'],
+        [/^(ar|fa|ur)\b/, 'windows-1256'], [/^(lt|lv|et)\b/, 'windows-1257'], [/^vi\b/, 'windows-1258'],
+        [/^th\b/, 'windows-874'], [/^ja\b/, 'shift_jis'], [/^ko\b/, 'euc-kr'],
+        [/^zh-(tw|hk|mo|hant)/, 'big5'], [/^zh\b/, 'gb18030'],
+      ].find(([pattern]) => pattern.test(language));
+      return new TextDecoder(legacy ? legacy[1] : 'windows-1252').decode(bytes);
     }
   }
 

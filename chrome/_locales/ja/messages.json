@@ -395,6 +395,18 @@
     "player_subtitlesmenu_testbtn_stop": {
         "message": "テストを停止"
     },
+    "player_subtitles_url_track": {
+        "message": "URL から字幕"
+    },
+    "player_subtitles_track_numbered": {
+        "message": "トラック $1"
+    },
+    "player_subtitles_new_cue": {
+        "message": "新しい字幕"
+    },
+    "player_opensubtitles_enter_title": {
+        "message": "検索するタイトルを入力"
+    },
     "player_subtitlesmenu_uploadbtn": {
         "message": "ファイルをアップロード"
     },

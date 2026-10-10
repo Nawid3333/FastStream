@@ -83,8 +83,6 @@ describe('Message keys', () => {
     const allowed = [
       // Two abbreviations on a small button, whose tooltip is localized.
       'player/ui/audio/AudioChannelMixer.mjs: EQ/Comp',
-      // The label of a hidden, aria-hidden file input, which nothing reads.
-      'player/ui/subtitles/SubtitlesManager.mjs: Upload subtitle file',
       // A fallback never shown: CHANNEL_NAMES names every one of the MAX_AUDIO_CHANNELS.
       'player/ui/audio/OutputConvolver.mjs: Channel',
     ];
