@@ -4625,6 +4625,24 @@
         "zh_CN": "缓冲视频所用内存（所有标签页合计）",
         "zh_TW": "緩衝影片所用記憶體（所有分頁合計）"
     },
+    "options_general_buffertodisk": {
+        "en": "Keep video on disk when this RAM is full (off: let it go and download it again when needed, which writes nothing to the disk)",
+        "de": "Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist (aus: verwerfen und bei Bedarf erneut herunterladen, sodass nichts auf die Festplatte geschrieben wird)",
+        "es": "Guardar el vídeo en el disco cuando esta RAM esté llena (desactivado: descartarlo y volverlo a descargar cuando sea necesario, para que no se escriba nada en el disco)",
+        "fr": "Conserver la vidéo sur le disque lorsque cette mémoire vive est pleine (désactivé : la supprimer et la télécharger à nouveau si besoin, pour ne rien écrire sur le disque)",
+        "id": "Simpan video di disk saat RAM ini penuh (nonaktif: buang dan unduh lagi bila dibutuhkan, sehingga tidak ada yang ditulis ke disk)",
+        "it": "Conserva il video su disco quando questa RAM è piena (disattivo: scarta e scarica di nuovo se necessario, così non viene scritto nulla su disco)",
+        "ja": "このRAMがいっぱいになった時に動画をディスクに保存する（オフ：破棄して必要に応じて再ダウンロードし、ディスクに何も書き込まないようにする）",
+        "ko": "이 RAM이 가득 찼을 때 비디오를 디스크에 저장 (끔: 삭제하고 필요할 때 다시 다운로드하여 디스크에 아무것도 기록하지 않음)",
+        "ms": "Simpan video pada cakera apabila RAM ini penuh (mati: buang dan muat turun semula jika perlu, supaya tiada apa-apa ditulis pada cakera)",
+        "nl": "Video op schijf bewaren als deze RAM vol is (uit: weggooien en opnieuw downloaden indien nodig, zodat er niets op de schijf wordt geschreven)",
+        "pl": "Przechowuj wideo na dysku, gdy ten RAM zostanie zapełniony (wyłączone: odrzucaj i pobieraj ponownie w razie potrzeby, więc nic nie trafia na dysk)",
+        "pt_BR": "Manter o vídeo no disco quando esta RAM estiver cheia (desativado: descartar e baixar novamente quando necessário, para que nada seja escrito no disco)",
+        "ru": "Хранить видео на диске, когда это ОЗУ заполнено (выкл.: удалять и загружать снова при необходимости, чтобы ничего не записывалось на диск)",
+        "tr": "Bu RAM dolduğunda videoyu diskte tut (kapalı: sil ve gerektiğinde tekrar indir, böylece diske hiçbir şey yazılmaz)",
+        "zh_CN": "当此内存满时将视频保存在磁盘上（关闭：丢弃并在需要时重新下载，从而不会向磁盘写入任何内容）",
+        "zh_TW": "當此記憶體滿時將影片儲存在磁碟上（關閉：捨棄並在需要時重新下載，因此不會向磁碟寫入任何內容）"
+    },
     "options_general_nolimit": {
         "en": "No limit",
         "de": "Keine Begrenzung",
@@ -4696,6 +4714,24 @@
         "tr": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın.",
         "zh_CN": "0：已下载的视频不保存在内存中，而是保存到磁盘上，只有接下来几秒会留在内存中。隐私窗口不会在磁盘上保存任何内容，因此播放位置前方不会下载任何内容。将输入框留空即为无限制。",
         "zh_TW": "0：已下載的影片不保存在記憶體中，而是儲存到磁碟上，只有接下來幾秒會留在記憶體中。隱私視窗不會在磁碟上儲存任何內容，因此不會在播放位置前方下載任何內容。留空表示無限制。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "en": "0: no downloaded video is kept, and with \"Keep video on disk\" off nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit.",
+        "de": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen.",
+        "es": "0: no se guarda ningún vídeo descargado y, con \"Guardar el vídeo en el disco\" desactivado, no se descarga nada por adelantado, por lo que los vídeos podrían detenerse. Deja el campo vacío para que no haya límite.",
+        "fr": "0 : aucune vidéo téléchargée n'est conservée et, avec « Conserver la vidéo sur le disque » désactivé, rien n'est téléchargé à l'avance, ce qui peut provoquer des interruptions de lecture. Laissez le champ vide pour supprimer la limite.",
+        "id": "0: video yang diunduh tidak disimpan, dan dengan \"Simpan video di disk\" nonaktif, tidak ada yang diunduh di depan pemutaran, sehingga video mungkin terhenti saat memuat. Biarkan kolom kosong agar tidak ada batasan.",
+        "it": "0: nessun video scaricato viene tenuto e, con \"Conserva il video su disco\" disattivo, non viene scaricato nulla in anticipo, quindi i video potrebbero interrompersi. Lascia vuoto il campo per rimuovere il limite.",
+        "ja": "0: ダウンロードした動画は保持されず、「このRAMがいっぱいになった時に動画をディスクに保存する」がオフの場合、再生位置より先には何もダウンロードされないため、動画の読み込みが停止することがあります。制限を設けたくない場合は、この欄を空欄にしてください。",
+        "ko": "0: 다운로드한 비디오가 유지되지 않으며, \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있으면 재생보다 앞서 다운로드하는 내용이 없으므로 비디오 로딩이 중단될 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요.",
+        "ms": "0: tiada video yang dimuat turun disimpan, dan dengan \"Simpan video pada cakera\" mati, tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin terhenti. Biarkan medan ini kosong jika anda mahu tanpa had.",
+        "nl": "0: gedownloade video wordt niet bewaard en als \"Video op schijf bewaren\" uitstaat, wordt er niets vooruit gedownload, waardoor video's kunnen stoppen met laden. Laat het veld leeg voor geen limiet.",
+        "pl": "0: pobrane wideo nie jest trzymane, a przy wyłączonej opcji „Przechowuj wideo na dysku” nic nie jest pobierane z wyprzedzeniem, więc wideo może przestać się ładować. Zostaw pole puste, aby nie było limitu.",
+        "pt_BR": "0: nenhum vídeo baixado é mantido e, com \"Manter o vídeo no disco\" desativado, nada é baixado antes da reprodução, então os vídeos podem parar de carregar. Deixe o campo vazio para não haver limite.",
+        "ru": "0: загруженное видео не хранится, и если опция «Хранить видео на диске» выключена, ничего не загружается заранее, поэтому видео может останавливаться, ожидая загрузки. Оставьте поле пустым, чтобы снять ограничение.",
+        "tr": "0: indirilen hiçbir video tutulmaz ve \"Bu RAM dolduğunda videoyu diskte tut\" kapalıyken oynatma noktasının ilerisinde hiçbir şey indirilmez, bu nedenle videolar yüklenirken durabilir. Sınırsız olması için alanı boş bırakın.",
+        "zh_CN": "0：不保存任何已下载的视频，且在“当此内存满时将视频保存在磁盘上”关闭时，不会在播放位置前方下载任何内容，因此视频可能会停止加载。将输入框留空即为无限制。",
+        "zh_TW": "0：不會保留任何已下載的影片，且在「當此記憶體滿時將影片儲存在磁碟上」關閉時，不會在播放位置前方下載任何內容，因此影片可能會停止載入。留空表示無限制。"
     },
     "options_general_rambudget_none": {
         "en": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down.",

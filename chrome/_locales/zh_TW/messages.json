@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "緩衝影片所用記憶體（所有分頁合計）"
     },
+    "options_general_buffertodisk": {
+        "message": "當此記憶體滿時將影片儲存在磁碟上（關閉：捨棄並在需要時重新下載，因此不會向磁碟寫入任何內容）"
+    },
     "options_general_nolimit": {
         "message": "無限制"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0：已下載的影片不保存在記憶體中，而是儲存到磁碟上，只有接下來幾秒會留在記憶體中。隱私視窗不會在磁碟上儲存任何內容，因此不會在播放位置前方下載任何內容。留空表示無限制。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0：不會保留任何已下載的影片，且在「當此記憶體滿時將影片儲存在磁碟上」關閉時，不會在播放位置前方下載任何內容，因此影片可能會停止載入。留空表示無限制。"
     },
     "options_general_rambudget_none": {
         "message": "無限制：所有已下載的影片都保留在記憶體中，不會存到磁碟。記憶體較少的電腦上，Firefox 可能會變慢。"

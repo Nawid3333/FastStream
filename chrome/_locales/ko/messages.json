@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"
     },
+    "options_general_buffertodisk": {
+        "message": "이 RAM이 가득 찼을 때 비디오를 디스크에 저장 (끔: 삭제하고 필요할 때 다시 다운로드하여 디스크에 아무것도 기록하지 않음)"
+    },
     "options_general_nolimit": {
         "message": "제한 없음"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: 다운로드한 비디오는 RAM에 두지 않고 디스크에 저장하며, 다음 몇 초만 RAM에 남습니다. 아무것도 디스크에 저장하지 않는 사생활 보호 창에서는 재생보다 앞서 다운로드하는 내용이 없습니다. 제한 없음으로 하려면 칸을 비워 두세요."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: 다운로드한 비디오가 유지되지 않으며, \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있으면 재생보다 앞서 다운로드하는 내용이 없으므로 비디오 로딩이 중단될 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
     "options_general_rambudget_none": {
         "message": "제한 없음: 다운로드한 비디오가 모두 RAM에 유지되고 디스크에는 저장되지 않습니다. 메모리가 적은 PC에서는 Firefox가 느려질 수 있습니다."

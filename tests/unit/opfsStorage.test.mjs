@@ -567,6 +567,55 @@ describe('FSBlob', () => {
     expect(fsblob.ramBytes()).toBe(0);
   });
 
+  it('writes nothing more to disk once "Keep video on disk" is off, and reads what is there', async () => {
+    // The option (2026-10-10): off, what does not fit in the RAM budget is let go of
+    // instead (FastStreamClient.keepWithinMemoryBudget, through canSpill).
+    const root = new FakeDir();
+    const manager = await startManager(root);
+    const {fsblob} = withOpfs(manager);
+    try {
+      await fsblob.saveBlobAsync(new Blob([new Uint8Array([1, 2])]), 'before', {deferred: true});
+      expect(await fsblob.spill('before')).toBe(true);
+
+      fsblob.setMemoryOnly(true);
+      const blob = new Blob([new Uint8Array([3, 4, 5])]);
+      await fsblob.saveBlobAsync(blob, 'after', {deferred: true});
+      expect(await fsblob.spill('after')).toBe(false);
+      expect(fsblob.getBlob('after')).toBe(blob);
+      expect(fsblob.ramBytes()).toBe(3);
+      expect([...sessionOf(root, manager).children.keys()].filter((name) => name !== '_meta.json')).toHaveLength(1);
+      // The one written before is still read from disk.
+      expect(fsblob.getBlob('before').disk).toBeDefined();
+
+      fsblob.setMemoryOnly(false);
+      expect(await fsblob.spill('after')).toBe(true);
+    } finally {
+      await manager.close();
+    }
+  });
+
+  it('starts its backends when a store made memory-only may write to disk after all', async () => {
+    // "Keep video on disk" switched on in a player that opened with it off.
+    const cached = new Map();
+    const cache = {
+      put: async (url, response) => cached.set(url, await response.blob()),
+      match: async (url) => cached.has(url) ? new Response(cached.get(url)) : undefined,
+      delete: async (url) => cached.delete(url),
+    };
+    vi.stubGlobal('window', {caches: {open: async () => cache, delete: async () => true}});
+    vi.stubGlobal('navigator', {});
+    const fsblob = new FSBlob({memoryOnly: true});
+    expect(await fsblob.ready()).toBe(false);
+    await fsblob.saveBlobAsync(new Blob(['fragment']), 'f1', {deferred: true});
+    expect(await fsblob.spill('f1')).toBe(false);
+
+    fsblob.setMemoryOnly(false);
+    expect(await fsblob.ready()).toBe(true);
+    expect(await fsblob.spill('f1')).toBe(true);
+    expect(cached.size).toBe(1);
+    expect(fsblob.ramBytes()).toBe(0);
+  });
+
   it('keeps one blob in RAM when a single write fails but the worker lives', async () => {
     const alive = {
       worker: {},

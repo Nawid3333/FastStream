@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang di-buffer (semua tab)"
     },
+    "options_general_buffertodisk": {
+        "message": "Simpan video di disk saat RAM ini penuh (nonaktif: buang dan unduh lagi bila dibutuhkan, sehingga tidak ada yang ditulis ke disk)"
+    },
     "options_general_nolimit": {
         "message": "Tidak ada batasan"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: video yang diunduh tidak disimpan di RAM, melainkan di disk, kecuali beberapa detik berikutnya. Di jendela privat, yang tidak menyimpan apa pun di disk, tidak ada yang diunduh di depan pemutaran. Biarkan kolom kosong agar tidak ada batasan."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: video yang diunduh tidak disimpan, dan dengan \"Simpan video di disk\" nonaktif, tidak ada yang diunduh di depan pemutaran, sehingga video mungkin terhenti saat memuat. Biarkan kolom kosong agar tidak ada batasan."
     },
     "options_general_rambudget_none": {
         "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."

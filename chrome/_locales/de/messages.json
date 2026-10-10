@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
+    "options_general_buffertodisk": {
+        "message": "Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist (aus: verwerfen und bei Bedarf erneut herunterladen, sodass nichts auf die Festplatte geschrieben wird)"
+    },
     "options_general_nolimit": {
         "message": "Keine Begrenzung"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_none": {
         "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."

@@ -65,6 +65,7 @@ export class FastStreamClient extends EventEmitter {
       maxSpeed: -1,
       maxVideoSize: 5000000000, // 5GB max size
       ramBudget: DEFAULT_BUDGET_BYTES, // downloaded video kept in RAM, all players together
+      bufferToDisk: true, // beyond the RAM budget: on disk, or (false) let go
       bufferAhead: 300,
       bufferBehind: 20,
       freeFragments: true,
@@ -349,6 +350,9 @@ export class FastStreamClient extends EventEmitter {
     this.options.maxSpeed = options.maxSpeed;
     this.options.maxVideoSize = options.maxVideoSize;
     this.options.ramBudget = options.ramBudget;
+    // Only the buffer: watch progress and saving keep their own storage.
+    this.options.bufferToDisk = options.bufferToDisk !== false;
+    this.downloadManager?.setBufferToDisk(this.options.bufferToDisk);
     // Seconds; an empty field (-1) is no limit: the whole video ahead, everything played kept.
     this.options.bufferAhead = FastStreamClient.bufferSeconds(options.bufferAhead);
     this.options.bufferBehind = FastStreamClient.bufferSeconds(options.bufferBehind);
@@ -596,6 +600,37 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
+   * The seconds ahead of the playhead that fit in RAM next to those kept behind it.
+   * @param {number} room - Bits; Infinity for no limit.
+   * @param {number} bitrate - Bits per second; unknown (0, NaN) fits anything.
+   * @return {number}
+   */
+  ramAheadSeconds(room, bitrate) {
+    if (room === 0) return 0;
+    if (!Number.isFinite(room) || !(bitrate > 0)) return Infinity;
+    // All of it: what is kept behind is what the budget lets go of first
+    // (MemoryBudget.chooseToRelease), so it takes nothing from the room ahead.
+    return Math.floor(room / bitrate / 1.1);
+  }
+
+  /**
+   * The RAM budget for all players, and this player's share of it (MemoryBudget.shareOf).
+   * @return {{budget: number, share: number}} Bytes; Infinity for no limit.
+   */
+  memoryShare() {
+    // -1 (an empty field) is no limit, and 0 none; anything else unreadable is the default.
+    const setting = this.options.ramBudget;
+    const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
+    if (!this.peers) return {budget, share: budget};
+    const watched = this.peers.visible() && !!this.state.playing;
+    const others = this.peers.livePeers().map((peer) => ({
+      ramBytes: peer.ramBytes,
+      weight: weightOf(peer.visible && peer.playing),
+    }));
+    return {budget, share: shareOf(budget, weightOf(watched), others)};
+  }
+
+  /**
    * Updates the available download space and buffer indicators.
    */
   updateHasDownloadSpace() {
@@ -609,6 +644,18 @@ export class FastStreamClient extends EventEmitter {
     if (this.source?.loadedFromArchive) {
       return;
     }
+
+    let bitrate = level.bitrate;
+    const fragments = this.fragments;
+    if (fragments) {
+      bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
+    }
+    // Nothing of the buffer goes to disk - a private window, or "Keep video on disk" off
+    // (2026-10-10): what is kept has to fit in this player's share of the RAM budget, below
+    // where it lets go (MemoryBudget.LOW), in bits. Kept beyond it, the budget let go of the
+    // far end and the downloads ahead fetched it again, round and round. No limit: Infinity.
+    const ramOnly = EnvUtils.isIncognito() || this.options.bufferToDisk === false;
+    const ramRoom = ramOnly ? this.memoryShare().share * 8 * LOW : Infinity;
 
     if (EnvUtils.isIncognito()) {
       // Only for a predownload asked for: without it there is nothing to fit, and turned on
@@ -624,18 +671,14 @@ export class FastStreamClient extends EventEmitter {
         this.hasDownloadSpace = false;
       }
     } else {
-      let bitrate = level.bitrate;
-      const fragments = this.fragments;
-      if (fragments) {
-        bitrate = Utils.measuredBitrate(fragments) ?? bitrate;
-      }
       if (!Number.isFinite(this.duration)) {
         // A live stream has no size to fit, and is freed behind playback as it plays. Its
         // infinite duration made it "too big" on its first tick: a storage warning on every
         // live stream, and everything downloaded so far pinned for the session.
         this.hasDownloadSpace = false;
       } else if (bitrate && this.duration) {
-        let storageAvailable = (this.storageAvailable * 8) * 0.6;
+        // With nothing on disk, the room is RAM: the disk's free space does not count.
+        let storageAvailable = ramOnly ? ramRoom : (this.storageAvailable * 8) * 0.6;
         // 0 is a limit too: nothing predownloaded (an empty field, -1, is none).
         if (this.options.maxVideoSize >= 0 && this.options.maxVideoSize * 8 < storageAvailable) {
           storageAvailable = this.options.maxVideoSize * 8;
@@ -665,15 +708,16 @@ export class FastStreamClient extends EventEmitter {
           // buffered, or a video that looked completely buffered a moment
           // ago would suddenly lose most of its buffer the next time
           // freeFragments() runs (see FastStreamClient.freeFragments).
+          // With nothing on disk, nothing is pinned: the RAM budget could not let go of it.
           const grandfather = (frag) => {
             if (frag && frag.status === DownloadStatus.DOWNLOAD_COMPLETE) {
               frag.addReference(ReferenceTypes.GRANDFATHERED);
             }
           };
           // The quality on now may have no fragments yet (just switched to)
-          if (fragments) fragments.forEach(grandfather);
-          if (this.audioFragments) this.audioFragments.forEach(grandfather);
-          const windowSeconds = this.state.bufferBehind + this.state.bufferAhead;
+          if (fragments && !ramOnly) fragments.forEach(grandfather);
+          if (this.audioFragments && !ramOnly) this.audioFragments.forEach(grandfather);
+          const windowSeconds = this.state.bufferBehind + Math.min(this.state.bufferAhead, this.ramAheadSeconds(ramRoom, bitrate));
           if (Number.isFinite(windowSeconds)) {
             this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_buffer_storage_warning', [StringUtils.formatDuration(windowSeconds)]), 'warning', 5000);
           }
@@ -682,6 +726,12 @@ export class FastStreamClient extends EventEmitter {
       } else {
         this.hasDownloadSpace = true;
       }
+    }
+
+    // Ahead, too, only what fits (a private window kept "Buffer ahead", 300 s, whatever the
+    // budget: a small one let go of it and fetched it again, round and round).
+    if (ramOnly && this.state.bufferAhead > this.ramAheadSeconds(ramRoom, bitrate)) {
+      this.state.bufferAhead = this.ramAheadSeconds(ramRoom, bitrate);
     }
 
     // if (!this.hasDownloadSpace) {
@@ -1274,16 +1324,9 @@ export class FastStreamClient extends EventEmitter {
   keepWithinMemoryBudget() {
     const manager = this.downloadManager;
     if (!manager?.blobStore || !this.peers) return;
-    // -1 (an empty field) is no limit, and 0 none: all of it in RAM, or all of it on disk
-    // (DISK_ONLY_ROOM_BYTES).
-    const setting = this.options.ramBudget;
-    const budget = setting < 0 ? Infinity : Number.isFinite(setting) ? setting : DEFAULT_BUDGET_BYTES;
-    const watched = this.peers.visible() && !!this.state.playing;
-    const others = this.peers.livePeers().map((peer) => ({
-      ramBytes: peer.ramBytes,
-      weight: weightOf(peer.visible && peer.playing),
-    }));
-    const share = shareOf(budget, weightOf(watched), others);
+    // A budget of 0 keeps nothing in RAM: all of it on disk (DISK_ONLY_ROOM_BYTES), or, with
+    // nothing on disk, nothing ahead.
+    const {budget, share} = this.memoryShare();
     const held = manager.ramBytes();
     const leaving = manager.spillingBytes();
     const toDisk = manager.canSpill();

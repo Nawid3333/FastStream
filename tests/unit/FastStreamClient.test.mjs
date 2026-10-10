@@ -194,7 +194,7 @@ function makeClient(options = {}) {
       isInPip: () => false,
       isUserSeeking: () => false,
     },
-    downloadManager: {reset: vi.fn(async () => {}), removeFile: vi.fn(), removeAllDownloaders: vi.fn()},
+    downloadManager: {reset: vi.fn(async () => {}), removeFile: vi.fn(), removeAllDownloaders: vi.fn(), setBufferToDisk: vi.fn()},
     audioAnalyzer: {reset: vi.fn(), setLevel: vi.fn(), updateBackgroundAnalyzer: vi.fn()},
     frameExtractor: {reset: vi.fn(), setLevel: vi.fn(), updateBackground: vi.fn()},
     videoAnalyzer: {setLevel: vi.fn(), setSource: vi.fn(async () => {}), pushFrame: () => false},
@@ -701,6 +701,154 @@ describe('FastStreamClient, a video codec that failed to decode for good', () =>
 
 // A limit of 0 is none, and an empty field (-1) no limit: 0 read as no limit (or as a
 // trickle) surprised the user who typed it to turn a thing off (2026-10-09).
+// "Keep video on disk" off (2026-10-10), as in a private window: nothing of the buffer goes
+// to disk, so what is kept has to fit in the RAM budget, below where it starts letting go
+// (MemoryBudget.LOW). Kept beyond it, the budget let go of the far end and the downloads
+// ahead fetched it again, round and round. Every budget has to work with it: his words.
+describe('FastStreamClient, the RAM budget with nothing on disk', () => {
+  const MB = 1e6;
+  const GB = 1e9;
+  let EnvUtils;
+  let Utils;
+
+  beforeEach(async () => {
+    ({EnvUtils} = await import('../../chrome/player/utils/EnvUtils.mjs'));
+    ({Utils} = await import('../../chrome/player/utils/Utils.mjs'));
+    Utils.measuredBitrate = () => null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete Utils.measuredBitrate;
+  });
+
+  /**
+   * A finite video, 1400 s at 5 Mbit/s (875 MB), on a disk with room to spare.
+   * @param {Object} options - The client's options.
+   * @return {Object} The client.
+   */
+  function clientWithVideo(options) {
+    const client = makeClient({downloadAll: true, ...options});
+    const player = new FakePlayer(makeSource('http://127.0.0.1/movie.mp4'));
+    player.duration = 1400;
+    player.videoLevel = 'video-1';
+    player.getVideoLevels = () => new Map([['video-1', {bitrate: 5e6}]]);
+    client.player = player;
+    client.hasDownloadSpace = true;
+    client.storageAvailable = 1e12;
+    return client;
+  }
+
+  /**
+   * The seconds that fit in a share at 5 Mbit/s: all of them ahead, as behind is what the
+   * budget lets go of first.
+   * @param {number} share - Bytes.
+   * @return {number}
+   */
+  const fits = (share) => Math.floor(share * 8 * 0.75 / 5e6 / 1.1);
+
+  it('predownloads a video that fits in the budget, 2 GB or 8 GB, as with the disk', () => {
+    for (const ramBudget of [2 * GB, 8 * GB]) {
+      const client = clientWithVideo({bufferToDisk: false, ramBudget});
+      client.updateHasDownloadSpace();
+      expect(client.hasDownloadSpace, String(ramBudget)).toBe(true);
+      expect(client.state.bufferAhead, String(ramBudget)).toBeGreaterThanOrEqual(300);
+      expect(client.interfaceController.setStatusMessage).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps only what fits of a bigger one, warns once, and pins nothing', () => {
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 500 * MB});
+    const fragment = {status: DownloadStatus.DOWNLOAD_COMPLETE, dataSize: null, addReference: vi.fn()};
+    client.fragmentsStore['video-1'] = [fragment];
+    client.updateHasDownloadSpace();
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(false);
+    // Less the 20 s kept behind, as with the disk: with predownload on, that is how it counts.
+    expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
+    expect(client.interfaceController.setStatusMessage).toHaveBeenCalledTimes(1);
+    expect(client.interfaceController.setStatusMessage.mock.calls[0][1]).toBe('player_buffer_storage_warning');
+    // Pinned, the budget could not let go of it.
+    expect(fragment.addReference).not.toHaveBeenCalled();
+
+    // With the disk, the same video is predownloaded whole: what does not fit goes there.
+    const withDisk = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
+    withDisk.updateHasDownloadSpace();
+    expect(withDisk.hasDownloadSpace).toBe(true);
+  });
+
+  it('keeps nothing ahead with a budget of 0, and has no limit with an empty field', () => {
+    const none = clientWithVideo({bufferToDisk: false, ramBudget: 0});
+    none.updateHasDownloadSpace();
+    expect(none.hasDownloadSpace).toBe(false);
+    expect(none.state.bufferAhead).toBe(0);
+
+    const unlimited = clientWithVideo({bufferToDisk: false, ramBudget: -1});
+    unlimited.updateHasDownloadSpace();
+    expect(unlimited.hasDownloadSpace).toBe(true);
+    expect(unlimited.state.bufferAhead).toBeGreaterThanOrEqual(300);
+  });
+
+  it('fits "Buffer ahead" in a small budget without predownload too, whatever is kept behind', () => {
+    // 300 s at 5 Mbit/s is 188 MB: in a 100 MB budget it went round and round.
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 100 * MB, downloadAll: false});
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(fits(100 * MB));
+    // Behind is what the budget lets go of first: 1000 s of it left nothing ahead.
+    for (const behind of [1000, Infinity]) {
+      client.state.bufferBehind = behind;
+      client.updateHasDownloadSpace();
+      expect(client.state.bufferAhead, String(behind)).toBe(fits(100 * MB));
+    }
+  });
+
+  it('fits in this player\'s share when another one holds RAM too', () => {
+    // Two players with 2 GB: each counted on all of it, and together they went round again.
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 2 * GB});
+    client.state.playing = true;
+    client.peers = {visible: () => true, livePeers: () => [{ramBytes: 1.5 * GB, visible: true, playing: true}]};
+    client.updateHasDownloadSpace();
+    // Its share: half of 2 GB (equal weights), 1 GB; 875 MB is more than 75 % of it.
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.state.bufferAhead).toBe(fits(1 * GB) - 20);
+
+    // Alone, the same video fits.
+    const alone = clientWithVideo({bufferToDisk: false, ramBudget: 2 * GB});
+    alone.updateHasDownloadSpace();
+    expect(alone.hasDownloadSpace).toBe(true);
+  });
+
+  it('does not let the disk\'s free space limit what is kept in RAM', () => {
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 2 * GB});
+    client.storageAvailable = 100 * MB;
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(true);
+  });
+
+  it('keeps nothing ahead at 0 when the bitrate is not known yet, and reads a broken setting as 2 GB', () => {
+    const client = clientWithVideo({bufferToDisk: false, ramBudget: 0});
+    client.player.getVideoLevels = () => new Map([['video-1', {}]]);
+    client.updateHasDownloadSpace();
+    expect(client.state.bufferAhead).toBe(0);
+
+    const broken = clientWithVideo({bufferToDisk: false, ramBudget: NaN});
+    broken.updateHasDownloadSpace();
+    expect(broken.hasDownloadSpace).toBe(true);
+    const small = clientWithVideo({bufferToDisk: false, ramBudget: NaN, downloadAll: false});
+    small.player.getVideoLevels = () => new Map([['video-1', {bitrate: 1e8}]]);
+    small.updateHasDownloadSpace();
+    expect(small.state.bufferAhead).toBe(Math.floor(2 * GB * 8 * 0.75 / 1e8 / 1.1));
+  });
+
+  it('fits a private window\'s buffer in the budget too, whatever the switch says', () => {
+    vi.spyOn(EnvUtils, 'isIncognito').mockReturnValue(true);
+    const client = clientWithVideo({bufferToDisk: true, ramBudget: 100 * MB});
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.state.bufferAhead).toBe(fits(100 * MB));
+  });
+});
+
 describe('FastStreamClient, limits of 0 and no limit', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -810,6 +958,25 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
 
     client.setOptions({bufferBehind: 120});
     expect(client.state.bufferBehind).toBe(120);
+  });
+
+  it('hands "Keep video on disk" to the download manager at once, on unless it is off', () => {
+    // Only the buffer: watch progress and saving keep their storage (2026-10-10).
+    vi.stubGlobal('document', {body: {dataset: {}}, getElementById: () => null});
+    vi.stubGlobal('localStorage', {setItem: () => {}, getItem: () => null});
+    vi.stubGlobal('sessionStorage', {setItem: () => {}, getItem: () => null});
+    const client = makeClient();
+    client.videoAnalyzer.disable = vi.fn();
+    client.interfaceController.updateAutoNextIndicator = vi.fn();
+    client.loadProgressData = vi.fn(async () => {});
+
+    client.setOptions({bufferToDisk: false});
+    expect(client.options.bufferToDisk).toBe(false);
+    expect(client.downloadManager.setBufferToDisk).toHaveBeenLastCalledWith(false);
+    // Options saved before the switch existed have no value: on, as it was.
+    client.setOptions({});
+    expect(client.options.bufferToDisk).toBe(true);
+    expect(client.downloadManager.setBufferToDisk).toHaveBeenLastCalledWith(true);
   });
 
   // An empty field is no limit (-1): read as -1 seconds, nothing was kept, and "only -1 s

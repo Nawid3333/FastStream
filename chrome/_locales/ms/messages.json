@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "RAM untuk video yang ditimbal (semua tab)"
     },
+    "options_general_buffertodisk": {
+        "message": "Simpan video pada cakera apabila RAM ini penuh (mati: buang dan muat turun semula jika perlu, supaya tiada apa-apa ditulis pada cakera)"
+    },
     "options_general_nolimit": {
         "message": "Tanpa had"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: video yang dimuat turun tidak disimpan dalam RAM, tetapi pada cakera, kecuali beberapa saat berikutnya. Dalam tetingkap peribadi, yang tidak menyimpan apa-apa pada cakera, tiada apa-apa yang dimuat turun di hadapan main balik. Biarkan medan ini kosong jika anda mahu tanpa had."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: tiada video yang dimuat turun disimpan, dan dengan \"Simpan video pada cakera\" mati, tiada apa-apa yang dimuat turun di hadapan main balik, jadi video mungkin terhenti. Biarkan medan ini kosong jika anda mahu tanpa had."
     },
     "options_general_rambudget_none": {
         "message": "Tanpa had: semua video yang dimuat turun kekal dalam RAM, tiada yang disimpan pada cakera. Pada PC dengan memori kecil, Firefox mungkin menjadi perlahan."

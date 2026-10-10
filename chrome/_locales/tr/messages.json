@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "Arabelleğe alınan video için RAM (tüm sekmeler)"
     },
+    "options_general_buffertodisk": {
+        "message": "Bu RAM dolduğunda videoyu diskte tut (kapalı: sil ve gerektiğinde tekrar indir, böylece diske hiçbir şey yazılmaz)"
+    },
     "options_general_nolimit": {
         "message": "Sınırsız"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: indirilen video RAM'de tutulmaz, diskte tutulur; yalnızca önümüzdeki birkaç saniye RAM'de kalır. Hiçbir şeyi diskte tutmayan gizli pencerede oynatma noktasının ilerisinde hiçbir şey indirilmez. Sınırsız olması için alanı boş bırakın."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: indirilen hiçbir video tutulmaz ve \"Bu RAM dolduğunda videoyu diskte tut\" kapalıyken oynatma noktasının ilerisinde hiçbir şey indirilmez, bu nedenle videolar yüklenirken durabilir. Sınırsız olması için alanı boş bırakın."
     },
     "options_general_rambudget_none": {
         "message": "Sınırsız: indirilen videonun tamamı RAM'de kalır, diske hiçbir şey yazılmaz. Belleği az olan bir bilgisayarda Firefox yavaşlayabilir."

@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "RAM voor gebufferde video (alle tabbladen)"
     },
+    "options_general_buffertodisk": {
+        "message": "Video op schijf bewaren als deze RAM vol is (uit: weggooien en opnieuw downloaden indien nodig, zodat er niets op de schijf wordt geschreven)"
+    },
     "options_general_nolimit": {
         "message": "Geen limiet"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: gedownloade video wordt niet in RAM bewaard maar op schijf, op de eerstvolgende seconden na. In een privévenster, dat niets op schijf bewaart, wordt niets vooruit gedownload. Laat het veld leeg voor geen limiet."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: gedownloade video wordt niet bewaard en als \"Video op schijf bewaren\" uitstaat, wordt er niets vooruit gedownload, waardoor video's kunnen stoppen met laden. Laat het veld leeg voor geen limiet."
     },
     "options_general_rambudget_none": {
         "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."

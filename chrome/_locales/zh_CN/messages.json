@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "缓冲视频所用内存（所有标签页合计）"
     },
+    "options_general_buffertodisk": {
+        "message": "当此内存满时将视频保存在磁盘上（关闭：丢弃并在需要时重新下载，从而不会向磁盘写入任何内容）"
+    },
     "options_general_nolimit": {
         "message": "无限制"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0：已下载的视频不保存在内存中，而是保存到磁盘上，只有接下来几秒会留在内存中。隐私窗口不会在磁盘上保存任何内容，因此播放位置前方不会下载任何内容。将输入框留空即为无限制。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0：不保存任何已下载的视频，且在“当此内存满时将视频保存在磁盘上”关闭时，不会在播放位置前方下载任何内容，因此视频可能会停止加载。将输入框留空即为无限制。"
     },
     "options_general_rambudget_none": {
         "message": "无限制：已下载的视频全部保存在内存（RAM）中，不写入磁盘。在内存较少的电脑上，Firefox 可能会变慢。"

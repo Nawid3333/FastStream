@@ -83,7 +83,7 @@ describe('Options page number fields', function() {
 
   // Clearing a video filter's field to type a new number saved 0 at once: an invisible
   // (zoom) or black (brightness) video until the next key.
-  it('saves nothing for an emptied video filter field, and shows the value again when left', async function() {
+  it('saves nothing for an emptied zoom field, and shows the value again when left', async function() {
     const zoom = await browser.execute(() => {
       const input = document.querySelector('[data-option="videoZoom"] input.number');
       input.value = '';
@@ -436,6 +436,24 @@ describe('Options page size fields, typed by hand', function() {
     await savedAs('ramBudget', -1);
     expect(await shown('rambudget')).toEqual(['', 'GB']);
     expect(await hint('rambudget')).toBe(await message('options_general_rambudget_none'));
+  });
+
+  // "Keep video on disk when this RAM is full" (2026-10-10): off, a budget of 0 is no longer
+  // "straight to disk", and the hint under the field says what it is then.
+  it('saves "Keep video on disk", and says what a RAM budget of 0 means without it', async function() {
+    const toggle = () => browser.execute(() => document.getElementById('buffertodisk').click());
+    expect(await browser.execute(() => document.getElementById('buffertodisk').checked)).toBe(true);
+    await typeInto('rambudget', '0');
+    await browser.keys(['Tab']);
+    await savedAs('ramBudget', 0);
+    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
+
+    await toggle();
+    await savedAs('bufferToDisk', false);
+    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero_nodisk'));
+    await toggle();
+    await savedAs('bufferToDisk', true);
+    expect(await hint('rambudget')).toBe(await message('options_general_rambudget_zero'));
   });
 
   // Buffer ahead and behind, in seconds, by the same rule: an emptied field was read as 0,

@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "RAM per il video nel buffer (tutte le schede)"
     },
+    "options_general_buffertodisk": {
+        "message": "Conserva il video su disco quando questa RAM è piena (disattivo: scarta e scarica di nuovo se necessario, così non viene scritto nulla su disco)"
+    },
     "options_general_nolimit": {
         "message": "Nessun limite"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: il video scaricato non viene tenuto in RAM ma su disco, tranne i prossimi secondi. In una finestra privata, che non salva nulla su disco, non viene scaricato nulla in anticipo. Lascia vuoto il campo per rimuovere il limite."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: nessun video scaricato viene tenuto e, con \"Conserva il video su disco\" disattivo, non viene scaricato nulla in anticipo, quindi i video potrebbero interrompersi. Lascia vuoto il campo per rimuovere il limite."
     },
     "options_general_rambudget_none": {
         "message": "Nessun limite: tutto il video scaricato rimane nella RAM, nulla viene salvato su disco. Su un PC con poca memoria, Firefox potrebbe rallentare."

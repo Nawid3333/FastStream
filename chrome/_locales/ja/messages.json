@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
+    "options_general_buffertodisk": {
+        "message": "このRAMがいっぱいになった時に動画をディスクに保存する（オフ：破棄して必要に応じて再ダウンロードし、ディスクに何も書き込まないようにする）"
+    },
     "options_general_nolimit": {
         "message": "制限なし"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: ダウンロードした動画は、次の数秒を除いて RAM に置かれず、ディスクに保存されます。ディスクに何も保存しないプライベートウィンドウでは、再生位置より先には何もダウンロードされません。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: ダウンロードした動画は保持されず、「このRAMがいっぱいになった時に動画をディスクに保存する」がオフの場合、再生位置より先には何もダウンロードされないため、動画の読み込みが停止することがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
     },
     "options_general_rambudget_none": {
         "message": "制限なし: ダウンロードした動画はすべて RAM に保存され、ディスクには保存されません。メモリの少ない PC では、Firefox の動作が遅くなる可能性があります。"

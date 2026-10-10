@@ -770,6 +770,9 @@
     "options_general_rambudget": {
         "message": "RAM para o vídeo em buffer (todas as abas)"
     },
+    "options_general_buffertodisk": {
+        "message": "Manter o vídeo no disco quando esta RAM estiver cheia (desativado: descartar e baixar novamente quando necessário, para que nada seja escrito no disco)"
+    },
     "options_general_nolimit": {
         "message": "Sem limite"
     },
@@ -781,6 +784,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: o vídeo baixado não fica na RAM, mas no disco, exceto os próximos segundos. Em uma janela privativa, que não guarda nada no disco, nada é baixado antes da reprodução. Deixe o campo vazio para não haver limite."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: nenhum vídeo baixado é mantido e, com \"Manter o vídeo no disco\" desativado, nada é baixado antes da reprodução, então os vídeos podem parar de carregar. Deixe o campo vazio para não haver limite."
     },
     "options_general_rambudget_none": {
         "message": "Sem limite: todo o vídeo baixado fica na RAM, nada vai para o disco. Em um computador com pouca memória, o Firefox pode ficar lento."
