@@ -27,13 +27,13 @@
         "message": "Ada empat cara menggunakan FastStream"
     },
     "welcome_page_usage_content1": {
-        "message": "Buka situs yang berisi video streaming, lalu aktifkan FastStream dengan mengklik ikonnya. Putar stream dan pemutar akan otomatis digantikan oleh FastStream."
+        "message": "Buka situs web yang berisi video, lalu aktifkan FastStream dengan mengklik ikonnya di bilah alat. Saat Anda memutar video, pemutar FastStream akan menggantikan pemutar situs web."
     },
     "welcome_page_usage_content2": {
-        "message": "Anda dapat membuka tab baru lalu tekan ikon ekstensi untuk membuka pemutar."
+        "message": "Anda juga dapat membuka tab baru dan mengklik ikon FastStream untuk membuka pemutar."
     },
     "welcome_page_usage_content3": {
-        "message": "Jika opsi ini diaktifkan, buka URL mp4/mpd/m3u8 dan pemutar akan memainkannya."
+        "message": "Tautan video langsung akan terbuka di pemutar jika opsinya diaktifkan: \"Gunakan pemutar untuk memutar video MP4\" untuk tautan berakhiran .mp4, dan \"Gunakan pemutar untuk memutar stream HLS/DASH\" untuk tautan berakhiran .m3u8 atau .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Biarkan pemutar terbuka di tab baru dan ia akan mengumpulkan sumber saat Anda menjelajah tempat lain."
@@ -45,10 +45,10 @@
         "message": "Kontrol Keyboard Bawaan"
     },
     "welcome_page_keybinds_content0": {
-        "message": "Anda dapat mengubah pintasan tombol ini di pengaturan ekstensi."
+        "message": "Anda dapat mengubah tombol-tombol ini di pengaturan, di bagian Pintasan Keyboard."
     },
     "welcome_page_keybinds_content1": {
-        "message": "tombol panah - lompat 5 detik maju/mundur"
+        "message": "tombol panah - lompat 5 detik maju/mundur (langkahnya dapat diubah di pengaturan)"
     },
     "welcome_page_keybinds_content2": {
         "message": "tombol - lompat 10 detik maju/mundur"
@@ -63,7 +63,7 @@
         "message": "- Layar penuh"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- Tambah/kurangi permintaan bersamaan"
+        "message": "- Unduh lebih banyak/lebih sedikit bagian video secara bersamaan"
     },
     "welcome_page_keybinds_content7": {
         "message": "- Tombol paksa coba lagi - gunakan ini untuk mencoba ulang unduhan yang gagal"
@@ -75,7 +75,7 @@
         "message": "- Sembunyikan/tampilkan pemutar"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- Lompat ke 10%-90% video (0 - awal)"
+        "message": "- Lompat ke 0%, 10%, 20% ... 90% video (0 = awal)"
     },
     "welcome_page_keybinds_content11": {
         "message": "- Mengatur kecepatan ke 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x, atau 16x - tekan tombol yang sama lagi untuk kembali"
@@ -135,16 +135,16 @@
         "message": "Tentang Izin yang Diperlukan oleh FastStream"
     },
     "perms_page_about_content0": {
-        "message": "Agar ekstensi berfungsi, ia memerlukan beberapa izin. Izin-izin ini hanya digunakan untuk fungsionalitas dasar."
+        "message": "FastStream memerlukan beberapa izin agar dapat berfungsi, dan hanya menggunakannya untuk hal-hal yang tercantum di bawah ini."
     },
     "perms_page_about_content1": {
         "message": "FastStream tidak mengumpulkan data apa pun dari Anda dan tidak melacak Anda. FastStream tidak memiliki server sendiri. FastStream hanya terhubung ke situs yang videonya Anda putar, ke OpenSubtitles saat Anda mencari subtitle, dan ke GitHub untuk memeriksa pembaruan."
     },
     "perms_page_about_content2": {
-        "message": "Tidak percaya? Sumber FastStream tersedia di"
+        "message": "Anda tidak perlu mempercayai kami: kode sumber FastStream tersedia di"
     },
     "perms_page_about_content3": {
-        "message": "Anda dapat memeriksa kodenya sendiri, atau memasang build kustom Anda secara manual dengan mengikuti instruksinya."
+        "message": "Anda dapat membaca kodenya sendiri, atau membuat dan memasang salinan Anda sendiri dengan mengikuti instruksi di README."
     },
     "perms_page_breakdown_header": {
         "message": "Rincian Izin"
@@ -210,7 +210,7 @@
         "message": "Bertukar pesan dengan program selain Firefox"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "Hanya untuk mpv: saat video dikirim ke mpv, FastStream menyerahkannya ke host mpv FastStream di komputer Anda sendiri, yang membukanya di mpv. Tanpa host itu, izin ini tidak pernah digunakan."
+        "message": "Hanya untuk mpv: saat video dikirim ke mpv, FastStream menyerahkannya ke program penghubung mpv FastStream di komputer Anda sendiri, yang membukanya di mpv. Tanpa program penghubung ini, izin ini tidak pernah digunakan."
     },
     "perms_page_breakdown_perm7h": {
         "message": "Mengunduh berkas"
@@ -231,7 +231,7 @@
         "message": "Belum Diizinkan, klik untuk mengizinkan"
     },
     "player_needs_interaction": {
-        "message": "Berinteraksi untuk mengaktifkan percepatan unduhan"
+        "message": "Klik pemutar untuk mengizinkannya mengunduh video terlebih dahulu"
     },
     "player_silenceskip_threshold_hint": {
         "message": "Seret garis merah muda untuk mengatur seberapa senyap bagian harus agar dapat dilewati"
@@ -348,10 +348,10 @@
         "message": "Tidak dapat mengatur header dengan benar! Pasang ekstensi untuk menggunakan fitur ini!"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles sedang tidak tersedia!"
+        "message": "Tidak dapat terhubung ke OpenSubtitles: periksa koneksi internet Anda, atau coba lagi nanti."
     },
     "player_opensubtitles_down_alert": {
-        "message": "Unduhan OpenSubtitles gagal! Server mereka mungkin sedang tidak tersedia!"
+        "message": "Unduhan dari OpenSubtitles gagal: coba lagi nanti."
     },
     "player_opensubtitles_noresults": {
         "message": "Tidak ada hasil!"
@@ -364,6 +364,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 unduhan"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 unduhan"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "Untuk tuli dan gangguan pendengaran"
@@ -429,7 +432,7 @@
         "message": "Gagal memuat trek subtitle!"
     },
     "player_subtitles_nocues": {
-        "message": "Tidak ada subtitle yang ditemukan di dalamnya."
+        "message": "Tidak ada subtitle yang ditemukan di berkas ini."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari di OpenSubtitles"
@@ -489,7 +492,7 @@
         "message": "Tutup jendela pengaturan"
     },
     "player_savevideo_label": {
-        "message": "Simpan video. Tahan ALT untuk menyimpan video sebagian. Tahan SHIFT untuk menyimpan buffer sebagai arsip."
+        "message": "Simpan video. Tahan Alt sambil mengklik untuk menyimpan hanya yang sudah diunduh sejauh ini. Tahan Shift untuk menyimpan data yang diunduh sebagai arsip FastStream (seret dan lepas ke pemutar untuk memutarnya lagi)."
     },
     "player_screenshot_label": {
         "message": "Ambil tangkapan layar"
@@ -501,7 +504,7 @@
         "message": "Beralih layar penuh"
     },
     "player_fullscreen_denied": {
-        "message": "Izin layar penuh ditolak!"
+        "message": "Firefox hanya mengizinkan layar penuh setelah ada klik: klik tombol layar penuh pemutar."
     },
     "player_windowed_fullscreen_label": {
         "message": "Beralih ke layar penuh jendela"
@@ -552,10 +555,10 @@
         "message": "Unduhan dijeda"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 fragmen gagal! Klik untuk coba lagi."
+        "message": "$1 bagian video gagal diunduh. Klik untuk mencoba lagi."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 fragmen gagal! Klik untuk coba lagi."
+        "message": "$1 bagian video gagal diunduh. Klik untuk mencoba lagi."
     },
     "player_fragment_allbuffered": {
         "message": "100% Terbuffer"
@@ -600,7 +603,7 @@
         "message": "Video belum selesai diunduh! Yakin ingin menyimpannya?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "Mode Penyamaran akan menggunakan RAM untuk men-buffer video. Komputer Anda mungkin tidak memiliki memori yang cukup untuk menyimpan seluruh video!\nYakin ingin melanjutkan?"
+        "message": "Jendela pribadi menyimpan video di memori (RAM), bukan di disk. Komputer Anda mungkin tidak memiliki cukup memori untuk menyimpan seluruh video!\nApakah Anda ingin melanjutkan?"
     },
     "player_savevideo_cancelling": {
         "message": "Membatalkan penyimpanan..."
@@ -618,7 +621,7 @@
         "message": "Gagal menyimpan video!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Gagal menyimpan video!\nApakah Anda ingin mengarsipkan penyimpanan buffer pemutar sebagai gantinya?\n- Seret dan lepaskan berkas arsip ke pemutar untuk memuatnya"
+        "message": "Gagal menyimpan video!\nApakah Anda ingin menyimpan apa yang sudah diunduh sebagai arsip FastStream sebagai gantinya?\n- Seret dan lepas berkas arsip ke pemutar untuk memutarnya lagi"
     },
     "player_savevideo_complete": {
         "message": "Penyimpanan selesai!"
@@ -651,13 +654,13 @@
         "message": "(tidak diketahui)"
     },
     "player_buffer_incognito_warning": {
-        "message": "Tidak cukup ruang untuk pra-unduh di mode penyamaran, akan melakukan buffering $1"
+        "message": "Tidak cukup ruang untuk pra-unduh di jendela pribadi: FastStream hanya menyimpan $1 dari video tersebut."
     },
     "player_buffer_storage_warning": {
-        "message": "Ukuran video melebihi batas, akan melakukan buffering $1"
+        "message": "Video ini tidak muat di batas pra-unduh (ukuran, ruang disk, atau RAM): FastStream hanya menyimpan $1 darinya."
     },
     "player_error_drm": {
-        "message": "Gagal dimuat! DRM tidak didukung!"
+        "message": "Video ini dilindungi hak cipta (DRM), dan FastStream tidak dapat memutarnya. Matikan FastStream dengan tombol bilah alatnya untuk menontonnya di pemutar situs."
     },
     "player_error_load": {
         "message": "Gagal memuat video!"
@@ -942,7 +945,7 @@
         "message": "FastStream v$1 kini tersedia (versi saat ini v$2). Ingin memperbarui?"
     },
     "options_update_go": {
-        "message": "Bawa saya ke Github"
+        "message": "Bawa saya ke GitHub"
     },
     "options_update_no": {
         "message": "Abaikan pembaruan ini"
@@ -954,7 +957,7 @@
         "message": "Opsi Video"
     },
     "options_video_body": {
-        "message": "Menerapkan filter CSS ke video. Tidak berfungsi pada picture-in-picture."
+        "message": "Mengubah tampilan video: kecerahan, kontras, warna, dan lainnya. Tidak berfungsi di picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Perbesaran Video"
@@ -1014,7 +1017,7 @@
         "message": "Tidak ada batasan: semua video yang diunduh tetap berada di RAM, tidak ada yang disimpan ke disk. Pada PC dengan memori terbatas, Firefox mungkin melambat."
     },
     "options_general_bufferahead": {
-        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti atau kehabisan ruang)"
+        "message": "Detik yang tetap dibuffer di depan pemutaran (dipakai saat predownload nonaktif, berhenti, atau kehabisan ruang)"
     },
     "options_general_bufferahead_zero": {
         "message": "0: tidak ada yang tetap dibuffer di depan pemutaran, jadi video sering berhenti untuk memuat. Biarkan kolom kosong untuk tanpa batas."
@@ -1062,7 +1065,7 @@
         "message": "Penundaan sebelum mengganti pemutar secara otomatis (ms)"
     },
     "options_general_maxdownloaders": {
-        "message": "Pengunduh maksimum (1 sampai 6)"
+        "message": "Jumlah unduhan bersamaan (1 sampai 6)"
     },
     "options_general_autoplaynext": {
         "message": "Putar otomatis video berikutnya saat video saat ini selesai"
@@ -1224,7 +1227,7 @@
         "message": "Buka stream yang terdeteksi di mpv (pemutar eksternal)"
     },
     "options_mpv_body": {
-        "message": "Saat Mode MPV aktif, tombol bilah alat bergantian antara Nonaktif, Aktif (pemutar bawaan), dan MPV. Di situs yang ada dalam daftar izin, stream yang terdeteksi langsung dibuka di mpv pada komputer Anda, bukan di pemutar browser. Membutuhkan mpv dan host mpv FastStream di komputer Anda: di Windows, penyiapan sekali klik (tautan pertama di bawah) memasang keduanya; penyiapan manual (tautan kedua) untuk pengembang dan sistem lain."
+        "message": "Saat Mode MPV aktif, tombol bilah alat bergantian antara Nonaktif, Aktif (pemutar bawaan), dan MPV. Di situs yang ada dalam daftar izin, stream yang terdeteksi langsung dibuka di mpv pada komputer Anda, bukan di pemutar browser. Membutuhkan mpv dan program penghubung mpv FastStream di komputer Anda: di Windows, penyiapan sekali klik (tautan pertama di bawah) memasang keduanya; penyiapan manual (tautan kedua) untuk Linux, macOS, dan pengembang."
     },
     "options_mpv_setup_oneclick": {
         "message": "Penyiapan sekali klik untuk Windows (mpv-config)"
@@ -1239,7 +1242,7 @@
         "message": "Situs dalam daftar ini membuka stream yang terdeteksi di mpv. Satu URL per baris; halaman yang diawali dengan URL tersebut juga cocok (https:// dan www. bisa dihilangkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Situs tanpa tag memakai Film secara bawaan untuk pemilihan shader mpv – tambahkan @anime di akhir baris untuk situs anime. @movie juga diterima, jika Anda ingin menuliskannya secara utuh. Tombol mpv di pemutar dapat menimpanya untuk setiap video."
     },
     "options_mpv_path": {
-        "message": "Jalur mpv (opsional, dipakai oleh host natif ketika mpv tidak ada di PATH)"
+        "message": "Jalur mpv (opsional: hanya jika program penghubung mpv tidak menemukan mpv secara otomatis)"
     },
     "options_mpv_fullscreen": {
         "message": "Buka mpv dalam layar penuh"
@@ -1260,13 +1263,13 @@
         "message": "mpv ditemukan: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv ditemukan: $1 (jalur di atas tidak ditemukan, jadi host memakai yang ini)"
+        "message": "mpv ditemukan: $1 (jalur di atas tidak ditemukan, jadi program penghubung mpv memakai jalur ini)"
     },
     "options_mpv_test_nompv": {
-        "message": "Host dapat dijangkau, tetapi mpv tidak ditemukan"
+        "message": "Program penghubung mpv berfungsi, tetapi tidak menemukan mpv: instal mpv, atau masukkan jalurnya di \"Jalur mpv\" di atas."
     },
     "options_mpv_test_fail": {
-        "message": "Host mpv tidak tersedia – apakah sudah dipasang? Lihat tautan penyiapan di awal bagian ini."
+        "message": "Program penghubung mpv tidak merespons – apakah sudah terpasang? Lihat tautan penyiapan di awal bagian ini."
     },
     "options_mpv_suggest_text": {
         "message": "Pembantu mpv sudah terpasang – buka video di mpv?"
@@ -1278,7 +1281,7 @@
         "message": "Abaikan"
     },
     "options_mpv_suggest_done": {
-        "message": "Mode MPV aktif. Tambahkan situs yang videonya harus dibuka di mpv ke Daftar Izin MPV (di bagian Mode MPV di bawah). Di situs lain, tekan Alt+F (pintasan MPV) lalu mulai videonya, atau gunakan tombol mpv di pemutar FastStream."
+        "message": "Mode MPV aktif. Tambahkan situs yang videonya harus dibuka di mpv ke Daftar Izin MPV (di bagian ini). Di situs lain, tekan pintasan MPV (Alt+F, kecuali Anda mengubahnya) dan mulai memutar videonya, atau gunakan tombol mpv di pemutar FastStream."
     },
     "options_mpv_suggest_close": {
         "message": "Tutup"
@@ -1293,7 +1296,7 @@
         "message": "Terkirim ke mpv"
     },
     "player_mpv_fail": {
-        "message": "Tidak dapat dibuka di mpv. Apakah host mpv FastStream sudah terpasang?"
+        "message": "Tidak dapat membuka di mpv. Apakah program penghubung mpv FastStream sudah terpasang?"
     },
     "player_mpv_fail_reason": {
         "message": "Tidak dapat membuka di mpv: $1"
@@ -1320,10 +1323,10 @@
         "message": "Program penghubung mpv di komputer ini sudah usang: perbarui berkas faststream-mpv-host.mjs yang ditunjuk oleh manifes native messaging Anda (git pull di salinan repositori FastStream; lihat native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
-        "message": "mpv yang terbuka mendekode di kartu grafis: $1."
+        "message": "Jendela mpv yang terbuka mendekode di kartu grafis: $1."
     },
     "options_mpv_test_decoder_sw": {
-        "message": "mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
+        "message": "Jendela mpv yang terbuka mendekode di prosesor ($1): tambahkan hwdec=auto-safe ke mpv.conf untuk mendekode di kartu grafis."
     },
     "player_mpv_sent_outdated": {
         "message": "Terkirim ke mpv. Program penghubung mpv di komputer ini sudah usang: jalankan \"Update mpv\" dari menu Start (di salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
@@ -1395,13 +1398,13 @@
         "message": "Laporkan Kesalahan"
     },
     "player_outofstorage": {
-        "message": "Peringatan: Browser Anda tidak sepenuhnya mendukung fitur penyimpanan file. Ini mungkin karena browser Anda kehabisan ruang penyimpanan atau belum di-restart dalam waktu yang lama. Beberapa fitur mungkin tidak berfungsi seperti yang diharapkan."
+        "message": "Penyimpanan Firefox untuk video yang diunduh tidak dapat dibuka, jadi FastStream menyimpan video di memori (RAM) sebagai gantinya, dan video yang panjang mungkin tidak muat. Memulai ulang Firefox, atau membebaskan ruang disk, biasanya memperbaikinya."
     },
     "player_vpn_allow": {
         "message": "Putar melalui Firefox VPN"
     },
     "player_vpn_allow_tooltip": {
-        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, yang tidak menyertakan permintaan FastStream, dan situs mungkin menolaknya. Klik untuk mengizinkan FastStream menggunakan koneksi yang sama (sekali, di halaman izin FastStream)."
+        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, tetapi permintaan FastStream sendiri tidak melewatinya, dan situs mungkin menolaknya. Klik untuk mengizinkan FastStream menggunakan Firefox VPN juga: Anda cukup mengizinkannya sekali, di halaman izin FastStream yang akan terbuka."
     },
     "perms_page_breakdown_perm9h": {
         "message": "Proxy (opsional)"
@@ -1413,6 +1416,6 @@
         "message": "program penghubung mpv FastStream tidak merespons - apakah sudah terpasang?"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN membawa video ini, dan mpv tidak dapat menggunakannya: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."
+        "message": "Video ini berasal dari Firefox VPN, dan mpv tidak dapat menggunakan Firefox VPN: situs akan menolak mpv. Untuk menontonnya di mpv, matikan Firefox VPN untuk situs ini dan muat ulang halaman."
     }
 }

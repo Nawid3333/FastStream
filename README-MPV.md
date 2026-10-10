@@ -41,7 +41,7 @@ irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.
 ```
 
 Or download mpv-config as a ZIP (**Code ▸ Download ZIP**), extract it and
-double-click **`install.bat`**. No admin rights, Git or Node.js are needed. It:
+double-click **`install.bat`**. It needs no admin rights, no Git and no Node.js. It:
 
 - installs mpv with mpv-config's configuration into `%LOCALAPPDATA%\Programs\mpv`;
 - installs this fork's helper from its latest release (this repository's
@@ -87,9 +87,9 @@ FastStream settings → **MPV Mode**:
 
 1. Tick **Open detected streams in mpv (external player)**.
 2. Click **Test mpv connection**. You want **"mpv found"**.
-   - *"host reachable, but mpv was not found"* → mpv is installed somewhere
-     unusual; put its full path in **mpv path** and test again.
-   - *"mpv host not available - is it installed?"* → the helper is not
+   - *"The mpv helper works, but it did not find mpv"* → mpv is installed
+     somewhere unusual; put its full path in **mpv path** and test again.
+   - *"The mpv helper did not answer - is it installed?"* → the helper is not
      registered, or you have not restarted the browser since installing it.
 3. Fill in the **MPV Allowlist** — one site per line. mpv is only used on
    these sites; everywhere else FastStream behaves normally.
@@ -140,11 +140,14 @@ into mpv yourself, which opens it with yt-dlp.
 
 ## When something does not work
 
-Turn on the helper's log. Add `"debug": true` to
-`%LOCALAPPDATA%\FastStreamMpvHost\config.json`:
+Turn on the helper's log. Open `%LOCALAPPDATA%\FastStreamMpvHost\config.json` in a
+text editor and add one entry at its end: a comma after the last value, then
+`"debug": true` before the closing `}`. Keep the rest as it is (your `mpvPath`,
+and `ipcToken`, the name of the helper's pipe to mpv). The end of the file then
+reads:
 
 ```json
-{"mpvPath": "C:\\Program Files\\mpv\\mpv.exe", "debug": true}
+..., "debug": true}
 ```
 
 No reinstall or restart needed — it is read on every message. It then writes
@@ -158,7 +161,7 @@ Common cases:
 |---|---|
 | Nothing at all happens | Site is not on the allowlist, or MPV mode is off. The log will be empty. |
 | **Test mpv connection** fails | Browser not restarted after installing, or the helper is not registered. |
-| The toolbar's `!` says the mpv host is out of date | The helper on this PC is older than the add-on. One-click install: Start menu ▸ mpv ▸ *Update mpv*. By hand: `update-local.cmd` in your checkout, or `native-host\install.ps1` again. |
+| The toolbar's `!` says the mpv helper is out of date | The helper on this PC is older than the add-on. One-click install: Start menu ▸ mpv ▸ *Update mpv*. By hand: `update-local.cmd` in your checkout, or `native-host\install.ps1` again. |
 | mpv opens and closes instantly | The stream itself was refused — an expired token, or a site that needs cookies. Cookies are deliberately **not** sent to mpv. |
 | mpv plays but nothing switches | Log will show whether a second URL arrived at all. |
 | The toolbar tooltip says "decoded by the processor" | mpv decodes in software. FastStream never changes your mpv settings; add `hwdec=auto-safe` to `mpv.conf` for the graphics card. The tooltip (and **Test mpv connection**, while an mpv FastStream started is open) say what mpv uses; this needs **Reuse one mpv window** on (the default). |
@@ -172,9 +175,13 @@ It removes the helper it installed too. The add-on itself is removed in
 **Installed by hand:**
 
 ```powershell
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\FastStreamMpvHost"
-Remove-Item -Recurse -Force "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv"
+$dir = "$env:LOCALAPPDATA\FastStreamMpvHost"
+if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
+$key = "HKCU:\Software\Mozilla\NativeMessagingHosts\com.faststream.mpv"
+if (Test-Path $key) { Remove-Item -Recurse -Force $key }
 ```
+
+What is not there is skipped; anything that cannot be removed (a file in use) says so.
 
 Untick the MPV options in settings, and FastStream goes back to normal.
 

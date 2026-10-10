@@ -27,13 +27,13 @@
         "message": "Terdapat empat cara untuk menggunakan FastStream"
     },
     "welcome_page_usage_content1": {
-        "message": "Anda boleh pergi ke tapak web dengan strim video dan hidupkan FastStream dengan mengklik pada ikon. Mainkan strim dan klien akan digantikan secara automatik dengan FastStream"
+        "message": "Buka tapak web dengan video dan hidupkan FastStream dengan mengklik ikonnya pada bar alat. Apabila anda memainkan video itu, pemain FastStream akan menggantikan pemain tapak tersebut."
     },
     "welcome_page_usage_content2": {
-        "message": "Anda boleh pergi ke tab baharu dan tekan ikon sambungan untuk pergi ke pemain."
+        "message": "Anda juga boleh membuka tab baharu dan mengklik ikon FastStream untuk pergi ke pemain."
     },
     "welcome_page_usage_content3": {
-        "message": "Jika anda mempunyai pilihan yang didayakan, pergi ke url mp4/mpd/m3u8 dan pemain akan memainkannya."
+        "message": "Pautan video terus akan dibuka dalam pemain apabila pilihannya dihidupkan: \"Gunakan pemain untuk memainkan video MP4\" untuk pautan berakhiran .mp4, dan \"Gunakan pemain untuk memainkan strim HLS/DASH\" untuk pautan berakhiran .m3u8 atau .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Biarkan pemain terbuka dalam tab baharu dan ia akan mengumpul sumber semasa anda menyemak imbas di tempat lain."
@@ -45,10 +45,10 @@
         "message": "Kawalan Papan Kekunci Lalai"
     },
     "welcome_page_keybinds_content0": {
-        "message": "Anda boleh menukar ikatan kekunci ini dalam tetapan sambungan"
+        "message": "Anda boleh menukar kekunci ini dalam pilihan, di bawah Pintasan Papan Kekunci."
     },
     "welcome_page_keybinds_content1": {
-        "message": "kekunci anak panah - 5 saat mencari ke hadapan/belakang"
+        "message": "kekunci anak panah - mencari 5 saat ke hadapan/belakang (langkahnya boleh ditukar dalam pilihan)"
     },
     "welcome_page_keybinds_content2": {
         "message": "kekunci - 10 saat mencari ke hadapan/belakang"
@@ -63,7 +63,7 @@
         "message": "- Skrin penuh"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- Tambah/kurangkan permintaan serentak"
+        "message": "- Muat turun lebih banyak/sedikit bahagian video serentak"
     },
     "welcome_page_keybinds_content7": {
         "message": "- Kekunci cuba semula paksa - gunakan ini untuk mencuba semula muat turun yang gagal"
@@ -75,7 +75,7 @@
         "message": "- Sembunyikan/tunjukkan pemain"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- Lompat ke 10%-90% video (0 - mula)"
+        "message": "- Lompat ke 0%, 10%, 20% ... 90% video (0 = mula)"
     },
     "welcome_page_keybinds_content11": {
         "message": "- Tetapkan kelajuan kepada 1x, 2x, 2.5x, 3x, 3.5x, 4x, 5x, 8x atau 16x - tekan kekunci yang sama sekali lagi untuk kembali"
@@ -135,16 +135,16 @@
         "message": "Mengenai Kebenaran yang Diperlukan oleh FastStream"
     },
     "perms_page_about_content0": {
-        "message": "Untuk membolehkan sambungan berfungsi, ia perlu mempunyai kebenaran tertentu. Kebenaran ini hanya digunakan untuk fungsi asas."
+        "message": "FastStream memerlukan kebenaran tertentu untuk berfungsi. Ia hanya menggunakannya untuk apa yang disenaraikan di bawah."
     },
     "perms_page_about_content1": {
         "message": "FastStream tidak mengumpul sebarang data daripada anda dan tidak menjejaki anda. Ia tidak mempunyai pelayan sendiri. Ia hanya menyambung ke tapak yang videonya anda mainkan, ke OpenSubtitles apabila anda mencari sarikata, dan ke GitHub untuk menyemak kemas kini."
     },
     "perms_page_about_content2": {
-        "message": "Jangan percaya saya? FastStream mempunyai sumbernya tersedia di"
+        "message": "Anda tidak perlu hanya mempercayai kata-kata kami: kod sumber FastStream ada di"
     },
     "perms_page_about_content3": {
-        "message": "Anda boleh melihat sendiri kod tersebut, atau memasang binaan tersuai anda sendiri secara manual dengan mengikut arahan."
+        "message": "Anda boleh membaca sendiri kod tersebut, atau membina dan memasang salinan anda sendiri dengan mengikuti arahan dalam README-nya."
     },
     "perms_page_breakdown_header": {
         "message": "Pecahan Keizinan"
@@ -210,7 +210,7 @@
         "message": "Bertukar mesej dengan program selain Firefox"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "Hanya untuk mpv: apabila video dihantar ke mpv, FastStream menyerahkannya kepada hos mpv FastStream pada komputer anda sendiri, yang membukanya dalam mpv. Tanpa hos itu, kebenaran ini tidak pernah digunakan."
+        "message": "Hanya untuk mpv: apabila video dihantar ke mpv, FastStream menyerahkannya kepada pembantu mpv pada komputer anda sendiri, yang membukanya dalam mpv. Tanpa pembantu itu, kebenaran ini tidak pernah digunakan."
     },
     "perms_page_breakdown_perm7h": {
         "message": "Muat turun fail"
@@ -231,7 +231,7 @@
         "message": "Tidak Dibenarkan, klik untuk membenarkan"
     },
     "player_needs_interaction": {
-        "message": "Berinteraksi untuk mendayakan pecutan muat turun"
+        "message": "Klik pemain agar ia boleh memuat turun video lebih awal"
     },
     "player_silenceskip_threshold_hint": {
         "message": "Seret garisan merah jambu untuk menetapkan betapa senyapnya sesuatu bahagian perlu agar ia dilangkau"
@@ -348,10 +348,10 @@
         "message": "Tidak dapat menetapkan pengepala yang betul! Pasang sambungan untuk menggunakan ciri ini!"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles sudah tidak berfungsi!"
+        "message": "Tidak dapat menghubungi OpenSubtitles: semak sambungan internet anda, atau cuba lagi kemudian."
     },
     "player_opensubtitles_down_alert": {
-        "message": "Muat turun OpenSubtitles gagal! Pelayan mereka mungkin tidak berfungsi!"
+        "message": "Muat turun daripada OpenSubtitles gagal: cuba lagi kemudian."
     },
     "player_opensubtitles_noresults": {
         "message": "Tiada keputusan dijumpai!"
@@ -364,6 +364,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 muat turun"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 muat turun"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "Untuk pekak dan kurang pendengaran"
@@ -429,7 +432,7 @@
         "message": "Gagal memuatkan trek sarikata!"
     },
     "player_subtitles_nocues": {
-        "message": "Tiada sarikata ditemui di dalamnya."
+        "message": "Tiada sarikata ditemui dalam fail ini."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Cari OpenSubtitles"
@@ -489,7 +492,7 @@
         "message": "Tutup tetingkap tetapan"
     },
     "player_savevideo_label": {
-        "message": "Simpan video. Tahan ALT untuk menyimpan sebahagian video. Tahan SHIFT untuk menyimpan penimbal sebagai arkib."
+        "message": "Simpan video. Tahan Alt semasa mengklik untuk menyimpan apa yang telah dimuat turun setakat ini sahaja. Tahan Shift untuk menyimpan data yang dimuat turun sebagai arkib FastStream (lepaskan ia pada pemain untuk memainkannya semula)."
     },
     "player_screenshot_label": {
         "message": "Ambil tangkapan skrin"
@@ -501,7 +504,7 @@
         "message": "Skrin penuh"
     },
     "player_fullscreen_denied": {
-        "message": "Kebenaran skrin penuh ditolak!"
+        "message": "Firefox hanya membenarkan skrin penuh selepas klik: klik butang skrin penuh pemain."
     },
     "player_windowed_fullscreen_label": {
         "message": "Skrin Penuh Bertingkap"
@@ -552,10 +555,10 @@
         "message": "Muat turun dijeda"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 Serpihan Gagal! Klik untuk mencuba semula."
+        "message": "$1 bahagian video gagal dimuat turun. Klik untuk mencuba semula."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 Serpihan Gagal! Klik untuk mencuba semula."
+        "message": "$1 bahagian video gagal dimuat turun. Klik untuk mencuba semula."
     },
     "player_fragment_allbuffered": {
         "message": "100% Ditimbal"
@@ -600,7 +603,7 @@
         "message": "Video belum selesai dimuat turun! Adakah anda pasti mahu menyimpannya?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "Mod Inkognito akan menggunakan RAM untuk menimbal video. Komputer anda mungkin tidak mempunyai memori yang mencukupi untuk menyimpan keseluruhan video!\nAdakah anda pasti mahu meneruskan?"
+        "message": "Tetingkap peribadi menyimpan video dalam memori (RAM), bukan pada cakera. Komputer anda mungkin tidak mempunyai memori yang mencukupi untuk menyimpan keseluruhan video!\nAdakah anda mahu meneruskan?"
     },
     "player_savevideo_cancelling": {
         "message": "Membatalkan simpanan..."
@@ -618,7 +621,7 @@
         "message": "Gagal menyimpan video!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Gagal menyimpan video!\nAdakah anda mahu mengarkibkan storan penimbal pemain sebaliknya?\n- Seret dan lepaskan fail arkib pada pemain untuk memuatkannya"
+        "message": "Gagal menyimpan video!\nAdakah anda mahu menyimpan apa yang telah dimuat turun sebagai arkib FastStream?\n- Seret dan lepaskan fail arkib pada pemain untuk memainkannya semula"
     },
     "player_savevideo_complete": {
         "message": "Selesai disimpan!"
@@ -651,13 +654,13 @@
         "message": "(tidak diketahui)"
     },
     "player_buffer_incognito_warning": {
-        "message": "Tidak cukup ruang untuk pramuat turun dalam mod inkognito, akan menimbal $1"
+        "message": "Tidak cukup ruang untuk muat turun awal dalam tetingkap peribadi: FastStream hanya menimbal $1 daripada video."
     },
     "player_buffer_storage_warning": {
-        "message": "Saiz video melebihi had, akan menimbal $1"
+        "message": "Video ini melebihi had muat turun awal (saiz, ruang cakera atau RAM): FastStream hanya menimbal $1 daripadanya."
     },
     "player_error_drm": {
-        "message": "Gagal memuatkan! DRM tidak disokong!"
+        "message": "Video ini dilindungi daripada penyalinan (DRM), dan FastStream tidak boleh memainkannya. Matikan FastStream dengan butang bar alatnya untuk menontonnya dalam pemain tapak itu sendiri."
     },
     "player_error_load": {
         "message": "Gagal memuatkan video!"
@@ -942,7 +945,7 @@
         "message": "FastStream v$1 kini tersedia (versi semasa v$2). Adakah anda mahu kemas kini?"
     },
     "options_update_go": {
-        "message": "Bawa saya ke Github"
+        "message": "Bawa saya ke GitHub"
     },
     "options_update_no": {
         "message": "Abaikan kemas kini ini"
@@ -954,7 +957,7 @@
         "message": "Pilihan Video"
     },
     "options_video_body": {
-        "message": "Menggunakan penapis CSS pada video. Tidak berfungsi dengan gambar dalam gambar."
+        "message": "Menukar rupa video: kecerahan, kontras, warna dan banyak lagi. Tidak berfungsi dalam gambar-dalam-gambar."
     },
     "options_video_zoom": {
         "message": "Zum Video"
@@ -1062,7 +1065,7 @@
         "message": "Tangguhan sebelum pemain diganti secara automatik (ms)"
     },
     "options_general_maxdownloaders": {
-        "message": "Pemuat turun maksimum (1 hingga 6)"
+        "message": "Muat turun serentak (1 hingga 6)"
     },
     "options_general_autoplaynext": {
         "message": "Mainkan video seterusnya secara automatik apabila video semasa tamat"
@@ -1224,7 +1227,7 @@
         "message": "Buka strim yang dikesan dalam mpv (pemain luaran)"
     },
     "options_mpv_body": {
-        "message": "Apabila Mod MPV dihidupkan, butang bar alat bertukar antara Mati, Hidup (pemain terbina dalam) dan MPV. Pada tapak dalam senarai dibenarkan, strim yang dikesan dibuka terus dalam mpv pada komputer anda dan bukan pemain pelayar. Memerlukan mpv dan hos mpv FastStream pada komputer anda: pada Windows, persediaan satu klik (pautan pertama di bawah) memasang kedua-duanya; persediaan manual (pautan kedua) adalah untuk pembangun dan sistem lain."
+        "message": "Apabila Mod MPV dihidupkan, butang bar alat bertukar antara Mati, Hidup (pemain terbina dalam) dan MPV. Pada tapak dalam senarai dibenarkan, strim yang dikesan dibuka terus dalam mpv pada komputer anda dan bukan pemain pelayar. Memerlukan mpv dan pembantu mpv pada komputer anda: pada Windows, persediaan satu klik (pautan pertama di bawah) memasang kedua-duanya; persediaan manual (pautan kedua) adalah untuk Linux, macOS dan pembangun."
     },
     "options_mpv_setup_oneclick": {
         "message": "Persediaan satu klik untuk Windows (mpv-config)"
@@ -1239,7 +1242,7 @@
         "message": "Tapak dalam senarai ini membuka strim yang dikesan dalam mpv. Satu URL setiap baris; halaman yang bermula dengan URL itu juga sepadan (https:// dan www. boleh dibiarkan: crunchyroll.com @anime). Gunakan ~ untuk regex dan ! untuk mengecualikan. Tapak tanpa tag menggunakan Filem secara lalai untuk pemilihan shader mpv – tambah @anime pada hujung baris untuk tapak anime. @movie juga diterima, jika anda mahu menuliskannya secara penuh. Butang mpv pemain boleh mengatasi ini bagi setiap video."
     },
     "options_mpv_path": {
-        "message": "Laluan mpv (pilihan, digunakan oleh hos asli apabila mpv tiada dalam PATH)"
+        "message": "Laluan mpv (pilihan: hanya jika pembantu mpv tidak menemui mpv dengan sendirinya)"
     },
     "options_mpv_fullscreen": {
         "message": "Buka mpv dalam skrin penuh"
@@ -1260,13 +1263,13 @@
         "message": "mpv ditemui: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv ditemui: $1 (laluan di atas tidak ditemui, jadi hos menggunakan yang ini)"
+        "message": "mpv ditemui: $1 (laluan yang ditetapkan di atas tidak ditemui, jadi pembantu mpv menggunakan yang ini)"
     },
     "options_mpv_test_nompv": {
-        "message": "Hos boleh dihubungi, tetapi mpv tidak ditemui"
+        "message": "Pembantu mpv berfungsi, tetapi ia tidak menemui mpv: pasang mpv, atau masukkan laluannya dalam \"Laluan mpv\" di atas."
     },
     "options_mpv_test_fail": {
-        "message": "Hos mpv tidak tersedia – adakah ia dipasang? Lihat pautan persediaan di bahagian atas seksyen ini."
+        "message": "Pembantu mpv tidak menjawab – adakah ia dipasang? Lihat pautan persediaan di bahagian atas seksyen ini."
     },
     "options_mpv_suggest_text": {
         "message": "Pembantu mpv telah dipasang – buka video dalam mpv?"
@@ -1278,7 +1281,7 @@
         "message": "Abaikan"
     },
     "options_mpv_suggest_done": {
-        "message": "Mod MPV dihidupkan. Tambah tapak yang videonya patut dibuka dalam mpv ke Senarai Dibenarkan MPV (di bawah, dalam Mod MPV). Pada tapak lain, tekan Alt+F (pintasan MPV) dan mulakan video, atau gunakan butang mpv dalam pemain FastStream."
+        "message": "Mod MPV dihidupkan. Tambah tapak yang videonya patut dibuka dalam mpv ke Senarai Dibenarkan MPV (dalam seksyen ini). Pada tapak lain, tekan pintasan MPV (Alt+F, melainkan anda menukarnya) dan mulakan video, atau gunakan butang mpv dalam pemain FastStream."
     },
     "options_mpv_suggest_close": {
         "message": "Tutup"
@@ -1293,7 +1296,7 @@
         "message": "Dihantar ke mpv"
     },
     "player_mpv_fail": {
-        "message": "Tidak dapat dibuka dalam mpv. Adakah hos mpv FastStream dipasang?"
+        "message": "Tidak dapat dibuka dalam mpv. Adakah pembantu mpv dipasang?"
     },
     "player_mpv_fail_reason": {
         "message": "Tidak dapat dibuka dalam mpv: $1"
@@ -1320,10 +1323,10 @@
         "message": "Pembantu mpv pada komputer ini sudah lapuk: kemas kini fail faststream-mpv-host.mjs yang dirujuk oleh manifes pemesejan asli anda (git pull dalam salinan repositori FastStream anda; lihat native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
-        "message": "mpv yang terbuka menyahkod pada kad grafik: $1."
+        "message": "Tetingkap mpv yang terbuka menyahkod pada kad grafik: $1."
     },
     "options_mpv_test_decoder_sw": {
-        "message": "mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
+        "message": "Tetingkap mpv yang terbuka menyahkod pada pemproses ($1): tambah hwdec=auto-safe ke mpv.conf untuk menyahkod pada kad grafik."
     },
     "player_mpv_sent_outdated": {
         "message": "Dihantar ke mpv. Pembantu mpv pada komputer ini sudah lapuk: jalankan \"Update mpv\" dari menu Mula (dalam salinan repositori FastStream: update-local.cmd atau native-host\\install.ps1)."
@@ -1395,13 +1398,13 @@
         "message": "Laporkan Ralat"
     },
     "player_outofstorage": {
-        "message": "Amaran: Pelayar anda tidak menyokong sepenuhnya ciri penyimpanan fail. Ini mungkin kerana pelayar anda kehabisan ruang simpanan atau tidak dimulakan semula dalam jangka masa yang lama. Sesetengah ciri mungkin tidak berfungsi seperti yang dijangkakan."
+        "message": "Storan Firefox untuk video yang dimuat turun tidak dapat dibuka, jadi FastStream menyimpan video dalam memori (RAM) sebagai gantinya, dan video yang panjang mungkin tidak muat. Memulakan semula Firefox, atau membebaskan ruang cakera, biasanya menyelesaikan masalah ini."
     },
     "player_vpn_allow": {
         "message": "Main melalui Firefox VPN"
     },
     "player_vpn_allow_tooltip": {
-        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, yang tidak menyertakan permintaan FastStream, dan laman mungkin menolaknya. Klik untuk membenarkan FastStream menggunakan sambungan yang sama (sekali, pada halaman kebenaran FastStream)."
+        "message": "Halaman ini mendapatkan videonya melalui Firefox VPN, tetapi permintaan FastStream sendiri tidak melaluinya, dan tapak mungkin menolaknya. Klik untuk membenarkan FastStream juga menggunakan Firefox VPN: anda membenarkannya sekali, pada halaman kebenaran FastStream, yang akan dibuka."
     },
     "perms_page_breakdown_perm9h": {
         "message": "Proksi (opsyenal)"
@@ -1413,6 +1416,6 @@
         "message": "pembantu mpv tidak menjawab – adakah ia dipasang?"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN membawa video ini, dan mpv tidak boleh menggunakannya: tapak akan menolak mpv. Untuk menontonnya dalam mpv, matikan Firefox VPN untuk tapak ini dan muat semula halaman."
+        "message": "Firefox VPN membawa video ini, dan mpv tidak boleh menggunakan Firefox VPN: tapak akan menolak mpv. Untuk menontonnya dalam mpv, matikan Firefox VPN untuk tapak ini dan muat semula halaman."
     }
 }

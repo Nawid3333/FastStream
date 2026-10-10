@@ -451,6 +451,16 @@ export class OpenSubtitlesSearch extends EventEmitter {
   }
 
   /**
+   * How often a subtitle was downloaded, as its result says it: "1 downloads" for one.
+   * @param {number} count
+   * @return {string}
+   */
+  static downloadsText(count) {
+    return count === 1 ? Localize.getMessage('player_opensubtitles_downloads_one') :
+      Localize.getMessage('player_opensubtitles_downloads', [count.toLocaleString()]);
+  }
+
+  /**
    * One subtitle of the results: its release name (which version of the video it was made
    * for), how often it was downloaded, and what kind it is. A click loads it.
    * @param {Object} item - A subtitle from the API.
@@ -483,7 +493,7 @@ export class OpenSubtitlesSearch extends EventEmitter {
 
     const meta = document.createElement('div');
     meta.classList.add('subtitle-result-meta');
-    const parts = [Localize.getMessage('player_opensubtitles_downloads', [shown.downloads.toLocaleString()])];
+    const parts = [OpenSubtitlesSearch.downloadsText(shown.downloads)];
     if (shown.fps) parts.push(`${shown.fps} fps`);
     if (shown.uploader) parts.push(shown.uploader);
     meta.textContent = parts.join(' · ');

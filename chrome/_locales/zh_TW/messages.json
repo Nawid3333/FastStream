@@ -27,13 +27,13 @@
         "message": "使用 FastStream 有四種方式"
     },
     "welcome_page_usage_content1": {
-        "message": "你可以前往有影片串流的網站，點擊圖示開啟 FastStream。播放串流時，播放器會自動由 FastStream 取代。"
+        "message": "前往有影片的網站，點擊工具列上的 FastStream 圖示開啟 FastStream。播放影片時，FastStream 播放器會取代網站原本的播放器。"
     },
     "welcome_page_usage_content2": {
-        "message": "在新分頁按擴充功能圖示即可前往播放器。"
+        "message": "也可以開新分頁，點擊 FastStream 圖示前往播放器。"
     },
     "welcome_page_usage_content3": {
-        "message": "若啟用此選項，前往 mp4/mpd/m3u8 網址時播放器會播放該內容。"
+        "message": "當對應選項開啟時，影片的直接連結就會在播放器中開啟：以 .mp4 結尾的連結需開啟「開啟 .mp4 連結時以播放器播放 MP4 影片」，以 .m3u8 或 .mpd 結尾的連結則需開啟「開啟播放清單 URL（.m3u8/.mpd）時使用播放器播放 HLS/DASH 串流」。"
     },
     "welcome_page_usage_content4": {
         "message": "在新分頁保持播放器開啟，瀏覽其他頁面時它會收集來源。"
@@ -45,10 +45,10 @@
         "message": "預設鍵盤操作"
     },
     "welcome_page_keybinds_content0": {
-        "message": "可在擴充功能設定中更改這些快捷鍵"
+        "message": "可在選項中的「快捷鍵」部分更改這些按鍵"
     },
     "welcome_page_keybinds_content1": {
-        "message": "方向鍵 - 前/後跳 5 秒"
+        "message": "方向鍵 - 前/後跳 5 秒（可在選項中更改秒數）"
     },
     "welcome_page_keybinds_content2": {
         "message": "鍵 - 前/後跳 10 秒"
@@ -63,7 +63,7 @@
         "message": "- 全螢幕"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- 增減併發請求數"
+        "message": "- 同時下載較多/較少的影片片段"
     },
     "welcome_page_keybinds_content7": {
         "message": "- 強制重試按鍵 - 用來重新嘗試失敗的下載"
@@ -75,7 +75,7 @@
         "message": "- 顯示/隱藏播放器"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- 跳轉到影片的 10%-90%（0 為開頭）"
+        "message": "- 跳轉到影片的 0%、10%、20% ... 90%（0 為開頭）"
     },
     "welcome_page_keybinds_content11": {
         "message": "- 將速度設為 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一鍵可還原"
@@ -135,16 +135,16 @@
         "message": "關於 FastStream 所需的權限"
     },
     "perms_page_about_content0": {
-        "message": "為了讓擴充功能運作，需要授予某些權限。這些權限僅用於基本功能。"
+        "message": "FastStream 需要某些權限才能運作。這些權限僅用於以下列出的功能。"
     },
     "perms_page_about_content1": {
         "message": "FastStream 不會收集你的任何資料，也不會追蹤你。它沒有自己的伺服器，只會連線到你所播放影片的網站、你搜尋字幕時的 OpenSubtitles，以及用來檢查更新的 GitHub。"
     },
     "perms_page_about_content2": {
-        "message": "不信？FastStream 的原始碼已公開於"
+        "message": "不用只聽我們說：FastStream 的原始碼已公開於"
     },
     "perms_page_about_content3": {
-        "message": "你可以自行檢視程式碼，或依說明手動安裝自訂版本。"
+        "message": "你可以自行閱讀程式碼，或依照 README 中的說明建置並安裝自己的版本。"
     },
     "perms_page_breakdown_header": {
         "message": "權限明細"
@@ -231,7 +231,7 @@
         "message": "尚未授權，點此授權"
     },
     "player_needs_interaction": {
-        "message": "互動以啟用下載加速"
+        "message": "點擊播放器，讓它預先下載影片"
     },
     "player_silenceskip_threshold_hint": {
         "message": "拖曳粉紅色線條，設定要多安靜的片段才會被跳過"
@@ -348,10 +348,10 @@
         "message": "無法設定正確的標頭！請安裝擴充功能以使用此功能！"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles 無法使用！"
+        "message": "無法連上 OpenSubtitles：請檢查網路連線，或稍後再試。"
     },
     "player_opensubtitles_down_alert": {
-        "message": "OpenSubtitles 下載失敗！伺服器可能當掉了！"
+        "message": "從 OpenSubtitles 下載失敗：請稍後再試。"
     },
     "player_opensubtitles_noresults": {
         "message": "找不到結果！"
@@ -364,6 +364,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 次下載"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 次下載"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "適用於聾人及聽障人士"
@@ -429,7 +432,7 @@
         "message": "字幕載入失敗！"
     },
     "player_subtitles_nocues": {
-        "message": "其中找不到字幕。"
+        "message": "這個檔案中找不到字幕。"
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "搜尋 OpenSubtitles"
@@ -489,7 +492,7 @@
         "message": "關閉設定視窗"
     },
     "player_savevideo_label": {
-        "message": "儲存影片。按住 ALT 可儲存部分影片。按住 SHIFT 可匯出緩衝區。"
+        "message": "儲存影片。點擊時按住 Alt 可只儲存目前已下載的部分。按住 Shift 可將已下載的資料儲存成 FastStream 封存檔（把封存檔拖放到播放器即可再次播放）。"
     },
     "player_screenshot_label": {
         "message": "截圖"
@@ -501,7 +504,7 @@
         "message": "切換全螢幕"
     },
     "player_fullscreen_denied": {
-        "message": "全螢幕權限被拒絕！"
+        "message": "Firefox 需要先點擊才能進入全螢幕：請點擊播放器的全螢幕按鈕。"
     },
     "player_windowed_fullscreen_label": {
         "message": "切換視窗化全螢幕"
@@ -552,10 +555,10 @@
         "message": "下載已暫停"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 片段失敗！點擊重試。"
+        "message": "影片的 $1 個片段下載失敗。點擊以重試。"
     },
     "player_fragment_failed_plural": {
-        "message": "$1 個片段失敗！點擊重試。"
+        "message": "影片的 $1 個片段下載失敗。點擊以重試。"
     },
     "player_fragment_allbuffered": {
         "message": "已緩衝 100%"
@@ -600,7 +603,7 @@
         "message": "影片尚未下載完成！確定要儲存嗎？"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "無痕模式會使用記憶體緩衝影片。你的電腦可能沒有足夠的記憶體來儲存整段影片！\n確定要繼續嗎？"
+        "message": "私人視窗會將影片保存在記憶體（RAM）中，而不是存在磁碟上。你的電腦可能沒有足夠的記憶體來儲存整段影片！\n確定要繼續嗎？"
     },
     "player_savevideo_cancelling": {
         "message": "正在取消儲存..."
@@ -618,7 +621,7 @@
         "message": "儲存影片失敗！"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "儲存影片失敗！\n要改為封存播放器的緩衝區儲存嗎？\n- 將封存檔案拖放到播放器以載入"
+        "message": "儲存影片失敗！\n要改為將已下載的內容儲存成 FastStream 封存檔嗎？\n- 將封存檔拖放到播放器即可再次播放"
     },
     "player_savevideo_complete": {
         "message": "儲存完成！"
@@ -651,13 +654,13 @@
         "message": "(未知)"
     },
     "player_buffer_incognito_warning": {
-        "message": "無痕模式下空間不足，將緩衝 $1"
+        "message": "私人視窗的空間不足以預先下載：FastStream 只會緩衝 $1 的影片。"
     },
     "player_buffer_storage_warning": {
-        "message": "影片大小超過限制，將緩衝 $1"
+        "message": "影片超出預先下載的限制（大小、磁碟空間或記憶體）：FastStream 只會緩衝 $1 的影片。"
     },
     "player_error_drm": {
-        "message": "載入失敗！不支援 DRM！"
+        "message": "此影片有防拷保護（DRM），FastStream 無法播放。請用工具列上的按鈕關閉 FastStream，改用網站本身的播放器觀看。"
     },
     "player_error_load": {
         "message": "影片載入失敗！"
@@ -954,7 +957,7 @@
         "message": "影片選項"
     },
     "options_video_body": {
-        "message": "對影片套用 CSS 濾鏡。畫中畫模式下無法使用。"
+        "message": "調整影片外觀：亮度、對比、色彩等。畫中畫模式下無法使用。"
     },
     "options_video_zoom": {
         "message": "影片縮放"
@@ -1062,7 +1065,7 @@
         "message": "自動替換播放器前的延遲（毫秒）"
     },
     "options_general_maxdownloaders": {
-        "message": "最大下載器數（1 至 6）"
+        "message": "同時下載數（1 至 6）"
     },
     "options_general_autoplaynext": {
         "message": "當目前影片結束時自動播放下一支影片"
@@ -1224,7 +1227,7 @@
         "message": "在 mpv（外部播放器）中開啟偵測到的串流"
     },
     "options_mpv_body": {
-        "message": "開啟 MPV 模式時，工具列按鈕會在關閉、開啟（內建播放器）與 MPV 之間切換。在允許清單中的網站會將偵測到的串流直接交給電腦上的 mpv，而不是使用瀏覽器播放器。電腦上需要安裝 mpv 與 FastStream mpv 主機：在 Windows 上，一鍵安裝（下方第一個連結）會同時安裝兩者；手動安裝（第二個連結）適用於開發人員和其他系統。"
+        "message": "開啟 MPV 模式時，工具列按鈕會在關閉、開啟（內建播放器）與 MPV 之間切換。在允許清單中的網站會將偵測到的串流直接交給電腦上的 mpv，而不是使用瀏覽器播放器。電腦上需要安裝 mpv 與 FastStream mpv 主機：在 Windows 上，一鍵安裝（下方第一個連結）會同時安裝兩者；手動安裝（第二個連結）適用於 Linux、macOS 和開發人員。"
     },
     "options_mpv_setup_oneclick": {
         "message": "Windows 一鍵安裝（mpv-config）"
@@ -1239,7 +1242,7 @@
         "message": "此清單中的網站會在 mpv 開啟偵測到的串流。每行一個 URL，以該 URL 開頭的頁面同樣符合（可省略 https:// 和 www.，例如：crunchyroll.com @anime）。使用 ~ 代表正規表示式，! 代表排除。未標記的網站在 mpv 的著色器選擇中預設為電影；若非如此，請在該行結尾加上 @anime。若想明確寫出，也可以使用 @movie。播放器的 mpv 按鈕可針對單一影片覆蓋此設定。"
     },
     "options_mpv_path": {
-        "message": "mpv 路徑（選用，當 mpv 不在 PATH 中時由原生主機使用）"
+        "message": "mpv 路徑（選用：只有在 mpv 主機自己找不到 mpv 時才需要）"
     },
     "options_mpv_fullscreen": {
         "message": "以全螢幕模式開啟 mpv"
@@ -1263,10 +1266,10 @@
         "message": "已找到 mpv：$1（上面設定的路徑不存在，因此主機改用此路徑）"
     },
     "options_mpv_test_nompv": {
-        "message": "主機可連線，但找不到 mpv"
+        "message": "mpv 主機運作正常，但找不到 mpv：請安裝 mpv，或在上方「mpv 路徑」中輸入 mpv 的路徑。"
     },
     "options_mpv_test_fail": {
-        "message": "mpv 主機無法使用——是否已安裝？請參閱本節頂端的安裝連結。"
+        "message": "mpv 主機沒有回應——是否已安裝？請參閱本節頂端的安裝連結。"
     },
     "options_mpv_suggest_text": {
         "message": "mpv 輔助程式已安裝——要在 mpv 中開啟影片嗎？"
@@ -1278,7 +1281,7 @@
         "message": "不再提示"
     },
     "options_mpv_suggest_done": {
-        "message": "MPV 模式已開啟。請將需要在 mpv 中開啟影片的網站加入 MPV 允許清單（見下方「MPV 模式」）。在其他網站上，先按 Alt+F（MPV 快速鍵）再播放影片，或使用 FastStream 播放器中的 mpv 按鈕。"
+        "message": "MPV 模式已開啟。請將需要在 mpv 中開啟影片的網站加入 MPV 允許清單（見本節）。在其他網站上，先按 MPV 快捷鍵（Alt+F，除非你已更改）再播放影片，或使用 FastStream 播放器中的 mpv 按鈕。"
     },
     "options_mpv_suggest_close": {
         "message": "關閉"
@@ -1320,10 +1323,10 @@
         "message": "這台電腦上的 mpv 主機已過時：請更新原生訊息資訊清單所指向的 faststream-mpv-host.mjs（在 FastStream 儲存庫的簽出副本中執行 git pull；參見 native-host/README.md）。"
     },
     "options_mpv_test_decoder_hw": {
-        "message": "已開啟的 mpv 正在用顯示卡解碼：$1。"
+        "message": "已開啟的 mpv 視窗正在用顯示卡解碼：$1。"
     },
     "options_mpv_test_decoder_sw": {
-        "message": "已開啟的 mpv 正在用處理器解碼（$1）：在 mpv.conf 中加入 hwdec=auto-safe 即可由顯示卡解碼。"
+        "message": "已開啟的 mpv 視窗正在用處理器解碼（$1）：在 mpv.conf 中加入 hwdec=auto-safe 即可由顯示卡解碼。"
     },
     "player_mpv_sent_outdated": {
         "message": "已傳送到 mpv。這台電腦上的 mpv 主機已過時：請執行「開始」功能表中的「Update mpv」（在 FastStream 儲存庫的簽出副本中：update-local.cmd 或 native-host\\install.ps1）。"
@@ -1395,13 +1398,13 @@
         "message": "回報錯誤"
     },
     "player_outofstorage": {
-        "message": "警告：您的瀏覽器不完全支援檔案儲存功能。這可能是因為您的瀏覽器儲存空間已滿或長時間未重新啟動。某些功能可能無法如預期般運作。"
+        "message": "Firefox 用來儲存已下載影片的儲存空間無法開啟，因此 FastStream 改用記憶體（RAM）保存影片，影片太長時可能放不下。重新啟動 Firefox 或釋放磁碟空間通常就能解決。"
     },
     "player_vpn_allow": {
         "message": "透過 Firefox VPN 播放"
     },
     "player_vpn_allow_tooltip": {
-        "message": "此頁面透過 Firefox VPN 取得影片，這會將 FastStream 的請求排除在外，網站可能會拒絕這些請求。點擊以允許 FastStream 使用相同連線（僅一次，在 FastStream 的權限頁面上）。"
+        "message": "此頁面的影片是透過 Firefox VPN 取得的，但 FastStream 自己的請求並未經過它，網站可能會拒絕這些請求。點擊讓 FastStream 也改用 Firefox VPN：只需允許一次，會自動開啟 FastStream 的權限頁面。"
     },
     "perms_page_breakdown_perm9h": {
         "message": "代理（選用）"
@@ -1413,6 +1416,6 @@
         "message": "FastStream mpv 主機沒有回應——是否已安裝？"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN 正在傳輸此影片，而 mpv 無法使用它：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"
+        "message": "此影片透過 Firefox VPN 傳輸，而 mpv 無法使用 Firefox VPN：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"
     }
 }

@@ -27,13 +27,13 @@
         "message": "使用 FastStream 的四种方式"
     },
     "welcome_page_usage_content1": {
-        "message": "前往有视频流的网站，点击图标开启 FastStream。播放流媒体时客户端会自动被 FastStream 替换。"
+        "message": "打开有视频的网站，点击工具栏中的图标开启 FastStream。播放视频时，FastStream 播放器会取代网站自带的播放器。"
     },
     "welcome_page_usage_content2": {
-        "message": "在新标签页中点击扩展图标即可打开播放器。"
+        "message": "也可以打开一个新标签页，点击 FastStream 图标进入播放器。"
     },
     "welcome_page_usage_content3": {
-        "message": "如果已启用此选项，访问 mp4/mpd/m3u8 链接即可由播放器播放。"
+        "message": "当相应选项开启时，直接视频链接会在播放器中打开：以 .mp4 结尾的链接需开启“在打开视频 URL（.mp4）时使用播放器播放 MP4 视频”，以 .m3u8 或 .mpd 结尾的链接需开启“在打开播放列表 URL（.m3u8/.mpd）时使用播放器播放 HLS/DASH 流”。"
     },
     "welcome_page_usage_content4": {
         "message": "在新标签页中保持播放器打开，它会在你浏览其他页面时收集视频源。"
@@ -45,10 +45,10 @@
         "message": "默认键盘控制"
     },
     "welcome_page_keybinds_content0": {
-        "message": "可在扩展设置中更改这些快捷键"
+        "message": "可在选项中的“键盘快捷键”部分更改这些快捷键。"
     },
     "welcome_page_keybinds_content1": {
-        "message": "方向键 - 前进/后退 5 秒"
+        "message": "方向键 - 前进/后退 5 秒（跳转步长可在选项中更改）"
     },
     "welcome_page_keybinds_content2": {
         "message": "键 - 前进/后退 10 秒"
@@ -63,7 +63,7 @@
         "message": "- 全屏"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- 增减并发请求数"
+        "message": "- 同时下载更多/更少的视频分片"
     },
     "welcome_page_keybinds_content7": {
         "message": "- 强制重试键 - 用于重试失败的下载"
@@ -75,7 +75,7 @@
         "message": "- 隐藏/显示播放器"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- 跳转到视频的 10%-90%（0 为开头）"
+        "message": "- 跳转到视频的 0%、10%、20% ... 90%（0 为开头）"
     },
     "welcome_page_keybinds_content11": {
         "message": "- 将速度设为 1x、2x、2.5x、3x、3.5x、4x、5x、8x 或 16x - 再次按同一键可还原"
@@ -135,16 +135,16 @@
         "message": "关于 FastStream 所需的权限"
     },
     "perms_page_about_content0": {
-        "message": "为了使扩展正常运行，需要某些权限。这些权限仅用于基本功能。"
+        "message": "FastStream 需要某些权限才能工作。它只将这些权限用于下面列出的用途。"
     },
     "perms_page_about_content1": {
         "message": "FastStream 不会收集你的任何数据，也不会追踪你。它没有自己的服务器，只会连接到你所播放视频的网站、你搜索字幕时的 OpenSubtitles，以及用于检查更新的 GitHub。"
     },
     "perms_page_about_content2": {
-        "message": "不信？FastStream 的源码公开托管于"
+        "message": "不必只听我们说：FastStream 的源码托管于"
     },
     "perms_page_about_content3": {
-        "message": "你可以查看代码，或按说明手动安装自定义构建。"
+        "message": "你可以自行阅读代码，或按照 README 中的说明构建并安装自己的版本。"
     },
     "perms_page_breakdown_header": {
         "message": "权限说明"
@@ -210,7 +210,7 @@
         "message": "与 Firefox 之外的其他程序交换消息"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "仅用于 mpv：把视频交给 mpv 时，FastStream 会将它传给你电脑上的 FastStream mpv 主机，由主机在 mpv 中打开。没有该主机时，此权限从不使用。"
+        "message": "仅用于 mpv：把视频交给 mpv 时，FastStream 会将它传给你电脑上的 FastStream mpv 辅助程序，由它在 mpv 中打开视频。没有该辅助程序时，此权限不会被使用。"
     },
     "perms_page_breakdown_perm7h": {
         "message": "下载文件"
@@ -231,7 +231,7 @@
         "message": "未授权，点击以授权"
     },
     "player_needs_interaction": {
-        "message": "与播放器交互以启用下载加速"
+        "message": "点击播放器，让它提前下载视频"
     },
     "player_silenceskip_threshold_hint": {
         "message": "拖动粉色线条，设置片段需要安静到什么程度才会被跳过"
@@ -348,10 +348,10 @@
         "message": "无法设置正确的头部信息！安装扩展以使用此功能！"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles 服务不可用！"
+        "message": "无法连接到 OpenSubtitles：请检查网络连接，或稍后再试。"
     },
     "player_opensubtitles_down_alert": {
-        "message": "OpenSubtitles 下载失败！服务器可能宕机！"
+        "message": "从 OpenSubtitles 下载失败：请稍后再试。"
     },
     "player_opensubtitles_noresults": {
         "message": "未找到结果！"
@@ -364,6 +364,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 次下载"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 次下载"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "适用于聋人和听障人士"
@@ -429,7 +432,7 @@
         "message": "字幕轨道加载失败!"
     },
     "player_subtitles_nocues": {
-        "message": "其中未找到字幕。"
+        "message": "此文件中未找到字幕。"
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "搜索 OpenSubtitles"
@@ -489,7 +492,7 @@
         "message": "关闭设置窗口"
     },
     "player_savevideo_label": {
-        "message": "保存视频。按住 ALT 保存部分视频。按住 SHIFT 转储缓冲区。"
+        "message": "保存视频。点击时按住 Alt，可只保存目前已下载的部分。按住 Shift 可将已下载的数据保存为 FastStream 归档（将归档拖放到播放器上即可再次播放）。"
     },
     "player_screenshot_label": {
         "message": "截图"
@@ -501,7 +504,7 @@
         "message": "切换全屏"
     },
     "player_fullscreen_denied": {
-        "message": "全屏权限被拒绝！"
+        "message": "Firefox 只允许在点击后才进入全屏：请点击播放器的全屏按钮。"
     },
     "player_windowed_fullscreen_label": {
         "message": "切换窗口化全屏"
@@ -552,10 +555,10 @@
         "message": "下载已暂停"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 分片失败！点击重试。"
+        "message": "$1 个视频分片下载失败。点击重试。"
     },
     "player_fragment_failed_plural": {
-        "message": "$1 个分片失败！点击重试。"
+        "message": "$1 个视频分片下载失败。点击重试。"
     },
     "player_fragment_allbuffered": {
         "message": "已缓冲 100%"
@@ -600,7 +603,7 @@
         "message": "视频尚未下载完成！确定要保存吗？"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "隐身模式会使用内存（RAM）来缓冲视频。您的电脑可能没有足够的内存来保存整个视频！\n确定要继续吗？"
+        "message": "隐私窗口会把视频保存在内存（RAM）中，而不是磁盘上。你的电脑可能没有足够的内存来保存整个视频！\n确定要继续吗？"
     },
     "player_savevideo_cancelling": {
         "message": "正在取消保存..."
@@ -618,7 +621,7 @@
         "message": "保存视频失败！"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "保存视频失败！\n是否要归档播放器的缓冲区？\n- 将归档文件拖放到播放器上以加载它"
+        "message": "保存视频失败！\n是否改为将已下载的内容保存为 FastStream 归档？\n- 将归档文件拖放到播放器上即可再次播放"
     },
     "player_savevideo_complete": {
         "message": "保存完成！"
@@ -651,13 +654,13 @@
         "message": "(未知)"
     },
     "player_buffer_incognito_warning": {
-        "message": "隐身模式下没有足够的空间进行预下载，将缓冲 $1"
+        "message": "隐私窗口中没有足够的空间进行预下载：FastStream 只会缓冲 $1。"
     },
     "player_buffer_storage_warning": {
-        "message": "视频大小超出限制，将缓冲 $1"
+        "message": "此视频超出了预下载限制（大小、磁盘空间或内存）：FastStream 只会缓冲 $1。"
     },
     "player_error_drm": {
-        "message": "加载失败！不支持 DRM！"
+        "message": "此视频受版权保护（DRM），FastStream 无法播放。请用工具栏按钮关闭 FastStream，然后在网站自带的播放器中观看。"
     },
     "player_error_load": {
         "message": "视频加载失败！"
@@ -942,7 +945,7 @@
         "message": "FastStream v$1 已可用（当前版本 v$2）。要更新吗？"
     },
     "options_update_go": {
-        "message": "前往 Github"
+        "message": "前往 GitHub"
     },
     "options_update_no": {
         "message": "忽略此更新"
@@ -954,7 +957,7 @@
         "message": "视频选项"
     },
     "options_video_body": {
-        "message": "对视频应用 CSS 滤镜。与画中画模式不兼容。"
+        "message": "调整视频的外观：亮度、对比度、颜色等。在画中画模式下不起作用。"
     },
     "options_video_zoom": {
         "message": "视频缩放"
@@ -1062,7 +1065,7 @@
         "message": "自动替换播放器前的延迟（毫秒）"
     },
     "options_general_maxdownloaders": {
-        "message": "最大下载器数（1 至 6）"
+        "message": "同时下载数（1 至 6）"
     },
     "options_general_autoplaynext": {
         "message": "当前视频结束后自动播放下一个视频"
@@ -1224,7 +1227,7 @@
         "message": "在 mpv（外部播放器）中打开检测到的视频流"
     },
     "options_mpv_body": {
-        "message": "开启 MPV 模式后，工具栏按钮会在关闭、开启（内置播放器）和 MPV 之间切换。在允许列表中的网站会把检测到的视频流直接交给电脑上的 mpv，而不是使用浏览器播放器。需要在电脑上安装 mpv 和 FastStream mpv 主机：在 Windows 上，一键安装（下方第一个链接）会同时安装两者；手动安装（第二个链接）适用于开发者和其他系统。"
+        "message": "开启 MPV 模式后，工具栏按钮会在关闭、开启（内置播放器）和 MPV 之间切换。在允许列表中的网站会把检测到的视频流直接交给你电脑上的 mpv，而不是用浏览器播放器播放。需要在你的电脑上安装 mpv 和 FastStream mpv 辅助程序：在 Windows 上，一键安装（下方第一个链接）会同时安装两者；手动安装（第二个链接）适用于 Linux、macOS 和开发者。"
     },
     "options_mpv_setup_oneclick": {
         "message": "Windows 一键安装（mpv-config）"
@@ -1239,7 +1242,7 @@
         "message": "此列表中的网站会在 mpv 中打开检测到的视频流。每行一个 URL，以该 URL 开头的页面也会匹配（可省略 https:// 和 www.：crunchyroll.com @anime）。~ 表示正则表达式，! 表示排除。未加标记的网站在 mpv 的着色器选择中默认按电影处理；动漫网站请在该行末尾添加 @anime。若想明确写出，也可以使用 @movie。播放器的 mpv 按钮可针对单个视频覆盖此设置。"
     },
     "options_mpv_path": {
-        "message": "mpv 路径（可选，当 mpv 不在 PATH 中时由原生主机使用）"
+        "message": "mpv 路径（可选：仅当 mpv 辅助程序自己找不到 mpv 时才填写）"
     },
     "options_mpv_fullscreen": {
         "message": "以全屏模式打开 mpv"
@@ -1260,13 +1263,13 @@
         "message": "已找到 mpv：$1"
     },
     "options_mpv_test_otherpath": {
-        "message": "已找到 mpv：$1（上面设置的路径不存在，因此主机使用此路径）"
+        "message": "已找到 mpv：$1（上面设置的路径不存在，因此 mpv 辅助程序使用此路径）"
     },
     "options_mpv_test_nompv": {
-        "message": "主机可达，但未找到 mpv"
+        "message": "mpv 辅助程序工作正常，但没有找到 mpv：请安装 mpv，或在上方“mpv 路径”中填写它的路径。"
     },
     "options_mpv_test_fail": {
-        "message": "mpv 主机不可用——是否已安装？请查看本节顶部的安装链接。"
+        "message": "mpv 辅助程序没有响应——是否已安装？请查看本节顶部的安装链接。"
     },
     "options_mpv_suggest_text": {
         "message": "mpv 助手已安装——要在 mpv 中打开视频吗？"
@@ -1278,7 +1281,7 @@
         "message": "不再提示"
     },
     "options_mpv_suggest_done": {
-        "message": "MPV 模式已开启。请把需要在 mpv 中打开视频的网站添加到 MPV 允许列表（见下方“MPV 模式”）。在其他网站上，先按 Alt+F（MPV 快捷键）再播放视频，或使用 FastStream 播放器中的 mpv 按钮。"
+        "message": "MPV 模式已开启。请把需要在 mpv 中打开视频的网站添加到 MPV 允许列表（见本节）。在其他网站上，先按 MPV 快捷键（Alt+F，如未更改）再播放视频，或使用 FastStream 播放器中的 mpv 按钮。"
     },
     "options_mpv_suggest_close": {
         "message": "关闭"
@@ -1293,7 +1296,7 @@
         "message": "已发送到 mpv"
     },
     "player_mpv_fail": {
-        "message": "无法在 mpv 中打开。是否已安装 FastStream mpv 主机？"
+        "message": "无法在 mpv 中打开。是否已安装 FastStream mpv 辅助程序？"
     },
     "player_mpv_fail_reason": {
         "message": "无法在 mpv 中打开：$1"
@@ -1320,10 +1323,10 @@
         "message": "这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
     },
     "options_mpv_test_decoder_hw": {
-        "message": "已打开的 mpv 正在用显卡解码：$1。"
+        "message": "已打开的 mpv 窗口正在用显卡解码：$1。"
     },
     "options_mpv_test_decoder_sw": {
-        "message": "已打开的 mpv 正在用处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码。"
+        "message": "已打开的 mpv 窗口正在用处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码。"
     },
     "player_mpv_sent_outdated": {
         "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
@@ -1395,13 +1398,13 @@
         "message": "报告错误"
     },
     "player_outofstorage": {
-        "message": "警告：您的浏览器不完全支持文件存储功能。这可能是因为您的浏览器存储空间已满或长时间未重启。某些功能可能无法按预期工作。"
+        "message": "Firefox 用来存放已下载视频的存储空间无法打开，因此 FastStream 改为将视频保存在内存（RAM）中，较长的视频可能会放不下。重启 Firefox 或清理磁盘空间通常可以解决此问题。"
     },
     "player_vpn_allow": {
         "message": "通过 Firefox VPN 播放"
     },
     "player_vpn_allow_tooltip": {
-        "message": "此页面通过 Firefox VPN 获取视频，这会将 FastStream 的请求排除在外，网站可能会拒绝这些请求。点击以允许 FastStream 使用同一连接（仅一次，在 FastStream 的权限页面上）。"
+        "message": "此页面通过 Firefox VPN 获取视频，但 FastStream 自己的请求不经过它，网站可能会拒绝这些请求。点击可让 FastStream 也使用 Firefox VPN：只需在打开的 FastStream 权限页面上允许一次即可。"
     },
     "perms_page_breakdown_perm9h": {
         "message": "代理（可选）"
@@ -1413,6 +1416,6 @@
         "message": "FastStream mpv 辅助程序没有响应——是否已安装？"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN 正在传输此视频，而 mpv 无法使用它：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"
+        "message": "此视频通过 Firefox VPN 传输，而 mpv 无法使用 Firefox VPN：网站会拒绝 mpv。要在 mpv 中观看，请为此网站关闭 Firefox VPN 并重新加载页面。"
     }
 }

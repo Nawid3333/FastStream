@@ -27,13 +27,13 @@
         "message": "Er zijn vier manieren om FastStream te gebruiken"
     },
     "welcome_page_usage_content1": {
-        "message": "Ga naar een website met een videostream en zet FastStream aan door op het pictogram te klikken. Start de stream en de speler wordt automatisch vervangen door FastStream"
+        "message": "Open een website met een video en zet FastStream aan door op het pictogram in de werkbalk te klikken. Wanneer je de video afspeelt, neemt de FastStream-speler de plaats in van de speler van de site."
     },
     "welcome_page_usage_content2": {
-        "message": "Open een nieuw tabblad en klik op het extensiepictogram om naar de speler te gaan."
+        "message": "Je kunt ook een nieuw tabblad openen en op het FastStream-pictogram klikken om naar de speler te gaan."
     },
     "welcome_page_usage_content3": {
-        "message": "Als je de optie hebt ingeschakeld, ga naar een mp4/mpd/m3u8-url en de speler speelt deze af."
+        "message": "Een directe videolink opent in de speler wanneer de bijbehorende optie aan staat: ‘Gebruik de speler om MP4-video's af te spelen’ voor een link eindigend op .mp4, en ‘Gebruik de speler om HLS/DASH-streams af te spelen’ voor een link eindigend op .m3u8 of .mpd."
     },
     "welcome_page_usage_content4": {
         "message": "Houd de speler open in een nieuw tabblad; hij verzamelt bronnen terwijl je elders surft."
@@ -45,10 +45,10 @@
         "message": "Standaard toetsenbordbediening"
     },
     "welcome_page_keybinds_content0": {
-        "message": "Je kunt deze toetscombinaties wijzigen in de extensie-instellingen"
+        "message": "Je kunt deze toetsen wijzigen in de opties, onder Sneltoetsen."
     },
     "welcome_page_keybinds_content1": {
-        "message": "pijltjestoetsen - 5 seconden vooruit/achteruit springen"
+        "message": "pijltjestoetsen - 5 seconden vooruit/achteruit springen (de stap kun je in de opties wijzigen)"
     },
     "welcome_page_keybinds_content2": {
         "message": "toetsen - 10 seconden vooruit/achteruit springen"
@@ -63,7 +63,7 @@
         "message": "- Volledig scherm"
     },
     "welcome_page_keybinds_content6": {
-        "message": "- Aantal gelijktijdige verzoeken verhogen/verlagen"
+        "message": "- Download meer/minder delen van de video tegelijk"
     },
     "welcome_page_keybinds_content7": {
         "message": "- Forceer retry-toets - gebruik deze om mislukte downloads opnieuw te proberen"
@@ -75,7 +75,7 @@
         "message": "- Speler verbergen/tonen"
     },
     "welcome_page_keybinds_content10": {
-        "message": "- Spring naar 10%-90% van de video (0 - begin)"
+        "message": "- Spring naar 0%, 10%, 20% ... 90% van de video (0 = het begin)"
     },
     "welcome_page_keybinds_content11": {
         "message": "- Zet snelheid op 1x, 2x, 2,5x, 3x, 3,5x, 4x, 5x, 8x of 16x - druk dezelfde toets opnieuw om terug te schakelen"
@@ -135,16 +135,16 @@
         "message": "Over de machtigingen die FastStream nodig heeft"
     },
     "perms_page_about_content0": {
-        "message": "Om de extensie te laten werken, heeft deze bepaalde machtigingen nodig. Deze machtigingen worden alleen voor basisfunctionaliteit gebruikt."
+        "message": "FastStream heeft bepaalde machtigingen nodig om te werken. Ze worden alleen gebruikt voor wat hieronder vermeld staat."
     },
     "perms_page_about_content1": {
         "message": "FastStream verzamelt geen gegevens van je en volgt je niet. Het heeft geen eigen server. Het maakt alleen verbinding met de sites waarvan je video's afspeelt, met OpenSubtitles als je naar ondertitels zoekt, en met GitHub om op updates te controleren."
     },
     "perms_page_about_content2": {
-        "message": "Niet overtuigd? De broncode van FastStream is beschikbaar op"
+        "message": "Je hoeft het niet zomaar op ons woord te geloven: de broncode van FastStream staat op"
     },
     "perms_page_about_content3": {
-        "message": "Je kunt de code zelf bekijken, of je eigen aangepaste build handmatig installeren via de instructies."
+        "message": "Je kunt de code zelf lezen, of je eigen versie bouwen en installeren met de instructies in de README."
     },
     "perms_page_breakdown_header": {
         "message": "Toelichting op machtigingen"
@@ -210,7 +210,7 @@
         "message": "Berichten uitwisselen met andere programma's dan Firefox"
     },
     "perms_page_breakdown_perm6d": {
-        "message": "Alleen voor mpv: als een video naar mpv gaat, geeft FastStream die door aan de FastStream-mpv-host op je eigen computer, die hem in mpv opent. Zonder die host wordt deze toestemming nooit gebruikt."
+        "message": "Alleen voor mpv: als een video naar mpv gaat, geeft FastStream die door aan het FastStream-mpv-hulpje op je eigen computer, dat hem in mpv opent. Zonder het hulpje wordt deze machtiging nooit gebruikt."
     },
     "perms_page_breakdown_perm7h": {
         "message": "Bestanden downloaden"
@@ -231,7 +231,7 @@
         "message": "Niet toegestaan, klik om toe te staan"
     },
     "player_needs_interaction": {
-        "message": "Interactie vereist om downloadversnelling in te schakelen"
+        "message": "Klik op de speler zodat deze de video vooruit kan downloaden"
     },
     "player_silenceskip_threshold_hint": {
         "message": "Sleep de roze lijn om in te stellen hoe stil een gedeelte moet zijn om overgeslagen te worden"
@@ -348,10 +348,10 @@
         "message": "Kan de juiste headers niet instellen! Installeer de extensie om deze functie te gebruiken!"
     },
     "player_opensubtitles_error_down": {
-        "message": "OpenSubtitles is niet beschikbaar!"
+        "message": "Kon OpenSubtitles niet bereiken: controleer je internetverbinding, of probeer het later opnieuw."
     },
     "player_opensubtitles_down_alert": {
-        "message": "Download van OpenSubtitles mislukt! Hun servers zijn waarschijnlijk offline!"
+        "message": "Het downloaden van OpenSubtitles is mislukt: probeer het later opnieuw."
     },
     "player_opensubtitles_noresults": {
         "message": "Geen resultaten gevonden!"
@@ -364,6 +364,9 @@
     },
     "player_opensubtitles_downloads": {
         "message": "$1 downloads"
+    },
+    "player_opensubtitles_downloads_one": {
+        "message": "1 download"
     },
     "player_opensubtitles_hearing_impaired": {
         "message": "Voor doven en slechthorenden"
@@ -429,7 +432,7 @@
         "message": "Ondertitelbestand laden mislukt!"
     },
     "player_subtitles_nocues": {
-        "message": "Geen ondertitels gevonden."
+        "message": "Geen ondertitels gevonden in dit bestand."
     },
     "player_subtitlesmenu_searchbtn": {
         "message": "Zoeken op OpenSubtitles"
@@ -489,7 +492,7 @@
         "message": "Instellingenvenster sluiten"
     },
     "player_savevideo_label": {
-        "message": "Video opslaan. Houd ALT ingedrukt om gedeeltelijke video op te slaan. Houd SHIFT ingedrukt om de buffer als archief op te slaan."
+        "message": "Sla de video op. Houd Alt ingedrukt terwijl je klikt, om alleen op te slaan wat er tot nu toe is gedownload. Houd Shift ingedrukt om de gedownloade gegevens als FastStream-archief op te slaan (sleep het bestand naar de speler om het opnieuw af te spelen)."
     },
     "player_screenshot_label": {
         "message": "Schermafbeelding maken"
@@ -501,7 +504,7 @@
         "message": "Volledig scherm in-/uitschakelen"
     },
     "player_fullscreen_denied": {
-        "message": "Toestemming voor volledig scherm geweigerd!"
+        "message": "Firefox staat volledig scherm alleen na een klik toe: klik op de knop voor volledig scherm van de speler."
     },
     "player_windowed_fullscreen_label": {
         "message": "Volledig scherm in venster in-/uitschakelen"
@@ -552,10 +555,10 @@
         "message": "Download gepauzeerd"
     },
     "player_fragment_failed_singular": {
-        "message": "$1 fragment mislukt! Klik om opnieuw te proberen."
+        "message": "$1 deel van de video kon niet worden gedownload. Klik om opnieuw te proberen."
     },
     "player_fragment_failed_plural": {
-        "message": "$1 fragmenten zijn mislukt! Klik om opnieuw te proberen."
+        "message": "$1 delen van de video konden niet worden gedownload. Klik om opnieuw te proberen."
     },
     "player_fragment_allbuffered": {
         "message": "100% gebufferd"
@@ -600,7 +603,7 @@
         "message": "De video is nog niet volledig gedownload! Weet je zeker dat je hem wilt opslaan?"
     },
     "player_savevideo_incognito_confirm": {
-        "message": "De incognitomodus gebruikt RAM om video's te bufferen. Je computer heeft mogelijk niet genoeg geheugen om de hele video op te slaan!\nWeet je zeker dat je wilt doorgaan?"
+        "message": "Een privévenster bewaart de video in het geheugen (RAM), niet op schijf. Je computer heeft mogelijk niet genoeg geheugen om de hele video op te slaan!\nWil je doorgaan?"
     },
     "player_savevideo_cancelling": {
         "message": "Opslaan wordt geannuleerd..."
@@ -618,7 +621,7 @@
         "message": "Video opslaan mislukt!"
     },
     "player_savevideo_failed_ask_archive": {
-        "message": "Video opslaan mislukt!\nWil je in plaats daarvan de bufferopslag van de speler archiveren?\n- Sleep archiefbestanden naar de speler om ze te laden"
+        "message": "Het opslaan van de video is mislukt!\nWil je in plaats daarvan het gedownloade als FastStream-archief opslaan?\n- Sleep een archiefbestand naar de speler om het opnieuw af te spelen"
     },
     "player_savevideo_complete": {
         "message": "Opslaan voltooid!"
@@ -651,13 +654,13 @@
         "message": "(onbekend)"
     },
     "player_buffer_incognito_warning": {
-        "message": "Niet genoeg ruimte om vooraf te downloaden in incognitomodus, er wordt $1 gebufferd"
+        "message": "Niet genoeg ruimte om vooraf te downloaden in een privévenster: FastStream buffert slechts $1 van de video."
     },
     "player_buffer_storage_warning": {
-        "message": "Videobestand overschrijdt de limiet, er wordt $1 gebufferd"
+        "message": "Deze video past niet binnen de limieten voor vooraf downloaden (grootte, schijfruimte of RAM): FastStream buffert slechts $1 van de video."
     },
     "player_error_drm": {
-        "message": "Laden mislukt! DRM wordt niet ondersteund!"
+        "message": "Deze video is kopieerbeveiligd (DRM) en FastStream kan hem niet afspelen. Zet FastStream uit met de knop in de werkbalk om de video in de eigen speler van de site te bekijken."
     },
     "player_error_load": {
         "message": "Video laden mislukt!"
@@ -942,7 +945,7 @@
         "message": "FastStream v$1 is nu beschikbaar (huidige versie v$2). Wil je updaten?"
     },
     "options_update_go": {
-        "message": "Breng me naar Github"
+        "message": "Ga naar GitHub"
     },
     "options_update_no": {
         "message": "Negeer deze update"
@@ -954,7 +957,7 @@
         "message": "Video-opties"
     },
     "options_video_body": {
-        "message": "Past CSS-filters toe op de video. Werkt niet in beeld-in-beeld."
+        "message": "Verandert hoe de video eruitziet: helderheid, contrast, kleuren en meer. Werkt niet in beeld-in-beeld."
     },
     "options_video_zoom": {
         "message": "Videozoom"
@@ -1014,7 +1017,7 @@
         "message": "Geen limiet: alle gedownloade video blijft in RAM en er gaat niets naar schijf. Op een pc met weinig geheugen kan Firefox langzamer worden."
     },
     "options_general_bufferahead": {
-        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven (gebruikt wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is)"
+        "message": "Seconden die vanaf de afspeelpositie vooruit gebufferd blijven wanneer vooraf downloaden uit staat, is gestopt of de ruimte op is"
     },
     "options_general_bufferahead_zero": {
         "message": "0: er blijft niets vooruit gebufferd, dus de video stopt vaak om te laden. Laat het veld leeg voor geen limiet."
@@ -1062,7 +1065,7 @@
         "message": "Vertraging voordat de speler automatisch wordt vervangen (ms)"
     },
     "options_general_maxdownloaders": {
-        "message": "Maximaal aantal downloaders (1 tot 6)"
+        "message": "Downloads tegelijk (1 tot 6)"
     },
     "options_general_autoplaynext": {
         "message": "Volgende video automatisch afspelen wanneer de huidige video eindigt"
@@ -1224,7 +1227,7 @@
         "message": "Gedetecteerde streams openen in mpv (externe speler)"
     },
     "options_mpv_body": {
-        "message": "Als de MPV-modus aan staat, schakelt de knop in de werkbalk tussen Uit, Aan (ingebouwde speler) en MPV. Op sites van de toelatingslijst openen gedetecteerde streams direct in mpv op je computer in plaats van in de browserspeler. Vereist mpv en de FastStream-mpv-host op je computer: op Windows installeert de installatie met één klik (eerste link hieronder) beide; de handmatige installatie (tweede link) is voor ontwikkelaars en andere systemen."
+        "message": "Als de MPV-modus aan staat, schakelt de knop in de werkbalk tussen Uit, Aan (ingebouwde speler) en MPV. Op sites van de toelatingslijst openen gedetecteerde streams direct in mpv op je computer in plaats van in de browserspeler. Vereist mpv en het FastStream-mpv-hulpje op je computer: op Windows installeert de installatie met één klik (eerste link hieronder) beide; de handmatige installatie (tweede link) is voor Linux, macOS en ontwikkelaars."
     },
     "options_mpv_setup_oneclick": {
         "message": "Installatie met één klik voor Windows (mpv-config)"
@@ -1239,7 +1242,7 @@
         "message": "Sites op deze lijst openen gedetecteerde streams in mpv. Eén URL per regel; pagina's die met die URL beginnen, komen ook overeen (https:// en www. mogen worden weggelaten: crunchyroll.com @anime). Gebruik ~ voor regex en ! om uit te sluiten. Sites zonder label gebruiken standaard Film voor de shaderkeuze van mpv – voeg @anime toe aan het einde van een regel voor anime-sites. @movie wordt ook geaccepteerd, als je het voluit wilt schrijven. De mpv-knop van de speler kan dit per video overschrijven."
     },
     "options_mpv_path": {
-        "message": "mpv-pad (optioneel, gebruikt door de native host als mpv niet in PATH staat)"
+        "message": "mpv-pad (optioneel: alleen als het mpv-hulpje mpv niet zelf vindt)"
     },
     "options_mpv_fullscreen": {
         "message": "mpv op volledig scherm openen"
@@ -1260,13 +1263,13 @@
         "message": "mpv gevonden: $1"
     },
     "options_mpv_test_otherpath": {
-        "message": "mpv gevonden: $1 (het pad hierboven is niet gevonden, dus de host gebruikt dit)"
+        "message": "mpv gevonden: $1 (het pad hierboven is niet gevonden, dus het mpv-hulpje gebruikt dit)"
     },
     "options_mpv_test_nompv": {
-        "message": "Host bereikbaar, maar mpv is niet gevonden"
+        "message": "Het mpv-hulpje werkt, maar vond mpv niet: installeer mpv, of vul het pad in bij ‘mpv-pad’ hierboven."
     },
     "options_mpv_test_fail": {
-        "message": "mpv-host niet beschikbaar – is hij geïnstalleerd? Zie de installatielinks bovenaan deze sectie."
+        "message": "Het mpv-hulpje reageerde niet – is het geïnstalleerd? Zie de installatielinks bovenaan deze sectie."
     },
     "options_mpv_suggest_text": {
         "message": "De mpv-helper is geïnstalleerd – video's openen in mpv?"
@@ -1278,7 +1281,7 @@
         "message": "Negeren"
     },
     "options_mpv_suggest_done": {
-        "message": "De MPV-modus staat aan. Zet de sites waarvan de video's in mpv moeten openen op de MPV-toelatingslijst (hieronder, bij MPV-modus). Druk op andere sites op Alt+F (de MPV-sneltoets) en start de video, of gebruik de mpv-knop in de speler van FastStream."
+        "message": "De MPV-modus staat aan. Zet de sites waarvan de video's in mpv moeten openen op de MPV-toelatingslijst (in deze sectie). Druk op andere sites op de MPV-sneltoets (Alt+F, tenzij je die hebt gewijzigd) en start de video, of gebruik de mpv-knop in de speler van FastStream."
     },
     "options_mpv_suggest_close": {
         "message": "Sluiten"
@@ -1293,7 +1296,7 @@
         "message": "Verzonden naar mpv"
     },
     "player_mpv_fail": {
-        "message": "Kan niet openen in mpv. Is de FastStream-mpv-host geïnstalleerd?"
+        "message": "Kon niet openen in mpv. Is het FastStream-mpv-hulpje geïnstalleerd?"
     },
     "player_mpv_fail_reason": {
         "message": "Kon niet openen in mpv: $1"
@@ -1320,10 +1323,10 @@
         "message": "Het mpv-hulpje op deze computer is verouderd: werk de faststream-mpv-host.mjs bij waar je native messaging-manifest naar verwijst (git pull in je FastStream-checkout; zie native-host/README.md)."
     },
     "options_mpv_test_decoder_hw": {
-        "message": "De geopende mpv decodeert op de grafische kaart: $1."
+        "message": "Het geopende mpv-venster decodeert op de grafische kaart: $1."
     },
     "options_mpv_test_decoder_sw": {
-        "message": "De geopende mpv decodeert op de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen."
+        "message": "Het geopende mpv-venster decodeert op de processor ($1): voeg hwdec=auto-safe toe aan mpv.conf om op de grafische kaart te decoderen."
     },
     "player_mpv_sent_outdated": {
         "message": "Verzonden naar mpv. Het mpv-hulpje op deze computer is verouderd: voer ‘Update mpv’ uit via het Startmenu (in een FastStream-checkout: update-local.cmd of native-host\\install.ps1)."
@@ -1395,13 +1398,13 @@
         "message": "Fout melden"
     },
     "player_outofstorage": {
-        "message": "Waarschuwing: Uw browser ondersteunt de bestandsopslagfuncties niet volledig. Dit kan komen doordat uw browser geen opslagruimte meer heeft of al lange tijd niet is herstart. Sommige functies werken mogelijk niet zoals verwacht."
+        "message": "De opslag voor gedownloade video in Firefox kon niet worden geopend, dus FastStream bewaart de video in het geheugen (RAM); een lange video past daar mogelijk niet in. Firefox opnieuw starten of schijfruimte vrijmaken, lost dit meestal op."
     },
     "player_vpn_allow": {
         "message": "Afspelen via Firefox VPN"
     },
     "player_vpn_allow_tooltip": {
-        "message": "Deze pagina krijgt haar video via Firefox VPN, waarbij de verzoeken van FastStream niet worden meegenomen, en de site kan ze weigeren. Klik om FastStream dezelfde verbinding te laten gebruiken (eenmalig, op de machtigingenpagina van FastStream)."
+        "message": "Deze pagina krijgt zijn video via Firefox VPN, maar de verzoeken van FastStream zelf gaan er niet doorheen, en de site kan ze weigeren. Klik om FastStream ook Firefox VPN te laten gebruiken: je staat dit één keer toe, op de machtigingenpagina van FastStream die dan opent."
     },
     "perms_page_breakdown_perm9h": {
         "message": "Proxy (optioneel)"
@@ -1413,6 +1416,6 @@
         "message": "het FastStream-mpv-hulpje reageerde niet – is het geïnstalleerd?"
     },
     "player_mpv_vpn": {
-        "message": "Firefox VPN draagt deze video en mpv kan die niet gebruiken: de site zou mpv weigeren. Om het in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."
+        "message": "Deze video komt binnen via Firefox VPN, en mpv kan Firefox VPN niet gebruiken: de site zou mpv weigeren. Om de video in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."
     }
 }

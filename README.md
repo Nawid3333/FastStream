@@ -11,7 +11,7 @@ This is a Firefox-only fork of [Andrews54757/FastStream](https://github.com/Andr
 3. Adjustable audio dynamics (equalizer, compressor, mixer, mono mode, volume booster), and video settings (brightness, contrast, saturation, hue) for your unique audiovisual preferences.
 4. Over 60 remappable keyboard shortcuts (mpv-style seeks, frame steps and speed presets among them) and accessible tool buttons for easy control of the player. The welcome page lists the defaults.
 5. Available in 16 languages.
-6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once. On Windows, one line in PowerShell installs mpv, the helper and this add-on: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (from [mpv-config](https://github.com/Nawid3333/mpv-config#install), no admin rights, Git or Node.js needed). Then restart Firefox and turn on MPV mode in FastStream's settings. The manual way, for developers and other setups, is in [README-MPV.md](README-MPV.md).
+6. Optional: send a stream to [mpv](https://mpv.io/) on your computer instead of playing it in the browser. It needs a small helper installed once. On Windows, one line in PowerShell installs mpv, the helper and this add-on: `irm https://raw.githubusercontent.com/Nawid3333/mpv-config/main/installer/setup.ps1 | iex` (from [mpv-config](https://github.com/Nawid3333/mpv-config#install); it needs no admin rights, no Git and no Node.js). Then restart Firefox, turn on MPV mode in FastStream's settings, and add the sites whose videos should open in mpv to its MPV Allowlist (on any other site, the MPV shortcut, Alt+F, sends the video you start). The manual way, for developers and other setups, is in [README-MPV.md](README-MPV.md).
 
 The player currently supports:
 - MP4 videos (.mp4)
@@ -28,7 +28,7 @@ Notes:
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
 - Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
-- The default maximum size for pre-buffering is 5GB. This can be changed in the settings page. Please be mindful of your computer's storage space when changing this setting. Browsers will offload data in the RAM to the SSD if the video is too large. Frequently pre-buffering large videos can reduce the lifespan of your SSD.
+- The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Please be mindful of your computer's storage space when changing this setting. Browsers will offload data in the RAM to the SSD if the video is too large. Frequently pre-buffering large videos can reduce the lifespan of your SSD.
 
 ## Browser compatibility
 
