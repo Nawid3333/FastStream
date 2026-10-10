@@ -93,7 +93,7 @@
         "message": "- 戻したシークをやり直す"
     },
     "welcome_page_keybinds_content17": {
-        "message": "矢印キー - 再生速度を上げる/下げる"
+        "message": "キー - 再生速度を 0.1x 上げる/下げる"
     },
     "welcome_page_keybinds_content18": {
         "message": "- 字幕のオン/オフ"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "オーディオトラック"
+    },
+    "player_speed_nosound": {
+        "message": "音なし"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles を検索"
@@ -747,7 +750,7 @@
         "message": "動画のオプション"
     },
     "options_video_body": {
-        "message": "動画の見え方（明るさ、コントラスト、色など）を変更します。ピクチャーインピクチャーでは機能しません。"
+        "message": "ビデオズームで映像を拡大するか、映像の遅延で音とのタイミングを調整します。ビデオズームはピクチャーインピクチャーでは機能しません。"
     },
     "options_video_zoom": {
         "message": "ビデオズーム"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "バッファした動画に使うRAM（全タブ合計）"
     },
+    "options_general_buffertodisk": {
+        "message": "このRAMがいっぱいになった時に動画をディスクに保存する（オフ：破棄して必要に応じて再ダウンロードし、ディスクに何も書き込まないようにする）"
+    },
     "options_general_nolimit": {
         "message": "制限なし"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: ダウンロードした動画は、次の数秒を除いて RAM に置かれず、ディスクに保存されます。ディスクに何も保存しないプライベートウィンドウでは、再生位置より先には何もダウンロードされません。制限を設けたくない場合は、この欄を空欄にしてください。"
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: ダウンロードした動画は保持されず、「このRAMがいっぱいになった時に動画をディスクに保存する」がオフの場合、再生位置より先には何もダウンロードされないため、動画の読み込みが停止することがあります。制限を設けたくない場合は、この欄を空欄にしてください。"
     },
     "options_general_rambudget_none": {
         "message": "制限なし: ダウンロードした動画はすべて RAM に保存され、ディスクには保存されません。メモリの少ない PC では、Firefox の動作が遅くなる可能性があります。"
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "フレッシュミント"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLEDブラック"
     },
     "options_general_vischangeaction_pip": {
         "message": "ピクチャー イン ピクチャー (PiP) を切り替え"

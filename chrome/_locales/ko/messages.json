@@ -93,7 +93,7 @@
         "message": "- 취소한 탐색 다시 실행"
     },
     "welcome_page_keybinds_content17": {
-        "message": "화살표 키 - 재생 속도 빠르게/느리게"
+        "message": "키 - 재생 속도 0.1x 빠르게/느리게"
     },
     "welcome_page_keybinds_content18": {
         "message": "- 자막 켜기/끄기"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "오디오 트랙"
+    },
+    "player_speed_nosound": {
+        "message": "소리 없음"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles 검색"
@@ -747,7 +750,7 @@
         "message": "비디오 옵션"
     },
     "options_video_body": {
-        "message": "비디오의 밝기, 대비, 색상 등 모습을 바꿉니다. PIP(화면 속 화면) 모드에서는 작동하지 않습니다."
+        "message": "화면을 확대하거나 소리에 맞춰 비디오 지연 시간을 조절하세요. 비디오 확대는 PIP(화면 속 화면) 모드에서는 작동하지 않습니다."
     },
     "options_video_zoom": {
         "message": "비디오 확대"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "버퍼링된 동영상에 쓰는 RAM (모든 탭 합계)"
     },
+    "options_general_buffertodisk": {
+        "message": "이 RAM이 가득 찼을 때 비디오를 디스크에 저장 (끔: 삭제하고 필요할 때 다시 다운로드하여 디스크에 아무것도 기록하지 않음)"
+    },
     "options_general_nolimit": {
         "message": "제한 없음"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: 다운로드한 비디오는 RAM에 두지 않고 디스크에 저장하며, 다음 몇 초만 RAM에 남습니다. 아무것도 디스크에 저장하지 않는 사생활 보호 창에서는 재생보다 앞서 다운로드하는 내용이 없습니다. 제한 없음으로 하려면 칸을 비워 두세요."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: 다운로드한 비디오가 유지되지 않으며, \"이 RAM이 가득 찼을 때 비디오를 디스크에 저장\"이 꺼져 있으면 재생보다 앞서 다운로드하는 내용이 없으므로 비디오 로딩이 중단될 수 있습니다. 제한 없음으로 하려면 칸을 비워 두세요."
     },
     "options_general_rambudget_none": {
         "message": "제한 없음: 다운로드한 비디오가 모두 RAM에 유지되고 디스크에는 저장되지 않습니다. 메모리가 적은 PC에서는 Firefox가 느려질 수 있습니다."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "상쾌한 민트"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED 블랙"
     },
     "options_general_vischangeaction_pip": {
         "message": "화면 속 화면 전환"

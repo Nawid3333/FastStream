@@ -50,6 +50,9 @@ export class FSBlob {
     this.indexedDBManager = null;
     this.setupPromise = null;
     this.remainingBackends = memoryOnly ? [] : BackendChain.slice();
+    // Whether the backend chain was ever started: a store made memory-only starts it when
+    // it may write to disk after all (setMemoryOnly).
+    this.chainStarted = !memoryOnly;
 
     try {
       this.activateNextBackend();
@@ -315,6 +318,31 @@ export class FSBlob {
       return false;
     }
     return handled;
+  }
+
+  /**
+   * Lets the store write to disk or not, from now on (the option "Keep video on disk when
+   * this RAM is full"). Off, nothing more goes to disk; what is there already is read from
+   * there until it is deleted. On, a store made memory-only starts its backends.
+   * @param {boolean} memoryOnly
+   */
+  setMemoryOnly(memoryOnly) {
+    if (this.memoryOnly === memoryOnly) return;
+    this.memoryOnly = memoryOnly;
+    if (memoryOnly || this.chainStarted) return;
+    this.chainStarted = true;
+    this.remainingBackends = BackendChain.slice();
+    try {
+      this.activateNextBackend();
+    } catch (e) {
+      console.warn('FSBlob setup failed, staying in memory', e);
+      this.opfsManager = null;
+      this.cache = null;
+      this.indexedDBManager = null;
+      this.setupPromise = null;
+      this.memoryOnly = true;
+      this.chainStarted = false;
+    }
   }
 
   /**

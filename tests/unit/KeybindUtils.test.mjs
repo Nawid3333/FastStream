@@ -3,8 +3,8 @@ import {DefaultKeybinds} from '../../chrome/player/options/defaults/DefaultKeybi
 import {DefaultOptions} from '../../chrome/player/options/defaults/DefaultOptions.mjs';
 import {
   ADDED_IN_VERSION_2, ADDED_IN_VERSION_3, DEFAULT_SEEK_STEP_SIZE, FIXED_SEEKS, KEYBINDS_VERSION,
-  MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
-  formatPlaybackRate, keyDisplayName, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
+  MOVED_IN_VERSION_2, MOVED_IN_VERSION_3, MOVED_IN_VERSION_4, OLD_SEEK_STEP_SIZE, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, conflictPartners, findKeybindConflicts, isTextEntryTarget,
+  SILENT_MAX_PLAYBACK_RATE, describePlaybackRate, formatPlaybackRate, keyDisplayName, keybindLabel, migrateKeybinds, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../../chrome/player/options/KeybindUtils.mjs';
 import {Utils} from '../../chrome/player/utils/Utils.mjs';
 
@@ -186,6 +186,17 @@ describe('applySpeedPreset', () => {
     expect(both.press(8)).toBe(1);
   });
 
+  it('plays 16x with the 16x key, silent, as the player passes Firefox\'s own limit', () => {
+    // His decision (2026-10-10): the key gave 8x, the same as the 8x key.
+    expect(SILENT_MAX_PLAYBACK_RATE).toBe(16);
+    const p = player(1, SILENT_MAX_PLAYBACK_RATE);
+    expect(p.press(16)).toBe(16);
+    expect(p.press(16)).toBe(1);
+    expect(p.press(8)).toBe(8);
+    expect(p.press(16)).toBe(16);
+    expect(p.press(16)).toBe(8);
+  });
+
   it('does not clamp when the largest rate is unknown', () => {
     for (const maxRate of [undefined, NaN, null]) {
       expect(applySpeedPreset(16, 1, maxRate, undefined).rate).toBe(16);
@@ -204,6 +215,15 @@ describe('formatPlaybackRate', () => {
   it('shows what the 0.1 steps add up to, not their floating-point leftovers', () => {
     expect(formatPlaybackRate(1 + 0.1 + 0.1)).toBe('1.2×');
     expect(formatPlaybackRate(0.30000000000000004)).toBe('0.3×');
+  });
+});
+
+describe('describePlaybackRate', () => {
+  it('says "no sound" only above the rate with sound', () => {
+    expect(describePlaybackRate(16, 8, 'no sound')).toBe('16× · no sound');
+    expect(describePlaybackRate(8, 8, 'no sound')).toBe('8×');
+    expect(describePlaybackRate(8.00000001, 8, 'no sound')).toBe('8×');
+    expect(describePlaybackRate(2.5, 8, 'no sound')).toBe('2.5×');
   });
 });
 
@@ -485,7 +505,7 @@ describe('migrateKeybinds', () => {
     // and the 10 s seeks (an action that is gone now) on `,`/`.`.
     const v2Binds = () => {
       const keybinds = {
-        ...DefaultKeybinds, UndoSeek: 'KeyZ', Screenshot: 'KeyX',
+        ...DefaultKeybinds, ...MOVED_IN_VERSION_4, UndoSeek: 'KeyZ', Screenshot: 'KeyX',
         SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
         SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
       };
@@ -568,6 +588,58 @@ describe('migrateKeybinds', () => {
       // WindowedFullscreen on plain W, chosen after version 2: not moved again.
       const {keybinds} = load(v2({WindowedFullscreen: 'KeyW'}));
       expect(keybinds.WindowedFullscreen).toBe('KeyW');
+    });
+  });
+
+  describe('to version 4', () => {
+    // What a browser held at version 3: the speed steps on Shift+Up/Down, Save video on D.
+    const v3 = (keybinds = {}) => ({keybindsVersion: 3, keybinds: {...DefaultKeybinds, ...MOVED_IN_VERSION_4, ...keybinds}});
+    const load = (stored) => migrateKeybinds(mergedOver(stored), stored);
+
+    it('puts the speed steps on S and D, as in mpv, and Save video on Shift+D', () => {
+      const options = load(v3());
+      expect(options.keybinds).toEqual(DefaultKeybinds);
+      expect(options.keybinds.IncreasePlaybackRate).toBe('KeyD');
+      expect(options.keybinds.DecreasePlaybackRate).toBe('KeyS');
+      expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');
+      expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+      expect(findKeybindConflicts(options.keybinds)).toEqual([]);
+      expect(info).not.toHaveBeenCalled();
+      // D is the speed-up alone; Shift+D (and with Ctrl too) saves.
+      expect(actionsForKey('KeyD', options.keybinds)).toEqual(['IncreasePlaybackRate']);
+      expect(actionsForKey('Shift+KeyD', options.keybinds)).toEqual(['SaveVideo']);
+      expect(actionsForKey('Control+Shift+KeyD', options.keybinds)).toEqual(['SaveVideo']);
+    });
+
+    it('keeps keys the user chose, and moves the rest', () => {
+      const {keybinds} = load(v3({IncreasePlaybackRate: 'KeyU', SaveVideo: 'Alt+KeyD'}));
+      expect(keybinds.IncreasePlaybackRate).toBe('KeyU');
+      expect(keybinds.SaveVideo).toBe('Alt+KeyD');
+      expect(keybinds.DecreasePlaybackRate).toBe('KeyS');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves the slow-down unbound when the user has S for something else', () => {
+      const {keybinds} = load(v3({Mute: 'KeyS'}));
+      expect(keybinds.Mute).toBe('KeyS');
+      expect(keybinds.DecreasePlaybackRate).toBe('None');
+      expect(keybinds.IncreasePlaybackRate).toBe('KeyD');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves Save video unbound when Shift+D is taken, which still frees D', () => {
+      const {keybinds} = load(v3({Mute: 'Shift+KeyD'}));
+      expect(keybinds.SaveVideo).toBe('None');
+      expect(keybinds.IncreasePlaybackRate).toBe('KeyD');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
+    });
+
+    it('leaves Save video unbound when another action has Shift+D with Ctrl, which it would fire too', () => {
+      // Save video ignores extra modifiers: on Shift+D it answered Ctrl+Shift+D as well.
+      const {keybinds} = load(v3({Mute: 'Control+Shift+KeyD'}));
+      expect(keybinds.Mute).toBe('Control+Shift+KeyD');
+      expect(keybinds.SaveVideo).toBe('None');
+      expect(findKeybindConflicts(keybinds)).toEqual([]);
     });
   });
 

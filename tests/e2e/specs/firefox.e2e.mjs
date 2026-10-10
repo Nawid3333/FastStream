@@ -9,7 +9,8 @@
 //   faster: measured on Firefox 156 the 440 Hz test tone is at full level at 8x and
 //   silent at 10x, while the picture keeps its pace (16x really plays 16 seconds a
 //   second). If this test starts to fail at 10x, Firefox now plays faster audio and the
-//   cap, and the 16x speed key, can move up.
+//   cap can move up. The 16x speed key goes past it anyway, silent (his decision,
+//   2026-10-10), as mpv's 16x does.
 
 import {browser, expect} from '@wdio/globals';
 

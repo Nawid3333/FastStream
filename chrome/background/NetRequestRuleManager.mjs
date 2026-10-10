@@ -134,7 +134,11 @@ export class RuleManager {
     };
 
     try {
+      // Removed first, in the same call: a rule whose removal failed three times was given
+      // up (above) while the browser may still hold it, and its id, free again here, was
+      // refused - every rule after it too, until the event page restarted.
       await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: [ruleObj.id],
         addRules: [ruleObj],
       });
     } catch (e) {

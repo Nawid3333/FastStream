@@ -39,6 +39,7 @@ const maxSize = document.getElementById('maxsize');
 const maxSizeUnit = document.getElementById('maxsizeunit');
 const ramBudget = document.getElementById('rambudget');
 const ramBudgetUnit = document.getElementById('rambudgetunit');
+const bufferToDisk = document.getElementById('buffertodisk');
 const bufferAhead = document.getElementById('bufferahead');
 const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
@@ -159,6 +160,7 @@ async function loadOptions(newOptions) {
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
+  bufferToDisk.checked = Options.bufferToDisk !== false;
   showSize(ramBudget, ramBudgetUnit, Options.ramBudget);
   showSeconds(bufferAhead, Options.bufferAhead);
   showSeconds(bufferBehind, Options.bufferBehind);
@@ -662,7 +664,9 @@ const LIMIT_HINTS = {
  */
 function showLimitHint(input, value) {
   const hint = document.getElementById(input.id + 'hint');
-  const key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
+  let key = value === 0 ? LIMIT_HINTS[input.id].zero : value < 0 ? LIMIT_HINTS[input.id].none : null;
+  // A RAM budget of 0 is "straight to disk" only where video may go to disk.
+  if (input === ramBudget && value === 0 && !bufferToDisk.checked) key = 'options_general_rambudget_zero_nodisk';
   if (!hint) return;
   hint.textContent = key ? Localize.getMessage(key) : '';
   hint.hidden = !key;
@@ -727,8 +731,9 @@ maxSize.addEventListener('change', onMaxSizeChange);
 maxSizeUnit.addEventListener('change', onMaxSizeChange);
 
 // The RAM all players keep downloaded video in (MemoryBudget); beyond it, it goes to disk
-// (a private window lets it go). Empty: no limit, all of it in RAM. 0: none in RAM, so
-// nothing is downloaded ahead of playback.
+// (a private window, or "Keep video on disk" off, lets it go). Empty: no limit, all of it
+// in RAM. 0: none in RAM: straight to disk, or, where nothing goes to disk, nothing is
+// downloaded ahead of playback.
 const onRamBudgetChange = (e) => {
   const value = readLimit(ramBudget, Number(ramBudgetUnit.value));
   if (value !== null) Options.ramBudget = value;
@@ -737,6 +742,16 @@ const onRamBudgetChange = (e) => {
 };
 ramBudget.addEventListener('change', onRamBudgetChange);
 ramBudgetUnit.addEventListener('change', onRamBudgetChange);
+
+// Off: what does not fit in the RAM budget is let go of and downloaded again when needed,
+// as in a private window - nothing of the buffer is written to disk. Watch progress and
+// saved videos are not the buffer: they keep their storage.
+bufferToDisk.addEventListener('change', () => {
+  Options.bufferToDisk = bufferToDisk.checked;
+  // What the field says now: a number typed is saved only 400 ms later (saveWhileTyping).
+  showLimitHint(ramBudget, readLimit(ramBudget, Number(ramBudgetUnit.value)) ?? Options.ramBudget);
+  optionChanged();
+});
 
 /**
  * A number field's value within its limits, or the default when it holds no number, shown

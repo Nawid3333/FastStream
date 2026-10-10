@@ -1,6 +1,4 @@
 // @ts-check
-import {Utils} from './Utils.mjs';
-
 // --- ITU-R 468 weighting with per-bin cache, returns dBFS ---
 
 // 468 curve in dB
@@ -64,13 +62,12 @@ function get468WeightsForAnalyser(analyser) {
 // what the window takes off a signal's power.
 const BLACKMAN_MEAN_SQUARE = 0.42 * 0.42 + 0.5 * 0.5 / 2 + 0.08 * 0.08 / 2;
 
-// Each analyser's frequency and time arrays, kept: getVolume and isClipping run for every
-// meter on every frame.
+// Each analyser's frequency array, kept: getVolume runs for every meter on every frame.
 const _frequencyArrays = new WeakMap();
-const _timeArrays = new WeakMap();
 
 /**
- * Utility functions for audio processing and conversions.
+ * The volume meters' level, from an AnalyserNode. (The mixer's dB scale, the clip check and
+ * the channel layouts went with the audio settings window, 2026-10-10.)
  */
 export class AudioUtils {
   /**
@@ -89,24 +86,6 @@ export class AudioUtils {
     return analyser;
   }
 
-  static isClipping(analyser) {
-    // The whole window: an array of frequencyBinCount (half of it) got the older half only,
-    // so a clip in the newer half went unseen.
-    const bufferLength = analyser.fftSize;
-    let dataArray = _timeArrays.get(analyser);
-    if (!dataArray || dataArray.length !== bufferLength) {
-      dataArray = new Float32Array(bufferLength);
-      _timeArrays.set(analyser, dataArray);
-    }
-    analyser.getFloatTimeDomainData(dataArray);
-
-    for (let i = 0; i < bufferLength; i++) {
-      if (dataArray[i] > 1.05 || dataArray[i] < -1.05) {
-        return true;
-      }
-    }
-    return false;
-  }
   /**
    * Calculates the volume in decibels from an AnalyserNode: the ITU-R 468 weighted level,
    * in dB of full scale (a full-scale sine near 6.3 kHz, where the weight is 1, is -3 dB),
@@ -146,103 +125,5 @@ export class AudioUtils {
     const meanSquare = 2 * sum / BLACKMAN_MEAN_SQUARE;
     const volumeDb = meanSquare > 0 ? 10 * Math.log10(meanSquare) : -Infinity;
     return Math.max(minDb, volumeDb);
-  }
-
-  /**
-   * Converts decibels to gain value.
-   * @param {number} db - Decibel value.
-   * @return {number} Gain value.
-   */
-  static dbToGain(db) {
-    return Math.pow(10, db / 20);
-  }
-
-  /**
-   * Converts gain value to decibels.
-   * @param {number} gain - Gain value.
-   * @return {number} Decibel value.
-   */
-  static gainToDB(gain) {
-    return 20 * Math.log10(gain);
-  }
-
-  /**
-   * Applies a symmetrical logarithmic scale to a value (Y axis).
-   * @param {number} x - Input value.
-   * @param {number} c - Center value.
-   * @param {number} p - Power.
-   * @return {number} Scaled value.
-   */
-  static symmetricalLogScaleY(x, c, p) {
-    return Math.sign(x) * (Math.log10(Math.pow(Math.abs(x / c), p) + 1));
-  }
-
-  /**
-   * Applies a symmetrical logarithmic scale to a value (X axis).
-   * @param {number} y - Input value.
-   * @param {number} c - Center value.
-   * @param {number} p - Power.
-   * @return {number} Scaled value.
-   */
-  static symmetricalLogScaleX(y, c, p) {
-    return Math.sign(y) * c * Math.pow(Math.pow(10, Math.abs(y)) - 1, 1/p);
-  }
-
-  /**
-   * Converts mixer decibel value to position ratio for UI.
-   * @param {number} db - Decibel value.
-   * @return {number} Position ratio.
-   */
-  static mixerDBToPositionRatio(db) {
-    if (db <= -40) {
-      return 1;
-    }
-
-    const c = 2;
-    const maxY = this.symmetricalLogScaleY(10, c, 4);
-    const minY = this.symmetricalLogScaleY(-40, c, 4);
-    const y = this.symmetricalLogScaleY(db, c, 4);
-    return Utils.clamp((maxY - y) / (maxY - minY), 0, 1);
-  }
-
-  /**
-   * Converts a position ratio to mixer decibel value for UI.
-   * @param {number} ratio - Position ratio.
-   * @return {number} Decibel value.
-   */
-  static mixerPositionRatioToDB(ratio) {
-    if (ratio >= 1) {
-      return -Infinity;
-    }
-
-    const c = 2;
-    const maxY = this.symmetricalLogScaleY(10, c, 4);
-    const minY = this.symmetricalLogScaleY(-40, c, 4);
-    const y = maxY - ratio * (maxY - minY);
-    return Utils.clamp(this.symmetricalLogScaleX(y, c, 4), -40, 10);
-  }
-
-  static getActiveChannelsForChannelCount(numberOfChannels) {
-    let activeChannels = [];
-    // 0 = Left, 1 = Right, 2 = Center, 3 = Bass (LFE), 4 = Left Surround, 5 = Right Surround, 6 = Side Left, 7 = Side Right
-    if (numberOfChannels <= 1) {
-      activeChannels = [0]; // Mono
-    } else if (numberOfChannels === 2) {
-      activeChannels = [0, 1]; // Stereo
-    } else if (numberOfChannels === 3) {
-      activeChannels = [0, 1, 2]; // 2.1
-    } else if (numberOfChannels === 4) {
-      activeChannels = [0, 1, 4, 5]; // Quad
-    } else if (numberOfChannels === 5) {
-      activeChannels = [0, 1, 2, 4, 5]; // 5.0
-    } else if (numberOfChannels === 6) {
-      activeChannels = [0, 1, 2, 3, 4, 5]; // 5.1
-    } else if (numberOfChannels === 7) {
-      activeChannels = [0, 1, 2, 3, 4, 5, 6]; // 6.1
-    } else if (numberOfChannels >= 8) {
-      activeChannels = [0, 1, 2, 3, 4, 5, 6, 7]; // 7.1
-    }
-
-    return activeChannels;
   }
 }

@@ -93,7 +93,7 @@
         "message": "- Ripristina lo spostamento annullato"
     },
     "welcome_page_keybinds_content17": {
-        "message": "tasti freccia - riproduci più veloce/lento"
+        "message": "- riproduci 0.1x più veloce/lento"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Attiva/disattiva i sottotitoli"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Tracce audio"
+    },
+    "player_speed_nosound": {
+        "message": "senza audio"
     },
     "player_opensubtitles_title": {
         "message": "Ricerca di OpenSubtitles"
@@ -747,7 +750,7 @@
         "message": "Opzioni Video"
     },
     "options_video_body": {
-        "message": "Modifica l'aspetto del video: luminosità, contrasto, colori e altro. Non funziona in picture-in-picture."
+        "message": "Ingrandisci l'immagine o regola il ritardo video rispetto al suono. Lo zoom video non funziona in picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Zoom Video"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "RAM per il video nel buffer (tutte le schede)"
     },
+    "options_general_buffertodisk": {
+        "message": "Conserva il video su disco quando questa RAM è piena (disattivo: scarta e scarica di nuovo se necessario, così non viene scritto nulla su disco)"
+    },
     "options_general_nolimit": {
         "message": "Nessun limite"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: il video scaricato non viene tenuto in RAM ma su disco, tranne i prossimi secondi. In una finestra privata, che non salva nulla su disco, non viene scaricato nulla in anticipo. Lascia vuoto il campo per rimuovere il limite."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: nessun video scaricato viene tenuto e, con \"Conserva il video su disco\" disattivo, non viene scaricato nulla in anticipo, quindi i video potrebbero interrompersi. Lascia vuoto il campo per rimuovere il limite."
     },
     "options_general_rambudget_none": {
         "message": "Nessun limite: tutto il video scaricato rimane nella RAM, nulla viene salvato su disco. Su un PC con poca memoria, Firefox potrebbe rallentare."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Menta Fresca"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Nero OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Attiva/disattiva il picture-in-picture"

@@ -392,3 +392,37 @@ describe('StreamLengths', () => {
     expect(lengths.lengthOf('https://cdn.example/300.m3u8')).toBeNull();
   });
 });
+
+describe('StreamLengths.queue', () => {
+  it('never runs more than four reads, wherever a new one comes in as one finishes', async () => {
+    // A woken waiter raced a newcomer for the freed slot, and both ran: five at once (final
+    // review, 2026-10-10). The newcomer comes in after 0 to 12 microtask hops, which puts it
+    // in every gap between the read finishing and the waiter going on.
+    for (let hops = 0; hops <= 12; hops++) {
+      const lengths = new StreamLengths({fetch: async () => new Response('')});
+      let running = 0;
+      let most = 0;
+      const gates = [];
+      const read = () => lengths.queue(async () => {
+        running++;
+        most = Math.max(most, running);
+        await new Promise((resolve) => gates.push(resolve));
+        running--;
+      });
+      const reads = [read(), read(), read(), read(), read()];
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      gates.shift()();
+      let later = Promise.resolve();
+      for (let i = 0; i < hops; i++) later = later.then(() => {});
+      await later.then(() => reads.push(read()));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(most, `${hops} hops`).toBe(4);
+      while (gates.length) {
+        gates.shift()();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      await Promise.all(reads);
+      expect(lengths.active, `${hops} hops`).toBe(0);
+    }
+  });
+});

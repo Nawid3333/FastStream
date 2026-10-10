@@ -203,7 +203,7 @@ export class FineTimeControls extends EventEmitter {
     });
   }
 
-  onAnalyzerFrameProcessed(time, isSpeechProb, interpolated = 0) {
+  onAnalyzerFrameProcessed(time, volume, interpolated = 0) {
     const frame = Math.floor(time / 10);
     const shouldDoPreviousFrame = interpolated > 0 && (time - frame * 10) < 2;
     let done = 0;

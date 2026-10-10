@@ -1,9 +1,10 @@
 import {DefaultKeybinds} from '../options/defaults/DefaultKeybinds.mjs';
 import {
-  FIXED_SEEKS, SEEK_PERCENTS, SPEED_PRESETS, actionsForKey, applySpeedPreset, formatPlaybackRate,
+  FIXED_SEEKS, SEEK_PERCENTS, SILENT_MAX_PLAYBACK_RATE, SPEED_PRESETS, actionsForKey, applySpeedPreset, describePlaybackRate,
   isTextEntryTarget, seekPercentAction, seekPercentTarget, speedPresetAction,
 } from '../options/KeybindUtils.mjs';
 import {EventEmitter} from '../modules/eventemitter.mjs';
+import {Localize} from '../modules/Localize.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {OnScreenDisplay} from './OnScreenDisplay.mjs';
@@ -116,7 +117,11 @@ export class KeybindManager extends EventEmitter {
     this.osd = new OnScreenDisplay();
 
     this.on('IncreasePlaybackRate', (e) => {
-      this.client.playbackRate = Math.min(this.client.playbackRate + 0.1, this.client.options.maxPlaybackRate);
+      // Above the rate with sound (the 16x key), it stays: min() took it down to 8x.
+      const rate = this.client.playbackRate;
+      if (rate < this.client.options.maxPlaybackRate) {
+        this.client.playbackRate = Math.min(rate + 0.1, this.client.options.maxPlaybackRate);
+      }
       this.client.interfaceController.showControlBarTemporarily();
       this.showSpeed();
     });
@@ -145,11 +150,12 @@ export class KeybindManager extends EventEmitter {
       const action = speedPresetAction(preset);
       this.on(action, (e) => {
         const {rate, remembered} = applySpeedPreset(
-            preset, this.client.playbackRate, this.client.options.maxPlaybackRate,
+            preset, this.client.playbackRate, SILENT_MAX_PLAYBACK_RATE,
             this.presetRevertMemory[action]);
         this.presetRevertMemory[action] = remembered;
         if (rate !== this.client.playbackRate) {
-          this.client.playbackRate = rate;
+          // Past the sound only for a preset: 16x plays 16x, silent (2026-10-10).
+          this.client.setPlaybackRate(rate, true);
         }
         this.client.interfaceController.showControlBarTemporarily();
         this.showSpeed();
@@ -265,7 +271,8 @@ export class KeybindManager extends EventEmitter {
    * Shows the playback speed now in effect on screen (OnScreenDisplay), as "2×".
    */
   showSpeed() {
-    this.osd.show(formatPlaybackRate(this.client.playbackRate));
+    this.osd.show(describePlaybackRate(this.client.playbackRate, this.client.options.maxPlaybackRate,
+        Localize.getMessage('player_speed_nosound')));
   }
 
   seekBy(seconds) {

@@ -233,6 +233,12 @@
       }
 
       iframeMap.set(request.frameId, newFrameObj);
+      // Watched while it is in the page too: taken out, it gives back what it took
+      // (checkPendingPlayers).
+      if (!pendingPlayersWatch) {
+        pendingPlayersWatch = new MutationObserver(checkPendingPlayers);
+        pendingPlayersWatch.observe(document.documentElement, {childList: true, subtree: true});
+      }
       checkPendingPlayers();
 
       updateReplacedPlayers(replacedData && replacedData.convertDue ? replacedData : null);
@@ -285,7 +291,20 @@
         }
       }
     });
-    if (pendingPlayers.size === 0 && pendingPlayersWatch) {
+    // A player that has linked up, which the page took out too (a re-render after the player
+    // came): the page's element stayed hidden and its media paused themselves on every play,
+    // until FastStream was turned off or the page navigated (final review, 2026-10-10). Its
+    // element is given back now; the entry stays, so removePlayers still tells the background
+    // that the frame is gone, as before.
+    iframeMap.forEach((iframeObj) => {
+      if (iframeObj.iframe.isConnected) return;
+      if (iframeObj.replacedData) {
+        restoreReplaced(iframeObj.replacedData);
+        iframeObj.replacedData = null;
+      }
+      releaseRemovedPlayer(iframeObj.iframe);
+    });
+    if (pendingPlayers.size === 0 && iframeMap.size === 0 && pendingPlayersWatch) {
       pendingPlayersWatch.disconnect();
       pendingPlayersWatch = null;
     }
@@ -666,7 +685,9 @@
         sendResponse('enter');
       }).catch((e) => {
         // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
-        // Rethrown, it was an unhandled rejection besides.
+        // Rethrown, it was an unhandled rejection besides. Not fullscreen, as the page is:
+        // left "on", the next toggle went the wrong way.
+        fullscreenState.active = document.fullscreenElement === element;
         console.error(e);
         sendResponse('error');
       });

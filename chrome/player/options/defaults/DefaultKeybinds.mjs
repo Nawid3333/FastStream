@@ -19,8 +19,9 @@ export const DefaultKeybinds = {
   // mpv's frame-step: pause, then exactly one frame.
   'SeekForwardFrame': 'Period',
   'SeekBackwardFrame': 'Comma',
-  'IncreasePlaybackRate': 'Shift+ArrowUp',
-  'DecreasePlaybackRate': 'Shift+ArrowDown',
+  // As in mpv: s slower, d faster, by 0.1 (2026-10-10; Shift+ArrowUp/Down before).
+  'IncreasePlaybackRate': 'KeyD',
+  'DecreasePlaybackRate': 'KeyS',
   'ResetPlaybackRate': 'None',
   'UndoSeek': 'Shift+Backspace',
   'RedoSeek': 'Shift+KeyZ',
@@ -28,7 +29,7 @@ export const DefaultKeybinds = {
   'AddDownloader': 'Equal',
   'RemoveDownloader': 'Minus',
   'PauseDownloaders': 'BracketLeft',
-  'SaveVideo': 'KeyD',
+  'SaveVideo': 'Shift+KeyD',
   'Screenshot': 'Shift+KeyS',
   'GoToStart': 'Digit0',
   'SeekPercent10': 'Digit1',

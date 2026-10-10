@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import {describe, expect, it} from 'vitest';
 
-// The player's 11 themes are blocks of the same CSS variables in colors.css. Three colours
+// The player's 12 themes are blocks of the same CSS variables in colors.css. Three colours
 // were written into the page and the CSS instead (#277): the muted-speaker icon and the big
 // play circle kept the dark themes' colours on the light ones, and the mixer's "configured"
 // colour had !important, which no theme could override.
@@ -29,9 +29,9 @@ function themes() {
 const LIGHT_THEMES = ['arctic', 'sunset', 'desert', 'mint'];
 
 describe('theme colours', () => {
-  it('has the 11 themes, each with the same variables', () => {
+  it('has the 12 themes, each with the same variables', () => {
     const all = themes();
-    expect([...all.keys()]).toHaveLength(11);
+    expect([...all.keys()]).toHaveLength(12);
     const names = [...all.get('default').keys()].sort();
     for (const [theme, variables] of all) {
       expect([...variables.keys()].sort(), theme).toEqual(names);
@@ -58,6 +58,18 @@ describe('theme colours', () => {
     }
     expect(playerCss).toMatch(/\.fluid_control_mute \.speaker-muted \{[^}]*color: var\(--mute-icon-color\)/);
     expect(playerCss).toMatch(/\.fluid_initial_play \{[^}]*background-color: var\(--initial-play-background-color\)/);
+  });
+
+  it('keeps the OLED theme true black wherever there is a surface', () => {
+    // His request (2026-10-10): an OLED screen's pixels stay off behind the video, the bar's
+    // end, the menus and the windows.
+    const oled = themes().get('oled');
+    for (const name of ['--mainplayer-background-color', '--menu-background-color', '--popwindow-background-color',
+      '--seek-preview-background-color', '--popbutton-background-color', '--input-background-color',
+      '--popwindow-dropdown-item-background-color', '--initial-play-background-color', '--playback-rate-menu-background']) {
+      expect(oled.get(name), name).toBe('#000000');
+    }
+    expect(oled.get('--controls-background')).toMatch(/#000000 100%\)$/);
   });
 
   it('leaves the page no colour of its own that would beat a theme', () => {

@@ -204,7 +204,9 @@ export class SubtitleSyncer extends EventEmitter {
   toggleTrack(track, removeOnly = false) {
     if (this.started && this.trackToSync === track) {
       const fineTimeControls = this.client.interfaceController.fineTimeControls;
-      if (!fineTimeControls.isStateActive(this.onOpenHandle)) {
+      // Not for a removed track: it brought the timeline back with the removed track's
+      // cues (final review, 2026-10-10).
+      if (!removeOnly && !fineTimeControls.isStateActive(this.onOpenHandle)) {
         fineTimeControls.prioritizeState(this.onOpenHandle);
         return;
       }

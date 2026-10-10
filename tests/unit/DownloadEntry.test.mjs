@@ -63,6 +63,36 @@ describe('DownloadEntry watchers', () => {
       expect(entry.watchers).toEqual([]);
     });
   }
+
+  it('tells every watcher when one gives another up while it hears', async () => {
+    // abortWatcher from a callback took a watcher out of the list forEach was walking, and
+    // the one after it never heard (final review, 2026-10-10).
+    const entry = runningEntry();
+    const heard = [];
+    const second = {callbacks: {onSuccess: () => heard.push('second')}};
+    const third = {callbacks: {onSuccess: () => heard.push('third')}};
+    const first = {callbacks: {onSuccess: () => {
+      heard.push('first');
+      entry.removeWatcher(first);
+    }}};
+    entry.addWatcher(first);
+    entry.addWatcher(second);
+    entry.addWatcher(third);
+    await entry.onSuccess({data: new ArrayBuffer(4), url: entry.url}, {});
+    expect(heard).toEqual(['first', 'second', 'third']);
+  });
+
+  it('tells every watcher of progress, although one before it throws', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const entry = runningEntry();
+    const heard = [];
+    entry.addWatcher({callbacks: {onProgress: () => {
+      throw new Error('a watcher bug');
+    }}});
+    entry.addWatcher({callbacks: {onProgress: () => heard.push('progress')}});
+    expect(() => entry.onProgress({}, {}, null, null)).not.toThrow();
+    expect(heard).toEqual(['progress']);
+  });
 });
 
 describe('DownloadEntry: stored data that can no longer be read', () => {

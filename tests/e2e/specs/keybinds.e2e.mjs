@@ -26,7 +26,11 @@
 // - Options saved before the layout changed are migrated when the player loads them,
 //   and a saved binding is never left firing two actions.
 
+import fs from 'node:fs';
+
 import {browser, expect} from '@wdio/globals';
+
+const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 
 const samplePath = (fixture = 'sample.mp4') => '/player/index.html?t=' + Date.now() + '#' +
   globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/' + fixture;
@@ -187,12 +191,11 @@ describe('Keybinds', function() {
   });
 
   it('every preset key sets its speed, and pressing it again puts the rate back', async function() {
-    const max = await browser.execute(() => window.fastStream.options.maxPlaybackRate);
     const presets = {KeyG: 2, KeyB: 2.5, KeyQ: 3, KeyW: 3.5, KeyA: 4, KeyY: 5, KeyE: 8, KeyH: 16};
     for (const [code, speed] of Object.entries(presets)) {
       await reset();
       await pressKey(code);
-      expect(await rate()).toBe(Math.min(speed, max));
+      expect(await rate()).toBe(speed);
       await pressKey(code);
       expect(await rate()).toBe(1);
     }
@@ -218,36 +221,6 @@ describe('Keybinds', function() {
     expect(await rate()).toBe(5);
     await pressKey('KeyY');
     expect(await rate()).toBe(1.7);
-  });
-
-  it('clamps a preset to options.maxPlaybackRate, whatever the browser allows', async function() {
-    // The real limit is 8, which the 8x and 16x keys both reach; forcing it lower shows the
-    // clamp applies to every preset above it.
-    const original = await browser.execute(() => {
-      const before = window.fastStream.options.maxPlaybackRate;
-      window.fastStream.options.maxPlaybackRate = 4;
-      return before;
-    });
-    try {
-      await pressKey('KeyH');
-      expect(await rate()).toBe(4);
-      await reset();
-      await pressKey('KeyE');
-      expect(await rate()).toBe(4);
-      await reset();
-      await pressKey('KeyG');
-      expect(await rate()).toBe(2);
-    } finally {
-      await browser.execute((before) => {
-        window.fastStream.options.maxPlaybackRate = before;
-      }, original);
-    }
-
-    // And the limit the player ships with is Firefox's 8, which the 16x key stops at.
-    expect(original).toBe(8);
-    await reset();
-    await pressKey('KeyH');
-    expect(await rate()).toBe(8);
   });
 
   it('never runs the video faster than options.maxPlaybackRate, whoever sets the rate', async function() {
@@ -753,12 +726,14 @@ describe('mpv seek keys', function() {
     await landsOn(140, 'Shift+KeyZ');
   });
 
-  it('puts the screenshot on Shift+S, and nothing on S', async function() {
+  it('puts the screenshot on Shift+S, the slow-down on S and Save video on Shift+D', async function() {
+    // S and D step the speed as in mpv since 2026-10-10; Save video moved off D.
     const reached = await browser.execute(() => {
       const manager = window.fastStream.keybindManager;
-      return [manager.keyStringToKeybinds('Shift+KeyS'), manager.keyStringToKeybinds('KeyS'), manager.keyStringToKeybinds('KeyX')];
+      return [manager.keyStringToKeybinds('Shift+KeyS'), manager.keyStringToKeybinds('KeyS'), manager.keyStringToKeybinds('KeyX'),
+        manager.keyStringToKeybinds('KeyD'), manager.keyStringToKeybinds('Shift+KeyD')];
     });
-    expect(reached).toEqual([['Screenshot'], [], ['SeekForward60s']]);
+    expect(reached).toEqual([['Screenshot'], ['DecreasePlaybackRate'], ['SeekForward60s'], ['IncreasePlaybackRate'], ['SaveVideo']]);
   });
 });
 
@@ -876,5 +851,53 @@ describe('mpv frame step', function() {
     await pressKey('Comma');
     await settle();
     expect(await frame()).toBe(0);
+  });
+});
+
+// On a video with sound: sample.mp4 has no audio track, and Firefox plays a video without one
+// at 1x once Web Audio takes its sound, whatever the rate (measured 2026-10-10: a plain
+// element went 1.9x at 2x, 0.95x once captured; with an audio track 15.8x at 16x either way).
+// The player takes every video's sound (the volume above 100 %).
+describe('The 16x key', function() {
+  before(() => openPlayer('long-av.mp4'));
+  beforeEach(reset);
+
+  it('plays 16x with the 16x key, and says there is no sound', async function() {
+    // That Firefox plays no sound above 8x is firefox.e2e.mjs's to pin.
+    // It gave 8x, the same as the 8x key: 8 is where Firefox stops playing sound (measured,
+    // firefox.e2e.mjs). His decision (2026-10-10): 16x anyway, silent, as mpv's 16x is.
+    // Everything else stops at the sound: the menu, the speed keys, holding the video.
+    expect(await browser.execute(() => window.fastStream.options.maxPlaybackRate)).toBe(8);
+    await reset();
+    await pressKey('KeyH');
+    const fast = await browser.executeAsync((done) => {
+      const video = window.fastStream.player.getVideo();
+      const osd = document.querySelector('.mainplayer .osd').textContent;
+      const from = video.currentTime;
+      video.play().catch(() => {});
+      const start = performance.now();
+      setTimeout(() => {
+        const seconds = (performance.now() - start) / 1000;
+        done({rate: video.playbackRate, osd, pace: (video.currentTime - from) / seconds});
+      }, 1500);
+    });
+    console.log(`      16x key: ${JSON.stringify(fast)}`);
+    expect(fast.rate).toBe(16);
+    expect(fast.osd).toBe(`16× · ${en.player_speed_nosound.message}`);
+    // Well past 1x: a video taken by Web Audio without an audio track stays at 1x whatever
+    // the rate (sample.mp4, above). How fast it really goes is the decoder's: 15.6x here, 4.5x
+    // on a Linux CI runner (2026-10-10).
+    expect(fast.pace).toBeGreaterThan(2);
+
+    // The speed-up key leaves it there (min() took it down to 8x).
+    await pressKey('KeyD');
+    expect(await rate()).toBe(16);
+    // So does the speed menu's faster step.
+    await browser.execute(() => window.fastStream.interfaceController.playbackRateChanger.shiftPlaybackRate(0.1));
+    expect(await rate()).toBe(16);
+    // The same key goes back.
+    await pressKey('KeyH');
+    expect(await rate()).toBe(1);
+    expect(await browser.execute(() => document.querySelector('.mainplayer .osd').textContent)).toBe('1×');
   });
 });

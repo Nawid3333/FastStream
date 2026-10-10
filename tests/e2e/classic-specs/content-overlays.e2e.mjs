@@ -593,8 +593,27 @@ describe('A site\'s overlays around an in-page player', function() {
     await enterFullscreenWithButton(fullscreen, 'fullscreen never started again');
     await browser.pause(3000);
     try {
-      await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),
-          {timeout: 4000, timeoutMsg: 'the bar stayed up in fullscreen'});
+      const hidden = await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),
+          {timeout: 4000}).then(() => true, () => false);
+      if (!hidden) {
+        // What held the bar up (queueControlsHide's checks): it failed twice in a row once on
+        // CI's Windows runner (main, 2026-10-10) and passed on the two runs before it.
+        const why = await browser.execute(() => {
+          const ic = window.fastStream.interfaceController;
+          const controls = document.querySelector('.mainplayer .fluid_controls_container');
+          const active = document.activeElement;
+          return {
+            focusingControls: ic.focusingControls, mouseOverControls: ic.mouseOverControls,
+            hover: controls.matches(':hover'), bigPlay: ic.isBigPlayButtonVisible(),
+            playing: ic.state.playing, toolsCanHide: ic.toolManager.canHideControls(),
+            windowOpen: ['options_container', 'subui_container', 'linkui_container']
+                .filter((name) => document.querySelector(`.mainplayer .${name}`)?.style.display !== 'none'),
+            hideQueued: !!ic.hideControlBarTimeout, fullscreen: !!document.fullscreenElement,
+            active: active ? `${active.tagName}.${active.className}` : null,
+          };
+        });
+        throw new Error(`the bar stayed up in fullscreen: ${JSON.stringify(why)}`);
+      }
     } finally {
       await browser.execute(() => document.fullscreenElement && document.exitFullscreen());
       await browser.switchFrame(null);

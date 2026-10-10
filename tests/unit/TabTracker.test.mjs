@@ -702,3 +702,35 @@ describe('saveTabState', () => {
     }
   });
 });
+
+describe('restoreTabStates', () => {
+  it('brings back only tabs that are still open, and forgets the closed ones\' states', async () => {
+    // The tabs.onRemoved that woke the page could remove a tab between the read of the saved
+    // states and their use, and the closed tab came back for the session (final review,
+    // 2026-10-10).
+    const removedKeys = [];
+    globalThis.chrome.storage = {session: {
+      get: async () => ({'tabState:7': {isOn: true}, 'tabState:9': {isOn: true, isMpv: true}}),
+      remove: async (key) => removedKeys.push(key),
+    }};
+    globalThis.chrome.tabs = {query: async () => [{id: 7}]};
+    try {
+      const tracker = new TabTracker();
+      await tracker.restoreTabStates();
+      expect(tracker.getTab(7)?.isOn).toBe(true);
+      expect(tracker.getTab(9)).toBeUndefined();
+      expect(removedKeys).toEqual(['tabState:9']);
+
+      // Without the list of tabs, as before: every saved state.
+      globalThis.chrome.tabs = {query: async () => {
+        throw new Error('not now');
+      }};
+      const blind = new TabTracker();
+      await blind.restoreTabStates();
+      expect(blind.getTab(9)?.isMpv).toBe(true);
+    } finally {
+      delete globalThis.chrome.storage;
+      delete globalThis.chrome.tabs;
+    }
+  });
+});

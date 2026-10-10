@@ -848,6 +848,22 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
+  // The same for a player that had linked up: nothing watched its iframe once it had, and
+  // the page's element stayed hidden, its video pausing itself on every play, until a
+  // navigation (final review, 2026-10-10).
+  it('gives the page its video back when it removed a player that had linked up', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => window.playerIframe().remove());
+    await browser.pause(500);
+    expect(await inPage(() => ({
+      id: window.wrap.id,
+      width: window.wrap.getBoundingClientRect().width,
+    }))).toEqual({id: 'wrap', width: 640});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
   // The same for a player laid over the whole page, which hides everything else on it.
   it('shows the page again when it removed an overlay player still loading', async function() {
     await openPage('/full');

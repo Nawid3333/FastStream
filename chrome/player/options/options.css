@@ -37,8 +37,22 @@ body {
   --control-pad-x: 8px;
 }
 
+/* The OLED black theme chosen: the settings page is true black too (2026-10-10). */
+body[data-theme="oled"]:not(.frame) {
+  --color-bg: #000000;
+  --color-bg-muted: #000000;
+  --color-text: #e5e7eb;
+  --color-muted: #9ca3af;
+  --color-border: #262626;
+  --color-elev: #000000;
+  --color-primary: #60a5fa;
+  --color-primary-contrast: #000000;
+  --color-focus: #7aa2ff;
+  --color-warning: #e3b341;
+}
+
 @media (prefers-color-scheme: dark) {
-  body:not(.frame) {
+  body:not(.frame):not([data-theme="oled"]) {
     --color-bg: #23212a;
     --color-bg-muted: #0f1720;
     --color-text: #e5e7eb;

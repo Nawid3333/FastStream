@@ -6,22 +6,22 @@ import {MultiRegexMatcher} from '../../chrome/background/MultiRegexMatcher.mjs';
 
 // "Custom source patterns" is a text option: `<type> /<regex>/<flags>` per line. The old
 // parser in background.mjs took whatever sat between the first character and the last
-// slash, so a malformed line became a pattern anyway. `hls` alone was the empty regex,
+// slash, so a malformed line became a pattern anyway. `m3u8` alone was the empty regex,
 // which matches every URL: every response the browser got was detected as an HLS
 // stream. Malformed lines are now left out, with the reason.
 
 describe('parseCustomSourcePatterns', () => {
   it('parses well-formed lines', () => {
     const {patterns, errors} = parseCustomSourcePatterns([
-      'hls /\\/live\\/\\d+/i',
+      'm3u8 /\\/live\\/\\d+/i',
       '  mp4   /video\\.cdn\\.example\\/[a-z]+/  ',
-      'dash /manifest with spaces/ms',
+      'mpd /manifest with spaces/ms',
     ].join('\n'));
     expect(errors).toEqual([]);
     expect(patterns).toEqual([
-      {ext: 'hls', regex: '\\/live\\/\\d+', flags: 'i'},
+      {ext: 'm3u8', regex: '\\/live\\/\\d+', flags: 'i'},
       {ext: 'mp4', regex: 'video\\.cdn\\.example\\/[a-z]+', flags: ''},
-      {ext: 'dash', regex: 'manifest with spaces', flags: 'ms'},
+      {ext: 'mpd', regex: 'manifest with spaces', flags: 'ms'},
     ]);
   });
 
@@ -32,13 +32,13 @@ describe('parseCustomSourcePatterns', () => {
   });
 
   it.each([
-    ['hls', 'no regex at all'],
-    ['hls live', 'a regex without slashes'],
-    ['hls /', 'a lone slash'],
-    ['hls //', 'the empty regex'],
-    ['hls //i', 'the empty regex with a flag'],
-    ['hls /live/z', 'an unknown flag'],
-    ['hls /(unclosed/', 'an invalid regex'],
+    ['m3u8', 'no regex at all'],
+    ['m3u8 live', 'a regex without slashes'],
+    ['m3u8 /', 'a lone slash'],
+    ['m3u8 //', 'the empty regex'],
+    ['m3u8 //i', 'the empty regex with a flag'],
+    ['m3u8 /live/z', 'an unknown flag'],
+    ['m3u8 /(unclosed/', 'an invalid regex'],
   ])('leaves out %s (%s), rather than matching every URL', (line) => {
     const {patterns, errors} = parseCustomSourcePatterns(line);
     expect(patterns).toEqual([]);
@@ -47,14 +47,23 @@ describe('parseCustomSourcePatterns', () => {
   });
 
   it('keeps the good lines around a bad one, and names the bad one\'s line', () => {
-    const {patterns, errors} = parseCustomSourcePatterns('hls /a/\nhls\nmp4 /b/');
-    expect(patterns.map((p) => p.ext)).toEqual(['hls', 'mp4']);
+    const {patterns, errors} = parseCustomSourcePatterns('m3u8 /a/\nhls\nmp4 /b/');
+    expect(patterns.map((p) => p.ext)).toEqual(['m3u8', 'mp4']);
     expect(errors.map((e) => e.line)).toEqual([2]);
+  });
+
+  it('reports a type the player does not know, and takes the file extensions it does', () => {
+    // "hls" or a typo matched URLs and gave sources of no mode: nothing played, nothing said
+    // why (final review, 2026-10-10). The type is the extension the URL would have had.
+    const {patterns, errors} = parseCustomSourcePatterns('hls /\\/live\\//\nhsl /a/\nm3u8 /b/\nmpd /c/\nvtt /d/\nsrt /e/');
+    expect(patterns.map((p) => p.ext)).toEqual(['m3u8', 'mpd', 'vtt', 'srt']);
+    expect(errors.map((e) => e.line)).toEqual([1, 2]);
+    expect(errors[0].reason).toMatch(/unknown source type "hls"/);
   });
 
   it('never yields a pattern that matches an ordinary asset URL', () => {
     const matcher = new MultiRegexMatcher();
-    for (const {regex, flags, ext} of parseCustomSourcePatterns('hls\nhls /\nhls //\nhls live\nmp4 /\\.mp4$/').patterns) {
+    for (const {regex, flags, ext} of parseCustomSourcePatterns('m3u8\nhls /\nhls //\nhls live\nmp4 /\\.mp4$/').patterns) {
       matcher.addRegex(regex, flags, ext);
     }
     matcher.compile();

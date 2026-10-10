@@ -93,7 +93,7 @@
         "message": "- Ponów cofnięte przewinięcie"
     },
     "welcome_page_keybinds_content17": {
-        "message": "klawisze strzałek - szybciej/wolniej"
+        "message": "klawisze - szybciej/wolniej o 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Włącz/wyłącz napisy"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Ścieżki dźwiękowe"
+    },
+    "player_speed_nosound": {
+        "message": "bez dźwięku"
     },
     "player_opensubtitles_title": {
         "message": "Wyszukiwanie OpenSubtitles"
@@ -747,7 +750,7 @@
         "message": "Opcje wideo"
     },
     "options_video_body": {
-        "message": "Zmienia wygląd wideo: jasność, kontrast, kolory i inne. Nie działa w trybie obrazu w obrazie."
+        "message": "Powiększ obraz lub dostosuj opóźnienie wideo względem dźwięku. Powiększenie wideo nie działa w trybie obrazu w obrazie."
     },
     "options_video_zoom": {
         "message": "Powiększenie wideo"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "RAM na buforowane wideo (wszystkie karty)"
     },
+    "options_general_buffertodisk": {
+        "message": "Przechowuj wideo na dysku, gdy ten RAM zostanie zapełniony (wyłączone: odrzucaj i pobieraj ponownie w razie potrzeby, więc nic nie trafia na dysk)"
+    },
     "options_general_nolimit": {
         "message": "Brak limitu"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: pobrane wideo nie jest trzymane w RAM, lecz na dysku – z wyjątkiem kolejnych sekund. W oknie prywatnym, które niczego nie zapisuje na dysku, nic nie jest pobierane z wyprzedzeniem. Zostaw pole puste, aby nie było limitu."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: pobrane wideo nie jest trzymane, a przy wyłączonej opcji „Przechowuj wideo na dysku” nic nie jest pobierane z wyprzedzeniem, więc wideo może przestać się ładować. Zostaw pole puste, aby nie było limitu."
     },
     "options_general_rambudget_none": {
         "message": "Brak limitu: całe pobrane wideo zostaje w RAM, a nic nie trafia na dysk. Na komputerze z małą ilością pamięci Firefox może zwalniać."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Miętowa świeżość"
+    },
+    "options_general_color_theme_oled": {
+        "message": "Czerń OLED"
     },
     "options_general_vischangeaction_pip": {
         "message": "Przełącz obraz w obrazie"

@@ -93,7 +93,7 @@
         "message": "- Rückgängig gemachtes Spulen wiederholen"
     },
     "welcome_page_keybinds_content17": {
-        "message": "Pfeiltasten - schneller/langsamer abspielen"
+        "message": "Tasten - um 0.1x schneller/langsamer abspielen"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Untertitel an/aus"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audiospuren"
+    },
+    "player_speed_nosound": {
+        "message": "kein Ton"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles-Suche"
@@ -747,7 +750,7 @@
         "message": "Videooptionen"
     },
     "options_video_body": {
-        "message": "Ändert das Aussehen des Videos: Helligkeit, Kontrast, Farben und mehr. Funktioniert nicht im Bild-in-Bild-Modus."
+        "message": "Vergrößern Sie das Bild oder passen Sie die Videoverzögerung gegenüber dem Ton an. Die Videovergrößerung funktioniert nicht im Bild-in-Bild-Modus."
     },
     "options_video_zoom": {
         "message": "Videovergrößerung"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "Arbeitsspeicher für gepuffertes Video (alle Tabs)"
     },
+    "options_general_buffertodisk": {
+        "message": "Video auf der Festplatte speichern, wenn dieser Arbeitsspeicher voll ist (aus: verwerfen und bei Bedarf erneut herunterladen, sodass nichts auf die Festplatte geschrieben wird)"
+    },
     "options_general_nolimit": {
         "message": "Keine Begrenzung"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: Heruntergeladenes Video wird nicht im Arbeitsspeicher, sondern auf der Festplatte gespeichert – nur die nächsten Sekunden bleiben im Arbeitsspeicher. In einem privaten Fenster, das nichts auf der Festplatte speichert, wird nichts vor der Wiedergabe heruntergeladen. Lass das Feld leer, um keine Begrenzung festzulegen."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: Heruntergeladenes Video wird nicht beibehalten, und wenn „Video auf der Festplatte speichern“ deaktiviert ist, wird nichts vor der Wiedergabe heruntergeladen, sodass Videos stoppen könnten. Lass das Feld leer, um keine Begrenzung festzulegen."
     },
     "options_general_rambudget_none": {
         "message": "Keine Begrenzung: Alle heruntergeladenen Videos bleiben im Arbeitsspeicher, nichts wird auf die Festplatte geschrieben. Auf einem PC mit wenig Speicher kann es sein, dass Firefox langsamer wird."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Frische Minze"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED-Schwarz"
     },
     "options_general_vischangeaction_pip": {
         "message": "Bild-in-Bild umschalten"

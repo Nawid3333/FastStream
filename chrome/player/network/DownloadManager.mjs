@@ -71,8 +71,9 @@ export class DownloadManager {
 
     this.failed = 0;
 
-    // A private window's downloads never reach the disk (FSBlob memoryOnly).
-    this.blobStore = new FSBlob({memoryOnly: EnvUtils.isIncognito()});
+    // A private window's downloads never reach the disk (FSBlob memoryOnly), nor anyone's
+    // with "Keep video on disk" off (setBufferToDisk).
+    this.blobStore = new FSBlob({memoryOnly: EnvUtils.isIncognito() || client?.options?.bufferToDisk === false});
     // The RAM budget is used up: no downloads ahead until some is let go of
     // (FastStreamClient.enforceMemoryBudget).
     this.memoryFull = false;
@@ -564,6 +565,15 @@ export class DownloadManager {
   /**
    * @return {boolean} Whether downloads can go to disk at all (not in a private window).
    */
+  /**
+   * Whether what does not fit in the RAM budget may go to disk: the option "Keep video on
+   * disk when this RAM is full". A private window never does.
+   * @param {boolean} allowed
+   */
+  setBufferToDisk(allowed) {
+    this.blobStore?.setMemoryOnly(EnvUtils.isIncognito() || !allowed);
+  }
+
   canSpill() {
     return !!this.blobStore && !this.blobStore.memoryOnly;
   }

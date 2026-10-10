@@ -93,7 +93,7 @@
         "message": "- Redo the undone seek"
     },
     "welcome_page_keybinds_content17": {
-        "message": "arrow keys - Play faster/slower"
+        "message": "keys - Play faster/slower by 0.1x"
     },
     "welcome_page_keybinds_content18": {
         "message": "- Subtitles on/off"
@@ -286,6 +286,9 @@
     },
     "player_audiotracks_label": {
         "message": "Audio tracks"
+    },
+    "player_speed_nosound": {
+        "message": "no sound"
     },
     "player_opensubtitles_title": {
         "message": "OpenSubtitles Search"
@@ -747,7 +750,7 @@
         "message": "Video Options"
     },
     "options_video_body": {
-        "message": "Changes how the video looks: brightness, contrast, colors and more. Does not work in picture-in-picture."
+        "message": "Zoom the picture, or delay it against the sound. The zoom does not apply in picture-in-picture."
     },
     "options_video_zoom": {
         "message": "Video Zoom"
@@ -770,6 +773,9 @@
     "options_general_rambudget": {
         "message": "RAM for buffered video (all tabs)"
     },
+    "options_general_buffertodisk": {
+        "message": "Keep video on disk when this RAM is full (off: let it go and download it again when needed, which writes nothing to the disk)"
+    },
     "options_general_nolimit": {
         "message": "No limit"
     },
@@ -781,6 +787,9 @@
     },
     "options_general_rambudget_zero": {
         "message": "0: downloaded video is not kept in RAM but on disk, all but the next seconds. In a private window, which keeps nothing on disk, nothing is downloaded ahead. Leave the field empty for no limit."
+    },
+    "options_general_rambudget_zero_nodisk": {
+        "message": "0: no downloaded video is kept, and with \"Keep video on disk\" off nothing is downloaded ahead of playback, so videos may stop to load. Leave the field empty for no limit."
     },
     "options_general_rambudget_none": {
         "message": "No limit: all downloaded video stays in RAM, none goes to disk. On a PC with little memory, Firefox may slow down."
@@ -934,6 +943,9 @@
     },
     "options_general_color_theme_mint": {
         "message": "Mint Fresh"
+    },
+    "options_general_color_theme_oled": {
+        "message": "OLED Black"
     },
     "options_general_vischangeaction_pip": {
         "message": "Toggle picture-in-picture"

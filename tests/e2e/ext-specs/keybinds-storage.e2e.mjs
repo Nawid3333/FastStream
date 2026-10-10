@@ -54,7 +54,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     }));
 
     expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(3);
+    expect(options.keybindsVersion).toBe(4);
     expect(options.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     // Chapters are gone: the old binding is dropped.
     expect(options.keybinds.NextChapter).toBeUndefined();
@@ -97,7 +97,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
         {timeout: 10000, timeoutMsg: 'the change was never saved to chrome.storage'});
 
     const saved = await getStored();
-    expect(saved.keybindsVersion).toBe(3);
+    expect(saved.keybindsVersion).toBe(4);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.ResetPlaybackRate).toBe('KeyY');
   });
@@ -116,7 +116,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
           .then(done, (e) => done({failed: String(e)}));
     }));
     expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(3);
+    expect(options.keybindsVersion).toBe(4);
     expect(options.seekStepSize).toBe(5);
     expect(options.keybinds.UndoSeek).toBe('Shift+Backspace');
     expect(options.keybinds.Screenshot).toBe('Shift+KeyS');
@@ -132,6 +132,26 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     expect(options.keybinds.SeekForwardLarge).toBeUndefined();
   });
 
+  it('moves the speed steps saved at version 3 to S and D, and Save video to Shift+D', async function() {
+    // As in mpv (2026-10-10). An S the user took keeps theirs: the slow-down waits for a key.
+    await openExtensionPage('/player/options/index.html');
+    await setStored({keybindsVersion: 3, keybinds: {
+      SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
+    }});
+
+    const options = await browser.executeAsync((done) => {
+      import('/player/utils/Utils.mjs')
+          .then(({Utils}) => Utils.getOptionsFromStorage())
+          .then(done, (e) => done({failed: String(e)}));
+    });
+    expect(options.failed).toBeUndefined();
+    expect(options.keybindsVersion).toBe(4);
+    expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');
+    expect(options.keybinds.IncreasePlaybackRate).toBe('KeyD');
+    expect(options.keybinds.Mute).toBe('KeyS');
+    expect(options.keybinds.DecreasePlaybackRate).toBe('None');
+  });
+
   it('keeps a choice made after the migration, even one equal to an old default', async function() {
     await openExtensionPage('/player/options/index.html');
     await setStored({keybindsVersion: 3, keybinds: {WindowedFullscreen: 'KeyW'}});
@@ -142,6 +162,7 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
           .then(done, (e) => done({failed: String(e)}));
     }));
     expect(options.keybinds.WindowedFullscreen).toBe('KeyW');
-    expect(options.keybindsVersion).toBe(3);
+    // Through the version 4 step (S and D), which does not touch it.
+    expect(options.keybindsVersion).toBe(4);
   });
 });

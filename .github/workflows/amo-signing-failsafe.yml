@@ -320,7 +320,8 @@ jobs:
               if pnpm run sign:amo && ls web-ext-artifacts/*.xpi > /dev/null 2>&1; then
                 state=signed
               else
-                state=pending
+                # Not "pending": AMO has nothing to review, the upload itself failed.
+                state=error
               fi
               ;;
             *) state=error ;;

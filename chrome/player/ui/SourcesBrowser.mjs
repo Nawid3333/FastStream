@@ -156,7 +156,15 @@ export class SourcesBrowser {
       if (sourceSetBtn.classList.contains('loading')) return;
       sourceSetBtn.classList.add('loading');
       sourceSetBtn.textContent = Localize.getMessage('player_source_playbtn_loading');
-      await this.client.setSource(source);
+      try {
+        await this.client.setSource(source);
+      } catch (e) {
+        // A source that failed left the button on "Loading..." for good (final review,
+        // 2026-10-10): the list is drawn again either way.
+        console.warn('Could not play the source', e);
+        this.updateSources();
+        return;
+      }
       this.updateSources();
       this.client.play();
     });

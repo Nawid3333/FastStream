@@ -179,7 +179,9 @@ export class DownloadEntry {
    * @param {...*} args - Its arguments.
    */
   notifyWatchers(name, ...args) {
-    this.watchers.forEach((watcher) => {
+    // A copy: a callback that removes a watcher (abortWatcher) made forEach skip the next one,
+    // which never heard how the download ended (final review, 2026-10-10).
+    [...this.watchers].forEach((watcher) => {
       try {
         watcher.callbacks[name]?.(...args);
       } catch (e) {
@@ -189,9 +191,13 @@ export class DownloadEntry {
   }
 
   onProgress(stats, context, data, xhr) {
-    this.watchers.forEach((watcher) => {
-      if (watcher.callbacks.onProgress) {
-        watcher.callbacks.onProgress(stats, context, data, xhr);
+    // Guarded as notifyWatchers is: a progress callback that threw ended the downloader's
+    // progress handling, and the entry and the downloader stayed busy for good.
+    [...this.watchers].forEach((watcher) => {
+      try {
+        watcher.callbacks.onProgress?.(stats, context, data, xhr);
+      } catch (e) {
+        console.error('A download watcher\'s onProgress threw:', e);
       }
     });
   }
