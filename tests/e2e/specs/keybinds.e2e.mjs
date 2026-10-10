@@ -873,13 +873,28 @@ describe('The 16x key', function() {
     const fast = await browser.execute(() => new Promise((done) => {
       const video = window.fastStream.player.getVideo();
       const osd = document.querySelector('.mainplayer .osd').textContent;
-      const from = video.currentTime;
+      const startedAt = video.currentTime;
+      const waitStart = performance.now();
       video.play().catch(() => {});
-      const start = performance.now();
-      setTimeout(() => {
-        const seconds = (performance.now() - start) / 1000;
-        done({rate: video.playbackRate, osd, pace: (video.currentTime - from) / seconds});
-      }, 1500);
+      // Measured once it plays: timed from play(), a slow runner's start took most of the
+      // 1.5 s, and the pace read 1.3x on a Linux runner where the run before read 4.5x
+      // (2026-10-10, #422). Stuck at 1x it gets there too, half a second later.
+      const measure = () => {
+        const from = video.currentTime;
+        const start = performance.now();
+        setTimeout(() => {
+          const seconds = (performance.now() - start) / 1000;
+          done({rate: video.playbackRate, osd, pace: (video.currentTime - from) / seconds});
+        }, 2000);
+      };
+      const playing = () => {
+        if (video.currentTime > startedAt + 0.5 || performance.now() - waitStart > 5000) {
+          measure();
+        } else {
+          setTimeout(playing, 50);
+        }
+      };
+      playing();
     }));
     console.log(`      16x key: ${JSON.stringify(fast)}`);
     expect(fast.rate).toBe(16);
