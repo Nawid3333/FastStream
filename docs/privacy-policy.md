@@ -98,7 +98,7 @@ script evaluation of any kind.
 ## Third-party code
 
 The add-on bundles well-known open-source media libraries (hls.js, dash.js,
-mp4box, ONNX Runtime and others). None of them are configured to report
+mp4box, Mediabunny and others). None of them are configured to report
 telemetry. Their exact upstream versions, and every modification made to
 them, are documented in `docs/vendored-libraries.md` and reproducible from
 the `patches/` directory in the source repository.

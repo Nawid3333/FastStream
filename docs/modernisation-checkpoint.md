@@ -7,6 +7,12 @@
 > the tree as it is, read `CLAUDE.md`, `docs/maintenance.md` and
 > `docs/vendored-libraries.md`. Since 2026-10-02 nothing merges itself: every pull
 > request waits for the owner, and a green push to `main` still releases.
+>
+> **Removed since (2026-10-10, his decisions):** the video filters (brightness, contrast,
+> colours; zoom, flip and rotate stay), the speech detector (ONNX Runtime, the Silero VAD
+> model, `verify:vad`, `vad.e2e.mjs`) and the audio settings window (equalizer, compressor,
+> crosstalk, mixer, convolver, profiles; knob.mjs and `verify:knob`). What this file says
+> about them is history.
 
 **Saves copy streams, the re-encoder is gone (2026-09-30, later):** what MP4Merger cannot
 join (WebM, odd fMP4 packaging) is copied into an MP4 as it is by `remux/remuxer.mjs`:

@@ -25,16 +25,10 @@ they belong in the Phase 7 npm migration rather than being removed:
 
 | File | What it is | npm |
 |---|---|---|
-| `vad/ort.wasm.mjs` + `ort-wasm-simd-threaded.mjs` + `ort-wasm-simd-threaded.wasm` | **ONNX Runtime Web 1.30.0**, Microsoft, MIT | `onnxruntime-web@1.30.0` |
-| `vad/silero_vad_half.onnx` | Silero VAD model, `.onnx`, MIT | published model, silero-vad tag v6.2.1 |
 | `remux/mediabunny.mjs` | **Mediabunny 1.60.0**, MPL-2.0 (file-level: shipped unmodified, its licence header kept) | `mediabunny@1.60.0` |
 
-`vad/LICENSE.md` is already in-tree. **`ort.wasm.mjs` carried the comment
-"Minified to reduce loading time (https://minify-js.com/)"** — Andrew
-minified it by hand, which is precisely the modified-third-party-library
-problem AMO objects to. It has shipped as the npm dist since (all three ONNX
-Runtime files, since 2026-09-30).
-
-VAD is lazily loaded via dynamic `import()` from
-`analyzer/AudioAnalyzerNode.mjs:63`, so it only costs anything when the
-audio analyzer runs.
+Until 2026-10-10 the table also had ONNX Runtime Web (`vad/ort.wasm.mjs` and its wasm)
+and the Silero VAD model, the speech detector's: they went with it. (`ort.wasm.mjs` had
+carried the comment "Minified to reduce loading time (https://minify-js.com/)" - minified
+by hand, the modified-third-party-library problem AMO objects to - and shipped as the
+npm dist from 2026-09-30.)

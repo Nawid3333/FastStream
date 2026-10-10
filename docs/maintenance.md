@@ -18,7 +18,7 @@ merged themselves.
 | What | How it arrives | What happens on green | What reaches you |
 | ---- | -------------- | ---------------------- | ---------------- |
 | npm tooling, minor/patch | one grouped Dependabot PR a week (`tooling-minor-and-patch`) | "ready to merge"; your merge releases nothing (the build is unchanged) | the PR |
-| npm shipped libraries (fuse.js, mediabunny, onnxruntime-web, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | "ready to merge"; your merge starts CI on `main`, and a green run there releases it | the PR; GitHub emails you when CI on `main` fails after your merge |
+| npm shipped libraries (fuse.js, mediabunny, sortablejs), minor/patch | one grouped Dependabot PR a week (`shipped-minor-and-patch`) | "ready to merge"; your merge starts CI on `main`, and a green run there releases it | the PR; GitHub emails you when CI on `main` fails after your merge |
 | npm major | a Dependabot PR of its own (after the 5-day cooldown) | "ready to merge": a tooling major when the build is unchanged; a shipped library's releases after your merge, as for the shipped group | the PR |
 | fsaunpack (express) | a Dependabot PR for `fsaunpack/`, the helper that unpacks and serves a saved `.fsa` archive; not part of the extension | "ready to merge" when it changes only `fsaunpack/package.json` and `fsaunpack/package-lock.json` and every version that lockfile adds is 7 days old; CI installs it (scripts off) and starts its test server on a recorded archive (`pnpm run verify:fsaunpack`). | the PR |
 | GitHub Actions | one grouped Dependabot PR a week (minor/patch), a major on its own | "ready to merge" when it changes only workflow and action files; `update-prs.yml` brings its branch up to date with your token `UPDATE_PRS_TOKEN` (below) | the PR |
@@ -33,7 +33,7 @@ merged themselves.
 | runner images | `runner-images.yml` runs `ci.yml` on the new image | the run is recorded, so the same image is not retested | nothing; an issue per image on failure |
 | actionlint and zizmor images | a Dependabot PR (docker, weekly) changing the tag and digest in `.github/actionlint/Dockerfile` or `.github/zizmor/Dockerfile` (or only the digest, when the same tag was pushed again: dependabot/dependabot-core#15081), which `ci.yml`'s workflows job and the WSL verify read | "ready to merge" when it changes only those files: CI ran every workflow file through the new checks | the PR |
 | Firefox stable, beta | `firefox-stable.yml` (daily) and `firefox-beta.yml` (Mon, Thu) run the e2e suites on that Firefox | a stable version is recorded as tested, so later days skip it | nothing; an issue on failure, closed by the next green run |
-| adapted copies of other projects' code (knob, StreamSaver, fft.js, vad-web) | `vendored-updates.yml` (daily) checks the upstream file each came from (`tools/vendored-sources.json`) | nothing to merge: the copies are changed here, so a person ports upstream's changes | an issue per copy and upstream change, "Vendored source changed upstream: <name> (...)", with the commits; it closes once `tools/vendored-sources.json` has the copy at that commit |
+| adapted copies of other projects' code (StreamSaver) | `vendored-updates.yml` (daily) checks the upstream file each came from (`tools/vendored-sources.json`) | nothing to merge: the copies are changed here, so a person ports upstream's changes | an issue per copy and upstream change, "Vendored source changed upstream: <name> (...)", with the commits; it closes once `tools/vendored-sources.json` has the copy at that commit |
 | security alerts | a Dependabot alert on the Security tab, and a Dependabot PR that fixes it (the rows above), skipping the cooldown; `security-alerts.yml` (daily) watches for an alert with no such PR | as the PR's row says | GitHub's alert email; for an alert over 6 hours old with no Dependabot PR, an issue per package, "Security alert: <package>", closed once its alerts are fixed on `main` or dismissed |
 
 Dependabot proposes a release once it is 5 days old (`cooldown` in `.github/dependabot.yml`);
@@ -44,11 +44,11 @@ age the registry does not give, keeps the PR from "ready to merge", even a tooli
 release is usually found and pulled within days. The patched libraries are ignored by
 Dependabot on purpose: they arrive from `patched-libraries.yml`
 (`docs/updating-patched-libraries.md`). The other libraries the extension ships come in the
-weekly shipped group, `onnxruntime-web` and `mediabunny` among them since 2026-09-30 (until
-then the first was held for its custom wasm, and `mp4-muxer`, which Mediabunny replaced, for
-a last release that crashed). A PR from that group changes the extension, so CI runs on `main` after its
-merge and decides the release; CI's `tests/e2e/ext-specs/vad.e2e.mjs` and `tests/e2e/specs/modules.e2e.mjs` are what
-check those two. Mediabunny releases every few days, so expect it in most of them.
+weekly shipped group, `mediabunny` among them since 2026-09-30 (until then `mp4-muxer`,
+which Mediabunny replaced, was held for a last release that crashed; `onnxruntime-web` was
+in it until the speech detector went, 2026-10-10). A PR from that group changes the
+extension, so CI runs on `main` after its merge and decides the release;
+`tests/e2e/specs/modules.e2e.mjs` is what checks Mediabunny. Mediabunny releases every few days, so expect it in most of them.
 A security update Dependabot cannot make itself leaves its alert open with no PR: a
 package the lockfile holds at several majors, as brace-expansion was (1.x, 2.x and 5.x,
 2026-09-30), fails in its "Dependabot Updates" run, which emails no one. So
@@ -238,24 +238,19 @@ image pinned in a form Dependabot does not update:
 Some files the extension ships come from another project without a package manager:
 `vendored-updates.yml` (daily) watches them.
 
-- **The voice detector's model** (`chrome/player/modules/vad/silero_vad_half.onnx`, from
-  snakers4/silero-vad): a newer release with a different model opens a pull request,
-  "Vendored model update: silero-vad <tag>", with the model and its pin in
-  `tools/verify-vad.mjs` replaced, and starts CI on it. The voice detector's reference test
-  decides; merge it when green, close it to skip that release. If the model is not where
-  the release used to keep it, an issue tells you so instead.
 - **vtt.js** (`chrome/player/modules/vtt.mjs`, from dash.js): a dash.js release that changes
   the file opens an issue, "vtt.js changed in dash.js <tag>". Move the tag in
   `tools/verify-vtt.mjs` and run `pnpm run verify:vtt`, which says where FastStream's changes
   no longer apply.
-- **The adapted copies** listed in `tools/vendored-sources.json` (knob, StreamSaver, fft.js,
-  the voice detector's code): when upstream changes the file one came from after its `ref`,
+- **The adapted copies** listed in `tools/vendored-sources.json` (StreamSaver; knob, fft.js
+  and the voice detector's code went with the audio settings and the speech detector,
+  2026-10-10): when upstream changes the file one came from after its `ref`,
   an issue, "Vendored source changed upstream: <name> (<repo> <commit>)", lists the commits.
   Port what matters, then move the `ref` to the commit you reviewed.
 
 Each closes itself once its pin reaches the release; a newer release closes the older one.
-If the workflow itself fails, it opens "Vendored updates workflow failed (model)",
-"(vtt.js)" or "(sources)".
+If the workflow itself fails, it opens "Vendored updates workflow failed (vtt.js)" or
+"(sources)".
 
 ## A token for workflow updates
 

@@ -1,10 +1,11 @@
 # The addons-linter warnings, one by one
 
-`pnpm run lint:amo` reports **0 errors, 0 notices, 3 warnings** against
-`build_firefox_amo`, verified 2026-09-11 (re-verified after the Coloris
-0.21.1→0.25.0 re-port; the count and the specific 3 remaining warnings are
-unchanged). Every one of the 3 warnings is listed here with what it is and
-why the file has not been changed to silence it.
+`pnpm run lint:amo` reports **0 errors, 0 notices, 2 warnings** against
+`build_firefox_amo`, verified 2026-10-10. It was 3 from 2026-09-11 (re-verified
+after the Coloris 0.21.1→0.25.0 re-port) until the speech detector went on
+2026-10-10, and with it ONNX Runtime's `ort.wasm.mjs` and its warning. Every one of
+the 2 warnings is listed here with what it is and why the file has not been
+changed to silence it.
 
 **The script passes `--self-hosted`.** Without it, addons-linter reports a
 `MANIFEST_UPDATE_URL` error on `browser_specific_settings.gecko.update_url`
@@ -142,7 +143,7 @@ strings the source assigns (`'33.33333333333333%'` reads back as
 expected browser behaviour, not a bug, and adjusted for after seeing the
 actual values rather than guessing them.
 
-## The remaining 3
+## The remaining 2
 
 ### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vtt.mjs` line 1065
 
@@ -172,20 +173,9 @@ upstream, applies the three documented changes, and asserts the two parse to
 the same program. Editing this line would add a fourth change to that list
 for a warning that isn't pointing at a real problem.
 
-### `UNSAFE_VAR_ASSIGNMENT` x1 — `player/modules/vad/ort.wasm.mjs` line 1440
-
-ONNX Runtime's own `await import(url)` (`webpackIgnore`d):
-`dynamicImportDefault = async (url) => (await import(/* webpackIgnore */ url)).default`,
-which in `onnxruntime-web@1.30.0` loads the wasm-glue module beside the
-loader. The `blob:` preload path beside it is taken only when the runtime is
-multi-threaded and the glue sits on another origin — this extension runs ONNX
-Runtime single-threaded (`numThreads 1`: the page is not cross-origin
-isolated) and from its own origin, so that path is not taken here. The file
-is **generated** from `onnxruntime-web@1.30.0` by `tools/sync-vendor.mjs` —
-the only edit is stripping its inline source map — and a reviewer can
-install that version and diff. Generated onnxruntime-web code is not
-something to hand-patch line by line; a change worth making is upstream's
-first.
+(Until 2026-10-10 a third: `UNSAFE_VAR_ASSIGNMENT` in `player/modules/vad/ort.wasm.mjs`,
+ONNX Runtime's own `await import(url)` of its wasm glue. It went with the speech
+detector, and the manifest's CSP lost `'wasm-unsafe-eval'` with it.)
 
 ### `DANGEROUS_EVAL` x1 — `player/modules/dash.mjs` line 85152
 
@@ -217,7 +207,7 @@ bundle, and DASH playback is covered end to end by
 
 Because the count is not the goal. Upstream FastStream passed the automated
 linter and was rejected anyway, over vendored libraries a reviewer could not
-verify. Three advisory warnings on files that are pinned, generated,
+verify. Two advisory warnings on files that are pinned, generated,
 diffable, or safe by construction is a far better position than zero
 warnings on files that have been hand-edited past the point of easy review —
 which is where the last submission started. Where a fix was genuinely safe
@@ -225,10 +215,10 @@ and worth that audit cost (gif.js, all seven of Coloris's sites,
 sweetalert2), it was made; where it was not, the reasoning is written down
 instead of a diff nobody asked for.
 
-## The GitHub self-host build has the same three
+## The GitHub self-host build has the same two
 
 `pnpm run lint:github` — the build distributed outside AMO — reports
-**0 errors, 0 notices, 3 warnings**: the vtt/ort.wasm/dash items above,
+**0 errors, 0 notices, 2 warnings**: the vtt/dash items above,
 present in both builds for the same reasons (patches apply to the shared
 `chrome/player/modules/` source both targets splice from).
 

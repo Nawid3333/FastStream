@@ -10,7 +10,9 @@ compatibility as a goal and modernize this fork ("version 4") independently —
 see `docs/modernisation-checkpoint.md`'s "Open decisions" and `CLAUDE.md`. PRs #548–#551 already
 went out and are tracked below with their final status; nothing past that
 point should be cut or opened without checking first. Kept as a record of
-what was already researched, not as an active queue.
+what was already researched, not as an active queue. (Since 2026-10-10 the speech detector
+- ONNX Runtime, the Silero VAD model - and the knob are gone from the fork too, so C5, C10b
+and C10d describe removed code.)
 
 Tracks fixes on `dev/mv3-modernization` that are self-contained enough to
 offer back to `Andrews54757/FastStream`, independent of the rest of the
