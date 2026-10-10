@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "Długość impulsu"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "W próbkach: 48000 to 1 sekunda przy 48 kHz. Puste: cały plik."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Odpowiedź impulsowa"
     },

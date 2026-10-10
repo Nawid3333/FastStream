@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "脉冲长度"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "以采样数计算：48 kHz 时 48000 为 1 秒。留空：使用整个文件。"
+    },
     "audioconvolver_impulseresponse": {
         "message": "脉冲响应"
     },

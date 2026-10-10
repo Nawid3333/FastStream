@@ -1,6 +1,19 @@
 import {MAX_AUDIO_CHANNELS} from './AudioProfile.mjs';
 import {finiteOr} from './ConfigNumbers.mjs';
 
+/**
+ * An impulse length as the field gives it: -1 (or an empty field) is the whole file, a number
+ * at least 128 samples. Anything else is the fallback.
+ * @param {*} value - A number, -1, or the field's text.
+ * @param {number} fallback
+ * @return {number}
+ */
+export function impulseLengthOf(value, fallback) {
+  if (value === -1 || value === '') return -1;
+  const number = Math.floor(finiteOr(value, NaN));
+  return Number.isFinite(number) ? Math.max(128, number) : fallback;
+}
+
 export class AudioConvolverChannel {
   constructor(id, enabled, normalize) {
     this.id = id;
@@ -52,9 +65,10 @@ export class AudioConvolverProfile {
         newChannels.push(AudioConvolverChannel.default(i));
       }
     }
-    // As the impulse length field allows: a stored size that was not a number kept the whole
-    // file, minutes of it, as the impulse response.
-    const bufferSize = Math.floor(finiteOr(obj.bufferSize, 4096, 128, 16384));
+    // -1 is the whole file (an empty field: no limit, the owner's rule); a number is at least
+    // 128 samples, with no upper limit since 2026-10-10. A stored value that is no number is
+    // the default.
+    const bufferSize = impulseLengthOf(obj.bufferSize, 4096);
     return new AudioConvolverProfile(obj.id, obj.label, obj.downmix, bufferSize, newChannels);
   }
 

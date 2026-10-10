@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "Panjang Impuls"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "Dalam sampel: 48000 adalah 1 saat pada 48 kHz. Kosong: keseluruhan fail."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Respons Impuls"
     },

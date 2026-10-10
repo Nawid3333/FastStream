@@ -17,7 +17,7 @@ vi.mock('../../chrome/player/ui/components/Dropdown.mjs', () => ({}));
 const {OutputConvolver} = await import('../../chrome/player/ui/audio/OutputConvolver.mjs');
 const {AbstractAudioModule} = await import('../../chrome/player/ui/audio/AbstractAudioModule.mjs');
 const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
-const {AudioConvolverControl, AudioConvolverProfile} = await import('../../chrome/player/ui/audio/config/AudioConvolverControl.mjs');
+const {AudioConvolverControl, AudioConvolverProfile, impulseLengthOf} = await import('../../chrome/player/ui/audio/config/AudioConvolverControl.mjs');
 
 /**
  * An output convolver on a stereo stand-in graph with an impulse response on both
@@ -65,7 +65,11 @@ describe('OutputConvolver', () => {
     expect((await convolver.getImpulseResponse(file(2, 10))).numberOfChannels).toBe(1);
     const trimmed = await convolver.getImpulseResponse(file(6, 100));
     expect([trimmed.numberOfChannels, trimmed.length]).toEqual([1, 4096]);
-    expect(made).toHaveLength(3);
+    // No limit: the whole file, of one channel.
+    convolver.currentProfile.bufferSize = -1;
+    const whole = await convolver.getImpulseResponse(file(6, 100));
+    expect([whole.numberOfChannels, whole.length]).toEqual([1, 10000]);
+    expect(made).toHaveLength(4);
   });
 
   // A link clicked in the player's frame is refused for a blob URL, and the URL was revoked
@@ -100,13 +104,24 @@ describe('OutputConvolver', () => {
     expect(nodes[0].normalize).toBe(true);
   });
 
-  it('keeps a stored impulse length within what the field allows', () => {
+  it('keeps a stored impulse length as the field allows: the whole file, or at least 128', () => {
     const length = (bufferSize) => AudioConvolverProfile.fromObj({id: 0, label: 'P', bufferSize}).bufferSize;
     expect(length('abc')).toBe(4096);
     expect(length(null)).toBe(4096);
+    expect(length(-1)).toBe(-1);
     expect(length(10)).toBe(128);
-    expect(length(1e9)).toBe(16384);
+    // No upper limit any more: a room's reverb was cut at 16384 samples, a third of a second.
+    expect(length(1e9)).toBe(1e9);
     expect(length(2048)).toBe(2048);
+  });
+
+  // The owner's rule (2026-10-10): an empty field is no limit, the whole file. Empty and 0
+  // were both 128 samples (3 ms), the effect all but gone.
+  it('reads the impulse length field: empty is the whole file, a number at least 128', () => {
+    expect(impulseLengthOf('', 4096)).toBe(-1);
+    expect(impulseLengthOf('0', 4096)).toBe(128);
+    expect(impulseLengthOf('96000', 4096)).toBe(96000);
+    expect(impulseLengthOf('abc', 2048)).toBe(2048);
   });
 
   it('names the file that did not decode', async () => {

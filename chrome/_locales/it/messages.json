@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "Lunghezza Impulso"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "In campioni: 48000 è 1 secondo a 48 kHz. Vuoto: l'intero file."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Risposta all'Impulso"
     },

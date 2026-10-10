@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "Impulslengte"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "In samples: 48000 is 1 seconde bij 48 kHz. Leeg: het hele bestand."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Impulsrespons"
     },

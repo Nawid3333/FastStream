@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "脈衝長度"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "以取樣數計算：48 kHz 時 48000 為 1 秒。留空：使用整個檔案。"
+    },
     "audioconvolver_impulseresponse": {
         "message": "脈衝響應"
     },

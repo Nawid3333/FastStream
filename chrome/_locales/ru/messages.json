@@ -899,6 +899,9 @@
     "audioconvolver_impulselength": {
         "message": "Длина импульса"
     },
+    "audioconvolver_impulselength_hint": {
+        "message": "В семплах: 48000 — это 1 секунда при 48 кГц. Пусто: весь файл."
+    },
     "audioconvolver_impulseresponse": {
         "message": "Импульсная характеристика"
     },

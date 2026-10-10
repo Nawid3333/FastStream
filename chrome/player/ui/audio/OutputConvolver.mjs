@@ -7,7 +7,7 @@ import {Utils} from '../../utils/Utils.mjs';
 import {WebUtils} from '../../utils/WebUtils.mjs';
 import {createDropdown, renameDropdownChoice} from '../components/Dropdown.mjs';
 import {AbstractAudioModule} from './AbstractAudioModule.mjs';
-import {AudioConvolverControl} from './config/AudioConvolverControl.mjs';
+import {AudioConvolverControl, impulseLengthOf} from './config/AudioConvolverControl.mjs';
 import {CHANNEL_NAMES, MAX_AUDIO_CHANNELS} from './config/AudioProfile.mjs';
 
 /**
@@ -122,8 +122,9 @@ export class OutputConvolver extends AbstractAudioModule {
     // Its first channel, trimmed to IMPULSE_LENGTH: one file per output channel. A file
     // shorter than that was handed on with all its channels, which a ConvolverNode refuses
     // past 2 (1, 2 or 4): that output channel went silent (review).
-    const IMPULSE_LENGTH = this.currentProfile ? this.currentProfile.bufferSize : 2048;
-    const length = Math.min(channelData.length, IMPULSE_LENGTH);
+    // -1 (an empty field) is the whole file.
+    const limit = this.currentProfile ? this.currentProfile.bufferSize : -1;
+    const length = limit > 0 ? Math.min(channelData.length, limit) : channelData.length;
     if (audioData.numberOfChannels === 1 && length === channelData.length) {
       return audioData;
     }
@@ -156,7 +157,7 @@ export class OutputConvolver extends AbstractAudioModule {
     if (this.currentProfile) {
       this.ui.downmixToggle.classList.toggle('enabled', this.currentProfile.downmix);
       this.ui.downmixToggle.textContent = this.currentProfile.downmix ? Localize.getMessage('audioconvolver_downmix_on') : Localize.getMessage('audioconvolver_downmix_off');
-      this.ui.impulseLengthInput.value = this.currentProfile.bufferSize;
+      this.ui.impulseLengthInput.value = this.currentProfile.bufferSize > 0 ? String(this.currentProfile.bufferSize) : '';
 
       for (const channel of this.convolverChannels) {
         const channelConfig = this.currentProfile.channels[channel.id];
@@ -409,6 +410,11 @@ export class OutputConvolver extends AbstractAudioModule {
     this.ui.impulseLengthContainer.appendChild(impulseLengthLabel);
     const impulseLengthInput = WebUtils.create('input', null, 'convolver_impulse_length_input');
     impulseLengthInput.type = 'number';
+    impulseLengthInput.min = '128';
+    impulseLengthInput.placeholder = Localize.getMessage('options_general_nolimit');
+    // In samples, which a user cannot know: what a number means, and what empty does.
+    impulseLengthInput.title = Localize.getMessage('audioconvolver_impulselength_hint');
+    impulseLengthLabel.title = impulseLengthInput.title;
     impulseLengthInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
     });
@@ -419,13 +425,10 @@ export class OutputConvolver extends AbstractAudioModule {
       if (!this.currentProfile) {
         return;
       }
-      let val = parseInt(impulseLengthInput.value);
-      if (isNaN(val) || val < 128) {
-        val = 128;
-      } else if (val > 16384) {
-        val = 16384;
-      }
-      impulseLengthInput.value = val;
+      // Empty is the whole file; a number is at least 128 samples. Empty or 0 was 128 (3 ms),
+      // and the most 16384 (a third of a second): a room's reverb was cut off (review).
+      const val = impulseLengthOf(impulseLengthInput.value.trim(), this.currentProfile.bufferSize);
+      impulseLengthInput.value = val > 0 ? String(val) : '';
       this.currentProfile.bufferSize = val;
       this.saveConfig();
       this.loadImpulseResponses();
