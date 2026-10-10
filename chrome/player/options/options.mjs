@@ -1027,7 +1027,11 @@ if (EnvUtils.isExtension()) {
     if (latestVersion && UpdateChecker.compareVersions(currentVersion, latestVersion) && latestVersion !== ignoreVersion) {
       updatetext.textContent = Localize.getMessage('options_update_body', [latestVersion, currentVersion]);
       updatebox.style.display = 'block';
-      if (updatenotif) updatenotif.style.display = 'block';
+      if (updatenotif) {
+        updatenotif.style.display = 'block';
+        // A bare "!" on the settings button said nothing of what it is about.
+        updatenotif.title = window.getI18nMessage('options_update_header');
+      }
     }
   });
 

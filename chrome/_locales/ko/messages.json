@@ -251,6 +251,9 @@
     "player_skipoutro": {
         "message": "아웃트로 건너뛰기"
     },
+    "player_nextvideo_auto": {
+        "message": "자동"
+    },
     "player_nextvideoin": {
         "message": "$1초 후 다음 영상"
     },

@@ -251,6 +251,9 @@
     "player_skipoutro": {
         "message": "Langkau Penutup"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Video seterusnya dalam $1s"
     },

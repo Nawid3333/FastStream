@@ -251,6 +251,9 @@
     "player_skipoutro": {
         "message": "Passer l'outro"
     },
+    "player_nextvideo_auto": {
+        "message": "Auto"
+    },
     "player_nextvideoin": {
         "message": "Vidéo suivante dans $1s"
     },

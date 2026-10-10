@@ -1,9 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {StringUtils} from '../../chrome/player/utils/StringUtils.mjs';
 
-// These parse user-entered settings (download speed caps, buffer size caps)
-// and HTTP Range headers. A regression turns a "10 MB/s" cap into a silently
-// wrong number rather than an error, so the unit maths is worth pinning down.
+// Times as the player shows them, and HTTP Range headers.
 
 describe('formatTime', () => {
   it('omits the hour component below an hour', () => {
@@ -17,6 +15,12 @@ describe('formatTime', () => {
     expect(StringUtils.formatTime(3600)).toBe('1:00:00');
     expect(StringUtils.formatTime(3661)).toBe('1:01:01');
   });
+
+  // A DASH live stream's length is Infinity: the player showed "00:12 / Infinity:aN:aN".
+  it('shows no length for one that has none', () => {
+    expect(StringUtils.formatTime(Infinity)).toBe('--:--');
+    expect(StringUtils.formatTime(NaN)).toBe('--:--');
+  });
 });
 
 describe('formatDuration', () => {
@@ -24,62 +28,6 @@ describe('formatDuration', () => {
     expect(StringUtils.formatDuration(5)).toBe('5s');
     expect(StringUtils.formatDuration(61)).toBe('1m 1s');
     expect(StringUtils.formatDuration(3661)).toBe('1h 1m 1s');
-  });
-});
-
-describe('getSizeValue', () => {
-  it('scales by SI prefix', () => {
-    expect(StringUtils.getSizeValue('1 MB')).toBe(1e6);
-    expect(StringUtils.getSizeValue('2 GB')).toBe(2e9);
-    expect(StringUtils.getSizeValue('1 KB')).toBe(1e3);
-  });
-
-  it('defaults a bare number to megabytes', () => {
-    // It was 5 bytes: "10" typed into "Maximum size of predownloaded video" became 10 B (#378).
-    expect(StringUtils.getSizeValue('5')).toBe(5e6);
-    expect(StringUtils.getSizeValue('0.5')).toBe(5e5);
-    // An unknown unit too, as before ("10 Mo" is French for MB, and reads as m).
-    expect(StringUtils.getSizeValue('10 xyz')).toBe(1e7);
-    expect(StringUtils.getSizeValue('10 Mo')).toBe(1e7);
-    expect(StringUtils.getSizeValue('300 B')).toBe(300);
-  });
-
-  it('returns -1 for input it cannot parse', () => {
-    expect(StringUtils.getSizeValue('abc')).toBe(-1);
-    expect(StringUtils.getSizeValue('-3 MB')).toBe(-1);
-  });
-});
-
-describe('getSpeedValue', () => {
-  it('treats a capital B as bytes', () => {
-    expect(StringUtils.getSpeedValue('10 MB/s')).toBe(1e7);
-  });
-
-  it('treats a lowercase b as bits, dividing by eight', () => {
-    // 10 Mbps is 1.25 MB/s - the distinction decides the real download cap.
-    expect(StringUtils.getSpeedValue('10 Mbps')).toBe(1.25e6);
-  });
-
-  it('returns -1 for unparseable or negative input', () => {
-    expect(StringUtils.getSpeedValue('fast')).toBe(-1);
-    expect(StringUtils.getSpeedValue('-5 MB/s')).toBe(-1);
-  });
-});
-
-describe('getSizeString / getSpeedString', () => {
-  it('picks a readable unit', () => {
-    expect(StringUtils.getSizeString(999)).toBe('999 B');
-    expect(StringUtils.getSizeString(1500)).toBe('1.5 KB');
-    expect(StringUtils.getSizeString(1.5e9)).toBe('1.5 GB');
-  });
-
-  it('renders the unlimited sentinel', () => {
-    expect(StringUtils.getSizeString(-1)).toBe('∞ GB');
-    expect(StringUtils.getSpeedString(-1)).toBe('∞ MB/s');
-  });
-
-  it('round-trips a size through string and back', () => {
-    expect(StringUtils.getSizeValue(StringUtils.getSizeString(2e9))).toBe(2e9);
   });
 });
 

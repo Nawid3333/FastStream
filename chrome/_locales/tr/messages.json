@@ -251,6 +251,9 @@
     "player_skipoutro": {
         "message": "Outroyu atla"
     },
+    "player_nextvideo_auto": {
+        "message": "Otomatik"
+    },
     "player_nextvideoin": {
         "message": "Sonraki video $1s içinde"
     },

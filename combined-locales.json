@@ -1511,6 +1511,24 @@
         "zh_CN": "跳过片尾",
         "zh_TW": "跳過片尾"
     },
+    "player_nextvideo_auto": {
+        "en": "Auto",
+        "de": "Auto",
+        "es": "Auto",
+        "fr": "Auto",
+        "id": "Auto",
+        "it": "Auto",
+        "ja": "自動",
+        "ko": "자동",
+        "ms": "Auto",
+        "nl": "Auto",
+        "pl": "Auto",
+        "pt_BR": "Auto",
+        "ru": "Авто",
+        "tr": "Otomatik",
+        "zh_CN": "自动",
+        "zh_TW": "自動"
+    },
     "player_nextvideoin": {
         "en": "Next Video in $1s",
         "de": "Nächstes Video in $1s",
