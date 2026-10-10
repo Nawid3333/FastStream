@@ -134,11 +134,6 @@ export const DefaultPlayerEvents = {
   NEED_KEY: 'needkey',
 
   /**
-   * Fired when the player has skip segments
-   */
-  SKIP_SEGMENTS: 'skipsegments',
-
-  /**
    * Fired when the player has playlist
    */
   PLAYLIST: 'playlist',

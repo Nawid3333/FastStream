@@ -4,7 +4,6 @@ import {FakeDocument} from './helpers/fakeDom.mjs';
 
 // What a keyboard or screen reader user gets from the player's controls (#270):
 // - the volume block is a role="slider" with no value a screen reader could read;
-// - Tab reached "Skip intro", but Enter did nothing;
 // - Tab skipped the big play button;
 // - the toolbar buttons had no focus ring of their own.
 // And from #277: the pages did not say which language they are in, and the controls
@@ -42,9 +41,8 @@ describe('the player\'s buttons', () => {
   const source = fs.readFileSync(new URL('../../chrome/player/ui/InterfaceController.mjs', import.meta.url), 'utf8');
   const css = fs.readFileSync(new URL('../../chrome/player/assets/fluidplayer/css/fluidplayer.css', import.meta.url), 'utf8');
 
-  it('lets the keyboard reach and press the skip button and the big play button', () => {
+  it('lets the keyboard reach and press the big play button', () => {
     // WebUtils.setupTabIndex puts an element in the tab order and makes Enter click it.
-    expect(source).toContain('WebUtils.setupTabIndex(DOMElements.skipButton);');
     expect(source).toContain('WebUtils.setupTabIndex(DOMElements.playPauseButtonBigCircle);');
   });
 
@@ -53,7 +51,7 @@ describe('the player\'s buttons', () => {
     expect(rule).not.toBe(null);
     const selectors = rule[1].replace(/\/\*[^]*?\*\//g, '').split(',').map((selector) => selector.trim());
     expect(selectors).toEqual(expect.arrayContaining([
-      '.fluid_button:focus-visible', '.skip_button:focus-visible', '.fluid_control_playpause_big_circle:focus-visible',
+      '.fluid_button:focus-visible', '.next_video_button:focus-visible', '.fluid_control_playpause_big_circle:focus-visible',
     ]));
   });
 });

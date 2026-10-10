@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Neuversuch erzwingen - nutze dies, um fehlgeschlagene Downloads erneut zu versuchen"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Überspringe Intro/Outro falls möglich"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Player verstecken/zeigen"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Nächstes/vorheriges Video"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Nächstes Kapitel"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Video speichern"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Aktuelle Zeit verwenden"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Intro überspringen"
-    },
-    "player_skipoutro": {
-        "message": "Outro überspringen"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Die Version bevorzugen, die deine Grafikkarte dekodieren kann (Hardware-Dekodierung), danach eine höhere Bildrate und effizientere Codecs wie AV1. Senkt nie die gewählte Auflösung"
-    },
-    "options_general_analyze": {
-        "message": "Sequenzielle Videos automatisch auf Intros/Outros analysieren\n(Schalte dies aus, falls du CPU-Performanceprobleme hast)"
     },
     "options_general_storeprogress": {
         "message": "Spiele Videos von der zuletzt angesehenen Position ab"

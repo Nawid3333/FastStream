@@ -46,7 +46,6 @@ export const SPEED_PRESETS = [1, 2, 2.5, 3, 3.5, 4, 5, 8, 16];
  */
 export const MOVED_IN_VERSION_2 = {
   'WindowedFullscreen': 'KeyW',
-  'NextChapter': 'KeyA',
   'PreviousVideo': 'KeyB',
   'FlipVideo': 'KeyE',
   'RotateVideo': 'KeyR',

@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Touche de réessai forcé - utilisez-la pour retenter les téléchargements échoués"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Passer l'intro/outro si applicable"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Masquer/afficher le lecteur"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Vidéo suivante/précédente"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Chapitre suivant"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Enregistrer la vidéo"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Utiliser l'heure actuelle"
-    },
-    "player_segment_intro": {
-        "message": "Introduction"
-    },
-    "player_segment_outro": {
-        "message": "Conclusion"
-    },
-    "player_skipintro": {
-        "message": "Passer l'intro"
-    },
-    "player_skipoutro": {
-        "message": "Passer l'outro"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Préférer la version que votre carte graphique peut décoder (décodage matériel), puis une fréquence d'images plus élevée et des codecs plus efficaces comme AV1. Ne baisse jamais la résolution choisie"
-    },
-    "options_general_analyze": {
-        "message": "Analyser automatiquement les vidéos séquentielles pour les intros/outros\n(désactivez si vous avez des problèmes de performances CPU)"
     },
     "options_general_storeprogress": {
         "message": "Lire les vidéos depuis la dernière position regardée"

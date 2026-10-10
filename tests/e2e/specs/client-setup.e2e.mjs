@@ -465,21 +465,4 @@ describe('FastStreamClient setup', function() {
     });
     expect(errors).toEqual([]);
   });
-
-  it('lets a chapter whose end is before its start run to the next one', async function() {
-    // It was kept, and marked a segment running backwards over the timeline.
-    await openEmptyPlayer();
-    await addSource(mp4Url());
-    await waitForPicture();
-
-    const chapters = await browser.execute(() => {
-      window.fastStream.setChapters([
-        {name: 'Backwards', startTime: 3, endTime: 1},
-        {name: 'Empty', startTime: 5, endTime: 5},
-        {name: 'Next', startTime: 6, endTime: 8},
-      ]);
-      return window.fastStream.chapters.map((c) => [c.name, c.startTime, c.endTime]);
-    });
-    expect(chapters).toEqual([['Backwards', 3, 5], ['Empty', 5, 6], ['Next', 6, 8]]);
-  });
 });

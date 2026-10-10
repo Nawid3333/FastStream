@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Tombol paksa coba lagi - gunakan ini untuk mencoba ulang unduhan yang gagal"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Lewati intro/outro jika ada"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Sembunyikan/tampilkan pemutar"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Video berikutnya/sebelumnya"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Bab berikutnya"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Simpan video"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Gunakan waktu saat ini"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Lewati Intro"
-    },
-    "player_skipoutro": {
-        "message": "Lewati Outro"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Utamakan versi yang dapat didekode oleh kartu grafis (dekode perangkat keras), lalu frame rate lebih tinggi dan codec lebih efisien seperti AV1. Tidak pernah menurunkan resolusi yang dipilih"
-    },
-    "options_general_analyze": {
-        "message": "Secara otomatis menganalisis video berurutan untuk intro/outro\n(matikan jika Anda mengalami masalah kinerja CPU)"
     },
     "options_general_storeprogress": {
         "message": "Putar video dari posisi terakhir yang ditonton"

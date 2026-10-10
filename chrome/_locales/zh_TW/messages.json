@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- 強制重試按鍵 - 用來重新嘗試失敗的下載"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- 跳過片頭/片尾（如適用）"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- 顯示/隱藏播放器"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- 下一部/上一部影片"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- 下一章節"
     },
     "welcome_page_keybinds_content23": {
         "message": "- 儲存影片"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "使用目前時間"
-    },
-    "player_segment_intro": {
-        "message": "片頭"
-    },
-    "player_segment_outro": {
-        "message": "片尾"
-    },
-    "player_skipintro": {
-        "message": "跳過片頭"
-    },
-    "player_skipoutro": {
-        "message": "跳過片尾"
     },
     "player_nextvideo_auto": {
         "message": "自動"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "優先選擇顯示卡可以解碼的版本（硬體解碼），其次是更高的影格率與更有效率的編碼（如 AV1）。絕不降低所選解析度"
-    },
-    "options_general_analyze": {
-        "message": "自動分析連續影片以偵測片頭/片尾\n(若有 CPU 效能問題請關閉)"
     },
     "options_general_storeprogress": {
         "message": "從上次觀看位置播放影片"

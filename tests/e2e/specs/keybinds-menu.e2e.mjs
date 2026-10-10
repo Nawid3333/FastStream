@@ -265,7 +265,6 @@ describe('Keybinding menu with options saved before the layout changed', functio
 
   it('shows the moved keys, the new keys, and the user\'s own bindings kept', async function() {
     expect((await rowState('WindowedFullscreen')).key).toBe('Shift+KeyW');
-    expect((await rowState('NextChapter')).key).toBe('Shift+KeyA');
     expect((await rowState('PreviousVideo')).key).toBe('Shift+KeyB');
     expect((await rowState('RotateVideo')).key).toBe('Shift+KeyR');
     expect((await rowState('ToggleVisualFilters')).key).toBe('Shift+KeyQ');

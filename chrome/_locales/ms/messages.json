@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Kekunci cuba semula paksa - gunakan ini untuk mencuba semula muat turun yang gagal"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Langkau intro/outro jika berkenaan"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Sembunyikan/tunjukkan pemain"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Video seterusnya/sebelumnya"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Bab seterusnya"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Simpan video"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Gunakan masa semasa"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Langkau Pengenalan"
-    },
-    "player_skipoutro": {
-        "message": "Langkau Penutup"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Utamakan versi yang boleh dinyahkod oleh kad grafik (penyahkodan perkakasan), kemudian kadar bingkai lebih tinggi dan codec lebih cekap seperti AV1. Tidak sekali-kali menurunkan resolusi yang dipilih"
-    },
-    "options_general_analyze": {
-        "message": "Analisis video berturutan secara automatik untuk intro/outro\n(matikan jika anda menghadapi masalah prestasi CPU)"
     },
     "options_general_storeprogress": {
         "message": "Main video dari kedudukan tontonan terakhir"

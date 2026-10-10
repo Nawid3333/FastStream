@@ -252,33 +252,9 @@ describe('Player controls', function() {
     expect(after.time).toBe(0);
   });
 
-  it('clears the chapter name in a gap between chapters', async function() {
-    // The name of the chapter before the gap stayed on.
-    await openEmptyPlayer();
-    await addSource(mp4Url());
-    await waitForPicture();
-    // The name follows the player's time updates, so each read waits for the one expected.
-    const chapterAt = async (time, expected) => {
-      await browser.execute((time) => {
-        window.fastStream.currentTime = time;
-      }, time);
-      return settle(() => browser.execute(() => window.fastStream.interfaceController.statusManager.statusMessages.get('chapter').message),
-          (message) => (message || null) === expected);
-    };
-    await browser.execute(() => window.fastStream.setChapters([
-      {name: 'Opening', startTime: 0, endTime: 2},
-      {name: 'Closing', startTime: 6, endTime: 10},
-    ]));
-    expect(await chapterAt(1, 'Opening')).toBe('Opening');
-    const inGap = await chapterAt(4, null);
-    console.log('      in the gap:', JSON.stringify(inGap));
-    expect(inGap || null).toBe(null);
-    expect(await chapterAt(7, 'Closing')).toBe('Closing');
-  });
-
-  it('can be used from the keyboard: the skip button, the big play button, the volume slider', async function() {
-    // Tab reached "Skip intro" but Enter did nothing, Tab skipped the big play button, and
-    // the volume slider had no value for a screen reader (#270).
+  it('can be used from the keyboard: the big play button, the volume slider', async function() {
+    // Tab skipped the big play button, and the volume slider had no value for a screen
+    // reader (#270).
     await openEmptyPlayer();
     const big = await browser.execute(() => {
       const circle = document.querySelector('.mainplayer .fluid_control_playpause_big_circle');
@@ -289,20 +265,8 @@ describe('Player controls', function() {
     await addSource(mp4Url());
     await waitForPicture();
     await browser.execute(() => {
-      const client = window.fastStream;
-      client.videoAnalyzer.getIntro = () => ({startTime: 0, endTime: 5});
-      client.volume = 1.5;
-      client.currentTime = 1;
+      window.fastStream.volume = 1.5;
     });
-    await settle(() => browser.execute(() => document.querySelector('.mainplayer .skip_button').style.display),
-        (display) => display === '');
-    await browser.execute(() => {
-      const button = document.querySelector('.mainplayer .skip_button');
-      button.focus();
-      button.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', bubbles: true, cancelable: true}));
-    });
-    const time = await settle(() => browser.execute(() => window.fastStream.currentTime), (t) => t >= 4.9);
-    expect(time).toBeGreaterThanOrEqual(4.9);
 
     const slider = await browser.execute(() => {
       const block = document.querySelector('.mainplayer .volume_block');
@@ -353,45 +317,22 @@ describe('Player controls', function() {
     expect(copied).not.toContain('secret');
   });
 
-  it('does not carry the previous video\'s skip markers and button over', async function() {
-    // They were redrawn only once the next video had a duration.
+  it('does not carry the previous video\'s next-video banner over', async function() {
+    // It was taken down only once the next video had a duration.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
-    const read = () => browser.execute(() => ({
-      button: document.querySelector('.mainplayer .skip_button').style.display,
-      shiftedUp: document.querySelector('.mainplayer .skip_button').classList.contains('shiftup'),
-      banner: document.querySelector('.mainplayer .next_video_button').style.display,
-      frozen: document.querySelector('.mainplayer .fluid_controls_progress_container').classList.contains('skip_freeze'),
-      markers: document.querySelectorAll('.mainplayer .intro_outro_container .skip_segment').length,
-      chapters: document.querySelectorAll('.mainplayer .intro_outro_container .chapter').length,
-    }));
+    const banner = () => browser.execute(() => document.querySelector('.mainplayer .next_video_button').style.display);
     await browser.execute(() => {
       const client = window.fastStream;
-      // An outro the analyzer found, which the video is in, and the next video in a
-      // playlist, whose banner an outro brings up.
-      client.videoAnalyzer.getOutro = () => ({startTime: 7, endTime: 100});
+      // The next video in a playlist, whose banner comes up in the last 10 seconds.
       client.options.autoplayNext = true;
       client.hasNextVideo = () => true;
       client.currentTime = 8;
     });
-    // The skip button comes with a time update inside the outro.
-    await settle(() => browser.execute(() => document.querySelector('.mainplayer .skip_button').style.display),
-        (display) => display === '');
-    // And a chapter marker. This draws them all.
-    await browser.execute(() => window.fastStream.setChapters([
-      {name: 'Opening', startTime: 0},
-      {name: 'Closing', startTime: 5},
-    ]));
-    const shown = {button: '', shiftedUp: true, banner: '', frozen: true, markers: 1, chapters: 1};
-    const before = await settle(read, (state) => JSON.stringify(state) === JSON.stringify(shown));
-    console.log('      before the switch:', JSON.stringify(before));
-    expect(before).toEqual(shown);
+    expect(await settle(banner, (display) => display === '')).toBe('');
     await addSource(missingUrl());
-    const cleared = {button: 'none', shiftedUp: false, banner: 'none', frozen: false, markers: 0, chapters: 0};
-    const after = await settle(read, (state) => JSON.stringify(state) === JSON.stringify(cleared));
-    console.log('      after the switch:', JSON.stringify(after));
-    expect(after).toEqual(cleared);
+    expect(await settle(banner, (display) => display === 'none')).toBe('none');
   });
 
   it('says the archive failed when it could not be written', async function() {

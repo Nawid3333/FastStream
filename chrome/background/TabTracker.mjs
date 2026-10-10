@@ -290,7 +290,6 @@ export class TabHolder {
     this.frames.clear();
     this.playerCount = 0;
     this.continuationOptions = null;
-    this.analyzerData = null;
     // regexMatched/mpvMatched are deliberately NOT cleared here: the
     // leave-a-site detection in the onUpdated handler relies on them
     // surviving hostname changes (upstream semantics for regexMatched).
@@ -581,15 +580,12 @@ const TabStateKeyPrefix = 'tabState:';
 // the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
 // which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
-// MPV Allowlist started MPV again on the site the user had turned it off on. analyzerData,
-// what the intro and outro finder saw of the episodes before (VideoAnalyzer): kept only
-// here, it went with an unload between two episodes (an open player pings every 10 s, but
-// an episode list left open half a minute sends nothing), and the next episode had
-// nothing to match, so it found no intro. The rest of a TabHolder - frames, detected
-// sources - describes the current page and is rebuilt as that page makes requests.
+// MPV Allowlist started MPV again on the site the user had turned it off on. The rest of
+// a TabHolder - frames, detected sources - describes the current page and is rebuilt as
+// that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
-  'mpvTurnedOff', 'analyzerData'];
+  'mpvTurnedOff'];
 
 export class TabTracker {
   constructor() {

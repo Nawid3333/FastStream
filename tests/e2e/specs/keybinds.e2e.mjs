@@ -286,7 +286,7 @@ describe('Keybinds', function() {
       return Object.fromEntries(keys.map((key) => [key, manager.keyStringToKeybinds(key)]));
     });
     expect(reached).toEqual({
-      'Shift+KeyW': ['WindowedFullscreen'], 'Shift+KeyA': ['NextChapter'], 'Shift+KeyB': ['PreviousVideo'],
+      'Shift+KeyW': ['WindowedFullscreen'], 'Shift+KeyA': [], 'Shift+KeyB': ['PreviousVideo'],
       'Shift+KeyE': ['FlipVideo'], 'Shift+KeyR': ['RotateVideo'], 'Shift+KeyQ': ['ToggleVisualFilters'],
       'KeyW': ['SpeedPreset3_5'], 'KeyA': ['SpeedPreset4'], 'KeyB': ['SpeedPreset2_5'],
       'KeyE': ['SpeedPreset8'], 'KeyR': ['SpeedPreset1'], 'KeyQ': ['SpeedPreset3'],
@@ -444,7 +444,8 @@ describe('Keybinds saved before the layout changed', function() {
   it('applies the new layout without touching the saved bindings', async function() {
     const map = await browser.execute(() => Object.fromEntries(window.fastStream.keybindManager.keybindMap));
     expect(map.WindowedFullscreen).toBe('Shift+KeyW');
-    expect(map.NextChapter).toBe('Shift+KeyA');
+    // Chapters are gone: the old binding is dropped.
+    expect(map.NextChapter).toBeUndefined();
     expect(map.PreviousVideo).toBe('Shift+KeyB');
     expect(map.RotateVideo).toBe('Shift+KeyR');
     expect(map.ToggleVisualFilters).toBe('Shift+KeyQ');
@@ -751,12 +752,12 @@ describe('mpv seek keys', function() {
     await landsOn(140, 'Shift+KeyZ');
   });
 
-  it('puts the screenshot on Shift+S, next to skip intro on S', async function() {
+  it('puts the screenshot on Shift+S, and nothing on S', async function() {
     const reached = await browser.execute(() => {
       const manager = window.fastStream.keybindManager;
       return [manager.keyStringToKeybinds('Shift+KeyS'), manager.keyStringToKeybinds('KeyS'), manager.keyStringToKeybinds('KeyX')];
     });
-    expect(reached).toEqual([['Screenshot'], ['SkipIntroOutro'], ['SeekForward60s']]);
+    expect(reached).toEqual([['Screenshot'], [], ['SeekForward60s']]);
   });
 });
 

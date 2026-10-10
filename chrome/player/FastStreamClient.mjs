@@ -6,8 +6,6 @@ import {DefaultPlayerEvents} from './enums/DefaultPlayerEvents.mjs';
 import {DownloadStatus} from './enums/DownloadStatus.mjs';
 import {PlayerModes} from './enums/PlayerModes.mjs';
 import {ReferenceTypes} from './enums/ReferenceTypes.mjs';
-import {VideoAnalyzer} from './modules/analyzer/VideoAnalyzer.mjs';
-import {AnalyzerEvents} from './enums/AnalyzerEvents.mjs';
 import {EventEmitter} from './modules/eventemitter.mjs';
 import {SourcesBrowser} from './ui/SourcesBrowser.mjs';
 import {PlayerLoader} from './players/PlayerLoader.mjs';
@@ -67,8 +65,6 @@ export class FastStreamClient extends EventEmitter {
       maxSpeed: -1,
       maxVideoSize: 5000000000, // 5GB max size
       ramBudget: DEFAULT_BUDGET_BYTES, // downloaded video kept in RAM, all players together
-      introCutoff: 5 * 60,
-      outroCutoff: 5 * 60,
       bufferAhead: 300,
       bufferBehind: 20,
       freeFragments: true,
@@ -144,7 +140,6 @@ export class FastStreamClient extends EventEmitter {
     document.addEventListener('visibilitychange', this.onPeersVisibility);
     this.sourcesBrowser = new SourcesBrowser(this);
     this.vpnPrompt = new VpnPrompt(this);
-    this.videoAnalyzer = new VideoAnalyzer(this);
     this.audioAnalyzer = new AudioAnalyzer(this);
     this.frameExtractor = new PreviewFrameExtractor(this);
     if (EnvUtils.isWebAudioSupported()) {
@@ -152,10 +147,6 @@ export class FastStreamClient extends EventEmitter {
       this.audioContext = new AudioContext();
       this.audioConfigManager.setupNodes(this.audioContext);
     }
-
-    this.videoAnalyzer.on(AnalyzerEvents.MATCH, () => {
-      this.interfaceController.updateSkipSegments();
-    });
 
     DOMElements.playerContainer.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -186,7 +177,6 @@ export class FastStreamClient extends EventEmitter {
     this.playPauseTurn = 0;
     // The audio context startAudio() is waiting on, if any.
     this.startingAudioContext = null;
-    this.customChapters = null;
     this.saveSeek = true;
     this.pastSeeks = [];
     this.pastUnseeks = [];
@@ -350,7 +340,6 @@ export class FastStreamClient extends EventEmitter {
     this.peers.stop();
     this.resetPlayer();
     this.downloadManager.destroy();
-    this.videoAnalyzer.destroy();
     this.interfaceController.destroy();
     if (this.progressMemory) {
       this.progressMemory.destroy();
@@ -363,8 +352,6 @@ export class FastStreamClient extends EventEmitter {
    * @param {Object} options - Player options.
    */
   setOptions(options) {
-    this.options.analyzeVideos = options.analyzeVideos;
-
     this.options.storeProgress = options.storeProgress;
     this.options.downloadAll = options.downloadAll;
     this.options.autoEnableBestSubtitles = options.autoEnableBestSubtitles;
@@ -436,12 +423,6 @@ export class FastStreamClient extends EventEmitter {
       this.keybindManager.setKeybinds(options.keybinds);
     }
 
-    if (this.options.analyzeVideos) {
-      this.videoAnalyzer.enable();
-    } else {
-      this.videoAnalyzer.disable();
-    }
-
     if (this.state.miniplayer) {
       this.interfaceController.requestMiniplayer(true);
     }
@@ -477,15 +458,6 @@ export class FastStreamClient extends EventEmitter {
       this.previewPlayer.getVideo().style.filter = filterStr;
       this.previewPlayer.getVideo().style.transform = transformStr;
     }
-  }
-
-  /**
-   * Loads analyzer data into the video analyzer.
-   * @param {Object} data
-   * @return {Promise<void>} Never rejects: data that does not read is left out.
-   */
-  async loadAnalyzerData(data) {
-    if (data) await this.videoAnalyzer.loadAnalyzerData(data);
   }
 
   /**
@@ -999,8 +971,6 @@ export class FastStreamClient extends EventEmitter {
           console.warn('The preview player failed to build', e);
         });
 
-        await this.videoAnalyzer.setSource(this.player.getSource());
-
         this.frameExtractor.updateBackground();
       }
 
@@ -1291,8 +1261,6 @@ export class FastStreamClient extends EventEmitter {
 
     this.interfaceController.tick();
     this.checkLevelChange();
-    this.videoAnalyzer.update();
-    this.videoAnalyzer.saveAnalyzerData();
     this.updateHasDownloadSpace();
     if (this.syncedAudioPlayer) this.syncedAudioPlayer.watcherLoop();
     this.emit('tick', this);
@@ -1492,9 +1460,7 @@ export class FastStreamClient extends EventEmitter {
       }
     }
 
-    if (!hasDownloaded && (
-      this.videoAnalyzer.isRunning() || this.interfaceController.saveManager.makingDownload
-    )) {
+    if (!hasDownloaded && this.interfaceController.saveManager.makingDownload) {
       hasDownloaded = this.predownloadReservedFragments();
     }
     return hasDownloaded;
@@ -1898,7 +1864,6 @@ export class FastStreamClient extends EventEmitter {
       this.source = null;
     }
 
-    this.customChapters = null;
 
     if (this.previewPlayer) {
       try {
@@ -2106,10 +2071,6 @@ export class FastStreamClient extends EventEmitter {
       if (this.interfaceController.isUserSeeking()) return;
 
       this.updateTime(this.currentTime);
-
-      if (this.videoAnalyzer.pushFrame(this.player.getVideo())) {
-        this.videoAnalyzer.calculate();
-      }
     });
 
 
@@ -2128,10 +2089,6 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.FRAGMENT_UPDATE, () => {
       this.interfaceController.updateFragmentsLoaded();
-    });
-
-    this.context.on(DefaultPlayerEvents.SKIP_SEGMENTS, () => {
-      this.interfaceController.updateSkipSegments();
     });
   }
 
@@ -2496,7 +2453,6 @@ export class FastStreamClient extends EventEmitter {
     }
 
     if (videoChanged || audioChanged) {
-      this.videoAnalyzer.setLevel(videoLevelID, audioLevelID);
       this.audioAnalyzer.setLevel(videoLevelID, audioLevelID);
       this.frameExtractor.setLevel(videoLevelID, audioLevelID);
       if (this.syncedAudioPlayer) {
@@ -2780,55 +2736,6 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Gets the skip segments for the current video.
-   * @return {Array}
-   */
-  get skipSegments() {
-    return this.player?.skipSegments || [];
-  }
-
-  /**
-   * Gets the chapters for the current video.
-   * @return {Array}
-   */
-  get chapters() {
-    return this.customChapters || this.player?.chapters || [];
-  }
-
-  /**
-   * Sets the chapters to mark on the timeline.
-   *
-   * A video often brings its own, but one that does not can be given them by whoever
-   * loaded it. They describe the video that is playing, so they are dropped when it is
-   * replaced.
-   *
-   * @param {Array<Object>} chapters - `{name, startTime, endTime}`, in any order. A
-   *     chapter with no end runs until the next one starts, or to the end of the video.
-   */
-  setChapters(chapters) {
-    const cleaned = (chapters || []).filter((chapter) => {
-      return chapter && isFinite(chapter.startTime);
-    }).map((chapter) => {
-      return {
-        name: chapter.name ? String(chapter.name) : 'Chapter',
-        startTime: Math.max(0, chapter.startTime),
-        // An end before the start is none: the chapter runs to the next one.
-        endTime: isFinite(chapter.endTime) && chapter.endTime > Math.max(0, chapter.startTime) ? chapter.endTime : null,
-      };
-    }).sort((a, b) => a.startTime - b.startTime);
-
-    cleaned.forEach((chapter, i) => {
-      if (chapter.endTime === null) {
-        const next = cleaned[i + 1];
-        chapter.endTime = next ? next.startTime : (this.duration || Infinity);
-      }
-    });
-
-    this.customChapters = cleaned.length ? cleaned : null;
-    this.interfaceController.updateSkipSegments();
-  }
-
-  /**
    * Gets the width of the current video.
    * @return {number}
    */
@@ -2849,11 +2756,6 @@ export class FastStreamClient extends EventEmitter {
    */
   debugDemo() {
     this.interfaceController.hideControlBar = ()=>{};
-
-    this.videoAnalyzer.introAligner.detectedStartTime = 0;
-    this.videoAnalyzer.introAligner.detectedEndTime = 30;
-    this.videoAnalyzer.introAligner.found = true;
-    this.videoAnalyzer.introAligner.emit('match', true);
 
     this.currentTime = 6;
     this.player.getVideo().style.objectFit = 'cover';

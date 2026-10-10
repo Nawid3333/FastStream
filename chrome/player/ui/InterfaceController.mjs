@@ -102,7 +102,7 @@ export class InterfaceController {
     this.loopControls.on('open', this.closeAllMenus.bind(this));
 
     this.progressBar = new ProgressBar(this.client);
-    this.progressBar.on('show-skip', (segment)=>{
+    this.progressBar.on('show-next-video', () => {
       this.showControlBarTemporarily(5000);
     });
     this.progressBar.setupUI();
@@ -199,7 +199,6 @@ export class InterfaceController {
     this.saveManager.reset();
     this.failed = false;
     this.setStatusMessage('error', null, 'error');
-    this.setStatusMessage('chapter', null, 'error');
     // The last video's download line stayed up over a next video that never loaded.
     this.setStatusMessage('download', null, 'success');
     // And its "all buffered" was the next one's: one buffered from the start never said so.
@@ -320,10 +319,6 @@ export class InterfaceController {
     } else {
       DOMElements.resetFailed.style.display = 'none';
     }
-  }
-
-  updateSkipSegments() {
-    this.progressBar.updateSkipSegments();
   }
 
   setupDOM() {
@@ -511,10 +506,6 @@ export class InterfaceController {
       e.stopPropagation();
     });
     WebUtils.setupTabIndex(DOMElements.resetFailed);
-
-    DOMElements.skipButton.addEventListener('click', this.skipSegment.bind(this));
-    // Tab reached "Skip intro", but Enter did nothing.
-    WebUtils.setupTabIndex(DOMElements.skipButton);
 
     DOMElements.pip.addEventListener('click', (e) => {
       this.pipToggle();
@@ -957,11 +948,6 @@ export class InterfaceController {
     this.shouldRunProgressLoop = false;
   }
 
-  skipSegment() {
-    this.progressBar.skipSegment();
-    this.hideControlBarOnAction();
-  }
-
   onControlsMouseEnter() {
     this.showControlBar();
     this.mouseOverControls = true;
@@ -1135,19 +1121,9 @@ export class InterfaceController {
       DOMElements.duration.textContent = timeText;
     }
 
-    const chapters = this.client.chapters;
-    if (chapters.length > 0) {
-      const time = this.state.currentTime;
-      const chapter = chapters.find((chapter) => chapter.startTime <= time && chapter.endTime >= time);
-      // Chapters can leave gaps, and a gap is no chapter.
-      this.setStatusMessage('chapter', chapter ? chapter.name : null, 'info');
-    } else {
-      this.setStatusMessage('chapter', null, 'info');
-    }
-
     this.subtitlesManager.renderSubtitles();
     this.fineTimeControls.onVideoTimeUpdate();
-    this.updateSkipSegments();
+    this.progressBar.updateNextVideoBanner();
   }
 
   toggleWindowedFullscreen(force) {

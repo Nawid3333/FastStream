@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- 강제 재시도 키 - 실패한 다운로드 재시도에 사용"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- 인트로/아웃트로 건너뛰기 (해당 시)"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- 플레이어 숨기기/표시"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- 다음/이전 영상"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- 다음 챕터"
     },
     "welcome_page_keybinds_content23": {
         "message": "- 비디오 저장"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "현재 시간 사용"
-    },
-    "player_segment_intro": {
-        "message": "인트로"
-    },
-    "player_segment_outro": {
-        "message": "아웃트로"
-    },
-    "player_skipintro": {
-        "message": "인트로 건너뛰기"
-    },
-    "player_skipoutro": {
-        "message": "아웃트로 건너뛰기"
     },
     "player_nextvideo_auto": {
         "message": "자동"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "그래픽 카드로 디코딩할 수 있는 버전(하드웨어 디코딩)을 우선하고, 그다음 더 높은 프레임 레이트와 AV1 같은 더 효율적인 코덱을 우선합니다. 선택한 해상도는 낮추지 않습니다"
-    },
-    "options_general_analyze": {
-        "message": "연속 재생 영상의 인트로/아웃트로를 자동으로 분석합니다\n(CPU 성능 문제가 있으면 끄세요)"
     },
     "options_general_storeprogress": {
         "message": "마지막으로 본 위치에서 비디오 재생"

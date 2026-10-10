@@ -68,9 +68,6 @@
     "welcome_page_keybinds_content7": {
         "message": "- Force retry key - use this to re-attempt failed downloads"
     },
-    "welcome_page_keybinds_content8": {
-        "message": "- Skip intro/outro if applicable"
-    },
     "welcome_page_keybinds_content9": {
         "message": "- Hide/show player"
     },
@@ -109,9 +106,6 @@
     },
     "welcome_page_keybinds_content21": {
         "message": "- Next/previous video"
-    },
-    "welcome_page_keybinds_content22": {
-        "message": "- Next chapter"
     },
     "welcome_page_keybinds_content23": {
         "message": "- Save video"
@@ -238,18 +232,6 @@
     },
     "loop_menu_now": {
         "message": "Use the current time"
-    },
-    "player_segment_intro": {
-        "message": "Intro"
-    },
-    "player_segment_outro": {
-        "message": "Outro"
-    },
-    "player_skipintro": {
-        "message": "Skip Intro"
-    },
-    "player_skipoutro": {
-        "message": "Skip Outro"
     },
     "player_nextvideo_auto": {
         "message": "Auto"
@@ -1042,9 +1024,6 @@
     },
     "options_general_decodingawarequality": {
         "message": "Prefer the version your graphics card can decode (hardware decoding), then a higher frame rate and more efficient codecs such as AV1. Never lowers the chosen resolution"
-    },
-    "options_general_analyze": {
-        "message": "Automatically analyze sequential videos for intros/outros\n(turn off if you have CPU performance issues)"
     },
     "options_general_storeprogress": {
         "message": "Play videos from last watched position"

@@ -333,7 +333,7 @@ what can actually change behaviour.
 
 | Library | Version | Real change beyond lint autofix | Status |
 |---|---|---|---|
-| pako | 3.0.2 | - | **removed 2026-10-09**: Firefox's own `CompressionStream` (`chrome/player/utils/Compression.mjs`), same zlib format |
+| pako | 3.0.2 | - | **removed 2026-10-09**: Firefox's own `CompressionStream` (`chrome/player/utils/Compression.mjs`), same zlib format; that went on 2026-10-10 with the intro/outro finder, its only user |
 | fuse.js | 7.5.0 | none at all | **migrated** |
 | sortablejs | 1.15.7 | named export only; plugins already mounted upstream | **migrated** |
 | sweetalert2 | 11.26.25 | ESM boundary; included a payload that had to stay stripped | **removed 2026-10-09**: Firefox's own `<dialog>` and popover (`utils/AlertPolyfill.mjs`, `assets/dialogs/dialogs.css`) |
@@ -364,7 +364,8 @@ copy with only line endings normalised and a missing final newline added
 (`tools/sync-vendor.mjs`, `normaliseText`), same as fuse.js. Removed on
 2026-10-09: VideoAligner was its only user, and Firefox's `CompressionStream`
 ('deflate') writes and reads the same zlib format (other bytes than pako's,
-measured in Firefox; each reads the other's).
+measured in Firefox; each reads the other's). On 2026-10-10 the intro/outro finder was
+removed (the owner's decision), VideoAligner and Compression.mjs with it.
 
 **mp4box 2.4.1 was shelved on 2026-09-06 on a misreading, and taken on
 2026-09-25.** The blocker was said to be that rolldown "renames every internal

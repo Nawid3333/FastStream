@@ -38,19 +38,6 @@ describe('the options', () => {
   });
 });
 
-describe('the intro and outro finder\'s data', () => {
-  it('is kept where an unload of the background leaves it', async () => {
-    // Held in the background alone, it went with the event page unloaded between episodes,
-    // and the next episode had nothing to match (audit, 2026-10-09).
-    bg = await loadBackground({tabs: [{id: 1, url: PAGE}]});
-    await bg.navigated(1, PAGE);
-    const data = {intro: {'video-1': {hashBuffer: 'AAAA', timeBuffer: 'BBBB'}}, outro: {}};
-    await bg.message({type: 'STORE_ANALYZER_DATA', data}, {tabId: 1, frameId: 2});
-    await bg.wait(0);
-    expect(bg.session['tabState:1']?.analyzerData).toEqual(data);
-  });
-});
-
 describe('a download from a container tab', () => {
   // A container tab's download goes through a hidden player tab in the same container,
   // which the background gives 30 s.
