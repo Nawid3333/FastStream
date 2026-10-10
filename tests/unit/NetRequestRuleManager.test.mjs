@@ -124,24 +124,33 @@ describe('RuleManager when the browser refuses', () => {
   let warn;
   let refuseRemovals;
   let removed;
+  // The ids the browser holds: a duplicate is refused, as Firefox does, and removing an id
+  // it does not hold changes nothing.
+  let held;
 
   beforeEach(() => {
     vi.useFakeTimers();
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     refuseRemovals = 0;
     removed = [];
+    held = new Set();
     globalThis.chrome = {
       runtime: {getURL: (path) => 'moz-extension://test-uuid' + path},
       declarativeNetRequest: {
         getSessionRules: async () => [],
         updateSessionRules: async (update) => {
           const ids = update.removeRuleIds || [];
-          if (ids.length > 0) {
-            if (refuseRemovals > 0) {
-              refuseRemovals--;
-              throw new Error('refused');
-            }
-            removed.push(...ids);
+          const adds = update.addRules || [];
+          if (ids.length > 0 && adds.length === 0 && refuseRemovals > 0) {
+            refuseRemovals--;
+            throw new Error('refused');
+          }
+          for (const id of ids) {
+            if (held.delete(id)) removed.push(id);
+          }
+          for (const rule of adds) {
+            if (held.has(rule.id)) throw new Error(`Duplicate rule id ${rule.id}`);
+            held.add(rule.id);
           }
         },
       },
@@ -186,5 +195,10 @@ describe('RuleManager when the browser refuses', () => {
     expect(manager.rules).toEqual([]);
     expect(manager.isLoopRunning).toBe(false);
     expect(manager.getNextID()).toBe(rule.id);
+    // The browser may still hold it: the next rule, given its id, replaces it. Refused as a
+    // duplicate, it and every rule after it failed (final review, 2026-10-10).
+    expect(held.has(rule.id)).toBe(true);
+    const next = await manager.addHeaderRule('https://cdn.test/b.m3u8', 7, [{operation: 'set', header: 'referer', value: 'https://site.test/'}]);
+    expect(next.id).toBe(rule.id);
   });
 });

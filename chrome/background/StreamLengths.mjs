@@ -149,14 +149,21 @@ export class StreamLengths {
    */
   async queue(task) {
     if (this.active >= MAX_ACTIVE) {
+      // A read that finishes hands its slot over (below): woken, this one already counts.
+      // Woken into a free slot, a caller arriving meanwhile took it as well: five at once.
       await new Promise((resolve) => this.waiting.push(resolve));
+    } else {
+      this.active++;
     }
-    this.active++;
     try {
       return await task();
     } finally {
-      this.active--;
-      this.waiting.shift()?.();
+      const next = this.waiting.shift();
+      if (next) {
+        next();
+      } else {
+        this.active--;
+      }
     }
   }
 

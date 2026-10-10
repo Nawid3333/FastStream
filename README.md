@@ -28,7 +28,23 @@ Notes:
 - This player will not function with DRM protected content. This is intended. Please be mindful of how you use this tool. FastStream should not be used to infringe copyright.
 - Please report bugs, accessibility problems and feature requests on the issue tracker: https://github.com/Nawid3333/FastStream/issues
 - For your privacy, this extension **does not collect telemetry** and has no server of its own. Besides the sites whose videos you play, it connects only to OpenSubtitles when you search for subtitles, and to GitHub for updates. Everything it runs ships inside the add-on. The details, permission by permission, are in [docs/privacy-policy.md](docs/privacy-policy.md).
-- The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Please be mindful of your computer's storage space when changing this setting. Browsers will offload data in the RAM to the SSD if the video is too large. Frequently pre-buffering large videos can reduce the lifespan of your SSD.
+- The default maximum size for predownloading is 5 GB. This can be changed in the settings page (0 = predownload nothing, empty = no limit). Where the downloaded video is kept, in RAM or on the disk, is your choice too: see [RAM and disk](#ram-and-disk).
+
+## RAM and disk
+
+FastStream downloads the video ahead and keeps it until it is played. Two settings (Options > General) decide where:
+
+- **RAM for buffered video (all tabs)** - how much downloaded video is kept in RAM, for all FastStream tabs together. Default 2 GB; 0 = none; empty = no limit.
+- **Keep video on disk when this RAM is full** - on (default): what does not fit in that RAM is written to the disk and read from there. Off: it is let go of and downloaded again when you need it, and nothing of the buffer is written to the disk.
+
+| You want | RAM for buffered video | Keep video on disk |
+|---|---|---|
+| RAM first, the rest on the disk (default) | e.g. 2 GB | on |
+| As little RAM as possible (a PC with 8 GB) | 0 | on - only the next seconds stay in RAM |
+| No disk writes at all (to spare an SSD) | as much as you can give, e.g. 4 GB | off |
+| Everything in RAM, no limit | empty | either |
+
+A video that fits in the RAM you gave it is never written to the disk. With the disk off and 0 RAM, nothing is kept ahead, so a video may stop to load. Private windows never write the buffer to the disk. Your watch progress and the videos you save are not the buffer: these settings do not touch them.
 
 ## Browser compatibility
 

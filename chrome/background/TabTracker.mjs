@@ -630,9 +630,22 @@ export class TabTracker {
       console.warn('Could not restore tab states', e);
       return;
     }
+    // Only tabs that are still there: the tabs.onRemoved that woke the page may have run
+    // removeTab between the read above and here, and its tab came back for the session.
+    let live = null;
+    try {
+      live = new Set((await chrome.tabs.query({})).map((tab) => tab.id));
+    } catch (e) {
+      // Without the list, as before: every saved state.
+    }
     for (const [key, state] of Object.entries(stored)) {
       if (!key.startsWith(TabStateKeyPrefix)) continue;
-      const tab = this.getTabOrCreate(Number(key.substring(TabStateKeyPrefix.length)));
+      const tabId = Number(key.substring(TabStateKeyPrefix.length));
+      if (live && !live.has(tabId)) {
+        chrome.storage.session.remove(key).catch(() => {});
+        continue;
+      }
+      const tab = this.getTabOrCreate(tabId);
       for (const field of PersistedTabFields) {
         if (field in state) {
           // @ts-ignore - TabHolder fields are assigned dynamically.

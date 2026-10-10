@@ -666,7 +666,9 @@
         sendResponse('enter');
       }).catch((e) => {
         // Refused (no user gesture, an iframe the page took out): the player hears 'error'.
-        // Rethrown, it was an unhandled rejection besides.
+        // Rethrown, it was an unhandled rejection besides. Not fullscreen, as the page is:
+        // left "on", the next toggle went the wrong way.
+        fullscreenState.active = document.fullscreenElement === element;
         console.error(e);
         sendResponse('error');
       });
