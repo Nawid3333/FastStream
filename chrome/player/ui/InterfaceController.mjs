@@ -27,6 +27,19 @@ import {ToolManager} from './ToolManager.mjs';
 import {VolumeControls} from './VolumeControls.mjs';
 
 let MiniplayerCooldown = Date.now() + 500;
+/**
+ * Whether an element has the focus the keyboard gave it, not a click (:focus-visible).
+ * @param {?Element} element
+ * @return {boolean}
+ */
+function isKeyboardFocus(element) {
+  try {
+    return !!element?.matches?.(':focus-visible');
+  } catch (e) {
+    return false;
+  }
+}
+
 export class InterfaceController {
   constructor(client) {
     this.client = client;
@@ -372,8 +385,11 @@ export class InterfaceController {
     DOMElements.playerContainer.addEventListener('mousemove', this.onPlayerMouseMove.bind(this));
     DOMElements.controlsContainer.addEventListener('mouseenter', this.onControlsMouseEnter.bind(this));
     DOMElements.controlsContainer.addEventListener('mouseleave', this.onControlsMouseLeave.bind(this));
-    DOMElements.controlsContainer.addEventListener('focusin', ()=>{
-      this.focusingControls = true;
+    DOMElements.controlsContainer.addEventListener('focusin', (e)=>{
+      // Keyboard focus only (:focus-visible): a click on a button focuses it too, and the bar
+      // then stayed up while it kept the focus - after a click on fullscreen, until the
+      // video was played or paused by a click on it.
+      this.focusingControls = isKeyboardFocus(e.target);
       this.showControlBar();
       // Kept while focus is there (queueControlsHide looks again until it may go): focus
       // can leave without a focusout (isFocusInControls), and then nothing else asked (#383).
@@ -977,7 +993,8 @@ export class InterfaceController {
    * @return {boolean}
    */
   isFocusInControls() {
-    if (this.focusingControls && !DOMElements.controlsContainer.contains(document.activeElement)) {
+    const focused = document.activeElement;
+    if (this.focusingControls && (!DOMElements.controlsContainer.contains(focused) || !isKeyboardFocus(focused))) {
       this.focusingControls = false;
     }
     return this.focusingControls;

@@ -518,4 +518,44 @@ describe('A site\'s overlays around an in-page player', function() {
     expect(await visibilities(['bar'])).toEqual({bar: 'visible'});
     expect(await takeContentErrors()).toEqual([]);
   });
+
+  // #392: in the player a site's page holds, the bar stayed up after fullscreen was left and
+  // entered again with its button, until the video was paused and played again. The lost
+  // mouseleave behind it comes and goes (player-controls.e2e.mjs forces it); this is the path.
+  it('hides the player\'s bar after fullscreen was left and entered again with its button', async function() {
+    await openPage('/bar');
+    await clickToolbar();
+    let frame;
+    await browser.waitUntil(async () => {
+      await browser.switchFrame(null);
+      frame = await browser.$('iframe[src*="player/index.html"]');
+      return frame.isExisting();
+    }, {timeout: 15000, timeoutMsg: 'the player never came up'});
+    await browser.switchFrame(frame);
+    await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.interfaceController),
+        {timeout: 15000, timeoutMsg: 'the player never started'});
+    await browser.execute(() => {
+      window.fastStream.interfaceController.hideBigPlayButton();
+      window.fastStream.state.playing = true;
+    });
+    const fullscreen = await browser.$('.mainplayer .fluid_control_fullscreen');
+    await fullscreen.click();
+    await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
+        {timeout: 5000, timeoutMsg: 'fullscreen never started'});
+    await browser.pause(500);
+    await browser.keys(['Escape']);
+    await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement),
+        {timeout: 5000, timeoutMsg: 'Escape never left fullscreen'});
+    await fullscreen.click();
+    await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
+        {timeout: 5000, timeoutMsg: 'fullscreen never started again'});
+    await browser.pause(3000);
+    try {
+      await browser.waitUntil(() => browser.execute(() => !window.fastStream.interfaceController.controlsVisible),
+          {timeout: 4000, timeoutMsg: 'the bar stayed up in fullscreen'});
+    } finally {
+      await browser.execute(() => document.fullscreenElement && document.exitFullscreen());
+      await browser.switchFrame(null);
+    }
+  });
 });

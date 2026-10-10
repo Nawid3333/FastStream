@@ -478,6 +478,54 @@ describe('Player controls, hiding by themselves', function() {
         {timeout: 5000, timeoutMsg: 'the bar the key showed stayed up'});
   });
 
+  // A click on one of the bar's buttons leaves the focus on it, and the bar stayed up while
+  // something in it had the focus: only the mouseleave of a pointer leaving the bar took the
+  // focus away. In the player a site's page holds, fullscreen moves the bar from under the
+  // pointer and that mouseleave can be lost (measured in the classic suite: focus on the
+  // fullscreen button, the bar not hovered, no mouseleave), and the bar stayed until a
+  // click on the video moved the focus (#392). Here the mouseleave is swallowed on purpose.
+  it('hides the bar after a click on one of its buttons, when the pointer leaves unheard', async function() {
+    await playerWithPointerAway();
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 5000, timeoutMsg: 'the bar never hid at all'});
+    await browser.execute(() => {
+      const bar = document.querySelector('.mainplayer .fluid_controls_container');
+      window.addEventListener('mouseleave', (e) => {
+        if (e.target === bar) e.stopPropagation();
+      }, true);
+    });
+    // The time: focusable as fullscreen is, and with no source a click on it does nothing.
+    await (await browser.$('.mainplayer .fluid_control_duration')).click();
+    expect(await browser.execute(() => document.activeElement.classList.contains('fluid_control_duration'))).toBe(true);
+    const player = await browser.$('.mainplayer');
+    const {width, height} = await player.getSize();
+    await browser.action('pointer')
+        .move({origin: player, x: -Math.floor(width / 2) + 10, y: -Math.floor(height / 2) + 10})
+        .perform();
+    // Still focused, and the pointer gone from the bar: the state #392 left behind.
+    expect(await browser.execute(() => ({
+      focused: document.activeElement.classList.contains('fluid_control_duration'),
+      hovered: document.querySelector('.mainplayer .fluid_controls_container').matches(':hover'),
+    }))).toEqual({focused: true, hovered: false});
+    await browser.waitUntil(async () => !(await controlsVisible()),
+        {timeout: 6000, timeoutMsg: 'the bar stayed up while a button it holds had the focus a click gave it'});
+  });
+
+  it('keeps the bar up while the keyboard is in it', async function() {
+    await playerWithPointerAway();
+    // Tab until a button of the bar has the focus.
+    let inBar = false;
+    for (let i = 0; i < 40 && !inBar; i++) {
+      await browser.keys(['Tab']);
+      inBar = await browser.execute(() =>
+        document.querySelector('.mainplayer .fluid_controls_container').contains(document.activeElement));
+    }
+    expect(inBar).toBe(true);
+    await browser.execute(() => window.fastStream.interfaceController.queueControlsHide(50));
+    await browser.pause(2600);
+    expect(await controlsVisible()).toBe(true);
+  });
+
   it('hides the bar once it may, after a hide was refused', async function() {
     await playerWithPointerAway();
     // Refused while paused; then played on by a way that asks for no hide.
