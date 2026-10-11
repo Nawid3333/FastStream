@@ -195,6 +195,9 @@ describe('Firefox VPN', function() {
   it('plays once allowed, its requests going the page\'s way', async function() {
     proxied.length = 0;
     const videoTab = await browser.getWindowHandle();
+    // Into the player of the case before (its page stays): a test no longer starts in the frame
+    // the one before ended in (setupGuard.mjs's root afterEach, 2026-10-11).
+    await enterPlayer();
     // A player in a page has no permissions API: its button opens the permissions page.
     await (await browser.$('.mainplayer .vpn_button')).click();
     let permsTab;
