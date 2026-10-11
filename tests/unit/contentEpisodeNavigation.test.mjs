@@ -191,12 +191,13 @@ describe('the next episode, within the series', () => {
 
   it('presses no "next episode" button on a season\'s first episode either (deepseek\'s review)', async () => {
     // A season's first episode has no previous one to link: the season's other episodes (here
-    // 5, after a gap) tell the page lists it, and the list, not the button, goes on.
+    // 5 and 6, after a gap) tell the page lists it, and the list, not the button, goes on.
     const page = episodePage();
     Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-1`,
       pathname: '/anime/stream/girls/staffel-3/episode-1'});
     page.link(`${SERIES}/staffel-3/episode-1`, '1');
     page.link(`${SERIES}/staffel-3/episode-5`, '5');
+    page.link(`${SERIES}/staffel-3/episode-6`, '6');
     const button = page.p.document.createElement('button');
     button.textContent = 'Next episode';
     let pressed = false;
@@ -207,6 +208,23 @@ describe('the next episode, within the series', () => {
     expect(await page.next()).toBe('clicked');
     expect(pressed).toBe(false);
     expect(page.assigned).toEqual([`${SERIES}/staffel-3/episode-5`]);
+  });
+
+  it('presses the "next episode" button where the page links one other episode only, no list (deepseek\'s third round)', async () => {
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-1`,
+      pathname: '/anime/stream/girls/staffel-3/episode-1'});
+    page.link(`${SERIES}/staffel-3/episode-5`, 'Latest: episode 5');
+    const button = page.p.document.createElement('button');
+    button.textContent = 'Next episode';
+    let pressed = false;
+    button.click = () => {
+      pressed = true;
+    };
+    page.p.document.body.appendChild(button);
+    expect(await page.next()).toBe('clicked');
+    expect(pressed).toBe(true);
+    expect(page.assigned).toEqual([]);
   });
 
   it('answers whether the user types in the page, for the next episode\'s keyboard', async () => {

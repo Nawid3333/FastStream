@@ -2120,19 +2120,23 @@
   }
 
   /**
-   * Whether the page lists this page's season: it links the previous episode, or another
-   * episode of the season (a season's first episode has no previous; deepseek's review).
+   * Whether the page lists this page's season: it links the previous episode, or two other
+   * episodes of the season (a season's first episode has no previous; deepseek's review) -
+   * one other alone ("latest episode: 5") is no list (its third round).
    * @param {Array<Element>} links - episodeLinksOf's series links.
    * @return {boolean}
    */
   function listsThisSeason(links) {
     const previous = EpisodeLinks.neighbourEpisodeUrls(window.location.href, false);
+    if (links.some((a) => previous.includes(withoutHash(a.href)))) return true;
     const here = EpisodeLinks.seasonEpisode(window.location.href);
-    return links.some((a) => {
-      if (previous.includes(withoutHash(a.href))) return true;
-      const at = here && EpisodeLinks.seasonEpisode(a.href);
-      return !!at && at.show === here.show && at.season === here.season && at.episode !== here.episode;
-    });
+    if (!here) return false;
+    const others = new Set();
+    for (const a of links) {
+      const at = EpisodeLinks.seasonEpisode(a.href);
+      if (at && at.show === here.show && at.season === here.season && at.episode !== here.episode) others.add(at.episode);
+    }
+    return others.size >= 2;
   }
 
   /**
