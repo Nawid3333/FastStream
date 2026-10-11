@@ -29,7 +29,7 @@ export async function guardSetup(setup) {
 }
 
 // The configs' mochaOpts.rootHooks: the setup's failure first, the more useful reason, then
-// bidi.mjs's check.
+// bidi.mjs's check; and after every test, the window's top again.
 export const rootHooks = {
   beforeEach() {
     if (setupError) {
@@ -37,5 +37,20 @@ export const rootHooks = {
           {cause: setupError});
     }
     bidiRootHooks.beforeEach();
+  },
+  // A test that ended in a frame (a player's) could leave the next test's first browser.url()
+  // waiting in a frame the navigation removed, until the 120 s timeout: on CI's Linux runner,
+  // each hang came in a test after one that ended in the player's frame, before its first step
+  // (autoplay-next-episode, main and #449, 2026-10-11; not every such test hung - a race in the
+  // driver). framed-player.e2e.mjs did this itself. A window or a session already gone is no
+  // news; anything else is said, so a reset that stops working shows.
+  async afterEach() {
+    try {
+      await globalThis.browser?.switchFrame(null);
+    } catch (e) {
+      if (!/no such (window|frame)|invalid session|session (deleted|not created)/i.test(String(e?.message || e))) {
+        console.warn('e2e: back to the window\'s top failed after a test:', e);
+      }
+    }
   },
 };

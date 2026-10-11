@@ -40,6 +40,20 @@ describe('guardSetup and rootHooks', () => {
     globalThis.browser = {isBidi: false, requestedCapabilities: {}};
     expect(() => rootHooks.beforeEach()).toThrow(/BiDi is not connected/);
   });
+
+  it('leave every test at the top of its window, also where that fails or no browser is up', async () => {
+    // A test that ended in a frame left the next one's first navigation waiting in it (2026-10-11).
+    const frames = [];
+    globalThis.browser = {switchFrame: async (to) => frames.push(to)};
+    await rootHooks.afterEach();
+    expect(frames).toEqual([null]);
+    globalThis.browser = {switchFrame: async () => {
+      throw new Error('no such window');
+    }};
+    await expect(rootHooks.afterEach()).resolves.toBeUndefined();
+    delete globalThis.browser;
+    await expect(rootHooks.afterEach()).resolves.toBeUndefined();
+  });
 });
 
 describe('writeFixture', () => {
