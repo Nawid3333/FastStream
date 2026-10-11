@@ -1233,6 +1233,6 @@
         "message": "kapalı"
     },
     "mpv_episode_nostream": {
-        "message": "sonraki sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"
+        "message": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"
     }
 }

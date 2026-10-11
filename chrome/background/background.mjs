@@ -2590,19 +2590,27 @@ function startMpvCountdown(state) {
 /**
  * mpv's autoplay switch: flips the setting, which mpv then shows.
  * @param {MpvWatch} state
+ * @return {Promise<void>}
  */
-async function toggleMpvAutoplay(state) {
-  const on = !Options.mpvAutoplayNext;
-  try {
-    await saveOption('mpvAutoplayNext', on);
-  } catch (e) {
-    console.error('Saving MPV autoplay failed', e);
-    return;
-  }
-  syncMpvAutoplay(state);
-  state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
-      chrome.i18n.getMessage(on ? 'mpv_autoplay_on' : 'mpv_autoplay_off') || (on ? 'on' : 'off'));
+function toggleMpvAutoplay(state) {
+  // One after the other: two quick presses read the same setting before either was saved,
+  // and the second was lost.
+  mpvAutoplayToggles = mpvAutoplayToggles.then(async () => {
+    const on = !Options.mpvAutoplayNext;
+    try {
+      await saveOption('mpvAutoplayNext', on);
+    } catch (e) {
+      console.error('Saving MPV autoplay failed', e);
+      return;
+    }
+    syncMpvAutoplay(state);
+    state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
+        chrome.i18n.getMessage(on ? 'mpv_autoplay_on' : 'mpv_autoplay_off') || (on ? 'on' : 'off'));
+  });
+  return mpvAutoplayToggles;
 }
+/** The switch presses not done yet (toggleMpvAutoplay). */
+let mpvAutoplayToggles = Promise.resolve();
 
 /**
  * Goes on to the next (or the previous) episode in the page of the tab mpv's stream came
@@ -2652,14 +2660,14 @@ async function goToEpisode(state, direction) {
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
   state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv');
-  // The next page had its minute and brought no stream (a locked episode, a dead hoster, a
-  // login wall): mpv says so, where it otherwise sat at the old episode's end in silence.
+  // The page gone to had its minute and brought no stream (a locked episode, a dead hoster,
+  // a login wall): mpv says so, where it otherwise sat at the old episode's end in silence.
   if (state.stalled) clearTimeout(state.stalled);
   state.stalled = setTimeout(() => {
     state.stalled = null;
     if (!state.alive || mpvWatch !== state) return;
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
-      'the next page brought no stream within a minute; open it in the browser to see why');
+      'the page brought no stream within a minute; open it in the browser to see why');
   }, MpvNextEpisodeWaitMs);
 }
 

@@ -1233,6 +1233,6 @@
         "message": "nonaktif"
     },
     "mpv_episode_nostream": {
-        "message": "halaman berikutnya tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
+        "message": "halaman tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
     }
 }

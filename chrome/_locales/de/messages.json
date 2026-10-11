@@ -1233,6 +1233,6 @@
         "message": "aus"
     },
     "mpv_episode_nostream": {
-        "message": "die nächste Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen"
+        "message": "die Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen"
     }
 }

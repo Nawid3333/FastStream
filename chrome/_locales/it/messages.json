@@ -1233,6 +1233,6 @@
         "message": "disattivo"
     },
     "mpv_episode_nostream": {
-        "message": "la pagina successiva non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
+        "message": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
     }
 }

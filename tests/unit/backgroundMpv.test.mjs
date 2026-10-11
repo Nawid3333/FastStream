@@ -1503,6 +1503,15 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(notices(port).at(-1)).toBe('on');
   });
 
+  it('takes two quick presses of mpv\'s autoplay switch as two', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'request', action: 'autoplay'});
+    port.emit({type: 'request', action: 'autoplay'});
+    await bg.wait(200);
+    expect(states(port)).toEqual([false, true]);
+    expect(notices(port).slice(-2)).toEqual(['off', 'on']);
+  });
+
   it('says so in mpv when the next page brings no stream within a minute', async () => {
     let port = await onEpisode1();
     port.emit({type: 'ended', path: S1});
@@ -1510,7 +1519,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.navigated(1, EP2);
     await bg.frameAdded(1, 0, EP2, 'ep2');
     await bg.wait(61000);
-    expect(notices(port).at(-1)).toBe('the next page brought no stream within a minute; open it in the browser to see why');
+    expect(notices(port).at(-1)).toBe('the page brought no stream within a minute; open it in the browser to see why');
     bg.unload();
 
     // Its stream came in time: nothing to say.
