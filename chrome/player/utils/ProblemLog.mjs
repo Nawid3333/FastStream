@@ -24,13 +24,38 @@ export async function readProblems() {
   return Array.isArray(list) ? list : [];
 }
 
+// The changes to the list, one after the other: two notes at once (two tabs, the player's and
+// mpv's) read the same list, and the second write lost the first (final review, 2026-10-11).
+let changes = Promise.resolve();
+
+/**
+ * Runs a change of the list after the ones before it.
+ * @param {() => Promise<void>} change
+ * @return {Promise<void>}
+ */
+function queued(change) {
+  const done = changes.then(change);
+  changes = done.catch(() => {});
+  return done;
+}
+
 /**
  * Notes a problem on a page: a second one of the same kind on the same site counts up.
  * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
  * @param {number} [now]
  * @return {Promise<void>}
  */
-export async function recordProblem({url, kind, mode}, now = Date.now()) {
+export function recordProblem(problem, now = Date.now()) {
+  return queued(() => note(problem, now));
+}
+
+/**
+ * recordProblem's change.
+ * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
+ * @param {number} now
+ * @return {Promise<void>}
+ */
+async function note({url, kind, mode}, now) {
   if (!Object.values(ProblemKinds).includes(kind)) return;
   let page;
   try {
@@ -55,9 +80,12 @@ export async function recordProblem({url, kind, mode}, now = Date.now()) {
   await store(list.slice(0, MaxEntries));
 }
 
-/** Empties the list. */
-export async function clearProblems() {
-  await store([]);
+/**
+ * Empties the list (after a note still being made, which would bring it back).
+ * @return {Promise<void>}
+ */
+export function clearProblems() {
+  return queued(() => store([]));
 }
 
 /**

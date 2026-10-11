@@ -36,6 +36,22 @@ describe('ProblemLog', () => {
     expect((await readProblems()).map((e) => e.id)).toEqual(['b.test no_next', 'a.test no_stream', 'a.test no_next']);
   });
 
+  it('keeps two notes made at once, and a clear after them clears both', async () => {
+    // Two tabs at the same moment: each read the list before the other wrote it.
+    await Promise.all([
+      recordProblem({url: 'https://a.test/1', kind: ProblemKinds.NO_NEXT, mode: 'player'}, 1),
+      recordProblem({url: 'https://b.test/1', kind: ProblemKinds.NO_NEXT, mode: 'mpv'}, 2),
+      recordProblem({url: 'https://b.test/2', kind: ProblemKinds.NO_NEXT, mode: 'mpv'}, 3),
+    ]);
+    const list = await readProblems();
+    expect(list.map((e) => [e.id, e.count])).toEqual([['b.test no_next', 2], ['a.test no_next', 1]]);
+    await Promise.all([
+      recordProblem({url: 'https://c.test/1', kind: ProblemKinds.NO_NEXT, mode: 'player'}, 4),
+      clearProblems(),
+    ]);
+    expect(await readProblems()).toEqual([]);
+  });
+
   it('keeps the 50 newest, and nothing for an unknown kind or a page that is no web page', async () => {
     for (let i = 0; i < 55; i++) {
       await recordProblem({url: `https://site${i}.test/`, kind: ProblemKinds.NO_NEXT, mode: 'player'}, i);

@@ -2577,11 +2577,6 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Goes on to the next video when this one ends, once: the last second's `waiting` and then
-   * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
-   * Playing again (after a seek back, say) lets the end ask again.
-   */
-  /**
    * A stream stuck in its last seconds goes on to the next video (his report, 2026-10-11:
    * "sometimes it seems to hang"). A last fragment that does not come (a hoster's 404, a
    * timeout) or a playlist longer than its media leaves the video waiting a few seconds
@@ -2612,6 +2607,11 @@ export class FastStreamClient extends EventEmitter {
     }
   }
 
+  /**
+   * Goes on to the next video when this one ends, once: the last second's `waiting` and then
+   * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
+   * Playing again (after a seek back, say) lets the end ask again.
+   */
   autoplayNextVideo() {
     if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
     this.autoNextRequested = true;

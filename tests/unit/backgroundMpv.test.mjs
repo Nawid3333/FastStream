@@ -1564,6 +1564,23 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.sent('START_PAGE_PLAYER').length).toBeGreaterThan(0);
   });
 
+  it('starts the player of a page gone on to before the last one\'s stream came', async () => {
+    // Two quick next keys: the first next page's asking ran on when the second page's top
+    // frame came, and that page was never asked (final review, 2026-10-11).
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(navigations).toHaveLength(2);
+    await bg.navigated(1, 'https://site.test/watch/3');
+    await bg.frameAdded(1, 0, 'https://site.test/watch/3', 'ep3');
+    await bg.wait(2500);
+    expect(bg.sent('START_PAGE_PLAYER').length).toBeGreaterThan(0);
+  });
+
   it('takes the next page\'s stream by itself in the MPV key\'s mode, which waits for a play', async () => {
     // The MPV key's MPV sends only what the user plays: after an end in mpv nobody plays in
     // the page, and the next episode would never come.

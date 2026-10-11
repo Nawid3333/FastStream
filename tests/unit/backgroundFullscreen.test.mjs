@@ -96,6 +96,27 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(bg.sent('EXIT_CARRIED_FULLSCREEN')).toEqual([]);
   });
 
+  it('does not make the window fullscreen again in the next episode after the user left it (F11)', async () => {
+    // deepseek's review (2026-10-11): F11, or the browser's own "Exit Full Screen", ended
+    // the carried fullscreen, and the next episode went fullscreen again.
+    await playerInPage();
+    await carry(true);
+    await bg.message({type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}}, {tabId: 1, frameId: 5});
+    bg.windowState = 'maximized';
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    await bg.message({type: 'PLAYER_LOADED', url: 'moz-extension://bg-test/player/index.html?opener=page-2',
+      parentFrameId: 0}, {tabId: 1, frameId: 7});
+    expect(await bg.message({type: 'REQUEST_WINDOW_FULLSCREEN', force: true}, {tabId: 1, frameId: 7})).toBe('exit');
+    expect(states()).toEqual(['fullscreen']);
+    expect(pageTold().at(-1)).toBe(false);
+
+    // A fullscreen the user then asks for again carries on as before.
+    expect(await bg.message({type: 'REQUEST_WINDOW_FULLSCREEN', force: true}, {tabId: 1, frameId: 7})).toBe('enter');
+    expect(states()).toEqual(['fullscreen', 'fullscreen']);
+  });
+
   it('gives the window back when the tab is closed', async () => {
     await playerInPage();
     await carry(true);

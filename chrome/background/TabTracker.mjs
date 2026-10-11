@@ -241,6 +241,9 @@ export class TabHolder {
     // player's autoplay next (background.mjs startPagePlayers).
     /** @type {ReturnType<typeof setInterval>|undefined} */
     this.pagePlayerStarter = undefined;
+    // The continuation that timer asks for.
+    /** @type {?Object} */
+    this.pagePlayerContinuation = null;
     // Until when the next page's first stream goes to mpv by itself, after MPV autoplay
     // went on to the next episode (background.mjs goToEpisode): also in the MPV key's mode,
     // which otherwise waits for a play in the page.

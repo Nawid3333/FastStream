@@ -593,6 +593,44 @@ describe('Player controls', function() {
     expect(playing).toBeGreaterThan(20);
     expect(pausedAgain).toBeLessThan(5);
   });
+
+  it('pauses on a click at once, as the Space key does, and a double click plays on', async function() {
+    // His report (2026-10-11): a click paused 300 ms after it came, the time it waited to
+    // see whether a double click followed; Space paused at once (ClickSequence).
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    await browser.execute(() => {
+      Object.assign(window.fastStream.options,
+          {singleClickAction: 'playpause', doubleClickAction: 'nothing', tripleClickAction: 'hidecontrols'});
+      window.fastStream.play();
+    });
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    // When the click came and when the video paused, on the page's own clock.
+    await browser.execute(() => {
+      const times = window.__clickTimes = {};
+      document.querySelector('.mainplayer .video-container').addEventListener('click', () => {
+        times.click ??= performance.now();
+      }, true);
+      window.fastStream.player.getVideo().addEventListener('pause', () => {
+        times.pause ??= performance.now();
+      });
+    });
+    const container = await browser.$('.mainplayer .video-container');
+    await browser.action('pointer').move({origin: container}).down().up().perform();
+    const times = await settle(() => browser.execute(() => window.__clickTimes), (t) => t.pause !== undefined, 3000);
+    console.log('      click to pause:', Math.round(times.pause - times.click), 'ms');
+    expect(times.click).toBeDefined();
+    expect(times.pause - times.click).toBeLessThan(150);
+
+    // A double click (here with nothing of its own): the pause goes back, the video plays on.
+    await browser.execute(() => window.fastStream.play());
+    await settle(() => browser.execute(() => window.fastStream.player.getVideo().paused), (value) => value === false);
+    await browser.pause(400);
+    await browser.action('pointer').move({origin: container}).down().up().pause(80).down().up().perform();
+    await browser.pause(600);
+    expect(await browser.execute(() => window.fastStream.player.getVideo().paused)).toBe(false);
+  });
 });
 
 // #383: "sometimes the progress bar stays visible for a long time or forever; pausing and
