@@ -127,6 +127,16 @@ add-on shortcut settings) puts the tab in MPV: the next video you start
 there goes to mpv. FastStream does nothing for YouTube; paste a YouTube link
 into mpv yourself, which opens it with yt-dlp.
 
+**A series in one mpv window.** When an episode played in mpv ends and
+**Autoplay next video** is on (the switch beside the player's Next button), FastStream
+goes on to the next episode in the page, as the player's Next button would, and its
+stream replaces the old one in the same mpv window. `n` and `N` in mpv do the same for
+the next and the previous episode at any time (the
+[mpv setup](https://github.com/Nawid3333/mpv) binds them; elsewhere bind
+`script-message faststream-next` and `script-message faststream-previous`). mpv shows
+what happens, or that the page has no next episode. This needs helper version 7 and
+**Reuse one mpv window**, and the episode's tab stays open in MPV mode.
+
 ## Options
 
 | Option | Default | What it does |
