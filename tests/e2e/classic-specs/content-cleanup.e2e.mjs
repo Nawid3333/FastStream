@@ -222,6 +222,30 @@ const AD_EPISODE_PAGES = {
 </nav>`,
 };
 
+// Next-episode links content.js found only since 2026-10-11 (chrome/episode-links.js), and
+// two it must not take. Each page that a test goes to answers with "another page".
+const DETECTION_PAGES = {
+  // An icon link with no words: the address's episode number +1 (and -1), beside an ad's
+  // "Next" on another site.
+  '/serie/x/staffel-1/episode-4': `<!doctype html><title>episode 4</title>
+<a href="/serie/x/staffel-1/episode-3" style="display: inline-block; width: 40px; height: 20px"><svg width="20" height="20"></svg></a>
+<a href="/serie/x/staffel-1/episode-5" style="display: inline-block; width: 40px; height: 20px"><svg width="20" height="20"></svg></a>
+<a href="http://localhost:${SITE_PORT}/promo">Next</a>`,
+  // A German phrase, beside a page of a list.
+  '/de/folge-a': `<!doctype html><meta charset="utf-8"><title>Folge</title>
+<a href="/de/seite-2">Nächste Seite</a> <a href="/de/naechste">Nächste Folge »</a>`,
+  // A button, no link.
+  '/btn/ep': `<!doctype html><title>episode</title>
+<button type="button" onclick="location.href = '/btn/ep-next'">Next episode</button>`,
+  // A link whose own click goes elsewhere, as an ad's handler does: its address is followed.
+  '/ad/episode-1': `<!doctype html><title>episode 1</title>
+<a href="/ad/episode-2" onclick="event.preventDefault(); location.href = '/ad/hijacked'">Next episode</a>`,
+  // No episode: a link into a new tab, and a pagination only.
+  '/nt/episode-7': `<!doctype html><title>episode 7</title>
+<a href="/nt/episode-8" target="_blank">Next episode</a>`,
+  '/de/nur-seite': `<!doctype html><meta charset="utf-8"><title>Liste</title><a href="/de/nur-seite-2">Nächste Seite</a>`,
+};
+
 // A page that swaps its video for a copy on every frame, as one that keeps re-rendering
 // its player does. The copy goes in from a message posted as the frame starts: it runs
 // after the browser has measured what is visible, and before it hands that over.
@@ -548,6 +572,8 @@ describe('content.js around an in-page player', function() {
         res.end(EPISODE_PAGE);
       } else if (Object.hasOwn(AD_EPISODE_PAGES, pathname)) {
         res.end(AD_EPISODE_PAGES[pathname]);
+      } else if (Object.hasOwn(DETECTION_PAGES, pathname)) {
+        res.end(DETECTION_PAGES[pathname]);
       } else if (pathname.startsWith('/swap')) {
         res.end(swapPage(t));
       } else if (pathname.startsWith('/fakeplay')) {
@@ -1096,6 +1122,33 @@ describe('content.js around an in-page player', function() {
     expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('clicked');
     await browser.waitUntil(async () => (await inPage(() => location.pathname)) === '/episodes/ep3',
         {timeout: 10000, timeoutMsg: 'the next-episode link was not ep3'});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('finds the next episode by its address, its words in any language, or a button, and follows its address', async function() {
+    const cases = [
+      ['/serie/x/staffel-1/episode-4', 'next', '/serie/x/staffel-1/episode-5'],
+      ['/serie/x/staffel-1/episode-4', 'previous', '/serie/x/staffel-1/episode-3'],
+      ['/de/folge-a', 'next', '/de/naechste'],
+      ['/btn/ep', 'next', '/btn/ep-next'],
+      // Its click handler would have gone to /ad/hijacked.
+      ['/ad/episode-1', 'next', '/ad/episode-2'],
+    ];
+    for (const [page, direction, to] of cases) {
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}${page}`);
+      await browser.pause(500);
+      expect({page, direction, answer: await sendToPage({type: 'PLAYLIST_NAVIGATION', direction})})
+          .toEqual({page, direction, answer: 'clicked'});
+      await browser.waitUntil(async () => (await inPage(() => location.pathname)) === to,
+          {timeout: 10000, timeoutMsg: `${page} ${direction} did not go to ${to}`});
+    }
+    for (const page of ['/nt/episode-7', '/de/nur-seite']) {
+      await browser.switchToWindow(siteHandle);
+      await browser.url(`${SITE}${page}`);
+      await browser.pause(500);
+      expect({page, poll: await sendToPage({type: 'PLAYLIST_POLL'})}).toEqual({page, poll: {next: false, previous: false}});
+    }
     expect(await takeContentErrors()).toEqual([]);
   });
 
