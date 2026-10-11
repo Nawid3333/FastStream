@@ -114,6 +114,16 @@ function seriesPage(file, episode) {
 }
 
 /**
+ * A test's steps, logged with the seconds since it began: on CI's Linux runner these tests
+ * once ran past their timeout with no word of where (2026-10-11).
+ * @return {(what: string) => void}
+ */
+function stepLog() {
+  const start = Date.now();
+  return (what) => console.log(`      [${((Date.now() - start) / 1000).toFixed(1)} s] ${what}`);
+}
+
+/**
  * Waits for FastStream's player in the page, and switches into it.
  * @param {string} what - For the failure message.
  */
@@ -209,22 +219,31 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
   it('gives the next episode\'s player the keyboard: F goes fullscreen without a click', async function() {
     // His report (2026-10-11): after autoplay went on, F (and Space) did nothing until a click
     // in the player - the page had the keyboard (main.mjs: the player takes it then).
+    const step = stepLog();
     await browser.url('about:blank');
     await browser.url(`${SITE}/ep1`);
+    step('episode 1 loaded');
     await intoPlayer('the first episode');
+    step('in episode 1\'s player');
     await playToTheEnd();
+    step('episode 1 played to its end');
     await onPage('/ep2');
+    step('on episode 2');
     await intoPlayer('the next episode');
+    step('in episode 2\'s player');
     expect((await playsByItself(2))?.paused).toBe(false);
     expect(await browser.execute(() => document.hasFocus())).toBe(true);
+    step('episode 2 plays, its player has the keyboard');
 
     // The key as the user presses it, where the keyboard is, with no click before.
     await browser.switchFrame(null);
     await browser.keys(['f']);
     await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
         {timeout: 10000, timeoutMsg: 'F did not reach the player'});
+    step('fullscreen');
     await browser.execute(() => document.exitFullscreen());
     await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement), {timeout: 10000});
+    step('fullscreen left');
   });
 
   it('keeps a fullscreen into the next episode, and Escape gives the window back', async function() {
@@ -269,17 +288,24 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
   });
 
   it('stops after the series\' last episode, says so, and never goes on to another series', async function() {
+    const step = stepLog();
     await browser.url('about:blank');
     await browser.url(`${SITE}${SERIES}/staffel-1/episode-1`);
+    step('episode 1 loaded');
     await intoPlayer('the series\' first episode');
+    step('in episode 1\'s player');
     await playToTheEnd();
+    step('episode 1 played to its end');
 
     await onPage(`${SERIES}/staffel-1/episode-2`);
+    step('on episode 2');
     await intoPlayer('the series\' last episode');
+    step('in episode 2\'s player');
     expect((await playsByItself(22))?.paused).toBe(false);
     // The page told the player its series ends here (content.js isSeriesEnd).
     await browser.waitUntil(() => browser.execute(() => window.fastStream.state.seriesEnd === true &&
         !window.fastStream.hasNextVideo()), {timeout: 30000, timeoutMsg: 'the player never heard the series ends there'});
+    step('the player knows the series ends');
     await browser.execute(() => {
       const client = window.fastStream;
       client.currentTime = Math.max(0, client.duration - 1.5);
