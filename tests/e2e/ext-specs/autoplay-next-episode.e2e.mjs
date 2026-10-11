@@ -206,6 +206,27 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     expect((await playsByItself(5))?.paused).toBe(false);
   });
 
+  it('gives the next episode\'s player the keyboard: F goes fullscreen without a click', async function() {
+    // His report (2026-10-11): after autoplay went on, F (and Space) did nothing until a click
+    // in the player - the page had the keyboard (main.mjs: the player takes it then).
+    await browser.url('about:blank');
+    await browser.url(`${SITE}/ep1`);
+    await intoPlayer('the first episode');
+    await playToTheEnd();
+    await onPage('/ep2');
+    await intoPlayer('the next episode');
+    expect((await playsByItself(2))?.paused).toBe(false);
+    expect(await browser.execute(() => document.hasFocus())).toBe(true);
+
+    // The key as the user presses it, where the keyboard is, with no click before.
+    await browser.switchFrame(null);
+    await browser.keys(['f']);
+    await browser.waitUntil(() => browser.execute(() => !!document.fullscreenElement),
+        {timeout: 10000, timeoutMsg: 'F did not reach the player'});
+    await browser.execute(() => document.exitFullscreen());
+    await browser.waitUntil(() => browser.execute(() => !document.fullscreenElement), {timeout: 10000});
+  });
+
   it('keeps a fullscreen into the next episode, and Escape gives the window back', async function() {
     // His report (2026-10-11): the next episode played windowed, because Firefox lets no page
     // go fullscreen without a click. The browser window goes fullscreen instead
