@@ -306,6 +306,10 @@ export class FakeDocument {
     return [this.documentElement, ...this.documentElement.descendants()].filter((el) => matches(el, selector));
   }
 
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
   /**
    * The elements whose box holds a point, topmost first (by `z`); an element with
    * pointer-events: none is left out, as Firefox's hit test leaves it out.

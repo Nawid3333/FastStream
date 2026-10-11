@@ -264,8 +264,10 @@
   // (frame.playerOpening): no player opened there again until the page navigated.
   const pendingPlayers = new Map();
   let pendingPlayersWatch = null;
-  // This page started its own player for an autoplay next once (startPagePlayer).
+  // This page started its own player for an autoplay next once (startPagePlayer), and one
+  // ask is still looking for its video.
   let pagePlayerStarted = false;
+  let pagePlayerLooking = false;
 
   /**
    * Watches a player iframe until its player links up, or the page takes it out.
@@ -414,8 +416,10 @@
 
     // The link's own address rather than a click: hosters hang ad scripts on their links (a
     // popup, or the episode in a new tab), and the chain broke. A link meant for another
-    // frame (_top, _parent, a name) and a button keep their click.
-    if (button.tagName === 'A' && /^https?:/i.test(button.href) && (!button.target || button.target === '_self') &&
+    // frame (_top, _parent, a name, also by the page's <base target>) and a button keep their
+    // click; one into a new tab (<base target="_blank">) opens here, in the chain's tab.
+    const target = linkTarget(button);
+    if (button.tagName === 'A' && /^https?:/i.test(button.href) && (target === '' || target === '_self' || target === '_blank') &&
         withoutHash(button.href) !== withoutHash(window.location.href)) {
       window.location.assign(button.href);
     } else {
@@ -1832,8 +1836,9 @@
       if (page && typeof page.jwplayer === 'function') {
         const player = page.jwplayer();
         if (player && typeof player.getState === 'function' && player.getState() === 'idle') {
-          pagePlayerStarted = true;
           player.play();
+          // Once it took the play: one that refuses (throws) leaves it to the next way.
+          pagePlayerStarted = true;
           return 'jwplayer';
         }
       }
@@ -1848,8 +1853,8 @@
           const player = players[id];
           if (player && typeof player.paused === 'function' && player.paused() &&
               !(typeof player.hasStarted === 'function' && player.hasStarted())) {
-            pagePlayerStarted = true;
             player.play();
+            pagePlayerStarted = true;
             return 'videojs';
           }
         }
@@ -1857,7 +1862,19 @@
     } catch (e) {
       // As above.
     }
-    const found = await getVideo();
+    // The video is found by its visibility, which a background tab tells only every second or
+    // so (IntersectionObserver), and the background asks every 2 s: a second ask meanwhile
+    // clicked the play button again, and the player paused (final review, 2026-10-11).
+    if (pagePlayerLooking) return null;
+    pagePlayerLooking = true;
+    let found;
+    try {
+      found = await getVideo();
+    } finally {
+      pagePlayerLooking = false;
+    }
+    // FastStream's player may have taken the video meanwhile.
+    if (pagePlayerStarted || iframeMap.size > 0 || pendingPlayers.size > 0) return null;
     const video = found && found.video;
     if (video && (!video.paused || video.ended)) return null;
     if (video && (video.currentSrc || video.src || video.srcObject)) {
@@ -2027,6 +2044,26 @@
   }
 
   /**
+   * A link's own target, in lower case: HTML matches the keywords so ("_BLANK" opens a new
+   * tab too). An SVG link has it as an attribute as well.
+   * @param {Element} a
+   * @return {string} '' when it has none.
+   */
+  function ownTarget(a) {
+    return (a.getAttribute('target') || '').toLowerCase();
+  }
+
+  /**
+   * Where a link opens: its own target, else the page's <base target>, in lower case.
+   * @param {Element} a
+   * @return {string} '' for this frame.
+   */
+  function linkTarget(a) {
+    if (a.hasAttribute('target')) return ownTarget(a);
+    return (document.querySelector('base[target]')?.getAttribute('target') || '').toLowerCase();
+  }
+
+  /**
    * What a link or a button says: its text, else its aria-label or title (an icon link).
    * @param {Element} el
    * @return {string}
@@ -2055,7 +2092,7 @@
   function getNextOrPreviousButton(isNext = false) {
     const aElements = querySelectorAllIncludingShadows('a');
     // This site's links that open in the page: a new tab or another site is an ad's way.
-    const ownLinks = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && a.target !== '_blank');
+    const ownLinks = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && ownTarget(a) !== '_blank');
 
     // 1. This page's episode number +1 (or -1), when the page links to it: the series part
     // of the address stays, so it cannot be another show (2026-10-11).
@@ -2073,11 +2110,12 @@
 
     // 3. As until 2026-10-11, without links into a new tab: the next episode there broke the
     // chain (the next page's stream came in another tab).
-    const found = getNextOrPreviousByList(aElements.filter((a) => a.target !== '_blank'), isNext);
+    const found = getNextOrPreviousByList(aElements.filter((a) => ownTarget(a) !== '_blank'), isNext);
     if (found) return found;
 
     // 4. rel=next (or prev), then a bare word ("weiter"): pagination uses them too, so last.
-    const rel = ownLinks.find((a) => (a.getAttribute('rel') || '').split(/\s+/).includes(isNext ? 'next' : 'prev'));
+    // Link types are matched in any case, as HTML does (rel="Next").
+    const rel = ownLinks.find((a) => (a.getAttribute('rel') || '').toLowerCase().split(/\s+/).includes(isNext ? 'next' : 'prev'));
     return rel || onlyOneSaying(ownLinks, isNext, 1);
   }
 
@@ -2530,7 +2568,8 @@
   window.addEventListener('pointerdown', onUserGesture, true);
   window.addEventListener('keydown', onUserGesture, true);
   window.addEventListener('keydown', (e) => {
-    if (!carriedFullscreen || e.key !== 'Escape') return;
+    // The user's Escape only: one the page made (dispatchEvent) left the window too.
+    if (!e.isTrusted || !carriedFullscreen || e.key !== 'Escape') return;
     carriedFullscreen = false;
     e.preventDefault();
     try {

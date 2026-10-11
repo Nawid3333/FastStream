@@ -1350,6 +1350,16 @@ async function setCarriedFullscreen(frame, on) {
   const {windowId} = await chrome.tabs.get(tab.tabId);
   const win = await chrome.windows.get(windowId);
   if (on) {
+    if (win.state !== 'fullscreen' && tab.windowStateBefore) {
+      // Carried here, and the window is no longer fullscreen: the user left it outside
+      // FastStream (F11, the browser's own Exit Full Screen), and the next episode went
+      // fullscreen again (final review, 2026-10-11). It plays windowed, as the user left it.
+      tab.windowStateBefore = null;
+      tab.carryAwaited = false;
+      tab.carriedFullscreenFrameId = null;
+      tellPageCarried(tab, false);
+      return 'exit';
+    }
     if (win.state !== 'fullscreen') {
       tab.windowStateBefore = win.state;
       await chrome.windows.update(windowId, {state: 'fullscreen'});
@@ -1949,17 +1959,6 @@ const StartPagePlayerForMs = 20000;
 const startPagePlayerUntil = new WeakMap();
 
 /**
- * Asks the next episode's page, in a tab FastStream went on in by itself (the player's
- * autoplay next), to start its own player, until its stream came. A hoster's player sat
- * idle there until it was clicked (serienstream.to's VOE, 2026-10-11): FastStream had
- * nothing to play, and the user had to click, then FastStream played. Every 2 s for 20 s:
- * the page's player may come later than the page. Only the frame with the tab's largest
- * video is asked (a video ad in another frame is no episode), and each page does it once
- * (content.js startPagePlayer). sendSources takes the continuation once the stream is
- * there, and that ends it; so do Off and MPV.
- * @param {TabHolder} tab
- */
-/**
  * Notes a next episode whose page brought no video within a minute (ProblemLog): the
  * continuation is still there, as nothing took it (its sources, or mpv's stream).
  * @param {Object} tab - TabHolder.
@@ -1974,9 +1973,24 @@ function watchNextEpisodeArrives(tab, continuation, mode) {
   }, MpvNextEpisodeWaitMs);
 }
 
+/**
+ * Asks the next episode's page, in a tab FastStream went on in by itself (the player's
+ * autoplay next), to start its own player, until its stream came. A hoster's player sat
+ * idle there until it was clicked (serienstream.to's VOE, 2026-10-11): FastStream had
+ * nothing to play, and the user had to click, then FastStream played. Every 2 s for 20 s:
+ * the page's player may come later than the page. Only the frame with the tab's largest
+ * video is asked (a video ad in another frame is no episode), and each page does it once
+ * (content.js startPagePlayer). sendSources takes the continuation once the stream is
+ * there, and that ends it; so do Off and MPV.
+ * @param {TabHolder} tab
+ */
 function startPagePlayers(tab) {
   const continuation = tab.continuationOptions;
-  if (tab.pagePlayerStarter || !continuation) return;
+  if (!continuation || (tab.pagePlayerStarter && tab.pagePlayerContinuation === continuation)) return;
+  // One still asking for an earlier next (two quick next keys): it stopped only at its own
+  // next ask, after this page's frame came, and this page was never asked.
+  clearInterval(tab.pagePlayerStarter);
+  tab.pagePlayerContinuation = continuation;
   if (!startPagePlayerUntil.has(continuation)) {
     startPagePlayerUntil.set(continuation, Date.now() + StartPagePlayerForMs);
   }

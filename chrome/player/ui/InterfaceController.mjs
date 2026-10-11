@@ -11,6 +11,7 @@ import {InterfaceUtils} from '../utils/InterfaceUtils.mjs';
 import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
+import {ClickSequence} from './ClickSequence.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {FineTimeControls} from './FineTimeControls.mjs';
 import {AudioQualityChanger} from './menus/AudioQualityChanger.mjs';
@@ -456,8 +457,32 @@ export class InterfaceController {
       stopSpeedUp();
     });
 
-    let clickCount = 0;
-    let clickTimeout = null;
+    // One, two or three clicks on the video, each with its action (ClickSequence: a single
+    // click's play or pause at once).
+    const clicks = new ClickSequence(() => this.client.options, (clickAction) => {
+      switch (clickAction) {
+        case ClickActions.FULLSCREEN:
+          this.fullscreenToggle();
+          break;
+        case ClickActions.WINDOWED_FULLSCREEN:
+          this.toggleWindowedFullscreen();
+          break;
+        case ClickActions.PIP:
+          this.pipToggle();
+          break;
+        case ClickActions.PLAY_PAUSE:
+          this.playPauseToggle();
+          break;
+        case ClickActions.HIDE_CONTROLS:
+          this.focusingControls = false;
+          this.mouseOverControls = false;
+          this.hideControlBar();
+          break;
+        case ClickActions.HIDE_PLAYER:
+          this.toggleHide();
+          break;
+      }
+    });
     DOMElements.videoContainer.addEventListener('click', (e) => {
       clearTimeout(holdTimeout);
       if (lastSpeed !== null) {
@@ -478,49 +503,7 @@ export class InterfaceController {
         return;
       }
 
-      if (clickTimeout !== null) {
-        clickCount++;
-      } else {
-        clickCount = 1;
-      }
-      clearTimeout(clickTimeout);
-      clickTimeout = setTimeout(() => {
-        clickTimeout = null;
-
-        let clickAction;
-        if (clickCount === 1) {
-          clickAction = this.client.options.singleClickAction;
-        } else if (clickCount === 2) {
-          clickAction = this.client.options.doubleClickAction;
-        } else if (clickCount === 3) {
-          clickAction = this.client.options.tripleClickAction;
-        } else {
-          return;
-        }
-
-        switch (clickAction) {
-          case ClickActions.FULLSCREEN:
-            this.fullscreenToggle();
-            break;
-          case ClickActions.WINDOWED_FULLSCREEN:
-            this.toggleWindowedFullscreen();
-            break;
-          case ClickActions.PIP:
-            this.pipToggle();
-            break;
-          case ClickActions.PLAY_PAUSE:
-            this.playPauseToggle();
-            break;
-          case ClickActions.HIDE_CONTROLS:
-            this.focusingControls = false;
-            this.mouseOverControls = false;
-            this.hideControlBar();
-            break;
-          case ClickActions.HIDE_PLAYER:
-            this.toggleHide();
-            break;
-        }
-      }, clickCount < 3 ? 300 : 0);
+      clicks.click();
     });
     DOMElements.hideButton.addEventListener('click', () => {
       DOMElements.hideButton.blur();
