@@ -1424,7 +1424,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   async function onEpisode1(options = {}, link = 'clicked') {
     navigations = [];
     bg = await loadBackground({
-      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], autoplayNext: true, ...options},
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvAutoplayNext: true, autoplayCountdown: 0, ...options},
       tabs: [{id: 1, url: EP1}],
       fetch: playlists({[S1]: 1400, [S2]: 1400}),
       onTabMessage: ({frameId, message}) => {
@@ -1448,6 +1448,91 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
 
   /** What the background asked mpv to show (notify.lua). */
   const notices = (port) => port.sent.filter((m) => m.type === 'notify').map((m) => m.detail);
+  /** What it told mpv's autoplay switch to show (host 9's user-data/faststream/autoplay). */
+  const states = (port) => port.sent.filter((m) => m.type === 'state').map((m) => m.autoplay);
+
+  it('tells mpv\'s autoplay switch the setting once the watch began, and a change made on the options page', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'watching'});
+    await bg.wait(50);
+    expect(states(port)).toEqual([true]);
+    bg.options = {...bg.options, mpvAutoplayNext: false};
+    await bg.message({type: 'LOAD_OPTIONS'});
+    await bg.wait(50);
+    expect(states(port)).toEqual([true, false]);
+  });
+
+  it('counts down before the next episode, which the next-episode key or button skips', async () => {
+    let port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    await bg.wait(4000);
+    expect(navigations).toEqual([]);
+    await bg.wait(1000);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+    bg.unload();
+
+    port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(1000);
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+    // The countdown went with it: no second episode on top.
+    await bg.wait(6000);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+  });
+
+  it('stops the countdown with mpv\'s autoplay switch, which saves the setting and turns it back on', async () => {
+    const port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(1000);
+    port.emit({type: 'request', action: 'autoplay'});
+    await bg.wait(100);
+    expect(states(port)).toEqual([false]);
+    expect(notices(port).at(-1)).toBe('off');
+    // Saved, and an open options page told.
+    expect(bg.runtimeSent.map((m) => m.type)).toContain('LOAD_OPTIONS');
+    await bg.wait(6000);
+    expect(navigations).toEqual([]);
+
+    port.emit({type: 'request', action: 'autoplay'});
+    await bg.wait(100);
+    expect(states(port)).toEqual([false, true]);
+    expect(notices(port).at(-1)).toBe('on');
+  });
+
+  it('takes two quick presses of mpv\'s autoplay switch as two', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'request', action: 'autoplay'});
+    port.emit({type: 'request', action: 'autoplay'});
+    await bg.wait(200);
+    expect(states(port)).toEqual([false, true]);
+    expect(notices(port).slice(-2)).toEqual(['off', 'on']);
+  });
+
+  it('says so in mpv when the next page brings no stream within a minute', async () => {
+    let port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.wait(61000);
+    expect(notices(port).at(-1)).toBe('the page brought no stream within a minute; open it in the browser to see why');
+    bg.unload();
+
+    // Its stream came in time: nothing to say.
+    port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: S2, frameId: 6});
+    await bg.wait(61000);
+    expect(notices(port)).toEqual(['loading in mpv']);
+  });
 
   it('goes on to the next episode when mpv played one to its end, into the same mpv', async () => {
     const port = await onEpisode1();
@@ -1483,7 +1568,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     // the page, and the next episode would never come.
     navigations = [];
     bg = await loadBackground({
-      options: {mpvMode: true, autoplayNext: true},
+      options: {mpvMode: true, mpvAutoplayNext: true, autoplayCountdown: 0},
       tabs: [{id: 1, url: EP1}],
       fetch: playlists({[S1]: 1400, [S2]: 1400}),
       onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),
@@ -1504,8 +1589,8 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.toMpv()).toEqual([S1, S2]);
   });
 
-  it('leaves an end alone without "Autoplay next video", and a file mpv got elsewhere', async () => {
-    let port = await onEpisode1({autoplayNext: false});
+  it('leaves an end alone without "Autoplay next episode in mpv", and a file mpv got elsewhere', async () => {
+    let port = await onEpisode1({mpvAutoplayNext: false});
     port.emit({type: 'ended', path: S1});
     await bg.wait(100);
     expect(navigations).toEqual([]);
@@ -1518,7 +1603,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   });
 
   it('goes on with mpv\'s keys, next and previous, autoplay on or off', async () => {
-    const port = await onEpisode1({autoplayNext: false});
+    const port = await onEpisode1({mpvAutoplayNext: false});
     port.emit({type: 'request', action: 'previous'});
     await bg.wait(100);
     port.emit({type: 'request', action: 'next'});
@@ -1540,7 +1625,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     const S3 = 'https://cdn.test/other/master.m3u8';
     navigations = [];
     bg = await loadBackground({
-      options: {mpvMode: true, mpvAllowlist: ['https://other.test/'], autoplayNext: true},
+      options: {mpvMode: true, mpvAllowlist: ['https://other.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
       tabs: [{id: 1, url: EP1}, {id: 2, url: 'https://other.test/film'}],
       fetch: playlists({[S1]: 1400, [S2]: 1400, [S3]: 1400}),
       onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),

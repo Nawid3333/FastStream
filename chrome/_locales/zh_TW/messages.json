@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "分頁已關閉，或不在 MPV 模式"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "下一集自動播放的倒數計時，單位為秒 (0: 無)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "在 mpv 中自動播放下一集 (mpv 中的自動播放按鈕也可以切換)"
+    },
+    "mpv_autoplay_title": {
+        "message": "自動播放"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "下一集將在 $1 秒後開始 (n: 立即, 自動播放按鈕: 停止)"
+    },
+    "mpv_autoplay_on": {
+        "message": "開啟"
+    },
+    "mpv_autoplay_off": {
+        "message": "關閉"
+    },
+    "mpv_episode_nostream": {
+        "message": "頁面在一分鐘內未提供串流媒體；請在瀏覽器中打開以查看原因"
     }
 }

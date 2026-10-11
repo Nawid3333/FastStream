@@ -103,7 +103,7 @@ jobs:
       # edit a workflow). check-latest: otherwise the action takes the Node cached in
       # the runner image, which lags - 22.23.2 on 2026-09-25, two days after 22.23.3
       # was out. Every workflow here asks for the newest, as tools/linux/setup.sh does.
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           check-latest: true
@@ -154,7 +154,7 @@ jobs:
       # with the latest release; nothing reads it later. GitHub's default kept every
       # run's copy for 90 days (57 of them, 469 MB, in September 2026).
       - name: Upload extension bundles
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: faststream-bundles
           path: built/*.zip
@@ -179,7 +179,7 @@ jobs:
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           check-latest: true
@@ -232,7 +232,7 @@ jobs:
 
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           check-latest: true
@@ -352,7 +352,7 @@ jobs:
 
       - name: Upload the list of retried specs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-retried-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs/retried.jsonl
@@ -373,7 +373,7 @@ jobs:
       # (driverLogs.mjs keeps each attempt's) is what shows why it failed.
       - name: Upload e2e failure logs
         if: failure() || hashFiles('logs/retried.jsonl') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-logs-${{ matrix.os }}-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs/
@@ -386,7 +386,7 @@ jobs:
       # deletes its log, so on most runs there is nothing here and nothing is uploaded.
       - name: Upload Firefox logs of failed attempts
         if: ${{ !cancelled() && matrix.os == 'Windows' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-moz-logs-windows-${{ matrix.suite }}-${{ matrix.shard }}
           path: logs-moz/

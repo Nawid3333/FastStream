@@ -127,15 +127,23 @@ add-on shortcut settings) puts the tab in MPV: the next video you start
 there goes to mpv. FastStream does nothing for YouTube; paste a YouTube link
 into mpv yourself, which opens it with yt-dlp.
 
-**A series in one mpv window.** When an episode played in mpv ends and
-**Autoplay next video** is on (the switch beside the player's Next button), FastStream
-goes on to the next episode in the page, as the player's Next button would, and its
-stream replaces the old one in the same mpv window. `n` and `N` in mpv do the same for
-the next and the previous episode at any time (the
-[mpv setup](https://github.com/Nawid3333/mpv) binds them; elsewhere bind
-`script-message faststream-next` and `script-message faststream-previous`). mpv shows
-what happens, or that the page has no next episode. This needs helper version 7 and
-**Reuse one mpv window**, and the episode's tab stays open in MPV mode.
+**A series in one mpv window.** When an episode played in mpv ends and **Autoplay next
+episode in mpv** is on (the default), mpv counts down (**Countdown before the next
+episode**, 5 s; 0 = none), then FastStream goes on to the next episode in the page, as
+the player's Next button would, and its stream replaces the old one in the same mpv window.
+
+- In mpv: the previous-episode and next-episode buttons, and `n` / `N`, go there at
+  once (also during the countdown); the autoplay button switches autoplay on or off for
+  mpv, and stops a running countdown. These buttons come with the
+  [mpv setup](https://github.com/Nawid3333/mpv) and show only while FastStream follows
+  the window. Elsewhere bind `script-message faststream-next`,
+  `script-message faststream-previous` and `script-message faststream-autoplay`.
+- mpv says what happens: the next episode loading, that the page has no next episode,
+  that its tab is closed, or that the next page brought no stream within a minute.
+- **The episode's tab must stay open** (in MPV mode): the page is what knows the next
+  episode. Close it, or close Firefox, and mpv plays on; the episode buttons go away,
+  and the series continues once you open the page again and send an episode.
+- It needs helper version 9 and **Reuse one mpv window**.
 
 ## Options
 

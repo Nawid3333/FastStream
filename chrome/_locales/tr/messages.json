@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "sekmesi kapalı veya MPV modu etkin değil"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Sonraki bölüme kadar geri sayım, saniye cinsinden (0: yok)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "mpv'de sonraki bölümü otomatik oynat (mpv'deki otomatik oynatma düğmesi de bunu değiştirir)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Otomatik oynatma"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "sonraki bölüm $1 sn içinde (n: şimdi, otomatik oynatma düğmesi: durdur)"
+    },
+    "mpv_autoplay_on": {
+        "message": "açık"
+    },
+    "mpv_autoplay_off": {
+        "message": "kapalı"
+    },
+    "mpv_episode_nostream": {
+        "message": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"
     }
 }
