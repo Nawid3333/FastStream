@@ -66,3 +66,54 @@ describe('EpisodeLinks.neighbourEpisodeUrls', () => {
     expect(EpisodeLinks.neighbourEpisodeUrls('not a url', true)).toEqual([]);
   });
 });
+
+// His report (2026-10-11, aniworld.cc): after a season's last episode, autoplay went on to
+// another series.
+describe('EpisodeLinks.seriesOf / inSeries', () => {
+  const ANIWORLD = 'https://aniworld.cc/anime/stream/the-100-girlfriends';
+  it.each([
+    [`${ANIWORLD}/staffel-3/episode-12`, `${ANIWORLD}/`],
+    ['https://s.to/serie/stream/hellbound/staffel-1/episode-3', 'https://s.to/serie/stream/hellbound/'],
+    ['https://a.test/show/x/season_2/ep-5/', 'https://a.test/show/x/'],
+    ['https://a.test/tv/x/S02E05', 'https://a.test/tv/x/'],
+    ['https://a.test/tv/x/2x05', 'https://a.test/tv/x/'],
+    ['https://a.test/anime/x/folge12.html', 'https://a.test/anime/x/'],
+    ['https://a.test/watch/one-piece-episode-1000', 'https://a.test/watch/one-piece-'],
+  ])('tells the series of %s: %s', (page, series) => {
+    expect(EpisodeLinks.seriesOf(page)).toBe(series);
+  });
+
+  it('tells none where the address names no season or episode', () => {
+    expect(EpisodeLinks.seriesOf('https://a.test/watch/12345')).toBe(null);
+    expect(EpisodeLinks.seriesOf('https://a.test/anime/stream/the-100-girlfriends')).toBe(null);
+    expect(EpisodeLinks.seriesOf('not a url')).toBe(null);
+  });
+
+  it('keeps a link of the series, its other seasons too, and not another series', () => {
+    const series = EpisodeLinks.seriesOf(`${ANIWORLD}/staffel-3/episode-12`);
+    expect(EpisodeLinks.inSeries(series, `${ANIWORLD}/staffel-4/episode-1`)).toBe(true);
+    expect(EpisodeLinks.inSeries(series, `${ANIWORLD}/staffel-3`)).toBe(true);
+    expect(EpisodeLinks.inSeries(series, 'https://aniworld.cc/anime/stream/kaiju-girl-caramelise')).toBe(false);
+    expect(EpisodeLinks.inSeries(series, 'https://aniworld.cc/anime/stream/the-100-girlfriends-2/staffel-1/episode-1'))
+        .toBe(false);
+    expect(EpisodeLinks.inSeries(EpisodeLinks.seriesOf('https://a.test/watch/one-piece-episode-1000'),
+        'https://a.test/watch/naruto-episode-1')).toBe(false);
+    // No series told: any link may be the next.
+    expect(EpisodeLinks.inSeries(null, 'https://a.test/anything')).toBe(true);
+  });
+});
+
+describe('EpisodeLinks.nextSeason', () => {
+  it('goes from a season\'s episode to the next season and its first episode', () => {
+    expect(EpisodeLinks.nextSeason('https://s.to/serie/stream/x/staffel-3/episode-12?a=1#t')).toEqual({
+      season: 'https://s.to/serie/stream/x/staffel-4',
+      first: 'https://s.to/serie/stream/x/staffel-4/episode-1',
+    });
+    expect(EpisodeLinks.nextSeason('https://a.test/show/x/season-09/ep-012/').first).toBe('https://a.test/show/x/season-10/ep-001/');
+  });
+
+  it('has none for an address without a season', () => {
+    expect(EpisodeLinks.nextSeason('https://a.test/watch/12')).toBe(null);
+    expect(EpisodeLinks.nextSeason('https://a.test/tv/x/S02E05')).toBe(null);
+  });
+});

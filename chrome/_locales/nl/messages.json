@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Autoplay voor dit tabblad stoppen"
+    },
+    "player_autoplay_series_end": {
+        "message": "Laatste aflevering van de serie: autoplay gestopt"
+    },
+    "player_autoplay_no_next": {
+        "message": "Geen volgende aflevering gevonden op deze pagina: autoplay gestopt"
+    },
+    "mpv_episode_series_end": {
+        "message": "de laatste aflevering van de serie: autoplay stopt"
     }
 }

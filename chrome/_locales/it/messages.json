@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Interrompi l'autoplay per questa scheda"
+    },
+    "player_autoplay_series_end": {
+        "message": "Ultimo episodio della serie: autoplay interrotto"
+    },
+    "player_autoplay_no_next": {
+        "message": "Nessun episodio successivo trovato in questa pagina: autoplay interrotto"
+    },
+    "mpv_episode_series_end": {
+        "message": "l'ultimo episodio della serie: l'autoplay si interrompe"
     }
 }

@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Stop autoplay for this tab"
+    },
+    "player_autoplay_series_end": {
+        "message": "Last episode of the series: autoplay stopped"
+    },
+    "player_autoplay_no_next": {
+        "message": "No next episode found on this page: autoplay stopped"
+    },
+    "mpv_episode_series_end": {
+        "message": "the last episode of the series: autoplay stops"
     }
 }

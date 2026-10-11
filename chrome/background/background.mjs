@@ -2775,6 +2775,7 @@ async function goToEpisode(state, direction) {
   state.going = true;
   const frameIds = Array.from(tab.frames.keys()).sort((a, b) => a - b);
   let clicked = false;
+  let seriesEnd = false;
   try {
     for (const frameId of frameIds) {
       const answer = await new Promise((resolve) => {
@@ -2787,9 +2788,20 @@ async function goToEpisode(state, direction) {
         clicked = true;
         break;
       }
+      // The page is the series' last episode (content.js isSeriesEnd): no other frame (a
+      // hoster's, whose links are other videos) is asked.
+      if (answer === 'series_end') {
+        seriesEnd = true;
+        break;
+      }
     }
   } finally {
     state.going = false;
+  }
+  if (seriesEnd) {
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_series_end') ||
+      'the last episode of the series: autoplay stops');
+    return;
   }
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');

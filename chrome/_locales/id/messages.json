@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Hentikan autoplay untuk tab ini"
+    },
+    "player_autoplay_series_end": {
+        "message": "Episode terakhir dari seri: putar otomatis berhenti"
+    },
+    "player_autoplay_no_next": {
+        "message": "Tidak ditemukan episode berikutnya di halaman ini: putar otomatis berhenti"
+    },
+    "mpv_episode_series_end": {
+        "message": "episode terakhir dari seri: putar otomatis berhenti"
     }
 }

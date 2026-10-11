@@ -90,3 +90,64 @@ describe('the next episode\'s link', () => {
     expect(assigned).toEqual(['https://site.example/watch/2']);
   });
 });
+
+// His report (2026-10-11, aniworld.cc): after a season's last episode, autoplay went on to
+// another series. The next episode stays in the series: its next season's first, or none.
+describe('the next episode, within the series', () => {
+  const SERIES = 'https://site.example/anime/stream/girlfriends';
+
+  /**
+   * A season's episode page as aniworld.cc has it: the seasons, the season's episodes, and
+   * other series after them (a "similar anime" list).
+   * @param {number} season
+   * @param {number} episode
+   * @param {number} [seasons] - How many seasons the page links.
+   * @return {Object} episodePage()'s page.
+   */
+  function seasonPage(season, episode, seasons = 3) {
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-${season}/episode-${episode}`,
+      pathname: `/anime/stream/girlfriends/staffel-${season}/episode-${episode}`});
+    for (let s = 1; s <= seasons; s++) page.link(`${SERIES}/staffel-${s}`, `Staffel ${s}`);
+    for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-${season}/episode-${e}`, String(e));
+    page.link('https://site.example/anime/stream/kaiju-girl', 'KAIJU GIRL CARAMELISE');
+    page.link('https://site.example/anime/stream/yowayowa-sensei', 'Yowayowa Sensei');
+    return page;
+  }
+
+  it('goes on to the season\'s next episode', async () => {
+    const {next, assigned} = seasonPage(3, 11);
+    expect(await next()).toBe('clicked');
+    expect(assigned).toEqual([`${SERIES}/staffel-3/episode-12`]);
+  });
+
+  it('goes on to the next season\'s first episode after a season\'s last', async () => {
+    const {next, assigned} = seasonPage(2, 12);
+    expect(await next()).toBe('clicked');
+    expect(assigned).toEqual([`${SERIES}/staffel-3/episode-1`]);
+  });
+
+  it('stops after the last season\'s last episode, and never takes another series', async () => {
+    const {next, assigned, clicked} = seasonPage(3, 12);
+    expect(await next()).toBe('series_end');
+    expect(assigned).toEqual([]);
+    expect(clicked).toEqual([]);
+  });
+
+  it('does not take a "next episode" link of another series either', async () => {
+    const {link, next, assigned} = seasonPage(3, 12);
+    link('https://site.example/anime/stream/kaiju-girl/staffel-1/episode-1', 'Next episode');
+    expect(await next()).toBe('series_end');
+    expect(assigned).toEqual([]);
+  });
+
+  it('tells the player the series ended there, and not where it cannot read the page', async () => {
+    const last = seasonPage(3, 12);
+    expect(await last.p.send({type: 'PLAYLIST_POLL'})).toEqual({next: false, previous: true, seriesEnd: true});
+    expect(await seasonPage(3, 11).p.send({type: 'PLAYLIST_POLL'})).toEqual({next: true, previous: true, seriesEnd: false});
+    // An address with no season or episode in it: a page FastStream cannot read, no end.
+    const unknown = episodePage();
+    expect(await unknown.p.send({type: 'PLAYLIST_POLL'})).toEqual({next: false, previous: false, seriesEnd: false});
+    expect(await unknown.next()).toBe('no_button');
+  });
+});

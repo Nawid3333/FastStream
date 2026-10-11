@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "이 탭의 자동 재생 중지"
+    },
+    "player_autoplay_series_end": {
+        "message": "시리즈의 마지막 에피소드: 자동 재생이 중단되었습니다"
+    },
+    "player_autoplay_no_next": {
+        "message": "이 페이지에서 다음 에피소드를 찾을 수 없습니다: 자동 재생이 중단되었습니다"
+    },
+    "mpv_episode_series_end": {
+        "message": "시리즈의 마지막 에피소드: 자동 재생이 중단됩니다"
     }
 }

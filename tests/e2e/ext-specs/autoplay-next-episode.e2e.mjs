@@ -4,6 +4,7 @@
 // video on a click on it. After FastStream went to the next episode by itself, it starts the
 // page's player (content.js startPagePlayer, background.mjs startPagePlayers), takes the
 // stream, and its own player plays it, all without a click.
+import fs from 'node:fs';
 import http from 'node:http';
 
 import {browser, expect} from '@wdio/globals';
@@ -15,6 +16,8 @@ const SITE = `http://127.0.0.1:${PORT}`;
 let server;
 
 const next = (to) => `<p><a href="/${to}" style="display: inline-block; width: 120px; height: 24px">Next episode</a></p>`;
+const SERIES = '/anime/stream/girls';
+const en = JSON.parse(fs.readFileSync(new URL('../../../chrome/_locales/en/messages.json', import.meta.url), 'utf8'));
 const style = 'width: 640px; height: 360px; display: block';
 
 /**
@@ -87,7 +90,27 @@ function pages(file) {
     video.play().catch(() => {});
   });
 </script>`,
+    // A series as aniworld.cc has it (his report, 2026-10-11: after a season's last episode,
+    // autoplay went on to another series): its season, its episodes, then other series.
+    [`${SERIES}/staffel-1/episode-1`]: seriesPage(file, 1),
+    [`${SERIES}/staffel-1/episode-2`]: seriesPage(file, 2),
+    '/anime/stream/other/staffel-1/episode-1': `<!doctype html><title>another series</title>
+<video preload="auto" style="${style}" src="${file}?ep=99"></video>`,
   };
+}
+
+/**
+ * An episode of a two-episode series, as aniworld.cc lays it out.
+ * @param {string} file - The video.
+ * @param {number} episode
+ * @return {string}
+ */
+function seriesPage(file, episode) {
+  return `<!doctype html><meta charset="utf-8"><title>girls, episode ${episode}</title>
+<video preload="auto" style="${style}" src="${file}?ep=2${episode}"></video>
+<ul><li><a href="${SERIES}/staffel-1">Staffel 1</a></li></ul>
+<ul><li><a href="${SERIES}/staffel-1/episode-1">1</a></li><li><a href="${SERIES}/staffel-1/episode-2">2</a></li></ul>
+<ul><li><a href="/anime/stream/other/staffel-1/episode-1">Another series</a></li></ul>`;
 }
 
 /**
@@ -222,5 +245,31 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     await intoPlayer('the next episode');
     await browser.waitUntil(() => browser.execute(() => !window.fastStream.state.carriedFullscreen &&
         !window.fastStream.state.windowedFullscreen), {timeout: 10000, timeoutMsg: 'the player still fills the page'});
+  });
+
+  it('stops after the series\' last episode, says so, and never goes on to another series', async function() {
+    await browser.url('about:blank');
+    await browser.url(`${SITE}${SERIES}/staffel-1/episode-1`);
+    await intoPlayer('the series\' first episode');
+    await playToTheEnd();
+
+    await onPage(`${SERIES}/staffel-1/episode-2`);
+    await intoPlayer('the series\' last episode');
+    expect((await playsByItself(22))?.paused).toBe(false);
+    // The page told the player its series ends here (content.js isSeriesEnd).
+    await browser.waitUntil(() => browser.execute(() => window.fastStream.state.seriesEnd === true &&
+        !window.fastStream.hasNextVideo()), {timeout: 30000, timeoutMsg: 'the player never heard the series ends there'});
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.currentTime = Math.max(0, client.duration - 1.5);
+      client.play();
+    });
+    const said = en.player_autoplay_series_end.message;
+    await browser.waitUntil(() => browser.execute((said) => Array.from(document.querySelectorAll('.mainplayer .status_message'))
+        .some((el) => el.textContent.includes(said)), said), {timeout: 15000, timeoutMsg: 'the player did not say the series ended'});
+    // A while later the tab is still on the series.
+    await browser.pause(4000);
+    await browser.switchFrame(null);
+    expect(await browser.getUrl()).toBe(`${SITE}${SERIES}/staffel-1/episode-2`);
   });
 });

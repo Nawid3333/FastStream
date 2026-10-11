@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Zatrzymaj autoplay dla tej karty"
+    },
+    "player_autoplay_series_end": {
+        "message": "Ostatni odcinek serialu: autoodtwarzanie zatrzymane"
+    },
+    "player_autoplay_no_next": {
+        "message": "Nie znaleziono następnego odcinka na tej stronie: autoodtwarzanie zatrzymane"
+    },
+    "mpv_episode_series_end": {
+        "message": "ostatni odcinek serialu: autoodtwarzanie zostaje zatrzymane"
     }
 }

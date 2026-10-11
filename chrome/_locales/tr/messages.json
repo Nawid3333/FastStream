@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Bu sekme için otomatik oynatmayı durdur"
+    },
+    "player_autoplay_series_end": {
+        "message": "Serinin son bölümü: otomatik oynatma durduruldu"
+    },
+    "player_autoplay_no_next": {
+        "message": "Bu sayfada sonraki bölüm bulunamadı: otomatik oynatma durduruldu"
+    },
+    "mpv_episode_series_end": {
+        "message": "serinin son bölümü: otomatik oynatma durur"
     }
 }

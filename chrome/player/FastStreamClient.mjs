@@ -110,6 +110,8 @@ export class FastStreamClient extends EventEmitter {
       bufferAhead: this.options.bufferAhead,
       hasNextVideo: false,
       hasPrevVideo: false,
+      // No next video because the page is its series' last episode (pollPrevNext).
+      seriesEnd: false,
       fullscreen: false,
       miniplayer: false,
       windowedFullscreen: false,
@@ -237,6 +239,8 @@ export class FastStreamClient extends EventEmitter {
           resolve(null);
           return;
         }
+        // No next because the series ended there (content.js isSeriesEnd).
+        this.state.seriesEnd = !!response.seriesEnd;
         if (this.state.hasNextVideo !== response.next || this.state.hasPrevVideo !== response.previous) {
           this.state.hasPrevVideo = response.previous;
           this.state.hasNextVideo = response.next;
@@ -2000,12 +2004,19 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ENDED, (event) => {
       this.pause();
-      // The end with autoplay on and no next episode found: the last one, or a page
-      // FastStream cannot read yet - noted for the options page's problem list.
-      if (this.options.autoplayNext && !this.hasNextVideo() && EnvUtils.isExtension()) {
-        chrome.runtime.sendMessage({type: MessageTypes.REPORT_AUTOPLAY_PROBLEM, kind: 'no_next'}, () => {
-          void chrome.runtime.lastError;
-        });
+      // The end with autoplay on and no next episode: autoplay stops and says why (his wish,
+      // 2026-10-11) - the series' last episode (content.js isSeriesEnd), or a page FastStream
+      // cannot read yet, which is also noted for the options page's problem list.
+      if (this.options.autoplayNext && this.player && window.top !== window.self && !this.hasNextVideo() &&
+          EnvUtils.isExtension()) {
+        if (this.state.seriesEnd) {
+          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_autoplay_series_end'), 'info', 15000);
+        } else {
+          this.interfaceController.setStatusMessage('info', Localize.getMessage('player_autoplay_no_next'), 'warning', 15000);
+          chrome.runtime.sendMessage({type: MessageTypes.REPORT_AUTOPLAY_PROBLEM, kind: 'no_next'}, () => {
+            void chrome.runtime.lastError;
+          });
+        }
       }
       this.autoplayNextVideo();
     });
