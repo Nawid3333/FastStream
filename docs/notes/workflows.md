@@ -119,14 +119,15 @@
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
-  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
-  5 days old, changes `packageManager` in `package.json` and nothing else, and waits
+  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, as soon as it
+  is out, changes `packageManager` in `package.json` and nothing else, and waits
   for the owner's merge. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
-  wants it rewritten fails CI and reaches the owner. A newer pnpm major waits
-  for dependabot-core#15904 to close, then comes the same way (pnpm 12's two-document
-  lockfile hides every dependency from GitHub's dependency graph; 12.6.0 otherwise
-  passed the full verify on 2026-09-25).
+  wants it rewritten fails CI and reaches the owner. A newer pnpm major comes
+  the same way. pnpm 12 came by hand on 2026-10-11, with `pmOnFail: ignore` in
+  pnpm-workspace.yaml: pnpm's own version switching wrote a first lockfile document that
+  hides every dependency from GitHub's dependency graph (dependabot-core#15904), and
+  without it pnpm-lock.yaml stays one document, byte for byte what pnpm 11 wrote.
   A title is never used twice (issue or PR, open or closed): closing one skips that
   version for good. An open PR closes itself when the project reaches that version,
   or when a newer one on the same track gets its own PR (on a push, which raises
@@ -142,8 +143,8 @@
   October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
-  proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
-  updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
+  proposed as soon as it is out (no `cooldown` in `.github/dependabot.yml` since
+  2026-10-11, the owner's call): npm minor/patch is split into `shipped-minor-and-patch`
   (fuse.js, mediabunny, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
@@ -174,8 +175,7 @@
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`), the
-  dependency review passed, every version its lockfile adds is 7 days old (fsaunpack's
-  `package-lock.json` read with jq), it is mergeable, it contains the newest `main`
+  dependency review passed (no package-age check since 2026-10-11), it is mergeable, it contains the newest `main`
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped and the patched
   libraries), CI's build of the extension (the `faststream-bundles`

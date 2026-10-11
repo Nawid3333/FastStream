@@ -8,16 +8,14 @@
 //     .nvmrc, so the pull request changes that one file. Routine: ready to merge once CI
 //     passes and the build is unchanged; the owner merges it (2026-10-02).
 //   - pnpm, same major: the newest release of the pinned major ("packageManager" in
-//     package.json) that is at least MIN_AGE_DAYS old, so a broken release is usually
-//     pulled or fixed before it is tried. Routine: .github/workflows/update-prs.yml says
+//     package.json), as soon as it is out (no minimum age since 2026-10-11, the owner's
+//     call: nothing merges itself, he merges each update once CI is green). Routine: .github/workflows/update-prs.yml says
 //     it is ready to merge once CI passes.
-//   - pnpm, next major: reported only once nothing blocks it. pnpm 12 writes
-//     pnpm-lock.yaml as two YAML documents; GitHub's dependency graph reads the first,
-//     which holds only pnpm's own binaries, and so sees none of the project's dependencies
-//     - Dependabot alerts and dependency-review.yml would go quiet
-//     (dependabot/dependabot-core#15904). Measured 2026-09-25: pnpm 12.6.0 otherwise passes
-//     the full `pnpm run verify`. Routine as the same major is, unless it wants the
-//     lockfile rewritten (CI fails at the frozen install, and the owner pushes it).
+//   - pnpm, next major: the same change, routine as the same major is, unless it wants the
+//     lockfile rewritten (CI fails at the frozen install, and the owner pushes it). pnpm 12
+//     came by hand on 2026-10-11; pmOnFail: ignore (pnpm-workspace.yaml) keeps its
+//     pnpm-lock.yaml one YAML document, which GitHub's dependency graph needs
+//     (dependabot/dependabot-core#15904).
 //
 // Usage: node tools/check-toolchain.mjs [--json | --plan <open.json> <titles.txt>]
 //   (none)   one line per update, for reading.
@@ -34,11 +32,12 @@ import {compareVersions} from './check-patched-updates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The issue that has to be closed before pnpm 12's lockfile is safe here. */
-export const PNPM12_BLOCKER = 'dependabot/dependabot-core#15904';
-
-/** How old a pnpm release must be before it is tried. */
-export const MIN_AGE_DAYS = 5;
+/**
+ * How old a release must be before it is tried: no wait since 2026-10-11 (the owner's call:
+ * nothing merges itself, he merges each update once CI is green). Every function that
+ * uses it still takes its own minimum age.
+ */
+export const MIN_AGE_DAYS = 0;
 
 /** Every update pull request's title starts with this; the workflow and the plan share it. */
 export const TITLE_PREFIX = 'Toolchain update: ';
@@ -158,23 +157,16 @@ async function updates() {
   const now = Date.now();
   const sameMajor = newestOfMajor(doc, major, now) || pnpmCurrent;
   const nextMajor = newestOfMajor(doc, major + 1, now);
-  const [blockerRepo, blockerNumber] = PNPM12_BLOCKER.split('#');
-  // Only the move onto 12 is blocked: 12 writes the two-document lockfile, and a project
-  // already on it has nothing more to lose.
-  const blocker = nextMajor && major + 1 === 12 ?
-    await getJson(`https://api.github.com/repos/${blockerRepo}/issues/${blockerNumber}`) : {state: 'closed'};
-  const blocked = blocker.state !== 'closed';
 
   const result = [
     {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > nodeCurrent,
       routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
     {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
-      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
+      routine: true, note: `newest ${major}.x is ${sameMajor}; pinned ${pin}`},
   ];
   if (nextMajor) {
-    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: !blocked, routine: true,
-      note: blocked ? `pnpm ${nextMajor} is out, still blocked by ${PNPM12_BLOCKER} (${blocker.state})` :
-        `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
+    result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,
+      note: `pnpm ${major + 1} is out: ${nextMajor}; pinned ${pin}`});
   }
   return result;
 }

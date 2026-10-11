@@ -21,11 +21,9 @@ name: Update PRs
 #               every one of these holds: opened by that bot and only its commits on it; it
 #               changes only what that kind of update changes (package.json and
 #               pnpm-lock.yaml; fsaunpack's two files; .nvmrc; workflow files; the two
-#               Dockerfiles; a re-cut's files); its dependency review passed; every package version it
-#               adds to the lockfile is 7 days old on the npm registry (Dependabot's cooldown
-#               holds back only what it bumps); and the branch holds the newest main, so
-#               what he merges is exactly what CI tested. The comment also says what the
-#               merge does:
+#               Dockerfiles; a re-cut's files); its dependency review passed; and the
+#               branch holds the newest main, so what he merges is exactly what CI tested.
+#               The comment also says what the merge does:
 #               - Dependabot's shipped libraries (tools/sync-vendor.mjs copies them into the
 #                 extension) and the patched libraries change what the
 #                 extension ships, and are meant to: his merge starts CI on main (a push of
@@ -493,57 +491,9 @@ jobs:
                 ships=1
               fi
             fi
-            if [ "$kind" = dependabot ] || [ "$kind" = patched ]; then
-              # Dependabot's cooldown holds back the packages it bumps for 5 days, not what the
-              # new lockfile brings in with them: a sub-dependency published an hour ago comes
-              # along unseen, and a poisoned release is usually caught within days. Every
-              # package version this pull request adds to pnpm-lock.yaml must be 7 days old,
-              # or it is not called ready. Whatever cannot be checked counts as too young.
-              lock_base=$(gh api "repos/$GH_REPO/compare/main...$SHA" --jq .merge_base_commit.sha)
-              lockfile=pnpm-lock.yaml
-              if [ "$fsa" = 1 ]; then lockfile=fsaunpack/package-lock.json; fi
-              if gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$lock_base" > "$RUNNER_TEMP/lock.base" &&
-                 gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/$lockfile?ref=$SHA" > "$RUNNER_TEMP/lock.head"; then
-                # One name@version per line: the keys of pnpm-lock.yaml's packages section, or
-                # npm's packages (node_modules/<name>, nested ones too; the project itself and
-                # links aside).
-                entries() {
-                  if [ "$fsa" = 1 ]; then
-                    jq -r '.packages // {} | to_entries[] | select((.key | startswith("node_modules/")) and (.value.link | not) and .value.version != null) |
-                      "\(.key | sub("^(.*/)?node_modules/"; ""))@\(.value.version)"' "$1" | LC_ALL=C sort -u
-                  else
-                    awk '/^packages:/ {f = 1; next} /^[^ ]/ {f = 0} f && /^  [^ ]/ {sub(/^  /, ""); sub(/:$/, ""); print}' "$1" |
-                      tr -d "'" | LC_ALL=C sort -u
-                  fi
-                }
-                entries "$RUNNER_TEMP/lock.base" > "$RUNNER_TEMP/lock.base.txt"
-                entries "$RUNNER_TEMP/lock.head" > "$RUNNER_TEMP/lock.head.txt"
-                cutoff=$(date -u -d '7 days ago' +%s)
-                young=()
-                while IFS= read -r entry; do
-                  name=${entry%@*}
-                  version=${entry##*@}
-                  published=$(curl -fsSL --retry 2 --max-time 60 "https://registry.npmjs.org/${name/\//%2F}" |
-                    jq -r --arg v "$version" '.time[$v] // empty' 2> /dev/null || true)
-                  seconds=''
-                  if [ -n "$published" ]; then seconds=$(date -u -d "$published" +%s 2> /dev/null || true); fi
-                  if [ -z "$seconds" ]; then
-                    young+=("$entry (age unknown)")
-                  elif [ "$seconds" -gt "$cutoff" ]; then
-                    young+=("$entry (published ${published:0:10})")
-                  fi
-                done < <(LC_ALL=C comm -13 "$RUNNER_TEMP/lock.base.txt" "$RUNNER_TEMP/lock.head.txt")
-                if [ ${#young[@]} != 0 ]; then
-                  reasons+=("its lockfile adds package versions under 7 days old or of unknown age, which Dependabot's cooldown does not hold back: $(printf '%s; ' "${young[@]}" | sed 's/; $//')")
-                fi
-              else
-                reasons+=("its $lockfile could not be read, to check how old the package versions it adds are")
-              fi
-            fi
             if [ "$kind" = pnpm ]; then
-              # The same major or the next: toolchain-updates.yml raises the next only once
-              # nothing blocks it (tools/check-toolchain.mjs). Should that pnpm want the lockfile
-              # rewritten, CI fails at the frozen install, and the pull request waits.
+              # The same major or the next (tools/check-toolchain.mjs). Should that pnpm want
+              # the lockfile rewritten, CI fails at the frozen install, and the pull request waits.
               version=${BRANCH#toolchain/pnpm-}
               # The one change toolchain-updates.yml makes: packageManager, to the branch's
               # version. The lockfile stays as it is (CI installed it frozen with this pnpm);

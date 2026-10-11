@@ -14,15 +14,15 @@ exactly that. Exit codes: 0 nothing to do (or all applied), 1 a step failed, 2 t
 found something to update.
 
 What it checks, and what -Apply does about it:
-  - Node.js: the newest release of the major .nvmrc names, the one CI builds with, once it
-    is 5 days old (CI's rule). -Apply fetches the installer from nodejs.org, checked against
-    its SHASUMS256.txt and the OpenJS Foundation's code signature; Windows asks for admin
-    rights to run it.
-  - npm, installed globally (%APPDATA%\npm): its newest release, 5 days old. -Apply installs
+  - Node.js: the newest release of the major .nvmrc names, the one CI builds with. -Apply
+    fetches the installer from nodejs.org, checked against its SHASUMS256.txt and the
+    OpenJS Foundation's code signature; Windows asks for admin rights to run it.
+  - npm, installed globally (%APPDATA%\npm): its newest release. -Apply installs
     it with npm install --global --ignore-scripts.
   - pnpm, installed globally with npm: at least the version package.json pins
-    ("packageManager"); inside the repository pnpm switches to that version by itself.
-    -Apply installs it the same way.
+    ("packageManager"); pnpm does not switch versions by itself (pmOnFail: ignore in
+    pnpm-workspace.yaml). -Apply installs it with npm install --global, allowing pnpm's own
+    install script only: it puts pnpm.exe where the commands point.
   - The repository: on main with nothing uncommitted, how many commits main is behind origin
     (the check reports against what git already knows; -Apply fetches, then runs
     git pull --ff-only), then pnpm install --frozen-lockfile into the store node_modules was
@@ -31,8 +31,8 @@ What it checks, and what -Apply does about it:
   - The mpv helper: whether %LOCALAPPDATA%\FastStreamMpvHost's copy is the repository's;
     -Apply runs native-host\install.ps1 again, with the mpv and Node paths it was installed
     with.
-  - WSL, which pnpm run verify:linux runs in: microsoft/WSL's latest release, once it is 5
-    days old (until 2026-10-04 a daily workflow opened an issue for each release). -Apply
+  - WSL, which pnpm run verify:linux runs in: microsoft/WSL's latest release
+    (until 2026-10-04 a daily workflow opened an issue for each release). -Apply
     runs wsl --update (Windows may ask for admin rights), then wsl --shutdown, so the next
     start runs the new version: that stops every running distro, a verify:linux run with
     it. A PC without WSL is only told so.
@@ -144,7 +144,7 @@ Invoke-Step 'Node.js' {
         Note "Node.js ${have}: kept, newer than the $major.x .nvmrc names"
     }
     elseif (-not $want) {
-        Note "Node.js ${have}: no $major.x release is 5 days old yet, kept"
+        Note "Node.js ${have}: no $major.x release found, kept"
     }
     elseif ((ConvertTo-Version $have) -ge (ConvertTo-Version $want)) {
         Note "Node.js ${have}: up to date"
@@ -206,10 +206,14 @@ Invoke-Step 'pnpm' {
         Note "pnpm ${have}: up to date (package.json pins $pin)"
     }
     elseif (-not $Apply) {
-        Add-Due "pnpm ${have}: $pin is pinned (npm install --global --ignore-scripts pnpm@$pin); -Apply installs it"
+        Add-Due "pnpm ${have}: $pin is pinned (npm install --global --allow-scripts=pnpm@$pin pnpm@$pin); -Apply installs it"
     }
     else {
-        Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global --ignore-scripts "pnpm@$pin" }
+        # pnpm 12 is a native program: its install script links pnpm.exe in place of the
+        # placeholder bins and has npm point its Windows shims at it. Without the script
+        # (--ignore-scripts, as until pnpm 11) pnpm.cmd runs the placeholder, an sh script
+        # that cmd and PowerShell cannot start. --allow-scripts runs pnpm's script and no other.
+        Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global "--allow-scripts=pnpm@$pin" "pnpm@$pin" }
     }
 }
 
@@ -343,7 +347,7 @@ Invoke-Step 'WSL' {
         }
         $want = Get-NewestRelease 'wsl' 'WSL'
         if (-not $want) {
-            Note "WSL ${have}: its newest release is not 5 days old yet, kept"
+            Note "WSL ${have}: no stable release found, kept"
         }
         elseif ((ConvertTo-Version $have) -ge (ConvertTo-Version $want)) {
             Note "WSL ${have}: up to date"

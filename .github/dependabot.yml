@@ -12,7 +12,7 @@
 # What happens to each PR once CI has run is update-prs.yml's job: it reports, and nothing
 # merges itself (the owner's choice, 2026-10-02: every PR waits for his merge). A red one
 # is reported to the owner; a green one is called ready to merge when it changes only
-# package.json and pnpm-lock.yaml and adds no package version under 7 days old. A tooling
+# package.json and pnpm-lock.yaml. A tooling
 # update must also leave the built extension identical to the latest release, so it
 # releases nothing. The libraries the extension ships (tools/sync-vendor.mjs copies them
 # into it) are grouped apart, in shipped-minor-and-patch: merging that PR starts CI on
@@ -21,9 +21,8 @@
 # a branch of its own: update-prs.yml tells a shipped library's by the patterns of
 # shipped-minor-and-patch below, read from main.
 #
-# cooldown: a release is proposed once it is 5 days old. A package taken over to
-# publish malware is usually caught and pulled within days, and routine PRs now
-# merge without anyone reading them. Security updates skip the wait.
+# No cooldown (removed 2026-10-11, the owner's call): a release is proposed as soon as it
+# is out. Nothing merges itself; every PR waits for the owner's merge once CI is green.
 #
 # Security updates are separate from this file (Settings > Code security >
 # Dependabot security updates) and still open a PR for any vulnerable package,
@@ -35,8 +34,6 @@ updates:
     directory: '/'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
     open-pull-requests-limit: 10
     labels:
       - 'dependencies'
@@ -88,13 +85,11 @@ updates:
   # part of the extension. CI installs that lockfile and starts the test server on a
   # recorded archive (pnpm run verify:fsaunpack), with install scripts off. update-prs.yml
   # calls a PR ready to merge when it changes only fsaunpack/package.json and
-  # fsaunpack/package-lock.json and every version that lockfile adds is 7 days old.
+  # fsaunpack/package-lock.json.
   - package-ecosystem: 'npm'
     directory: '/fsaunpack'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -115,8 +110,6 @@ updates:
       - '/.github/actions/*'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
     open-pull-requests-limit: 5
     labels:
       - 'dependencies'
@@ -136,8 +129,6 @@ updates:
       - '/.github/zizmor'
     schedule:
       interval: 'weekly'
-    cooldown:
-      default-days: 5
     open-pull-requests-limit: 2
     labels:
       - 'dependencies'
