@@ -53,6 +53,9 @@ const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
 // the load error within seconds; one that plays on between rare errors keeps recovering.
 const RECOVERY_LIMIT = 3;
 const RECOVERY_WINDOW_MS = 120000;
+// How long a stream may stay stuck in its last seconds before autoplay takes it as ended
+// (watchEndStall).
+const EndStallMs = 3000;
 
 export class FastStreamClient extends EventEmitter {
   /**
@@ -1862,6 +1865,8 @@ export class FastStreamClient extends EventEmitter {
     // A lookup for the last video is not this one's (loadProgressData).
     this.progressLoad = null;
     this.autoNextRequested = false;
+    // A stall watched at the old video's end is none of the new one's.
+    this.cancelEndStall();
     this.state.bufferBehind = this.options.bufferBehind;
     this.state.bufferAhead = this.options.bufferAhead;
     if (this.context) {
@@ -2050,6 +2055,7 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.PAUSE, (event) => {
+      this.cancelEndStall();
       this.interfaceController.pause();
       this.reportPlaying(false);
       this.updatePeers();
@@ -2064,6 +2070,7 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.PLAYING, (event) => {
+      this.cancelEndStall();
       this.interfaceController.setBuffering(false);
     });
 
@@ -2082,6 +2089,7 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.SEEKING, (event) => {
+      this.cancelEndStall();
     });
 
 
@@ -2110,6 +2118,7 @@ export class FastStreamClient extends EventEmitter {
         this.autoplayNextVideo();
         return;
       }
+      this.watchEndStall();
       this.interfaceController.setBuffering(true);
     });
 
@@ -2565,6 +2574,37 @@ export class FastStreamClient extends EventEmitter {
    * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
    * Playing again (after a seek back, say) lets the end ask again.
    */
+  /**
+   * A stream stuck in its last seconds goes on to the next video (his report, 2026-10-11:
+   * "sometimes it seems to hang"). A last fragment that does not come (a hoster's 404, a
+   * timeout) or a playlist longer than its media leaves the video waiting a few seconds
+   * before its end, which it then never reaches, where autoplay waited for the last
+   * second. Stuck there for EndStallMs, not paused and not seeking, is the end. Measured
+   * first: a seek to the end, playing or paused, MP4 or HLS, reached `ended` as it is.
+   */
+  watchEndStall() {
+    this.cancelEndStall();
+    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo() || !(this.duration > 5)) return;
+    const left = this.duration - this.currentTime;
+    // The last 5 %, at least 3 s and at most 10 s: about one fragment of a real stream.
+    if (left > Math.min(10, Math.max(3, this.duration * 0.05))) return;
+    const at = this.currentTime;
+    this.endStallTimer = setTimeout(() => {
+      this.endStallTimer = null;
+      const video = this.player?.getVideo?.();
+      if (!video || video.paused || video.seeking || Math.abs(this.currentTime - at) > 0.25) return;
+      this.autoplayNextVideo();
+    }, EndStallMs);
+  }
+
+  /** Stops watching a stall at the end: it played on, was paused or sought. */
+  cancelEndStall() {
+    if (this.endStallTimer) {
+      clearTimeout(this.endStallTimer);
+      this.endStallTimer = null;
+    }
+  }
+
   autoplayNextVideo() {
     if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
     this.autoNextRequested = true;

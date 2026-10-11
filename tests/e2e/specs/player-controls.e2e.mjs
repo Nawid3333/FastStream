@@ -404,6 +404,38 @@ describe('Player controls', function() {
       session: 'false', badge: 'none'});
   });
 
+  it('goes on to the next video when the stream gets stuck in its last seconds', async function() {
+    // His report (2026-10-11): "sometimes it seems to hang" at the end. A last fragment that
+    // never comes (here a 404) left the video waiting 2 s before its end, which autoplay
+    // waited for (FastStreamClient.watchEndStall).
+    const dir = new URL('../fixtures/hls-ts/', import.meta.url);
+    const playlist = fs.readFileSync(new URL('index.m3u8', dir), 'utf8')
+        .replace('#EXT-X-ENDLIST', '#EXTINF:2.000000,\nseg-missing.ts\n#EXT-X-ENDLIST');
+    fs.writeFileSync(new URL('missing-last.m3u8', dir), playlist);
+    try {
+      await openEmptyPlayer();
+      await addSource(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/hls-ts/missing-last.m3u8`);
+      await waitForPicture();
+      await browser.execute(() => {
+        const client = window.fastStream;
+        client.options.autoplayNext = true;
+        client.hasNextVideo = () => true;
+        window.__next = [];
+        client.nextVideo = () => window.__next.push(Math.round(client.currentTime * 10) / 10);
+        client.currentTime = client.duration - 4.5;
+        client.play();
+      });
+      await browser.waitUntil(() => browser.execute(() => window.__next.length > 0),
+          {timeout: 20000, timeoutMsg: 'the player hung before the missing last fragment'});
+      const at = await browser.execute(() => ({next: window.__next, duration: window.fastStream.duration}));
+      // Where the media ends, short of the duration the playlist promised.
+      expect(at.next).toHaveLength(1);
+      expect(at.duration - at.next[0]).toBeGreaterThan(1);
+    } finally {
+      fs.rmSync(new URL('missing-last.m3u8', dir), {force: true});
+    }
+  });
+
   it('shows the picture in the aspect ratio chosen, stretched, or as it is', async function() {
     // Upstream #552, back on his word (2026-10-11): a 4:3 show without bars beside it.
     await openEmptyPlayer();
