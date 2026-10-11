@@ -1204,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "この動画は Firefox VPN 経由で送られてきますが、mpv は Firefox VPN を使用できません。そのためサイトは mpv を拒否します。mpv で視聴するには、このサイトで Firefox VPN をオフにして、ページを再読み込みしてください。"
+    },
+    "mpv_episode_loading": {
+        "message": "mpvで読み込み中"
+    },
+    "mpv_episode_none": {
+        "message": "ページ内に見つかりませんでした"
+    },
+    "mpv_episode_unavailable": {
+        "message": "タブが閉じているか、MPV モードではありません"
     }
 }

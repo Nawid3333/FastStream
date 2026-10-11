@@ -1404,3 +1404,156 @@ describe('the toolbar cycle on a page the MPV allowlist names by its path', () =
     expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
   });
 });
+
+describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next one', () => {
+  // His wish (2026-10-11): a series episode after episode in mpv, without the browser. The
+  // host (7) follows the mpv it started over a port kept open, and says when the file ended
+  // or a key asked for the next or the previous episode.
+  const EP1 = 'https://site.test/watch/1';
+  const EP2 = 'https://site.test/watch/2';
+  const S1 = 'https://cdn.test/one/master.m3u8';
+  const S2 = 'https://cdn.test/two/master.m3u8';
+  let navigations;
+
+  /**
+   * Episode 1 handed to mpv (the allowlist's MPV, or the MPV key's), and the watch it opened.
+   * @param {Object} [options] - More options.
+   * @param {string} [link] - What the page's top frame answers to a next/previous request.
+   * @return {Promise<Object>} The port (backgroundHarness: sent, emit, drop).
+   */
+  async function onEpisode1(options = {}, link = 'clicked') {
+    navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], autoplayNext: true, ...options},
+      tabs: [{id: 1, url: EP1}],
+      fetch: playlists({[S1]: 1400, [S2]: 1400}),
+      onTabMessage: ({frameId, message}) => {
+        // The page's video: in the top frame here (startPagePlayers asks the largest).
+        if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
+        if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
+        navigations.push({direction: message.direction, frameId});
+        return frameId === 0 ? link : 'no_button';
+      },
+    });
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'ep1');
+    await bg.frameAdded(1, 5, 'https://hoster.test/e/1', 'hoster1');
+    await bg.request({tabId: 1, url: S1, frameId: 5});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1]);
+    const port = bg.ports.at(-1);
+    expect(port?.sent[0]).toEqual({type: 'watch'});
+    return port;
+  }
+
+  /** What the background asked mpv to show (notify.lua). */
+  const notices = (port) => port.sent.filter((m) => m.type === 'notify').map((m) => m.detail);
+
+  it('goes on to the next episode when mpv played one to its end, into the same mpv', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: S1 + '#fs-content=movie&fs-id=0123456789abcdef'});
+    await bg.wait(100);
+    // The page's own link, top frame first.
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+    expect(notices(port)).toEqual(['loading in mpv']);
+
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: S2, frameId: 6});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S2]);
+    // The same watch follows on: no second port.
+    expect(bg.ports).toHaveLength(1);
+  });
+
+  it('starts the next page\'s player when it waits for a click, in MPV mode too', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.wait(2500);
+    expect(bg.sent('START_PAGE_PLAYER').length).toBeGreaterThan(0);
+  });
+
+  it('takes the next page\'s stream by itself in the MPV key\'s mode, which waits for a play', async () => {
+    // The MPV key's MPV sends only what the user plays: after an end in mpv nobody plays in
+    // the page, and the next episode would never come.
+    navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, autoplayNext: true},
+      tabs: [{id: 1, url: EP1}],
+      fetch: playlists({[S1]: 1400, [S2]: 1400}),
+      onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),
+    });
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'ep1');
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: S1});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1]);
+    const port = bg.ports.at(-1);
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.request({tabId: 1, url: S2});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S2]);
+  });
+
+  it('leaves an end alone without "Autoplay next video", and a file mpv got elsewhere', async () => {
+    let port = await onEpisode1({autoplayNext: false});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(navigations).toEqual([]);
+    bg.unload();
+
+    port = await onEpisode1();
+    port.emit({type: 'ended', path: 'C:\Videos\my own film.mkv'});
+    await bg.wait(100);
+    expect(navigations).toEqual([]);
+  });
+
+  it('goes on with mpv\'s keys, next and previous, autoplay on or off', async () => {
+    const port = await onEpisode1({autoplayNext: false});
+    port.emit({type: 'request', action: 'previous'});
+    await bg.wait(100);
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(navigations).toEqual([{direction: 'previous', frameId: 0}, {direction: 'next', frameId: 0}]);
+  });
+
+  it('says so in mpv when the page has no next episode, or the tab is gone', async () => {
+    let port = await onEpisode1({}, 'no_button');
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(navigations.map((n) => n.frameId)).toEqual([0, 5]);
+    expect(notices(port)).toEqual(['none found on the page']);
+    bg.unload();
+
+    port = await onEpisode1();
+    await bg.closed(1);
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['its tab is closed, or not in MPV mode']);
+  });
+
+  it('watches again once mpv was closed, and lets an old host go', async () => {
+    let port = await onEpisode1();
+    port.emit({type: 'closed', reason: 'mpv closed'});
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.request({tabId: 1, url: S2});
+    await bg.wait(500);
+    expect(bg.ports).toHaveLength(2);
+    // A host before 7 answers "unknown message" and exits: the watch ends, nothing breaks.
+    port = bg.ports.at(-1);
+    port.emit({ok: false, error: 'unknown message'});
+    port.emit({type: 'ended', path: S2});
+    await bg.wait(100);
+    expect(navigations).toEqual([]);
+  });
+});

@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 6;
+export const RequiredHostVersion = 7;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -98,6 +98,9 @@ export class MpvBackend {
     // already sent (which asks the host nothing) included.
     /** @type {boolean} */
     this.hostOutdated = false;
+    // The watch of mpv for MPV autoplay (watch()), while one runs.
+    /** @type {?{notify: (title: string, detail?: string) => void, stop: () => void}} */
+    this.watcher = null;
   }
 
   /**
@@ -343,6 +346,73 @@ export class MpvBackend {
         resolve({ok: false, error: String(e)});
       }
     });
+  }
+
+  /**
+   * Follows the mpv the host started, over a port kept open (host 7's watch): the end of its
+   * file and its keys for the next or the previous episode come as they happen, for MPV
+   * autoplay (2026-10-11). One at a time: a second watch ends the first. While the port is
+   * open, Firefox keeps this background page running (an event page is not unloaded while a
+   * native messaging port is open), so the end is heard however long the episode runs.
+   * @param {(message: Object) => void} onEvent - Each message: watching, path, ended,
+   *   request, closed (last; also for a host too old to watch, which answers ok: false).
+   * @return {{notify: (title: string, detail?: string) => void, stop: () => void}}
+   */
+  watch(onEvent) {
+    this.watcher?.stop();
+    /** @type {*} */
+    let port;
+    try {
+      port = chrome.runtime.connectNative(NativeHostName);
+    } catch (e) {
+      onEvent({type: 'closed', reason: String(e)});
+      return {notify() {}, stop() {}};
+    }
+    let stopped = false;
+    const end = (reason) => {
+      if (stopped) return false;
+      stopped = true;
+      if (this.watcher === watcher) this.watcher = null;
+      if (reason) onEvent({type: 'closed', reason});
+      return true;
+    };
+    const watcher = {
+      notify: (title, detail = '') => {
+        if (stopped) return;
+        try {
+          port.postMessage({type: 'notify', title, detail});
+        } catch (e) {
+          // The host went meanwhile: onDisconnect says so.
+        }
+      },
+      stop: () => {
+        if (!end(null)) return;
+        try {
+          port.disconnect();
+        } catch (e) {
+          // Gone already.
+        }
+      },
+    };
+    port.onMessage.addListener((message) => {
+      if (stopped || !message || typeof message !== 'object') return;
+      if (message.ok === false) {
+        // A host before 7: "unknown message", and it exits.
+        end(message.error || 'the mpv host cannot watch mpv');
+        return;
+      }
+      if (message.type === 'closed') {
+        end(message.reason || 'closed');
+        return;
+      }
+      onEvent(message);
+    });
+    port.onDisconnect.addListener(() => {
+      end(chrome.runtime.lastError?.message || 'the mpv host went');
+    });
+    this.watcher = watcher;
+    port.postMessage({type: 'watch'});
+    return watcher;
   }
 
   /**
