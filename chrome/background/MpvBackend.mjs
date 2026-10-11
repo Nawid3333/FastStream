@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 8;
+export const RequiredHostVersion = 9;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -356,7 +356,8 @@ export class MpvBackend {
    * native messaging port is open), so the end is heard however long the episode runs.
    * @param {(message: Object) => void} onEvent - Each message: watching, path, ended,
    *   request, closed (last; also for a host too old to watch, which answers ok: false).
-   * @return {{notify: (title: string, detail?: string) => void, stop: () => void}}
+   * @return {{notify: (title: string, detail?: string) => void, state: (state: Object) => void,
+   *   stop: () => void}}
    */
   watch(onEvent) {
     this.watcher?.stop();
@@ -366,7 +367,7 @@ export class MpvBackend {
       port = chrome.runtime.connectNative(NativeHostName);
     } catch (e) {
       onEvent({type: 'closed', reason: String(e)});
-      return {notify() {}, stop() {}};
+      return {notify() {}, state() {}, stop() {}};
     }
     let stopped = false;
     const end = (reason) => {
@@ -381,6 +382,15 @@ export class MpvBackend {
         if (stopped) return;
         try {
           port.postMessage({type: 'notify', title, detail});
+        } catch (e) {
+          // The host went meanwhile: onDisconnect says so.
+        }
+      },
+      // Host 9: what mpv's autoplay button shows ({autoplay: boolean}).
+      state: (state) => {
+        if (stopped) return;
+        try {
+          port.postMessage({type: 'state', ...state});
         } catch (e) {
           // The host went meanwhile: onDisconnect says so.
         }

@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "its tab is closed, or not in MPV mode"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Countdown before the next episode, in seconds (0: none)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Autoplay next episode in mpv (the autoplay button in mpv switches it too)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Autoplay"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "next episode in $1 s (n: now, autoplay button: stop)"
+    },
+    "mpv_autoplay_on": {
+        "message": "on"
+    },
+    "mpv_autoplay_off": {
+        "message": "off"
+    },
+    "mpv_episode_nostream": {
+        "message": "the page brought no stream within a minute; open it in the browser to see why"
     }
 }

@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "la sua scheda è chiusa o non è in modalità MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Conto alla rovescia prima del prossimo episodio, in secondi (0: nessuno)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Riproduci automaticamente il prossimo episodio in mpv (anche il pulsante autoplay in mpv lo attiva/disattiva)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Autoplay"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "prossimo episodio tra $1 s (n: ora, pulsante autoplay: stop)"
+    },
+    "mpv_autoplay_on": {
+        "message": "attivo"
+    },
+    "mpv_autoplay_off": {
+        "message": "disattivo"
+    },
+    "mpv_episode_nostream": {
+        "message": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
     }
 }

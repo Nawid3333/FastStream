@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "标签页已关闭，或不在 MPV 模式"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "下一集自动播放的倒计时，单位为秒 (0: 无)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "在 mpv 中自动播放下一集 (mpv 中的自动播放按钮也可以切换)"
+    },
+    "mpv_autoplay_title": {
+        "message": "自动播放"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "下一集将在 $1 秒后开始 (n: 立即, 自动播放按钮: 停止)"
+    },
+    "mpv_autoplay_on": {
+        "message": "开启"
+    },
+    "mpv_autoplay_off": {
+        "message": "关闭"
+    },
+    "mpv_episode_nostream": {
+        "message": "页面在一分钟内未提供流媒体；请在浏览器中打开以查看原因"
     }
 }
