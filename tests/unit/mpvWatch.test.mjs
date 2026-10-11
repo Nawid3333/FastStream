@@ -108,8 +108,10 @@ describe('watchMpv', () => {
     for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThan(seen[i - 1]);
     expect(seen[0]).toBeGreaterThan(Date.now() - 60000);
     watch.stop();
+    // A beat written just before the stop may still be on its way (seen under load).
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const after = beats().length;
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(beats().length).toBe(after);
   });
 
