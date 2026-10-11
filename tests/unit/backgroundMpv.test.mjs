@@ -1520,6 +1520,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.frameAdded(1, 0, EP2, 'ep2');
     await bg.wait(61000);
     expect(notices(port).at(-1)).toBe('the page brought no stream within a minute; open it in the browser to see why');
+    expect(bg.local.siteProblems.map((e) => [e.host, e.path, e.kind, e.mode])).toEqual([['site.test', '/watch/2', 'no_stream', 'mpv']]);
     bg.unload();
 
     // Its stream came in time: nothing to say.
@@ -1657,6 +1658,8 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.wait(100);
     expect(navigations.map((n) => n.frameId)).toEqual([0, 5]);
     expect(notices(port)).toEqual(['none found on the page']);
+    // Noted for the options page's problem list.
+    expect(bg.local.siteProblems.map((e) => [e.host, e.kind, e.mode])).toEqual([['site.test', 'no_next', 'mpv']]);
     bg.unload();
 
     port = await onEpisode1();

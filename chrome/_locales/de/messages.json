@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "die Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen"
+    },
+    "options_problems_title": {
+        "message": "Seiten, auf denen Autoplay hängengeblieben ist"
+    },
+    "options_problems_note": {
+        "message": "FastStream merkt sich hier, wo Autoplay nicht weiterging, damit du die Seite melden kannst. Ein Bericht öffnet ein GitHub-Issue, das du vorher prüfen kannst: Issues sind öffentlich, lösche also, was du nicht teilen möchtest."
+    },
+    "options_problems_none": {
+        "message": "Bisher keine."
+    },
+    "options_problems_no_next": {
+        "message": "keine nächste Folge gefunden (die letzte Folge oder eine Seite, die FastStream noch nicht lesen kann)"
+    },
+    "options_problems_no_stream": {
+        "message": "die Seite der nächsten Folge enthielt kein Video"
+    },
+    "options_problems_mode_player": {
+        "message": "im Player"
+    },
+    "options_problems_mode_mpv": {
+        "message": "im MPV-Modus"
+    },
+    "options_problems_seen": {
+        "message": "$1 Mal, zuletzt am $2"
+    },
+    "options_problems_report": {
+        "message": "Auf GitHub melden"
+    },
+    "options_problems_clear": {
+        "message": "Liste leeren"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Autoplay für diesen Tab stoppen"
     }
 }

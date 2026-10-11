@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego"
+    },
+    "options_problems_title": {
+        "message": "Strony, na których autoplay utknęło"
+    },
+    "options_problems_note": {
+        "message": "FastStream zapisuje tutaj miejsca, w których autoplay nie mogło przejść dalej, abyś mógł zgłosić stronę. Zgłoszenie otwiera issue na GitHubie do sprawdzenia: issues są publiczne, więc usuń to, czego nie chcesz udostępniać."
+    },
+    "options_problems_none": {
+        "message": "Na razie brak."
+    },
+    "options_problems_no_next": {
+        "message": "nie znaleziono następnego odcinka (ostatni lub strona, której FastStream jeszcze nie potrafi odczytać)"
+    },
+    "options_problems_no_stream": {
+        "message": "strona następnego odcinka nie zawierała wideo"
+    },
+    "options_problems_mode_player": {
+        "message": "w odtwarzaczu"
+    },
+    "options_problems_mode_mpv": {
+        "message": "w trybie MPV"
+    },
+    "options_problems_seen": {
+        "message": "$1 razy, ostatnio $2"
+    },
+    "options_problems_report": {
+        "message": "Zgłoś na GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Wyczyść listę"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Zatrzymaj autoplay dla tej karty"
     }
 }

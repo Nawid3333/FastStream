@@ -106,6 +106,8 @@ export async function loadBackground({
     // The browser window (windows.get/update; one window, id 1): its state, and each update.
     windowState: 'maximized',
     windowUpdates: [],
+    // storage.local beside the options (ProblemLog's siteProblems).
+    local: {},
     badges: new Map(),
     titles: new Map(),
     dynamicRules: [],
@@ -184,8 +186,14 @@ export async function loadBackground({
     permissions: {contains: (query, callback) => answer(callback, true), onAdded: event(), onRemoved: event()},
     storage: {
       local: {
-        get: (key, callback) => answer(callback, {[key]: key === 'options' ? JSON.stringify(bg.options) : undefined}),
-        set: (items, callback) => answer(callback, undefined),
+        get: (key, callback) => answer(callback, {[key]: key === 'options' ? JSON.stringify(bg.options) : structuredClone(bg.local[key])}),
+        // The options stay bg.options (a test changes them there); other keys are kept (bg.local).
+        set: (items, callback) => {
+          for (const [key, value] of Object.entries(items)) {
+            if (key !== 'options') bg.local[key] = structuredClone(value);
+          }
+          return answer(callback, undefined);
+        },
       },
       session: {
         get: async () => structuredClone(session),

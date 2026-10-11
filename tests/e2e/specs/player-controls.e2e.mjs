@@ -348,7 +348,7 @@ describe('Player controls', function() {
     const banner = () => browser.execute(() => document.querySelector('.mainplayer .next_video_button').style.display);
     await browser.execute(() => {
       const client = window.fastStream;
-      // The next video in a playlist, whose banner comes up in the last 10 seconds.
+      // The next video in a playlist, whose banner comes up for the countdown's last seconds.
       client.options.autoplayNext = true;
       client.hasNextVideo = () => true;
       client.currentTime = 8;
@@ -356,6 +356,36 @@ describe('Player controls', function() {
     expect(await settle(banner, (display) => display === '')).toBe('');
     await addSource(missingUrl());
     expect(await settle(banner, (display) => display === 'none')).toBe('none');
+  });
+
+  it('counts down as long as the options say, and its cross stops autoplay for the tab', async function() {
+    // His choice (2026-10-11): a countdown before the next episode, which can be stopped.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const read = () => browser.execute(() => ({
+      banner: document.querySelector('.mainplayer .next_video_button').style.display,
+      cancel: document.querySelector('.mainplayer .next_video_cancel').style.display,
+      autoplay: window.fastStream.options.autoplayNext,
+    }));
+    await browser.execute(() => {
+      const client = window.fastStream;
+      client.options.autoplayNext = true;
+      client.options.autoplayCountdown = 0;
+      client.hasNextVideo = () => true;
+      client.currentTime = client.duration - 2;
+    });
+    // 0: no countdown, the next video comes at the end.
+    await browser.pause(1000);
+    expect(await read()).toEqual({banner: 'none', cancel: 'none', autoplay: true});
+
+    await browser.execute(() => {
+      window.fastStream.options.autoplayCountdown = 5;
+      window.fastStream.currentTime = window.fastStream.duration - 3;
+    });
+    expect(await settle(read, (r) => r.banner === '')).toEqual({banner: '', cancel: '', autoplay: true});
+    await browser.execute(() => document.querySelector('.mainplayer .next_video_cancel').click());
+    expect(await settle(read, (r) => r.banner === 'none')).toEqual({banner: 'none', cancel: 'none', autoplay: false});
   });
 
   it('turns autoplay next on and off with its switch, which is always in the bar', async function() {

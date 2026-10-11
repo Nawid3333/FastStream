@@ -5,6 +5,7 @@ import {StreamPick} from '../player/utils/StreamPick.mjs';
 import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
+import {ProblemKinds, recordProblem} from '../player/utils/ProblemLog.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
@@ -1228,10 +1229,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       BackgroundUtils.checkMessageError('playlist_navigation');
       if (response === 'clicked') {
         tab.continuationOptions = msg.continuationOptions;
+        if (msg.continuationOptions?.autoPlay) watchNextEpisodeArrives(tab, msg.continuationOptions, 'player');
       }
       sendResponse(response);
     });
     return true;
+  } else if (msg.type === MessageTypes.REPORT_AUTOPLAY_PROBLEM) {
+    // The player's video ended with autoplay on and no next episode in the page.
+    if (msg.kind === ProblemKinds.NO_NEXT) {
+      recordProblem({url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'player'}).catch((e) => console.error(e));
+    }
+    return;
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_POLL) {
     const pageFrame = frame.pageFrame;
     if (!pageFrame || frame.frameId === 0) {
@@ -1951,6 +1959,21 @@ const startPagePlayerUntil = new WeakMap();
  * there, and that ends it; so do Off and MPV.
  * @param {TabHolder} tab
  */
+/**
+ * Notes a next episode whose page brought no video within a minute (ProblemLog): the
+ * continuation is still there, as nothing took it (its sources, or mpv's stream).
+ * @param {Object} tab - TabHolder.
+ * @param {Object} continuation
+ * @param {'player'|'mpv'} mode
+ */
+function watchNextEpisodeArrives(tab, continuation, mode) {
+  const from = tab.url;
+  setTimeout(() => {
+    if (tab.continuationOptions !== continuation || !Tabs.tabs.has(tab.tabId) || tab.url === from) return;
+    recordProblem({url: tab.url, kind: ProblemKinds.NO_STREAM, mode}).catch((e) => console.error(e));
+  }, MpvNextEpisodeWaitMs);
+}
+
 function startPagePlayers(tab) {
   const continuation = tab.continuationOptions;
   if (tab.pagePlayerStarter || !continuation) return;
@@ -2756,6 +2779,7 @@ async function goToEpisode(state, direction) {
   }
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');
+    recordProblem({url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'mpv'}).catch((e) => console.error(e));
     return;
   }
   if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
@@ -2768,6 +2792,7 @@ async function goToEpisode(state, direction) {
   state.stalled = setTimeout(() => {
     state.stalled = null;
     if (!state.alive || mpvWatch !== state) return;
+    recordProblem({url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
       'the page brought no stream within a minute; open it in the browser to see why');
   }, MpvNextEpisodeWaitMs);

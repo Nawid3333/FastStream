@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın"
+    },
+    "options_problems_title": {
+        "message": "Otomatik oynatmanın takıldığı siteler"
+    },
+    "options_problems_note": {
+        "message": "FastStream, otomatik oynatmanın devam edemediği yerleri buraya not eder, böylece siteyi bildirebilirsiniz. Bildirim, kontrol etmeniz için bir GitHub issue'su açar: issue'lar herkese açıktır, bu yüzden paylaşmak istemediklerinizi silin."
+    },
+    "options_problems_none": {
+        "message": "Şu ana kadar yok."
+    },
+    "options_problems_no_next": {
+        "message": "sonraki bölüm bulunamadı (son bölüm veya FastStream'in henüz okuyamadığı bir sayfa)"
+    },
+    "options_problems_no_stream": {
+        "message": "sonraki bölümün sayfası video getirmedi"
+    },
+    "options_problems_mode_player": {
+        "message": "oynatıcıda"
+    },
+    "options_problems_mode_mpv": {
+        "message": "MPV modunda"
+    },
+    "options_problems_seen": {
+        "message": "$1 kez, son olarak $2 tarihinde"
+    },
+    "options_problems_report": {
+        "message": "GitHub'da bildir"
+    },
+    "options_problems_clear": {
+        "message": "Listeyi temizle"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Bu sekme için otomatik oynatmayı durdur"
     }
 }

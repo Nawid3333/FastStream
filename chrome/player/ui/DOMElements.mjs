@@ -60,6 +60,7 @@ export const DOMElements = {
 
   vpnButton: document.querySelector('.mainplayer .vpn_button'),
   nextVideoBannerButton: document.querySelector('.mainplayer .next_video_button'),
+  nextVideoCancelButton: document.querySelector('.mainplayer .next_video_cancel'),
   autoNextIndicator: document.querySelector('.mainplayer .nextvideo_banner'),
 
   markerContainer: document.querySelector('.mainplayer .marker_container'),
