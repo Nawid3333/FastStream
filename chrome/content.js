@@ -17,6 +17,7 @@
     TOGGLE_WINDOWED_FULLSCREEN: 'TOGGLE_WINDOWED_FULLSCREEN',
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
+    START_PAGE_PLAYER: 'START_PAGE_PLAYER',
     FRAME_REMOVED: 'FRAME_REMOVED',
     SEND_TO_CONTENT: 'SEND_TO_CONTENT',
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
@@ -174,6 +175,9 @@
       return handlePlaylistNavigation(request, sender, sendResponse);
     } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_POLL) {
       return pollPlaylistButtons(request, sender, sendResponse);
+    } else if (request.type === MessageTypes.START_PAGE_PLAYER) {
+      startPagePlayer().then(sendResponse, () => sendResponse(null));
+      return true;
     } else if (request.type === MessageTypes.MESSAGE_FROM_CONTENT && request.destination === 'main') {
       return handleContentMessage(request, sender, sendResponse);
     }
@@ -251,6 +255,8 @@
   // (frame.playerOpening): no player opened there again until the page navigated.
   const pendingPlayers = new Map();
   let pendingPlayersWatch = null;
+  // This page started its own player for an autoplay next once (startPagePlayer).
+  let pagePlayerStarted = false;
 
   /**
    * Watches a player iframe until its player links up, or the page takes it out.
@@ -1784,6 +1790,52 @@
       parents: parentElementsWithSameBounds,
       highest: parentElementsWithSameBounds.length > 0 ? parentElementsWithSameBounds[parentElementsWithSameBounds.length - 1] : largestVideo.video,
     };
+  }
+
+  /**
+   * Starts the page's own player, when it waits for a click before it loads its video. The
+   * background asks for it after FastStream went on to the next episode by itself (the
+   * player's autoplay next): a hoster's player sat idle on the next episode's page
+   * (serienstream.to's VOE, a JW Player, 2026-10-11), FastStream had nothing to play, and
+   * the user had to click. Started here, it loads its stream, FastStream takes that, and
+   * its own player plays it: an extension page may play sound without a click.
+   * Once per page: the background asks again every 2 s, and a page whose player does not
+   * load at once (an overlay it opens, a request it waits for) was clicked again each time.
+   * @return {Promise<?string>} What was done, or null.
+   */
+  async function startPagePlayer() {
+    // Started already, or FastStream's player is in this frame.
+    if (pagePlayerStarted || iframeMap.size > 0 || pendingPlayers.size > 0) return null;
+    // JW Player, as most hosters have it: idle until played, and its own play() loads the
+    // stream (a click on it can land on an ad's layer). The page's object, through the
+    // content script's view of the page (Firefox's Xray waiver).
+    try {
+      const jwplayer = window.wrappedJSObject && window.wrappedJSObject.jwplayer;
+      if (typeof jwplayer === 'function') {
+        const player = jwplayer();
+        if (player && typeof player.getState === 'function' && player.getState() === 'idle') {
+          pagePlayerStarted = true;
+          player.play();
+          return 'jwplayer';
+        }
+      }
+    } catch (e) {
+      // Not a JW Player after all, or one that refuses: the video itself below.
+    }
+    const found = await getVideo();
+    const video = found && found.video;
+    if (!video || !video.paused || video.ended) return null;
+    pagePlayerStarted = true;
+    if (video.currentSrc || video.src || video.srcObject) {
+      // Not muted when the page may not play sound yet: left muted when FastStream did not
+      // take its stream after all, the site's player stayed silent.
+      video.play().catch(() => {});
+      return 'play';
+    }
+    // Nothing loaded: the page's player loads on a click on it, which goes to its own
+    // listeners on the video and around it.
+    video.click();
+    return 'click';
   }
 
   function url_to_absolute(urlStr) {
