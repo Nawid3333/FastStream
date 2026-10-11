@@ -1728,6 +1728,21 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.local.siteProblems).toBeUndefined();
   });
 
+  it('gives up on a frame that never answers the next-episode request, and the keys still work', async () => {
+    // glm's review (2026-10-12): such a frame kept state.going set, and every later key,
+    // button and autoplay of the session returned at it.
+    const port = await onEpisode1({}, new Promise(() => {}));
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(5200);
+    // Only the top frame was asked: it may still click, and the hoster's link would be a
+    // second episode.
+    expect(navigations.map((n) => n.frameId)).toEqual([0]);
+    expect(notices(port)).toEqual(['none found on the page']);
+    port.emit({type: 'request', action: 'previous'});
+    await bg.wait(100);
+    expect(navigations.map((n) => n.direction)).toEqual(['next', 'previous']);
+  });
+
   it('says so in mpv when the page has no next episode, or the tab is gone', async () => {
     let port = await onEpisode1({}, 'no_button');
     port.emit({type: 'ended', path: S1});

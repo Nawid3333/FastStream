@@ -2718,6 +2718,13 @@ function onMpvWatchEvent(state, event) {
 
 /** How long startMpvCountdown waits for each frame of the page to answer. */
 const MpvPagePollMs = 1000;
+/**
+ * How long goToEpisode waits for a frame to answer its next/previous request (the content
+ * script answers at once, after its click): a frame that never answered kept state.going
+ * set, and every later key, button and autoplay of the session returned at it (glm's
+ * review, 2026-10-12).
+ */
+const MpvPageNavigateMs = 5000;
 
 /**
  * What the page of the tab mpv's stream came from says about its next episode, asking its
@@ -2847,11 +2854,16 @@ async function goToEpisode(state, direction) {
   try {
     for (const frameId of frameIds) {
       const answer = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve('timeout'), MpvPageNavigateMs);
         chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_NAVIGATION, direction}, {frameId}, (response) => {
           void chrome.runtime.lastError;
+          clearTimeout(timer);
           resolve(response);
         });
       });
+      // No other frame is asked: this one may still click, and a hoster's link after it
+      // would be a second episode.
+      if (answer === 'timeout') break;
       if (answer === 'clicked') {
         clicked = true;
         break;
