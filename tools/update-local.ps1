@@ -21,8 +21,9 @@ What it checks, and what -Apply does about it:
   - npm, installed globally (%APPDATA%\npm): its newest release, 5 days old. -Apply installs
     it with npm install --global --ignore-scripts.
   - pnpm, installed globally with npm: at least the version package.json pins
-    ("packageManager"); inside the repository pnpm switches to that version by itself.
-    -Apply installs it the same way.
+    ("packageManager"); pnpm does not switch versions by itself (pmOnFail: ignore in
+    pnpm-workspace.yaml). -Apply installs it with npm install --global, allowing pnpm's own
+    install script only: it puts pnpm.exe where the commands point.
   - The repository: on main with nothing uncommitted, how many commits main is behind origin
     (the check reports against what git already knows; -Apply fetches, then runs
     git pull --ff-only), then pnpm install --frozen-lockfile into the store node_modules was
@@ -206,10 +207,14 @@ Invoke-Step 'pnpm' {
         Note "pnpm ${have}: up to date (package.json pins $pin)"
     }
     elseif (-not $Apply) {
-        Add-Due "pnpm ${have}: $pin is pinned (npm install --global --ignore-scripts pnpm@$pin); -Apply installs it"
+        Add-Due "pnpm ${have}: $pin is pinned (npm install --global --allow-scripts=pnpm@$pin pnpm@$pin); -Apply installs it"
     }
     else {
-        Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global --ignore-scripts "pnpm@$pin" }
+        # pnpm 12 is a native program: its install script links pnpm.exe in place of the
+        # placeholder bins and has npm point its Windows shims at it. Without the script
+        # (--ignore-scripts, as until pnpm 11) pnpm.cmd runs the placeholder, an sh script
+        # that cmd and PowerShell cannot start. --allow-scripts runs pnpm's script and no other.
+        Invoke-Change "pnpm $have -> $pin, the version package.json pins" { & npm install --global "--allow-scripts=pnpm@$pin" "pnpm@$pin" }
     }
 }
 
