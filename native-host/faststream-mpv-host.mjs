@@ -342,6 +342,11 @@ export const MaxMessageBytes = 1024 * 1024;
 // with an error. Exiting without a word made the extension say "is the host installed?".
 export const TooLarge = Symbol('message too large');
 
+// Bytes readMessage read past its frame, by stream: the start of the next one, which
+// readMessages takes first (glm's review, 2026-10-12: a message the extension posted right
+// after 'watch' could come in the same chunk, and was dropped).
+const unread = new WeakMap();
+
 /**
  * Reads one native-messaging frame.
  *
@@ -410,6 +415,7 @@ export function readMessage(input = process.stdin) {
           bodyRead += toCopy;
           offset += toCopy;
           if (bodyRead === body.length) {
+            if (offset < chunk.length) unread.set(input, chunk.subarray(offset));
             try {
               finish(JSON.parse(body.toString('utf8')));
             } catch (e) {
@@ -459,7 +465,12 @@ export function ipcPipeFor(config, platform = process.platform, env = process.en
     return '\\\\.\\pipe\\faststream-mpv' + token;
   }
   const user = typeof process.getuid === 'function' ? process.getuid() : 0;
-  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}.sock`);
+  // The token here too when config.json has one (glm's review, 2026-10-12): without
+  // $XDG_RUNTIME_DIR the socket goes in the shared temp folder, where another account
+  // could take the name first, as on Windows.
+  const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
+    '-' + config.ipcToken : '';
+  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}${token}.sock`);
 }
 
 // How long to wait for mpv's window to exist before giving up on focusing it.
@@ -776,6 +787,12 @@ export function readMessages(input, onMessage, onEnd) {
   input.on('data', onData);
   input.on('end', end);
   input.on('error', end);
+  // What readMessage read past its frame: the next frame's start (or more frames).
+  const rest = unread.get(input);
+  if (rest) {
+    unread.delete(input);
+    onData(rest);
+  }
 }
 
 /**
