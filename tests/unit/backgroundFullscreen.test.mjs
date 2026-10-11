@@ -77,6 +77,25 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(states()).toEqual(['fullscreen', 'maximized']);
   });
 
+  it('ends it from the next page when no player there takes it over, Escape there included', async () => {
+    // glm's review (2026-10-11): the next page had no player (an error page), and the window
+    // stayed fullscreen with Escape doing nothing.
+    await playerInPage();
+    await carry(true);
+    await bg.message({type: 'REQUEST_PLAYLIST_NAVIGATION', direction: 'next',
+      continuationOptions: {fullscreenState: 'fullscreen', autoPlay: true}}, {tabId: 1, frameId: 5});
+    await bg.navigated(1, EP2);
+    bg.sentToTabs.length = 0;
+    await bg.frameAdded(1, 0, EP2, 'page-2');
+    expect(pageTold()).toEqual([true]);
+    await bg.message({type: 'EXIT_CARRIED_FULLSCREEN'}, {tabId: 1, frameId: 0});
+    await bg.wait(50);
+    expect(states()).toEqual(['fullscreen', 'maximized']);
+    expect(pageTold()).toEqual([true, false]);
+    // No player of the page before was asked: its frame went with it.
+    expect(bg.sent('EXIT_CARRIED_FULLSCREEN')).toEqual([]);
+  });
+
   it('gives the window back when the tab is closed', async () => {
     await playerInPage();
     await carry(true);

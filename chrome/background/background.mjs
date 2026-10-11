@@ -701,6 +701,7 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       if (tab.windowStateBefore) {
         if (tab.continuationOptions?.fullscreenState === 'fullscreen' && !tab.carryAwaited) {
           tab.carryAwaited = true;
+          tab.carriedFullscreenFrameId = null;
         } else {
           tab.carryAwaited = false;
           tab.carriedFullscreenFrameId = null;
@@ -1019,6 +1020,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tab.continuationOptions?.autoPlay) {
       startPagePlayers(tab);
     }
+    // A fullscreen carried to this page that no player took over yet: Escape here ends it.
+    if (frame.frameId === 0 && tab.carryAwaited) {
+      tellPageCarried(tab, true);
+    }
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
     const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
@@ -1191,9 +1196,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   } else if (msg.type === MessageTypes.EXIT_CARRIED_FULLSCREEN) {
-    // Escape in the page: the player that carried the fullscreen ends it.
+    // Escape in the page: the player that carried the fullscreen ends it. One that never
+    // took it over (an error page, no player there) leaves it to this background.
     const playerFrameId = frame.tab.carriedFullscreenFrameId;
-    if (typeof playerFrameId === 'number') {
+    if (frame.tab.carryAwaited || typeof playerFrameId !== 'number') {
+      frame.tab.carryAwaited = false;
+      frame.tab.carriedFullscreenFrameId = null;
+      tellPageCarried(frame.tab, false);
+      chrome.tabs.get(frame.tab.tabId).then((t) => restoreWindowState(frame.tab, t.windowId), () => {});
+    } else {
       chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, () => {
         void chrome.runtime.lastError;
       });
