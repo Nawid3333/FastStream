@@ -614,8 +614,8 @@ export class InterfaceController {
       this.toggleAutoplayNext();
     });
 
-    // The autoplay switch beside it (his wish, 2026-10-11): what the right click on the
-    // next button did, for this tab, which nobody found. The options page's setting is
+    // The autoplay switch, a tool of its own (his wish, 2026-10-11): what the right click on
+    // the next button did, for this tab, which nobody found. The options page's setting is
     // where a new tab starts.
     DOMElements.autoplaySwitch.tabIndex = 0;
     DOMElements.autoplaySwitch.addEventListener('click', (e) => {

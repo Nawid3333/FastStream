@@ -358,15 +358,20 @@ describe('Player controls', function() {
     expect(await settle(banner, (display) => display === 'none')).toBe('none');
   });
 
-  it('turns autoplay next on and off with the switch beside the next button', async function() {
+  it('turns autoplay next on and off with its switch, which is always in the bar', async function() {
     // His wish (2026-10-11): only a right click on the next button did it, and nobody found it.
+    // Then the switch went with the next button, and so was never there where FastStream
+    // found no next link on the page: now it is a tool of its own, like YouTube's.
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
     const read = () => browser.execute(() => {
-      const tool = document.querySelector('.mainplayer .fluid_tool_next');
+      const shown = (el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
       const toggle = document.querySelector('.mainplayer .fluid_autoplay_switch');
-      return {shown: getComputedStyle(tool).display !== 'none' && toggle.getBoundingClientRect().width > 0,
+      const play = shown(toggle.querySelector('.fluid_autoplay_play'));
+      const pause = shown(toggle.querySelector('.fluid_autoplay_pause'));
+      return {shown: shown(toggle), next: shown(document.querySelector('.mainplayer .fluid_button_next')),
+        icon: play && !pause ? 'play' : pause && !play ? 'pause' : 'both or none',
         checked: toggle.getAttribute('aria-checked'), option: window.fastStream.options.autoplayNext,
         session: sessionStorage.getItem('autoplayNext'),
         badge: document.querySelector('.mainplayer .nextvideo_banner').style.display};
@@ -378,20 +383,25 @@ describe('Player controls', function() {
       window.fastStream.hasNextVideo = () => false;
       window.fastStream.interfaceController.updateToolVisibility();
     });
-    expect((await read()).shown).toBe(false);
+    // No next link known: the next button is gone, the switch is not.
+    expect(await read()).toEqual({shown: true, next: false, icon: 'pause', checked: 'false', option: false,
+      session: null, badge: 'none'});
+
+    await (await browser.$('.mainplayer .fluid_autoplay_switch')).click();
+    expect(await read()).toEqual({shown: true, next: false, icon: 'play', checked: 'true', option: true,
+      session: 'true', badge: ''});
 
     await browser.execute(() => {
       window.fastStream.hasNextVideo = () => true;
       window.fastStream.interfaceController.updateToolVisibility();
     });
-    expect(await read()).toEqual({shown: true, checked: 'false', option: false, session: null, badge: 'none'});
-
-    await (await browser.$('.mainplayer .fluid_autoplay_switch')).click();
-    expect(await read()).toEqual({shown: true, checked: 'true', option: true, session: 'true', badge: ''});
+    expect(await read()).toEqual({shown: true, next: true, icon: 'play', checked: 'true', option: true,
+      session: 'true', badge: ''});
 
     await browser.execute(() => document.querySelector('.mainplayer .fluid_autoplay_switch').focus());
     await browser.keys([' ']);
-    expect(await read()).toEqual({shown: true, checked: 'false', option: false, session: 'false', badge: 'none'});
+    expect(await read()).toEqual({shown: true, next: true, icon: 'pause', checked: 'false', option: false,
+      session: 'false', badge: 'none'});
   });
 
   it('shows the picture in the aspect ratio chosen, stretched, or as it is', async function() {
