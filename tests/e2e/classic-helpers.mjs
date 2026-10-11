@@ -8,6 +8,18 @@ import {browser} from '@wdio/globals';
 import {EXTENSION_ID} from './wdio.extension.conf.mjs';
 
 /**
+ * Runs a function that reports through a callback, fn(...args, done), and gives what it
+ * passed to done: WebdriverIO 10 has no executeAsync. A script string, as execute() sends
+ * every function: over BiDi and over classic, it awaits the promise the script returns.
+ * @param {Function} fn - Called as fn(...args, done).
+ * @param {...*} args - Serialisable arguments.
+ * @return {Promise<*>}
+ */
+export function executeWithDone(fn, ...args) {
+  return browser.execute(`return new Promise((done) => (${fn.toString()}).apply(null, [...arguments, done]));`, ...args);
+}
+
+/**
  * Runs an async function in Firefox's chrome context.
  * @param {Function} fn - Called as fn(...args, done).
  * @param {...*} args - Serialisable arguments.
@@ -16,7 +28,7 @@ import {EXTENSION_ID} from './wdio.extension.conf.mjs';
 export async function inChrome(fn, ...args) {
   await browser.setMozContext('chrome');
   try {
-    return await browser.executeAsync(fn, ...args);
+    return await executeWithDone(fn, ...args);
   } finally {
     await browser.setMozContext('content');
   }

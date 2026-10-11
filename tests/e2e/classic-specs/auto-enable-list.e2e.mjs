@@ -36,14 +36,14 @@ let siteHandle;
  */
 async function setOptions(options) {
   await browser.switchToWindow(extHandle);
-  await browser.executeAsync((json, done) => {
+  await browser.execute((json) => new Promise((done) => {
     chrome.storage.local.set({options: json}, () => {
       chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
         void chrome.runtime.lastError;
         done(true);
       });
     });
-  }, JSON.stringify(options));
+  }), JSON.stringify(options));
   // loadOptions rebuilds the redirect rule after it answers.
   await browser.pause(1000);
 }
@@ -55,7 +55,7 @@ async function setOptions(options) {
  */
 async function tabMode(prefix) {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((prefix, done) => {
+  return await browser.execute((prefix) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(prefix));
       if (!tab) {
@@ -64,7 +64,7 @@ async function tabMode(prefix) {
       }
       chrome.action.getBadgeText({tabId: tab.id}, (badge) => done(badge === 'On' ? 'on' : 'off'));
     });
-  }, prefix);
+  }), prefix);
 }
 
 /**

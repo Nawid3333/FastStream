@@ -37,13 +37,13 @@ async function openEmptyPlayer() {
  * @return {Promise<void>}
  */
 async function addSource(url) {
-  const error = await browser.executeAsync((url, done) => {
+  const error = await browser.execute((url) => new Promise((done) => {
     Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
         .then(([{VideoSource}, {URLUtils}]) => {
           window.fastStream.addSource(new VideoSource(url, {}, URLUtils.getModeFromURL(url)), true);
           done(null);
         }).catch((e) => done(String(e)));
-  }, url);
+  }), url);
   expect(error).toBe(null);
 }
 
@@ -62,11 +62,11 @@ describe('FastStreamClient setup', function() {
   afterEach(async function() {
     // Remembered times outlive the page in this browser session's IndexedDB, and a later
     // case on the same video would start at one.
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       const manager = window.fastStream?.progressMemory?.indexedDbManager;
       if (!manager) return done();
       manager.clearStorage().then(() => done(), () => done());
-    });
+    }));
   });
 
   it('finishes setting up a video whose seek preview fails to build', async function() {
@@ -151,7 +151,7 @@ describe('FastStreamClient setup', function() {
     await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.progressMemory),
         {timeout: 30000, timeoutMsg: 'the progress memory never loaded'});
 
-    const result = await browser.executeAsync((firstUrl, secondUrl, done) => {
+    const result = await browser.execute((firstUrl, secondUrl) => new Promise((done) => {
       (async () => {
         const [{VideoSource}, {URLUtils}] =
           await Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')]);
@@ -211,7 +211,7 @@ describe('FastStreamClient setup', function() {
         await client.addSource(second, true);
         return {secondRecord: hex(secondHashes.identifierHash)};
       })().then(done, (e) => done({error: String(e)}));
-    }, missingUrl(), mp4Url());
+    }), missingUrl(), mp4Url());
     expect(result.error).toBe(undefined);
 
     await waitForPicture();
@@ -349,7 +349,7 @@ describe('FastStreamClient setup', function() {
     await addSource(mp4Url());
     await waitForPicture();
 
-    const state = await browser.executeAsync((done) => {
+    const state = await browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const player = client.player;
       const play = player.play.bind(player);
@@ -364,7 +364,7 @@ describe('FastStreamClient setup', function() {
         await playing;
         done({paused: client.currentVideo.paused, shown: client.state.playing});
       }, 100);
-    });
+    }));
     console.log('      state:', JSON.stringify(state));
     expect(state.paused).toBe(true);
     expect(state.shown).toBe(false);
@@ -375,7 +375,7 @@ describe('FastStreamClient setup', function() {
     await addSource(mp4Url());
     await waitForPicture();
 
-    const state = await browser.executeAsync((done) => {
+    const state = await browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const player = client.player;
       client.currentVideo.muted = true;
@@ -393,7 +393,7 @@ describe('FastStreamClient setup', function() {
           }, 100));
         }, 100);
       }, (e) => done({error: String(e)}));
-    });
+    }));
     console.log('      state:', JSON.stringify(state));
     expect(state.paused).toBe(false);
     expect(state.shown).toBe(true);
@@ -406,7 +406,7 @@ describe('FastStreamClient setup', function() {
     await addSource(mp4Url());
     await waitForPicture();
 
-    const state = await browser.executeAsync((done) => {
+    const state = await browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       client.currentVideo.muted = true;
       const context = client.audioContext;
@@ -430,7 +430,7 @@ describe('FastStreamClient setup', function() {
           done({error: String(e)});
         });
       }, (e) => done({error: String(e)}));
-    });
+    }));
     console.log('      state:', JSON.stringify(state));
     expect(state.settled).toBe(true);
     expect(state.paused).toBe(false);
@@ -442,7 +442,7 @@ describe('FastStreamClient setup', function() {
   it('ignores the keys and menus that act on the video while there is none', async function() {
     // Between two sources there is no player: a key pressed then threw.
     await openEmptyPlayer();
-    const errors = await browser.executeAsync((done) => {
+    const errors = await browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const errors = [];
       const attempt = async (name, action) => {
@@ -462,7 +462,7 @@ describe('FastStreamClient setup', function() {
         await attempt('setCurrentAudioLevelID', () => client.setCurrentAudioLevelID('0'));
         done(errors);
       })();
-    });
+    }));
     expect(errors).toEqual([]);
   });
 });

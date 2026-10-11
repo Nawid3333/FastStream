@@ -9,6 +9,7 @@
 
 import {browser} from '@wdio/globals';
 
+import {executeWithDone} from './classic-helpers.mjs';
 import {EXTENSION_UUID, OPENER_URL} from './wdio.extension.conf.mjs';
 
 const PLAYER_PAGE = `moz-extension://${EXTENSION_UUID}/player/index.html`;
@@ -66,7 +67,7 @@ export async function openExtensionPage(pagePath) {
  * @return {Promise<void>} Resolves once addSource has been called.
  */
 export async function addSourceInPlayer(url) {
-  const error = await browser.executeAsync((u, done) => {
+  const error = await browser.execute((u) => new Promise((done) => {
     Promise.all([
       import('/player/VideoSource.mjs'),
       import('/player/enums/PlayerModes.mjs'),
@@ -78,7 +79,7 @@ export async function addSourceInPlayer(url) {
       });
       done(null);
     }, (e) => done(String(e)));
-  }, url);
+  }), url);
   if (error) {
     throw new Error('could not give the player its source: ' + error);
   }
@@ -112,7 +113,7 @@ export async function inExtensionPage(fn, arg) {
     return false;
   }, {timeout: 20000, interval: 200, timeoutMsg: 'the extension page never opened'});
   try {
-    return await browser.executeAsync(fn, arg);
+    return await executeWithDone(fn, arg);
   } finally {
     await browser.switchToWindow(handle);
     await browser.closeWindow();

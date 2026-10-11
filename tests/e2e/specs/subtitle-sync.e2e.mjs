@@ -30,79 +30,81 @@ describe('Subtitle resync tool', function() {
   });
 
   it('draws only the cues in view, shifts by key without an error, and drags on the left button only', async function() {
-    const result = await browser.executeAsync(async (done) => {
-      const out = {uncaught: [], statuses: []};
-      window.addEventListener('error', (e) => out.uncaught.push(e.message));
-      window.addEventListener('unhandledrejection', (e) => {
-        out.uncaught.push(String((e.reason && e.reason.message) || e.reason));
-      });
-      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const result = await browser.execute(() => new Promise((done) => {
+      (async () => {
+        const out = {uncaught: [], statuses: []};
+        window.addEventListener('error', (e) => out.uncaught.push(e.message));
+        window.addEventListener('unhandledrejection', (e) => {
+          out.uncaught.push(String((e.reason && e.reason.message) || e.reason));
+        });
+        const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-      const client = window.fastStream;
-      const controller = client.interfaceController;
-      const setStatus = controller.setStatusMessage.bind(controller);
-      controller.setStatusMessage = (key, message, ...rest) => {
-        if (key === 'subtitles' && message) out.statuses.push(message);
-        return setStatus(key, message, ...rest);
-      };
+        const client = window.fastStream;
+        const controller = client.interfaceController;
+        const setStatus = controller.setStatusMessage.bind(controller);
+        controller.setStatusMessage = (key, message, ...rest) => {
+          if (key === 'subtitles' && message) out.statuses.push(message);
+          return setStatus(key, message, ...rest);
+        };
 
-      // 300 one-second cues, one every 2 s: 600 s of subtitles on a 160 s video
-      const {SubtitleTrack} = await import('/player/SubtitleTrack.mjs');
-      const time = (s) => new Date(s * 1000).toISOString().substring(11, 23).replace('.', ',');
-      let srt = '';
-      for (let i = 0; i < 300; i++) {
-        srt += `${i + 1}\n${time(i * 2)} --> ${time(i * 2 + 1)}\nline ${i + 1}\n\n`;
-      }
-      const track = new SubtitleTrack('Resync test', 'en');
-      track.loadText(srt);
-      client.loadSubtitleTrack(track);
-      out.cues = track.cues.length;
+        // 300 one-second cues, one every 2 s: 600 s of subtitles on a 160 s video
+        const {SubtitleTrack} = await import('/player/SubtitleTrack.mjs');
+        const time = (s) => new Date(s * 1000).toISOString().substring(11, 23).replace('.', ',');
+        let srt = '';
+        for (let i = 0; i < 300; i++) {
+          srt += `${i + 1}\n${time(i * 2)} --> ${time(i * 2 + 1)}\nline ${i + 1}\n\n`;
+        }
+        const track = new SubtitleTrack('Resync test', 'en');
+        track.loadText(srt);
+        client.loadSubtitleTrack(track);
+        out.cues = track.cues.length;
 
-      const syncer = controller.subtitlesManager.subtitleSyncer;
-      syncer.toggleTrack(track);
-      controller.showControlBar();
-      await wait(1000);
-      controller.showControlBar();
-      await wait(300);
-      out.cueElements = document.querySelectorAll('.timeline_track_cue').length;
+        const syncer = controller.subtitlesManager.subtitleSyncer;
+        syncer.toggleTrack(track);
+        controller.showControlBar();
+        await wait(1000);
+        controller.showControlBar();
+        await wait(300);
+        out.cueElements = document.querySelectorAll('.timeline_track_cue').length;
 
-      // emit() catches a handler's error and hands it to console.error
-      const first = track.cues[0].startTime;
-      const consoleError = console.error;
-      console.error = (...args) => {
-        out.uncaught.push('console.error: ' + args.map((a) => (a && a.message) || String(a)).join(' '));
-        consoleError(...args);
-      };
-      client.keybindManager.emit('ShiftSubtitlesLater');
-      console.error = consoleError;
-      out.keyShift = track.cues[0].startTime - first;
+        // emit() catches a handler's error and hands it to console.error
+        const first = track.cues[0].startTime;
+        const consoleError = console.error;
+        console.error = (...args) => {
+          out.uncaught.push('console.error: ' + args.map((a) => (a && a.message) || String(a)).join(' '));
+          consoleError(...args);
+        };
+        client.keybindManager.emit('ShiftSubtitlesLater');
+        console.error = consoleError;
+        out.keyShift = track.cues[0].startTime - first;
 
-      const row = document.querySelector('.timeline_track');
-      const box = document.querySelector('.fluid_controls_timeline_syncer').getBoundingClientRect();
-      const x = box.left + box.width / 2;
-      const container = row.closest('.fluid_video_wrapper') || document.body;
-      const mouse = (target, type, clientX, button) => target.dispatchEvent(
-          new MouseEvent(type, {bubbles: true, cancelable: true, clientX, clientY: box.top + 60, button}));
+        const row = document.querySelector('.timeline_track');
+        const box = document.querySelector('.fluid_controls_timeline_syncer').getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const container = row.closest('.fluid_video_wrapper') || document.body;
+        const mouse = (target, type, clientX, button) => target.dispatchEvent(
+            new MouseEvent(type, {bubbles: true, cancelable: true, clientX, clientY: box.top + 60, button}));
 
-      // right button: no drag
-      const beforeRight = track.cues[0].startTime;
-      mouse(row, 'mousedown', x, 2);
-      mouse(container, 'mousemove', x + 150, 2);
-      out.rightDragShift = track.cues[0].startTime - beforeRight;
-      mouse(container, 'mouseup', x + 150, 2);
+        // right button: no drag
+        const beforeRight = track.cues[0].startTime;
+        mouse(row, 'mousedown', x, 2);
+        mouse(container, 'mousemove', x + 150, 2);
+        out.rightDragShift = track.cues[0].startTime - beforeRight;
+        mouse(container, 'mouseup', x + 150, 2);
 
-      // left button: the track follows the pointer, and the total is shown
-      const beforeLeft = track.cues[0].startTime;
-      mouse(row, 'mousedown', x, 0);
-      mouse(container, 'mousemove', x + 150, 0);
-      mouse(container, 'mouseup', x + 150, 0);
-      out.leftDragShift = track.cues[0].startTime - beforeLeft;
-      out.shiftTotal = track.shiftTotal;
-      out.lastStatus = out.statuses[out.statuses.length - 1] || null;
+        // left button: the track follows the pointer, and the total is shown
+        const beforeLeft = track.cues[0].startTime;
+        mouse(row, 'mousedown', x, 0);
+        mouse(container, 'mousemove', x + 150, 0);
+        mouse(container, 'mouseup', x + 150, 0);
+        out.leftDragShift = track.cues[0].startTime - beforeLeft;
+        out.shiftTotal = track.shiftTotal;
+        out.lastStatus = out.statuses[out.statuses.length - 1] || null;
 
-      syncer.toggleTrack(track);
-      done(out);
-    });
+        syncer.toggleTrack(track);
+        done(out);
+      })();
+    }));
 
     console.log('      result:', JSON.stringify(result));
     expect(result.uncaught).toEqual([]);

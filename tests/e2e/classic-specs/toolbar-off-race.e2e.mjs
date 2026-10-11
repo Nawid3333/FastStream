@@ -47,7 +47,7 @@ const clickToolbar = (times) => clickToolbarIn(siteHandle, times);
  */
 async function tabMode() {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site + '/'));
       if (!tab) {
@@ -56,7 +56,7 @@ async function tabMode() {
       }
       chrome.action.getBadgeText({tabId: tab.id}, (badge) => done(badge === 'On' ? 'on' : 'off'));
     });
-  }, SITE);
+  }), SITE);
 }
 
 /**

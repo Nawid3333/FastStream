@@ -153,24 +153,24 @@ describe('A page framing FastStream\'s pages', function() {
       timeout: 20000, interval: 200, timeoutMsg: 'the framed player never loaded',
     });
     const url = `${SITE}/echo?id=rule`;
-    const asked = await browser.executeAsync((u, done) => {
+    const asked = await browser.execute((u) => new Promise((done) => {
       chrome.runtime.sendMessage({
         type: 'SET_HEADERS',
         url: u,
         commands: [{operation: 'set', header: 'origin', value: 'https://victim.test'}],
       }).then(() => done('ok'), (e) => done('failed: ' + e));
-    }, url);
+    }), url);
     expect(asked).toBe('ok');
 
     // The page, within the rule's 5 seconds, then the player itself.
     await browser.switchFrame(null);
-    const pageFetch = await browser.executeAsync((u, done) => {
+    const pageFetch = await browser.execute((u) => new Promise((done) => {
       fetch(u, {cache: 'no-store'}).then((r) => done(r.status), (e) => done(String(e)));
-    }, url);
+    }), url);
     await intoFrame('#player');
-    const playerFetch = await browser.executeAsync((u, done) => {
+    const playerFetch = await browser.execute((u) => new Promise((done) => {
       fetch(u, {cache: 'no-store'}).then((r) => done(r.status), (e) => done(String(e)));
-    }, url);
+    }), url);
 
     const seen = requests.get('/echo') || [];
     console.log('      fetches:', pageFetch, playerFetch, 'requests:', JSON.stringify(seen));

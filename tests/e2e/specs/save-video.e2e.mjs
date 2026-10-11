@@ -84,7 +84,7 @@ async function saveAndValidatePhases(phase) {
   await new Promise((r) => setTimeout(r, 6000));
   phase('played');
 
-  const saved = await browser.executeAsync((done) => {
+  const saved = await browser.execute(() => new Promise((done) => {
     const info = {
       saveError: null, blobSize: null, blobType: null,
       decodeOk: null, decodeError: null, duration: null,
@@ -125,7 +125,7 @@ async function saveAndValidatePhases(phase) {
       info.saveError = ((e && e.message) ? e.message + '\n' : '') + ((e && e.stack) || String(e));
       done(info);
     });
-  });
+  }));
   phase('saved');
   return saved;
 }
@@ -152,7 +152,7 @@ async function saveAndValidateStreamed() {
   await browser.execute(() => document.querySelector('video').play().catch(() => {}));
   await new Promise((r) => setTimeout(r, 3000));
 
-  return browser.executeAsync((done) => {
+  return browser.execute(() => new Promise((done) => {
     const info = {
       saveError: null, blobSize: null, blobType: null,
       decodeOk: null, decodeError: null, duration: null,
@@ -201,7 +201,7 @@ async function saveAndValidateStreamed() {
       info.saveError = (e && e.stack) || String(e);
       done(info);
     });
-  });
+  }));
 }
 
 describe('Save video (download)', function() {
@@ -257,7 +257,7 @@ describe('Save video (download)', function() {
         async () => browser.execute(() => document.querySelector('video').readyState >= 2),
         {timeout: 60000, timeoutMsg: 'video never reached HAVE_CURRENT_DATA'});
 
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       let cancel;
       const filestream = new WritableStream({
         write() {},
@@ -282,7 +282,7 @@ describe('Save video (download)', function() {
       }).catch((e) => {
         done({rejected: true, message: (e && e.message) || String(e), elapsed: performance.now() - start});
       });
-    });
+    }));
 
     console.log('      result:', JSON.stringify(result));
     expect(result.rejected).toBe(true);

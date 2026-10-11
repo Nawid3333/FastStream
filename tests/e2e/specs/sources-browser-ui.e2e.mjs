@@ -230,7 +230,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
     await (await browser.$('.mainplayer .fluid_button_link')).click();
     const url = await browser.$('.linkui-source-url');
     await url.waitForDisplayed();
-    const state = await browser.executeAsync((url, done) => {
+    const state = await browser.execute((url) => new Promise((done) => {
       const client = window.fastStream;
       client.setSource = async () => {
         window.__tried = true;
@@ -246,7 +246,7 @@ describe('Sources Browser (Quellen Browser) UI', function() {
         const button = document.querySelector('.linkui-source-set-button');
         done({loading: button.classList.contains('loading'), text: button.textContent, tried: window.__tried});
       }, 500);
-    }, globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/missing.mp4');
+    }), globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/missing.mp4');
     console.log('      after a failed source:', JSON.stringify(state));
     expect(state.tried).toBe(true);
     expect(state.loading).toBe(false);

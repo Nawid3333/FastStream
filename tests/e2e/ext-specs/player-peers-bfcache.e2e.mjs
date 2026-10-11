@@ -39,7 +39,7 @@ async function openEmbed(query) {
       {timeout: 30000, timeoutMsg: 'the player never announced itself'});
   if (BUILD === 'github') {
     // Stored once the request has ended (options.mjs).
-    await browser.waitUntil(async () => browser.executeAsync((done) => {
+    await browser.waitUntil(async () => browser.execute(() => new Promise((done) => {
       chrome.storage.local.get('updateData', (result) => {
         try {
           done(!!JSON.parse(result?.updateData || '{}').lastUpdateCheck);
@@ -47,7 +47,7 @@ async function openEmbed(query) {
           done(false);
         }
       });
-    }), {timeout: 30000, interval: 250, timeoutMsg: 'the update check of the GitHub build never ended'});
+    })), {timeout: 30000, interval: 250, timeoutMsg: 'the update check of the GitHub build never ended'});
   }
   await browser.switchFrame(null);
 }

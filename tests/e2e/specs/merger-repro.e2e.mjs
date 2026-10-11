@@ -14,7 +14,7 @@ describe('mp4merger finalize micro-repro', function() {
         async () => browser.execute(() => !!window.fastStream),
         {timeout: 30000, timeoutMsg: 'fastStream never appeared'});
 
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       (async () => {
         const out = {};
         try {
@@ -49,7 +49,7 @@ describe('mp4merger finalize micro-repro', function() {
           return out;
         }
       })().then(done);
-    });
+    }));
 
     console.log('      micro-repro:', JSON.stringify(result));
     expect(result.error).toBe(undefined);

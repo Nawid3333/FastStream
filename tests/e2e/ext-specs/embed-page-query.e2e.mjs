@@ -188,7 +188,7 @@ describe('A stream named in the page\'s own query string', function() {
       // own, and a request overtaking it would get the old list once.
       let sent = [];
       await browser.waitUntil(async () => {
-        sent = await browser.executeAsync((done) => {
+        sent = await browser.execute(() => new Promise((done) => {
           const before = window.__sourcesSent.length;
           chrome.runtime.sendMessage({type: 'REQUEST_SOURCES'}).catch(() => {});
           const started = Date.now();
@@ -198,7 +198,7 @@ describe('A stream named in the page\'s own query string', function() {
               done(window.__sourcesSent.slice());
             }
           }, 50);
-        });
+        }));
         return sent.length > 0 && sent[sent.length - 1] === 0;
       }, {timeout: 15000, interval: 500}).catch(() => {});
       console.log('      sources the background sent after the clear:', JSON.stringify(sent));

@@ -69,7 +69,7 @@ async function grantPrivateBrowsing(hook, args) {
 
   await browser.setMozContext('chrome');
   try {
-    const granted = await browser.executeAsync((extId, done) => {
+    const granted = await browser.execute((extId) => new Promise((done) => {
       (async () => {
         try {
           const {ExtensionPermissions} = ChromeUtils.importESModule(
@@ -88,7 +88,7 @@ async function grantPrivateBrowsing(hook, args) {
           done({err: String(e)});
         }
       })();
-    }, EXTENSION_ID);
+    }), EXTENSION_ID);
 
     if (!granted || granted.privateBrowsingAllowed !== true) {
       throw new Error(

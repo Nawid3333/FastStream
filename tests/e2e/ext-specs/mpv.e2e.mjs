@@ -144,7 +144,7 @@ describe('MPV mode, end to end', function() {
           return false;
         }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-        const stored = await browser.executeAsync((site, site2, done) => {
+        const stored = await browser.execute((site, site2) => new Promise((done) => {
           chrome.storage.local.set({
             options: JSON.stringify({
               mpvMode: true,
@@ -156,7 +156,7 @@ describe('MPV mode, end to end', function() {
               chrome.storage.local.get('options', (r) => done(r.options));
             });
           });
-        }, SITE, SITE_B);
+        }), SITE, SITE_B);
         expect(JSON.parse(stored).mpvMode).toBe(true);
 
         // Give the background a moment to apply the reloaded options.
@@ -299,7 +299,7 @@ describe('MPV mode, end to end', function() {
           return false;
         }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-        await browser.executeAsync((site, site2, done) => {
+        await browser.execute((site, site2) => new Promise((done) => {
           chrome.storage.local.set({
             options: JSON.stringify({
               mpvMode: true,
@@ -312,7 +312,7 @@ describe('MPV mode, end to end', function() {
               done(true);
             });
           });
-        }, SITE, SITE_B);
+        }), SITE, SITE_B);
         await browser.pause(1000);
 
         const remaining = await browser.getWindowHandles();

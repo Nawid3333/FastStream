@@ -37,13 +37,13 @@ async function openEmptyPlayer() {
  * @return {Promise<void>}
  */
 async function addSource(url) {
-  const error = await browser.executeAsync((url, done) => {
+  const error = await browser.execute((url) => new Promise((done) => {
     Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
         .then(([{VideoSource}, {URLUtils}]) => {
           window.fastStream.addSource(new VideoSource(url, {}, URLUtils.getModeFromURL(url)), true);
           done(null);
         }).catch((e) => done(String(e)));
-  }, url);
+  }), url);
   expect(error).toBe(null);
 }
 
@@ -388,14 +388,14 @@ describe('Player menus', function() {
   // Back at 0 after a reload, the silence skipper skipped nothing (review, 2026-10-09).
   it('keeps the silence threshold the user dragged', async function() {
     await openEmptyPlayer();
-    const loaded = await browser.executeAsync((done) => {
+    const loaded = await browser.execute(() => new Promise((done) => {
       const changer = window.fastStream.interfaceController.playbackRateChanger;
       changer.silenceThreshold = 0.42;
       changer.saveState().then(() => {
         changer.silenceThreshold = 0;
         return changer.loadState();
       }).then(() => done(changer.silenceThreshold));
-    });
+    }));
     expect(loaded).toBeCloseTo(0.42, 5);
   });
 
@@ -429,14 +429,14 @@ describe('Player menus', function() {
   it('names a dropdown\'s new value when the keyboard changes it', async function() {
     // Only a click on an item renamed it, so a screen reader kept the old value.
     await openEmptyPlayer();
-    const label = await browser.executeAsync((done) => {
+    const label = await browser.execute(() => new Promise((done) => {
       import('/player/ui/components/Dropdown.mjs').then(({createDropdown}) => {
         const dropdown = createDropdown('a', 'Mode', {a: 'Alpha', b: 'Beta'}, () => {});
         document.body.appendChild(dropdown);
         dropdown.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true, cancelable: true}));
         done(dropdown.ariaLabel);
       }).catch((e) => done('failed: ' + e));
-    });
+    }));
     expect(label).toBe('Mode: Beta');
   });
 
@@ -444,7 +444,7 @@ describe('Player menus', function() {
     // The type filter's label was the English "Type" in every language (the filter is gone
     // since 2026-10-09: a season or episode filled in makes an episode's search).
     await openEmptyPlayer();
-    const shown = await browser.executeAsync((done) => {
+    const shown = await browser.execute(() => new Promise((done) => {
       // The web player takes its language from the browser; the search is built again
       // with the browser in German.
       Object.defineProperty(navigator, 'language', {value: 'de', configurable: true});
@@ -452,7 +452,7 @@ describe('Player menus', function() {
         const {subui} = new OpenSubtitlesSearch(window.fastStream.version);
         done({season: subui.seasonInput.ariaLabel, episode: subui.episodeInput.placeholder, year: subui.yearInput.placeholder});
       }).catch((e) => done({error: String(e)}));
-    });
+    }));
     console.log('      fields:', JSON.stringify(shown));
     expect(shown).toEqual({season: de.player_opensubtitles_seasonnum.message, episode: de.player_opensubtitles_episodenum.message,
       year: de.player_opensubtitles_year.message});

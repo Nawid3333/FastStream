@@ -37,13 +37,13 @@ async function openEmptyPlayer() {
  * @return {Promise<void>}
  */
 async function addSource(url) {
-  const error = await browser.executeAsync((url, done) => {
+  const error = await browser.execute((url) => new Promise((done) => {
     Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
         .then(([{VideoSource}, {URLUtils}]) => {
           window.fastStream.addSource(new VideoSource(url, {}, URLUtils.getModeFromURL(url)), true);
           done(null);
         }).catch((e) => done(String(e)));
-  }, url);
+  }), url);
   expect(error).toBe(null);
 }
 
@@ -124,7 +124,7 @@ describe('Player controls', function() {
     // then it kept the old volume. (From audio-tools.e2e.mjs, which went with the audio
     // settings window, 2026-10-10.)
     await openEmptyPlayer();
-    const gains = await browser.executeAsync((done) => {
+    const gains = await browser.execute(() => new Promise((done) => {
       (async () => {
         const client = window.fastStream;
         const gain = () => Math.round((client.audioOutput.gain.gainNode?.gain.value ?? 1) * 100) / 100;
@@ -138,14 +138,14 @@ describe('Player controls', function() {
         }
         return out;
       })().then(done, (e) => done({error: String(e)}));
-    });
+    }));
     expect(gains).toEqual([{before: 0.5, after: 1}, {before: 1.5, after: 1}]);
   });
 
   it('plays a video dropped together with a .json that is not JSON', async function() {
     // The .json threw, and the drop ended there, video and all.
     await openEmptyPlayer();
-    const error = await browser.executeAsync((url, done) => {
+    const error = await browser.execute((url) => new Promise((done) => {
       fetch(url).then((response) => response.blob()).then((blob) => {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(new File(['{not json'], 'notes.json', {type: 'application/json'}));
@@ -154,7 +154,7 @@ describe('Player controls', function() {
             new DragEvent('drop', {dataTransfer, bubbles: true, cancelable: true}));
         done(null);
       }).catch((e) => done(String(e)));
-    }, mp4Url());
+    }), mp4Url());
     expect(error).toBe(null);
     await waitForPicture();
     const identifier = await browser.execute(() => window.fastStream.source?.identifier);
@@ -228,7 +228,7 @@ describe('Player controls', function() {
     await openEmptyPlayer();
     await addSource(hlsUrl());
     await waitForPicture();
-    const shown = await browser.executeAsync((done) => {
+    const shown = await browser.execute(() => new Promise((done) => {
       import('/player/enums/DownloadStatus.mjs').then(({DownloadStatus}) => {
         const client = window.fastStream;
         // A fragment that failed to download, as a network error leaves it.
@@ -236,7 +236,7 @@ describe('Player controls', function() {
         client.interfaceController.updateFragmentsLoaded();
         done(document.querySelector('.mainplayer .reset_failed').style.display !== 'none');
       }).catch((e) => done('failed: ' + e));
-    });
+    }));
     expect(shown).toBe(true);
     // Its "all buffered" said too (review): the next video, buffered from the start, said nothing.
     await browser.execute(() => {
@@ -301,19 +301,19 @@ describe('Player controls', function() {
   it('copies a link from the time readout without the login headers', async function() {
     // The copied link held the page's Cookie and Authorization in its query (#185).
     await openEmptyPlayer();
-    const error = await browser.executeAsync((url, done) => {
+    const error = await browser.execute((url) => new Promise((done) => {
       Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
           .then(([{VideoSource}, {URLUtils}]) => {
             const headers = {Cookie: 'session=secret', Authorization: 'Bearer secret', Referer: 'https://site.example/'};
             window.fastStream.addSource(new VideoSource(url, headers, URLUtils.getModeFromURL(url)), true);
             done(null);
           }).catch((e) => done(String(e)));
-    }, mp4Url());
+    }), mp4Url());
     expect(error).toBe(null);
     await waitForPicture();
     // The copy goes through navigator.clipboard (WebUtils.copyText), asynchronously; caught
     // there, and at the old execCommand way it falls back to, should the first refuse.
-    const {copied, via} = await browser.executeAsync((done) => {
+    const {copied, via} = await browser.execute(() => new Promise((done) => {
       const clipboard = navigator.clipboard;
       const writeText = clipboard.writeText;
       const execCommand = document.execCommand;
@@ -332,7 +332,7 @@ describe('Player controls', function() {
       };
       setTimeout(() => finish({copied: null, via: 'nothing within 5 s'}), 5000);
       document.querySelector('.mainplayer .fluid_control_duration').click();
-    });
+    }));
     console.log('      copied:', copied, 'via', via);
     expect(via).toBe('clipboard');
     const headers = JSON.parse(new URL(copied).searchParams.get('faststream-headers'));
@@ -443,14 +443,14 @@ describe('Player controls', function() {
     await openEmptyPlayer();
     await addSource(mp4Url());
     await waitForPicture();
-    const message = await browser.executeAsync((done) => {
+    const message = await browser.execute(() => new Promise((done) => {
       import('/player/utils/FastStreamArchiveUtils.mjs').then(async ({FastStreamArchiveUtils}) => {
         FastStreamArchiveUtils.writeFSAToStream = () => Promise.reject(new Error('no archive here'));
         const interfaceController = window.fastStream.interfaceController;
         await interfaceController.saveManager.dumpBuffer('probe');
         done(interfaceController.statusManager.statusMessages.get('save-video').message);
       }).catch((e) => done('failed: ' + e));
-    });
+    }));
     expect(message).toBe(en.player_archiver_fail.message);
   });
 
@@ -492,7 +492,7 @@ describe('Player controls', function() {
     await waitForPicture();
     // How often the player's time is updated in one second: the loop's frames, and the
     // video's own timeupdate events.
-    const perSecond = () => browser.executeAsync((done) => {
+    const perSecond = () => browser.execute(() => new Promise((done) => {
       const client = window.fastStream;
       const updateTime = client.updateTime;
       let calls = 0;
@@ -504,7 +504,7 @@ describe('Player controls', function() {
         delete client.updateTime;
         done(calls);
       }, 1000);
-    });
+    }));
     const paused = await perSecond();
     await browser.execute(() => {
       window.fastStream.play();

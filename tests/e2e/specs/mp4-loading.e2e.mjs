@@ -179,7 +179,7 @@ describe('MP4Player loading', function() {
     await browser.url(`/player/index.html?t=${Date.now()}`);
     await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.optionsApplied),
         {timeout: 30000, timeoutMsg: 'the player options never loaded'});
-    await browser.executeAsync((url, done) => {
+    await browser.execute((url) => new Promise((done) => {
       Promise.all([
         import('/player/players/mp4/MP4Player.mjs'),
         import('/player/VideoSource.mjs'),
@@ -196,7 +196,7 @@ describe('MP4Player loading', function() {
         });
         done();
       });
-    }, `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-fragmented.mp4`);
+    }), `${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-fragmented.mp4`);
     await browser.waitUntil(async () => browser.execute(() => (window.fastStream?.currentVideo?.readyState || 0) >= 3),
         {timeout: 30000, interval: 200, timeoutMsg: 'the video never became playable'});
     const resets = await browser.execute(() => window.__resets);

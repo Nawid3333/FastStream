@@ -40,14 +40,14 @@ describe('Subtitle toggle', function() {
    * @param {string} label - The track's label.
    * @return {Promise<void>}
    */
-  const addTrack = (label) => browser.executeAsync((label, done) => {
+  const addTrack = (label) => browser.execute((label) => new Promise((done) => {
     import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
       const track = new SubtitleTrack(label, 'en');
       track.loadText(`WEBVTT\n\n00:00:00.000 --> 00:00:05.000\n${label}\n`);
       window.fastStream.loadSubtitleTrack(track);
       done();
     });
-  }, label);
+  }), label);
 
   it('does nothing, without an error, when there is no track', async function() {
     await pressC();

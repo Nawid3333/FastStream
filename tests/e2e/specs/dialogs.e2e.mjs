@@ -27,7 +27,7 @@ async function openPlayer() {
  * @param {...*} args
  */
 async function open(method, ...args) {
-  await browser.executeAsync((method, args, done) => {
+  await browser.execute((method, args) => new Promise((done) => {
     window.__answer = undefined;
     import('/player/utils/AlertPolyfill.mjs').then(({AlertPolyfill}) => {
       AlertPolyfill[method](...args).then((answer) => {
@@ -35,7 +35,7 @@ async function open(method, ...args) {
       });
       done();
     });
-  }, method, args);
+  }), method, args);
   await browser.waitUntil(async () => browser.execute(() => !!document.querySelector('dialog.fs-dialog[open]')),
       {timeout: 5000, timeoutMsg: `the dialog of ${method} never opened`});
 }
@@ -111,7 +111,7 @@ describe('Dialogs', function() {
 
   it('shows markup in an error\'s message and in a toast as text', async function() {
     await openPlayer();
-    const shown = await browser.executeAsync((done) => {
+    const shown = await browser.execute(() => new Promise((done) => {
       import('/player/utils/AlertPolyfill.mjs').then(async ({AlertPolyfill}) => {
         const markup = 'Invalid URL: <b id="fs-injected">x</b>';
         AlertPolyfill.errorSendToDeveloper(new Error(markup));
@@ -123,7 +123,7 @@ describe('Dialogs', function() {
           injected: !!document.getElementById('fs-injected'),
         });
       });
-    });
+    }));
     expect(shown.injected).toBe(false);
     expect(shown.title).toContain('<b id="fs-injected">x</b>');
     expect(shown.toast).toContain('<b id="fs-injected">x</b>');
@@ -173,7 +173,7 @@ describe('Dialogs', function() {
 
   it('runs a toast\'s time on when another comes, and stops it under the pointer', async function() {
     await openPlayer();
-    const at = await browser.executeAsync((done) => {
+    const at = await browser.execute(() => new Promise((done) => {
       import('/player/utils/AlertPolyfill.mjs').then(async ({AlertPolyfill}) => {
         AlertPolyfill.toast('info', 'First');
         await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -181,13 +181,15 @@ describe('Dialogs', function() {
         await new Promise((resolve) => setTimeout(resolve, 100));
         done(document.querySelector('.fs-toast .fs-toast-progress').getAnimations()[0].currentTime);
       });
-    });
+    }));
     // Showing the corner again on top for the second does not start the first's time over (a
     // CSS animation was not restarted either, measured: the corner is hidden and shown in one
     // task). The time is a Web Animation, the toast's only timer.
     expect(at).toBeGreaterThan(1400);
 
-    await (await browser.$('.fs-toast')).moveTo();
+    // The first of the two, which the lines around read (querySelector): a plain $() of two
+    // is an error from WebdriverIO 10 on (strict selectors).
+    await (await browser.$$('.fs-toast'))[0].moveTo();
     const paused = await browser.execute(() => document.querySelector('.fs-toast .fs-toast-progress').getAnimations()[0].playState);
     expect(paused).toBe('paused');
   });

@@ -92,40 +92,42 @@ describe('the extension in a private window', function() {
 
   it('answers a background ping', async function() {
     await openExtensionPage('/player/index.html');
-    const res = await browser.executeAsync((done) => {
+    const res = await browser.execute(() => new Promise((done) => {
       chrome.runtime.sendMessage({type: 'PING'}, (r) => done({
         response: r,
         lastError: chrome.runtime.lastError ?
           String(chrome.runtime.lastError.message) : null,
       }));
-    });
+    }));
     console.log('      background ping:', JSON.stringify(res));
     expect(res.response).toBe('PONG');
   });
 
   it('offloads blobs to a real backend instead of dropping to memory', async function() {
     await openExtensionPage('/player/index.html');
-    const res = await browser.executeAsync(async (done) => {
-      const out = {};
-      try {
-        const {FSBlob} = await import('/player/modules/FSBlob.mjs');
-        const store = new FSBlob();
-        const payload = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-        const identifier = await store.saveBlobAsync(new Blob([payload]));
-        out.backend = store.opfsManager ? 'opfs' :
+    const res = await browser.execute(() => new Promise((done) => {
+      (async () => {
+        const out = {};
+        try {
+          const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+          const store = new FSBlob();
+          const payload = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+          const identifier = await store.saveBlobAsync(new Blob([payload]));
+          out.backend = store.opfsManager ? 'opfs' :
           (store.cache ? 'cache' :
             (store.indexedDBManager ? 'indexeddb' : 'memory'));
-        // A promise for a blob the Cache API holds: it is read from there when asked for.
-        const readBack = new Uint8Array(
-            await (await store.getBlob(identifier)).arrayBuffer());
-        out.roundTrips = readBack.length === payload.length &&
+          // A promise for a blob the Cache API holds: it is read from there when asked for.
+          const readBack = new Uint8Array(
+              await (await store.getBlob(identifier)).arrayBuffer());
+          out.roundTrips = readBack.length === payload.length &&
             readBack.every((b, i) => b === payload[i]);
-        store.close();
-      } catch (e) {
-        out.err = (e && e.stack) || String(e);
-      }
-      done(out);
-    });
+          store.close();
+        } catch (e) {
+          out.err = (e && e.stack) || String(e);
+        }
+        done(out);
+      })();
+    }));
 
     console.log('      blob backend:', JSON.stringify(res));
     expect(res.err).toBe(undefined);
@@ -139,34 +141,36 @@ describe('the extension in a private window', function() {
 
   it('never rejects out of clear() or deleteBlob()', async function() {
     await openExtensionPage('/player/index.html');
-    const res = await browser.executeAsync(async (done) => {
-      const out = {};
-      const {FSBlob} = await import('/player/modules/FSBlob.mjs');
-      const store = new FSBlob();
-      try {
-        const identifier = await store.saveBlobAsync(new Blob([new Uint8Array([1])]));
-        await store.deleteBlob(identifier);
-        out.deleteBlob = 'resolved';
-      } catch (e) {
-        out.deleteBlob = 'REJECTED: ' + (e && e.message);
-      }
-      try {
-        await store.clear();
-        out.clear = 'resolved';
-      } catch (e) {
-        out.clear = 'REJECTED: ' + (e && e.message);
-      }
-      // The exact call the player makes on every new source, and the one
-      // whose rejection used to abandon player creation.
-      try {
-        await window.fastStream.downloadManager.reset();
-        out.downloadManagerReset = 'resolved';
-      } catch (e) {
-        out.downloadManagerReset = 'REJECTED: ' + (e && e.message);
-      }
-      store.close();
-      done(out);
-    });
+    const res = await browser.execute(() => new Promise((done) => {
+      (async () => {
+        const out = {};
+        const {FSBlob} = await import('/player/modules/FSBlob.mjs');
+        const store = new FSBlob();
+        try {
+          const identifier = await store.saveBlobAsync(new Blob([new Uint8Array([1])]));
+          await store.deleteBlob(identifier);
+          out.deleteBlob = 'resolved';
+        } catch (e) {
+          out.deleteBlob = 'REJECTED: ' + (e && e.message);
+        }
+        try {
+          await store.clear();
+          out.clear = 'resolved';
+        } catch (e) {
+          out.clear = 'REJECTED: ' + (e && e.message);
+        }
+        // The exact call the player makes on every new source, and the one
+        // whose rejection used to abandon player creation.
+        try {
+          await window.fastStream.downloadManager.reset();
+          out.downloadManagerReset = 'resolved';
+        } catch (e) {
+          out.downloadManagerReset = 'REJECTED: ' + (e && e.message);
+        }
+        store.close();
+        done(out);
+      })();
+    }));
 
     console.log('      teardown calls:', JSON.stringify(res));
     expect(res.deleteBlob).toBe('resolved');
@@ -211,22 +215,24 @@ describe('the extension in a private window', function() {
 
     let res = {};
     await browser.waitUntil(async () => {
-      res = await browser.executeAsync(async (done) => {
-        const out = {};
-        try {
-          const manager = window.fastStream.downloadManager;
-          const store = manager.blobStore;
-          out.memoryOnly = store.memoryOnly;
-          out.backend = store.opfsManager ? 'opfs' :
+      res = await browser.execute(() => new Promise((done) => {
+        (async () => {
+          const out = {};
+          try {
+            const manager = window.fastStream.downloadManager;
+            const store = manager.blobStore;
+            out.memoryOnly = store.memoryOnly;
+            out.backend = store.opfsManager ? 'opfs' :
             (store.cache ? 'cache' : (store.indexedDBManager ? 'indexeddb' : 'memory'));
-          out.stored = store.blobStore.size;
-          out.ram = manager.ramBytes();
-          out.canSpill = manager.canSpill();
-        } catch (e) {
-          out.err = (e && e.stack) || String(e);
-        }
-        done(out);
-      });
+            out.stored = store.blobStore.size;
+            out.ram = manager.ramBytes();
+            out.canSpill = manager.canSpill();
+          } catch (e) {
+            out.err = (e && e.stack) || String(e);
+          }
+          done(out);
+        })();
+      }));
       return !!res.err || res.stored > 0;
     }, {timeout: 30000, interval: 1000}).catch(() => {});
 
@@ -282,7 +288,7 @@ describe('the extension in a private window', function() {
     // incognito context and saved the track straight under its name. Only the prompt is
     // checked: a patch to Utils.downloadURL made through an import() in this script never
     // saw that save, so it could not tell "saved without asking" from "nothing happened".
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const client = window.fastStream;
         const manager = client.interfaceController.subtitlesManager;
@@ -292,7 +298,7 @@ describe('the extension in a private window', function() {
         if (!manager.activeTracks.includes(loaded)) manager.activateTrack(loaded);
         done();
       });
-    });
+    }));
     await browser.execute(() => document.querySelector('.subtitles_list .subtitle-download-tool')
         .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
     await browser.waitUntil(

@@ -201,7 +201,7 @@ async function pageKeys() {
  */
 async function tabMode() {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     chrome.tabs.query({}, (tabs) => {
       const tab = tabs.find((t) => t.url && t.url.startsWith(site));
       if (!tab) {
@@ -216,7 +216,7 @@ async function tabMode() {
         });
       });
     });
-  }, SITE + '/');
+  }), SITE + '/');
 }
 
 /**
@@ -262,12 +262,12 @@ async function expectModeKept(expected, when) {
  */
 async function rebind(name, shortcut) {
   await browser.switchToWindow(extHandle);
-  await browser.executeAsync((name, shortcut, done) => {
+  await browser.execute((name, shortcut) => new Promise((done) => {
     const p = shortcut === null ?
       chrome.commands.reset(name) :
       chrome.commands.update({name, shortcut});
     p.then(() => done(true), (e) => done(String(e)));
-  }, name, shortcut);
+  }), name, shortcut);
 }
 
 describe('FastStream shortcuts on a page that cancels them', function() {
@@ -308,7 +308,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
     // MPV mode on, allowlist empty: every switch below is a shortcut's doing.
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       chrome.storage.local.set({
         options: JSON.stringify({mpvMode: true, mpvAllowlist: []}),
       }, () => {
@@ -317,7 +317,7 @@ describe('FastStream shortcuts on a page that cancels them', function() {
           done(true);
         });
       });
-    });
+    }));
     await browser.pause(1000);
 
     siteHandle = (await browser.getWindowHandles()).find((h) => h !== extHandle);

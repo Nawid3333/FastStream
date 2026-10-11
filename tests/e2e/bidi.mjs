@@ -4,7 +4,7 @@
 // own realm. WebdriverIO connects to BiDi when the session starts and gives up after 10 s
 // ("Could not connect to Bidi protocol of any candidate url in time", seen on the Windows
 // runner). It then carries on over WebDriver classic without failing: browser.isBidi is
-// false, and execute() and executeAsync() go to /execute/sync and /execute/async (9.32.0;
+// false, and execute() goes to /execute/sync or /execute/async (9.32.0 and 10;
 // only that connect, again on reloadSession(), decides isBidi). There a script runs in a sandbox,
 // so its import() gets a module instance of its own (subtitle-search.e2e.mjs stubbed a
 // RequestUtils the player never used, and saw no request), an ArrayBuffer made in it is

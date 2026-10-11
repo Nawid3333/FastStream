@@ -27,7 +27,7 @@ describe('Video delay', function() {
         }),
         {timeout: 60000, timeoutMsg: 'video never became ready'});
 
-    const result = await browser.executeAsync((done) => {
+    const result = await browser.execute(() => new Promise((done) => {
       const out = {uncaught: [], audioPlayers: null};
       window.addEventListener('unhandledrejection', (e) => {
         out.uncaught.push(String((e.reason && e.reason.message) || e.reason));
@@ -44,7 +44,7 @@ describe('Video delay', function() {
         out.audioPlayers = client.syncedAudioPlayer ? client.syncedAudioPlayer.audioPlayers.length : null;
         done(out);
       }, 4000);
-    });
+    }));
 
     console.log('      result:', JSON.stringify(result));
     expect(result.uncaught).toEqual([]);

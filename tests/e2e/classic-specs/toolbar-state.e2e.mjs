@@ -38,7 +38,7 @@ const clickToolbar = () => clickToolbarIn(siteHandle);
  */
 async function tabMode() {
   await browser.switchToWindow(extHandle);
-  return await browser.executeAsync((site, done) => {
+  return await browser.execute((site) => new Promise((done) => {
     // Filtered here rather than with a url pattern: match patterns carry no
     // port, and the site is told apart from the opener page only by its port.
     chrome.tabs.query({}, (tabs) => {
@@ -56,7 +56,7 @@ async function tabMode() {
         });
       });
     });
-  }, SITE);
+  }), SITE);
 }
 
 /**
@@ -118,7 +118,7 @@ describe('Toolbar choice on an MPV-allowlisted site', function() {
       return false;
     }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
 
-    await browser.executeAsync((site, done) => {
+    await browser.execute((site) => new Promise((done) => {
       chrome.storage.local.set({
         options: JSON.stringify({mpvMode: true, mpvAllowlist: [site]}),
       }, () => {
@@ -127,7 +127,7 @@ describe('Toolbar choice on an MPV-allowlisted site', function() {
           done(true);
         });
       });
-    }, SITE);
+    }), SITE);
     await browser.pause(1000);
 
     siteHandle = (await browser.getWindowHandles()).find((h) => h !== extHandle);

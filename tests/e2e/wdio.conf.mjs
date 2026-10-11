@@ -39,6 +39,7 @@ import {testTimeout} from './testTimeout.mjs';
 import {listenOrStop} from './listen-or-stop.mjs';
 import {speedAfterTest, speedBeforeTest} from './speedWatch.mjs';
 import {ensureBidi} from './bidi.mjs';
+import {restoreSwitchFrame} from './switchFrame.mjs';
 import {guardSetup, rootHooks} from './setupGuard.mjs';
 import {ensureMp4Fixture} from './mp4Fixture.mjs';
 import {ensureFixtures, readFileOrNothing} from './buildFixtures.mjs';
@@ -180,6 +181,8 @@ export const config = {
       // Each spec file's attempt starts with no downloads, as in wdio.extension.conf.mjs.
       resetDownloadDir();
       await ensureBidi();
+      // switchFrame for BiDi sessions, which WebdriverIO 10 dropped (switchFrame.mjs).
+      restoreSwitchFrame(browser);
       globalThis.__E2E_FIXTURES_ORIGIN__ = BASE_URL;
     });
   },

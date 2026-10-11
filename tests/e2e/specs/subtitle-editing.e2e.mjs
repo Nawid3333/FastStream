@@ -20,7 +20,7 @@ async function openPlayer() {
   // overrides below; it sets optionsApplied when it has.
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream.optionsApplied),
       {timeout: 30000, timeoutMsg: 'the player options never loaded'});
-  const error = await browser.executeAsync((url, done) => {
+  const error = await browser.execute((url) => new Promise((done) => {
     window.fastStream.options.autoPlay = false;
     window.fastStream.options.storeProgress = false;
     Promise.all([import('/player/VideoSource.mjs'), import('/player/utils/URLUtils.mjs')])
@@ -28,7 +28,7 @@ async function openPlayer() {
           window.fastStream.addSource(new VideoSource(url, {}, URLUtils.getModeFromURL(url)), true);
           done(null);
         }).catch((e) => done(String(e)));
-  }, mp4Url());
+  }), mp4Url());
   expect(error).toBe(null);
   await browser.waitUntil(async () => browser.execute(() => {
     const client = window.fastStream;
@@ -41,7 +41,7 @@ async function openPlayer() {
  * @return {Promise<void>}
  */
 async function editTrack() {
-  await browser.executeAsync((done) => {
+  await browser.execute(() => new Promise((done) => {
     import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
       const client = window.fastStream;
       const track = new SubtitleTrack('Edit test', 'en');
@@ -51,7 +51,7 @@ async function editTrack() {
       client.interfaceController.subtitlesManager.subtitleSyncer.toggleTrack(window.__track);
       done();
     });
-  });
+  }));
 }
 
 /**
@@ -117,7 +117,7 @@ describe('Subtitle editing', function() {
     // The row has the focus while the mouse is over it, and took Shift+Backspace for its
     // own Backspace: the track was removed and the seek stayed.
     await openPlayer();
-    const state = await browser.executeAsync((done) => {
+    const state = await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(async ({SubtitleTrack}) => {
         const client = window.fastStream;
         const track = new SubtitleTrack('Row test', 'en');
@@ -133,7 +133,7 @@ describe('Subtitle editing', function() {
         await new Promise((resolve) => setTimeout(resolve, 300));
         done({tracks: client.interfaceController.subtitlesManager.tracks.length, currentTime: client.currentTime});
       });
-    });
+    }));
     console.log('      after Shift+Backspace:', JSON.stringify(state));
     expect(state.tracks).toBe(1);
     expect(state.currentTime).toBeCloseTo(2, 1);
@@ -143,7 +143,7 @@ describe('Subtitle editing', function() {
     // With two tracks on, a row reads "1: (en) Foo Bar", and the name offered was
     // "1:__(en)_Foo_Bar"; Firefox refuses a file name with a colon.
     await openPlayer();
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const client = window.fastStream;
         const manager = client.interfaceController.subtitlesManager;
@@ -155,7 +155,7 @@ describe('Subtitle editing', function() {
         }
         done();
       });
-    });
+    }));
     const rowText = await browser.execute(() => document.querySelector('.mainplayer .subtitles_list .subtitle-track-name').textContent);
     console.log('      first row:', JSON.stringify(rowText));
     expect(rowText.startsWith('1: ')).toBe(true);
@@ -173,7 +173,7 @@ describe('Subtitle editing', function() {
     // The track was looked up after the name prompt, so a new video's tracks by then had
     // another track saved under this one's name (and an emptied list threw).
     await openPlayer();
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       Promise.all([import('/player/SubtitleTrack.mjs'), import('/player/utils/Utils.mjs')]).then(([{SubtitleTrack}, {Utils}]) => {
         window.__saved = [];
         Utils.downloadURL = async (url, name) => {
@@ -187,13 +187,13 @@ describe('Subtitle editing', function() {
         if (!manager.activeTracks.includes(loaded)) manager.activateTrack(loaded);
         done();
       });
-    });
+    }));
     await browser.execute(() => document.querySelector('.mainplayer .subtitles_list .subtitle-download-tool')
         .dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})));
     const popup = await browser.$('.fs-dialog');
     await popup.waitForDisplayed({timeout: 5000});
     // Another track takes the row's place while the prompt is open, as a new video's does.
-    await browser.executeAsync((done) => {
+    await browser.execute(() => new Promise((done) => {
       import('/player/SubtitleTrack.mjs').then(({SubtitleTrack}) => {
         const client = window.fastStream;
         client.interfaceController.subtitlesManager.clearTracks();
@@ -202,7 +202,7 @@ describe('Subtitle editing', function() {
         client.loadSubtitleTrack(other);
         done();
       });
-    });
+    }));
     await (await browser.$('.fs-dialog-confirm')).click();
     await browser.waitUntil(async () => browser.execute(() => window.__saved.length > 0), {timeout: 5000}).catch(() => {});
     const saved = await browser.execute(() => window.__saved);
@@ -216,7 +216,7 @@ describe('Subtitle editing', function() {
     // The file input kept the file it had read, and picking the same file again fires no
     // change event, so nothing happened.
     await openPlayer();
-    const state = await browser.executeAsync((done) => {
+    const state = await browser.execute(() => new Promise((done) => {
       const input = document.querySelector('.mainplayer input[type=file][accept=".vtt, .srt"]');
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(new File(['1\n00:00:01,000 --> 00:00:03,000\nA line\n\n'], 'lines.srt'));
@@ -233,7 +233,7 @@ describe('Subtitle editing', function() {
         }
       };
       read();
-    });
+    }));
     console.log('      after one upload:', JSON.stringify(state));
     expect(state.tracks).toBe(1);
     // An empty input fires change for any file picked next, the same one included.

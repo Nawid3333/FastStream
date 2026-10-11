@@ -19,7 +19,7 @@ async function openPlayer() {
   await browser.url(`/player/index.html?t=${Date.now()}`);
   await browser.waitUntil(async () => browser.execute(() => !!window.fastStream?.optionsApplied),
       {timeout: 30000, timeoutMsg: 'the player never started'});
-  const error = await browser.executeAsync((done) => {
+  const error = await browser.execute(() => new Promise((done) => {
     Promise.all([
       import('/player/utils/AlertPolyfill.mjs'),
       import('/player/utils/RequestUtils.mjs'),
@@ -35,7 +35,7 @@ async function openPlayer() {
           new Uint8Array(window.__urlBody).buffer : new TextEncoder().encode(window.__urlBody).buffer), 0);
       done(null);
     }).catch((e) => done(String(e)));
-  });
+  }));
   expect(error).toBe(null);
 }
 
@@ -68,7 +68,7 @@ async function pickFile(name, text) {
  * @return {Promise<void>}
  */
 async function addUrl(body) {
-  const error = await browser.executeAsync((body, done) => {
+  const error = await browser.execute((body) => new Promise((done) => {
     import('/player/modules/Localize.mjs').then(({Localize}) => {
       window.__toasts.length = 0;
       window.__promptAnswer = 'https://subs.example/track.vtt';
@@ -78,7 +78,7 @@ async function addUrl(body) {
       option.dispatchEvent(new MouseEvent('click', {bubbles: true}));
       done(null);
     }).catch((e) => done(String(e)));
-  }, body);
+  }), body);
   expect(error).toBe(null);
   await browser.pause(300);
 }

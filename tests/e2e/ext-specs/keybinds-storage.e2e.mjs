@@ -10,17 +10,17 @@ import {browser, expect} from '@wdio/globals';
 
 import {openExtensionPage} from '../extension-page.mjs';
 
-const setStored = (options) => browser.executeAsync((value, done) => {
+const setStored = (options) => browser.execute((value) => new Promise((done) => {
   chrome.storage.local.set({options: value === null ? undefined : JSON.stringify(value)}, () => done(true));
-}, options);
+}), options);
 
-const clearStored = () => browser.executeAsync((done) => {
+const clearStored = () => browser.execute(() => new Promise((done) => {
   chrome.storage.local.remove('options', () => done(true));
-});
+}));
 
-const getStored = () => browser.executeAsync((done) => {
+const getStored = () => browser.execute(() => new Promise((done) => {
   chrome.storage.local.get('options', (result) => done(result.options ? JSON.parse(result.options) : null));
-});
+}));
 
 const rowKey = (action) => browser.execute((selector) => {
   const box = document.querySelector(`${selector} .keybind-input`);
@@ -47,11 +47,11 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     await openExtensionPage('/player/options/index.html');
     await setStored(legacy);
 
-    const options = await browser.executeAsync((done) => {
+    const options = await browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs')
           .then(({Utils}) => Utils.getOptionsFromStorage())
           .then(done, (e) => done({failed: String(e)}));
-    });
+    }));
 
     expect(options.failed).toBeUndefined();
     expect(options.keybindsVersion).toBe(4);
@@ -110,11 +110,11 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
       SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
     }});
 
-    const options = await browser.executeAsync((done) => {
+    const options = await browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs')
           .then(({Utils}) => Utils.getOptionsFromStorage())
           .then(done, (e) => done({failed: String(e)}));
-    });
+    }));
     expect(options.failed).toBeUndefined();
     expect(options.keybindsVersion).toBe(4);
     expect(options.seekStepSize).toBe(5);
@@ -139,11 +139,11 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
       SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
     }});
 
-    const options = await browser.executeAsync((done) => {
+    const options = await browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs')
           .then(({Utils}) => Utils.getOptionsFromStorage())
           .then(done, (e) => done({failed: String(e)}));
-    });
+    }));
     expect(options.failed).toBeUndefined();
     expect(options.keybindsVersion).toBe(4);
     expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');
@@ -156,11 +156,11 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     await openExtensionPage('/player/options/index.html');
     await setStored({keybindsVersion: 3, keybinds: {WindowedFullscreen: 'KeyW'}});
 
-    const options = await browser.executeAsync((done) => {
+    const options = await browser.execute(() => new Promise((done) => {
       import('/player/utils/Utils.mjs')
           .then(({Utils}) => Utils.getOptionsFromStorage())
           .then(done, (e) => done({failed: String(e)}));
-    });
+    }));
     expect(options.keybinds.WindowedFullscreen).toBe('KeyW');
     // Through the version 4 step (S and D), which does not touch it.
     expect(options.keybindsVersion).toBe(4);
