@@ -96,6 +96,16 @@ describe('a click on the video', () => {
     expect(acted).toEqual([ClickActions.FULLSCREEN, ClickActions.FULLSCREEN]);
   });
 
+  it('does nothing for an action set to nothing', () => {
+    const clicks = video({singleClickAction: ClickActions.NOTHING, doubleClickAction: ClickActions.PLAY_PAUSE});
+    clicks.click();
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([]);
+    clickRow(clicks, 2);
+    vi.advanceTimersByTime(ClickWindowMs);
+    expect(acted).toEqual([ClickActions.PLAY_PAUSE]);
+  });
+
   it('keeps the player\'s own defaults (hide the controls, two clicks pause) as they were', () => {
     const clicks = video({singleClickAction: ClickActions.HIDE_CONTROLS, doubleClickAction: ClickActions.PLAY_PAUSE,
       tripleClickAction: ClickActions.FULLSCREEN});

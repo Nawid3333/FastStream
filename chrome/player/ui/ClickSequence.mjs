@@ -21,7 +21,10 @@ export class ClickSequence {
    */
   constructor(getOptions, act) {
     this.getOptions = getOptions;
-    this.act = act;
+    // "Nothing" is no action to do (kimi's review).
+    this.act = (action) => {
+      if (action && action !== ClickActions.NOTHING) act(action);
+    };
     this.count = 0;
     /** @type {?ReturnType<typeof setTimeout>} */
     this.timer = null;
