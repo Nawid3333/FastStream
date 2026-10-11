@@ -177,18 +177,34 @@ const EpisodeLinks = (() => {
    * @return {boolean}
    */
   function inSeries(series, href) {
-    return !series || seriesOf(href) === series;
+    if (!series) return true;
+    if (seriesOf(href) === series) return true;
+    // A series that is a folder (.../girls/) has its other parts in it too (.../girls/ova/...);
+    // a sequel's folder (.../girls-2/) is not in it (kimi's review, 2026-10-11).
+    if (!series.endsWith('/')) return false;
+    try {
+      const url = new URL(href);
+      return (url.origin + url.pathname).startsWith(series);
+    } catch (e) {
+      return false;
+    }
   }
 
-  // An address that ends in a season's episode: .../staffel-3/episode-12, .../staffel-3-episode-12.
-  const SEASON_EPISODE_END = new RegExp(`^(.*[/_-]${SEASON}[-_.]?)(\\d+)([/_.-]?${EPISODE_WORD}[-_.]?)(\\d+)((?:\\.[a-z0-9]+)?/?)$`, 'iu');
+  // An address that ends in a season's episode, each the same groups (before the season's
+  // number, the season, between, the episode, after): .../staffel-3/episode-12,
+  // .../staffel-3-episode-12, .../S03E12, .../3x12.
+  const SEASON_EPISODE_ENDS = [
+    new RegExp(`^(.*[/_-]${SEASON}[-_.]?)(\\d+)([/_.-]?${EPISODE_WORD}[-_.]?)(\\d+)((?:\\.[a-z0-9]+)?/?)$`, 'iu'),
+    /^(.*[/_.-]s)(\d{1,3})([-_.]?e)(\d{1,4})((?:\.[a-z0-9]+)?\/?)$/i,
+    /^(.*[/_.-])(\d{1,3})(x)(\d{1,4})((?:\.[a-z0-9]+)?\/?)$/i,
+  ];
 
   /**
    * The season and the episode an address names at its end.
    * @param {string} href
-   * @return {?{show: string, season: number, episode: number, match: Array<string>, origin: string}}
-   *   show: the address before the season's number, in lower case (the same for each season of
-   *   a series).
+   * @return {?{show: string, season: number, episode: number, match: Array<string>, origin: string,
+   *   short: boolean}} show: the address before the season's number, in lower case (the same for
+   *   each season of a series); short: an S03E12 or a 3x12, whose episodes have two digits.
    */
   function seasonEpisode(href) {
     let url;
@@ -197,10 +213,14 @@ const EpisodeLinks = (() => {
     } catch (e) {
       return null;
     }
-    const match = SEASON_EPISODE_END.exec(url.pathname);
-    if (!match) return null;
-    return {show: (url.origin + match[1]).toLowerCase(), season: parseInt(match[2], 10), episode: parseInt(match[4], 10),
-      match, origin: url.origin};
+    for (const [i, form] of SEASON_EPISODE_ENDS.entries()) {
+      const match = form.exec(url.pathname);
+      if (match) {
+        return {show: (url.origin + match[1]).toLowerCase(), season: parseInt(match[2], 10), episode: parseInt(match[4], 10),
+          match, origin: url.origin, short: i > 0};
+      }
+    }
+    return null;
   }
 
   /**
@@ -215,7 +235,9 @@ const EpisodeLinks = (() => {
     if (!here) return null;
     const match = here.match;
     const season = String(here.season + 1).padStart(match[2].startsWith('0') ? match[2].length : 0, '0');
-    const first = match[4].startsWith('0') ? '1'.padStart(match[4].length, '0') : '1';
+    // S04E01, 4x01: those write the episode with two digits.
+    const padded = match[4].startsWith('0') || (here.short && match[4].length >= 2);
+    const first = padded ? '1'.padStart(match[4].length, '0') : '1';
     return {
       season: here.origin + match[1] + season,
       first: here.origin + match[1] + season + match[3] + first + match[5],

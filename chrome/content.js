@@ -20,6 +20,7 @@
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
+    PAGE_TYPING: 'PAGE_TYPING',
     FRAME_REMOVED: 'FRAME_REMOVED',
     SEND_TO_CONTENT: 'SEND_TO_CONTENT',
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
@@ -187,6 +188,13 @@
     } else if (request.type === MessageTypes.START_PAGE_PLAYER) {
       startPagePlayer().then(sendResponse, () => sendResponse(null));
       return true;
+    } else if (request.type === MessageTypes.PAGE_TYPING) {
+      // Whether the user types in this page, or looks elsewhere: the next episode's player
+      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11).
+      const active = document.activeElement;
+      sendResponse(document.visibilityState !== 'visible' ||
+        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
+      return;
     } else if (request.type === MessageTypes.MESSAGE_FROM_CONTENT && request.destination === 'main') {
       return handleContentMessage(request, sender, sendResponse);
     }
@@ -2112,13 +2120,19 @@
   }
 
   /**
-   * Whether a link leads to this page's previous episode: the page lists its season.
+   * Whether the page lists this page's season: it links the previous episode, or another
+   * episode of the season (a season's first episode has no previous; deepseek's review).
    * @param {Array<Element>} links - episodeLinksOf's series links.
    * @return {boolean}
    */
   function listsThisSeason(links) {
     const previous = EpisodeLinks.neighbourEpisodeUrls(window.location.href, false);
-    return links.some((a) => previous.includes(withoutHash(a.href)));
+    const here = EpisodeLinks.seasonEpisode(window.location.href);
+    return links.some((a) => {
+      if (previous.includes(withoutHash(a.href))) return true;
+      const at = here && EpisodeLinks.seasonEpisode(a.href);
+      return !!at && at.show === here.show && at.season === here.season && at.episode !== here.episode;
+    });
   }
 
   /**
@@ -2169,22 +2183,23 @@
 
     // 1b. The last episode of a season, in a page that lists its episodes: the next season's
     // first. Not where the page links a later episode of this season (a gap: step 3 finds it
-    // in the list). The next season's lowest episode the page links (a site that numbers on
-    // across seasons), else, where the page links the season itself, its episode 1: this
-    // address with the season one on (.../staffel-4/episode-1).
+    // in the list). The next season's episode 1 where the page links it; its episode this
+    // one +1 where the site numbers on across seasons (12, then 13); else, where the page
+    // links the season or one of its episodes (a "continue watching" episode 5 is no first:
+    // glm's review), its episode 1: this address with the season one on (.../staffel-4/episode-1).
     if (isNext && structured && !linksLaterInSeason(links.site)) {
       const here = EpisodeLinks.seasonEpisode(window.location.href);
       const next = EpisodeLinks.nextSeason(window.location.href);
       if (here && next) {
         const ofNext = links.series.map((a) => ({a, at: EpisodeLinks.seasonEpisode(a.href)}))
-            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1)
-            .sort((x, y) => x.at.episode - y.at.episode);
-        if (ofNext.length > 0) return ofNext[0].a;
+            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1);
+        const linked = ofNext.find(({at}) => at.episode === 1) || ofNext.find(({at}) => at.episode === here.episode + 1);
+        if (linked) return linked.a;
         const linksSeason = (a) => {
           const path = withoutHash(a.href).split('?')[0].replace(/\/$/, '');
           return path.startsWith(next.season) && !/^\d/.test(path.slice(next.season.length));
         };
-        if (links.site.some(linksSeason)) {
+        if (ofNext.length > 0 || links.site.some(linksSeason)) {
           const first = document.createElement('a');
           first.href = next.first;
           return first;

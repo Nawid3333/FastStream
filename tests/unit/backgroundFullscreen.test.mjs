@@ -96,6 +96,18 @@ describe('a fullscreen carried over to the next episode', () => {
     expect(bg.sent('EXIT_CARRIED_FULLSCREEN')).toEqual([]);
   });
 
+  it('lets the next episode\'s player take the keyboard only when the page says nobody types', async () => {
+    // The reviews (2026-10-11): the player took the keyboard even from a field the user typed in.
+    for (const [typing, may] of [[false, true], [true, false], [undefined, false]]) {
+      await playerInPage({
+        onTabMessage: ({message, frameId}) => (message.type === 'PAGE_TYPING' && frameId === 0 ? typing : undefined),
+      });
+      expect(await bg.message({type: 'REQUEST_KEYBOARD'}, {tabId: 1, frameId: 5})).toBe(may);
+      bg.unload();
+      bg = null;
+    }
+  });
+
   it('does not make the window fullscreen again in the next episode after the user left it (F11)', async () => {
     // deepseek's review (2026-10-11): F11, or the browser's own "Exit Full Screen", ended
     // the carried fullscreen, and the next episode went fullscreen again.

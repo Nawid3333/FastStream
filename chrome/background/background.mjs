@@ -1190,6 +1190,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return handleFullscreenRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_WINDOWED_FULLSCREEN) {
     return handleWindowedFullscreenRequest(frame, msg, sendResponse);
+  } else if (msg.type === MessageTypes.REQUEST_KEYBOARD) {
+    // The next episode's player may take the keyboard unless the user types in the page or
+    // looks elsewhere (content.js PAGE_TYPING, asked of the page's top frame).
+    chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.PAGE_TYPING}, {frameId: 0}, (typing) => {
+      void chrome.runtime.lastError;
+      sendResponse(typing === false);
+    });
+    return true;
   } else if (msg.type === MessageTypes.REQUEST_WINDOW_FULLSCREEN) {
     setCarriedFullscreen(frame, !!msg.force).then(sendResponse, (e) => {
       console.error('The window\'s fullscreen failed', e);

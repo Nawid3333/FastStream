@@ -208,10 +208,13 @@ async function recieveSources(request, sendResponse) {
 
   // The keyboard into this player after FastStream went on to it by itself (his report,
   // 2026-10-11: F, Space and the arrows did nothing on the next episode until a click in the
-  // player; the page had the keyboard). Only then: a player that opens while the user types
-  // in the page leaves the keyboard there.
-  if (continuationOptions.autoPlay) {
-    window.focus();
+  // player; the page had the keyboard). Only then, and not while the user types in the page
+  // or looks at another tab (the background asks the page: PAGE_TYPING; the reviews).
+  if (continuationOptions.autoPlay && EnvUtils.isExtension()) {
+    chrome.runtime.sendMessage({type: MessageTypes.REQUEST_KEYBOARD}, (mayTake) => {
+      void chrome.runtime.lastError;
+      if (mayTake === true) window.focus();
+    });
   }
 
   sendResponse('sources_recieved');

@@ -105,6 +105,9 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     // A sequel that only starts the same (deepseek's review).
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2/staffel-1/episode-1')).toBe(false);
     expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2-episode-1')).toBe(false);
+    // A series that is a folder has its other parts in it (kimi's review); a sequel's folder not.
+    expect(EpisodeLinks.inSeries(series, `${ANIWORLD}/ova/staffel-1/episode-1`)).toBe(true);
+    expect(EpisodeLinks.inSeries(series, `${ANIWORLD}-2/staffel-1/episode-1`)).toBe(false);
     // No series told: any link may be the next.
     expect(EpisodeLinks.inSeries(null, 'https://a.test/anything')).toBe(true);
   });
@@ -119,6 +122,15 @@ describe('EpisodeLinks.nextSeason', () => {
     expect(EpisodeLinks.nextSeason('https://a.test/show/x/season-09/ep-012/').first).toBe('https://a.test/show/x/season-10/ep-001/');
   });
 
+  it('goes on from an S03E12 or a 3x12 too, its episodes with two digits (deepseek\'s review)', () => {
+    expect(EpisodeLinks.nextSeason('https://a.test/tv/x/S03E12')).toEqual({
+      season: 'https://a.test/tv/x/S04',
+      first: 'https://a.test/tv/x/S04E01',
+    });
+    expect(EpisodeLinks.nextSeason('https://a.test/tv/x/3x12.html').first).toBe('https://a.test/tv/x/4x01.html');
+    expect(EpisodeLinks.seasonEpisode('https://a.test/tv/x/s03e14')).toMatchObject({show: 'https://a.test/tv/x/s', season: 3, episode: 14});
+  });
+
   it('goes on where one segment names the season and the episode', () => {
     expect(EpisodeLinks.nextSeason('https://a.test/show/x/staffel-3-episode-12')).toEqual({
       season: 'https://a.test/show/x/staffel-4',
@@ -130,6 +142,6 @@ describe('EpisodeLinks.nextSeason', () => {
 
   it('has none for an address without a season', () => {
     expect(EpisodeLinks.nextSeason('https://a.test/watch/12')).toBe(null);
-    expect(EpisodeLinks.nextSeason('https://a.test/tv/x/S02E05')).toBe(null);
+    expect(EpisodeLinks.nextSeason('https://a.test/watch/episode-12')).toBe(null);
   });
 });

@@ -178,6 +178,50 @@ describe('the next episode, within the series', () => {
     expect(page.assigned).toEqual([`${SERIES}/staffel-2/episode-13`]);
   });
 
+  it('goes on to the next season\'s episode 1, not to a "continue watching" episode of it (glm\'s review)', async () => {
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-12`,
+      pathname: '/anime/stream/girls/staffel-3/episode-12'});
+    for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-3/episode-${e}`, String(e));
+    page.link(`${SERIES}/staffel-4`, 'Staffel 4');
+    page.link(`${SERIES}/staffel-4/episode-5`, 'Weiterschauen: Staffel 4, Folge 5');
+    expect(await page.next()).toBe('clicked');
+    expect(page.assigned).toEqual([`${SERIES}/staffel-4/episode-1`]);
+  });
+
+  it('presses no "next episode" button on a season\'s first episode either (deepseek\'s review)', async () => {
+    // A season's first episode has no previous one to link: the season's other episodes (here
+    // 5, after a gap) tell the page lists it, and the list, not the button, goes on.
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-1`,
+      pathname: '/anime/stream/girls/staffel-3/episode-1'});
+    page.link(`${SERIES}/staffel-3/episode-1`, '1');
+    page.link(`${SERIES}/staffel-3/episode-5`, '5');
+    const button = page.p.document.createElement('button');
+    button.textContent = 'Next episode';
+    let pressed = false;
+    button.click = () => {
+      pressed = true;
+    };
+    page.p.document.body.appendChild(button);
+    expect(await page.next()).toBe('clicked');
+    expect(pressed).toBe(false);
+    expect(page.assigned).toEqual([`${SERIES}/staffel-3/episode-5`]);
+  });
+
+  it('answers whether the user types in the page, for the next episode\'s keyboard', async () => {
+    const p = episodePage().p;
+    p.document.visibilityState = 'visible';
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(false);
+    const field = p.document.createElement('input');
+    p.document.body.appendChild(field);
+    p.document.activeElement = field;
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(true);
+    p.document.activeElement = p.document.body;
+    p.document.visibilityState = 'hidden';
+    expect(await p.send({type: 'PAGE_TYPING'})).toBe(true);
+  });
+
   it('does not press a "next episode" button on a series page its links tell all of (kimi\'s review)', async () => {
     const {p, next, clicked} = seasonPage(3, 12);
     const button = p.document.createElement('button');
