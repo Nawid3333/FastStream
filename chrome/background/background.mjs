@@ -1855,7 +1855,9 @@ function startPagePlayers(tab) {
   }
   let asking = false;
   const ask = async () => {
-    if (tab.continuationOptions !== continuation || !continuation.autoPlay || !tab.isOn || tab.isMpv ||
+    // In MPV mode only for MPV autoplay (mpvNext), and only until the stream went to mpv.
+    const mpvDone = tab.isMpv && (!continuation.mpvNext || tab.mpvAutoOpened);
+    if (tab.continuationOptions !== continuation || !continuation.autoPlay || !tab.isOn || mpvDone ||
         Date.now() > startPagePlayerUntil.get(continuation) || !Tabs.tabs.has(tab.tabId)) {
       clearInterval(tab.pagePlayerStarter);
       tab.pagePlayerStarter = undefined;
@@ -2207,7 +2209,7 @@ async function onSourceRecieved(details, frame, mode) {
   // MPV mode: relay the detected source to the native mpv host instead of
   // opening the in-page player. Not with MPV mode switched off (leaveMpvWhenOff).
   if (frame.tab.isOn && frame.tab.isMpv && Options.mpvMode) {
-    if (frame.tab.mpvOnPlay) {
+    if (frame.tab.mpvOnPlay && !(frame.tab.mpvNextEpisodeUntil > Date.now())) {
       // The shortcut's MPV: streams are only tracked, for onUserPlay to pick
       // from - unless the user already pressed play and the player asked
       // for its stream only afterwards, in which case this is that stream.
@@ -2414,6 +2416,135 @@ function autoOpenInMpv(tab, url, headers) {
       setMpvError(tab, {ok: false, error: String(e)});
     }
   });
+}
+
+// MPV autoplay (his wish, 2026-10-11): an episode handed to mpv that plays to its end (with
+// "Autoplay next video" on), or mpv's key for the next or the previous episode, goes on to
+// that episode in the tab's page, and its stream goes into the same mpv window, so a series
+// plays episode after episode without the browser. The host (7) follows mpv over a port
+// kept open (MpvBackend.watch), which also keeps this background page from unloading.
+/** @type {?{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
+let mpvWatch = null;
+// How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
+const MpvNextEpisodeWaitMs = 60000;
+
+/**
+ * Follows the mpv a stream of the tab just went to: the latest hand-off is the one an end or
+ * a key goes on from. Only a single mpv window (Mpv.singleInstance), which the host can
+ * follow; a window per stream has no pipe.
+ * @param {Object} tab - TabHolder.
+ * @param {string} url - The stream sent.
+ */
+function watchMpvFor(tab, url) {
+  if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
+    return;
+  }
+  // The next episode came: what was asked for it is done.
+  if (tab.continuationOptions?.mpvNext) {
+    tab.continuationOptions = null;
+  }
+  tab.mpvNextEpisodeUntil = 0;
+  // Another tab's stream took the window: the episode that tab still waits for no longer
+  // goes to mpv by itself, where it would replace this one.
+  const before = mpvWatch && mpvWatch.tabId !== tab.tabId ? Tabs.getTab(mpvWatch.tabId) : null;
+  if (before) {
+    before.mpvNextEpisodeUntil = 0;
+    if (before.continuationOptions?.mpvNext) {
+      before.continuationOptions = null;
+    }
+  }
+  if (mpvWatch?.alive) {
+    mpvWatch.tabId = tab.tabId;
+    mpvWatch.url = url;
+    return;
+  }
+  /** @type {{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
+  const state = {tabId: tab.tabId, url, alive: true, going: false, watcher: null};
+  mpvWatch = state;
+  state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
+}
+
+/**
+ * Whether mpv plays the stream FastStream sent: the host appends its fs-* tags after a #,
+ * and the rest is the URL as sent. A file the user opened in mpv himself is not followed.
+ * @param {*} path - mpv's path.
+ * @param {string} url - The stream sent.
+ * @return {boolean}
+ */
+function isSentStream(path, url) {
+  if (typeof path !== 'string' || typeof url !== 'string') return false;
+  return path.split('#')[0] === url.split('#')[0];
+}
+
+/**
+ * What the host says about the watched mpv.
+ * @param {Object} state - The watch (mpvWatch).
+ * @param {Object} event - watching, path, ended, request or closed.
+ */
+function onMpvWatchEvent(state, event) {
+  if (event.type === 'closed') {
+    state.alive = false;
+    if (mpvWatch === state) mpvWatch = null;
+    if (Logging) console.log('[MPV autoplay] the watch ended:', event.reason);
+    return;
+  }
+  if (event.type === 'ended') {
+    if (Options.autoplayNext && isSentStream(event.path, state.url)) {
+      goToEpisode(state, 'next');
+    }
+  } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
+    goToEpisode(state, event.action);
+  }
+}
+
+/**
+ * Goes on to the next (or the previous) episode in the page of the tab mpv's stream came
+ * from: the page's own link, as the in-page player's next button does it, top frame first.
+ * The next page's player is started if it waits for a click (startPagePlayers), and its
+ * stream goes to mpv by itself, into the same window. mpv says what happens.
+ * @param {Object} state - The watch (mpvWatch).
+ * @param {'next'|'previous'} direction
+ */
+async function goToEpisode(state, direction) {
+  const title = chrome.i18n.getMessage(direction === 'next' ? 'player_next_video_label' : 'player_previous_video_label') ||
+    (direction === 'next' ? 'Next video' : 'Previous video');
+  const tab = Tabs.getTab(state.tabId);
+  if (!tab || !tab.isOn || !tab.isMpv) {
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_unavailable') ||
+      'its tab is closed, or not in MPV mode');
+    return;
+  }
+  // An end and a key at the same moment would click the page's link twice, a skipped episode.
+  if (state.going) {
+    return;
+  }
+  state.going = true;
+  const frameIds = Array.from(tab.frames.keys()).sort((a, b) => a - b);
+  let clicked = false;
+  try {
+    for (const frameId of frameIds) {
+      const answer = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_NAVIGATION, direction}, {frameId}, (response) => {
+          void chrome.runtime.lastError;
+          resolve(response);
+        });
+      });
+      if (answer === 'clicked') {
+        clicked = true;
+        break;
+      }
+    }
+  } finally {
+    state.going = false;
+  }
+  if (!clicked) {
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');
+    return;
+  }
+  if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
+  tab.continuationOptions = {autoPlay: true, mpvNext: true};
+  tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
+  state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv');
 }
 
 /**
@@ -2986,7 +3117,13 @@ async function openInMpv(tabId, url, ...rest) {
         'Firefox VPN carries this video, and mpv cannot use it. Turn Firefox VPN off for this site and reload the page.',
     });
   }
-  return Mpv.openStream(url, ...rest);
+  const result = await Mpv.openStream(url, ...rest);
+  // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the
+  // player's button and the MPV key's play pass no tab (openStream's duplicate check).
+  if (result && result.ok && tabId !== undefined && tabId >= 0) {
+    watchMpvFor(Tabs.getTab(tabId), url);
+  }
+  return result;
 }
 
 /** @type {Array<'requestHeaders'|'extraHeaders'|'blocking'>} */

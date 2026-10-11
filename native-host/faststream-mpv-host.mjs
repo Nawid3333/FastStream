@@ -12,6 +12,10 @@
 //    pageUrl?, title?, start?, subtitles?} -> {ok, error?, reused?, focus?, foreground?}
 //   {type: 'status', waitMs?}    -> {ok, running, decoder: {hardware, api, requested,
 //                                    format, width, height} | null}
+//   {type: 'watch'} (over a port the extension keeps open, connectNative; host 7) ->
+//     {type: 'watching'}, then as they happen {type: 'path', path}, {type: 'ended', path},
+//     {type: 'request', action: 'next'|'previous'}, and {type: 'closed', reason} last; the
+//     extension may send {type: 'notify', title, detail} meanwhile (watchMpv).
 // Every answer also carries hostVersion (HostVersion below).
 //
 // An open that worked on Windows says how raising mpv's window went (focusOutcome):
@@ -67,7 +71,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 6;
+export const HostVersion = 7;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -491,6 +495,8 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     let buffer = '';
 
     const socket = net.connect(pipe);
+    // Decoded as a stream: a character mpv sends in two chunks stays one character.
+    socket.setEncoding('utf8');
 
     const finish = (value) => {
       if (settled) {
@@ -539,7 +545,7 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     });
 
     socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
+      buffer += chunk;
       const lines = buffer.split(String.fromCharCode(10));
       buffer = lines.pop() || '';
       for (const line of lines) {
@@ -560,6 +566,171 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
       }
     });
   });
+}
+
+// The script messages an mpv key or menu sends for the next or the previous episode
+// (input.conf: "N script-message faststream-next"); mpv gives them to every IPC client.
+export const EpisodeMessages = {'faststream-next': 'next', 'faststream-previous': 'previous'};
+
+/**
+ * Follows the mpv on our pipe for the extension, over a port it keeps open (connectNative):
+ * the end of a file, and the keys that ask for the next or the previous episode, each sent
+ * to the extension as it happens. For MPV autoplay (host 7, 2026-10-11): the extension goes
+ * on to the next episode in the page and hands its stream to this same mpv.
+ *
+ * An end is eof-reached going from false to true for the file mpv has (keep-open stops at
+ * the end), or an end-file "eof" (an mpv without keep-open). The first eof-reached is mpv's
+ * state when the watch began, a file that ended before: no end. A file loaded into the
+ * window (loadfile replace) comes as a new path, eof-reached unavailable, then false.
+ * @param {(message: Object) => *} send - Sends a message to the extension.
+ * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket}} [io] - Tests.
+ * @return {{notify: (title: string, detail?: string) => void, stop: () => void,
+ *   done: Promise<string>}} done resolves with why it ended.
+ */
+export function watchMpv(send, io = {}) {
+  const socket = (io.connect || net.connect)(io.pipe || ipcPipeFor(readConfig()));
+  // Decoded as a stream: a path with a character split across two chunks still matches.
+  socket.setEncoding('utf8');
+  let buffer = '';
+  /** @type {boolean|undefined} */
+  let eof;
+  /** @type {?string} */
+  let path = null;
+  /** @type {?string} */
+  let endedPath = null;
+  let finished = false;
+  let requests = 0;
+  // A notice sent to notify.lua, by request id: one refused (no notify.lua in this mpv's
+  // config) is shown with mpv's own text instead.
+  const notices = new Map();
+  /** @type {(reason: string) => void} */
+  let resolveDone = () => {};
+  /** @type {Promise<string>} */
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+  /**
+   * @param {Array<*>} command
+   * @param {number} [requestId]
+   */
+  const write = (command, requestId) => {
+    if (finished) return;
+    socket.write(JSON.stringify(requestId === undefined ? {command} : {command, request_id: requestId}) +
+      String.fromCharCode(10));
+  };
+  const finish = (reason) => {
+    if (finished) return;
+    finished = true;
+    try {
+      socket.destroy();
+    } catch (e) {
+      // Already gone.
+    }
+    send({type: 'closed', reason});
+    resolveDone(reason);
+  };
+  const ended = () => {
+    if (path !== null && endedPath !== path) {
+      endedPath = path;
+      send({type: 'ended', path});
+    }
+  };
+  socket.on('error', () => finish('no mpv'));
+  socket.on('close', () => finish('mpv closed'));
+  socket.on('connect', () => {
+    write(['observe_property', 1, 'path']);
+    write(['observe_property', 2, 'eof-reached']);
+    send({type: 'watching'});
+  });
+  socket.on('data', (chunk) => {
+    buffer += chunk;
+    const lines = buffer.split(String.fromCharCode(10));
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch (e) {
+        continue;
+      }
+      if (!event || typeof event !== 'object') continue;
+      if (event.event === 'property-change' && event.name === 'path') {
+        path = typeof event.data === 'string' ? event.data : null;
+        if (path !== null) {
+          send({type: 'path', path});
+        } else {
+          // Between two files (a loadfile replace): the next may be the same one again, and
+          // its end is another end (seen with the pinned mpv).
+          endedPath = null;
+        }
+      } else if (event.event === 'property-change' && event.name === 'eof-reached') {
+        if (eof === false && event.data === true) ended();
+        eof = typeof event.data === 'boolean' ? event.data : undefined;
+      } else if (event.event === 'end-file' && event.reason === 'eof') {
+        ended();
+      } else if (event.event === 'client-message' && Array.isArray(event.args)) {
+        const action = EpisodeMessages[event.args[0]];
+        if (action) send({type: 'request', action});
+      } else if (notices.has(event.request_id)) {
+        const text = notices.get(event.request_id);
+        notices.delete(event.request_id);
+        if (event.error && event.error !== 'success') write(['show-text', text, 4000]);
+      }
+    }
+  });
+  return {
+    notify(title, detail = '') {
+      requests++;
+      const id = 1000 + requests;
+      notices.set(id, detail ? title + ': ' + detail : String(title));
+      write(['script-message-to', 'notify', 'show', 'faststream', String(title), String(detail)], id);
+    },
+    stop() {
+      finish('stopped');
+    },
+    done,
+  };
+}
+
+/**
+ * Reads native-messaging frames as they come, for a port the extension keeps open
+ * (watchMpv). A frame over MaxMessageBytes ends the reading: the extension never sends one.
+ * @param {import('stream').Readable} input - The stream; stdin.
+ * @param {(message: Object) => void} onMessage - Gets each message.
+ * @param {() => void} onEnd - Called once, when the stream ends.
+ */
+export function readMessages(input, onMessage, onEnd) {
+  let pending = Buffer.alloc(0);
+  let over = false;
+  const end = () => {
+    if (over) return;
+    over = true;
+    input.removeListener('data', onData);
+    onEnd();
+  };
+  const onData = (chunk) => {
+    pending = Buffer.concat([pending, chunk]);
+    while (pending.length >= 4) {
+      const length = pending.readUInt32LE(0);
+      if (length > MaxMessageBytes) {
+        end();
+        return;
+      }
+      if (pending.length < 4 + length) return;
+      const body = pending.subarray(4, 4 + length);
+      pending = pending.subarray(4 + length);
+      let message = null;
+      try {
+        message = JSON.parse(body.toString('utf8'));
+      } catch (e) {
+        // A frame that is not JSON: skipped.
+      }
+      if (message && typeof message === 'object') onMessage(message);
+    }
+  };
+  input.on('data', onData);
+  input.on('end', end);
+  input.on('error', end);
 }
 
 /**
@@ -1500,6 +1671,22 @@ async function main() {
     const status = await queryDecoder(message.waitMs);
     debugLog(config, 'status', status);
     await sendMessage({ok: true, ...status});
+    process.exit(0);
+    return;
+  }
+
+  // MPV autoplay: follows mpv for as long as the extension keeps the port open.
+  if (message.type === 'watch') {
+    const watch = watchMpv((event) => {
+      debugLog(config, 'watch', event);
+      sendMessage(event);
+    });
+    readMessages(process.stdin, (next) => {
+      if (next.type === 'notify') watch.notify(String(next.title || ''), String(next.detail || ''));
+    }, () => watch.stop());
+    await watch.done;
+    // The last message ('closed') out before the host goes.
+    await sendMessage({type: 'bye'});
     process.exit(0);
     return;
   }

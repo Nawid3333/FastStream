@@ -1204,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "Este video proviene de Firefox VPN, y mpv no puede usar Firefox VPN: el sitio rechazaría a mpv. Para verlo en mpv, desactiva Firefox VPN para este sitio y recarga la página."
+    },
+    "mpv_episode_loading": {
+        "message": "cargando en mpv"
+    },
+    "mpv_episode_none": {
+        "message": "ninguno encontrado en la página"
+    },
+    "mpv_episode_unavailable": {
+        "message": "su pestaña está cerrada o no está en modo MPV"
     }
 }

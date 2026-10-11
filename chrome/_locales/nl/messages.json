@@ -1204,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "Deze video komt binnen via Firefox VPN, en mpv kan Firefox VPN niet gebruiken: de site zou mpv weigeren. Om de video in mpv te bekijken, schakel Firefox VPN uit voor deze site en herlaad de pagina."
+    },
+    "mpv_episode_loading": {
+        "message": "laden in mpv"
+    },
+    "mpv_episode_none": {
+        "message": "geen gevonden op de pagina"
+    },
+    "mpv_episode_unavailable": {
+        "message": "tabblad is gesloten of niet in MPV-modus"
     }
 }
