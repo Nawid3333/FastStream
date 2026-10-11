@@ -591,6 +591,11 @@ async function onCancelledShortcut(press, tabobj) {
 
 
 chrome.tabs.onRemoved.addListener((tabid, removed) => {
+  // Closed while it carried a fullscreen: the window, if it stays, goes back to its state.
+  const closing = Tabs.getTab(tabid);
+  if (closing?.windowStateBefore && removed && !removed.isWindowClosing) {
+    restoreWindowState(closing, removed.windowId);
+  }
   Tabs.removeTab(tabid);
   VpnMirror.forgetTab(tabid);
 });
@@ -690,6 +695,18 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
     tab.url = changeInfo.url;
 
     if (!samePage) {
+      // A carried fullscreen goes on only into the next episode (its continuation says so),
+      // whose player takes it over (setCarriedFullscreen). A page the user went to himself,
+      // or a second page before any player took it, gets the window as it was.
+      if (tab.windowStateBefore) {
+        if (tab.continuationOptions?.fullscreenState === 'fullscreen' && !tab.carryAwaited) {
+          tab.carryAwaited = true;
+        } else {
+          tab.carryAwaited = false;
+          tab.carriedFullscreenFrameId = null;
+          restoreWindowState(tab, tabobj.windowId);
+        }
+      }
       // The auto-open latch is per page, not per tab. The reset above only runs on
       // a hostname change, so without this a second episode on the same site is
       // detected and then dropped, because the tab still looks like it has
@@ -1167,6 +1184,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return handleFullscreenRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_WINDOWED_FULLSCREEN) {
     return handleWindowedFullscreenRequest(frame, msg, sendResponse);
+  } else if (msg.type === MessageTypes.REQUEST_WINDOW_FULLSCREEN) {
+    setCarriedFullscreen(frame, !!msg.force).then(sendResponse, (e) => {
+      console.error('The window\'s fullscreen failed', e);
+      sendResponse('error');
+    });
+    return true;
+  } else if (msg.type === MessageTypes.EXIT_CARRIED_FULLSCREEN) {
+    // Escape in the page: the player that carried the fullscreen ends it.
+    const playerFrameId = frame.tab.carriedFullscreenFrameId;
+    if (typeof playerFrameId === 'number') {
+      chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, {frameId: playerFrameId}, () => {
+        void chrome.runtime.lastError;
+      });
+    }
+    return;
   } else if (msg.type === MessageTypes.REQUEST_MINIPLAYER) {
     return handleMiniplayerRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_NAVIGATION) {
@@ -1282,6 +1314,65 @@ function handleFullscreenRequest(frame, msg, sendResponse) {
   };
   fn();
   return true;
+}
+
+/**
+ * A fullscreen carried over to the next episode (his report, 2026-10-11): the page went on
+ * to it by itself, and Firefox lets no page go fullscreen without a click, so the next
+ * episode played windowed. The browser window goes fullscreen instead - an extension may
+ * do that - and the player fills the page (windowed fullscreen); off goes back to the
+ * window's state before (left as it is when it was fullscreen already, F11).
+ * @param {Object} frame - The player's frame.
+ * @param {boolean} on
+ * @return {Promise<string>} enter or exit.
+ */
+async function setCarriedFullscreen(frame, on) {
+  const tab = frame.tab;
+  const {windowId} = await chrome.tabs.get(tab.tabId);
+  const win = await chrome.windows.get(windowId);
+  if (on) {
+    if (win.state !== 'fullscreen') {
+      tab.windowStateBefore = win.state;
+      await chrome.windows.update(windowId, {state: 'fullscreen'});
+    }
+    tab.carriedFullscreenFrameId = frame.frameId;
+    tab.carryAwaited = false;
+    tellPageCarried(tab, true);
+    return 'enter';
+  }
+  tab.carriedFullscreenFrameId = null;
+  tellPageCarried(tab, false);
+  await restoreWindowState(tab, windowId);
+  return 'exit';
+}
+
+/**
+ * The window back to its state before a carried fullscreen, once.
+ * @param {Object} tab - TabHolder.
+ * @param {number} windowId
+ */
+async function restoreWindowState(tab, windowId) {
+  const before = tab.windowStateBefore;
+  if (!before) return;
+  tab.windowStateBefore = null;
+  try {
+    const win = await chrome.windows.get(windowId);
+    // Left fullscreen with F11 meanwhile: nothing to undo.
+    if (win.state === 'fullscreen') await chrome.windows.update(windowId, {state: before});
+  } catch (e) {
+    // The window is gone.
+  }
+}
+
+/**
+ * Tells the page's top frame whether Escape is to end a carried fullscreen (content.js).
+ * @param {Object} tab - TabHolder.
+ * @param {boolean} active
+ */
+function tellPageCarried(tab, active) {
+  chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.CARRIED_FULLSCREEN, active}, {frameId: 0}, () => {
+    void chrome.runtime.lastError;
+  });
 }
 
 function handleWindowedFullscreenRequest(frame, msg, sendResponse) {

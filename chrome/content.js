@@ -15,6 +15,8 @@
     TOGGLE_MINIPLAYER: 'TOGGLE_MINIPLAYER',
     TOGGLE_FULLSCREEN: 'TOGGLE_FULLSCREEN',
     TOGGLE_WINDOWED_FULLSCREEN: 'TOGGLE_WINDOWED_FULLSCREEN',
+    CARRIED_FULLSCREEN: 'CARRIED_FULLSCREEN',
+    EXIT_CARRIED_FULLSCREEN: 'EXIT_CARRIED_FULLSCREEN',
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
@@ -36,6 +38,10 @@
   };
 
   const iframeMap = new Map();
+  // The next episode carried a fullscreen over (background.mjs setCarriedFullscreen): the
+  // browser window is fullscreen and the player fills the page. Escape here, where the
+  // keyboard is after the page loaded, ends it as it ends a real fullscreen.
+  let carriedFullscreen = false;
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   const overlayPlayers = [];
@@ -171,6 +177,9 @@
       return handleFullscreen(request, sender, sendResponse);
     } else if (request.type === MessageTypes.TOGGLE_WINDOWED_FULLSCREEN) {
       return handleWindowedFullscreen(request, sender, sendResponse);
+    } else if (request.type === MessageTypes.CARRIED_FULLSCREEN) {
+      carriedFullscreen = !!request.active;
+      return;
     } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_NAVIGATION) {
       return handlePlaylistNavigation(request, sender, sendResponse);
     } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_POLL) {
@@ -2442,6 +2451,18 @@
 
   window.addEventListener('pointerdown', onUserGesture, true);
   window.addEventListener('keydown', onUserGesture, true);
+  window.addEventListener('keydown', (e) => {
+    if (!carriedFullscreen || e.key !== 'Escape') return;
+    carriedFullscreen = false;
+    e.preventDefault();
+    try {
+      chrome.runtime.sendMessage({type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (err) {
+      // The extension was reloaded under this page.
+    }
+  }, true);
 
   // Pressing the shortcut while already watching a video the user started
   // counts as starting it now.

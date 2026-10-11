@@ -37,6 +37,9 @@ if (EnvUtils.isExtension()) {
           return true;
         } else if (request.type === MessageTypes.VPN_ALLOWED && window.fastStream) {
           window.fastStream.vpnPrompt.onAllowed();
+        } else if (request.type === MessageTypes.EXIT_CARRIED_FULLSCREEN && window.fastStream) {
+          // Escape in the page around a carried fullscreen (content.js).
+          window.fastStream.interfaceController.exitCarriedFullscreen();
         } else if (request.type === MessageTypes.UPDATE_OPTIONS) {
           if (request.time !== optionSendTime) {
             optionSendTime = request.time;
@@ -194,10 +197,9 @@ async function recieveSources(request, sendResponse) {
 
   const fullscreenState = continuationOptions.fullscreenState;
   if (fullscreenState === 'fullscreen') {
-    window.fastStream.interfaceController.fullscreenToggle(true).catch((e) => {
-      console.error(e);
-      window.fastStream.interfaceController.setStatusMessage('error', Localize.getMessage('player_fullscreen_denied'), 'warning', 5000);
-    });
+    // Firefox refuses a fullscreen nobody clicked for (the page went on by itself), and the
+    // episode played windowed: the browser window goes fullscreen instead.
+    window.fastStream.interfaceController.carryFullscreen();
   } else if (fullscreenState === 'pip') {
     window.fastStream.interfaceController.pipToggle(true);
   } else if (fullscreenState === 'windowed') {

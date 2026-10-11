@@ -103,6 +103,9 @@ export async function loadBackground({
     // What the background sent to the extension's own pages (runtime.sendMessage: an open
     // options page hears LOAD_OPTIONS after a save of its own).
     runtimeSent: [],
+    // The browser window (windows.get/update; one window, id 1): its state, and each update.
+    windowState: 'maximized',
+    windowUpdates: [],
     badges: new Map(),
     titles: new Map(),
     dynamicRules: [],
@@ -201,11 +204,19 @@ export async function loadBackground({
       setIcon: () => {},
     },
     commands: {onCommand: event(), getAll: async () => []},
+    windows: {
+      get: async (windowId) => ({id: windowId, state: bg.windowState}),
+      update: async (windowId, info) => {
+        bg.windowUpdates.push({windowId, ...info});
+        if (info.state) bg.windowState = info.state;
+        return {id: windowId, state: bg.windowState};
+      },
+    },
     tabs: {
       TAB_ID_NONE: -1,
       ...tabEvents,
       query: (query, callback) => answer(callback, bg.tabs.map((t) => ({...t}))),
-      get: async (tabId) => ({...(bg.tabs.find((t) => t.id === tabId) || {id: tabId})}),
+      get: async (tabId) => ({windowId: 1, ...(bg.tabs.find((t) => t.id === tabId) || {id: tabId})}),
       sendMessage: (tabId, message, ...rest) => {
         const callback = typeof rest[rest.length - 1] === 'function' ? rest.pop() : undefined;
         const frameId = rest[0] && typeof rest[0].frameId === 'number' ? rest[0].frameId : undefined;
@@ -393,7 +404,7 @@ export async function loadBackground({
    */
   bg.closed = async (tabId) => {
     bg.tabs = bg.tabs.filter((t) => t.id !== tabId);
-    for (const listener of tabEvents.onRemoved.listeners) listener(tabId, {});
+    for (const listener of tabEvents.onRemoved.listeners) listener(tabId, {windowId: 1, isWindowClosing: false});
     await settle();
   };
 

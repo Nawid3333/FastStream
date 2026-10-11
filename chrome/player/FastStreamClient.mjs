@@ -110,6 +110,9 @@ export class FastStreamClient extends EventEmitter {
       fullscreen: false,
       miniplayer: false,
       windowedFullscreen: false,
+      // The browser window made fullscreen for the next episode (InterfaceController
+      // carryFullscreen): a fullscreen to the user, and to the next one again.
+      carriedFullscreen: false,
       autoPlayTriggered: false,
     };
 
@@ -2512,7 +2515,7 @@ export class FastStreamClient extends EventEmitter {
    * @return {string} 'fullscreen', 'pip', 'windowed', or 'normal'.
    */
   getFullscreenState() {
-    if (this.state.fullscreen) {
+    if (this.state.fullscreen || this.state.carriedFullscreen) {
       return 'fullscreen';
     }
 

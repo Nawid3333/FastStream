@@ -245,6 +245,14 @@ export class TabHolder {
     // went on to the next episode (background.mjs goToEpisode): also in the MPV key's mode,
     // which otherwise waits for a play in the page.
     this.mpvNextEpisodeUntil = 0;
+    // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
+    // the window's state before it went fullscreen, to go back to, and the player that asked.
+    /** @type {?string} */
+    this.windowStateBefore = null;
+    /** @type {?number} */
+    this.carriedFullscreenFrameId = null;
+    // Went on to the next episode carrying it, and no player there took it yet.
+    this.carryAwaited = false;
     // MPV started by its shortcut: only a video the user starts goes to mpv
     // (background.mjs's onUserPlay), not the first stream the page loads.
     this.mpvOnPlay = false;
@@ -593,7 +601,7 @@ const TabStateKeyPrefix = 'tabState:';
 // that page makes requests.
 const PersistedTabFields = ['url', 'isOn', 'isMpv', 'mpvOnPlay', 'regexMatched', 'mpvMatched', 'mpvAutoOpened',
   'mpvError', 'mpvHostOutdated', 'mpvDecoder', 'mpvPlayPendingUntil', 'mpvPlayedVideo', 'mpvLastPlaySend',
-  'mpvTurnedOff'];
+  'mpvTurnedOff', 'windowStateBefore', 'carriedFullscreenFrameId', 'carryAwaited'];
 
 export class TabTracker {
   constructor() {
