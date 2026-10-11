@@ -737,54 +737,64 @@ body {
     background-color: var(--nextvideo-badge-background-color);
 }
 
-/* The next button and its autoplay switch: one tool in the bar. */
-.fluid_tool_next {
-    display: flex;
+/* Autoplay next (his wish, 2026-10-11): a tool of its own, always in the bar, like YouTube's
+   switch - this tab's setting; the options page's is where a new tab starts. The knob shows
+   play when on, pause when off; on, it sits right and the track takes the badge color. */
+.fluid_button.fluid_autoplay_switch {
+    display: inline-flex;
     align-items: center;
-    gap: 3px;
-    flex: none;
+    justify-content: center;
+    width: 36px;
+    cursor: pointer;
 }
 
-/* Autoplay next: a switch, on when its knob is right and the track takes the badge color. */
-.fluid_autoplay_switch {
+.fluid_autoplay_track {
     position: relative;
-    flex: none;
-    width: 24px;
+    display: block;
+    width: 28px;
     height: 12px;
     border-radius: 6px;
-    background-color: var(--menu-text-color);
-    opacity: 0.35;
-    cursor: pointer;
-    transition: opacity 0.2s, background-color 0.2s;
+    background-color: color-mix(in srgb, var(--menu-text-color) 35%, transparent);
+    transition: background-color 0.2s;
 }
 
-.fluid_autoplay_switch:hover {
-    opacity: 0.6;
-}
-
-.fluid_autoplay_switch.on {
+.fluid_autoplay_switch.on .fluid_autoplay_track {
     background-color: var(--nextvideo-badge-background-color);
-    opacity: 1;
 }
 
 .fluid_autoplay_knob {
     position: absolute;
-    top: 1px;
-    left: 1px;
-    width: 10px;
-    height: 10px;
+    top: -3px;
+    left: -2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background-color: var(--menu-text-color);
+    color: var(--menu-background-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     transition: transform 0.2s;
 }
 
 .fluid_autoplay_switch.on .fluid_autoplay_knob {
-    transform: translateX(12px);
+    transform: translateX(14px);
 }
 
-.fluid_autoplay_switch:focus-visible {
-    outline: 2px solid var(--menu-text-color);
-    outline-offset: 1px;
+.fluid_button .fluid_autoplay_knob svg {
+    width: 12px;
+    height: 12px;
+    opacity: 1;
+}
+
+.fluid_autoplay_switch .fluid_autoplay_play,
+.fluid_autoplay_switch.on .fluid_autoplay_pause {
+    display: none;
+}
+
+.fluid_autoplay_switch.on .fluid_autoplay_play {
+    display: inline-block;
 }
 
 #update_notif_banner,
@@ -2189,7 +2199,7 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
 /* Make shake */
 .reordering>div>svg,
 .reordering>div.volume_block>div>svg,
-.reordering>.fluid_tool_next>div>svg {
+.reordering>.fluid_autoplay_switch>.fluid_autoplay_track {
     animation: tilt-shaking 0.25s infinite;
 }
 

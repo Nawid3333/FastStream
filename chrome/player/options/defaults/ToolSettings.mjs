@@ -11,6 +11,10 @@ export const DefaultToolSettings = {
     'location': 'left',
     'priority': 300,
   },
+  'autoplay': {
+    'location': 'left',
+    'priority': 350,
+  },
   'volume': {
     'location': 'left',
     'priority': 400,

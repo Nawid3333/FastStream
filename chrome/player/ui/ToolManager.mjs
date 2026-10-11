@@ -146,8 +146,9 @@ export class ToolManager {
       DOMElements.previousVideo.classList.add('hidden');
     }
 
-    // The next button with its autoplay switch.
-    DOMElements.nextVideoTool.classList.toggle('hidden', !this.client.hasNextVideo());
+    // The next button only with a next video; the autoplay switch always (his wish, 2026-10-11:
+    // it went with the next button, and was never there where FastStream found no next link).
+    DOMElements.nextVideo.classList.toggle('hidden', !this.client.hasNextVideo());
 
     // The audio-track list's button: only where there is a track to choose (2026-10-10; it
     // opened the audio settings until they went).
@@ -158,7 +159,8 @@ export class ToolManager {
       playpause: DOMElements.playPauseButton,
       volume: DOMElements.volumeBlock,
       duration: DOMElements.duration,
-      next: DOMElements.nextVideoTool,
+      next: DOMElements.nextVideo,
+      autoplay: DOMElements.autoplaySwitch,
       previous: DOMElements.previousVideo,
       pip: DOMElements.pip,
       screenshot: DOMElements.screenshot,
