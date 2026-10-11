@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "ページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください"
+    },
+    "options_problems_title": {
+        "message": "オートプレイが停止したサイト"
+    },
+    "options_problems_note": {
+        "message": "FastStreamは、オートプレイが継続できなかったサイトをここに記録するので、サイトを報告できます。報告するとGitHubのissueが開きます。issueは公開されるため、共有したくない内容は削除してください。"
+    },
+    "options_problems_none": {
+        "message": "今のところはありません。"
+    },
+    "options_problems_no_next": {
+        "message": "次のエピソードが見つかりませんでした（最終話であるか、FastStreamがまだ読み取れないページです）"
+    },
+    "options_problems_no_stream": {
+        "message": "次のエピソードのページに動画がありませんでした"
+    },
+    "options_problems_mode_player": {
+        "message": "プレイヤーで"
+    },
+    "options_problems_mode_mpv": {
+        "message": "MPVモードで"
+    },
+    "options_problems_seen": {
+        "message": "$1回、最終は $2"
+    },
+    "options_problems_report": {
+        "message": "GitHubで報告"
+    },
+    "options_problems_clear": {
+        "message": "リストをクリア"
+    },
+    "player_nextvideo_cancel": {
+        "message": "このタブのオートプレイを停止"
     }
 }

@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo"
+    },
+    "options_problems_title": {
+        "message": "Siti in cui l'autoplay si è bloccato"
+    },
+    "options_problems_note": {
+        "message": "FastStream annota qui dove l'autoplay non è riuscito a proseguire, così puoi segnalare il sito. La segnalazione apre un issue su GitHub da controllare: gli issue sono pubblici, quindi rimuovi ciò che non vuoi condividere."
+    },
+    "options_problems_none": {
+        "message": "Nessuno per ora."
+    },
+    "options_problems_no_next": {
+        "message": "prossimo episodio non trovato (l'ultimo, o una pagina che FastStream non sa ancora leggere)"
+    },
+    "options_problems_no_stream": {
+        "message": "la pagina del prossimo episodio non ha prodotto alcun video"
+    },
+    "options_problems_mode_player": {
+        "message": "nel player"
+    },
+    "options_problems_mode_mpv": {
+        "message": "in modalità MPV"
+    },
+    "options_problems_seen": {
+        "message": "$1 volte, l'ultima il $2"
+    },
+    "options_problems_report": {
+        "message": "Segnala su GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Svuota la lista"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Interrompi l'autoplay per questa scheda"
     }
 }

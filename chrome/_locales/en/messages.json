@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "the page brought no stream within a minute; open it in the browser to see why"
+    },
+    "options_problems_title": {
+        "message": "Sites where autoplay got stuck"
+    },
+    "options_problems_note": {
+        "message": "FastStream notes here where autoplay could not go on, so you can report the site. A report opens a GitHub issue for you to check first: issues are public, so remove what you don't want to share."
+    },
+    "options_problems_none": {
+        "message": "None so far."
+    },
+    "options_problems_no_next": {
+        "message": "no next episode found (the last one, or a page FastStream can't read yet)"
+    },
+    "options_problems_no_stream": {
+        "message": "the next episode's page brought no video"
+    },
+    "options_problems_mode_player": {
+        "message": "in the player"
+    },
+    "options_problems_mode_mpv": {
+        "message": "in MPV mode"
+    },
+    "options_problems_seen": {
+        "message": "$1 times, last on $2"
+    },
+    "options_problems_report": {
+        "message": "Report on GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Clear the list"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Stop autoplay for this tab"
     }
 }

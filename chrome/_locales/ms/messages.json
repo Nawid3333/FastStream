@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya"
+    },
+    "options_problems_title": {
+        "message": "Laman web di mana autoplay tersekat"
+    },
+    "options_problems_note": {
+        "message": "FastStream mencatat di sini di mana autoplay tidak dapat diteruskan, supaya anda boleh melaporkan laman tersebut. Laporan akan membuka isu GitHub untuk disemak: isu adalah awam, jadi padamkan apa yang anda tidak mahu kongsi."
+    },
+    "options_problems_none": {
+        "message": "Setakat ini tiada."
+    },
+    "options_problems_no_next": {
+        "message": "episod seterusnya tidak ditemui (episod terakhir, atau halaman yang belum boleh dibaca oleh FastStream)"
+    },
+    "options_problems_no_stream": {
+        "message": "halaman episod seterusnya tidak memaparkan video"
+    },
+    "options_problems_mode_player": {
+        "message": "dalam pemain"
+    },
+    "options_problems_mode_mpv": {
+        "message": "dalam mod MPV"
+    },
+    "options_problems_seen": {
+        "message": "$1 kali, terakhir pada $2"
+    },
+    "options_problems_report": {
+        "message": "Lapor di GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Kosongkan senarai"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Hentikan autoplay untuk tab ini"
     }
 }

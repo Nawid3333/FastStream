@@ -101,6 +101,14 @@ export class ProgressBar extends EventEmitter {
       e.stopPropagation();
     });
     WebUtils.setupTabIndex(DOMElements.nextVideoBannerButton);
+    // Stops the countdown: autoplay off for this tab, as the autoplay switch does.
+    DOMElements.nextVideoCancelButton.addEventListener('click', (e) => {
+      if (this.client.options.autoplayNext) this.client.interfaceController.toggleAutoplayNext();
+      this.updateNextVideoBanner();
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    WebUtils.setupTabIndex(DOMElements.nextVideoCancelButton);
   }
 
   reset() {
@@ -115,6 +123,7 @@ export class ProgressBar extends EventEmitter {
     // never gets one kept the previous video's banner.
     this.hasShownNextVideo = false;
     DOMElements.nextVideoBannerButton.style.display = 'none';
+    DOMElements.nextVideoCancelButton.style.display = 'none';
   }
 
   collectProgressbarData(fragments) {
@@ -301,8 +310,11 @@ export class ProgressBar extends EventEmitter {
       return;
     }
     const left = Math.ceil(duration - this.client.currentTime);
-    if (this.client.options.autoplayNext && this.client.hasNextVideo() && left <= 10) {
+    // The countdown the options set (5 s; 0: none, the next one comes at the end).
+    const countdown = Math.min(30, Math.max(0, Math.round(Number(this.client.options.autoplayCountdown ?? 5)) || 0));
+    if (this.client.options.autoplayNext && this.client.hasNextVideo() && countdown > 0 && left <= countdown) {
       DOMElements.nextVideoBannerButton.style.display = '';
+      DOMElements.nextVideoCancelButton.style.display = '';
       DOMElements.nextVideoBannerButton.textContent = Localize.getMessage('player_nextvideoin', [left]);
       if (!this.hasShownNextVideo) {
         this.hasShownNextVideo = true;
@@ -310,6 +322,7 @@ export class ProgressBar extends EventEmitter {
       }
     } else {
       DOMElements.nextVideoBannerButton.style.display = 'none';
+      DOMElements.nextVideoCancelButton.style.display = 'none';
       this.hasShownNextVideo = false;
     }
   }

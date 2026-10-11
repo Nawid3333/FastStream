@@ -1146,7 +1146,7 @@ body {
     color: var(--popbutton-text-color);
     position: absolute;
     bottom: 50px;
-    right: 12px;
+    right: 52px;
     background-color: var(--popbutton-background-color);
     border: var(--popbutton-border);
     padding: 4px 10px;
@@ -1178,10 +1178,29 @@ body {
 }
 
 .fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .hide_button,
-.fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .next_video_button {
+.fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .next_video_button,
+.fluid_video_wrapper.fluid_player_layout_default.expanded.controls_visible .next_video_cancel {
     bottom: 130px;
 }
 
+/* Beside the countdown: stops autoplay for this tab (his choice, 2026-10-11). */
+.next_video_cancel {
+    color: var(--popbutton-text-color);
+    position: absolute;
+    bottom: 50px;
+    right: 12px;
+    width: 34px;
+    box-sizing: border-box;
+    text-align: center;
+    background-color: var(--popbutton-background-color);
+    border: var(--popbutton-border);
+    padding: 4px 0;
+    font-size: 18px;
+    cursor: pointer;
+    transition: bottom 0.5s;
+}
+
+.next_video_cancel:hover,
 .next_video_button:hover {
     background-color: var(--popbutton-hover-background-color);
     border: var(--popbutton-hover-border);

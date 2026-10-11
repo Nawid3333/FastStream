@@ -13,7 +13,7 @@ const getComputedStyle = vi.fn(() => ({bottom: '0px'}));
 vi.stubGlobal('window', {getComputedStyle});
 const el = () => doc.body.appendChild(doc.createElement('div'));
 globalThis.__timeUpdateDom = {
-  playerContainer: el(), subtitlesContainer: el(), progressContainer: el(), nextVideoBannerButton: el(),
+  playerContainer: el(), subtitlesContainer: el(), progressContainer: el(), nextVideoBannerButton: el(), nextVideoCancelButton: el(),
 };
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: globalThis.__timeUpdateDom}));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
@@ -48,18 +48,34 @@ describe('updateNextVideoBanner', () => {
     return {bar, client, shown};
   }
 
-  it('shows the next video for the last 10 seconds, the controls once', () => {
+  it('shows the next video for the countdown\'s seconds (5 by default), the controls once', () => {
     const banner = globalThis.__timeUpdateDom.nextVideoBannerButton;
+    const cancel = globalThis.__timeUpdateDom.nextVideoCancelButton;
     const {bar, client, shown} = make(50);
     bar.updateNextVideoBanner();
     expect(banner.style.display).toBe('none');
-    client.currentTime = 91;
+    client.currentTime = 94;
+    bar.updateNextVideoBanner();
+    expect(banner.style.display).toBe('none');
+    client.currentTime = 96;
+    bar.updateNextVideoBanner();
+    expect([banner.style.display, cancel.style.display]).toEqual(['', '']);
+    expect(banner.textContent).toBe('player_nextvideoin');
+    client.currentTime = 98;
+    bar.updateNextVideoBanner();
+    expect(shown).toEqual([96]);
+  });
+
+  it('counts down for the seconds the options set, and not at all for 0', () => {
+    const banner = globalThis.__timeUpdateDom.nextVideoBannerButton;
+    const {bar, client} = make(85);
+    client.options.autoplayCountdown = 20;
     bar.updateNextVideoBanner();
     expect(banner.style.display).toBe('');
-    expect(banner.textContent).toBe('player_nextvideoin');
-    client.currentTime = 95;
+    client.options.autoplayCountdown = 0;
+    client.currentTime = 99;
     bar.updateNextVideoBanner();
-    expect(shown).toEqual([91]);
+    expect(banner.style.display).toBe('none');
   });
 
   it('shows nothing without a next video or with autoplay off', () => {

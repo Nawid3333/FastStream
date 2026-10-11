@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "halaman tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
+    },
+    "options_problems_title": {
+        "message": "Situs tempat autoplay terhambat"
+    },
+    "options_problems_note": {
+        "message": "FastStream mencatat di sini di mana autoplay tidak bisa lanjut, agar Anda bisa melaporkan situs tersebut. Laporan akan membuka issue GitHub untuk diperiksa: issue bersifat publik, jadi hapus bagian yang tidak ingin Anda bagikan."
+    },
+    "options_problems_none": {
+        "message": "Belum ada."
+    },
+    "options_problems_no_next": {
+        "message": "episode berikutnya tidak ditemukan (episode terakhir, atau halaman yang belum bisa dibaca FastStream)"
+    },
+    "options_problems_no_stream": {
+        "message": "halaman episode berikutnya tidak memuat video"
+    },
+    "options_problems_mode_player": {
+        "message": "di pemutar"
+    },
+    "options_problems_mode_mpv": {
+        "message": "dalam mode MPV"
+    },
+    "options_problems_seen": {
+        "message": "$1 kali, terakhir pada $2"
+    },
+    "options_problems_report": {
+        "message": "Laporkan di GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Hapus daftar"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Hentikan autoplay untuk tab ini"
     }
 }

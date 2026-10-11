@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "на странице не удалось найти поток в течение минуты; откройте её в браузере, чтобы узнать причину"
+    },
+    "options_problems_title": {
+        "message": "Сайты, где автоплей завис"
+    },
+    "options_problems_note": {
+        "message": "FastStream записывает сюда случаи, когда автоплей не смог продолжиться, чтобы вы могли сообщить о проблеме. Отчет откроет issue на GitHub для проверки: issues публичны, поэтому удалите всё, чем не хотите делиться."
+    },
+    "options_problems_none": {
+        "message": "Пока нет."
+    },
+    "options_problems_no_next": {
+        "message": "следующая серия не найдена (последняя или страница, которую FastStream пока не умеет читать)"
+    },
+    "options_problems_no_stream": {
+        "message": "на странице следующей серии не найдено видео"
+    },
+    "options_problems_mode_player": {
+        "message": "в плеере"
+    },
+    "options_problems_mode_mpv": {
+        "message": "в режиме MPV"
+    },
+    "options_problems_seen": {
+        "message": "$1 раз, последний раз $2"
+    },
+    "options_problems_report": {
+        "message": "Сообщить на GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Очистить список"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Отключить автоплей для этой вкладки"
     }
 }

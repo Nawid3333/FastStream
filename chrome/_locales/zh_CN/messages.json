@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "页面在一分钟内未提供流媒体；请在浏览器中打开以查看原因"
+    },
+    "options_problems_title": {
+        "message": "自动播放卡住的网站"
+    },
+    "options_problems_note": {
+        "message": "FastStream 在此记录自动播放无法继续的网站，方便您反馈。反馈会为您打开一个 GitHub issue 供检查：issue 是公开的，请删除您不想分享的内容。"
+    },
+    "options_problems_none": {
+        "message": "目前没有。"
+    },
+    "options_problems_no_next": {
+        "message": "未找到下一集（最后一集，或 FastStream 尚无法读取的页面）"
+    },
+    "options_problems_no_stream": {
+        "message": "下一集页面没有视频"
+    },
+    "options_problems_mode_player": {
+        "message": "在播放器中"
+    },
+    "options_problems_mode_mpv": {
+        "message": "在 MPV 模式下"
+    },
+    "options_problems_seen": {
+        "message": "$1 次，最后一次于 $2"
+    },
+    "options_problems_report": {
+        "message": "在 GitHub 上反馈"
+    },
+    "options_problems_clear": {
+        "message": "清空列表"
+    },
+    "player_nextvideo_cancel": {
+        "message": "停止此标签页的自动播放"
     }
 }

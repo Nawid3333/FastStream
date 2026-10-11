@@ -2000,6 +2000,13 @@ export class FastStreamClient extends EventEmitter {
 
     this.context.on(DefaultPlayerEvents.ENDED, (event) => {
       this.pause();
+      // The end with autoplay on and no next episode found: the last one, or a page
+      // FastStream cannot read yet - noted for the options page's problem list.
+      if (this.options.autoplayNext && !this.hasNextVideo() && EnvUtils.isExtension()) {
+        chrome.runtime.sendMessage({type: MessageTypes.REPORT_AUTOPLAY_PROBLEM, kind: 'no_next'}, () => {
+          void chrome.runtime.lastError;
+        });
+      }
       this.autoplayNextVideo();
     });
 

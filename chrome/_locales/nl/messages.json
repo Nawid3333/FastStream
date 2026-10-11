@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "de pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
+    },
+    "options_problems_title": {
+        "message": "Sites waar autoplay vastliep"
+    },
+    "options_problems_note": {
+        "message": "FastStream noteert hier waar autoplay niet kon doorgaan, zodat je de site kunt rapporteren. Een rapport opent een GitHub-issue om te controleren: issues zijn openbaar, dus verwijder wat je niet wilt delen."
+    },
+    "options_problems_none": {
+        "message": "Tot nu toe geen."
+    },
+    "options_problems_no_next": {
+        "message": "volgende aflevering niet gevonden (de laatste, of een pagina die FastStream nog niet kan lezen)"
+    },
+    "options_problems_no_stream": {
+        "message": "de pagina van de volgende aflevering bevatte geen video"
+    },
+    "options_problems_mode_player": {
+        "message": "in de speler"
+    },
+    "options_problems_mode_mpv": {
+        "message": "in MPV-modus"
+    },
+    "options_problems_seen": {
+        "message": "$1 keer, laatst op $2"
+    },
+    "options_problems_report": {
+        "message": "Rapporteren op GitHub"
+    },
+    "options_problems_clear": {
+        "message": "Lijst wissen"
+    },
+    "player_nextvideo_cancel": {
+        "message": "Autoplay voor dit tabblad stoppen"
     }
 }

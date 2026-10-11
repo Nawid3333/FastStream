@@ -5,6 +5,7 @@ import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {DefaultOptions} from './defaults/DefaultOptions.mjs';
 import {Localize} from '../modules/Localize.mjs';
+import {clearProblems, issueUrl, readProblems} from '../utils/ProblemLog.mjs';
 import {OptionsStore} from './OptionsStore.mjs';
 import {resetSearch, searchWithQuery, initsearch} from '../utils/SearchUtils.mjs';
 
@@ -47,6 +48,8 @@ const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
 const autoplayNext = document.getElementById('autoplaynext');
 const autoplayCountdown = document.getElementById('autoplaycountdown');
+const problemsList = document.getElementById('problemslist');
+const clearProblemsButton = document.getElementById('clearproblems');
 const blockPopupsWhilePlaying = document.getElementById('blockpopupswhileplaying');
 const qualityMenu = document.getElementById('quality');
 const importButton = document.getElementById('import');
@@ -645,6 +648,53 @@ autoplayNext.addEventListener('change', () => {
   sessionStorage.removeItem('autoplayNext');
   optionChanged();
 });
+
+/**
+ * Sites where autoplay got stuck (ProblemLog.mjs, his wish 2026-10-11): what, where, how
+ * often, and a button that opens the GitHub issue for the user to check and submit.
+ */
+async function renderProblems() {
+  if (!EnvUtils.isExtension()) {
+    document.getElementById('autoplayproblems').hidden = true;
+    return;
+  }
+  const problems = await readProblems();
+  problemsList.replaceChildren();
+  clearProblemsButton.disabled = problems.length === 0;
+  if (problems.length === 0) {
+    const none = document.createElement('li');
+    none.textContent = Localize.getMessage('options_problems_none');
+    problemsList.appendChild(none);
+    return;
+  }
+  const about = {version: chrome.runtime.getManifest().version, browser: navigator.userAgent};
+  for (const entry of problems) {
+    const item = document.createElement('li');
+    const text = document.createElement('span');
+    const what = Localize.getMessage(entry.kind === 'no_next' ? 'options_problems_no_next' : 'options_problems_no_stream');
+    const where = Localize.getMessage(entry.mode === 'mpv' ? 'options_problems_mode_mpv' : 'options_problems_mode_player');
+    const seen = Localize.getMessage('options_problems_seen', [String(entry.count), new Date(entry.last).toLocaleDateString()]);
+    text.textContent = `${entry.host}: ${what} (${where}; ${seen})`;
+    const report = document.createElement('button');
+    report.textContent = Localize.getMessage('options_problems_report');
+    report.addEventListener('click', () => {
+      window.open(issueUrl(entry, about), '_blank', 'noopener');
+    });
+    item.append(text, report);
+    problemsList.appendChild(item);
+  }
+}
+
+clearProblemsButton.addEventListener('click', () => {
+  clearProblems().then(renderProblems).catch((e) => console.error(e));
+});
+
+if (EnvUtils.isExtension()) {
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area === 'local' && changes.siteProblems) renderProblems().catch((e) => console.error(e));
+  });
+}
+renderProblems().catch((e) => console.error(e));
 
 autoplayCountdown.addEventListener('change', () => {
   Options.autoplayCountdown = readNumberField(autoplayCountdown, DefaultOptions.autoplayCountdown, 0, 30, true);

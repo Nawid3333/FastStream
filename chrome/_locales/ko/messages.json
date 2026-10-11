@@ -1234,5 +1234,38 @@
     },
     "mpv_episode_nostream": {
         "message": "페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요"
+    },
+    "options_problems_title": {
+        "message": "자동 재생이 중단된 사이트"
+    },
+    "options_problems_note": {
+        "message": "FastStream은 자동 재생이 중단된 곳을 여기에 기록하여 사이트를 신고할 수 있게 합니다. 신고하면 GitHub 이슈가 생성되며, 이슈는 공개되므로 공유하고 싶지 않은 내용은 삭제해 주세요."
+    },
+    "options_problems_none": {
+        "message": "아직 없습니다."
+    },
+    "options_problems_no_next": {
+        "message": "다음 에피소드를 찾지 못함 (마지막 에피소드이거나 FastStream이 아직 읽을 수 없는 페이지입니다)"
+    },
+    "options_problems_no_stream": {
+        "message": "다음 에피소드 페이지에 동영상이 없었습니다"
+    },
+    "options_problems_mode_player": {
+        "message": "플레이어에서"
+    },
+    "options_problems_mode_mpv": {
+        "message": "MPV 모드에서"
+    },
+    "options_problems_seen": {
+        "message": "$1회, 마지막으로 $2에 발생"
+    },
+    "options_problems_report": {
+        "message": "GitHub에 신고"
+    },
+    "options_problems_clear": {
+        "message": "목록 지우기"
+    },
+    "player_nextvideo_cancel": {
+        "message": "이 탭의 자동 재생 중지"
     }
 }
