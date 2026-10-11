@@ -352,7 +352,6 @@ published() { # <name> <version> <ISO time>: when the npm registry says that ver
   [ -f "$f" ] || echo '{"time":{}}' > "$f"
   jq --arg v "$2" --arg t "$3" '.time[$v] = $t' "$f" > "$f.new" && mv "$f.new" "$f"
 }
-days_ago() { date -u -d "$1 days ago" +%Y-%m-%dT%H:%M:%S.000Z; }
 hours_ago() { date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%S.000Z; }
 
 bundle() { # <dir name> <version> <player.js content>: a firefox-github zip
@@ -1248,15 +1247,6 @@ patched_extra_file_waits() {
   check 'names the file' grep -qF 'it changes tests/e2e/specs/x.e2e.mjs, not only what a patch re-cut changes' <(last_comment)
 }
 
-patched_young_package_waits() {
-  patched_setup 1.7.4
-  lock_adds 'hls.js@1.7.4'
-  published hls.js 1.7.4 "$(days_ago 2)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'hls.js@1.7.4 (published' <(last_comment)
-}
-
 patched_foreign_commit_waits() {
   patched_setup 1.7.4
   prview '["package.json","pnpm-lock.yaml"]' "[$(commit 'github-actions[bot]' 'deps: hls.js'),$(commit 'someone' 'tweak')]"
@@ -1333,7 +1323,6 @@ fsa_setup() {
   echo '{"name":"fsaunpack","lockfileVersion":3,"packages":{"":{"name":"fsaunpack"},"node_modules/express":{"version":"5.2.1"},"node_modules/body-parser/node_modules/qs":{"version":"6.14.0"}}}' \
     > "$STATE/npmlock.base"
   jq '.packages["node_modules/express"].version = "5.3.0"' "$STATE/npmlock.base" > "$STATE/npmlock.head"
-  published express 5.3.0 "$(days_ago 9)"
 }
 
 fsaunpack_ready() {
@@ -1341,31 +1330,9 @@ fsaunpack_ready() {
   run_step
   check 'exit 0' test "$rc" -eq 0
   check 'ready to merge' ready
-  check "fsaunpack's lockfile read at the merge base" has_call 'contents/fsaunpack/package-lock.json?ref=1111111111111111111111111111111111111111'
-  check 'the version it adds checked on the registry' grep -qx 'https://registry.npmjs.org/express' "$STATE/curl.log"
-  check 'nothing else looked up' test "$(wc -l < "$STATE/curl.log")" -eq 1
+  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
   check 'pnpm-lock.yaml not read' bash -c '! grep -q pnpm-lock.yaml "$0"' "$STATE/gh.log"
   check 'build compared: fsaunpack ships nothing' has_call 'release download'
-}
-
-fsaunpack_young_package_waits() {
-  fsa_setup
-  jq '.packages["node_modules/express/node_modules/qs"] = {version: "6.16.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" &&
-    mv "$STATE/n.tmp" "$STATE/npmlock.head"
-  published qs 6.16.0 "$(hours_ago 5)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names the nested package' grep -qF 'qs@6.16.0 (published' <(last_comment)
-}
-
-fsaunpack_workspace_entry_ignored() {
-  # npm lists a workspace folder under packages too, with a version: not a registry package.
-  fsa_setup
-  jq '.packages["tools/sub"] = {version: "0.1.0"}' "$STATE/npmlock.head" > "$STATE/n.tmp" && mv "$STATE/n.tmp" "$STATE/npmlock.head"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'ready to merge' ready
-  check 'not looked up' bash -c '! grep -q "tools" "$0"' "$STATE/curl.log"
 }
 
 fsaunpack_other_file_waits() {
@@ -1375,15 +1342,6 @@ fsaunpack_other_file_waits() {
   run_step
   check 'not called ready' not_ready
   check 'names the file' grep -qF 'it changes package.json, not only fsaunpack/package.json and fsaunpack/package-lock.json' <(last_comment)
-}
-
-shipped_young_package_waits() {
-  shipped_setup
-  lock_adds 'mediabunny@1.61.0'
-  published mediabunny 1.61.0 "$(hours_ago 5)"
-  run_step
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'mediabunny@1.61.0 (published' <(last_comment)
 }
 
 # A tooling update whose build differs is not ready: only the shipped group ships.
@@ -1529,104 +1487,18 @@ compare_after_bundle() {
   check 'compare last, after the build comparison' bash -c 'grep -E "^(api repos/me/fs/compare|release download|run download)" "$0" | tail -n 1 | grep -q "^api repos/me/fs/compare"' "$STATE/gh.log"
 }
 
-# --- Every package version a Dependabot pull request adds to pnpm-lock.yaml must be 7 days
-# old on the npm registry (Dependabot's cooldown holds back only what it bumps).
+# --- No package-age wait (removed 2026-10-11, the owner's call: he merges every update
+# himself once CI is green): a version published an hour ago is ready, and the npm
+# registry is not asked.
 
-lock_nothing_added() {
-  setup
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'reads the merge base lockfile' has_call 'api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=1111111111111111111111111111111111111111'
-  check "and the pull request's" has_call "api -H Accept: application/vnd.github.raw repos/me/fs/contents/pnpm-lock.yaml?ref=$sha"
-  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
-  check 'ready to merge' ready
-}
-
-lock_old_packages() {
-  setup
-  lock_adds left-pad@1.3.0 "'@babel/core@7.0.0'"
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  published @babel/core 7.0.0 "$(days_ago 8)"
-  run_step
-  check 'looks up the added package' grep -qx 'https://registry.npmjs.org/left-pad' "$STATE/curl.log"
-  check 'and the scoped one, its / escaped' grep -qx 'https://registry.npmjs.org/@babel%2Fcore' "$STATE/curl.log"
-  check 'nothing else' test "$(wc -l < "$STATE/curl.log")" -eq 2
-  check 'ready to merge' ready
-}
-
-lock_young_package() {
-  setup
-  lock_adds left-pad@1.3.0 pnpm@11.28.2
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  pub=$(days_ago 6)
-  published pnpm 11.28.2 "$pub"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'names the young one and its date' grep -qF "pnpm@11.28.2 (published ${pub:0:10})" <(last_comment)
-  check 'not the old one' bash -c '! grep -qF left-pad <<< "$0"' "$(last_comment)"
-  check 'assigned' grep -qx nawid "$STATE/assignees"
-}
-
-lock_just_under_7_days() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 167)"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'pnpm@11.28.2 (published' <(last_comment)
-}
-
-lock_just_over_7_days() {
-  setup
-  lock_adds pnpm@11.28.2
-  published pnpm 11.28.2 "$(hours_ago 169)"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'ready to merge' ready
-}
-
-lock_changed_version() {
-  # A bump replaces a key: only the new version is new.
-  setup
-  sed 's/eslint@10\.11\.0/eslint@10.12.0/' "$STATE/lock.base" > "$STATE/lock.head"
-  published eslint 10.12.0 "$(days_ago 1)"
-  run_step
-  check 'looks up only eslint' test "$(cat "$STATE/curl.log")" = 'https://registry.npmjs.org/eslint'
-  check 'not called ready' not_ready
-  check 'names it' grep -qF 'eslint@10.12.0 (published' <(last_comment)
-}
-
-lock_unknown_age() {
-  # A package the registry does not have, and a version it does not list.
-  setup
-  lock_adds no-such-pkg-fs-zz9@1.0.0 left-pad@9.9.9
-  published left-pad 1.3.0 2018-04-09T00:00:00.000Z
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'the missing package, age unknown' grep -qF 'no-such-pkg-fs-zz9@1.0.0 (age unknown)' <(last_comment)
-  check 'the missing version, age unknown' grep -qF 'left-pad@9.9.9 (age unknown)' <(last_comment)
-}
-
-lock_base_unreadable() {
+lock_new_package_ready() {
   setup
   lock_adds left-pad@1.3.0
-  : > "$STATE/lock_unreadable_1111111111111111111111111111111111111111"
+  published left-pad 1.3.0 "$(hours_ago 1)"
   run_step
   check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
-}
-
-lock_head_unreadable() {
-  setup
-  : > "$STATE/lock_unreadable_$sha"
-  run_step
-  check 'exit 0' test "$rc" -eq 0
-  check 'not called ready' not_ready
-  check 'says so' grep -qF 'its pnpm-lock.yaml could not be read' <(last_comment)
+  check 'ready to merge' ready
+  check 'asks the registry nothing' test ! -s "$STATE/curl.log"
 }
 
 no_pr
@@ -1707,17 +1579,13 @@ patched_same_version_waits
 patched_unparseable_waits
 patched_range_on_main_waits
 patched_extra_file_waits
-patched_young_package_waits
 patched_foreign_commit_waits
 shipped_ready
 shipped_major_ready
 shipped_major_own_branch_ready
 shipped_list_unreadable_waits
 fsaunpack_ready
-fsaunpack_young_package_waits
-fsaunpack_workspace_entry_ignored
 fsaunpack_other_file_waits
-shipped_young_package_waits
 tooling_that_ships_waits
 held_waits
 patched_review_passed
@@ -1733,15 +1601,7 @@ update_refused_head_moved
 update_refused
 green_mergeable_stays_unknown
 compare_after_bundle
-lock_nothing_added
-lock_old_packages
-lock_young_package
-lock_just_under_7_days
-lock_just_over_7_days
-lock_changed_version
-lock_unknown_age
-lock_base_unreadable
-lock_head_unreadable
+lock_new_package_ready
 
 printf '%d checks, %d failed\n' "$checks" "$fails"
 [ "$fails" -eq 0 ]

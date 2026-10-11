@@ -8,8 +8,8 @@
 //     .nvmrc, so the pull request changes that one file. Routine: ready to merge once CI
 //     passes and the build is unchanged; the owner merges it (2026-10-02).
 //   - pnpm, same major: the newest release of the pinned major ("packageManager" in
-//     package.json) that is at least MIN_AGE_DAYS old, so a broken release is usually
-//     pulled or fixed before it is tried. Routine: .github/workflows/update-prs.yml says
+//     package.json), as soon as it is out (no minimum age since 2026-10-11, the owner's
+//     call: nothing merges itself, he merges each update once CI is green). Routine: .github/workflows/update-prs.yml says
 //     it is ready to merge once CI passes.
 //   - pnpm, next major: the same change, routine as the same major is, unless it wants the
 //     lockfile rewritten (CI fails at the frozen install, and the owner pushes it). pnpm 12
@@ -32,8 +32,12 @@ import {compareVersions} from './check-patched-updates.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** How old a pnpm release must be before it is tried. */
-export const MIN_AGE_DAYS = 5;
+/**
+ * How old a release must be before it is tried: no wait since 2026-10-11 (the owner's call:
+ * nothing merges itself, he merges each update once CI is green). Every function that
+ * uses it still takes its own minimum age.
+ */
+export const MIN_AGE_DAYS = 0;
 
 /** Every update pull request's title starts with this; the workflow and the plan share it. */
 export const TITLE_PREFIX = 'Toolchain update: ';
@@ -158,7 +162,7 @@ async function updates() {
     {name: 'Node.js', current: String(nodeCurrent), latest: String(nodeLts), behind: nodeLts > nodeCurrent,
       routine: true, note: `newest LTS is ${nodeLts}; .nvmrc names ${nodeCurrent}`},
     {name: 'pnpm', current: pnpmCurrent, latest: sameMajor, behind: compareVersions(sameMajor, pnpmCurrent) > 0,
-      routine: true, note: `newest ${major}.x at least ${MIN_AGE_DAYS} days old is ${sameMajor}; pinned ${pin}`},
+      routine: true, note: `newest ${major}.x is ${sameMajor}; pinned ${pin}`},
   ];
   if (nextMajor) {
     result.push({name: 'pnpm', current: pnpmCurrent, latest: nextMajor, behind: true, routine: true,

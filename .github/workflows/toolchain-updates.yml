@@ -7,7 +7,7 @@ name: Toolchain updates
 #   - Node.js, a newer LTS major: .nvmrc, the file every workflow's setup-node reads (this
 #     token may not push a workflow file). update-prs.yml tells the owner whether it is
 #     ready to merge; nothing merges itself (the owner's choice, 2026-10-02).
-#   - pnpm, the newest release of the pinned major at least 5 days old: "packageManager"
+#   - pnpm, the newest release of the pinned major, as soon as it is out: "packageManager"
 #     in package.json, and nothing else. Routine: ready to merge once CI passes and nothing
 #     the extension ships has changed.
 #   - pnpm, the next major: the same change, handled the same way.

@@ -119,8 +119,8 @@
   Node update is a one-file change: the toolchain workflow's `GITHUB_TOKEN` may not
   push changes to `.github/workflows/*`. `tests/unit/checkToolchain.test.mjs` fails
   if a workflow names its own `node-version` or a setup-node step lacks
-  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, once it is
-  5 days old, changes `packageManager` in `package.json` and nothing else, and waits
+  `node-version-file: .nvmrc`. pnpm's newest release of the pinned major, as soon as it
+  is out, changes `packageManager` in `package.json` and nothing else, and waits
   for the owner's merge. Nothing from npm runs in that job, beside its write token: CI
   installs the lockfile unchanged with the new pnpm (`--frozen-lockfile`), so one that
   wants it rewritten fails CI and reaches the owner. A newer pnpm major comes
@@ -143,8 +143,8 @@
   October 2026). The decision logic is `plan()` in `tools/check-toolchain.mjs`,
   unit-tested. Dependencies stay pinned by the lockfile on purpose (patches, AMO
   reproducibility); Dependabot's weekly grouped PRs are how they move, each release
-  proposed once it is 5 days old (`cooldown` in `.github/dependabot.yml`; security
-  updates skip the wait): npm minor/patch is split into `shipped-minor-and-patch`
+  proposed as soon as it is out (no `cooldown` in `.github/dependabot.yml` since
+  2026-10-11, the owner's call): npm minor/patch is split into `shipped-minor-and-patch`
   (fuse.js, mediabunny, sortablejs - the unpatched libraries
   `tools/sync-vendor.mjs` copies into the extension) and `tooling-minor-and-patch`
   (everything else), so a tooling update is not held back by a shipped one;
@@ -175,8 +175,7 @@
   changes (`package.json` + `pnpm-lock.yaml`; for pnpm only `packageManager`, the lockfile
   untouched; fsaunpack's two files; `.nvmrc`; `.github/workflows` + `.github/actions`;
   the two Dockerfiles; a re-cut's `pnpm-workspace.yaml`, `patches/`, `tools/sync-vendor.mjs`), the
-  dependency review passed, every version its lockfile adds is 7 days old (fsaunpack's
-  `package-lock.json` read with jq), it is mergeable, it contains the newest `main`
+  dependency review passed (no package-age check since 2026-10-11), it is mergeable, it contains the newest `main`
   (otherwise GitHub's update-branch runs, CI restarts and that run decides, at most 3
   times), and, for an update that must not ship (all but the shipped and the patched
   libraries), CI's build of the extension (the `faststream-bundles`
