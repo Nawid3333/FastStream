@@ -71,7 +71,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 7;
+export const HostVersion = 8;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -1638,18 +1638,20 @@ export function launchDirect(mpvPath, args) {
   });
 }
 
-async function main() {
+/**
+ * Answers the one message the extension sends this run (a watch: for as long as its port
+ * stays open). It only returns; main() ends the process.
+ */
+async function handleMessage() {
   const config = readConfig();
   const message = await readMessage();
   if (message === TooLarge) {
     debugLog(config, 'too-large', {});
     await sendMessage({ok: false, error: 'the message was too large for the mpv host'});
-    process.exit(0);
     return;
   }
   debugLog(config, 'received', loggedMessage(message));
   if (!message || typeof message !== 'object') {
-    process.exit(0);
     return;
   }
 
@@ -1661,7 +1663,6 @@ async function main() {
     } else {
       await sendMessage({ok: true, mpv: false});
     }
-    process.exit(0);
     return;
   }
 
@@ -1671,7 +1672,6 @@ async function main() {
     const status = await queryDecoder(message.waitMs);
     debugLog(config, 'status', status);
     await sendMessage({ok: true, ...status});
-    process.exit(0);
     return;
   }
 
@@ -1687,7 +1687,6 @@ async function main() {
     await watch.done;
     // The last message ('closed') out before the host goes.
     await sendMessage({type: 'bye'});
-    process.exit(0);
     return;
   }
 
@@ -1695,23 +1694,30 @@ async function main() {
     if (!isStreamUrl(message.url)) {
       debugLog(config, 'refused', {url: message.url});
       await sendMessage({ok: false, error: 'mpv is only given http(s) streams'});
-      process.exit(0);
       return;
     }
     const mpvPath = resolveMpvPath(message.mpvPath);
     if (!mpvPath) {
       await sendMessage({ok: false, error: mpvNotFoundError(message.mpvPath)});
-      process.exit(0);
       return;
     }
     const result = await launchMpv(mpvPath, message, config);
     debugLog(config, 'launched', {mpvPath, url: message.url, result});
     await sendMessage(result);
-    process.exit(0);
     return;
   }
 
   await sendMessage({ok: false, error: 'unknown message'});
+}
+
+/**
+ * The host: one message, then it ends - in this one place, after whatever the message
+ * asked for. With an exit in each branch, CodeQL read the checks before them as input
+ * deciding a sensitive action (js/user-controlled-bypass, #111 and #183): process.exit
+ * is one to it, and the "check" was whether an mpv exists.
+ */
+async function main() {
+  await handleMessage();
   process.exit(0);
 }
 
