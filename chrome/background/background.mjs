@@ -1190,6 +1190,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return handleFullscreenRequest(frame, msg, sendResponse);
   } else if (msg.type === MessageTypes.REQUEST_WINDOWED_FULLSCREEN) {
     return handleWindowedFullscreenRequest(frame, msg, sendResponse);
+  } else if (msg.type === MessageTypes.REQUEST_KEYBOARD) {
+    // The next episode's player may take the keyboard unless the user types in the page or
+    // looks elsewhere (content.js PAGE_TYPING, asked of the page's top frame).
+    chrome.tabs.sendMessage(frame.tab.tabId, {type: MessageTypes.PAGE_TYPING}, {frameId: 0}, (typing) => {
+      void chrome.runtime.lastError;
+      sendResponse(typing === false);
+    });
+    return true;
   } else if (msg.type === MessageTypes.REQUEST_WINDOW_FULLSCREEN) {
     setCarriedFullscreen(frame, !!msg.force).then(sendResponse, (e) => {
       console.error('The window\'s fullscreen failed', e);
@@ -2775,6 +2783,7 @@ async function goToEpisode(state, direction) {
   state.going = true;
   const frameIds = Array.from(tab.frames.keys()).sort((a, b) => a - b);
   let clicked = false;
+  let seriesEnd = false;
   try {
     for (const frameId of frameIds) {
       const answer = await new Promise((resolve) => {
@@ -2787,9 +2796,20 @@ async function goToEpisode(state, direction) {
         clicked = true;
         break;
       }
+      // The page is the series' last episode (content.js isSeriesEnd): no other frame (a
+      // hoster's, whose links are other videos) is asked.
+      if (answer === 'series_end') {
+        seriesEnd = true;
+        break;
+      }
     }
   } finally {
     state.going = false;
+  }
+  if (seriesEnd) {
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_series_end') ||
+      'the last episode of the series: autoplay stops');
+    return;
   }
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');

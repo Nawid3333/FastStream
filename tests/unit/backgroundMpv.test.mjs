@@ -1669,6 +1669,18 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.toMpv()).toEqual([S1, S3]);
   });
 
+  it('stops at the series\' last episode and says so, asking no hoster frame', async () => {
+    // His report (2026-10-11, aniworld.cc): after a season's last episode autoplay went on to
+    // another series. The page says its series ended (content.js isSeriesEnd): no other
+    // frame is asked (a hoster's links are other videos), and it is no problem to note.
+    const port = await onEpisode1({}, 'series_end');
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(navigations.map((n) => n.frameId)).toEqual([0]);
+    expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
+    expect(bg.local.siteProblems).toBeUndefined();
+  });
+
   it('says so in mpv when the page has no next episode, or the tab is gone', async () => {
     let port = await onEpisode1({}, 'no_button');
     port.emit({type: 'ended', path: S1});

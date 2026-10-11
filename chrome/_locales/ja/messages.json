@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "このタブのオートプレイを停止"
+    },
+    "player_autoplay_series_end": {
+        "message": "シリーズの最終話：自動再生が停止しました"
+    },
+    "player_autoplay_no_next": {
+        "message": "このページに次のエピソードが見つかりませんでした：自動再生が停止しました"
+    },
+    "mpv_episode_series_end": {
+        "message": "シリーズの最終話：自動再生が停止します"
     }
 }

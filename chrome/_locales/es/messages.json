@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Detener autoplay para esta pestaña"
+    },
+    "player_autoplay_series_end": {
+        "message": "Último episodio de la serie: reproducción automática detenida"
+    },
+    "player_autoplay_no_next": {
+        "message": "No se encontró el siguiente episodio en esta página: reproducción automática detenida"
+    },
+    "mpv_episode_series_end": {
+        "message": "el último episodio de la serie: la reproducción automática se detiene"
     }
 }

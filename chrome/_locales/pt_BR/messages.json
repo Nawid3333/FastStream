@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Parar autoplay para esta guia"
+    },
+    "player_autoplay_series_end": {
+        "message": "Último episódio da série: reprodução automática interrompida"
+    },
+    "player_autoplay_no_next": {
+        "message": "Nenhum próximo episódio encontrado nesta página: reprodução automática interrompida"
+    },
+    "mpv_episode_series_end": {
+        "message": "o último episódio da série: a reprodução automática é interrompida"
     }
 }

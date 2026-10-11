@@ -20,6 +20,7 @@
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
+    PAGE_TYPING: 'PAGE_TYPING',
     FRAME_REMOVED: 'FRAME_REMOVED',
     SEND_TO_CONTENT: 'SEND_TO_CONTENT',
     MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
@@ -187,6 +188,13 @@
     } else if (request.type === MessageTypes.START_PAGE_PLAYER) {
       startPagePlayer().then(sendResponse, () => sendResponse(null));
       return true;
+    } else if (request.type === MessageTypes.PAGE_TYPING) {
+      // Whether the user types in this page, or looks elsewhere: the next episode's player
+      // takes the keyboard only when not (main.mjs; the reviews of 2026-10-11).
+      const active = document.activeElement;
+      sendResponse(document.visibilityState !== 'visible' ||
+        !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
+      return;
     } else if (request.type === MessageTypes.MESSAGE_FROM_CONTENT && request.destination === 'main') {
       return handleContentMessage(request, sender, sendResponse);
     }
@@ -410,7 +418,8 @@
   function handlePlaylistNavigation(request, sender, sendResponse) {
     const button = getNextOrPreviousButton(request.direction === 'next');
     if (!button) {
-      sendResponse('no_button');
+      // The series' last episode, or a page FastStream cannot read (isSeriesEnd).
+      sendResponse(request.direction === 'next' && isSeriesEnd() ? 'series_end' : 'no_button');
       return;
     }
 
@@ -435,6 +444,9 @@
       sendResponse({
         next: nextButton !== null,
         previous: previousButton !== null,
+        // No next: the series' last episode (autoplay stops and says so), or a page
+        // FastStream cannot read (a problem to note).
+        seriesEnd: nextButton === null && isSeriesEnd(),
       });
     } catch (e) {
       sendResponse({
@@ -2089,29 +2101,129 @@
     return targets.size === 1 ? hits[0] : null;
   }
 
+  /**
+   * The page's links, by how far they may be trusted as an episode's (2026-10-11, aniworld.cc:
+   * after a season's last episode, autoplay went on to another series):
+   * - site: to this site;
+   * - series: of them, those of this page's series where its address names one
+   *   (EpisodeLinks.seriesOf) - another series is never the next episode;
+   * - own: of them, those that open in the page - a link into a new tab, unless it is the
+   *   very next episode's address, is an ad's way.
+   * @param {Array<Element>} aElements
+   * @return {{site: Array<Element>, series: Array<Element>, own: Array<Element>}}
+   */
+  function episodeLinksOf(aElements) {
+    const seriesOfPage = EpisodeLinks.seriesOf(window.location.href);
+    const site = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a));
+    const series = site.filter((a) => EpisodeLinks.inSeries(seriesOfPage, a.href));
+    return {site, series, own: series.filter((a) => ownTarget(a) !== '_blank')};
+  }
+
+  /**
+   * Whether the page lists this page's season: it links the previous episode, or two other
+   * episodes of the season (a season's first episode has no previous; deepseek's review) -
+   * one other alone ("latest episode: 5") is no list (its third round).
+   * @param {Array<Element>} links - episodeLinksOf's series links.
+   * @return {boolean}
+   */
+  function listsThisSeason(links) {
+    const previous = EpisodeLinks.neighbourEpisodeUrls(window.location.href, false);
+    if (links.some((a) => previous.includes(withoutHash(a.href)))) return true;
+    const here = EpisodeLinks.seasonEpisode(window.location.href);
+    if (!here) return false;
+    const others = new Set();
+    for (const a of links) {
+      const at = EpisodeLinks.seasonEpisode(a.href);
+      if (at && at.show === here.show && at.season === here.season && at.episode !== here.episode) others.add(at.episode);
+    }
+    return others.size >= 2;
+  }
+
+  /**
+   * Whether this page is its series' last episode, as far as its links tell: an address that
+   * names the series, a page that lists this season's episodes, and no next episode or season
+   * in it (asked once getNextOrPreviousButton found none). Autoplay then stops and says so,
+   * where a page FastStream cannot read is noted as a problem.
+   * @return {boolean}
+   */
+  function isSeriesEnd() {
+    if (!EpisodeLinks.seriesOf(window.location.href)) return false;
+    const links = episodeLinksOf(querySelectorAllIncludingShadows('a'));
+    return listsThisSeason(links.series) && !linksLaterInSeason(links.site);
+  }
+
+  /**
+   * Whether the page links a later episode of this page's season: a gap before it (a removed
+   * episode) is no season's end (glm's review, 2026-10-11).
+   * @param {Array<Element>} siteLinks - episodeLinksOf's site links, into a new tab too.
+   * @return {boolean}
+   */
+  function linksLaterInSeason(siteLinks) {
+    const here = EpisodeLinks.seasonEpisode(window.location.href);
+    if (!here) return false;
+    return siteLinks.some((a) => {
+      const at = EpisodeLinks.seasonEpisode(a.href);
+      return !!at && at.show === here.show && at.season === here.season && at.episode > here.episode;
+    });
+  }
+
   function getNextOrPreviousButton(isNext = false) {
     const aElements = querySelectorAllIncludingShadows('a');
-    // This site's links that open in the page: a new tab or another site is an ad's way.
-    const ownLinks = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && ownTarget(a) !== '_blank');
+    const links = episodeLinksOf(aElements);
+    const ownLinks = links.own;
+    const series = EpisodeLinks.seriesOf(window.location.href);
 
     // 1. This page's episode number +1 (or -1), when the page links to it: the series part
-    // of the address stays, so it cannot be another show (2026-10-11).
+    // of the address stays, so it cannot be another show (2026-10-11). Also a link into a
+    // new tab: that address is the episode's, and it opens in this tab (the chain's).
     for (const candidate of EpisodeLinks.neighbourEpisodeUrls(window.location.href, isNext)) {
-      const hit = ownLinks.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
+      const hit = links.series.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
       if (hit) return hit;
+    }
+
+    // A page that names its series and lists its season tells by its links alone: a button
+    // that says "next episode" there may lead anywhere (kimi's review, 2026-10-11).
+    const structured = !!series && listsThisSeason(links.series);
+
+    // 1b. The last episode of a season, in a page that lists its episodes: the next season's
+    // first. Not where the page links a later episode of this season (a gap: step 3 finds it
+    // in the list). The next season's episode 1 where the page links it; its episode this
+    // one +1 where the site numbers on across seasons (12, then 13); else, where the page
+    // links the season or one of its episodes (a "continue watching" episode 5 is no first:
+    // glm's review), its episode 1: this address with the season one on (.../staffel-4/episode-1).
+    if (isNext && structured && !linksLaterInSeason(links.site)) {
+      const here = EpisodeLinks.seasonEpisode(window.location.href);
+      const next = EpisodeLinks.nextSeason(window.location.href);
+      if (here && next) {
+        const ofNext = links.series.map((a) => ({a, at: EpisodeLinks.seasonEpisode(a.href)}))
+            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1);
+        const linked = ofNext.find(({at}) => at.episode === 1) || ofNext.find(({at}) => at.episode === here.episode + 1);
+        if (linked) return linked.a;
+        const linksSeason = (a) => {
+          const path = withoutHash(a.href).split('?')[0].replace(/\/$/, '');
+          return path.startsWith(next.season) && !/^\d/.test(path.slice(next.season.length));
+        };
+        if (ofNext.length > 0 || links.site.some(linksSeason)) {
+          const first = document.createElement('a');
+          first.href = next.first;
+          return first;
+        }
+      }
     }
 
     // 2. An episode phrase in any language FastStream knows ("Nächste Folge", 下一集), in a
     // link's text, aria-label or title, or on a button that is no link.
-    const buttons = querySelectorAllIncludingShadows('button, [role="button"]')
+    const buttons = structured ? [] : querySelectorAllIncludingShadows('button, [role="button"]')
         .filter((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
     const phrase = onlyOneSaying(ownLinks, isNext, 2) || onlyOneSaying(buttons, isNext, 2);
     if (phrase) return phrase;
 
     // 3. As until 2026-10-11, without links into a new tab: the next episode there broke the
-    // chain (the next page's stream came in another tab).
+    // chain (the next page's stream came in another tab). A link of another series is none.
     const found = getNextOrPreviousByList(aElements.filter((a) => ownTarget(a) !== '_blank'), isNext);
-    if (found) return found;
+    if (found && (found.tagName !== 'A' || (typeof found.href === 'string' && EpisodeLinks.inSeries(series, found.href)))) {
+      return found;
+    }
 
     // 4. rel=next (or prev), then a bare word ("weiter"): pagination uses them too, so last.
     // Link types are matched in any case, as HTML does (rel="Next").

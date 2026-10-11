@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "Hentikan autoplay untuk tab ini"
+    },
+    "player_autoplay_series_end": {
+        "message": "Episod terakhir siri: main automatik berhenti"
+    },
+    "player_autoplay_no_next": {
+        "message": "Tiada episod seterusnya ditemui pada halaman ini: main automatik berhenti"
+    },
+    "mpv_episode_series_end": {
+        "message": "episod terakhir siri: main automatik berhenti"
     }
 }

@@ -240,9 +240,13 @@ const DETECTION_PAGES = {
   // A link whose own click goes elsewhere, as an ad's handler does: its address is followed.
   '/ad/episode-1': `<!doctype html><title>episode 1</title>
 <a href="/ad/episode-2" onclick="event.preventDefault(); location.href = '/ad/hijacked'">Next episode</a>`,
-  // No episode: a link into a new tab, and a pagination only.
+  // The very next episode's address in a link into a new tab: followed, in this tab (it is no
+  // ad's: deepseek's review, 2026-10-11 - missed, autoplay went on to the next season).
   '/nt/episode-7': `<!doctype html><title>episode 7</title>
 <a href="/nt/episode-8" target="_blank">Next episode</a>`,
+  // No episode: a "next episode" into a new tab to anywhere else, and a pagination only.
+  '/nt/teaser': `<!doctype html><title>teaser</title>
+<a href="/nt/elsewhere" target="_blank">Next episode</a>`,
   '/de/nur-seite': `<!doctype html><meta charset="utf-8"><title>Liste</title><a href="/de/nur-seite-2">Nächste Seite</a>`,
 };
 
@@ -1118,7 +1122,7 @@ describe('content.js around an in-page player', function() {
     await browser.url(`${SITE}/episodes/ep2`);
     await browser.pause(500);
     // The first list matched, its next entry had no link, and the search gave up there.
-    expect(await sendToPage({type: 'PLAYLIST_POLL'})).toEqual({next: true, previous: true});
+    expect(await sendToPage({type: 'PLAYLIST_POLL'})).toEqual({next: true, previous: true, seriesEnd: false});
     expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('clicked');
     await browser.waitUntil(async () => (await inPage(() => location.pathname)) === '/episodes/ep3',
         {timeout: 10000, timeoutMsg: 'the next-episode link was not ep3'});
@@ -1133,6 +1137,8 @@ describe('content.js around an in-page player', function() {
       ['/btn/ep', 'next', '/btn/ep-next'],
       // Its click handler would have gone to /ad/hijacked.
       ['/ad/episode-1', 'next', '/ad/episode-2'],
+      // Into a new tab, the very next episode's address: in this tab.
+      ['/nt/episode-7', 'next', '/nt/episode-8'],
     ];
     for (const [page, direction, to] of cases) {
       await browser.switchToWindow(siteHandle);
@@ -1143,11 +1149,12 @@ describe('content.js around an in-page player', function() {
       await browser.waitUntil(async () => (await inPage(() => location.pathname)) === to,
           {timeout: 10000, timeoutMsg: `${page} ${direction} did not go to ${to}`});
     }
-    for (const page of ['/nt/episode-7', '/de/nur-seite']) {
+    for (const page of ['/nt/teaser', '/de/nur-seite']) {
       await browser.switchToWindow(siteHandle);
       await browser.url(`${SITE}${page}`);
       await browser.pause(500);
-      expect({page, poll: await sendToPage({type: 'PLAYLIST_POLL'})}).toEqual({page, poll: {next: false, previous: false}});
+      expect({page, poll: await sendToPage({type: 'PLAYLIST_POLL'})})
+          .toEqual({page, poll: {next: false, previous: false, seriesEnd: false}});
     }
     expect(await takeContentErrors()).toEqual([]);
   });
@@ -1159,7 +1166,7 @@ describe('content.js around an in-page player', function() {
       await browser.pause(500);
       // The list's next entry, on another site, was taken all the same.
       expect({pathname, poll: await sendToPage({type: 'PLAYLIST_POLL'})})
-          .toEqual({pathname, poll: {next: false, previous: true}});
+          .toEqual({pathname, poll: {next: false, previous: true, seriesEnd: false}});
       expect(await sendToPage({type: 'PLAYLIST_NAVIGATION', direction: 'next'})).toBe('no_button');
     }
     expect(await takeContentErrors()).toEqual([]);

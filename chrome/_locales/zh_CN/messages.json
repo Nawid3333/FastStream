@@ -1267,5 +1267,14 @@
     },
     "player_nextvideo_cancel": {
         "message": "停止此标签页的自动播放"
+    },
+    "player_autoplay_series_end": {
+        "message": "本剧最后一集：自动播放已停止"
+    },
+    "player_autoplay_no_next": {
+        "message": "此页面未找到下一集：自动播放已停止"
+    },
+    "mpv_episode_series_end": {
+        "message": "本剧最后一集：自动播放停止"
     }
 }
