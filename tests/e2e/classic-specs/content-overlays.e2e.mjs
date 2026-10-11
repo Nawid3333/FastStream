@@ -579,6 +579,26 @@ describe('A site\'s overlays around an in-page player', function() {
     await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.source &&
         window.fastStream.player?.getVideo?.()?.readyState >= 1),
     {timeout: 15000, timeoutMsg: 'the player never loaded its video'});
+    // The real video stays paused through the case, while the player's state says it plays: a
+    // clip that started on its own would reach its end (10 s) within the case where fullscreen
+    // takes seconds, and its end pauses the player. The bar then rightly stayed up (main on
+    // CI's Linux runner, 2026-10-11: the report read playing false, bigPlay false; locally the
+    // clip sits paused at 0 s). It loops, so a start after this cannot end it either (the
+    // reviews). Every pause of the player from here on is noted for the report.
+    await browser.execute(() => {
+      const ic = window.fastStream.interfaceController;
+      const pause = ic.pause.bind(ic);
+      window.__pauses = [];
+      ic.pause = () => {
+        window.__pauses.push(new Error().stack.split('\n').slice(1, 6).join(' < '));
+        return pause();
+      };
+      const video = window.fastStream.player.getVideo();
+      video.loop = true;
+      video.pause();
+    });
+    await browser.waitUntil(() => browser.execute(() => window.fastStream.player.getVideo().paused),
+        {timeout: 5000, timeoutMsg: 'the video did not pause'});
     await browser.execute(() => {
       window.fastStream.interfaceController.hideBigPlayButton();
       window.fastStream.state.playing = true;
@@ -615,6 +635,8 @@ describe('A site\'s overlays around an in-page player', function() {
                 .filter((name) => document.querySelector(`.mainplayer .${name}`)?.style.display !== 'none'),
             hideQueued: !!ic.hideControlBarTimeout, fullscreen: !!document.fullscreenElement,
             active: active ? `${active.tagName}.${active.className}` : null,
+            video: (({paused, ended, currentTime}) => ({paused, ended, currentTime}))(window.fastStream.player?.getVideo?.() ?? {}),
+            pauses: window.__pauses,
           };
         });
         throw new Error(`the bar stayed up in fullscreen: ${JSON.stringify(why)}`);
