@@ -243,6 +243,7 @@ async function buildWeb() {
     'manifest.json',
     'content.js',
     'overlay-guard.js',
+    'episode-links.js',
     'background',
     '_locales',
     'perms.html',

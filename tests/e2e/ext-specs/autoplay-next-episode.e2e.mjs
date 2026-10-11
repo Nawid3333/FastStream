@@ -182,4 +182,45 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     await intoPlayer('the episode behind a big play button');
     expect((await playsByItself(5))?.paused).toBe(false);
   });
+
+  it('keeps a fullscreen into the next episode, and Escape gives the window back', async function() {
+    // His report (2026-10-11): the next episode played windowed, because Firefox lets no page
+    // go fullscreen without a click. The browser window goes fullscreen instead
+    // (background.mjs setCarriedFullscreen) and the player fills the page. Firefox's
+    // window.fullScreen is the browser window in fullscreen mode (as F11), read in the page:
+    // WebDriver's scripts have no extension API in the player's frame.
+    // A blank page first: the test before ends with an episode playing in this tab.
+    await browser.url('about:blank');
+    await browser.url(`${SITE}/ep1`);
+    await intoPlayer('the first episode');
+    await browser.waitUntil(() => browser.execute(() => (window.fastStream?.player?.getVideo?.()?.readyState || 0) >= 2),
+        {timeout: 30000, timeoutMsg: 'the first episode never loaded'});
+    // Episode 1 in fullscreen, as the player knows it (a real one needs a click on its button,
+    // which WebDriver's element lookup in the player's frame cannot reach): what goes on to
+    // the next episode is the player's own state (getFullscreenState, in its continuation).
+    await browser.execute(() => {
+      window.fastStream.state.fullscreen = true;
+    });
+    await playToTheEnd();
+
+    await onPage('/ep2');
+    await intoPlayer('the next episode');
+    await browser.waitUntil(() => browser.execute(() => !!window.fastStream?.state?.carriedFullscreen),
+        {timeout: 30000, timeoutMsg: 'the next episode did not carry the fullscreen'});
+    expect(await browser.execute(() => ({
+      state: window.fastStream.getFullscreenState(),
+      fillsPage: !!window.fastStream.state.windowedFullscreen,
+      button: document.querySelector('.mainplayer .fluid_control_fullscreen').classList.contains('out'),
+    }))).toEqual({state: 'fullscreen', fillsPage: true, button: true});
+
+    // The browser window, read in the page; Escape where the keyboard is after the page loaded.
+    await browser.switchFrame(null);
+    expect(await browser.execute(() => window.fullScreen)).toBe(true);
+    await browser.keys(['Escape']);
+    await browser.waitUntil(() => browser.execute(() => !window.fullScreen),
+        {timeout: 10000, timeoutMsg: 'Escape left the window fullscreen'});
+    await intoPlayer('the next episode');
+    await browser.waitUntil(() => browser.execute(() => !window.fastStream.state.carriedFullscreen &&
+        !window.fastStream.state.windowedFullscreen), {timeout: 10000, timeoutMsg: 'the player still fills the page'});
+  });
 });

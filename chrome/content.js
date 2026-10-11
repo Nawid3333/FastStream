@@ -15,6 +15,8 @@
     TOGGLE_MINIPLAYER: 'TOGGLE_MINIPLAYER',
     TOGGLE_FULLSCREEN: 'TOGGLE_FULLSCREEN',
     TOGGLE_WINDOWED_FULLSCREEN: 'TOGGLE_WINDOWED_FULLSCREEN',
+    CARRIED_FULLSCREEN: 'CARRIED_FULLSCREEN',
+    EXIT_CARRIED_FULLSCREEN: 'EXIT_CARRIED_FULLSCREEN',
     PLAYLIST_NAVIGATION: 'PLAYLIST_NAVIGATION',
     PLAYLIST_POLL: 'PLAYLIST_POLL',
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
@@ -36,6 +38,10 @@
   };
 
   const iframeMap = new Map();
+  // The next episode carried a fullscreen over (background.mjs setCarriedFullscreen): the
+  // browser window is fullscreen and the player fills the page. Escape here, where the
+  // keyboard is after the page loaded, ends it as it ends a real fullscreen.
+  let carriedFullscreen = false;
   const replacedPlayerQueue = [];
   // Players laid over the whole page (a video that fills it), with their pause watchers.
   const overlayPlayers = [];
@@ -171,6 +177,9 @@
       return handleFullscreen(request, sender, sendResponse);
     } else if (request.type === MessageTypes.TOGGLE_WINDOWED_FULLSCREEN) {
       return handleWindowedFullscreen(request, sender, sendResponse);
+    } else if (request.type === MessageTypes.CARRIED_FULLSCREEN) {
+      carriedFullscreen = !!request.active;
+      return;
     } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_NAVIGATION) {
       return handlePlaylistNavigation(request, sender, sendResponse);
     } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_POLL) {
@@ -403,7 +412,15 @@
       return;
     }
 
-    button.click();
+    // The link's own address rather than a click: hosters hang ad scripts on their links (a
+    // popup, or the episode in a new tab), and the chain broke. A link meant for another
+    // frame (_top, _parent, a name) and a button keep their click.
+    if (button.tagName === 'A' && /^https?:/i.test(button.href) && (!button.target || button.target === '_self') &&
+        withoutHash(button.href) !== withoutHash(window.location.href)) {
+      window.location.assign(button.href);
+    } else {
+      button.click();
+    }
     sendResponse('clicked');
   }
 
@@ -2000,8 +2017,78 @@
     }
   }
 
+  /**
+   * An address without its #.
+   * @param {string} href
+   * @return {string}
+   */
+  function withoutHash(href) {
+    return String(href || '').split('#')[0];
+  }
+
+  /**
+   * What a link or a button says: its text, else its aria-label or title (an icon link).
+   * @param {Element} el
+   * @return {string}
+   */
+  function wordsOf(el) {
+    return (el.textContent || '').trim() || el.getAttribute('aria-label') || el.getAttribute('title') || '';
+  }
+
+  /**
+   * The one element whose words mean the next (or the previous) episode this surely
+   * (EpisodeLinks.phraseScore): one link target, or one button. Two different ones are
+   * none: a guess between them could be a wrong episode.
+   * @param {Array<Element>} elements
+   * @param {boolean} isNext
+   * @param {number} score
+   * @return {?Element}
+   */
+  function onlyOneSaying(elements, isNext, score) {
+    const hits = elements.filter((el) => EpisodeLinks.phraseScore(wordsOf(el), isNext) === score);
+    // A link counts by its address; anything else (a button) by itself.
+    const targets = new Set(hits.map((el) => (el.tagName === 'A' && typeof el.href === 'string' && el.href ?
+      withoutHash(el.href) : el)));
+    return targets.size === 1 ? hits[0] : null;
+  }
+
   function getNextOrPreviousButton(isNext = false) {
     const aElements = querySelectorAllIncludingShadows('a');
+    // This site's links that open in the page: a new tab or another site is an ad's way.
+    const ownLinks = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && a.target !== '_blank');
+
+    // 1. This page's episode number +1 (or -1), when the page links to it: the series part
+    // of the address stays, so it cannot be another show (2026-10-11).
+    for (const candidate of EpisodeLinks.neighbourEpisodeUrls(window.location.href, isNext)) {
+      const hit = ownLinks.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
+      if (hit) return hit;
+    }
+
+    // 2. An episode phrase in any language FastStream knows ("Nächste Folge", 下一集), in a
+    // link's text, aria-label or title, or on a button that is no link.
+    const buttons = querySelectorAllIncludingShadows('button, [role="button"]')
+        .filter((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
+    const phrase = onlyOneSaying(ownLinks, isNext, 2) || onlyOneSaying(buttons, isNext, 2);
+    if (phrase) return phrase;
+
+    // 3. As until 2026-10-11, without links into a new tab: the next episode there broke the
+    // chain (the next page's stream came in another tab).
+    const found = getNextOrPreviousByList(aElements.filter((a) => a.target !== '_blank'), isNext);
+    if (found) return found;
+
+    // 4. rel=next (or prev), then a bare word ("weiter"): pagination uses them too, so last.
+    const rel = ownLinks.find((a) => (a.getAttribute('rel') || '').split(/\s+/).includes(isNext ? 'next' : 'prev'));
+    return rel || onlyOneSaying(ownLinks, isNext, 1);
+  }
+
+  /**
+   * 3. The way it was found until 2026-10-11: an English "next" or "next episode" link, the
+   * neighbour of this page's link in a list, an "Episode N" list.
+   * @param {Array<Element>} aElements
+   * @param {boolean} isNext
+   * @return {?Element}
+   */
+  function getNextOrPreviousByList(aElements, isNext) {
     // Check if next or previous button is in a elements
     const matches = aElements.filter((a) => {
       const textContent = a.textContent.trim().toLowerCase();
@@ -2442,6 +2529,18 @@
 
   window.addEventListener('pointerdown', onUserGesture, true);
   window.addEventListener('keydown', onUserGesture, true);
+  window.addEventListener('keydown', (e) => {
+    if (!carriedFullscreen || e.key !== 'Escape') return;
+    carriedFullscreen = false;
+    e.preventDefault();
+    try {
+      chrome.runtime.sendMessage({type: MessageTypes.EXIT_CARRIED_FULLSCREEN}, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (err) {
+      // The extension was reloaded under this page.
+    }
+  }, true);
 
   // Pressing the shortcut while already watching a video the user started
   // counts as starting it now.

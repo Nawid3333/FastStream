@@ -375,8 +375,20 @@ export class InterfaceController {
     WebUtils.setupTabIndex(DOMElements.fullscreen);
 
     DOMElements.windowedFullscreen.addEventListener('click', (e)=>{
+      if (this.state.carriedFullscreen) {
+        this.exitCarriedFullscreen();
+        return;
+      }
       this.toggleWindowedFullscreen();
     });
+    // Escape where the keyboard is in the player (after a click in it); in the page around
+    // it content.js passes it on (EXIT_CARRIED_FULLSCREEN).
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.state.carriedFullscreen) {
+        this.exitCarriedFullscreen();
+        e.preventDefault();
+      }
+    }, true);
     WebUtils.setupTabIndex(DOMElements.windowedFullscreen);
 
     document.addEventListener('fullscreenchange', this.updateFullScreenButton.bind(this));
@@ -1163,7 +1175,39 @@ export class InterfaceController {
     });
   }
 
+  /**
+   * The next episode after a fullscreen one: Firefox lets no page go fullscreen without a
+   * click, so the background makes the browser window fullscreen and this player fills
+   * the page. To the user it is fullscreen: the button, Escape and a double click end it.
+   */
+  carryFullscreen() {
+    if (!EnvUtils.isExtension() || this.state.carriedFullscreen) return;
+    chrome.runtime.sendMessage({type: MessageTypes.REQUEST_WINDOW_FULLSCREEN, force: true}, (response) => {
+      void chrome.runtime.lastError;
+      if (response !== 'enter') return;
+      this.state.carriedFullscreen = true;
+      this.toggleWindowedFullscreen(true);
+      DOMElements.fullscreen.classList.add('out');
+    });
+  }
+
+  /** Ends a carried fullscreen: the page and the window as they were. */
+  exitCarriedFullscreen() {
+    if (!this.state.carriedFullscreen) return;
+    this.state.carriedFullscreen = false;
+    this.toggleWindowedFullscreen(false);
+    DOMElements.fullscreen.classList.remove('out');
+    chrome.runtime.sendMessage({type: MessageTypes.REQUEST_WINDOW_FULLSCREEN, force: false}, () => {
+      void chrome.runtime.lastError;
+    });
+  }
+
   async fullscreenToggle(force) {
+    // A carried fullscreen is left like a real one (a click here could not enter one).
+    if (this.state.carriedFullscreen) {
+      if (force !== true) this.exitCarriedFullscreen();
+      return;
+    }
     if (document.fullscreenEnabled) {
       const newValue = force === undefined ? !document.fullscreenElement : force;
       if (newValue) {
