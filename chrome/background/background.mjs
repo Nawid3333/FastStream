@@ -2716,6 +2716,9 @@ function onMpvWatchEvent(state, event) {
   }
 }
 
+/** How long startMpvCountdown waits for each frame of the page to answer. */
+const MpvPagePollMs = 1000;
+
 /**
  * What the page of the tab mpv's stream came from says about its next episode, asking its
  * frames top first as goToEpisode does, through PLAYLIST_POLL, which clicks nothing:
@@ -2726,11 +2729,15 @@ function onMpvWatchEvent(state, event) {
  * @return {Promise<?string>}
  */
 async function nextEpisodeInPage(tab) {
-  const frameIds = Array.from(tab.frames.keys()).sort((a, b) => a - b);
+  const frameIds = tab.frames ? Array.from(tab.frames.keys()).sort((a, b) => a - b) : [];
   for (const frameId of frameIds) {
+    // A frame that never answers costs a second, not the countdown (glm's review): no
+    // answer is "cannot tell".
     const answer = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(undefined), MpvPagePollMs);
       chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_POLL}, {frameId}, (response) => {
         void chrome.runtime.lastError;
+        clearTimeout(timer);
         resolve(response);
       });
     });

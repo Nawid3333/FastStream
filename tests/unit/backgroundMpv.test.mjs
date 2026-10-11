@@ -1520,6 +1520,15 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.wait(100);
     expect(polls).toEqual([0, 5]);
     expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    bg.unload();
+
+    // A frame that never answers costs a second, then the countdown as before (glm's review).
+    port = await onEpisode1({autoplayCountdown: 5}, 'clicked', new Promise(() => {}));
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(500);
+    expect(notices(port)).toEqual([]);
+    await bg.wait(1000);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
   });
 
   it('stops the countdown with mpv\'s autoplay switch, which saves the setting and turns it back on', async () => {
