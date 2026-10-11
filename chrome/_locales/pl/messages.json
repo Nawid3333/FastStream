@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Powiększenie wideo"
     },
+    "options_video_aspect_ratio": {
+        "message": "Proporcje obrazu"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (oryginalne)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Rozciągnij do wypełnienia"
+    },
     "options_video_delay": {
         "message": "Opóźnienie wideo"
     },

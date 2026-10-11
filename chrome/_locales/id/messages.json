@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Perbesaran Video"
     },
+    "options_video_aspect_ratio": {
+        "message": "Rasio aspek"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (asli)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Regangkan untuk mengisi"
+    },
     "options_video_delay": {
         "message": "Penundaan Video"
     },

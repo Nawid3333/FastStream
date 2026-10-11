@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "ビデオズーム"
     },
+    "options_video_aspect_ratio": {
+        "message": "アスペクト比"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "自動 (元の比率)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "画面いっぱいに引き伸ばし"
+    },
     "options_video_delay": {
         "message": "映像の遅延"
     },

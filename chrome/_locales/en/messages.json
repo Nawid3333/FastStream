@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Video Zoom"
     },
+    "options_video_aspect_ratio": {
+        "message": "Aspect ratio"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (the video's own)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Stretch to fill"
+    },
     "options_video_delay": {
         "message": "Video Delay"
     },

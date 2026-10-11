@@ -15,6 +15,7 @@ import {MiniplayerPositions} from './defaults/MiniplayerPositions.mjs';
 import {DefaultSubtitlesSettings} from './defaults/DefaultSubtitlesSettings.mjs';
 import {DefaultToolSettings} from './defaults/ToolSettings.mjs';
 import {DefaultQualities} from './defaults/DefaultQualities.mjs';
+import {AspectRatios} from './defaults/AspectRatios.mjs';
 import {ColorThemes} from './defaults/ColorThemes.mjs';
 import {MpvSuggestion} from './MpvSuggestion.mjs';
 
@@ -61,6 +62,7 @@ const previewEnabled = document.getElementById('previewenabled');
 const decodingAwareQuality = document.getElementById('decodingawarequality');
 const replaceDelay = document.getElementById('replacedelay');
 const colorTheme = document.getElementById('colortheme');
+const videoAspectRatio = document.getElementById('videoAspectRatio');
 const optionsSearchBar = document.getElementById('searchbar');
 const optionsResetButton = document.getElementById('resetsearch');
 const maxdownloaders = document.getElementById('maxdownloaders');
@@ -177,6 +179,7 @@ async function loadOptions(newOptions) {
   setSelectMenuValue(tplclickAction, Options.tripleClickAction);
   setSelectMenuValue(visChangeAction, Options.visChangeAction);
   setSelectMenuValue(colorTheme, Options.colorTheme);
+  setSelectMenuValue(videoAspectRatio, Options.videoAspectRatio);
   setSelectMenuValue(miniPos, Options.miniPos);
   setSelectMenuValue(qualityMenu, Options.defaultQuality);
 
@@ -219,7 +222,7 @@ async function loadOptions(newOptions) {
   }
 }
 
-function createSelectMenu(container, options, selected, localPrefix, callback) {
+function createSelectMenu(container, options, selected, localPrefix, callback, labelOf = null) {
   container.replaceChildren();
   const select = document.createElement('select');
   // The wrapper carries the label (data-i18n-label), but a screen reader names the select:
@@ -230,7 +233,8 @@ function createSelectMenu(container, options, selected, localPrefix, callback) {
   for (const option of options) {
     const optionElement = document.createElement('option');
     optionElement.value = option;
-    optionElement.textContent = localPrefix !== null ? Localize.getMessage(localPrefix + '_' + option) : option;
+    optionElement.textContent = labelOf ? labelOf(option) :
+      (localPrefix !== null ? Localize.getMessage(localPrefix + '_' + option) : option);
     if (option === selected) {
       optionElement.selected = true;
     }
@@ -278,6 +282,13 @@ createSelectMenu(colorTheme, Object.values(ColorThemes), Options.colorTheme, 'op
   document.body.dataset.theme = Options.colorTheme;
   optionChanged();
 });
+
+// The ratios as they are written; auto and stretch in words (upstream #552).
+createSelectMenu(videoAspectRatio, Object.values(AspectRatios), Options.videoAspectRatio, null, (e) => {
+  Options.videoAspectRatio = e.target.value;
+  optionChanged();
+}, (option) => (option === AspectRatios.AUTO || option === AspectRatios.STRETCH) ?
+  Localize.getMessage('options_video_aspect_ratio_' + option) : option);
 
 createSelectMenu(miniPos, Object.values(MiniplayerPositions), Options.miniPos, 'options_general_minipos', (e) => {
   Options.miniPos = e.target.value;

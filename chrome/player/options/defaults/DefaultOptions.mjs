@@ -1,3 +1,4 @@
+import {AspectRatios} from './AspectRatios.mjs';
 import {ClickActions} from './ClickActions.mjs';
 import {ColorThemes} from './ColorThemes.mjs';
 import {DefaultKeybinds} from './DefaultKeybinds.mjs';
@@ -35,6 +36,7 @@ export const DefaultOptions = {
   // bare number read as bytes (Utils.migrateSizes).
   sizesVersion: 1,
   videoZoom: 1,
+  videoAspectRatio: AspectRatios.AUTO,
   maxSpeed: -1,
   maxVideoSize: 5000000000, // 5GB max size
   ramBudget: 2000000000, // downloaded video kept in RAM, all players together; beyond it: disk (private windows: let go)

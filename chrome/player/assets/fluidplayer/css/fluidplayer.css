@@ -822,6 +822,8 @@ body {
 .video-container {
     position: absolute;
     inset: 0px;
+    /* Its size, for a video of a set aspect ratio (cqw/cqh below). */
+    container-type: size;
 }
 
 .video-container>video {
@@ -829,6 +831,16 @@ body {
     inset: 0px;
     width: 100%;
     height: 100%;
+}
+
+/* A set aspect ratio (Video Options, upstream #552): the largest box of that shape that fits
+   the player, in the middle; the picture is stretched to it (object-fit: fill). */
+.video-container>video.fixed-aspect-ratio {
+    /* Set on the element from the options (FastStreamClient.updateVideoTransform). */
+    --video-aspect-ratio: 16 / 9;
+    width: min(100cqw, calc(100cqh * var(--video-aspect-ratio)));
+    height: auto;
+    margin: auto;
 }
 
 .mainplayer {
