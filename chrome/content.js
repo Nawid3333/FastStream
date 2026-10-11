@@ -2046,14 +2046,16 @@
    */
   function onlyOneSaying(elements, isNext, score) {
     const hits = elements.filter((el) => EpisodeLinks.phraseScore(wordsOf(el), isNext) === score);
-    const targets = new Set(hits.map((el) => (el.tagName === 'A' ? withoutHash(el.href) : el)));
+    // A link counts by its address; anything else (a button) by itself.
+    const targets = new Set(hits.map((el) => (el.tagName === 'A' && typeof el.href === 'string' && el.href ?
+      withoutHash(el.href) : el)));
     return targets.size === 1 ? hits[0] : null;
   }
 
   function getNextOrPreviousButton(isNext = false) {
     const aElements = querySelectorAllIncludingShadows('a');
     // This site's links that open in the page: a new tab or another site is an ad's way.
-    const ownLinks = aElements.filter((a) => isLinkOnThisSite(a) && a.target !== '_blank');
+    const ownLinks = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && a.target !== '_blank');
 
     // 1. This page's episode number +1 (or -1), when the page links to it: the series part
     // of the address stays, so it cannot be another show (2026-10-11).
