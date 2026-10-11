@@ -1233,6 +1233,6 @@
         "message": "off"
     },
     "mpv_episode_nostream": {
-        "message": "the next page brought no stream within a minute; open it in the browser to see why"
+        "message": "the page brought no stream within a minute; open it in the browser to see why"
     }
 }

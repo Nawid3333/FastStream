@@ -1233,6 +1233,6 @@
         "message": "nonaktif"
     },
     "mpv_episode_nostream": {
-        "message": "halaman seterusnya tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya"
+        "message": "halaman tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya"
     }
 }

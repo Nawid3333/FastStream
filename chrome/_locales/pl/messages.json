@@ -1233,6 +1233,6 @@
         "message": "wyłączone"
     },
     "mpv_episode_nostream": {
-        "message": "następna strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego"
+        "message": "strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego"
     }
 }

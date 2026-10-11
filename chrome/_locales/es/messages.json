@@ -1233,6 +1233,6 @@
         "message": "desactivado"
     },
     "mpv_episode_nostream": {
-        "message": "la siguiente página no proporcionó ningún stream en un minuto; ábrela en el navegador para ver por qué"
+        "message": "la página no proporcionó ningún stream en un minuto; ábrela en el navegador para ver por qué"
     }
 }

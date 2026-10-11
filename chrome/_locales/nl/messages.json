@@ -1233,6 +1233,6 @@
         "message": "uit"
     },
     "mpv_episode_nostream": {
-        "message": "de volgende pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
+        "message": "de pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
     }
 }

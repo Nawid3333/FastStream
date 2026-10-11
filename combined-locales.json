@@ -7398,21 +7398,21 @@
     "zh_TW": "關閉"
   },
   "mpv_episode_nostream": {
-    "en": "the next page brought no stream within a minute; open it in the browser to see why",
-    "de": "die nächste Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen",
-    "es": "la siguiente página no proporcionó ningún stream en un minuto; ábrela en el navegador para ver por qué",
-    "fr": "la page suivante n'a fourni aucun flux en une minute ; ouvrez-la dans le navigateur pour savoir pourquoi",
-    "id": "halaman berikutnya tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya",
-    "it": "la pagina successiva non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo",
-    "ja": "次のページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください",
-    "ko": "다음 페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요",
-    "ms": "halaman seterusnya tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya",
-    "nl": "de volgende pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom",
-    "pl": "następna strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego",
-    "pt_BR": "a próxima página não forneceu nenhum stream em um minuto; abra-a no navegador para ver o motivo",
-    "ru": "на следующей странице не удалось найти поток в течение минуты; откройте её в браузере, чтобы узнать причину",
-    "tr": "sonraki sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın",
-    "zh_CN": "下一页在一分钟内未提供流媒体；请在浏览器中打开以查看原因",
-    "zh_TW": "下一頁在一分鐘內未提供串流媒體；請在瀏覽器中打開以查看原因"
+    "en": "the page brought no stream within a minute; open it in the browser to see why",
+    "de": "die Seite lieferte innerhalb einer Minute keinen Stream; öffne sie im Browser, um den Grund zu sehen",
+    "es": "la página no proporcionó ningún stream en un minuto; ábrela en el navegador para ver por qué",
+    "fr": "la page n'a fourni aucun flux en une minute ; ouvrez-la dans le navigateur pour savoir pourquoi",
+    "id": "halaman tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya",
+    "it": "la pagina non ha fornito alcun stream entro un minuto; aprila nel browser per capirne il motivo",
+    "ja": "ページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください",
+    "ko": "페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요",
+    "ms": "halaman tidak memberikan strim dalam masa satu minit; buka dalam pelayar untuk melihat sebabnya",
+    "nl": "de pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom",
+    "pl": "strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego",
+    "pt_BR": "a página não forneceu nenhum stream em um minuto; abra-a no navegador para ver o motivo",
+    "ru": "на странице не удалось найти поток в течение минуты; откройте её в браузере, чтобы узнать причину",
+    "tr": "sayfa bir dakika içinde herhangi bir yayın sağlamadı; nedenini görmek için tarayıcıda açın",
+    "zh_CN": "页面在一分钟内未提供流媒体；请在浏览器中打开以查看原因",
+    "zh_TW": "頁面在一分鐘內未提供串流媒體；請在瀏覽器中打開以查看原因"
   }
 }
