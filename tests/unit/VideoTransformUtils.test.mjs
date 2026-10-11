@@ -18,3 +18,24 @@ describe('VideoTransformUtils.getTransformString', () => {
     expect(VideoTransformUtils.getTransformString(options(1))).toBe('');
   });
 });
+
+// The picture's aspect ratio (Options > Video, upstream #552; back on his word, 2026-10-11).
+describe('VideoTransformUtils.getAspectRatioStyles', () => {
+  const styles = (videoAspectRatio) => VideoTransformUtils.getAspectRatioStyles({videoAspectRatio});
+
+  it('leaves auto, nothing and an unknown value to the video', () => {
+    for (const value of ['auto', undefined, '', 'banana', '16:', ':9', '16/9']) {
+      expect(styles(value)).toEqual({objectFit: '', aspectRatio: ''});
+    }
+  });
+
+  it('gives a ratio a box of that shape, the picture stretched to it', () => {
+    expect(styles('16:9')).toEqual({objectFit: 'fill', aspectRatio: '16/9'});
+    expect(styles('4:3')).toEqual({objectFit: 'fill', aspectRatio: '4/3'});
+    expect(styles('9:16')).toEqual({objectFit: 'fill', aspectRatio: '9/16'});
+  });
+
+  it('stretches to the whole player', () => {
+    expect(styles('stretch')).toEqual({objectFit: 'fill', aspectRatio: ''});
+  });
+});

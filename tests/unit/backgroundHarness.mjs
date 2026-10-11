@@ -97,6 +97,9 @@ export async function loadBackground({
     session,
     sentToTabs: [],
     native: [],
+    // The ports connectNative opened (MPV autoplay's watch): each has what the background
+    // posted (sent), emit(message) to answer as the host, and disconnected once it is closed.
+    ports: [],
     badges: new Map(),
     titles: new Map(),
     dynamicRules: [],
@@ -150,6 +153,19 @@ export async function loadBackground({
       sendNativeMessage: (name, message, callback) => {
         bg.native.push(message);
         answer(callback, onNative(message));
+      },
+      connectNative: () => {
+        const port = {
+          sent: [], disconnected: false, onMessage: event(), onDisconnect: event(),
+          postMessage: (message) => port.sent.push(message),
+          disconnect: () => {
+            port.disconnected = true;
+          },
+          emit: (message) => port.onMessage.listeners.slice().forEach((fn) => fn(message)),
+          drop: () => port.onDisconnect.listeners.slice().forEach((fn) => fn()),
+        };
+        bg.ports.push(port);
+        return port;
       },
     },
     extension: {inIncognitoContext: false},

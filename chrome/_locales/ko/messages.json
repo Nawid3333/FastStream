@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "비디오 확대"
     },
+    "options_video_aspect_ratio": {
+        "message": "화면 비율"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "자동 (원본)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "늘려서 채우기"
+    },
     "options_video_delay": {
         "message": "비디오 지연"
     },
@@ -1195,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "이 비디오는 Firefox VPN을 통해 전송되며, mpv는 Firefox VPN을 사용할 수 없습니다: 사이트에서 mpv를 거부할 것입니다. mpv에서 시청하려면 이 사이트에 대해 Firefox VPN을 끄고 페이지를 새로 고침하세요."
+    },
+    "mpv_episode_loading": {
+        "message": "mpv에서 로드 중"
+    },
+    "mpv_episode_none": {
+        "message": "페이지에서 찾을 수 없음"
+    },
+    "mpv_episode_unavailable": {
+        "message": "탭이 닫혔거나 MPV 모드가 아닙니다"
     }
 }

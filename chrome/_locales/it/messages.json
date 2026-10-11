@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Zoom Video"
     },
+    "options_video_aspect_ratio": {
+        "message": "Rapporto d'aspetto"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (originale)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Stira per riempire"
+    },
     "options_video_delay": {
         "message": "Ritardo Video"
     },
@@ -1195,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "Questo video viene trasmesso tramite Firefox VPN e mpv non può usare Firefox VPN: il sito rifiuterebbe mpv. Per guardarlo in mpv, disattiva Firefox VPN per questo sito e ricarica la pagina."
+    },
+    "mpv_episode_loading": {
+        "message": "caricamento in mpv"
+    },
+    "mpv_episode_none": {
+        "message": "nessuno trovato nella pagina"
+    },
+    "mpv_episode_unavailable": {
+        "message": "la sua scheda è chiusa o non è in modalità MPV"
     }
 }

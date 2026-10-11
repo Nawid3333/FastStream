@@ -23,6 +23,9 @@ export const DOMElements = {
   screenshot: document.querySelector('.mainplayer .fluid_button_screenshot'),
   pip: document.querySelector('.mainplayer .fluid_button_pip'),
   nextVideo: document.querySelector('.mainplayer .fluid_button_next'),
+  // The next button and the autoplay switch beside it: one tool in the bar.
+  nextVideoTool: document.querySelector('.mainplayer .fluid_tool_next'),
+  autoplaySwitch: document.querySelector('.mainplayer .fluid_autoplay_switch'),
   previousVideo: document.querySelector('.mainplayer .fluid_button_previous'),
   muteBtn: document.querySelector('.mainplayer .fluid_control_mute'),
   volumeBlock: document.querySelector('.mainplayer .volume_block'),

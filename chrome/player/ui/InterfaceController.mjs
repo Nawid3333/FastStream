@@ -133,11 +133,10 @@ export class InterfaceController {
   }
 
   updateAutoNextIndicator() {
-    if (this.client.options.autoplayNext) {
-      DOMElements.autoNextIndicator.style.display = '';
-    } else {
-      DOMElements.autoNextIndicator.style.display = 'none';
-    }
+    const on = !!this.client.options.autoplayNext;
+    DOMElements.autoNextIndicator.style.display = on ? '' : 'none';
+    DOMElements.autoplaySwitch.setAttribute('aria-checked', String(on));
+    DOMElements.autoplaySwitch.classList.toggle('on', on);
   }
 
   updateToolVisibility() {
@@ -613,6 +612,22 @@ export class InterfaceController {
       e.preventDefault();
       e.stopPropagation();
       this.toggleAutoplayNext();
+    });
+
+    // The autoplay switch beside it (his wish, 2026-10-11): what the right click on the
+    // next button did, for this tab, which nobody found. The options page's setting is
+    // where a new tab starts.
+    DOMElements.autoplaySwitch.tabIndex = 0;
+    DOMElements.autoplaySwitch.addEventListener('click', (e) => {
+      this.toggleAutoplayNext();
+      e.stopPropagation();
+    });
+    DOMElements.autoplaySwitch.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        this.toggleAutoplayNext();
+        e.preventDefault();
+        e.stopPropagation();
+      }
     });
 
     WebUtils.setupTabIndex(DOMElements.nextVideo);

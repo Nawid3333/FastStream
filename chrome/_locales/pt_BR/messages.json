@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Zoom de vídeo"
     },
+    "options_video_aspect_ratio": {
+        "message": "Proporção da tela"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (original)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Esticar para preencher"
+    },
     "options_video_delay": {
         "message": "Atraso de vídeo"
     },
@@ -1195,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "O Firefox VPN carrega este vídeo, e o mpv não pode usar o Firefox VPN: o site recusaria o mpv. Para assistir no mpv, desative o Firefox VPN para este site e recarregue a página."
+    },
+    "mpv_episode_loading": {
+        "message": "carregando no mpv"
+    },
+    "mpv_episode_none": {
+        "message": "nenhum encontrado na página"
+    },
+    "mpv_episode_unavailable": {
+        "message": "sua aba está fechada ou não está no modo MPV"
     }
 }

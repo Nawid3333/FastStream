@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "影片縮放"
     },
+    "options_video_aspect_ratio": {
+        "message": "長寬比"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "自動 (原始比例)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "拉伸填滿"
+    },
     "options_video_delay": {
         "message": "影片延遲"
     },
@@ -1195,5 +1204,14 @@
     },
     "player_mpv_vpn": {
         "message": "此影片透過 Firefox VPN 傳輸，而 mpv 無法使用 Firefox VPN：網站會拒絕 mpv。要在 mpv 中觀看，請為此網站關閉 Firefox VPN 並重新載入頁面。"
+    },
+    "mpv_episode_loading": {
+        "message": "正在 mpv 中載入"
+    },
+    "mpv_episode_none": {
+        "message": "頁面中未找到"
+    },
+    "mpv_episode_unavailable": {
+        "message": "分頁已關閉，或不在 MPV 模式"
     }
 }

@@ -146,11 +146,8 @@ export class ToolManager {
       DOMElements.previousVideo.classList.add('hidden');
     }
 
-    if (this.client.hasNextVideo()) {
-      DOMElements.nextVideo.classList.remove('hidden');
-    } else {
-      DOMElements.nextVideo.classList.add('hidden');
-    }
+    // The next button with its autoplay switch.
+    DOMElements.nextVideoTool.classList.toggle('hidden', !this.client.hasNextVideo());
 
     // The audio-track list's button: only where there is a track to choose (2026-10-10; it
     // opened the audio settings until they went).
@@ -161,7 +158,7 @@ export class ToolManager {
       playpause: DOMElements.playPauseButton,
       volume: DOMElements.volumeBlock,
       duration: DOMElements.duration,
-      next: DOMElements.nextVideo,
+      next: DOMElements.nextVideoTool,
       previous: DOMElements.previousVideo,
       pip: DOMElements.pip,
       screenshot: DOMElements.screenshot,
