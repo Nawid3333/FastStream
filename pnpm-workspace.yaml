@@ -36,6 +36,15 @@ overrides:
   # 1.6.0 (its newest) pins exactly 1.10.0. fx-runner calls only parse(), on a binary-args
   # string that nothing here passes; 1.11/1.12 only add parse support for rarer syntax.
   shell-quote: ^1.11.0
+  # Dependabot #60, issue #301 (high, GHSA-86w9-cpqp-85rv): node-forge <= 1.4.0 accepts a
+  # forged RSA PKCS#1 v1.5 signature, and no release fixes it (2026-10-11: four outside fix
+  # PRs, no word from its maintainer since June). It comes only through web-ext ->
+  # @devicefarmer/adbkit, which web-ext loads only to run an extension on Firefox for Android
+  # (extension-runners/index.js imports firefox-android.js, util/adb.js's only importer,
+  # when that is the target). build, lint, sign, the desktop run and util/submit-addon never
+  # reach it. Removing adbkit removes node-forge; `web-ext run -t firefox-android`, which
+  # nothing here does, is what goes with it.
+  'web-ext>@devicefarmer/adbkit': '-'
 allowBuilds:
   geckodriver: true
   esbuild: true
