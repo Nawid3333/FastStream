@@ -237,6 +237,10 @@ export class TabHolder {
 
     this.isOn = false;
     this.isMpv = false;
+    // The timer that asks the next episode's page to start its own player, after the
+    // player's autoplay next (background.mjs startPagePlayers).
+    /** @type {ReturnType<typeof setInterval>|undefined} */
+    this.pagePlayerStarter = undefined;
     // MPV started by its shortcut: only a video the user starts goes to mpv
     // (background.mjs's onUserPlay), not the first stream the page loads.
     this.mpvOnPlay = false;

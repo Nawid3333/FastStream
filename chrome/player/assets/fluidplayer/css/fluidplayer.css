@@ -737,6 +737,56 @@ body {
     background-color: var(--nextvideo-badge-background-color);
 }
 
+/* The next button and its autoplay switch: one tool in the bar. */
+.fluid_tool_next {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex: none;
+}
+
+/* Autoplay next: a switch, on when its knob is right and the track takes the badge color. */
+.fluid_autoplay_switch {
+    position: relative;
+    flex: none;
+    width: 24px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: var(--menu-text-color);
+    opacity: 0.35;
+    cursor: pointer;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.fluid_autoplay_switch:hover {
+    opacity: 0.6;
+}
+
+.fluid_autoplay_switch.on {
+    background-color: var(--nextvideo-badge-background-color);
+    opacity: 1;
+}
+
+.fluid_autoplay_knob {
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--menu-text-color);
+    transition: transform 0.2s;
+}
+
+.fluid_autoplay_switch.on .fluid_autoplay_knob {
+    transform: translateX(12px);
+}
+
+.fluid_autoplay_switch:focus-visible {
+    outline: 2px solid var(--menu-text-color);
+    outline-offset: 1px;
+}
+
 #update_notif_banner,
 #save_notif_banner,
 #mpv_content_banner {
@@ -2126,7 +2176,8 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
 
 /* Make shake */
 .reordering>div>svg,
-.reordering>div.volume_block>div>svg {
+.reordering>div.volume_block>div>svg,
+.reordering>.fluid_tool_next>div>svg {
     animation: tilt-shaking 0.25s infinite;
 }
 

@@ -995,6 +995,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (tab.playingPlayers.size > 0) {
       sendPageMediaHold(tab);
     }
+    // The next episode's page, after FastStream went there by itself: its player may wait
+    // for a click (startPagePlayers).
+    if (tab.continuationOptions?.autoPlay) {
+      startPagePlayers(tab);
+    }
   } else if (msg.type === MessageTypes.FRAME_REMOVED) {
     const removed = msg.frameId !== undefined ? tab.getFrame(msg.frameId) : frame;
     const wasPlaying = !!removed && tab.playingPlayers.delete(removed.frameId);
@@ -1821,6 +1826,61 @@ function collectSources(frame, remove = false) {
   });
 
   return {subtitles, sources};
+}
+
+// How long, and how often, the next episode's page is asked to start its player
+// (startPagePlayers).
+const StartPagePlayerEveryMs = 2000;
+const StartPagePlayerForMs = 20000;
+// Each autoplay next's own 20 s, by its continuation: a later page load in the tab (one
+// that never brought a stream) did not start another 20 s.
+const startPagePlayerUntil = new WeakMap();
+
+/**
+ * Asks the next episode's page, in a tab FastStream went on in by itself (the player's
+ * autoplay next), to start its own player, until its stream came. A hoster's player sat
+ * idle there until it was clicked (serienstream.to's VOE, 2026-10-11): FastStream had
+ * nothing to play, and the user had to click, then FastStream played. Every 2 s for 20 s:
+ * the page's player may come later than the page. Only the frame with the tab's largest
+ * video is asked (a video ad in another frame is no episode), and each page does it once
+ * (content.js startPagePlayer). sendSources takes the continuation once the stream is
+ * there, and that ends it; so do Off and MPV.
+ * @param {TabHolder} tab
+ */
+function startPagePlayers(tab) {
+  const continuation = tab.continuationOptions;
+  if (tab.pagePlayerStarter || !continuation) return;
+  if (!startPagePlayerUntil.has(continuation)) {
+    startPagePlayerUntil.set(continuation, Date.now() + StartPagePlayerForMs);
+  }
+  let asking = false;
+  const ask = async () => {
+    if (tab.continuationOptions !== continuation || !continuation.autoPlay || !tab.isOn || tab.isMpv ||
+        Date.now() > startPagePlayerUntil.get(continuation) || !Tabs.tabs.has(tab.tabId)) {
+      clearInterval(tab.pagePlayerStarter);
+      tab.pagePlayerStarter = undefined;
+      return;
+    }
+    if (asking) return;
+    asking = true;
+    try {
+      const frames = Array.from(tab.frames.values());
+      const sizes = await Promise.all(frames.map((frame) => getVideoSize(frame)));
+      let largest = -1;
+      for (let i = 0; i < frames.length; i++) {
+        if (sizes[i] > 0 && (largest < 0 || sizes[i] > sizes[largest])) largest = i;
+      }
+      if (largest < 0) return;
+      const frameId = frames[largest].frameId;
+      chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.START_PAGE_PLAYER}, {frameId}, (started) => {
+        void chrome.runtime.lastError;
+        if (started && Logging) console.log('[autoplay next] started the page\'s player:', started, frameId);
+      });
+    } finally {
+      asking = false;
+    }
+  };
+  tab.pagePlayerStarter = setInterval(ask, StartPagePlayerEveryMs);
 }
 
 async function sendSources(frame) {
