@@ -1512,7 +1512,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     bg.unload();
 
     port = await onEpisode1();
-    port.emit({type: 'ended', path: 'C:\Videos\my own film.mkv'});
+    port.emit({type: 'ended', path: 'C:\\Videos\\my own film.mkv'});
     await bg.wait(100);
     expect(navigations).toEqual([]);
   });
@@ -1524,6 +1524,46 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     port.emit({type: 'request', action: 'next'});
     await bg.wait(100);
     expect(navigations).toEqual([{direction: 'previous', frameId: 0}, {direction: 'next', frameId: 0}]);
+  });
+
+  it('goes on once when the end and the key come at the same moment', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    port.emit({type: 'request', action: 'next'});
+    await bg.wait(100);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+  });
+
+  it('lets a tab whose stream took the window over cancel the episode another tab waits for', async () => {
+    // Tab 1 (the MPV key's mode) went on after an end; before its next page brought the
+    // stream, tab 2's video went into the window. Tab 1's next stream must not replace it.
+    const S3 = 'https://cdn.test/other/master.m3u8';
+    navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://other.test/'], autoplayNext: true},
+      tabs: [{id: 1, url: EP1}, {id: 2, url: 'https://other.test/film'}],
+      fetch: playlists({[S1]: 1400, [S2]: 1400, [S3]: 1400}),
+      onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),
+    });
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'ep1');
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: S1});
+    await bg.wait(500);
+    bg.ports.at(-1).emit({type: 'ended', path: S1});
+    await bg.wait(100);
+
+    await bg.navigated(2, 'https://other.test/film');
+    await bg.frameAdded(2, 0, 'https://other.test/film', 'film');
+    await bg.request({tabId: 2, url: S3});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S3]);
+
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.request({tabId: 1, url: S2});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S3]);
   });
 
   it('says so in mpv when the page has no next episode, or the tab is gone', async () => {

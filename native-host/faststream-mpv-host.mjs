@@ -495,6 +495,8 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     let buffer = '';
 
     const socket = net.connect(pipe);
+    // Decoded as a stream: a character mpv sends in two chunks stays one character.
+    socket.setEncoding('utf8');
 
     const finish = (value) => {
       if (settled) {
@@ -543,7 +545,7 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
     });
 
     socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
+      buffer += chunk;
       const lines = buffer.split(String.fromCharCode(10));
       buffer = lines.pop() || '';
       for (const line of lines) {
@@ -587,6 +589,8 @@ export const EpisodeMessages = {'faststream-next': 'next', 'faststream-previous'
  */
 export function watchMpv(send, io = {}) {
   const socket = (io.connect || net.connect)(io.pipe || ipcPipeFor(readConfig()));
+  // Decoded as a stream: a path with a character split across two chunks still matches.
+  socket.setEncoding('utf8');
   let buffer = '';
   /** @type {boolean|undefined} */
   let eof;
@@ -639,7 +643,7 @@ export function watchMpv(send, io = {}) {
     send({type: 'watching'});
   });
   socket.on('data', (chunk) => {
-    buffer += chunk.toString('utf8');
+    buffer += chunk;
     const lines = buffer.split(String.fromCharCode(10));
     buffer = lines.pop() || '';
     for (const line of lines) {

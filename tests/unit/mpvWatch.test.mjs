@@ -61,6 +61,7 @@ async function fakeMpv(pipe) {
     commands,
     connected,
     event: (object) => socket.write(JSON.stringify(object) + '\n'),
+    raw: (bytes) => socket.write(bytes),
     close: () => socket.destroy(),
   };
 }
@@ -121,6 +122,20 @@ describe('watchMpv', () => {
     expect(sent.filter((m) => m.type === 'ended')).toHaveLength(2);
     expect(sent.filter((m) => m.type === 'path').map((m) => m.path))
         .toEqual(['https://cdn.test/ep1.m3u8#fs-id=1', 'https://cdn.test/ep2.m3u8#fs-id=2', 'https://cdn.test/ep2.m3u8#fs-id=2']);
+    watch.stop();
+  });
+
+  it('keeps a character mpv sends in two chunks whole', async () => {
+    const {mpv, sent, watch, settle} = await watching('utf8');
+    const path = 'https://cdn.test/' + String.fromCharCode(0xe9) + 'pisode-2.m3u8';
+    const line = Buffer.from(JSON.stringify(pathEvent(path)) + '\n', 'utf8');
+    // Cut inside the two bytes of the e with its accent.
+    const cut = line.indexOf(0xc3) + 1;
+    mpv.raw(line.subarray(0, cut));
+    await settle();
+    mpv.raw(line.subarray(cut));
+    await settle();
+    expect(sent.filter((m) => m.type === 'path').map((m) => m.path)).toEqual([path]);
     watch.stop();
   });
 

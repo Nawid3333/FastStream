@@ -2423,7 +2423,7 @@ function autoOpenInMpv(tab, url, headers) {
 // that episode in the tab's page, and its stream goes into the same mpv window, so a series
 // plays episode after episode without the browser. The host (7) follows mpv over a port
 // kept open (MpvBackend.watch), which also keeps this background page from unloading.
-/** @type {?{tabId: number, url: string, alive: boolean, watcher: ?{notify: Function, stop: Function}}} */
+/** @type {?{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
 let mpvWatch = null;
 // How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
 const MpvNextEpisodeWaitMs = 60000;
@@ -2444,13 +2444,22 @@ function watchMpvFor(tab, url) {
     tab.continuationOptions = null;
   }
   tab.mpvNextEpisodeUntil = 0;
+  // Another tab's stream took the window: the episode that tab still waits for no longer
+  // goes to mpv by itself, where it would replace this one.
+  const before = mpvWatch && mpvWatch.tabId !== tab.tabId ? Tabs.getTab(mpvWatch.tabId) : null;
+  if (before) {
+    before.mpvNextEpisodeUntil = 0;
+    if (before.continuationOptions?.mpvNext) {
+      before.continuationOptions = null;
+    }
+  }
   if (mpvWatch?.alive) {
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
     return;
   }
-  /** @type {{tabId: number, url: string, alive: boolean, watcher: ?{notify: Function, stop: Function}}} */
-  const state = {tabId: tab.tabId, url, alive: true, watcher: null};
+  /** @type {{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
+  const state = {tabId: tab.tabId, url, alive: true, going: false, watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
 }
@@ -2505,19 +2514,28 @@ async function goToEpisode(state, direction) {
       'its tab is closed, or not in MPV mode');
     return;
   }
+  // An end and a key at the same moment would click the page's link twice, a skipped episode.
+  if (state.going) {
+    return;
+  }
+  state.going = true;
   const frameIds = Array.from(tab.frames.keys()).sort((a, b) => a - b);
   let clicked = false;
-  for (const frameId of frameIds) {
-    const answer = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_NAVIGATION, direction}, {frameId}, (response) => {
-        void chrome.runtime.lastError;
-        resolve(response);
+  try {
+    for (const frameId of frameIds) {
+      const answer = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_NAVIGATION, direction}, {frameId}, (response) => {
+          void chrome.runtime.lastError;
+          resolve(response);
+        });
       });
-    });
-    if (answer === 'clicked') {
-      clicked = true;
-      break;
+      if (answer === 'clicked') {
+        clicked = true;
+        break;
+      }
     }
+  } finally {
+    state.going = false;
   }
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');
