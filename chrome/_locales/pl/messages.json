@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "karta jest zamknięta lub nie jest w trybie MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Odliczanie do następnego odcinka w sekundach (0: brak)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Automatyczne odtwarzanie następnego odcinka w mpv (przycisk autoplay w mpv również to zmienia)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Autoodtwarzanie"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "następny odcinek za $1 s (n: teraz, przycisk autoplay: stop)"
+    },
+    "mpv_autoplay_on": {
+        "message": "włączone"
+    },
+    "mpv_autoplay_off": {
+        "message": "wyłączone"
+    },
+    "mpv_episode_nostream": {
+        "message": "następna strona nie dostarczyła strumienia w ciągu minuty; otwórz ją w przeglądarce, aby sprawdzić, dlaczego"
     }
 }

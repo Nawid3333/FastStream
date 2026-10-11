@@ -32,6 +32,7 @@ const mpvPathInput = document.getElementById('mpvpath');
 const mpvFullscreenToggle = document.getElementById('mpvfullscreen');
 const mpvPausePageToggle = document.getElementById('mpvpausepage');
 const mpvSingleInstanceToggle = document.getElementById('mpvsingleinstance');
+const mpvAutoplayNextToggle = document.getElementById('mpvautoplaynext');
 const mpvTestButton = document.getElementById('mpvtest');
 const mpvTestResult = document.getElementById('mpvtestresult');
 const autoSub = document.getElementById('autosub');
@@ -45,6 +46,7 @@ const bufferAhead = document.getElementById('bufferahead');
 const bufferBehind = document.getElementById('bufferbehind');
 const seekStepSize = document.getElementById('seekstepsize');
 const autoplayNext = document.getElementById('autoplaynext');
+const autoplayCountdown = document.getElementById('autoplaycountdown');
 const blockPopupsWhilePlaying = document.getElementById('blockpopupswhileplaying');
 const qualityMenu = document.getElementById('quality');
 const importButton = document.getElementById('import');
@@ -133,9 +135,11 @@ if (!EnvUtils.isExtension()) {
   mpvFullscreenToggle.disabled = true;
   mpvPausePageToggle.disabled = true;
   mpvSingleInstanceToggle.disabled = true;
+  mpvAutoplayNextToggle.disabled = true;
   mpvTestButton.disabled = true;
   miniSize.disabled = true;
   autoplayNext.disabled = true;
+  autoplayCountdown.disabled = true;
 }
 
 async function loadOptions(newOptions) {
@@ -154,11 +158,13 @@ async function loadOptions(newOptions) {
   mpvFullscreenToggle.checked = !!Options.mpvFullscreen;
   mpvPausePageToggle.checked = !!Options.mpvPausePage;
   mpvSingleInstanceToggle.checked = !!Options.mpvSingleInstance;
+  mpvAutoplayNextToggle.checked = !!Options.mpvAutoplayNext;
   previewEnabled.checked = !!Options.previewEnabled;
   // On unless turned off: options saved before it existed have no value for it.
   decodingAwareQuality.checked = Options.decodingAwareQuality !== false;
   autoSub.checked = !!Options.autoEnableBestSubtitles;
   autoplayNext.checked = !!Options.autoplayNext;
+  autoplayCountdown.value = Options.autoplayCountdown;
   blockPopupsWhilePlaying.checked = !!Options.blockPopupsWhilePlaying;
   showSpeed(Options.maxSpeed);
   showSize(maxSize, maxSizeUnit, Options.maxVideoSize);
@@ -532,6 +538,11 @@ mpvSingleInstanceToggle.addEventListener('change', () => {
   optionChanged();
 });
 
+mpvAutoplayNextToggle.addEventListener('change', () => {
+  Options.mpvAutoplayNext = mpvAutoplayNextToggle.checked;
+  optionChanged();
+});
+
 /**
  * Whether the mpv path typed on this page names the mpv the host found: the same file,
  * or the folder it is in (the host accepts both), whatever the case and slashes.
@@ -632,6 +643,11 @@ storeProgress.addEventListener('change', () => {
 autoplayNext.addEventListener('change', () => {
   Options.autoplayNext = autoplayNext.checked;
   sessionStorage.removeItem('autoplayNext');
+  optionChanged();
+});
+
+autoplayCountdown.addEventListener('change', () => {
+  Options.autoplayCountdown = readNumberField(autoplayCountdown, DefaultOptions.autoplayCountdown, 0, 30, true);
   optionChanged();
 });
 
@@ -879,7 +895,7 @@ function saveWhileTyping(input) {
 }
 
 [maxSpeed, maxSize, ramBudget, bufferAhead, bufferBehind, seekStepSize, replaceDelay, miniSize, maxdownloaders,
-  mpvPathInput].forEach(saveWhileTyping);
+  mpvPathInput, autoplayCountdown].forEach(saveWhileTyping);
 
 /**
  * Saves a list field when the page goes with it changed, as it does when it is left: half a

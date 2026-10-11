@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "タブが閉じているか、MPV モードではありません"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "次エピソードまでのカウントダウン（秒）(0: なし)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "mpvで次エピソードを自動再生する (mpv内の自動再生ボタンでも切り替え可能)"
+    },
+    "mpv_autoplay_title": {
+        "message": "自動再生"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "次エピソードまであと $1 秒 (n: 今すぐ, 自動再生ボタン: 中止)"
+    },
+    "mpv_autoplay_on": {
+        "message": "オン"
+    },
+    "mpv_autoplay_off": {
+        "message": "オフ"
+    },
+    "mpv_episode_nostream": {
+        "message": "次のページで1分以内にストリームが見つかりませんでした。ブラウザで開いて理由を確認してください"
     }
 }

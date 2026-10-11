@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "его вкладка закрыта или не включён режим MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Обратный отсчёт до следующей серии в секундах (0: нет)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Автоматический запуск следующей серии в mpv (кнопка автозапуска в mpv также переключает этот режим)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Автозапуск"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "следующая серия через $1 с (n: сейчас, кнопка автозапуска: стоп)"
+    },
+    "mpv_autoplay_on": {
+        "message": "вкл"
+    },
+    "mpv_autoplay_off": {
+        "message": "выкл"
+    },
+    "mpv_episode_nostream": {
+        "message": "на следующей странице не удалось найти поток в течение минуты; откройте её в браузере, чтобы узнать причину"
     }
 }

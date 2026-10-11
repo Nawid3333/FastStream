@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "tabblad is gesloten of niet in MPV-modus"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Aftelling voor de volgende aflevering, in seconden (0: geen)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Volgende aflevering automatisch afspelen in mpv (de autoplay-knop in mpv schakelt dit ook om)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Autoplay"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "volgende aflevering over $1 s (n: nu, autoplay-knop: stop)"
+    },
+    "mpv_autoplay_on": {
+        "message": "aan"
+    },
+    "mpv_autoplay_off": {
+        "message": "uit"
+    },
+    "mpv_episode_nostream": {
+        "message": "de volgende pagina leverde binnen een minuut geen stream op; open deze in de browser om te zien waarom"
     }
 }

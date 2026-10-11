@@ -17,6 +17,9 @@ export const DefaultOptions = {
   mpvFullscreen: false,
   mpvPausePage: true,
   mpvSingleInstance: true,
+  // MPV autoplay (2026-10-11, his choice): its own setting, also switched by mpv's autoplay
+  // button; the browser player's is autoplayNext.
+  mpvAutoplayNext: true,
   downloadAll: true,
   blockPopupsWhilePlaying: true,
   previewEnabled: true,
@@ -26,6 +29,8 @@ export const DefaultOptions = {
   autoEnableBestSubtitles: false,
   storeProgress: true,
   autoplayNext: false,
+  // Seconds between an episode's end and the next one, in the player and in mpv; 0: none.
+  autoplayCountdown: 5,
   defaultQuality: `Auto`,
   colorTheme: ColorThemes.DEFAULT,
   autoEnableURLs: [],

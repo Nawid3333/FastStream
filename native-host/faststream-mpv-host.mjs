@@ -71,7 +71,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 8;
+export const HostVersion = 9;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -568,9 +568,14 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
   });
 }
 
-// The script messages an mpv key or menu sends for the next or the previous episode
-// (input.conf: "N script-message faststream-next"); mpv gives them to every IPC client.
-export const EpisodeMessages = {'faststream-next': 'next', 'faststream-previous': 'previous'};
+// The script messages an mpv key, button or menu sends for the next or the previous episode
+// (input.conf: "n script-message faststream-next") and, host 9, for autoplay on or off (the
+// mpv setup's autoplay button); mpv gives them to every IPC client.
+export const EpisodeMessages = {
+  'faststream-next': 'next',
+  'faststream-previous': 'previous',
+  'faststream-autoplay': 'autoplay',
+};
 
 /**
  * Follows the mpv on our pipe for the extension, over a port it keeps open (connectNative):
@@ -582,10 +587,14 @@ export const EpisodeMessages = {'faststream-next': 'next', 'faststream-previous'
  * the end), or an end-file "eof" (an mpv without keep-open). The first eof-reached is mpv's
  * state when the watch began, a file that ended before: no end. A file loaded into the
  * window (loadfile replace) comes as a new path, eof-reached unavailable, then false.
+ *
+ * Host 9: mpv's episode buttons show only while FastStream follows the window
+ * (user-data/faststream/connected, cleared when the extension lets go), and its autoplay
+ * button shows the extension's setting (user-data/faststream/autoplay, from state()).
  * @param {(message: Object) => *} send - Sends a message to the extension.
  * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket}} [io] - Tests.
- * @return {{notify: (title: string, detail?: string) => void, stop: () => void,
- *   done: Promise<string>}} done resolves with why it ended.
+ * @return {{notify: (title: string, detail?: string) => void, state: (state: Object) => void,
+ *   stop: () => void, done: Promise<string>}} done resolves with why it ended.
  */
 export function watchMpv(send, io = {}) {
   const socket = (io.connect || net.connect)(io.pipe || ipcPipeFor(readConfig()));
@@ -622,7 +631,14 @@ export function watchMpv(send, io = {}) {
     if (finished) return;
     finished = true;
     try {
-      socket.destroy();
+      if (reason === 'stopped' && socket.writable) {
+        // The extension let go, mpv runs on: its episode buttons go (they would send to no
+        // one). end() sends the line before it closes; destroy() could drop it.
+        socket.end(JSON.stringify({command: ['set_property', 'user-data/faststream/connected', false]}) +
+          String.fromCharCode(10));
+      } else {
+        socket.destroy();
+      }
     } catch (e) {
       // Already gone.
     }
@@ -640,6 +656,7 @@ export function watchMpv(send, io = {}) {
   socket.on('connect', () => {
     write(['observe_property', 1, 'path']);
     write(['observe_property', 2, 'eof-reached']);
+    write(['set_property', 'user-data/faststream/connected', true]);
     send({type: 'watching'});
   });
   socket.on('data', (chunk) => {
@@ -684,6 +701,11 @@ export function watchMpv(send, io = {}) {
       const id = 1000 + requests;
       notices.set(id, detail ? title + ': ' + detail : String(title));
       write(['script-message-to', 'notify', 'show', 'faststream', String(title), String(detail)], id);
+    },
+    state(state) {
+      if (state && typeof state.autoplay === 'boolean') {
+        write(['set_property', 'user-data/faststream/autoplay', state.autoplay]);
+      }
     },
     stop() {
       finish('stopped');
@@ -1681,8 +1703,13 @@ async function handleMessage() {
       debugLog(config, 'watch', event);
       sendMessage(event);
     });
+    // The browser went (closed, or the extension reloaded) while mpv plays on: a write to it
+    // fails, and an unhandled stdout error ended this host with a crash, leaving mpv's
+    // episode buttons up with no one to hear them. It ends as when the extension lets go.
+    process.stdout.on('error', () => watch.stop());
     readMessages(process.stdin, (next) => {
       if (next.type === 'notify') watch.notify(String(next.title || ''), String(next.detail || ''));
+      else if (next.type === 'state') watch.state(next);
     }, () => watch.stop());
     await watch.done;
     // The last message ('closed') out before the host goes.

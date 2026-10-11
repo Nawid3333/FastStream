@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "sua aba está fechada ou não está no modo MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Contagem regressiva antes do próximo episódio, em segundos (0: nenhum)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Reproduzir automaticamente o próximo episódio no mpv (o botão de reprodução automática no mpv também alterna isso)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Reprodução automática"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "próximo episódio em $1 s (n: agora, botão autoplay: parar)"
+    },
+    "mpv_autoplay_on": {
+        "message": "ativado"
+    },
+    "mpv_autoplay_off": {
+        "message": "desativado"
+    },
+    "mpv_episode_nostream": {
+        "message": "a próxima página não forneceu nenhum stream em um minuto; abra-a no navegador para ver o motivo"
     }
 }

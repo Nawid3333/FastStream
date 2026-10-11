@@ -832,6 +832,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     loadOptions().then(() => {
       leaveMpvWhenOff();
       forgetOffsForNewEntries(allowlistBefore);
+      // mpv's autoplay switch shows the setting the options page just changed.
+      syncMpvAutoplay(mpvWatch);
     }).catch((e) => console.error('Loading the new options failed', e));
     // sent to all tabs - once the tabs are known again: right after a wake (this message
     // woke it) none were, and no page or player heard of the new options.
@@ -2419,14 +2421,68 @@ function autoOpenInMpv(tab, url, headers) {
 }
 
 // MPV autoplay (his wish, 2026-10-11): an episode handed to mpv that plays to its end (with
-// "Autoplay next video" on), or mpv's key for the next or the previous episode, goes on to
-// that episode in the tab's page, and its stream goes into the same mpv window, so a series
-// plays episode after episode without the browser. The host (7) follows mpv over a port
-// kept open (MpvBackend.watch), which also keeps this background page from unloading.
-/** @type {?{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
+// "Autoplay next episode in mpv" on), or mpv's key or button for the next or the previous
+// episode, goes on to that episode in the tab's page, and its stream goes into the same mpv
+// window, so a series plays episode after episode without the browser. The host (7) follows
+// mpv over a port kept open (MpvBackend.watch), which also keeps this background page from
+// unloading. Host 9 (same day, his wishes): mpv shows episode buttons and an autoplay switch
+// (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
+// an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short.
+/**
+ * @typedef {{tabId: number, url: string, alive: boolean, going: boolean,
+ *   countdown: ?ReturnType<typeof setTimeout>, stalled: ?ReturnType<typeof setTimeout>,
+ *   watcher: ?{notify: Function, state: Function, stop: Function}}} MpvWatch
+ */
+/** @type {?MpvWatch} */
 let mpvWatch = null;
 // How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
 const MpvNextEpisodeWaitMs = 60000;
+
+/**
+ * The seconds between an episode's end and the next one (Options.autoplayCountdown).
+ * @return {number} 0 to 30.
+ */
+function autoplayCountdownSeconds() {
+  const seconds = Number(Options.autoplayCountdown);
+  return Number.isFinite(seconds) ? Math.min(30, Math.max(0, Math.round(seconds))) : 5;
+}
+
+/**
+ * Stores one option the background changed itself (mpv's autoplay switch), and tells an open
+ * options page, as its own saves do.
+ * @param {string} key
+ * @param {*} value
+ */
+async function saveOption(key, value) {
+  const options = await Utils.getOptionsFromStorage();
+  options[key] = value;
+  await Utils.setConfig('options', JSON.stringify(options));
+  await loadOptions(options);
+  chrome.runtime.sendMessage({type: MessageTypes.LOAD_OPTIONS, time: Date.now()}).catch(() => {
+    // No options page open.
+  });
+}
+
+/**
+ * Stops an end's countdown, if one runs.
+ * @param {MpvWatch} state
+ */
+function cancelMpvCountdown(state) {
+  if (state.countdown) {
+    clearTimeout(state.countdown);
+    state.countdown = null;
+  }
+}
+
+/**
+ * What mpv's autoplay switch shows: after the watch began, and when the setting changed.
+ * @param {?MpvWatch} state
+ */
+function syncMpvAutoplay(state) {
+  if (!state?.alive) return;
+  if (!Options.mpvAutoplayNext) cancelMpvCountdown(state);
+  state.watcher?.state({autoplay: !!Options.mpvAutoplayNext});
+}
 
 /**
  * Follows the mpv a stream of the tab just went to: the latest hand-off is the one an end or
@@ -2454,12 +2510,16 @@ function watchMpvFor(tab, url) {
     }
   }
   if (mpvWatch?.alive) {
+    // A stream arrived: the next page's "no stream" alarm, and an end's countdown, are done.
+    if (mpvWatch.stalled) clearTimeout(mpvWatch.stalled);
+    mpvWatch.stalled = null;
+    cancelMpvCountdown(mpvWatch);
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
     return;
   }
-  /** @type {{tabId: number, url: string, alive: boolean, going: boolean, watcher: ?{notify: Function, stop: Function}}} */
-  const state = {tabId: tab.tabId, url, alive: true, going: false, watcher: null};
+  /** @type {MpvWatch} */
+  const state = {tabId: tab.tabId, url, alive: true, going: false, countdown: null, stalled: null, watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
 }
@@ -2484,17 +2544,64 @@ function isSentStream(path, url) {
 function onMpvWatchEvent(state, event) {
   if (event.type === 'closed') {
     state.alive = false;
+    cancelMpvCountdown(state);
+    if (state.stalled) clearTimeout(state.stalled);
+    state.stalled = null;
     if (mpvWatch === state) mpvWatch = null;
     if (Logging) console.log('[MPV autoplay] the watch ended:', event.reason);
     return;
   }
-  if (event.type === 'ended') {
-    if (Options.autoplayNext && isSentStream(event.path, state.url)) {
-      goToEpisode(state, 'next');
+  if (event.type === 'watching') {
+    syncMpvAutoplay(state);
+  } else if (event.type === 'ended') {
+    if (Options.mpvAutoplayNext && isSentStream(event.path, state.url)) {
+      startMpvCountdown(state);
     }
   } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
+    // A key or a button: now, whatever the countdown says.
+    cancelMpvCountdown(state);
     goToEpisode(state, event.action);
+  } else if (event.type === 'request' && event.action === 'autoplay') {
+    toggleMpvAutoplay(state);
   }
+}
+
+/**
+ * An episode ended in mpv with autoplay on: the next one after the countdown, which mpv
+ * shows. The autoplay switch stops it; the next-episode key or button skips it.
+ * @param {MpvWatch} state
+ */
+function startMpvCountdown(state) {
+  if (state.countdown) return;
+  const seconds = autoplayCountdownSeconds();
+  if (seconds === 0) {
+    goToEpisode(state, 'next');
+    return;
+  }
+  state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
+      chrome.i18n.getMessage('mpv_autoplay_countdown', [String(seconds)]) ||
+      `next episode in ${seconds} s (n: now, autoplay button: stop)`);
+  state.countdown = setTimeout(() => {
+    state.countdown = null;
+    if (state.alive && Options.mpvAutoplayNext) goToEpisode(state, 'next');
+  }, seconds * 1000);
+}
+
+/**
+ * mpv's autoplay switch: flips the setting, which mpv then shows.
+ * @param {MpvWatch} state
+ */
+async function toggleMpvAutoplay(state) {
+  const on = !Options.mpvAutoplayNext;
+  try {
+    await saveOption('mpvAutoplayNext', on);
+  } catch (e) {
+    console.error('Saving MPV autoplay failed', e);
+    return;
+  }
+  syncMpvAutoplay(state);
+  state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
+      chrome.i18n.getMessage(on ? 'mpv_autoplay_on' : 'mpv_autoplay_off') || (on ? 'on' : 'off'));
 }
 
 /**
@@ -2545,6 +2652,15 @@ async function goToEpisode(state, direction) {
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
   state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv');
+  // The next page had its minute and brought no stream (a locked episode, a dead hoster, a
+  // login wall): mpv says so, where it otherwise sat at the old episode's end in silence.
+  if (state.stalled) clearTimeout(state.stalled);
+  state.stalled = setTimeout(() => {
+    state.stalled = null;
+    if (!state.alive || mpvWatch !== state) return;
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
+      'the next page brought no stream within a minute; open it in the browser to see why');
+  }, MpvNextEpisodeWaitMs);
 }
 
 /**

@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "tab ditutup atau tidak dalam Mode MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Hitung mundur sebelum episode berikutnya, dalam detik (0: tidak ada)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Putar otomatis episode berikutnya di mpv (tombol putar otomatis di mpv juga mengubahnya)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Putar otomatis"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "episode berikutnya dalam $1 s (n: sekarang, tombol autoplay: stop)"
+    },
+    "mpv_autoplay_on": {
+        "message": "aktif"
+    },
+    "mpv_autoplay_off": {
+        "message": "nonaktif"
+    },
+    "mpv_episode_nostream": {
+        "message": "halaman berikutnya tidak memberikan stream dalam satu menit; buka di browser untuk melihat alasannya"
     }
 }

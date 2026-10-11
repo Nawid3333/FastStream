@@ -100,6 +100,9 @@ export async function loadBackground({
     // The ports connectNative opened (MPV autoplay's watch): each has what the background
     // posted (sent), emit(message) to answer as the host, and disconnected once it is closed.
     ports: [],
+    // What the background sent to the extension's own pages (runtime.sendMessage: an open
+    // options page hears LOAD_OPTIONS after a save of its own).
+    runtimeSent: [],
     badges: new Map(),
     titles: new Map(),
     dynamicRules: [],
@@ -150,6 +153,9 @@ export async function loadBackground({
       getPlatformInfo: async () => ({os, arch: 'x86-64'}),
       onInstalled: event(),
       onMessage,
+      sendMessage: async (message) => {
+        bg.runtimeSent.push(message);
+      },
       sendNativeMessage: (name, message, callback) => {
         bg.native.push(message);
         answer(callback, onNative(message));

@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "탭이 닫혔거나 MPV 모드가 아닙니다"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "다음 에피소드 재생 전 대기 시간(초) (0: 없음)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "mpv에서 다음 에피소드 자동 재생 (mpv의 자동 재생 버튼으로도 전환 가능)"
+    },
+    "mpv_autoplay_title": {
+        "message": "자동 재생"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "다음 에피소드까지 $1초 (n: 즉시 재생, 자동 재생 버튼: 중지)"
+    },
+    "mpv_autoplay_on": {
+        "message": "켬"
+    },
+    "mpv_autoplay_off": {
+        "message": "끔"
+    },
+    "mpv_episode_nostream": {
+        "message": "다음 페이지에서 1분 이내에 스트림을 찾을 수 없습니다. 브라우저에서 열어 이유를 확인하세요"
     }
 }

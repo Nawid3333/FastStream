@@ -1213,5 +1213,26 @@
     },
     "mpv_episode_unavailable": {
         "message": "son onglet est fermé ou n'est pas en mode MPV"
+    },
+    "options_general_autoplay_countdown": {
+        "message": "Compte à rebours avant le prochain épisode, en secondes (0 : aucun)"
+    },
+    "options_mpv_autoplaynext": {
+        "message": "Lecture automatique du prochain épisode dans mpv (le bouton de lecture auto dans mpv le change aussi)"
+    },
+    "mpv_autoplay_title": {
+        "message": "Lecture automatique"
+    },
+    "mpv_autoplay_countdown": {
+        "message": "prochain épisode dans $1 s (n : maintenant, bouton lecture auto : arrêter)"
+    },
+    "mpv_autoplay_on": {
+        "message": "activé"
+    },
+    "mpv_autoplay_off": {
+        "message": "désactivé"
+    },
+    "mpv_episode_nostream": {
+        "message": "la page suivante n'a fourni aucun flux en une minute ; ouvrez-la dans le navigateur pour savoir pourquoi"
     }
 }

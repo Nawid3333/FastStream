@@ -82,11 +82,13 @@ const pathEvent = (data) => ({event: 'property-change', id: 1, name: 'path', ...
 const eofEvent = (data) => ({event: 'property-change', id: 2, name: 'eof-reached', ...(data === undefined ? {} : {data})});
 
 describe('watchMpv', () => {
-  it('asks mpv for its file and its end, and says it watches', async () => {
+  it('asks mpv for its file and its end, marks the window followed, and says it watches', async () => {
     const {mpv, sent, watch} = await watching('start');
     expect(mpv.commands).toEqual([
       {command: ['observe_property', 1, 'path']},
       {command: ['observe_property', 2, 'eof-reached']},
+      // Host 9: the mpv setup's episode buttons show while this holds.
+      {command: ['set_property', 'user-data/faststream/connected', true]},
     ]);
     expect(sent).toEqual([{type: 'watching'}]);
     watch.stop();
@@ -159,6 +161,10 @@ describe('watchMpv', () => {
     expect(sent.filter((m) => m.type === 'request')).toEqual([
       {type: 'request', action: 'next'}, {type: 'request', action: 'previous'},
     ]);
+    // Host 9: the autoplay button.
+    mpv.event({event: 'client-message', args: ['faststream-autoplay']});
+    await settle();
+    expect(sent.filter((m) => m.type === 'request').at(-1)).toEqual({type: 'request', action: 'autoplay'});
     watch.stop();
   });
 
@@ -172,6 +178,29 @@ describe('watchMpv', () => {
     await settle();
     expect(mpv.commands.at(-1)).toEqual({command: ['show-text', 'Next episode: loading', 4000]});
     watch.stop();
+  });
+
+  it('tells mpv\'s autoplay button the setting, and only a yes or a no', async () => {
+    const {mpv, watch, settle} = await watching('state');
+    watch.state({autoplay: false});
+    watch.state({autoplay: 'yes'});
+    watch.state({});
+    watch.state({autoplay: true});
+    await settle();
+    expect(mpv.commands.slice(3)).toEqual([
+      {command: ['set_property', 'user-data/faststream/autoplay', false]},
+      {command: ['set_property', 'user-data/faststream/autoplay', true]},
+    ]);
+    watch.stop();
+  });
+
+  it('unmarks the window when the extension lets go, before it closes the connection', async () => {
+    const {mpv, sent, watch, settle} = await watching('letgo');
+    watch.stop();
+    expect(await watch.done).toBe('stopped');
+    await settle();
+    expect(mpv.commands.at(-1)).toEqual({command: ['set_property', 'user-data/faststream/connected', false]});
+    expect(sent.at(-1)).toEqual({type: 'closed', reason: 'stopped'});
   });
 
   it('ends, saying why, when mpv quits', async () => {
