@@ -132,12 +132,16 @@ const EpisodeLinks = (() => {
   const SEASON = '(?:staffel|season|saison|temporada|stagione|seizoen|sezon|sezona)';
   // An episode in an address.
   const EPISODE_WORD = '(?:episodes?|episodio|episódio|épisode|folge|odcinek|bölüm|bolum|seriya|ep|e)';
-  // A path segment that is a season or an episode: what comes before the first one is the
-  // series (/anime/stream/<series>/staffel-3/episode-12).
-  const PART = new RegExp(`^(?:${SEASON}[-_.]?\\d+|s\\d{1,3}(?:[-_.]?e\\d+)?|${EPISODE_WORD}[-_.]?\\d+|\\d{1,3}x\\d{1,4})` +
-    '(?:\\.[a-z0-9]+)?$', 'iu');
-  // A segment that names the show and then its episode: one-piece-episode-1000.
-  const NAMED_PART = new RegExp(`^(.+?[-_])${EPISODE_WORD}[-_]?\\d+(?:\\.[a-z0-9]+)?$`, 'iu');
+  // A season, an episode, or both, as a path segment names them (staffel-3, staffel-3-episode-12,
+  // episode-12, s03, S03E12, 3x12).
+  const SEASON_EPISODE = `(?:${SEASON}[-_.]?\\d+(?:[-_.]?${EPISODE_WORD}[-_.]?\\d+)?|s\\d{1,3}(?:[-_.]?e\\d+)?|` +
+    `${EPISODE_WORD}[-_.]?\\d+|\\d{1,3}x\\d{1,4})`;
+  // A path segment that is one: what comes before the first one is the series
+  // (/anime/stream/<series>/staffel-3/episode-12).
+  const PART = new RegExp(`^${SEASON_EPISODE}(?:\\.[a-z0-9]+)?$`, 'iu');
+  // A segment that names the show and then its season or episode: one-piece-episode-1000,
+  // my-show-season-2-episode-5.
+  const NAMED_PART = new RegExp(`^(.+?[-_])${SEASON_EPISODE}(?:\\.[a-z0-9]+)?$`, 'iu');
 
   /**
    * The part of a page's address that names its series (2026-10-11, aniworld.cc: after a
@@ -165,44 +169,58 @@ const EpisodeLinks = (() => {
   }
 
   /**
-   * Whether an address belongs to a series (seriesOf); any does where none was told.
+   * Whether an address is an episode or a season of a series (seriesOf): its own series is
+   * that one, so a sequel that only starts the same (one-piece-2/... beside
+   * one-piece-episode-1000) is not. Any address is where no series was told.
    * @param {?string} series
    * @param {string} href
    * @return {boolean}
    */
   function inSeries(series, href) {
-    if (!series) return true;
-    try {
-      const url = new URL(href);
-      return (url.origin + url.pathname).startsWith(series);
-    } catch (e) {
-      return false;
-    }
+    return !series || seriesOf(href) === series;
   }
 
+  // An address that ends in a season's episode: .../staffel-3/episode-12, .../staffel-3-episode-12.
+  const SEASON_EPISODE_END = new RegExp(`^(.*[/_-]${SEASON}[-_.]?)(\\d+)([/_.-]?${EPISODE_WORD}[-_.]?)(\\d+)((?:\\.[a-z0-9]+)?/?)$`, 'iu');
+
   /**
-   * After the last episode of a season, the next season's first: .../staffel-3/episode-12 ->
-   * the season .../staffel-4 (which the page must link, or one of its episodes) and its first
-   * episode .../staffel-4/episode-1, padded as this one is.
-   * @param {string} href - This page.
-   * @return {?{season: string, first: string}} Absolute, without the query or the #.
+   * The season and the episode an address names at its end.
+   * @param {string} href
+   * @return {?{show: string, season: number, episode: number, match: Array<string>, origin: string}}
+   *   show: the address before the season's number, in lower case (the same for each season of
+   *   a series).
    */
-  function nextSeason(href) {
+  function seasonEpisode(href) {
     let url;
     try {
       url = new URL(href);
     } catch (e) {
       return null;
     }
-    const match = new RegExp(`^(.*/${SEASON}[-_.]?)(\\d+)(/${EPISODE_WORD}[-_.]?)(\\d+)(/?)$`, 'iu').exec(url.pathname);
+    const match = SEASON_EPISODE_END.exec(url.pathname);
     if (!match) return null;
-    const season = String(parseInt(match[2], 10) + 1).padStart(match[2].startsWith('0') ? match[2].length : 0, '0');
+    return {show: (url.origin + match[1]).toLowerCase(), season: parseInt(match[2], 10), episode: parseInt(match[4], 10),
+      match, origin: url.origin};
+  }
+
+  /**
+   * After the last episode of a season, the next season's first: .../staffel-3/episode-12 ->
+   * the season .../staffel-4 (which the page must link, or one of its episodes) and its first
+   * episode .../staffel-4/episode-1, padded as this one is; also .../staffel-3-episode-12.
+   * @param {string} href - This page.
+   * @return {?{season: string, first: string}} Absolute, without the query or the #.
+   */
+  function nextSeason(href) {
+    const here = seasonEpisode(href);
+    if (!here) return null;
+    const match = here.match;
+    const season = String(here.season + 1).padStart(match[2].startsWith('0') ? match[2].length : 0, '0');
     const first = match[4].startsWith('0') ? '1'.padStart(match[4].length, '0') : '1';
     return {
-      season: url.origin + match[1] + season,
-      first: url.origin + match[1] + season + match[3] + first + match[5],
+      season: here.origin + match[1] + season,
+      first: here.origin + match[1] + season + match[3] + first + match[5],
     };
   }
 
-  return {normalize, phraseScore, neighbourEpisodeUrls, seriesOf, inSeries, nextSeason};
+  return {normalize, phraseScore, neighbourEpisodeUrls, seriesOf, inSeries, seasonEpisode, nextSeason};
 })();

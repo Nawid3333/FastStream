@@ -141,6 +141,57 @@ describe('the next episode, within the series', () => {
     expect(assigned).toEqual([]);
   });
 
+  it('takes the next episode\'s link into a new tab, in this tab, not the next season (deepseek\'s review)', async () => {
+    // Its address is the very next episode's: no ad's. Missed, autoplay went on to the next
+    // season, past the rest of this one.
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-5`,
+      pathname: '/anime/stream/girls/staffel-3/episode-5'});
+    page.link(`${SERIES}/staffel-4`, 'Staffel 4');
+    page.link(`${SERIES}/staffel-3/episode-4`, '4');
+    page.link(`${SERIES}/staffel-3/episode-6`, '6', {target: '_blank'});
+    expect(await page.next()).toBe('clicked');
+    expect(page.assigned).toEqual([`${SERIES}/staffel-3/episode-6`]);
+    expect(page.clicked).toEqual([]);
+  });
+
+  it('goes on past a gap in the season, not to the next season (glm\'s review)', async () => {
+    // Episode 13 removed: the list has 1-12 and 14-20, and a season 4.
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-3/episode-12`,
+      pathname: '/anime/stream/girls/staffel-3/episode-12'});
+    page.link(`${SERIES}/staffel-4`, 'Staffel 4');
+    for (const e of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16]) page.link(`${SERIES}/staffel-3/episode-${e}`, String(e));
+    expect(await page.next()).toBe('clicked');
+    expect(page.assigned).toEqual([`${SERIES}/staffel-3/episode-14`]);
+  });
+
+  it('goes on to the next season\'s lowest episode where a site numbers on across seasons (glm\'s review)', async () => {
+    const page = episodePage();
+    Object.assign(page.p.window.location, {href: `${SERIES}/staffel-1/episode-12`,
+      pathname: '/anime/stream/girls/staffel-1/episode-12'});
+    for (let e = 1; e <= 12; e++) page.link(`${SERIES}/staffel-1/episode-${e}`, String(e));
+    page.link(`${SERIES}/staffel-2`, 'Staffel 2');
+    page.link(`${SERIES}/staffel-2/episode-14`, '14');
+    page.link(`${SERIES}/staffel-2/episode-13`, '13');
+    expect(await page.next()).toBe('clicked');
+    expect(page.assigned).toEqual([`${SERIES}/staffel-2/episode-13`]);
+  });
+
+  it('does not press a "next episode" button on a series page its links tell all of (kimi\'s review)', async () => {
+    const {p, next, clicked} = seasonPage(3, 12);
+    const button = p.document.createElement('button');
+    button.textContent = 'Next episode';
+    let pressed = false;
+    button.click = () => {
+      pressed = true;
+    };
+    p.document.body.appendChild(button);
+    expect(await next()).toBe('series_end');
+    expect(pressed).toBe(false);
+    expect(clicked).toEqual([]);
+  });
+
   it('tells the player the series ended there, and not where it cannot read the page', async () => {
     const last = seasonPage(3, 12);
     expect(await last.p.send({type: 'PLAYLIST_POLL'})).toEqual({next: false, previous: true, seriesEnd: true});

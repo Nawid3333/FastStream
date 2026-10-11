@@ -79,6 +79,9 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     ['https://a.test/tv/x/2x05', 'https://a.test/tv/x/'],
     ['https://a.test/anime/x/folge12.html', 'https://a.test/anime/x/'],
     ['https://a.test/watch/one-piece-episode-1000', 'https://a.test/watch/one-piece-'],
+    // A season and an episode in one segment (deepseek's review).
+    ['https://a.test/show/x/staffel-3-episode-12', 'https://a.test/show/x/'],
+    ['https://a.test/watch/my-show-season-2-episode-5', 'https://a.test/watch/my-show-'],
   ])('tells the series of %s: %s', (page, series) => {
     expect(EpisodeLinks.seriesOf(page)).toBe(series);
   });
@@ -96,8 +99,12 @@ describe('EpisodeLinks.seriesOf / inSeries', () => {
     expect(EpisodeLinks.inSeries(series, 'https://aniworld.cc/anime/stream/kaiju-girl-caramelise')).toBe(false);
     expect(EpisodeLinks.inSeries(series, 'https://aniworld.cc/anime/stream/the-100-girlfriends-2/staffel-1/episode-1'))
         .toBe(false);
-    expect(EpisodeLinks.inSeries(EpisodeLinks.seriesOf('https://a.test/watch/one-piece-episode-1000'),
-        'https://a.test/watch/naruto-episode-1')).toBe(false);
+    const onePiece = EpisodeLinks.seriesOf('https://a.test/watch/one-piece-episode-1000');
+    expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-episode-1001')).toBe(true);
+    expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/naruto-episode-1')).toBe(false);
+    // A sequel that only starts the same (deepseek's review).
+    expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2/staffel-1/episode-1')).toBe(false);
+    expect(EpisodeLinks.inSeries(onePiece, 'https://a.test/watch/one-piece-2-episode-1')).toBe(false);
     // No series told: any link may be the next.
     expect(EpisodeLinks.inSeries(null, 'https://a.test/anything')).toBe(true);
   });
@@ -110,6 +117,15 @@ describe('EpisodeLinks.nextSeason', () => {
       first: 'https://s.to/serie/stream/x/staffel-4/episode-1',
     });
     expect(EpisodeLinks.nextSeason('https://a.test/show/x/season-09/ep-012/').first).toBe('https://a.test/show/x/season-10/ep-001/');
+  });
+
+  it('goes on where one segment names the season and the episode', () => {
+    expect(EpisodeLinks.nextSeason('https://a.test/show/x/staffel-3-episode-12')).toEqual({
+      season: 'https://a.test/show/x/staffel-4',
+      first: 'https://a.test/show/x/staffel-4-episode-1',
+    });
+    expect(EpisodeLinks.nextSeason('https://a.test/watch/my-show-season-2-episode-5.html').first)
+        .toBe('https://a.test/watch/my-show-season-3-episode-1.html');
   });
 
   it('has none for an address without a season', () => {

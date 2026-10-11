@@ -2094,27 +2094,31 @@
   }
 
   /**
-   * This site's links that open in the page, of this page's series where its address names
-   * one (EpisodeLinks.seriesOf): a new tab or another site is an ad's way, and another series
-   * is never the next episode (2026-10-11, aniworld.cc: after a season's last episode,
-   * autoplay went on to another series).
+   * The page's links, by how far they may be trusted as an episode's (2026-10-11, aniworld.cc:
+   * after a season's last episode, autoplay went on to another series):
+   * - site: to this site;
+   * - series: of them, those of this page's series where its address names one
+   *   (EpisodeLinks.seriesOf) - another series is never the next episode;
+   * - own: of them, those that open in the page - a link into a new tab, unless it is the
+   *   very next episode's address, is an ad's way.
    * @param {Array<Element>} aElements
-   * @return {Array<Element>}
+   * @return {{site: Array<Element>, series: Array<Element>, own: Array<Element>}}
    */
   function episodeLinksOf(aElements) {
-    const series = EpisodeLinks.seriesOf(window.location.href);
-    return aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a) && ownTarget(a) !== '_blank' &&
-      EpisodeLinks.inSeries(series, a.href));
+    const seriesOfPage = EpisodeLinks.seriesOf(window.location.href);
+    const site = aElements.filter((a) => typeof a.href === 'string' && isLinkOnThisSite(a));
+    const series = site.filter((a) => EpisodeLinks.inSeries(seriesOfPage, a.href));
+    return {site, series, own: series.filter((a) => ownTarget(a) !== '_blank')};
   }
 
   /**
    * Whether a link leads to this page's previous episode: the page lists its season.
-   * @param {Array<Element>} ownLinks - episodeLinksOf.
+   * @param {Array<Element>} links - episodeLinksOf's series links.
    * @return {boolean}
    */
-  function listsThisSeason(ownLinks) {
+  function listsThisSeason(links) {
     const previous = EpisodeLinks.neighbourEpisodeUrls(window.location.href, false);
-    return ownLinks.some((a) => previous.includes(withoutHash(a.href)));
+    return links.some((a) => previous.includes(withoutHash(a.href)));
   }
 
   /**
@@ -2126,40 +2130,71 @@
    */
   function isSeriesEnd() {
     if (!EpisodeLinks.seriesOf(window.location.href)) return false;
-    return listsThisSeason(episodeLinksOf(querySelectorAllIncludingShadows('a')));
+    const links = episodeLinksOf(querySelectorAllIncludingShadows('a'));
+    return listsThisSeason(links.series) && !linksLaterInSeason(links.site);
+  }
+
+  /**
+   * Whether the page links a later episode of this page's season: a gap before it (a removed
+   * episode) is no season's end (glm's review, 2026-10-11).
+   * @param {Array<Element>} siteLinks - episodeLinksOf's site links, into a new tab too.
+   * @return {boolean}
+   */
+  function linksLaterInSeason(siteLinks) {
+    const here = EpisodeLinks.seasonEpisode(window.location.href);
+    if (!here) return false;
+    return siteLinks.some((a) => {
+      const at = EpisodeLinks.seasonEpisode(a.href);
+      return !!at && at.show === here.show && at.season === here.season && at.episode > here.episode;
+    });
   }
 
   function getNextOrPreviousButton(isNext = false) {
     const aElements = querySelectorAllIncludingShadows('a');
-    const ownLinks = episodeLinksOf(aElements);
+    const links = episodeLinksOf(aElements);
+    const ownLinks = links.own;
     const series = EpisodeLinks.seriesOf(window.location.href);
 
     // 1. This page's episode number +1 (or -1), when the page links to it: the series part
-    // of the address stays, so it cannot be another show (2026-10-11).
+    // of the address stays, so it cannot be another show (2026-10-11). Also a link into a
+    // new tab: that address is the episode's, and it opens in this tab (the chain's).
     for (const candidate of EpisodeLinks.neighbourEpisodeUrls(window.location.href, isNext)) {
-      const hit = ownLinks.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
+      const hit = links.series.find((a) => withoutHash(url_to_absolute(a.href)) === candidate);
       if (hit) return hit;
     }
 
+    // A page that names its series and lists its season tells by its links alone: a button
+    // that says "next episode" there may lead anywhere (kimi's review, 2026-10-11).
+    const structured = !!series && listsThisSeason(links.series);
+
     // 1b. The last episode of a season, in a page that lists its episodes: the next season's
-    // first, when the page links that season (or an episode of it). Its address is this
-    // one's with the season one on and episode 1 (.../staffel-4/episode-1).
-    if (isNext && listsThisSeason(ownLinks)) {
+    // first. Not where the page links a later episode of this season (a gap: step 3 finds it
+    // in the list). The next season's lowest episode the page links (a site that numbers on
+    // across seasons), else, where the page links the season itself, its episode 1: this
+    // address with the season one on (.../staffel-4/episode-1).
+    if (isNext && structured && !linksLaterInSeason(links.site)) {
+      const here = EpisodeLinks.seasonEpisode(window.location.href);
       const next = EpisodeLinks.nextSeason(window.location.href);
-      const linksSeason = (a) => {
-        const path = withoutHash(a.href).split('?')[0].replace(/\/$/, '');
-        return path === next.season || path.startsWith(next.season + '/');
-      };
-      if (next && ownLinks.some(linksSeason)) {
-        const first = document.createElement('a');
-        first.href = next.first;
-        return first;
+      if (here && next) {
+        const ofNext = links.series.map((a) => ({a, at: EpisodeLinks.seasonEpisode(a.href)}))
+            .filter(({at}) => !!at && at.show === here.show && at.season === here.season + 1)
+            .sort((x, y) => x.at.episode - y.at.episode);
+        if (ofNext.length > 0) return ofNext[0].a;
+        const linksSeason = (a) => {
+          const path = withoutHash(a.href).split('?')[0].replace(/\/$/, '');
+          return path.startsWith(next.season) && !/^\d/.test(path.slice(next.season.length));
+        };
+        if (links.site.some(linksSeason)) {
+          const first = document.createElement('a');
+          first.href = next.first;
+          return first;
+        }
       }
     }
 
     // 2. An episode phrase in any language FastStream knows ("Nächste Folge", 下一集), in a
     // link's text, aria-label or title, or on a button that is no link.
-    const buttons = querySelectorAllIncludingShadows('button, [role="button"]')
+    const buttons = structured ? [] : querySelectorAllIncludingShadows('button, [role="button"]')
         .filter((b) => !b.disabled && b.getAttribute('aria-disabled') !== 'true');
     const phrase = onlyOneSaying(ownLinks, isNext, 2) || onlyOneSaying(buttons, isNext, 2);
     if (phrase) return phrase;
