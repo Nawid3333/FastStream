@@ -45,12 +45,45 @@ function pages(file) {
 </script>`,
     // A player that loads its video on a click on it.
     '/ep3': `<!doctype html><title>episode 3</title>
-<div id="box" style="${style}"><video style="${style}"></video></div>
+<div id="box" style="${style}"><video style="${style}"></video></div>${next('ep4')}
 <script>
   document.getElementById('box').addEventListener('click', () => {
     const video = document.querySelector('#box video');
     if (video.src) return;
     video.src = '${file}?ep=3';
+    video.play().catch(() => {});
+  });
+</script>`,
+    // A Video.js player: nothing loaded until its own play().
+    '/ep4': `<!doctype html><title>episode 4</title>
+<div id="vjs" style="${style}"><video style="${style}"></video></div>${next('ep5')}
+<script>
+  let started = false;
+  const video = document.querySelector('#vjs video');
+  const player = {
+    paused: () => video.paused,
+    hasStarted: () => started,
+    play() {
+      started = true;
+      video.src = '${file}?ep=4';
+      return video.play().catch(() => {});
+    },
+  };
+  window.videojs = () => player;
+  window.videojs.getPlayers = () => ({vjs: player});
+</script>`,
+    // A player with a big play button over its picture, which alone loads it: a click on
+    // the video does nothing.
+    '/ep5': `<!doctype html><title>episode 5</title>
+<div style="position: relative; ${style}">
+  <video style="${style}"></video>
+  <button class="vjs-big-play-button" style="position: absolute; left: 270px; top: 130px; width: 100px; height: 100px">Play</button>
+</div>
+<script>
+  document.querySelector('.vjs-big-play-button').addEventListener('click', (event) => {
+    event.currentTarget.style.display = 'none';
+    const video = document.querySelector('video');
+    video.src = '${file}?ep=5';
     video.play().catch(() => {});
   });
 </script>`,
@@ -125,7 +158,7 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     await new Promise((resolve) => server.close(resolve));
   });
 
-  it('starts an idle JW Player and then one that loads on a click, and plays each without a click', async function() {
+  it('starts each kind of waiting player (JW, a click, Video.js, a big play button) and plays it without a click', async function() {
     await browser.url(`${SITE}/ep1`);
     await intoPlayer('the first episode');
     await playToTheEnd();
@@ -138,5 +171,15 @@ describe('Autoplay next, on to a page whose player waits for a click', function(
     await onPage('/ep3');
     await intoPlayer('the episode that loads on a click');
     expect((await playsByItself(3))?.paused).toBe(false);
+
+    await playToTheEnd();
+    await onPage('/ep4');
+    await intoPlayer('the Video.js episode');
+    expect((await playsByItself(4))?.paused).toBe(false);
+
+    await playToTheEnd();
+    await onPage('/ep5');
+    await intoPlayer('the episode behind a big play button');
+    expect((await playsByItself(5))?.paused).toBe(false);
   });
 });

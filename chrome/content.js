@@ -1806,13 +1806,14 @@
   async function startPagePlayer() {
     // Started already, or FastStream's player is in this frame.
     if (pagePlayerStarted || iframeMap.size > 0 || pendingPlayers.size > 0) return null;
-    // JW Player, as most hosters have it: idle until played, and its own play() loads the
-    // stream (a click on it can land on an ad's layer). The page's object, through the
-    // content script's view of the page (Firefox's Xray waiver).
+    // The players' own APIs first: their play() loads the stream the way their button does,
+    // and a click on them can land on an ad's layer. The page's objects, through the content
+    // script's view of the page (Firefox's Xray waiver).
+    const page = window.wrappedJSObject;
     try {
-      const jwplayer = window.wrappedJSObject && window.wrappedJSObject.jwplayer;
-      if (typeof jwplayer === 'function') {
-        const player = jwplayer();
+      // JW Player, as most hosters have it: idle until played.
+      if (page && typeof page.jwplayer === 'function') {
+        const player = page.jwplayer();
         if (player && typeof player.getState === 'function' && player.getState() === 'idle') {
           pagePlayerStarted = true;
           player.play();
@@ -1820,22 +1821,88 @@
         }
       }
     } catch (e) {
-      // Not a JW Player after all, or one that refuses: the video itself below.
+      // Not a JW Player after all, or one that refuses: the next way.
+    }
+    try {
+      // Video.js: one not started yet.
+      if (page && typeof page.videojs === 'function' && typeof page.videojs.getPlayers === 'function') {
+        const players = page.videojs.getPlayers();
+        for (const id of Object.keys(players || {})) {
+          const player = players[id];
+          if (player && typeof player.paused === 'function' && player.paused() &&
+              !(typeof player.hasStarted === 'function' && player.hasStarted())) {
+            pagePlayerStarted = true;
+            player.play();
+            return 'videojs';
+          }
+        }
+      }
+    } catch (e) {
+      // As above.
     }
     const found = await getVideo();
     const video = found && found.video;
-    if (!video || !video.paused || video.ended) return null;
-    pagePlayerStarted = true;
-    if (video.currentSrc || video.src || video.srcObject) {
+    if (video && (!video.paused || video.ended)) return null;
+    if (video && (video.currentSrc || video.src || video.srcObject)) {
+      pagePlayerStarted = true;
       // Not muted when the page may not play sound yet: left muted when FastStream did not
       // take its stream after all, the site's player stayed silent.
       video.play().catch(() => {});
       return 'play';
     }
-    // Nothing loaded: the page's player loads on a click on it, which goes to its own
-    // listeners on the video and around it.
-    video.click();
-    return 'click';
+    // Nothing loaded (or no video yet: some players make it on the click): the player's own
+    // big play button, else a click on the video, for players that load on a click on it.
+    const button = playButtonFor(video);
+    if (button) {
+      pagePlayerStarted = true;
+      button.click();
+      return 'button';
+    }
+    if (video) {
+      pagePlayerStarted = true;
+      video.click();
+      return 'click';
+    }
+    return null;
+  }
+
+  // The big play buttons of common web players, over their picture before it plays.
+  const PlayerPlayButtons = [
+    '.vjs-big-play-button', '.plyr__control--overlaid', '.jw-display-icon-container',
+    '.fp-play', '.fp-ui', '.mejs__overlay-play', '.mejs-overlay-play', '.player-poster',
+    '.art-state', '.dplayer-mobile-play', '.shaka-play-button',
+  ].join(', ');
+  // Any other button that says it plays: taken only where it lies over the video.
+  const GenericPlayButtons = [
+    'button[aria-label*="play" i]', '[role="button"][aria-label*="play" i]', 'button[title*="play" i]',
+    'button[class*="play" i]', '[class*="big-play" i]', '[class*="play-button" i]', '[class*="playbutton" i]',
+  ].join(', ');
+
+  /**
+   * The visible big play button of the page's player: a known player's anywhere (it shows
+   * one only over its picture), another one only over the video.
+   * @param {?HTMLVideoElement} video - The page's largest video, if there is one.
+   * @return {?HTMLElement}
+   */
+  function playButtonFor(video) {
+    const shown = (element) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return null;
+      const style = window.getComputedStyle(element);
+      if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return null;
+      return rect;
+    };
+    const known = querySelectorAllIncludingShadows(PlayerPlayButtons).find((element) => shown(element));
+    if (known) return known;
+    if (!video) return null;
+    const area = video.getBoundingClientRect();
+    return querySelectorAllIncludingShadows(GenericPlayButtons).find((element) => {
+      const rect = shown(element);
+      if (!rect) return false;
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      return x >= area.left && x <= area.right && y >= area.top && y <= area.bottom;
+    }) || null;
   }
 
   function url_to_absolute(urlStr) {

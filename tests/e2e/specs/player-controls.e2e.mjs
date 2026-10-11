@@ -358,6 +358,42 @@ describe('Player controls', function() {
     expect(await settle(banner, (display) => display === 'none')).toBe('none');
   });
 
+  it('turns autoplay next on and off with the switch beside the next button', async function() {
+    // His wish (2026-10-11): only a right click on the next button did it, and nobody found it.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const read = () => browser.execute(() => {
+      const tool = document.querySelector('.mainplayer .fluid_tool_next');
+      const toggle = document.querySelector('.mainplayer .fluid_autoplay_switch');
+      return {shown: getComputedStyle(tool).display !== 'none' && toggle.getBoundingClientRect().width > 0,
+        checked: toggle.getAttribute('aria-checked'), option: window.fastStream.options.autoplayNext,
+        session: sessionStorage.getItem('autoplayNext'),
+        badge: document.querySelector('.mainplayer .nextvideo_banner').style.display};
+    });
+    await browser.execute(() => {
+      sessionStorage.removeItem('autoplayNext');
+      window.fastStream.options.autoplayNext = false;
+      window.fastStream.interfaceController.updateAutoNextIndicator();
+      window.fastStream.hasNextVideo = () => false;
+      window.fastStream.interfaceController.updateToolVisibility();
+    });
+    expect((await read()).shown).toBe(false);
+
+    await browser.execute(() => {
+      window.fastStream.hasNextVideo = () => true;
+      window.fastStream.interfaceController.updateToolVisibility();
+    });
+    expect(await read()).toEqual({shown: true, checked: 'false', option: false, session: null, badge: 'none'});
+
+    await (await browser.$('.mainplayer .fluid_autoplay_switch')).click();
+    expect(await read()).toEqual({shown: true, checked: 'true', option: true, session: 'true', badge: ''});
+
+    await browser.execute(() => document.querySelector('.mainplayer .fluid_autoplay_switch').focus());
+    await browser.keys([' ']);
+    expect(await read()).toEqual({shown: true, checked: 'false', option: false, session: 'false', badge: 'none'});
+  });
+
   it('says the archive failed when it could not be written', async function() {
     // The status line said "Unreachable Error".
     await openEmptyPlayer();
