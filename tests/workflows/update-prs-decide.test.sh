@@ -91,7 +91,10 @@ case "$1 $2" in
       state,headRefOid)
         head=$SHA
         if [ -f "$STATE/head_moved" ] || { [ -f "$STATE/updated" ] && [ ! -f "$STATE/head_stuck" ]; }; then head=ffffffffffffffffffffffffffffffffffffffff; fi
-        jq -n --arg s "$(cat "$STATE/pr_state" 2> /dev/null || echo OPEN)" --arg h "$head" '{state: $s, headRefOid: $h}' > "$STATE/sh.json"
+        s=$(cat "$STATE/pr_state" 2> /dev/null || echo OPEN)
+        # Merged by the owner once its branch update was asked for (#444).
+        if [ -f "$STATE/merged_on_update" ] && [ -f "$STATE/updated" ]; then s=MERGED; fi
+        jq -n --arg s "$s" --arg h "$head" '{state: $s, headRefOid: $h}' > "$STATE/sh.json"
         jqout "$STATE/sh.json"
         ;;
       mergeCommit)
@@ -880,6 +883,19 @@ green_behind_stuck() {
   check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
 }
 
+green_behind_merged_meanwhile() {
+  # #444: the owner merged the pull request while its branch update was awaited, and its
+  # branch was deleted, so the branch never moved.
+  setup
+  echo 2 > "$STATE/behind"
+  : > "$STATE/head_stuck"
+  : > "$STATE/merged_on_update"
+  run_step
+  check 'exit 0: no failure, no issue' test "$rc" -eq 0
+  check 'no CI started' bash -c '! grep -q "workflow run" "$0"' "$STATE/gh.log"
+  check 'no comment' test "$(comments_n)" -eq 0
+}
+
 green_behind_three_times() {
   setup
   echo 1 > "$STATE/behind"
@@ -1545,6 +1561,7 @@ green_conflict
 green_mergeable_unknown_then_ok
 green_behind
 green_behind_stuck
+green_behind_merged_meanwhile
 green_behind_three_times
 green_behind_main_shipped
 green_again_same
