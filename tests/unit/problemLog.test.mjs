@@ -24,7 +24,7 @@ describe('ProblemLog', () => {
   it('notes a site and what went wrong, without the query, and counts it up', async () => {
     await recordProblem({url: 'https://s.to/serie/x/episode-5?token=secret', kind: ProblemKinds.NO_NEXT, mode: 'mpv'}, 1000);
     await recordProblem({url: 'https://s.to/serie/x/episode-6?token=other', kind: ProblemKinds.NO_NEXT, mode: 'player'}, 2000);
-    expect(await readProblems()).toEqual([{id: 's.to no_next', host: 's.to', path: '/serie/x/episode-6', kind: 'no_next',
+    expect(await readProblems()).toEqual([{id: 's.to no_next', protocol: 'https:', host: 's.to', path: '/serie/x/episode-6', kind: 'no_next',
       mode: 'player', count: 2, first: 1000, last: 2000}]);
     expect(JSON.stringify(store)).not.toContain('secret');
   });
@@ -61,5 +61,12 @@ describe('ProblemLog', () => {
     expect(body).toContain('**Where:** MPV mode');
     expect(body).toContain('**FastStream:** 1.3.82.90');
     expect(body).toContain('GitHub issues are public');
+  });
+
+  it('keeps an http page http in the report', async () => {
+    await recordProblem({url: 'http://old.test/watch/3', kind: ProblemKinds.NO_NEXT, mode: 'player'});
+    const [entry] = await readProblems();
+    const body = new URL(issueUrl(entry, {version: '1', browser: 'x'})).searchParams.get('body');
+    expect(body).toContain('**Page:** http://old.test/watch/3');
   });
 });

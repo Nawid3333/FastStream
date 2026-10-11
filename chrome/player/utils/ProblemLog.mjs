@@ -46,9 +46,10 @@ export async function recordProblem({url, kind, mode}, now = Date.now()) {
     entry.count++;
     entry.last = now;
     entry.path = page.pathname;
+    entry.protocol = page.protocol;
     entry.mode = mode;
   } else {
-    list.push({id, host: page.host, path: page.pathname, kind, mode, count: 1, first: now, last: now});
+    list.push({id, protocol: page.protocol, host: page.host, path: page.pathname, kind, mode, count: 1, first: now, last: now});
   }
   list.sort((a, b) => b.last - a.last);
   await store(list.slice(0, MaxEntries));
@@ -82,7 +83,7 @@ export function issueUrl(entry, about) {
   const title = `Autoplay: ${entry.host} - ${entry.kind === ProblemKinds.NO_NEXT ? 'no next episode found' : 'next episode brought no video'}`;
   const body = [
     `**Site:** ${entry.host}`,
-    `**Page:** https://${entry.host}${entry.path} (the address without its query)`,
+    `**Page:** ${entry.protocol || 'https:'}//${entry.host}${entry.path} (the address without its query)`,
     `**What happened:** ${what}`,
     `**Where:** ${entry.mode === 'mpv' ? 'MPV mode' : 'the FastStream player'}`,
     `**Seen:** ${entry.count} time(s), first ${new Date(entry.first).toISOString().slice(0, 10)}, ` +
