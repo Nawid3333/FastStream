@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "비디오 확대"
     },
+    "options_video_aspect_ratio": {
+        "message": "화면 비율"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "자동 (원본)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "늘려서 채우기"
+    },
     "options_video_delay": {
         "message": "비디오 지연"
     },

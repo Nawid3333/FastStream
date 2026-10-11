@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Video Yakınlaştırma"
     },
+    "options_video_aspect_ratio": {
+        "message": "En boy oranı"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Otomatik (orijinal)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Doldurmak için uzat"
+    },
     "options_video_delay": {
         "message": "Video Gecikmesi"
     },

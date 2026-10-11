@@ -1,5 +1,7 @@
+import {AspectRatios} from '../options/defaults/AspectRatios.mjs';
+
 /**
- * The CSS transform for the video's zoom, flip and rotation.
+ * The CSS transform for the video's zoom, flip and rotation, and its aspect ratio.
  */
 export class VideoTransformUtils {
   /**
@@ -24,5 +26,23 @@ export class VideoTransformUtils {
     }
 
     return transforms.join(' ');
+  }
+
+  /**
+   * The styles for the picture's aspect ratio (upstream #552 and its fix): a ratio gives the
+   * video a box of that shape, as large as fits the player, and stretches the picture to it;
+   * stretch fills the player. Auto (or an unknown value) leaves the video's own.
+   * @param {Object} options - The player's options (videoAspectRatio).
+   * @return {{objectFit: string, aspectRatio: string}} aspectRatio as CSS ("16/9"), or ''.
+   */
+  static getAspectRatioStyles(options) {
+    const ratio = options && options.videoAspectRatio;
+    if (ratio === AspectRatios.STRETCH) {
+      return {objectFit: 'fill', aspectRatio: ''};
+    }
+    if (typeof ratio !== 'string' || !/^\d+:\d+$/.test(ratio)) {
+      return {objectFit: '', aspectRatio: ''};
+    }
+    return {objectFit: 'fill', aspectRatio: ratio.replace(':', '/')};
   }
 }

@@ -394,6 +394,50 @@ describe('Player controls', function() {
     expect(await read()).toEqual({shown: true, checked: 'false', option: false, session: 'false', badge: 'none'});
   });
 
+  it('shows the picture in the aspect ratio chosen, stretched, or as it is', async function() {
+    // Upstream #552, back on his word (2026-10-11): a 4:3 show without bars beside it.
+    await openEmptyPlayer();
+    await addSource(mp4Url());
+    await waitForPicture();
+    const box = (ratio) => browser.execute((ratio) => {
+      const client = window.fastStream;
+      if (ratio === 'cycle') {
+        client.keybindManager.emit('CycleAspectRatio');
+      } else {
+        client.options.videoAspectRatio = ratio;
+        client.updateVideoTransform();
+      }
+      const video = client.player.getVideo();
+      const outer = video.parentElement.getBoundingClientRect();
+      const inner = video.getBoundingClientRect();
+      return {ratio: client.options.videoAspectRatio, fit: video.style.objectFit,
+        width: Math.round(inner.width), height: Math.round(inner.height),
+        outerWidth: Math.round(outer.width), outerHeight: Math.round(outer.height),
+        left: Math.round(inner.left - outer.left), right: Math.round(outer.right - inner.right),
+        top: Math.round(inner.top - outer.top), bottom: Math.round(outer.bottom - inner.bottom)};
+    }, ratio);
+
+    const auto = await box('auto');
+    expect(auto.fit).toBe('');
+    expect([auto.width, auto.height]).toEqual([auto.outerWidth, auto.outerHeight]);
+    // The test's player is wider than 4:3: the box is its full height, centered.
+    expect(auto.outerWidth / auto.outerHeight).toBeGreaterThan(4 / 3);
+
+    const fourThree = await box('4:3');
+    expect(fourThree.fit).toBe('fill');
+    expect(fourThree.height).toBe(fourThree.outerHeight);
+    expect(Math.abs(fourThree.width / fourThree.height - 4 / 3)).toBeLessThan(0.02);
+    expect(Math.abs(fourThree.left - fourThree.right)).toBeLessThanOrEqual(1);
+
+    const stretch = await box('stretch');
+    expect(stretch.fit).toBe('fill');
+    expect([stretch.width, stretch.height]).toEqual([stretch.outerWidth, stretch.outerHeight]);
+
+    // The key goes on round to auto, the video's own again.
+    expect((await box('cycle')).ratio).toBe('auto');
+    expect((await box('cycle')).ratio).toBe('16:9');
+  });
+
   it('says the archive failed when it could not be written', async function() {
     // The status line said "Unreachable Error".
     await openEmptyPlayer();

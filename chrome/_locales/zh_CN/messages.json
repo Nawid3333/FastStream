@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "视频缩放"
     },
+    "options_video_aspect_ratio": {
+        "message": "宽高比"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "自动 (原始比例)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "拉伸填充"
+    },
     "options_video_delay": {
         "message": "视频延迟"
     },

@@ -16,6 +16,7 @@ import {Localize} from './modules/Localize.mjs';
 import {ClickActions} from './options/defaults/ClickActions.mjs';
 import {VisChangeActions} from './options/defaults/VisChangeActions.mjs';
 import {MiniplayerPositions} from './options/defaults/MiniplayerPositions.mjs';
+import {AspectRatios} from './options/defaults/AspectRatios.mjs';
 import {SecureMemory} from './modules/SecureMemory.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {DefaultToolSettings} from './options/defaults/ToolSettings.mjs';
@@ -84,6 +85,7 @@ export class FastStreamClient extends EventEmitter {
       miniSize: 0.25,
       miniPos: MiniplayerPositions.BOTTOM_RIGHT,
       videoZoom: 1,
+      videoAspectRatio: AspectRatios.AUTO,
       seekStepSize: 0.2,
       defaultQuality: 'Auto',
       toolSettings: Utils.mergeOptions(DefaultToolSettings, {}),
@@ -376,6 +378,7 @@ export class FastStreamClient extends EventEmitter {
     }
 
     this.options.videoZoom = options.videoZoom;
+    this.options.videoAspectRatio = options.videoAspectRatio || AspectRatios.AUTO;
     this.options.previewEnabled = options.previewEnabled;
     this.options.videoDelay = options.videoDelay;
     document.body.dataset.theme = options.colorTheme;
@@ -426,17 +429,21 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Applies the zoom, flip and rotation to the video elements.
+   * Applies the zoom, flip, rotation and aspect ratio to the video elements.
    */
   updateVideoTransform() {
     const transformStr = VideoTransformUtils.getTransformString(this.options);
+    const aspect = VideoTransformUtils.getAspectRatioStyles(this.options);
 
-    if (this.player) {
-      this.player.getVideo().style.transform = transformStr;
-    }
-
-    if (this.previewPlayer) {
-      this.previewPlayer.getVideo().style.transform = transformStr;
+    for (const player of [this.player, this.previewPlayer]) {
+      if (!player) continue;
+      const video = player.getVideo();
+      video.style.transform = transformStr;
+      video.style.objectFit = aspect.objectFit;
+      video.style.aspectRatio = aspect.aspectRatio;
+      // The box of that shape (fluidplayer.css .fixed-aspect-ratio).
+      video.style.setProperty('--video-aspect-ratio', aspect.aspectRatio);
+      video.classList.toggle('fixed-aspect-ratio', !!aspect.aspectRatio);
     }
   }
 

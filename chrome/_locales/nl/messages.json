@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Videozoom"
     },
+    "options_video_aspect_ratio": {
+        "message": "Beeldverhouding"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (origineel)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Uitrekken om te vullen"
+    },
     "options_video_delay": {
         "message": "Videovertraging"
     },

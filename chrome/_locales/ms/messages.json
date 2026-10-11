@@ -755,6 +755,15 @@
     "options_video_zoom": {
         "message": "Zum Video"
     },
+    "options_video_aspect_ratio": {
+        "message": "Nisbah aspek"
+    },
+    "options_video_aspect_ratio_auto": {
+        "message": "Auto (asal)"
+    },
+    "options_video_aspect_ratio_stretch": {
+        "message": "Regang untuk isi"
+    },
     "options_video_delay": {
         "message": "Tangguhan Video"
     },
