@@ -591,11 +591,18 @@ jobs:
                   exit 1
                 fi
                 head=$SHA
+                pr_state=OPEN
                 for _ in $(seq 24); do
                   sleep 5
-                  head=$(gh pr view "$number" --json headRefOid --jq .headRefOid)
-                  if [ "$head" != "$SHA" ]; then break; fi
+                  read -r pr_state head < <(gh pr view "$number" --json state,headRefOid --jq '"\(.state) \(.headRefOid)"')
+                  if [ "$pr_state" != OPEN ] || [ "$head" != "$SHA" ]; then break; fi
                 done
+                # Merged or closed while its update was awaited (#444: the owner merged it, and
+                # the branch was deleted): nothing is left to decide, and that is no failure.
+                if [ "$pr_state" != OPEN ]; then
+                  echo "#$number was ${pr_state,,} meanwhile: nothing left to decide."
+                  exit 0
+                fi
                 if [ "$head" = "$SHA" ]; then
                   echo "The branch did not move within two minutes of the update." >&2
                   exit 1
