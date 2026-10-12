@@ -753,6 +753,11 @@ describe('fs-quality fragment (faststream-quality.lua reads it)', () => {
       {url: 'https://h.test/1.mp4#t=30', label: '1080p', height: 1080}, qualities[0]]});
     expect(tagged(target)[0].url).toBe('https://h.test/1.mp4');
     expect(tagged(target)[0].url).toBe(target.slice(0, target.indexOf('#')));
+    // An empty fragment: the parser keeps its '#' in the stream, the entry has none.
+    const bare = mpvTargetUrl({url: 'https://h.test/1.mp4#', qualities: [
+      {url: 'https://h.test/1.mp4#', label: '1080p', height: 1080}, qualities[0]]});
+    expect(tagged(bare)[0].url).toBe('https://h.test/1.mp4');
+    expect(tagged(bare)[0].url).toBe(bare.slice(0, bare.indexOf('#')));
   });
 
   it('takes no file longer than 2048 characters, and cuts labels between characters', () => {
