@@ -937,7 +937,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // and the allowlist's @anime tag.
     LastManualMpvAnswer = ensureOptions().then(() => openInMpv(sender.tab?.id, msg.url, null, headers,
         resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url), sender.tab && sender.tab.url,
-        sender.tab && sender.tab.title, {startTime: msg.startTime, subtitles: msg.subtitles})).then((result) => {
+        sender.tab && sender.tab.title, {
+          startTime: msg.startTime, subtitles: msg.subtitles,
+          // The page's qualities the player has (VideoSource.qualities), or none: given either
+          // way, so that openInMpv sends the one the player plays, which the user may have picked.
+          qualities: Array.isArray(msg.qualities) ? msg.qualities : null,
+        })).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
       if (!result.ok) {
         // Let the user retry immediately when the launch actually failed.

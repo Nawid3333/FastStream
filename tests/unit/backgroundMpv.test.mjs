@@ -1920,3 +1920,31 @@ describe('MPV mode and a page that offers its file in several qualities', () => 
     expect(bg.toMpv()).toEqual([CDN]);
   });
 });
+
+describe('the player\'s mpv button and a page that offers several qualities', () => {
+  const HOSTER = 'https://hoster.test/embed/1/';
+  const file = (quality) => `https://hoster.test/get_file/9/abc/1/1_${quality}.mp4/`;
+  const LIST = [
+    {url: file('360p'), label: '360p', height: 360},
+    {url: file('1080p'), label: '1080p', height: 1080},
+  ];
+
+  it('sends the quality the player plays, which the user may have picked, with its list', async () => {
+    // The user picked 360p in FastStream's quality menu, then pressed its mpv button. MPV
+    // mode's own pick (the highest) is not the button's: it went to mpv instead.
+    bg = await loadBackground({
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => (message.type === 'GET_PAGE_QUALITIES' ? [LIST] : undefined),
+    });
+    await bg.navigated(1, HOSTER);
+    const sent = bg.requestSent({tabId: 1, url: file('360p'), type: 'media'});
+    const atCdn = bg.redirected(sent, 'https://cdn.test/remote_control.php?time=1');
+    await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+
+    await bg.message({type: 'MPV_OPEN', url: file('360p'), headers: [], qualities: LIST}, {tabId: 1, frameId: 7});
+    await bg.wait(100);
+
+    expect(bg.toMpv()).toEqual([file('360p')]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toEqual(LIST);
+  });
+});

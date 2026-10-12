@@ -423,6 +423,18 @@ key is short and the same on every visit; the page address itself is in mpv's
 and so wherever mpv or a script records the path. A host without this
 change simply sends no `fs-id`, and mpv then does not resume.
 
+**The page's qualities (`qualities` → `fs-quality=`, host 12, 2026-10-12).** A page whose
+player offers the video in several files (docs/notes/player.md, "The qualities a page's own
+player offers") sends mpv the one the quality setting asks for, and the list: `openInMpv`
+asks the page (`pageQualityChoice`), the player's mpv button sends its source's own list
+and is never overridden (the user may have picked another quality there).
+`MpvBackend.relayQualities` puts it in the message; the host checks it again
+(`qualityFragmentFor`: http(s) files, as the URL parser writes them, labels of at most 40
+characters, 2 to 12) and appends it last, as `fs-quality=<percent-encoded JSON of
+[{label, height, url}]>`. mpv's `faststream-quality.lua` (the mpv repository) reads it from
+`path`, finds the playing entry by `path` without its fragment, and switches with
+`loadfile` of another entry plus the same fragment. A host 11 ignores the field.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next

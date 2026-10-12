@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxLogBytes, SubtitleDirPrefix, debugFromEnvironment, debugLog, ipcPipeFor, launchDirect, launchMpv, loadIntoExisting, loggedMessage, mpvIpcRequest, mpvNotFoundError, mpvTargetUrl, pageFragmentFor, perFileOptions, qualityFragmentFor, resumeIdFor, startOf, streamTitle, subtitlesOf, withContentTypeFragment, writeSubtitleFiles} from '../../native-host/faststream-mpv-host.mjs';
 
 // loadIntoExisting decides whether the "reuse the window we already own"
 // path actually worked, from the IPC replies mpvIpcRequest collects. That
@@ -698,3 +698,52 @@ describe('the debug log', () => {
   });
 });
 
+
+describe('fs-quality fragment (faststream-quality.lua reads it)', () => {
+  // The qualities the page's player offers the video in (page-qualities.js): mpv's quality
+  // menu switches between them, each loaded with the same fragment tags.
+  const qualities = [
+    {url: 'https://h.test/get_file/1_360p.mp4/', label: '360p', height: 360},
+    {url: 'https://h.test/get_file/1.mp4/', label: '1080p', height: 1080},
+  ];
+
+  /**
+   * The list the tag carries, as the mpv script reads it: the last fs-quality= item, decoded.
+   * @param {string} target - mpvTargetUrl's.
+   * @return {*}
+   */
+  function tagged(target) {
+    const items = target.slice(target.indexOf('#') + 1).split('&').filter((item) => item.startsWith('fs-quality='));
+    return items.length ? JSON.parse(decodeURIComponent(items.at(-1).slice('fs-quality='.length))) : undefined;
+  }
+
+  it('goes last, after fs-id and fs-page, and decodes to the list', () => {
+    const pageUrl = 'https://site.test/watch?v=1&x=2';
+    const target = mpvTargetUrl({url: qualities[1].url, pageUrl, qualities});
+    expect(target.startsWith(qualities[1].url + '#fs-id=')).toBe(true);
+    expect(target.indexOf('&fs-page=')).toBeLessThan(target.indexOf('&fs-quality='));
+    expect(tagged(target)).toEqual(qualities);
+    // The stream is one of them, as the script finds it: its URL without the fragment.
+    expect(tagged(target).some((entry) => entry.url === target.slice(0, target.indexOf('#')))).toBe(true);
+  });
+
+  it('keeps only http(s) files, short plain labels, whole heights, at most 12', () => {
+    const list = JSON.parse(decodeURIComponent(qualityFragmentFor([
+      {url: 'file:///C:/Windows/win.ini', label: 'x', height: 1},
+      {url: String.raw`\\server\share\a.mp4`, label: 'unc', height: 2},
+      {url: 'https://h.test/a b.mp4', label: 'two\nlines and a very long label that goes on and on', height: 720.5},
+      ...Array.from({length: 13}, (_, i) => ({url: `https://h.test/${i}.mp4`, label: `${i}`, height: 100 + i})),
+    ])));
+    expect(list[0]).toEqual({url: 'https://h.test/a%20b.mp4', label: 'two lines and a very long label that goe', height: 0});
+    expect(list.every((entry) => /^https:/.test(entry.url))).toBe(true);
+    // The first 12 of what was sent are looked at.
+    expect(list).toHaveLength(10);
+  });
+
+  it('adds nothing for fewer than two usable files, or none', () => {
+    expect(qualityFragmentFor(undefined)).toBeUndefined();
+    expect(qualityFragmentFor('[]')).toBeUndefined();
+    expect(qualityFragmentFor([qualities[0], {url: 'javascript:alert(1)', label: 'x', height: 1}])).toBeUndefined();
+    expect(mpvTargetUrl({url: qualities[0].url})).not.toContain('fs-quality=');
+  });
+});

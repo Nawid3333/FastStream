@@ -72,7 +72,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 11;
+export const HostVersion = 12;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -969,9 +969,41 @@ export function pageFragmentFor(pageUrl) {
   return encodeURIComponent(pageUrl);
 }
 
+// The qualities the page's player offers the video in, at most (page-qualities.js in the
+// extension, MpvBackend.relayQualities).
+const MaxQualities = 12;
+
+/**
+ * The qualities the page's player offers the video in, as one fragment tag value
+ * (fs-quality=) for mpv's faststream-quality.lua, which switches between them: a JSON
+ * array of {label, height, url}, percent-encoded. Checked here again, since anything that
+ * talks to the host gets this far: http(s) files only (mpv opens local files and UNC paths
+ * too, isStreamUrl), each as the URL parser writes it (the form mpvTargetUrl gives the
+ * stream, which the script finds its entry by), a label of at most 40 characters without
+ * control characters, a whole height or 0, and at least two of them.
+ * @param {*} qualities - The open message's qualities.
+ * @return {string|undefined} The tag's value, or undefined without a usable list.
+ */
+export function qualityFragmentFor(qualities) {
+  if (!Array.isArray(qualities)) {
+    return undefined;
+  }
+  const list = [];
+  for (const entry of qualities.slice(0, MaxQualities)) {
+    if (!entry || !isStreamUrl(entry.url)) {
+      continue;
+    }
+    const label = typeof entry.label === 'string' ?
+      entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 40) : '';
+    const height = Number.isInteger(entry.height) && entry.height > 0 && entry.height <= 10000 ? entry.height : 0;
+    list.push({label, height, url: new URL(entry.url).href});
+  }
+  return list.length >= 2 ? encodeURIComponent(JSON.stringify(list)) : undefined;
+}
+
 /**
  * The URL to hand mpv for an open message: the stream URL plus its
- * fs-content=, fs-id= and fs-page= fragment tags.
+ * fs-content=, fs-id=, fs-page= and fs-quality= fragment tags.
  *
  * The stream URL as the URL parser writes it, the form a browser requests: the parser
  * drops tabs and newlines that isStreamUrl's check never saw, and percent-encodes spaces
@@ -990,7 +1022,11 @@ export function mpvTargetUrl(message) {
   // "Site page" menu entry (copy it, open it in the browser). Same rule as
   // fs-id: http(s) pages only, still never sent to the CDN.
   const pageFragment = pageFragmentFor(message.pageUrl);
-  return pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
+  const withPage = pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
+  // The page's other qualities of this video, for mpv's quality menu (faststream-quality.lua):
+  // last, as it is the longest. A switch there loads another of them with the same tags.
+  const qualities = qualityFragmentFor(message.qualities);
+  return qualities ? withFragmentTag(withPage, `fs-quality=${qualities}`) : withPage;
 }
 
 // What else a sender may hand over with a stream (the player's mpv button): where to
