@@ -168,7 +168,9 @@ player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all
   WebCodecs (the same decoder): a PCE with the front centre after the front pair gives no output,
   as does one with a lone side channel (Windows has no speaker for it); stereo with a PCE, 5.1 by
   `channelConfiguration` 6, and 6.0 relabelled front centre first with the single at the back
-  decode. The ffmpeg here (Lavc62.30, a 2026-04 build) writes 6.0 front pair first: it fails too.
+  decode. The ffmpeg here (Lavc62.30, a 2026-04 build) and Ubuntu 24.04's (Lavc60.31) write 6.0
+  front pair first: it fails too. CI's Windows ffmpeg (Lavc63.1, 2026-10) writes it centre first,
+  as the relabel does, so there only the film-labelled e2e fixture exercises the fix.
 - **The fix** (`players/mp4/AacLayout.mjs`, from `MP4Player.setupHLS`): the PCE in the esds box
   mp4box writes into the audio init segment is relabelled in place - the front centre first, a
   lone side channel to the back centre where there is none. A decoder finds each element of a

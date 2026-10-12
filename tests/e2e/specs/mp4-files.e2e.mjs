@@ -20,8 +20,8 @@
 //   range never needs it, so this is the long fixture, sought far into.
 // - Sound in a channel layout of its own (6.0 AAC, whose PCE Windows' decoder takes and gives
 //   nothing back for, AacLayout.mjs): the video waited for its first audio, at 0:00 for good -
-//   a film on kinoger, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (a 2026 one puts
-//   the front centre after the front pair), and the same relabelled the way the film's encoder
+//   a film on kinoger, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (Lavc62.30 and older
+//   put the front centre after the front pair), and the same relabelled the way the film's encoder
 //   had it (a lone side channel too), which does not depend on the ffmpeg. Long enough that
 //   MP4Player does not append all of the audio at once: a stream ended early, Firefox goes on
 //   without it.
@@ -338,8 +338,8 @@ describe('MP4 files of other shapes', function() {
   });
 
   it('plays an MP4 whose sound is 6.0 AAC, as this ffmpeg writes it', async function() {
-    // A 2026 ffmpeg (Lavc62.30) writes the front centre after the front pair: relabelled. Another
-    // may not; the next test does not depend on it.
+    // Lavc62.30 and older write the front centre after the front pair: relabelled. Lavc63.1 (CI's
+    // Windows ffmpeg) writes it first: played as written. The next test does not depend on it.
     const asc = aacConfig('long-6.0.mp4');
     console.log(`      its AAC config: ${Buffer.from(asc).toString('hex')}, relabelled: ${!!windowsAacLayout(asc)}`);
     const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-6.0.mp4`);
