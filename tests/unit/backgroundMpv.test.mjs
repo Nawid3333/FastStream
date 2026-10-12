@@ -1414,15 +1414,18 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   const S1 = 'https://cdn.test/one/master.m3u8';
   const S2 = 'https://cdn.test/two/master.m3u8';
   let navigations;
+  let polls;
 
   /**
    * Episode 1 handed to mpv (the allowlist's MPV, or the MPV key's), and the watch it opened.
    * @param {Object} [options] - More options.
    * @param {string} [link] - What the page's top frame answers to a next/previous request.
+   * @param {Object} [poll] - What it answers to PLAYLIST_POLL (none: a page that cannot tell).
    * @return {Promise<Object>} The port (backgroundHarness: sent, emit, drop).
    */
-  async function onEpisode1(options = {}, link = 'clicked') {
+  async function onEpisode1(options = {}, link = 'clicked', poll = undefined) {
     navigations = [];
+    polls = [];
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvAutoplayNext: true, autoplayCountdown: 0, ...options},
       tabs: [{id: 1, url: EP1}],
@@ -1430,6 +1433,10 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
       onTabMessage: ({frameId, message}) => {
         // The page's video: in the top frame here (startPagePlayers asks the largest).
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
+        if (message.type === 'PLAYLIST_POLL') {
+          polls.push(frameId);
+          return frameId === 0 ? poll : undefined;
+        }
         if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
         navigations.push({direction: message.direction, frameId});
         return frameId === 0 ? link : 'no_button';
@@ -1482,6 +1489,46 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     // The countdown went with it: no second episode on top.
     await bg.wait(6000);
     expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+  });
+
+  it('says the series ended at once, with no countdown, when the page says it is its last episode', async () => {
+    // The mpv setup's TODO (2026-10-11): at a series' last episode mpv said "next episode in
+    // 5 s" and only after it that autoplay stops. The page is asked first (PLAYLIST_POLL,
+    // which clicks nothing), top frame first; its answer ends the asking.
+    const port = await onEpisode1({autoplayCountdown: 5}, 'series_end', {next: false, previous: true, seriesEnd: true});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
+    expect(polls).toEqual([0]);
+    await bg.wait(6000);
+    expect(navigations).toEqual([]);
+    expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
+  });
+
+  it('counts down as before when the page has a next episode, or cannot tell', async () => {
+    let port = await onEpisode1({autoplayCountdown: 5}, 'clicked', {next: true, previous: true, seriesEnd: false});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    await bg.wait(5000);
+    expect(navigations).toEqual([{direction: 'next', frameId: 0}]);
+    bg.unload();
+
+    // No frame answers (a page with its own playlist): every frame asked, then the countdown.
+    port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(polls).toEqual([0, 5]);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
+    bg.unload();
+
+    // A frame that never answers costs a second, then the countdown as before (glm's review).
+    port = await onEpisode1({autoplayCountdown: 5}, 'clicked', new Promise(() => {}));
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(500);
+    expect(notices(port)).toEqual([]);
+    await bg.wait(1000);
+    expect(notices(port)).toEqual(['next episode in 5 s (n: now, autoplay button: stop)']);
   });
 
   it('stops the countdown with mpv\'s autoplay switch, which saves the setting and turns it back on', async () => {
@@ -1679,6 +1726,21 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(navigations.map((n) => n.frameId)).toEqual([0]);
     expect(notices(port)).toEqual(['the last episode of the series: autoplay stops']);
     expect(bg.local.siteProblems).toBeUndefined();
+  });
+
+  it('gives up on a frame that never answers the next-episode request, and the keys still work', async () => {
+    // glm's review (2026-10-12): such a frame kept state.going set, and every later key,
+    // button and autoplay of the session returned at it.
+    const port = await onEpisode1({}, new Promise(() => {}));
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(5200);
+    // Only the top frame was asked: it may still click, and the hoster's link would be a
+    // second episode.
+    expect(navigations.map((n) => n.frameId)).toEqual([0]);
+    expect(notices(port)).toEqual(['none found on the page']);
+    port.emit({type: 'request', action: 'previous'});
+    await bg.wait(100);
+    expect(navigations.map((n) => n.direction)).toEqual(['next', 'previous']);
   });
 
   it('says so in mpv when the page has no next episode, or the tab is gone', async () => {
