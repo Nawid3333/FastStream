@@ -14,6 +14,7 @@ import {KeyShortcut} from './KeyShortcut.mjs';
 import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
 import {MpvBackend} from './MpvBackend.mjs';
+import {MpvSubtitles} from './MpvSubtitles.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
 import {StreamLengths} from './StreamLengths.mjs';
@@ -167,6 +168,14 @@ const ruleManager = new RuleManager();
 const Lengths = new StreamLengths({
   setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
 });
+// The page's subtitles for mpv (MPV mode), read as Lengths reads: from this background, in
+// no tab, with the page's Origin and Referer.
+const PageSubtitles = new MpvSubtitles({
+  setHeaders: (url, commands) => ruleManager.addHeaderRule(url, chrome.tabs.TAB_ID_NONE, commands),
+});
+// How long a frame has to tell its <track> elements before the stream goes to mpv without
+// them: content scripts share the page's event loop, and a busy page would hold mpv back.
+const CaptionScrapeWaitMs = 1000;
 // The longest a player waits for the lengths still being read.
 const SourceLengthWaitMs = 2500;
 // The longest a player waits for the page to say what its video played (getPlayedVideo).
@@ -2121,6 +2130,51 @@ async function scrapeCaptionsTags(frame) {
 }
 
 /**
+ * Takes in a frame's own <track> elements, as content.js read them (scrapeCaptionsTags).
+ * A track seen before is replaced by its latest copy, anything new is added.
+ * @param {Object} frame - FrameHolder they are in.
+ * @param {*} subs - The frame's answer: [{data, source, label, language}], or nothing.
+ */
+function takeScrapedCaptions(frame, subs) {
+  if (!Array.isArray(subs)) {
+    return;
+  }
+  const subtitles = frame.getSubtitles();
+  subs.forEach((s) => {
+    const index = subtitles.findIndex((ss) => ss.source === s.source);
+    if (index === -1) {
+      subtitles.push(s);
+    } else {
+      subtitles[index] = s;
+    }
+  });
+}
+
+/**
+ * A tab's subtitles, as SubRip for mpv: the subtitle files its page asked for and its
+ * <track> elements, in every frame - what the in-page player would show from that page. A
+ * frame that does not tell its <track> elements within CaptionScrapeWaitMs keeps those it
+ * had.
+ * @param {Object} tab - TabHolder.
+ * @return {Promise<Array<{label: string, srt: string}>>}
+ */
+async function pageSubtitlesForMpv(tab) {
+  const frames = [...tab.getFrames()];
+  await Promise.all(frames.map(async (frame) => {
+    let timer;
+    const subs = await Promise.race([
+      scrapeCaptionsTags(frame),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(null), CaptionScrapeWaitMs);
+      }),
+    ]);
+    clearTimeout(timer);
+    takeScrapedCaptions(frame, subs);
+  }));
+  return PageSubtitles.toSrt(frames.flatMap((frame) => frame.getSubtitles()));
+}
+
+/**
  * What the page's video that a player replaced played (content.js replacedVideo), asked
  * of the frame the player's iframe is in.
  * @param {Object} player - The player's frame.
@@ -2396,20 +2450,7 @@ async function onSourceRecieved(details, frame, mode) {
     return;
   }
 
-  // The page's own <track> elements, read by content.js. A track seen before is
-  // replaced by its latest copy, anything new is added.
-  const subs = await scrapeCaptionsTags(frame);
-  if (Array.isArray(subs)) {
-    const subtitles = frame.getSubtitles();
-    subs.forEach((s) => {
-      const index = subtitles.findIndex((ss) => ss.source === s.source);
-      if (index === -1) {
-        subtitles.push(s);
-      } else {
-        subtitles[index] = s;
-      }
-    });
-  }
+  takeScrapedCaptions(frame, await scrapeCaptionsTags(frame));
 
   if (frame.tab.isOn) {
     clearTimeout(frame.openTimeout);
@@ -3492,6 +3533,23 @@ async function openInMpv(tabId, url, ...rest) {
       error: chrome.i18n.getMessage('player_mpv_vpn') ||
         'Firefox VPN carries this video, and mpv cannot use it. Turn Firefox VPN off for this site and reload the page.',
     });
+  }
+  // The page's subtitles go with its stream, as the in-page player shows them: MPV mode sent
+  // the stream alone. The player's button sends the tracks it shows (subtitles given, none
+  // too), which stay its choice; a stream already sent asks nothing (openStream).
+  const tabHolder = rest[0];
+  const extras = rest[5];
+  if (tabId !== undefined && tabId >= 0 && !(extras && 'subtitles' in extras) &&
+      !tabHolder?.mpvSentUrls?.has(url)) {
+    const tab = Tabs.getTab(tabId);
+    const subtitles = tab ? await pageSubtitlesForMpv(tab).catch((e) => {
+      console.error('Reading the subtitles of the page for mpv failed', e);
+      return [];
+    }) : [];
+    if (subtitles.length > 0) {
+      if (Logging) console.log('[MPV] subtitles of the page go along:', subtitles.map((s) => s.label));
+      rest[5] = {...(extras || {}), subtitles};
+    }
   }
   const result = await Mpv.openStream(url, ...rest);
   // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the

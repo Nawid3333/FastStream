@@ -71,10 +71,13 @@ that file from it. Nothing is sent to OpenSubtitles unless you search.
 If you install the mpv helper and turn MPV mode on, the add-on hands a
 stream to that helper on your own computer: the stream URL, its `Referer`,
 `Origin` and `User-Agent` headers, the address and title of the page you were
-on, and, when you send it from the player, where you were in the video and the
-subtitles it shows.
+on, and subtitles: when you send it from the player, the subtitles it shows
+(and where you were in the video); otherwise the page's own subtitles, which
+the add-on fetches from where the page gets them, as the player would.
 The helper passes them to mpv. None of it leaves your computer on the way.
-The helper writes nothing to disk unless you turn its log on (`README-MPV.md`).
+Apart from those subtitles, which it saves for mpv in your temporary folder
+(removed after a day), the helper writes nothing to disk unless you turn its
+log on (`README-MPV.md`).
 
 ## Permissions, and why each is needed
 
