@@ -16,6 +16,7 @@ const CHECKED = [
   'chrome/background/KeyShortcut.mjs',
   'chrome/background/ManifestTypes.mjs',
   'chrome/background/MpvBackend.mjs',
+  'chrome/background/MpvSubtitles.mjs',
   'chrome/background/MultiRegexMatcher.mjs',
   'chrome/background/TabTracker.mjs',
   'chrome/background/UrlMatchList.mjs',

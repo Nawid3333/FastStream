@@ -16,6 +16,7 @@
 
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import * as url from 'node:url';
 
@@ -53,12 +54,61 @@ const requests = [];
 // that never ran anything.
 const HAVE_HOST = hostInstalled();
 
+// The page's subtitles (the subtitles case): a file the page's player asks the CDN for, and
+// a <track> element on the page.
+const CDN_VTT = 'WEBVTT\n\n00:00:01.000 --> 00:00:02.500\nHello from the CDN\n';
+const PAGE_VTT = 'WEBVTT\n\n00:00:03.000 --> 00:00:04.000\nHallo von der Seite\n';
+
+/**
+ * The subtitle files the host wrote for mpv since a time: each send's own folder in the
+ * temp folder (writeSubtitleFiles in native-host/faststream-mpv-host.mjs).
+ * @param {number} since - ms since the epoch.
+ * @return {Array<string>} Their texts.
+ */
+function subtitleFilesSince(since) {
+  const texts = [];
+  for (const entry of fs.readdirSync(os.tmpdir(), {withFileTypes: true})) {
+    if (!entry.isDirectory() || !entry.name.startsWith('faststream-mpv-subs-')) continue;
+    const dir = path.join(os.tmpdir(), entry.name);
+    // A second of slack: some file systems keep times to the second.
+    if (fs.statSync(dir).mtimeMs < since - 1000) continue;
+    for (const name of fs.readdirSync(dir)) {
+      texts.push(fs.readFileSync(path.join(dir, name), 'utf8'));
+    }
+  }
+  return texts;
+}
+
 describe('MPV mode, end to end', function() {
   before(async function() {
     const clip = fs.readFileSync(path.join(root, 'tests/e2e/fixtures/sample.mp4'));
 
     siteServer = http.createServer((req, res) => {
       requests.push({origin: 'site', url: req.url, headers: req.headers});
+      if (req.url === '/subs/de.vtt') {
+        res.writeHead(200, {'Content-Type': 'text/vtt'});
+        res.end(PAGE_VTT);
+        return;
+      }
+      if (req.url.startsWith('/subtitled')) {
+        // The player asks for its subtitle file as it loads (as JW Player does); the
+        // <track> is only read, by content.js. The video comes 1.5 s in, as on /watch.
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.end(`<!doctype html><title>mpv subtitles test</title>
+          <video id="v" muted autoplay loop preload="auto" crossorigin="anonymous">
+            <track kind="subtitles" label="Deutsch" srclang="de" src="/subs/de.vtt">
+          </video>
+          <script>
+            fetch('${CDN}/subs/episode-en.vtt').catch(() => {});
+            setTimeout(() => {
+              const v = document.getElementById('v');
+              v.src = '${CDN}/clip5.mp4';
+              v.load();
+              v.play().catch(() => {});
+            }, 1500);
+          </script>`);
+        return;
+      }
       if (req.url.startsWith('/watch')) {
         // /watch2 points at a different clip, so a second navigation is
         // distinguishable from a repeat of the first.
@@ -91,8 +141,12 @@ describe('MPV mode, end to end', function() {
 
     cdnServer = http.createServer((req, res) => {
       requests.push({origin: 'cdn', url: req.url, headers: req.headers});
-      if (req.url.startsWith('/clip.mp4') || req.url.startsWith('/clip2.mp4') ||
-          req.url.startsWith('/clip3.mp4') || req.url.startsWith('/clip4.mp4')) {
+      if (req.url === '/subs/episode-en.vtt') {
+        res.writeHead(200, {'Content-Type': 'text/vtt', 'Access-Control-Allow-Origin': '*'});
+        res.end(CDN_VTT);
+        return;
+      }
+      if (/^\/clip[2-5]?\.mp4/.test(req.url)) {
         res.writeHead(200, {
           'Content-Type': 'video/mp4',
           'Content-Length': String(clip.length),
@@ -348,6 +402,79 @@ describe('MPV mode, end to end', function() {
         console.log(`      auto-enabled tab switched to mpv ` +
           `(${handed.length} request)`);
         expect(handed[0].headers.referer).toBe(`${SITE_B}/`);
+
+        await browser.closeWindow();
+        await browser.switchToWindow((await browser.getWindowHandles())[0]);
+      });
+
+  // MPV mode sent a page's stream alone, while the in-page player showed that page's
+  // subtitles. They go with the stream now: the background reads them as the player does
+  // (the file with the page's Referer and Origin, the <track> as content.js reads it) and the
+  // host writes them as SubRip for mpv to load with it.
+  (HAVE_HOST ? it : it.skip)(
+      'sends the page\'s subtitles with its stream: a file its player asked for, and its <track>',
+      async function() {
+        const since = Date.now();
+        await browser.url(OPENER_URL);
+        await browser.execute((u) => window.open(u, '_blank'),
+            ORIGIN + '/player/index.html');
+        await browser.waitUntil(async () => {
+          for (const handle of await browser.getWindowHandles()) {
+            await browser.switchToWindow(handle);
+            if ((await browser.getUrl()).startsWith(ORIGIN) && await hasExtensionApi()) {
+              return true;
+            }
+          }
+          return false;
+        }, {timeout: 20000, timeoutMsg: 'the extension page never opened'});
+
+        await browser.execute((site) => new Promise((done) => {
+          chrome.storage.local.set({
+            options: JSON.stringify({mpvMode: true, mpvAllowlist: [site]}),
+          }, () => {
+            chrome.runtime.sendMessage({type: 'LOAD_OPTIONS'}, () => {
+              void chrome.runtime.lastError;
+              done(true);
+            });
+          });
+        }), SITE);
+
+        const remaining = await browser.getWindowHandles();
+        if (remaining.length > 1) {
+          await browser.closeWindow();
+          await browser.switchToWindow((await browser.getWindowHandles())[0]);
+        }
+
+        // A fresh tab, so none of the other cases' per-tab state carries over.
+        await browser.newWindow(`${SITE}/subtitled`);
+
+        await browser.waitUntil(async () => {
+          return requests.some((r) => isMpvRequest(r) && r.url.startsWith('/clip5.mp4'));
+        }, {
+          timeout: 45000,
+          interval: 500,
+          timeoutMsg: 'the subtitled page\'s video never reached mpv: ' +
+            JSON.stringify(requests.filter(isMpvRequest).map((r) => r.url)),
+        });
+
+        // The page asked for the file, and the background again, with the page's Referer and
+        // Origin (its header rule, as the player's subtitle requests get).
+        const fetched = requests.filter((r) => r.origin === 'cdn' && r.url === '/subs/episode-en.vtt');
+        console.log('      the subtitle file was asked for', fetched.length, 'times:',
+            JSON.stringify(fetched.map((r) => ({referer: r.headers.referer, origin: r.headers.origin}))));
+        expect(fetched.length).toBeGreaterThanOrEqual(2);
+        for (const request of fetched) {
+          expect(request.headers.referer).toBe(`${SITE}/`);
+          expect(request.headers.origin).toBe(SITE);
+        }
+
+        // Both tracks, as SubRip, in the folder the host gave mpv.
+        const written = subtitleFilesSince(since);
+        console.log('      the host wrote', written.length, 'subtitle file(s)');
+        expect(written.some((text) => text.includes('00:00:01,000 --> 00:00:02,500') &&
+            text.includes('Hello from the CDN'))).toBe(true);
+        expect(written.some((text) => text.includes('00:00:03,000 --> 00:00:04,000') &&
+            text.includes('Hallo von der Seite'))).toBe(true);
 
         await browser.closeWindow();
         await browser.switchToWindow((await browser.getWindowHandles())[0]);
