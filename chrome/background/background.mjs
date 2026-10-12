@@ -2577,7 +2577,8 @@ function autoOpenInMpv(tab, url, headers) {
 // an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short.
 /**
  * @typedef {{tabId: number, url: string, alive: boolean, going: boolean,
- *   countdown: ?ReturnType<typeof setTimeout>, stalled: ?ReturnType<typeof setTimeout>,
+ *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
+ *   stalled: ?ReturnType<typeof setTimeout>,
  *   watcher: ?{notify: Function, state: Function, stop: Function}}} MpvWatch
  */
 /** @type {?MpvWatch} */
@@ -2615,6 +2616,8 @@ async function saveOption(key, value) {
  * @param {MpvWatch} state
  */
 function cancelMpvCountdown(state) {
+  // A countdown still asking the page (startMpvCountdown) does not start either.
+  state.countdownAsks++;
   if (state.countdown) {
     clearTimeout(state.countdown);
     state.countdown = null;
@@ -2666,7 +2669,7 @@ function watchMpvFor(tab, url) {
     return;
   }
   /** @type {MpvWatch} */
-  const state = {tabId: tab.tabId, url, alive: true, going: false, countdown: null, stalled: null, watcher: null};
+  const state = {tabId: tab.tabId, url, alive: true, going: false, countdown: null, countdownAsks: 0, stalled: null, watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
 }
@@ -2713,16 +2716,80 @@ function onMpvWatchEvent(state, event) {
   }
 }
 
+/** How long startMpvCountdown waits for each frame of the page to answer. */
+const MpvPagePollMs = 1000;
+/**
+ * How long goToEpisode waits for a frame to answer its next/previous request (the content
+ * script answers at once, after its click): a frame that never answered kept state.going
+ * set, and every later key, button and autoplay of the session returned at it (glm's
+ * review, 2026-10-12).
+ */
+const MpvPageNavigateMs = 5000;
+
+/**
+ * What the page of the tab mpv's stream came from says about its next episode, asking its
+ * frames top first as goToEpisode does, through PLAYLIST_POLL, which clicks nothing:
+ * 'series_end' when the first frame that knows says the series ends here (no other frame is
+ * asked: a hoster's links are other videos), 'next' when it has a next episode, null when no
+ * frame can tell.
+ * @param {Object} tab
+ * @return {Promise<?string>}
+ */
+async function nextEpisodeInPage(tab) {
+  const frameIds = tab.frames ? Array.from(tab.frames.keys()).sort((a, b) => a - b) : [];
+  for (const frameId of frameIds) {
+    // A frame that never answers costs a second, not the countdown (glm's review): no
+    // answer is "cannot tell".
+    const answer = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(undefined), MpvPagePollMs);
+      chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_POLL}, {frameId}, (response) => {
+        void chrome.runtime.lastError;
+        clearTimeout(timer);
+        resolve(response);
+      });
+    });
+    if (answer && typeof answer === 'object') {
+      if (answer.next === true) return 'next';
+      if (answer.seriesEnd === true) return 'series_end';
+    }
+  }
+  return null;
+}
+
+/**
+ * mpv's notice that autoplay stops at the series' last episode.
+ * @param {MpvWatch} state
+ */
+function notifySeriesEnd(state) {
+  state.watcher?.notify(chrome.i18n.getMessage('player_next_video_label') || 'Next video',
+      chrome.i18n.getMessage('mpv_episode_series_end') || 'the last episode of the series: autoplay stops');
+}
+
 /**
  * An episode ended in mpv with autoplay on: the next one after the countdown, which mpv
  * shows. The autoplay switch stops it; the next-episode key or button skips it.
+ *
+ * The page is asked first (2026-10-12, the mpv setup's TODO): at the series' last episode
+ * mpv said "next episode in 5 s", and only when the countdown ran out that autoplay stops.
+ * Now it says the series ended at once, and counts down nothing. A page that cannot tell
+ * counts down as before (goToEpisode then says what it finds).
  * @param {MpvWatch} state
+ * @return {Promise<void>}
  */
-function startMpvCountdown(state) {
+async function startMpvCountdown(state) {
   if (state.countdown) return;
   const seconds = autoplayCountdownSeconds();
   if (seconds === 0) {
     goToEpisode(state, 'next');
+    return;
+  }
+  // A key, the switch, mpv closing or another end while the page is asked wins over this one.
+  const ask = ++state.countdownAsks;
+  const tab = Tabs.getTab(state.tabId);
+  const page = tab && tab.isOn && tab.isMpv ? await nextEpisodeInPage(tab) : null;
+  if (ask !== state.countdownAsks || state.countdown || !state.alive || !Options.mpvAutoplayNext) return;
+  if (page === 'series_end') {
+    notifySeriesEnd(state);
     return;
   }
   state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
@@ -2787,11 +2854,16 @@ async function goToEpisode(state, direction) {
   try {
     for (const frameId of frameIds) {
       const answer = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve('timeout'), MpvPageNavigateMs);
         chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.PLAYLIST_NAVIGATION, direction}, {frameId}, (response) => {
           void chrome.runtime.lastError;
+          clearTimeout(timer);
           resolve(response);
         });
       });
+      // No other frame is asked: this one may still click, and a hoster's link after it
+      // would be a second episode.
+      if (answer === 'timeout') break;
       if (answer === 'clicked') {
         clicked = true;
         break;
@@ -2807,8 +2879,7 @@ async function goToEpisode(state, direction) {
     state.going = false;
   }
   if (seriesEnd) {
-    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_series_end') ||
-      'the last episode of the series: autoplay stops');
+    notifySeriesEnd(state);
     return;
   }
   if (!clicked) {

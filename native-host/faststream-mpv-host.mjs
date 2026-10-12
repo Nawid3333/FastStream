@@ -71,7 +71,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 9;
+export const HostVersion = 10;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -342,6 +342,11 @@ export const MaxMessageBytes = 1024 * 1024;
 // with an error. Exiting without a word made the extension say "is the host installed?".
 export const TooLarge = Symbol('message too large');
 
+// Bytes readMessage read past its frame, by stream: the start of the next one, which
+// readMessages takes first (glm's review, 2026-10-12: a message the extension posted right
+// after 'watch' could come in the same chunk, and was dropped).
+const unread = new WeakMap();
+
 /**
  * Reads one native-messaging frame.
  *
@@ -410,6 +415,7 @@ export function readMessage(input = process.stdin) {
           bodyRead += toCopy;
           offset += toCopy;
           if (bodyRead === body.length) {
+            if (offset < chunk.length) unread.set(input, chunk.subarray(offset));
             try {
               finish(JSON.parse(body.toString('utf8')));
             } catch (e) {
@@ -459,7 +465,12 @@ export function ipcPipeFor(config, platform = process.platform, env = process.en
     return '\\\\.\\pipe\\faststream-mpv' + token;
   }
   const user = typeof process.getuid === 'function' ? process.getuid() : 0;
-  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}.sock`);
+  // The token here too when config.json has one (glm's review, 2026-10-12): without
+  // $XDG_RUNTIME_DIR the socket goes in the shared temp folder, where another account
+  // could take the name first, as on Windows.
+  const token = config && typeof config.ipcToken === 'string' && /^[0-9a-f]{32}$/.test(config.ipcToken) ?
+    '-' + config.ipcToken : '';
+  return path.posix.join(env.XDG_RUNTIME_DIR || os.tmpdir(), `faststream-mpv-${user}${token}.sock`);
 }
 
 // How long to wait for mpv's window to exist before giving up on focusing it.
@@ -568,6 +579,9 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
   });
 }
 
+// How often watchMpv tells mpv it still follows the window (host 10).
+export const HeartbeatMs = 30000;
+
 // The script messages an mpv key, button or menu sends for the next or the previous episode
 // (input.conf: "n script-message faststream-next") and, host 9, for autoplay on or off (the
 // mpv setup's autoplay button); mpv gives them to every IPC client.
@@ -591,8 +605,15 @@ export const EpisodeMessages = {
  * Host 9: mpv's episode buttons show only while FastStream follows the window
  * (user-data/faststream/connected, cleared when the extension lets go), and its autoplay
  * button shows the extension's setting (user-data/faststream/autoplay, from state()).
+ *
+ * Host 10 (2026-10-12): a host killed hard (Task Manager, a Firefox crash) clears nothing,
+ * and mpv's buttons stayed, sending to no one. So it also writes the time to
+ * user-data/faststream/heartbeat when it connects and every HeartbeatMs after: the mpv
+ * setup hides the buttons once that value has stood still for 90 s (three beats missed). A
+ * new value every time, so a host started after a killed one counts as alive at once.
  * @param {(message: Object) => *} send - Sends a message to the extension.
- * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket}} [io] - Tests.
+ * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket,
+ *   heartbeatMs?: number}} [io] - Tests.
  * @return {{notify: (title: string, detail?: string) => void, state: (state: Object) => void,
  *   stop: () => void, done: Promise<string>}} done resolves with why it ended.
  */
@@ -612,6 +633,9 @@ export function watchMpv(send, io = {}) {
   // A notice sent to notify.lua, by request id: one refused (no notify.lua in this mpv's
   // config) is shown with mpv's own text instead.
   const notices = new Map();
+  /** @type {?ReturnType<typeof setInterval>} */
+  let heartbeat = null;
+  let lastBeat = 0;
   /** @type {(reason: string) => void} */
   let resolveDone = () => {};
   /** @type {Promise<string>} */
@@ -627,9 +651,15 @@ export function watchMpv(send, io = {}) {
     socket.write(JSON.stringify(requestId === undefined ? {command} : {command, request_id: requestId}) +
       String.fromCharCode(10));
   };
+  const beat = () => {
+    // Strictly rising, even with two beats in one millisecond (the tests).
+    lastBeat = Math.max(Date.now(), lastBeat + 1);
+    write(['set_property', 'user-data/faststream/heartbeat', lastBeat]);
+  };
   const finish = (reason) => {
     if (finished) return;
     finished = true;
+    if (heartbeat) clearInterval(heartbeat);
     try {
       if (reason === 'stopped' && socket.writable) {
         // The extension let go, mpv runs on: its episode buttons go (they would send to no
@@ -657,6 +687,10 @@ export function watchMpv(send, io = {}) {
     write(['observe_property', 1, 'path']);
     write(['observe_property', 2, 'eof-reached']);
     write(['set_property', 'user-data/faststream/connected', true]);
+    beat();
+    heartbeat = setInterval(beat, io.heartbeatMs || HeartbeatMs);
+    // The beat alone keeps no host running: it ends when the extension or mpv does.
+    heartbeat.unref?.();
     send({type: 'watching'});
   });
   socket.on('data', (chunk) => {
@@ -753,6 +787,12 @@ export function readMessages(input, onMessage, onEnd) {
   input.on('data', onData);
   input.on('end', end);
   input.on('error', end);
+  // What readMessage read past its frame: the next frame's start (or more frames).
+  const rest = unread.get(input);
+  if (rest) {
+    unread.delete(input);
+    onData(rest);
+  }
 }
 
 /**

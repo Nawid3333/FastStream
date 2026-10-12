@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {PassThrough} from 'node:stream';
 import {afterEach, describe, expect, it} from 'vitest';
-import {MaxMessageBytes, readMessages, watchMpv} from '../../native-host/faststream-mpv-host.mjs';
+import {MaxMessageBytes, readMessage, readMessages, watchMpv} from '../../native-host/faststream-mpv-host.mjs';
 
 // MPV autoplay (host 7, 2026-10-11): the host follows the mpv it started, over a port the
 // extension keeps open, and tells it when a file ended or a key asked for the next or the
@@ -67,11 +67,11 @@ async function fakeMpv(pipe) {
 }
 
 /** Starts a watch and collects what it sends; settle() waits for the events to arrive. */
-async function watching(tag) {
+async function watching(tag, heartbeatMs = undefined) {
   const pipe = pipeName(tag);
   const mpv = await fakeMpv(pipe);
   const sent = [];
-  const watch = watchMpv((message) => sent.push(message), {pipe});
+  const watch = watchMpv((message) => sent.push(message), {pipe, heartbeatMs});
   await mpv.connected;
   const settle = () => new Promise((resolve) => setTimeout(resolve, 60));
   await settle();
@@ -89,9 +89,30 @@ describe('watchMpv', () => {
       {command: ['observe_property', 2, 'eof-reached']},
       // Host 9: the mpv setup's episode buttons show while this holds.
       {command: ['set_property', 'user-data/faststream/connected', true]},
+      // Host 10: and while this keeps changing.
+      {command: ['set_property', 'user-data/faststream/heartbeat', expect.any(Number)]},
     ]);
     expect(sent).toEqual([{type: 'watching'}]);
     watch.stop();
+  });
+
+  it('beats while it follows the window, a new value each time, and stops when it lets go', async () => {
+    const {mpv, watch} = await watching('heartbeat', 40);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const beats = () => mpv.commands
+        .filter((c) => c.command[0] === 'set_property' && c.command[1] === 'user-data/faststream/heartbeat')
+        .map((c) => c.command[2]);
+    const seen = beats();
+    expect(seen.length).toBeGreaterThanOrEqual(3);
+    // Rising: a host started after a killed one is a change mpv hears at once.
+    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThan(seen[i - 1]);
+    expect(seen[0]).toBeGreaterThan(Date.now() - 60000);
+    watch.stop();
+    // A beat written just before the stop may still be on its way (seen under load).
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const after = beats().length;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(beats().length).toBe(after);
   });
 
   it('tells a file\'s end once, and not one that had ended before the watch began', async () => {
@@ -187,7 +208,7 @@ describe('watchMpv', () => {
     watch.state({});
     watch.state({autoplay: true});
     await settle();
-    expect(mpv.commands.slice(3)).toEqual([
+    expect(mpv.commands.slice(4)).toEqual([
       {command: ['set_property', 'user-data/faststream/autoplay', false]},
       {command: ['set_property', 'user-data/faststream/autoplay', true]},
     ]);
@@ -242,6 +263,20 @@ describe('readMessages', () => {
       expect(ended).toBe(1);
       resolve();
     }));
+  });
+
+  it('takes the frames that came in the same chunk as the first message (glm\'s review)', async () => {
+    // The extension posts 'watch' and may post a state at once: both in one chunk of stdin,
+    // where readMessage read the first and dropped the rest.
+    const input = new PassThrough();
+    input.write(Buffer.concat([frame({type: 'watch'}), frame({type: 'state', autoplay: true}), frame({type: 'notify', title: 'x'}).subarray(0, 5)]));
+    expect(await readMessage(input)).toEqual({type: 'watch'});
+    const messages = [];
+    readMessages(input, (message) => messages.push(message), () => {});
+    expect(messages).toEqual([{type: 'state', autoplay: true}]);
+    input.write(frame({type: 'notify', title: 'x'}).subarray(5));
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(messages).toEqual([{type: 'state', autoplay: true}, {type: 'notify', title: 'x'}]);
   });
 
   it('stops at a frame bigger than any message', () => {
