@@ -5,6 +5,10 @@
 // tab, which downloaded everything again. Seeks were the usual trigger: Firefox can fail to
 // decode what a seek appends late (bug 2069633), and only a new MediaSource plays again.
 // Here the error is the player's own event, the way every player reports one.
+//
+// The new player plays nothing before it is at that time (2026-10-12, kinoger): it started
+// from 0 at once, and was sought to the time a second or more later, so a film built again an
+// hour in played its opening, then jumped back.
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -22,12 +26,13 @@ let server;
 let requests = [];
 
 /**
- * Opens the looped stream and plays it from a time.
+ * Opens a stream (the looped one unless another is named) and plays it from a time.
  * @param {number} time - Where it plays from.
+ * @param {string} [source] - The stream's URL.
  * @return {Promise<void>}
  */
-async function playAt(time) {
-  await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}/long.m3u8`);
+async function playAt(time, source = `${ORIGIN}/long.m3u8`) {
+  await browser.url(`/player/index.html?t=${Date.now()}#${source}`);
   await browser.waitUntil(async () => browser.execute(() => {
     const v = window.fastStream?.player?.getVideo();
     if (!v) return false;
@@ -42,12 +47,22 @@ async function playAt(time) {
     if (v.paused) v.play().catch(() => {});
     return v.currentTime > to + 1;
   }, time), {timeout: 30000, interval: 250, timeoutMsg: 'it never played at ' + time});
-  // Counts the players the client builds from here on.
+  // Counts the players the client builds from here on, and notes the times each new one
+  // plays at (playing, not seeking).
   await browser.execute(() => {
     window.__players = [window.fastStream.player];
+    window.__playedAt = [];
     window.__countPlayers = setInterval(() => {
       const player = window.fastStream.player;
-      if (player && !window.__players.includes(player)) window.__players.push(player);
+      if (player && !window.__players.includes(player)) {
+        window.__players.push(player);
+        const video = player.getVideo();
+        const note = () => {
+          if (!video.paused && !video.seeking) window.__playedAt.push(video.currentTime);
+        };
+        video.addEventListener('timeupdate', note);
+        video.addEventListener('playing', note);
+      }
     }, 20);
   });
 }
@@ -79,6 +94,8 @@ async function afterError() {
         time: video ? video.currentTime : 0,
         paused: video ? video.paused : null,
         players: window.__players.length,
+        // The earliest time a new player played at.
+        firstPlayed: window.__playedAt.length ? Math.min(...window.__playedAt) : null,
         message: window.fastStream.interfaceController.statusManager.statusMessages.get('error')?.message,
       };
     });
@@ -142,7 +159,8 @@ describe('A player error after the video played', function() {
     }, {timeout: 15000, interval: 250}).catch(() => {});
     // Whatever was on its way has arrived.
     await browser.pause(1500);
-    const state = {...rebuilt, time};
+    const firstPlayed = await browser.execute(() => Math.min(...window.__playedAt));
+    const state = {...rebuilt, time, firstPlayed};
     console.log(`      after the error: ${JSON.stringify(state)}`);
 
     expect(state.failed).toBe(false);
@@ -150,8 +168,35 @@ describe('A player error after the video played', function() {
     expect(state.players).toBe(2);
     // From where it was (whole seconds), not from the start.
     expect(state.time).toBeGreaterThan(61);
+    // And nothing before it: not a moment of the start first.
+    expect(state.firstPlayed).toBeGreaterThanOrEqual(60);
     const again = requests.slice(before).filter((place) => downloaded.includes(place));
     expect(again).toEqual([]);
+  });
+
+  it('builds an MP4 again where it was, playing nothing of its start first', async function() {
+    // MP4Player, as the kinoger film played in it: its first range is in the store, so the
+    // new player had a picture of 0:00 at once.
+    await playAt(100, globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/long-av.mp4');
+    await playerError();
+    await afterError();
+    let time = 0;
+    await browser.waitUntil(async () => {
+      time = await browser.execute(() => window.fastStream.player.getVideo().currentTime);
+      return time > 101;
+    }, {timeout: 15000, interval: 250}).catch(() => {});
+    await browser.pause(1000);
+    const state = await browser.execute(() => ({
+      players: window.__players.length,
+      failed: !!window.fastStream.interfaceController.failed,
+      firstPlayed: Math.min(...window.__playedAt),
+    }));
+    console.log(`      the MP4 after the error: ${JSON.stringify({...state, time})}`);
+
+    expect(state.failed).toBe(false);
+    expect(state.players).toBe(2);
+    expect(time).toBeGreaterThan(101);
+    expect(state.firstPlayed).toBeGreaterThanOrEqual(100);
   });
 
   it('stays paused when it was paused', async function() {

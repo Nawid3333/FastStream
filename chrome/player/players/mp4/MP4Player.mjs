@@ -6,6 +6,7 @@ import {createFile} from '../../modules/mp4box/mp4box.all.mjs';
 import {Utils} from '../../utils/Utils.mjs';
 import {VideoUtils} from '../../utils/VideoUtils.mjs';
 import {AudioLevel, VideoLevel} from '../Levels.mjs';
+import {relabelEsdsAacLayout} from './AacLayout.mjs';
 import {MP4Fragment} from './MP4Fragment.mjs';
 import {lengthFromAnswer} from './RangeAnswers.mjs';
 import {MP4FragmentRequester} from './MP4FragmentRequester.mjs';
@@ -192,6 +193,12 @@ export default class MP4Player extends EventEmitter {
       this.mp4box.setSegmentOptions(audioTrack.id, 1, {
         nbSamples: 1,
       });
+      // AAC in a channel layout Windows' decoder gives nothing back for: relabelled, or the
+      // video waits for its first audio for good (AacLayout.mjs).
+      const esd = this.mp4box.getTrackById(audioTrack.id)?.mdia?.minf?.stbl?.stsd?.entries?.[0]?.esds?.data;
+      if (esd && relabelEsdsAacLayout(esd)) {
+        console.log('Relabelled the AAC channel layout for Windows\' decoder');
+      }
     }
 
 
