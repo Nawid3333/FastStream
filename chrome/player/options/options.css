@@ -106,6 +106,15 @@ body.frame textarea {
   color: var(--input-text-color);
 }
 
+/* Default Dark's inputs are 20% black. Firefox draws an open select's list on a light or
+   dark base, chosen from the select's colour over what is behind it in this page - nothing,
+   so white - and paints that colour on top: white options on light grey, 1.6:1 (#458).
+   An opaque grey, about what the 20% black shows over the settings window, gives the list a
+   dark base. Every other theme's list measured 14:1 or better. */
+body.frame:is(:not([data-theme]), [data-theme="default"]) select {
+  background-color: rgb(40, 40, 40);
+}
+
 body.frame input:focus-visible,
 body.frame select:focus-visible,
 body.frame textarea:focus-visible {
