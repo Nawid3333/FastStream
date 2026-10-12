@@ -71,6 +71,11 @@ chrome.permissions.onRemoved.addListener(() => refreshProxyPermission());
 const ManualMpvRepeatMs = 3000;
 let LastManualMpvUrl = '';
 let LastManualMpvTime = 0;
+// The answer of that send, which a repeat click gets too: an immediate "sent" made the
+// player say so and pause the page while the first send could still fail (glm's review,
+// 2026-10-12).
+/** @type {?Promise<Object>} */
+let LastManualMpvAnswer = null;
 
 // The shortcut's MPV waits for the user to start a video (onUserPlay). A play
 // whose stream is not detected yet takes the next one within MpvPlayPendingMs;
@@ -899,9 +904,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (Logging) console.log('[MPV] MPV_OPEN request:', msg.url);
     const now = Date.now();
     if (msg.url === LastManualMpvUrl &&
-        now - LastManualMpvTime < ManualMpvRepeatMs) {
-      if (Logging) console.log('[MPV] MPV_OPEN ignored, repeat click');
-      sendResponse({ok: true});
+        now - LastManualMpvTime < ManualMpvRepeatMs && LastManualMpvAnswer) {
+      if (Logging) console.log('[MPV] MPV_OPEN repeat click: the first one\'s answer');
+      LastManualMpvAnswer.then(sendResponse).catch((e) => console.error(e));
       return true;
     }
     LastManualMpvUrl = msg.url;
@@ -917,7 +922,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
     // Once the options are read, as for MPV_TEST: the mpv path, fullscreen, one window,
     // and the allowlist's @anime tag.
-    ensureOptions().then(() => openInMpv(sender.tab?.id, msg.url, null, headers,
+    LastManualMpvAnswer = ensureOptions().then(() => openInMpv(sender.tab?.id, msg.url, null, headers,
         resolveMpvContentType(msg.contentType, sender.tab && sender.tab.url), sender.tab && sender.tab.url,
         sender.tab && sender.tab.title, {startTime: msg.startTime, subtitles: msg.subtitles})).then((result) => {
       if (Logging) console.log('[MPV] MPV_OPEN result:', JSON.stringify(result));
@@ -925,13 +930,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // Let the user retry immediately when the launch actually failed.
         LastManualMpvTime = 0;
       }
-      sendResponse(result);
+      return result;
     }).catch((e) => {
       // As a launch that failed: the player waits for an answer, and may try again at once.
       console.error('Sending the stream to mpv failed', e);
       LastManualMpvTime = 0;
-      sendResponse({ok: false, error: String(e)});
+      return {ok: false, error: String(e)};
     });
+    // Never rejects (the catch above answers); the player may have gone meanwhile.
+    LastManualMpvAnswer.then(sendResponse).catch((e) => console.error(e));
     return true;
   } else if (msg.type === MessageTypes.POPUP_GUARD_ARM) {
     if (sender.tab) {
