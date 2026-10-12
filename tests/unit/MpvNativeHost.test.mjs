@@ -619,6 +619,11 @@ describe('ipcPipeFor', () => {
     expect(ipcPipeFor({}, 'darwin', {}).startsWith(os.tmpdir())).toBe(true);
     expect(ipcPipeFor({ipcToken: token}, 'linux', {})).not.toContain('pipe');
   });
+
+  it('carries the token elsewhere too when there is one: the temp folder can be shared (glm\'s review)', () => {
+    expect(ipcPipeFor({ipcToken: token}, 'linux', {})).toMatch(new RegExp(`/faststream-mpv-\\d+-${token}\\.sock$`));
+    expect(ipcPipeFor({ipcToken: 'short'}, 'linux', {XDG_RUNTIME_DIR: '/run/user/1000'})).toMatch(/^\/run\/user\/1000\/faststream-mpv-\d+\.sock$/);
+  });
 });
 
 // Off Windows a new mpv is an ordinary child, and it was reported started 500 ms later
