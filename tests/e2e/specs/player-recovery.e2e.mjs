@@ -159,7 +159,8 @@ describe('A player error after the video played', function() {
     }, {timeout: 15000, interval: 250}).catch(() => {});
     // Whatever was on its way has arrived.
     await browser.pause(1500);
-    const firstPlayed = await browser.execute(() => Math.min(...window.__playedAt));
+    // -1 when it never played: Math.min() of nothing is Infinity, which would pass.
+    const firstPlayed = await browser.execute(() => window.__playedAt.length ? Math.min(...window.__playedAt) : -1);
     const state = {...rebuilt, time, firstPlayed};
     console.log(`      after the error: ${JSON.stringify(state)}`);
 
@@ -189,7 +190,7 @@ describe('A player error after the video played', function() {
     const state = await browser.execute(() => ({
       players: window.__players.length,
       failed: !!window.fastStream.interfaceController.failed,
-      firstPlayed: Math.min(...window.__playedAt),
+      firstPlayed: window.__playedAt.length ? Math.min(...window.__playedAt) : -1,
     }));
     console.log(`      the MP4 after the error: ${JSON.stringify({...state, time})}`);
 

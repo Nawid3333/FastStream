@@ -174,6 +174,9 @@ player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all
   lone side channel to the back centre where there is none. A decoder finds each element of a
   packet by type and tag, so the packets stay as they are: each of the six channels WebCodecs
   gave back matched one of ffmpeg's decode of the original sample for sample (correlation 1.0).
+  It runs on every platform: ffmpeg, which Firefox decodes AAC with on Linux, gives the same six
+  channels from the relabelled config (correlation 1.0 each) and names its layout hexagonal, where
+  the original's was unknown.
   The esds bytes are mp4box's copy: a save writes the file as downloaded. Firefox's own player
   (DIRECT) cannot be helped: there is no init segment to change. Not relabelled either: HLS and
   DASH, whose init segments hls.js and dash.js make (no such stream seen yet).
