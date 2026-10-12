@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 10;
+export const RequiredHostVersion = 11;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -99,7 +99,8 @@ export class MpvBackend {
     /** @type {boolean} */
     this.hostOutdated = false;
     // The watch of mpv for MPV autoplay (watch()), while one runs.
-    /** @type {?{notify: (title: string, detail?: string) => void, stop: () => void}} */
+    /** @type {?{notify: (title: string, detail?: string, seconds?: number) => void, hide: () => void,
+     *   stop: () => void}} */
     this.watcher = null;
   }
 
@@ -356,7 +357,8 @@ export class MpvBackend {
    * native messaging port is open), so the end is heard however long the episode runs.
    * @param {(message: Object) => void} onEvent - Each message: watching, path, ended,
    *   request, closed (last; also for a host too old to watch, which answers ok: false).
-   * @return {{notify: (title: string, detail?: string) => void, state: (state: Object) => void,
+   * @return {{notify: (title: string, detail?: string, seconds?: number) => void,
+   *   hide: () => void, state: (state: Object) => void,
    *   stop: () => void}}
    */
   watch(onEvent) {
@@ -367,7 +369,7 @@ export class MpvBackend {
       port = chrome.runtime.connectNative(NativeHostName);
     } catch (e) {
       onEvent({type: 'closed', reason: String(e)});
-      return {notify() {}, state() {}, stop() {}};
+      return {notify() {}, hide() {}, state() {}, stop() {}};
     }
     let stopped = false;
     const end = (reason) => {
@@ -378,10 +380,21 @@ export class MpvBackend {
       return true;
     };
     const watcher = {
-      notify: (title, detail = '') => {
+      // Host 11: seconds, how long mpv shows it (notify.lua's own 2 s without).
+      notify: (title, detail = '', seconds) => {
         if (stopped) return;
         try {
-          port.postMessage({type: 'notify', title, detail});
+          port.postMessage(typeof seconds === 'number' ? {type: 'notify', title, detail, seconds} :
+            {type: 'notify', title, detail});
+        } catch (e) {
+          // The host went meanwhile: onDisconnect says so.
+        }
+      },
+      // Host 11: takes the notice down before its time.
+      hide: () => {
+        if (stopped) return;
+        try {
+          port.postMessage({type: 'hide'});
         } catch (e) {
           // The host went meanwhile: onDisconnect says so.
         }

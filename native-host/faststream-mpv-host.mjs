@@ -15,7 +15,8 @@
 //   {type: 'watch'} (over a port the extension keeps open, connectNative; host 7) ->
 //     {type: 'watching'}, then as they happen {type: 'path', path}, {type: 'ended', path},
 //     {type: 'request', action: 'next'|'previous'}, and {type: 'closed', reason} last; the
-//     extension may send {type: 'notify', title, detail} meanwhile (watchMpv).
+//     extension may send {type: 'notify', title, detail, seconds?} and {type: 'hide'}
+//     meanwhile (watchMpv; seconds and hide: host 11).
 // Every answer also carries hostVersion (HostVersion below).
 //
 // An open that worked on Windows says how raising mpv's window went (focusOutcome):
@@ -71,7 +72,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 10;
+export const HostVersion = 11;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -582,6 +583,22 @@ export function mpvIpcRequest(commands, timeoutMs = 1500, replyTimeoutMs = 6000,
 // How often watchMpv tells mpv it still follows the window (host 10).
 export const HeartbeatMs = 30000;
 
+// The longest a notice of the extension stays in mpv (host 11), and how long mpv's own text
+// stays when this mpv has no notify.lua and the notice names no time.
+export const MaxNoticeSeconds = 60;
+const DefaultTextSeconds = 4;
+
+/**
+ * How long a notice asks to stay: seconds between 0 (exclusive) and MaxNoticeSeconds, to a
+ * tenth; undefined for anything else (notify.lua's own default then, 2 s).
+ * @param {*} seconds - What the extension sent.
+ * @return {number|undefined}
+ */
+export function noticeSeconds(seconds) {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds <= 0) return undefined;
+  return Math.round(Math.min(seconds, MaxNoticeSeconds) * 10) / 10 || undefined;
+}
+
 // The script messages an mpv key, button or menu sends for the next or the previous episode
 // (input.conf: "n script-message faststream-next") and, host 9, for autoplay on or off (the
 // mpv setup's autoplay button); mpv gives them to every IPC client.
@@ -611,10 +628,17 @@ export const EpisodeMessages = {
  * user-data/faststream/heartbeat when it connects and every HeartbeatMs after: the mpv
  * setup hides the buttons once that value has stood still for 90 s (three beats missed). A
  * new value every time, so a host started after a killed one counts as alive at once.
+ *
+ * Host 11 (2026-10-12): a notice may say how long it stays (notify.lua's seconds). Without
+ * one every notice went after notify.lua's 2 s: "next episode in 5 s" was gone 3 s before
+ * the episode came, and a sentence to read ("the page brought no stream within a minute;
+ * open it in the browser to see why") was gone before it was read. And hide() takes the
+ * notice down early (a countdown stopped with nothing else to say).
  * @param {(message: Object) => *} send - Sends a message to the extension.
  * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket,
  *   heartbeatMs?: number}} [io] - Tests.
- * @return {{notify: (title: string, detail?: string) => void, state: (state: Object) => void,
+ * @return {{notify: (title: string, detail?: string, seconds?: number) => void,
+ *   hide: () => void, state: (state: Object) => void,
  *   stop: () => void, done: Promise<string>}} done resolves with why it ended.
  */
 export function watchMpv(send, io = {}) {
@@ -632,6 +656,7 @@ export function watchMpv(send, io = {}) {
   let requests = 0;
   // A notice sent to notify.lua, by request id: one refused (no notify.lua in this mpv's
   // config) is shown with mpv's own text instead.
+  /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
   const notices = new Map();
   /** @type {?ReturnType<typeof setInterval>} */
   let heartbeat = null;
@@ -723,18 +748,27 @@ export function watchMpv(send, io = {}) {
         const action = EpisodeMessages[event.args[0]];
         if (action) send({type: 'request', action});
       } else if (notices.has(event.request_id)) {
-        const text = notices.get(event.request_id);
+        const notice = notices.get(event.request_id);
         notices.delete(event.request_id);
-        if (event.error && event.error !== 'success') write(['show-text', text, 4000]);
+        if (event.error && event.error !== 'success' && notice) {
+          write(['show-text', notice.text, (notice.seconds || DefaultTextSeconds) * 1000]);
+        }
       }
     }
   });
   return {
-    notify(title, detail = '') {
+    notify(title, detail = '', seconds) {
       requests++;
       const id = 1000 + requests;
-      notices.set(id, detail ? title + ': ' + detail : String(title));
-      write(['script-message-to', 'notify', 'show', 'faststream', String(title), String(detail)], id);
+      const time = noticeSeconds(seconds);
+      notices.set(id, {text: detail ? title + ': ' + detail : String(title), seconds: time});
+      const command = ['script-message-to', 'notify', 'show', 'faststream', String(title), String(detail)];
+      if (time !== undefined) command.push(String(time));
+      write(command, id);
+    },
+    hide() {
+      // No request id: an mpv without notify.lua refuses it, and there is nothing to take down.
+      write(['script-message-to', 'notify', 'hide', 'faststream']);
     },
     state(state) {
       if (state && typeof state.autoplay === 'boolean') {
@@ -1748,7 +1782,8 @@ async function handleMessage() {
     // episode buttons up with no one to hear them. It ends as when the extension lets go.
     process.stdout.on('error', () => watch.stop());
     readMessages(process.stdin, (next) => {
-      if (next.type === 'notify') watch.notify(String(next.title || ''), String(next.detail || ''));
+      if (next.type === 'notify') watch.notify(String(next.title || ''), String(next.detail || ''), next.seconds);
+      else if (next.type === 'hide') watch.hide();
       else if (next.type === 'state') watch.state(next);
     }, () => watch.stop());
     await watch.done;
