@@ -746,4 +746,26 @@ describe('fs-quality fragment (faststream-quality.lua reads it)', () => {
     expect(qualityFragmentFor([qualities[0], {url: 'javascript:alert(1)', label: 'x', height: 1}])).toBeUndefined();
     expect(mpvTargetUrl({url: qualities[0].url})).not.toContain('fs-quality=');
   });
+
+  it('writes each file without a fragment of its own, which mpv\'s path match cuts off', () => {
+    // The script finds the playing entry by mpv's path up to its first '#'.
+    const target = mpvTargetUrl({url: 'https://h.test/1.mp4#t=30', qualities: [
+      {url: 'https://h.test/1.mp4#t=30', label: '1080p', height: 1080}, qualities[0]]});
+    expect(tagged(target)[0].url).toBe('https://h.test/1.mp4');
+    expect(tagged(target)[0].url).toBe(target.slice(0, target.indexOf('#')));
+    // An empty fragment: the parser keeps its '#' in the stream, the entry has none.
+    const bare = mpvTargetUrl({url: 'https://h.test/1.mp4#', qualities: [
+      {url: 'https://h.test/1.mp4#', label: '1080p', height: 1080}, qualities[0]]});
+    expect(tagged(bare)[0].url).toBe('https://h.test/1.mp4');
+    expect(tagged(bare)[0].url).toBe(bare.slice(0, bare.indexOf('#')));
+  });
+
+  it('takes no file longer than 2048 characters, and cuts labels between characters', () => {
+    const long = {url: 'https://h.test/' + 'a'.repeat(2100), label: 'long', height: 720};
+    expect(qualityFragmentFor([long, qualities[0]])).toBeUndefined();
+    // The 40th character an emoji: whole, not half of it.
+    const label = 'x'.repeat(39) + '\u{1F3AC}' + 'tail';
+    const list = JSON.parse(decodeURIComponent(qualityFragmentFor([{...qualities[1], label}, qualities[0]])));
+    expect(list[0].label).toBe('x'.repeat(39) + '\u{1F3AC}');
+  });
 });

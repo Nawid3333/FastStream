@@ -429,11 +429,13 @@ player offers") sends mpv the one the quality setting asks for, and the list: `o
 asks the page (`pageQualityChoice`), the player's mpv button sends its source's own list
 and is never overridden (the user may have picked another quality there).
 `MpvBackend.relayQualities` puts it in the message; the host checks it again
-(`qualityFragmentFor`: http(s) files, as the URL parser writes them, labels of at most 40
-characters, 2 to 12) and appends it last, as `fs-quality=<percent-encoded JSON of
-[{label, height, url}]>`. mpv's `faststream-quality.lua` (the mpv repository) reads it from
-`path`, finds the playing entry by `path` without its fragment, and switches with
-`loadfile` of another entry plus the same fragment. A host 11 ignores the field.
+(`qualityFragmentFor`: http(s) files of at most 2048 characters, as the URL parser writes
+them without a fragment of their own, labels of at most 40 whole characters, 2 to 12) and
+appends it last, as `fs-quality=<percent-encoded JSON of [{label, height, url}]>`. mpv's
+`faststream-quality.lua` (the mpv repository) reads it from `path`, finds the playing entry
+by `path` up to its first `#`, and switches with `loadfile` of another entry plus the same
+fragment. A host 11 ignores the field. Host 13 (2026-10-13) added the length cap, the
+fragment removal and the whole-character cut; a host 12 sends the list without them.
 
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host

@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 12;
+export const RequiredHostVersion = 13;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -172,20 +172,21 @@ export class MpvBackend {
   }
 
   /**
-   * The page's qualities as the host gets them (openStream): http(s) files, each with a label
-   * of at most 40 characters and its height (0 when unknown), at most 12; none for fewer
-   * than two.
+   * The page's qualities as the host gets them (openStream): http(s) files of at most 2048
+   * characters (a page's list could fill the host's message limit otherwise), each with a
+   * label of at most 40 characters and its height (0 when unknown), at most 12; none for
+   * fewer than two.
    * @param {*} qualities - [{url, label, height}] (PageQualityPick).
    * @return {?Array<{url: string, label: string, height: number}>}
    */
   static relayQualities(qualities) {
     if (!Array.isArray(qualities)) return null;
     const relayed = qualities
-        .filter((entry) => entry && MpvBackend.isStreamUrl(entry.url))
+        .filter((entry) => entry && MpvBackend.isStreamUrl(entry.url) && entry.url.length <= 2048)
         .slice(0, 12)
         .map((entry) => ({
           url: entry.url,
-          label: typeof entry.label === 'string' ? entry.label.slice(0, 40) : '',
+          label: typeof entry.label === 'string' ? Array.from(entry.label).slice(0, 40).join('') : '',
           height: Number.isFinite(entry.height) && entry.height > 0 ? Math.round(entry.height) : 0,
         }));
     return relayed.length >= 2 ? relayed : null;

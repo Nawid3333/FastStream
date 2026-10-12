@@ -396,3 +396,34 @@ describe('testConnection', () => {
         .toEqual({ok: false, error: 'Error: nativeMessaging permission missing'});
   });
 });
+
+// The page's qualities as the host gets them. The host checks the list again
+// (qualityFragmentFor), but only once the whole message has arrived: what makes the message
+// too big has to go here.
+describe('relayQualities', () => {
+  const entry = (height) => ({url: `https://h.test/${height}.mp4`, label: `${height}p`, height});
+
+  it('takes no file longer than 2048 characters', () => {
+    const origin = 'https://h.test/';
+    const long = {url: origin + 'a'.repeat(2049 - origin.length), label: 'long', height: 720};
+    expect(MpvBackend.relayQualities([long, entry(360)])).toBeNull();
+    const longest = {...long, url: long.url.slice(0, 2048)};
+    expect(MpvBackend.relayQualities([longest, entry(360)]).map((q) => q.url))
+        .toEqual([longest.url, entry(360).url]);
+  });
+
+  it('cuts a label between characters', () => {
+    // The 40th character an emoji (two UTF-16 units): whole, not half of it.
+    const clapper = String.fromCodePoint(0x1F3AC);
+    const [first] = MpvBackend.relayQualities([{...entry(1080), label: 'x'.repeat(39) + clapper + 'tail'}, entry(720)]);
+    expect(first.label).toBe('x'.repeat(39) + clapper);
+  });
+
+  it('takes http(s) files only, at most 12, and no list of fewer than two', () => {
+    const many = Array.from({length: 13}, (_, i) => entry(100 + i));
+    expect(MpvBackend.relayQualities(many)).toHaveLength(12);
+    expect(MpvBackend.relayQualities([entry(720), {url: 'file:///C:/x.mp4', label: 'x', height: 1}])).toBeNull();
+    expect(MpvBackend.relayQualities([entry(720)])).toBeNull();
+    expect(MpvBackend.relayQualities('not a list')).toBeNull();
+  });
+});
