@@ -58,6 +58,23 @@ const PageQualities = (() => {
   }
 
   /**
+   * A label as plain text. Artplayer's are HTML ("<b>1080P</b>"). Tags are taken out until none
+   * is left - one pass made "<scr<b>ipt>" into "<script>" (CodeQL
+   * js/incomplete-multi-character-sanitization) - and then any '<' or '>' still there.
+   * @param {*} label
+   * @return {string}
+   */
+  function plainLabel(label) {
+    let text = String(label ?? '').slice(0, 400);
+    let previous;
+    do {
+      previous = text;
+      text = text.replace(/<[^<>]*>/g, '');
+    } while (text !== previous);
+    return text.replace(/[<>]/g, '').trim().slice(0, 40);
+  }
+
+  /**
    * One list's entries cleaned up: absolute URLs, each once, labels as text.
    * @param {Array<{url: *, label: *}>} entries
    * @param {string} base
@@ -68,9 +85,7 @@ const PageQualities = (() => {
     for (const entry of entries) {
       const url = absolute(entry.url, base);
       if (!url || list.some((e) => e.url === url)) continue;
-      // Artplayer's labels are HTML ("<b>1080P</b>"): its text. Then no '<' or '>' at all, so
-      // nothing that reads like a tag is left ("<scr<b>ipt>" was "<script>" after one pass).
-      const label = String(entry.label ?? '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, 40);
+      const label = plainLabel(entry.label);
       list.push({url, label, height: heightOf(label)});
     }
     return list.length >= 2 && list.length <= MAX_ENTRIES ? list : null;

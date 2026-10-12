@@ -110,7 +110,7 @@ describe('PageQualities.find', () => {
     const page = {Artplayer: {instances: [{option: {quality: [
       {html: '<scr<b>ipt>720p', url: 'https://a.example/720.mp4'}, {html: '1080<i>p</i>', url: 'https://a.example/1080.mp4'}]}}]}};
     const [list] = PageQualities.find(documentOf([]), page, BASE);
-    expect(list.map((q) => q.label)).toEqual(['ipt720p', '1080p']);
+    expect(list.map((q) => q.label)).toEqual(['720p', '1080p']);
     expect(list.some((q) => /[<>]/.test(q.label))).toBe(false);
   });
 
