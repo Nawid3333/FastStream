@@ -933,6 +933,36 @@ describe('a message that wakes the background', () => {
     expect(bg.native[0]).toEqual({type: 'ping', mpvPath: MPV_PATH});
   });
 
+  it('answers a repeat click of the player\'s mpv button with the first one\'s answer, when it comes', async () => {
+    // glm's review (2026-10-12): the repeat got "sent" at once, so the player said so and
+    // paused the page while the first send could still fail.
+    let release;
+    const pending = new Promise((resolve) => {
+      release = resolve;
+    });
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
+      onNative: (m) => m.type === 'open' ? pending : {ok: true, hostVersion: RequiredHostVersion}});
+    const one = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    await bg.wait(300);
+    let repeat = null;
+    const two = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    two.then((r) => {
+      repeat = r;
+    });
+    await bg.wait(500);
+    expect(repeat).toBe(null);
+    release({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    await bg.wait(100);
+    expect(await one).toMatchObject({ok: false, error: 'mpv executable not found'});
+    expect(await two).toMatchObject({ok: false, error: 'mpv executable not found'});
+    // One send for both clicks; after a failure the next click is a send of its own.
+    expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
+    const again = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    await bg.wait(500);
+    await again;
+    expect(bg.native.filter((m) => m.type === 'open').length).toBe(2);
+  });
+
   it('sends the player\'s stream with the mpv path from the options (the player\'s mpv button)', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvPath: MPV_PATH}, tabs: [{id: 1, url: PAGE}],
       beforeImport: slowStorage});
