@@ -8,7 +8,7 @@ import {response} from './backgroundHarness.mjs';
 // button writes the tracks it shows.
 
 installFakeDom();
-const {FETCH_TIMEOUT_MS, MAX_TRACKS, MpvSubtitles} = await import('../../chrome/background/MpvSubtitles.mjs');
+const {FETCH_TIMEOUT_MS, MAX_FILE_BYTES, MAX_TRACKS, MpvSubtitles} = await import('../../chrome/background/MpvSubtitles.mjs');
 
 const VTT = 'WEBVTT\n\n00:00:01.000 --> 00:00:02.500 align:start\nHello\n\n00:01:03.000 --> 00:01:04.000\nWorld\n';
 const SRT = '1\n00:00:01,000 --> 00:00:02,500\nHello\n\n2\n00:01:03,000 --> 00:01:04,000\nWorld';
@@ -36,7 +36,8 @@ describe('MpvSubtitles.toSrt', () => {
       {operation: 'set', header: 'origin', value: 'https://site.test'},
     ]);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch.mock.calls[0][1]).toMatchObject({credentials: 'omit'});
+    // Not in the cache: the page may be in a private window, and this request is not.
+    expect(fetch.mock.calls[0][1]).toMatchObject({credentials: 'omit', cache: 'no-store'});
   });
 
   it('takes a <track> element\'s text as the page read it, with no request of its own', async () => {
@@ -83,6 +84,18 @@ describe('MpvSubtitles.toSrt', () => {
     const tracks = await new MpvSubtitles({fetch}).toSrt(subs);
     expect(tracks.map((t) => t.label)).toEqual(['0', '1', '2', '3', '4', '5', '6', '7']);
     expect(tracks).toHaveLength(MAX_TRACKS);
+  });
+
+  it('leaves out a file larger than the host could take', async () => {
+    const cue = '00:00:01.000 --> 00:00:02.000\nA line of a subtitle that goes on for a while\n\n';
+    const huge = 'WEBVTT\n\n' + cue.repeat(Math.ceil(MAX_FILE_BYTES / cue.length) + 1);
+    const fetch = vi.fn(async (url) => response(url.endsWith('/huge.vtt') ? huge : VTT));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tracks = await new MpvSubtitles({fetch}).toSrt([
+      {source: 'https://cdn.test/huge.vtt', label: 'huge'},
+      {source: 'https://cdn.test/small.vtt', label: 'small'},
+    ]);
+    expect(tracks.map((t) => t.label)).toEqual(['small']);
   });
 
   it('fetches only http(s) files', async () => {

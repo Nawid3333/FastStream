@@ -92,17 +92,26 @@ describe('MPV mode and the page\'s subtitles', () => {
   });
 
   it('leaves the player\'s button its own choice: the tracks it shows, none included', async () => {
-    await allowlistedPage({options: {mpvMode: false}});
-    await bg.request({tabId: 1, url: SUB});
     const fetched = [];
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = async (url, init) => {
-      fetched.push(String(url));
-      return realFetch(url, init);
-    };
+    await allowlistedPage({
+      options: {mpvMode: false},
+      fetch: (url) => {
+        fetched.push(url);
+        return url === SUB ? response(VTT) : response('', 404);
+      },
+    });
+    await bg.request({tabId: 1, url: SUB});
+    fetched.length = 0;
+    // None shown: none sent, and the page's are not read.
     await bg.message({type: 'MPV_OPEN', url: EPISODE, headers: [], subtitles: undefined}, {tabId: 1});
     expect(opens()).toHaveLength(1);
     expect(opens()[0]).not.toHaveProperty('subtitles');
+    expect(fetched).not.toContain(SUB);
+    // Its own: those, not the page's (another stream, so not a repeat click).
+    const mine = [{label: 'Mine', srt: '1\n00:00:05,000 --> 00:00:06,000\nMine'}];
+    await bg.message({type: 'MPV_OPEN', url: EPISODE + '?2', headers: [], subtitles: mine}, {tabId: 1});
+    expect(opens()).toHaveLength(2);
+    expect(opens()[1].subtitles).toEqual(mine);
     expect(fetched).not.toContain(SUB);
   });
 });

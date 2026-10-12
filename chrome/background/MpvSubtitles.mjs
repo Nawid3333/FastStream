@@ -1,5 +1,6 @@
 // @ts-check
 import {SubtitleUtils} from '../player/utils/SubtitleUtils.mjs';
+import {StreamLengths} from './StreamLengths.mjs';
 
 // The host takes at most this many tracks (MaxSubtitles in native-host/faststream-mpv-host.mjs).
 export const MAX_TRACKS = 8;
@@ -7,6 +8,10 @@ export const MAX_TRACKS = 8;
 const MAX_READS = 16;
 // How long a track's file may take to come: mpv starts only once the tracks are read.
 export const FETCH_TIMEOUT_MS = 4000;
+// The largest file read: twice what the whole message to the host may be (HostMaxMessageBytes,
+// 1 MB). A larger one could not go anyway, and parsing it here would hold up the background,
+// every tab's detection with it (glm's review).
+export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
 /**
  * Reads a subtitle file into a track, with the player's own parser (WebVTT, SubRip, TTML).
@@ -111,12 +116,18 @@ export class MpvSubtitles {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const response = await this.fetch(url, {credentials: 'omit', signal: controller.signal});
+      // Not kept in the cache: the page may be in a private window, and this request is not.
+      const response = await this.fetch(url, {credentials: 'omit', cache: 'no-store', signal: controller.signal});
       if (!response.ok) {
         return '';
       }
+      const bytes = await StreamLengths.readAtMost(response, MAX_FILE_BYTES + 1);
+      if (bytes.length > MAX_FILE_BYTES) {
+        console.warn('A subtitle file is too large to send to mpv, left out', url);
+        return '';
+      }
       const type = response.headers?.get ? response.headers.get('Content-Type') : null;
-      return SubtitleUtils.decodeSubtitleBytes(await response.arrayBuffer(), type) || '';
+      return SubtitleUtils.decodeSubtitleBytes(bytes, type) || '';
     } finally {
       clearTimeout(timer);
     }
