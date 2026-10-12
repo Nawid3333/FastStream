@@ -2579,12 +2579,15 @@ function autoOpenInMpv(tab, url, headers) {
  * @typedef {{tabId: number, url: string, alive: boolean, going: boolean,
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
- *   watcher: ?{notify: Function, state: Function, stop: Function}}} MpvWatch
+ *   watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
  */
 /** @type {?MpvWatch} */
 let mpvWatch = null;
 // How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
 const MpvNextEpisodeWaitMs = 60000;
+// How long mpv shows a notice that is a sentence to read (host 11; before, every notice went
+// after notify.lua's 2 s). The countdown's stays for the countdown; on and off for 2 s.
+const MpvNoticeSeconds = 6;
 
 /**
  * The seconds between an episode's end and the next one (Options.autoplayCountdown).
@@ -2621,6 +2624,9 @@ function cancelMpvCountdown(state) {
   if (state.countdown) {
     clearTimeout(state.countdown);
     state.countdown = null;
+    // Its notice stays for the whole countdown: a new stream, or autoplay switched off on
+    // the options page, would leave "next episode in 5 s" up with nothing coming.
+    state.watcher?.hide();
   }
 }
 
@@ -2762,7 +2768,8 @@ async function nextEpisodeInPage(tab) {
  */
 function notifySeriesEnd(state) {
   state.watcher?.notify(chrome.i18n.getMessage('player_next_video_label') || 'Next video',
-      chrome.i18n.getMessage('mpv_episode_series_end') || 'the last episode of the series: autoplay stops');
+      chrome.i18n.getMessage('mpv_episode_series_end') || 'the last episode of the series: autoplay stops',
+      MpvNoticeSeconds);
 }
 
 /**
@@ -2794,7 +2801,7 @@ async function startMpvCountdown(state) {
   }
   state.watcher?.notify(chrome.i18n.getMessage('mpv_autoplay_title') || 'Autoplay',
       chrome.i18n.getMessage('mpv_autoplay_countdown', [String(seconds)]) ||
-      `next episode in ${seconds} s (n: now, autoplay button: stop)`);
+      `next episode in ${seconds} s (n: now, autoplay button: stop)`, seconds);
   state.countdown = setTimeout(() => {
     state.countdown = null;
     if (state.alive && Options.mpvAutoplayNext) goToEpisode(state, 'next');
@@ -2840,7 +2847,7 @@ async function goToEpisode(state, direction) {
   const tab = Tabs.getTab(state.tabId);
   if (!tab || !tab.isOn || !tab.isMpv) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_unavailable') ||
-      'its tab is closed, or not in MPV mode');
+      'its tab is closed, or not in MPV mode', MpvNoticeSeconds);
     return;
   }
   // An end and a key at the same moment would click the page's link twice, a skipped episode.
@@ -2883,14 +2890,16 @@ async function goToEpisode(state, direction) {
     return;
   }
   if (!clicked) {
-    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page');
+    state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page',
+        MpvNoticeSeconds);
     recordProblem({url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'mpv'}).catch((e) => console.error(e));
     return;
   }
   if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
   tab.continuationOptions = {autoPlay: true, mpvNext: true};
   tab.mpvNextEpisodeUntil = Date.now() + MpvNextEpisodeWaitMs;
-  state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv');
+  state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_loading') || 'loading in mpv',
+      MpvNoticeSeconds);
   // The page gone to had its minute and brought no stream (a locked episode, a dead hoster,
   // a login wall): mpv says so, where it otherwise sat at the old episode's end in silence.
   if (state.stalled) clearTimeout(state.stalled);
@@ -2899,7 +2908,7 @@ async function goToEpisode(state, direction) {
     if (!state.alive || mpvWatch !== state) return;
     recordProblem({url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
-      'the page brought no stream within a minute; open it in the browser to see why');
+      'the page brought no stream within a minute; open it in the browser to see why', MpvNoticeSeconds);
   }, MpvNextEpisodeWaitMs);
 }
 

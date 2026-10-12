@@ -1550,6 +1550,43 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(notices(port).at(-1)).toBe('on');
   });
 
+  it('shows a notice in mpv for as long as it needs, and takes a stopped countdown\'s down (host 11)', async () => {
+    // Before, every notice went after notify.lua's 2 s: the countdown's 3 s before the
+    // episode came, a sentence before it was read.
+    const timed = (port) => port.sent.filter((m) => m.type === 'notify' || m.type === 'hide')
+        .map((m) => m.type === 'hide' ? 'hide' : [m.detail, m.seconds]);
+    let port = await onEpisode1({autoplayCountdown: 7});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(timed(port)).toEqual([['next episode in 7 s (n: now, autoplay button: stop)', 7]]);
+    // Another episode picked in the browser meanwhile: nothing else is said, so it goes.
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: S2, frameId: 6});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S2]);
+    expect(timed(port)).toEqual([['next episode in 7 s (n: now, autoplay button: stop)', 7], 'hide']);
+    await bg.wait(8000);
+    expect(navigations).toEqual([]);
+    bg.unload();
+
+    // The switch: "off" takes its place, for notify.lua's own 2 s.
+    port = await onEpisode1({autoplayCountdown: 5});
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(1000);
+    port.emit({type: 'request', action: 'autoplay'});
+    await bg.wait(100);
+    expect(timed(port)).toEqual([['next episode in 5 s (n: now, autoplay button: stop)', 5], 'hide', ['off', undefined]]);
+    bg.unload();
+
+    // A sentence to read: 6 s.
+    port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(timed(port)).toEqual([['loading in mpv', 6]]);
+  });
+
   it('takes two quick presses of mpv\'s autoplay switch as two', async () => {
     const port = await onEpisode1();
     port.emit({type: 'request', action: 'autoplay'});

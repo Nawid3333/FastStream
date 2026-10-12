@@ -201,6 +201,33 @@ describe('watchMpv', () => {
     watch.stop();
   });
 
+  it('says how long a notice stays, and takes it down early (host 11)', async () => {
+    // Before, every notice went after notify.lua's 2 s: "next episode in 5 s" was gone 3 s
+    // before the episode came.
+    const {mpv, watch, settle} = await watching('seconds');
+    watch.notify('Autoplay', 'next episode in 5 s', 5);
+    watch.notify('Next video', 'none found', 99);
+    watch.notify('Next video', 'loading', 6.04);
+    for (const bad of [0, -1, NaN, Infinity, '5', null, 0.01]) watch.notify('x', '', bad);
+    watch.hide();
+    await settle();
+    const sent = mpv.commands.filter((c) => c.command[0] === 'script-message-to');
+    expect(sent.map((c) => c.command.slice(2))).toEqual([
+      ['show', 'faststream', 'Autoplay', 'next episode in 5 s', '5'],
+      ['show', 'faststream', 'Next video', 'none found', '60'],
+      ['show', 'faststream', 'Next video', 'loading', '6'],
+      ...Array(7).fill(['show', 'faststream', 'x', '']),
+      ['hide', 'faststream'],
+    ]);
+    // The hide has no answer to wait for: an mpv without notify.lua has nothing to take down.
+    expect(sent.at(-1).request_id).toBeUndefined();
+    // Without notify.lua: mpv's own text, for as long.
+    mpv.event({request_id: sent[0].request_id, error: 'error running command'});
+    await settle();
+    expect(mpv.commands.at(-1)).toEqual({command: ['show-text', 'Autoplay: next episode in 5 s', 5000]});
+    watch.stop();
+  });
+
   it('tells mpv\'s autoplay button the setting, and only a yes or a no', async () => {
     const {mpv, watch, settle} = await watching('state');
     watch.state({autoplay: false});
