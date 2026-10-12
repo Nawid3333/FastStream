@@ -106,6 +106,14 @@ describe('PageQualities.find', () => {
       ['1080P=1080', '720P=720'], ['480p=480', '720p=720'], ['HD=720', 'SD=480']]);
   });
 
+  it('leaves no tag in a label, however it is nested', () => {
+    const page = {Artplayer: {instances: [{option: {quality: [
+      {html: '<scr<b>ipt>720p', url: 'https://a.example/720.mp4'}, {html: '1080<i>p</i>', url: 'https://a.example/1080.mp4'}]}}]}};
+    const [list] = PageQualities.find(documentOf([]), page, BASE);
+    expect(list.map((q) => q.label)).toEqual(['ipt720p', '1080p']);
+    expect(list.some((q) => /[<>]/.test(q.label))).toBe(false);
+  });
+
   it('survives page objects that throw or are not what they seem', () => {
     const page = {
       get Artplayer() {

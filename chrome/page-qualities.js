@@ -68,7 +68,9 @@ const PageQualities = (() => {
     for (const entry of entries) {
       const url = absolute(entry.url, base);
       if (!url || list.some((e) => e.url === url)) continue;
-      const label = String(entry.label ?? '').replace(/<[^>]*>/g, '').trim().slice(0, 40);
+      // Artplayer's labels are HTML ("<b>1080P</b>"): its text. Then no '<' or '>' at all, so
+      // nothing that reads like a tag is left ("<scr<b>ipt>" was "<script>" after one pass).
+      const label = String(entry.label ?? '').replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, 40);
       list.push({url, label, height: heightOf(label)});
     }
     return list.length >= 2 && list.length <= MAX_ENTRIES ? list : null;
