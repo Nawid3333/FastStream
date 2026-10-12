@@ -72,7 +72,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 12;
+export const HostVersion = 13;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -969,18 +969,20 @@ export function pageFragmentFor(pageUrl) {
   return encodeURIComponent(pageUrl);
 }
 
-// The qualities the page's player offers the video in, at most (page-qualities.js in the
-// extension, MpvBackend.relayQualities).
+// The qualities the page's player offers the video in, at most, and the longest file
+// address taken (page-qualities.js in the extension, MpvBackend.relayQualities).
 const MaxQualities = 12;
+const MaxQualityUrlChars = 2048;
 
 /**
  * The qualities the page's player offers the video in, as one fragment tag value
  * (fs-quality=) for mpv's faststream-quality.lua, which switches between them: a JSON
  * array of {label, height, url}, percent-encoded. Checked here again, since anything that
  * talks to the host gets this far: http(s) files only (mpv opens local files and UNC paths
- * too, isStreamUrl), each as the URL parser writes it (the form mpvTargetUrl gives the
- * stream, which the script finds its entry by), a label of at most 40 characters without
- * control characters, a whole height or 0, and at least two of them.
+ * too, isStreamUrl) of at most MaxQualityUrlChars, each as the URL parser writes it without
+ * a fragment of its own (the script finds the playing one by mpv's path up to its first '#'),
+ * a label of at most 40 characters (whole characters) without control characters, a whole
+ * height or 0, and at least two of them.
  * @param {*} qualities - The open message's qualities.
  * @return {string|undefined} The tag's value, or undefined without a usable list.
  */
@@ -990,13 +992,15 @@ export function qualityFragmentFor(qualities) {
   }
   const list = [];
   for (const entry of qualities.slice(0, MaxQualities)) {
-    if (!entry || !isStreamUrl(entry.url)) {
+    if (!entry || !isStreamUrl(entry.url) || entry.url.length > MaxQualityUrlChars) {
       continue;
     }
     const label = typeof entry.label === 'string' ?
-      entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 40) : '';
+      Array.from(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()).slice(0, 40).join('') : '';
     const height = Number.isInteger(entry.height) && entry.height > 0 && entry.height <= 10000 ? entry.height : 0;
-    list.push({label, height, url: new URL(entry.url).href});
+    const parsed = new URL(entry.url);
+    parsed.hash = '';
+    list.push({label, height, url: parsed.href});
   }
   return list.length >= 2 ? encodeURIComponent(JSON.stringify(list)) : undefined;
 }
