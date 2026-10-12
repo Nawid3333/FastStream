@@ -187,6 +187,9 @@ export class FastStreamClient extends EventEmitter {
     this.fragmentsStore = {};
     // The source (recoverySourceURL) playDirectly handed to Firefox's own player.
     this.playedDirectly = null;
+    // The source whose own time is still to be applied: nothing plays before it is
+    // (setSourceInternal).
+    this.startPending = null;
     this.mainloop();
   }
 
@@ -878,16 +881,18 @@ export class FastStreamClient extends EventEmitter {
    * @param {Object[]} [fallbacks=[]] - The streams to try in turn should it fail before it
    *   shows anything: the others the player picked it from. None for a source chosen by
    *   hand, and a later request drops those of every earlier one.
+   * @param {{play?: boolean}} [start={}] - play: it plays once it has started, autoplay or
+   *   not (the same video built again, which the user was watching).
    * @return {Promise<void>}
    */
-  setSource(source, fallbacks = []) {
+  setSource(source, fallbacks = [], start = {}) {
     const request = ++this.sourceRequests;
     // A source loaded anew in its own player may be handed over again (a later reload of the
     // same URL); the hand-over's source is DIRECT and keeps the guard.
     if (source?.mode !== PlayerModes.DIRECT) {
       this.playedDirectly = null;
     }
-    const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()});
+    const run = () => this.setSourceInternal(source, {request, sources: fallbacks.slice()}, start);
     const change = this.sourceChange ? this.sourceChange.then(run, run) : run();
 
     this.sourceChange = change;
@@ -905,9 +910,10 @@ export class FastStreamClient extends EventEmitter {
    * @param {Object} source - Source object.
    * @param {{request: number, sources: Object[]}} fallbacks - Which request this is, and the
    *   streams to try should it fail before it shows anything.
+   * @param {{play?: boolean}} [start={}] - See setSource().
    * @return {Promise<void>}
    */
-  async setSourceInternal(source, fallbacks) {
+  async setSourceInternal(source, fallbacks, start = {}) {
     // Whether the player took the source: a throw before that is a stream that failed.
     let taken = false;
     try {
@@ -1021,14 +1027,26 @@ export class FastStreamClient extends EventEmitter {
 
       this.interfaceController.updateToolVisibility();
 
+      // A time the source came with is where it starts, and nothing plays before it is
+      // applied: the place a player built again after an error was at (recoverPlayer), where
+      // Firefox's own player takes over (playDirectly), a page's timestamp. Autoplay, and the
+      // rebuild's resume, started the new player from 0 at once, and the time came a second
+      // or more later, after the remembered-time lookup and the init hook's next poll: a film
+      // built again an hour in played its opening, then jumped back (kinoger, 2026-10-12).
+      const startTime = timeFromURL || 0;
+      const playOnStart = autoPlay || !!start.play;
+      this.startPending = startTime ? source : null;
+
       this.state.autoPlayTriggered = false;
-      if (autoPlay) {
+      if (playOnStart && !startTime) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;
         }).catch((e) => console.warn('Autoplay failed', e));
       }
 
-      this.loadProgressData().then(async () => {
+      // A time of its own does not wait for the remembered one it overrides: that lookup
+      // (two PBKDF2 hashes) is made once the time is applied.
+      (startTime ? Promise.resolve() : this.loadProgressData()).then(async () => {
         // Another source came in meanwhile: this one's time and progress are not for it,
         // and switching progress saving off here would switch it off for that one.
         if (this.source !== source) return;
@@ -1041,11 +1059,12 @@ export class FastStreamClient extends EventEmitter {
         // The wait ends when whichever player is current is ready: maybe the next source's.
         if (this.source !== source) return;
 
-        if (timeFromURL) {
+        if (startTime) {
           if (timeFromPage) this.pageTimestampUsed = true;
           this.setSeekSave(false);
-          this.currentTime = timeFromURL || 0;
+          this.currentTime = startTime;
           this.setSeekSave(true);
+          this.startPending = null;
         } else if (this.options.storeProgress && this.progressData && !this.options.disableLoadProgress) {
           const lastTime = this.progressData.lastTime;
           // Not a live stream: a DASH one's duration is Infinity, before which every time is,
@@ -1058,8 +1077,11 @@ export class FastStreamClient extends EventEmitter {
         }
 
         this.disableProgressSave = false;
+        if (startTime) {
+          this.loadProgressData();
+        }
 
-        if (autoPlay && !this.state.autoPlayTriggered) {
+        if (playOnStart && !this.state.autoPlayTriggered) {
           this.play().then(() => {
             this.state.autoPlayTriggered = true;
           }).catch((e) => console.warn('Autoplay failed', e));
@@ -1069,6 +1091,7 @@ export class FastStreamClient extends EventEmitter {
         // Saving was switched off while the time was applied.
         if (this.source === source) {
           this.disableProgressSave = false;
+          this.startPending = null;
         }
       });
     } catch (e) {
@@ -1102,6 +1125,7 @@ export class FastStreamClient extends EventEmitter {
         if (!this.duration || !this.currentVideo || this.currentVideo.readyState === 0) return;
         clearInterval(interval);
         this.context.off(DefaultPlayerEvents.DURATIONCHANGE, hook);
+        this.context.off(DefaultPlayerEvents.LOADEDMETADATA, hook);
         resolve();
       };
 
@@ -1111,6 +1135,9 @@ export class FastStreamClient extends EventEmitter {
       this.initHookInterval = interval;
 
       this.context.on(DefaultPlayerEvents.DURATIONCHANGE, hook);
+      // The moment the element has its metadata, before its first frame: MP4Player's duration
+      // comes before that (readyState still 0), and the hook then waited for its next poll.
+      this.context.on(DefaultPlayerEvents.LOADEDMETADATA, hook);
       hook();
     });
   }
@@ -1748,11 +1775,9 @@ export class FastStreamClient extends EventEmitter {
     // The next reset keeps what was downloaded: the new player asks for the same
     // fragments, and the stored ones answer at once.
     this.downloadManager.keepStorageOnce();
-    this.setSource(again, this.fallbacks.sources).then(() => {
-      if (wasPlaying && this.recoverySourceURL(this.source?.url || '') === url) {
-        return this.play();
-      }
-    }).catch((e) => console.warn('Could not resume after building the player again', e));
+    // It plays on once at its time: played as soon as it was set, it played from 0 first.
+    this.setSource(again, this.fallbacks.sources, {play: wasPlaying})
+        .catch((e) => console.warn('Could not resume after building the player again', e));
     return true;
   }
 
@@ -1793,11 +1818,8 @@ export class FastStreamClient extends EventEmitter {
         // Not a URL after all: from the start.
       }
     }
-    this.setSource(direct, this.fallbacks.sources).then(() => {
-      if (wasPlaying) {
-        return this.play();
-      }
-    }).catch((e) => console.warn('Could not play the source directly', e));
+    this.setSource(direct, this.fallbacks.sources, {play: wasPlaying})
+        .catch((e) => console.warn('Could not play the source directly', e));
     return true;
   }
 
@@ -1866,6 +1888,7 @@ export class FastStreamClient extends EventEmitter {
     // once-a-second check. The next source makes its own.
     this.initPromise = null;
     clearInterval(this.initHookInterval);
+    this.startPending = null;
     // A lookup for the last video is not this one's (loadProgressData).
     this.progressLoad = null;
     this.autoNextRequested = false;
@@ -1977,8 +2000,9 @@ export class FastStreamClient extends EventEmitter {
 
       // Done only once it has started, as at the other two attempts: marked first, a play()
       // the browser blocked kept the later attempt from being made (and was an unhandled
-      // rejection).
-      if (!this.state.autoPlayTriggered && this.options.autoPlay && this.state.playing === false) {
+      // rejection). Not before the source's own time is applied (startPending).
+      if (!this.state.autoPlayTriggered && this.options.autoPlay && this.state.playing === false &&
+          !this.startPending) {
         this.play().then(() => {
           this.state.autoPlayTriggered = true;
         }).catch((e) => console.warn('Autoplay failed', e));

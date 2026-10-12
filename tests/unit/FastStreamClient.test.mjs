@@ -119,9 +119,14 @@ class FakePlayer extends EventEmitter {
  * @return {Object}
  */
 function makeSource(url, extra = {}) {
-  const source = {url, identifier: url, mode: 'hls', headers: {}, ...extra, destroy() {}};
-  source.copy = () => ({...source});
-  return source;
+  return {
+    url, identifier: url, mode: 'hls', headers: {}, ...extra, destroy() {},
+    // Of the source it is called on, as VideoSource.copy(): a copy whose URL was changed
+    // (recoverPlayer's time) is copied with that URL.
+    copy() {
+      return {...this};
+    },
+  };
 }
 
 /**
@@ -520,6 +525,124 @@ describe('FastStreamClient, a time in the player page\'s address', () => {
     });
     const fallback = await setSource(client, makeSource('http://127.0.0.1/fallback.mp4'));
     expect(fallback.seeks).toContain(42);
+  });
+});
+
+describe('FastStreamClient, a source that comes with its own time', () => {
+  // Autoplay, and the resume of a player built again after an error, played the new player
+  // from 0 at once; its time came once the remembered-time lookup and the wait for the
+  // player were done, a second or more later. A film built again an hour in played its
+  // opening, then jumped back (kinoger, 2026-10-12).
+
+  /**
+   * Records what the client plays, and at which time of its player.
+   * @param {FastStreamClient} client
+   * @return {Array<number>} The times it played at.
+   */
+  function recordPlays(client) {
+    const plays = [];
+    client.play = vi.fn(async () => {
+      plays.push(client.player.currentTime);
+    });
+    return plays;
+  }
+
+  it('autoplays only once its time is applied, without waiting for the remembered time', async () => {
+    const client = makeClient({autoPlay: true, storeProgress: true});
+    // A lookup that is still running: the source's own time does not wait for it.
+    client.progressMemory = makeProgressMemory({lastTime: 7}, new Promise(() => {}));
+    const plays = recordPlays(client);
+    const player = await setSource(client, makeSource('http://127.0.0.1/film.mp4?faststream-timestamp=3725'), (made) => {
+      made.duration = 7200;
+      made.video.readyState = 0;
+    });
+
+    expect(plays).toEqual([]);
+    expect(player.seeks).not.toContain(3725);
+
+    // The element has its metadata, and no frame yet.
+    player.video.readyState = 1;
+    player.emit(DefaultPlayerEvents.LOADEDMETADATA);
+    await settle();
+
+    expect(player.seeks).toContain(3725);
+    expect(plays).toEqual([3725]);
+    expect(client.startPending).toBe(null);
+  });
+
+  it('does not autoplay at canplay before its time is applied', async () => {
+    const client = makeClient({autoPlay: true});
+    const plays = recordPlays(client);
+    const player = await setSource(client, makeSource('http://127.0.0.1/film.mp4?faststream-timestamp=3725'), (made) => {
+      made.video.readyState = 0;
+    });
+
+    player.emit(DefaultPlayerEvents.CANPLAY);
+    await settle();
+
+    expect(plays).toEqual([]);
+  });
+
+  it('resumes a player built again after an error at its time, not from 0 first', async () => {
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    client.recoveries = {url: null, times: []};
+    const first = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    client.playedSource = client.source;
+    first._currentTime = 3725.4;
+    first.paused = false;
+
+    let made = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      made = new FakePlayer(makeSource('http://127.0.0.1/film.mp4'));
+      made.duration = 7200;
+      made.video.readyState = 0;
+      return made;
+    });
+    const plays = recordPlays(client);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(client.recoverPlayer(first, 'Playback stuck at 3725.4')).toBe(true);
+    await client.sourceChange;
+    await settle();
+    expect(made).not.toBe(null);
+    expect(plays).toEqual([]);
+
+    made.video.readyState = 1;
+    made.emit(DefaultPlayerEvents.LOADEDMETADATA);
+    await settle();
+
+    expect(made.seeks).toContain(3725);
+    expect(plays).toEqual([3725]);
+  });
+
+  it('stays paused when it was paused', async () => {
+    const client = makeClient();
+    client.downloadManager.keepStorageOnce = vi.fn();
+    client.recoveries = {url: null, times: []};
+    const first = await setSource(client, makeSource('http://127.0.0.1/film.mp4'), (made) => {
+      made.duration = 7200;
+    });
+    client.playedSource = client.source;
+    first._currentTime = 600;
+
+    let made = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      made = new FakePlayer(makeSource('http://127.0.0.1/film.mp4'));
+      made.duration = 7200;
+      return made;
+    });
+    const plays = recordPlays(client);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    expect(client.recoverPlayer(first, 'Playback stuck at 600')).toBe(true);
+    await client.sourceChange;
+    await settle();
+
+    expect(made.seeks).toContain(600);
+    expect(plays).toEqual([]);
   });
 });
 

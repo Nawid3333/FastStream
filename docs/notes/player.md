@@ -152,6 +152,44 @@ played a minute in, and one padded to whole ranges that must fire `ended` with n
 the one after its end (without `endsAt`: 11 ranges past the end and no end, or 6 retries of the
 416 and the load error).
 
+## AAC in a channel layout of its own, on Windows (2026-10-12)
+
+Reported on kinoger.com (fsst.online, now incvideo1.online: one MP4 per quality, `[360p]url,...`
+in a Playerjs page; the site itself is behind Cloudflare's challenge, the hoster is not): the
+player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all three qualities:
+33 s buffered, `readyState` 1, 0 frames for minutes - and the same in Firefox's own player
+(`PlayerModes.DIRECT`), so not FastStream's MSE path.
+
+- **The cause.** Its sound is AAC LC with `channelConfiguration` 0 and a PCE (6.0, written by
+  Lavc62.4.100: front pair and centre, a lone side channel, the back pair). Firefox on Windows
+  decodes AAC with WMF (the utility process' `WMFDecoderModule`); MOZ_LOG
+  `PlatformDecoderModule:5` showed it take 12,501 packets with "0 decoded data ... decoder has
+  latency" and no error, and Firefox waits for the first audio before the first frame. Through
+  WebCodecs (the same decoder): a PCE with the front centre after the front pair gives no output,
+  as does one with a lone side channel (Windows has no speaker for it); stereo with a PCE, 5.1 by
+  `channelConfiguration` 6, and 6.0 relabelled front centre first with the single at the back
+  decode. The ffmpeg here (Lavc62.30, a 2026-04 build) and Ubuntu 24.04's (Lavc60.31) write 6.0
+  front pair first: it fails too. CI's Windows ffmpeg (Lavc63.1, 2026-10) writes it centre first,
+  as the relabel does, so there only the film-labelled e2e fixture exercises the fix.
+- **The fix** (`players/mp4/AacLayout.mjs`, from `MP4Player.setupHLS`): the PCE in the esds box
+  mp4box writes into the audio init segment is relabelled in place - the front centre first, a
+  lone side channel to the back centre where there is none. A decoder finds each element of a
+  packet by type and tag, so the packets stay as they are: each of the six channels WebCodecs
+  gave back matched one of ffmpeg's decode of the original sample for sample (correlation 1.0).
+  It runs on every platform: ffmpeg, which Firefox decodes AAC with on Linux, gives the same six
+  channels from the relabelled config (correlation 1.0 each) and names its layout hexagonal, where
+  the original's was unknown.
+  The esds bytes are mp4box's copy: a save writes the file as downloaded. Firefox's own player
+  (DIRECT) cannot be helped: there is no init segment to change. Not relabelled either: HLS and
+  DASH, whose init segments hls.js and dash.js make (no such stream seen yet).
+- **Tests:** `AacLayout.test.mjs` (the film's and that ffmpeg's configs, layouts left alone);
+  `mp4-files.e2e.mjs` plays 160 s of 6.0 AAC as the machine's ffmpeg writes it and relabelled as
+  the film had it - on main both sat at 0 with `readyState` 1 on Windows. Short files hide it: a
+  20 s clip played, because its audio reached the end of the stream and Firefox went on without.
+- **The same hoster's stereo files** (Foundation S01E01, 499 MB) played clean for 12 minutes in the
+  test Firefox: the whole file downloaded in about 50 s, seeks to 40:00 and back, 4x - no stall,
+  no nudge, no rebuild, 4 dropped frames of 11,970 at 1x.
+
 ## Player core: what the loaders tell the libraries (2026-09-28)
 
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes
@@ -388,6 +426,16 @@ side by side with the two after it (MP4: a 3 s stall right after the seek).
   load error with its reason (`player-recovery.e2e.mjs`). Not for a network failure
   (`isNetworkFailure`: a new player asks the same server for the same fragment): the full web
   e2e run caught that, `mp4-loading.e2e.mjs`'s error came a minute late.
+  - **Nothing of the start plays first (2026-10-12, kinoger).** The new player started at 0:00
+    at once (autoplay, and `recoverPlayer`'s own `play()` once `setSource` resolved), and its
+    time came after the remembered-time lookup (two 600,000-round PBKDF2 hashes) and the init
+    hook's next 1 s poll: the user saw the film start from the beginning, then jump back. A
+    source with a time of its own (`faststream-timestamp`: a rebuild, `playDirectly`, a page's
+    timestamp) now has it applied at `loadedmetadata`, before any frame, without waiting for the
+    lookup (made afterwards), and nothing plays before (`startPending`, which the `canplay`
+    autoplay checks too; `setSource(..., {play})` resumes after it). `player-recovery.e2e.mjs`
+    notes every time a rebuilt player plays at: on main the MP4 one played at 0 before 101 s;
+    the HLS one did not show it (hls.js loads nothing at 0), so there it only guards.
 - **The load error names its reason** (`describePlayerError`): the client's handler read a
   second argument that nothing passes, so every failure said only "Failed to load video!".
   Now e.g. "Failed to load video! (manifestLoadError (HTTP 404))" (`failed-load.e2e.mjs`).

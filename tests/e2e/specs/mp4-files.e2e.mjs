@@ -18,6 +18,13 @@
 //   RFC 9110 allows). This one was already fine - the length is then worked out from the
 //   file's sample table - and is held here: a file that fits in MP4Player's first 1 MB
 //   range never needs it, so this is the long fixture, sought far into.
+// - Sound in a channel layout of its own (6.0 AAC, whose PCE Windows' decoder takes and gives
+//   nothing back for, AacLayout.mjs): the video waited for its first audio, at 0:00 for good -
+//   a film on kinoger, 2026-10-12. Two of them: 6.0 as this ffmpeg writes it (Lavc62.30 and older
+//   put the front centre after the front pair), and the same relabelled the way the film's encoder
+//   had it (a lone side channel too), which does not depend on the ffmpeg. Long enough that
+//   MP4Player does not append all of the audio at once: a stream ended early, Firefox goes on
+//   without it.
 //
 // The fragmented file is cut from the MP4 fixture by ffmpeg, as save-fmp4.e2e.mjs's are.
 
@@ -27,6 +34,8 @@ import http from 'node:http';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {browser, expect} from '@wdio/globals';
+
+import {windowsAacLayout} from '../../../chrome/player/players/mp4/AacLayout.mjs';
 
 const fixturesDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../fixtures');
 const MP4_FIXTURE = path.join(fixturesDir, 'sample.mp4');
@@ -56,6 +65,100 @@ function ensureFile(name, args) {
       `CI installs ffmpeg; locally it must be on PATH.\n${stderr || ''}`);
   }
   fs.renameSync(partial, file);
+}
+
+/**
+ * Where a file's AAC config (AudioSpecificConfig) is: the DecoderSpecificInfo in its esds box.
+ * @param {Buffer} bytes - The file.
+ * @return {{start: number, end: number}}
+ */
+function aacConfigRange(bytes) {
+  let pos = bytes.indexOf('esds');
+  if (pos < 0) throw new Error('the file has no esds box');
+  pos += 4 + 4; // the box type, then its version and flags
+  const descriptor = () => {
+    const tag = bytes[pos++];
+    let length = 0;
+    for (let i = 0; i < 4; i++) {
+      const byte = bytes[pos++];
+      length = (length << 7) | (byte & 0x7f);
+      if (!(byte & 0x80)) break;
+    }
+    return {tag, length};
+  };
+  if (descriptor().tag !== 3) throw new Error('no ES_Descriptor');
+  pos += 3; // ES_ID and flags (none set by ffmpeg)
+  if (descriptor().tag !== 4) throw new Error('no DecoderConfigDescriptor');
+  pos += 13;
+  const info = descriptor();
+  if (info.tag !== 5) throw new Error('no DecoderSpecificInfo');
+  return {start: pos, end: pos + info.length};
+}
+
+/**
+ * Copies ffmpeg's 6.0 file with its PCE relabelled the way the kinoger film's encoder
+ * (Lavc62.4.100) wrote it: the front pair and the centre, a lone side channel, the back pair.
+ * The same four elements, so the same length: changed in place.
+ * @param {string} name - The copy, under fixtures/mp4-shapes/.
+ * @param {string} from - ffmpeg's 6.0 file, under fixtures/mp4-shapes/.
+ * @return {void}
+ */
+function ensureFilmLayout(name, from) {
+  const dir = path.join(fixturesDir, 'mp4-shapes');
+  const file = path.join(dir, name);
+  if (fs.existsSync(file)) return;
+  const bytes = fs.readFileSync(path.join(dir, from));
+  const {start, end} = aacConfigRange(bytes);
+  const asc = bytes.subarray(start, end);
+  let pos = 0;
+  const read = (count) => {
+    let value = 0;
+    for (let i = 0; i < count; i++, pos++) value = (value << 1) | ((asc[pos >> 3] >> (7 - (pos & 7))) & 1);
+    return value;
+  };
+  const write = (count, value) => {
+    for (let i = 0; i < count; i++, pos++) {
+      const mask = 1 << (7 - (pos & 7));
+      asc[pos >> 3] = (value >> (count - 1 - i)) & 1 ? asc[pos >> 3] | mask : asc[pos >> 3] & ~mask;
+    }
+  };
+  // AAC LC, a rate by index, channelConfiguration 0, the GASpecificConfig's three flags; the
+  // PCE's tag, object type and rate.
+  const head = [read(5), read(4), read(4), read(3)];
+  read(10);
+  const countsAt = pos;
+  const counts = [read(4), read(4), read(4), read(2), read(3), read(4), read(1), read(1), read(1)];
+  const elements = [];
+  for (let i = 0; i < counts[0] + counts[1] + counts[2]; i++) elements.push({cpe: read(1), tag: read(4)});
+  const pairs = elements.filter((e) => e.cpe);
+  const singles = elements.filter((e) => !e.cpe);
+  if (head[0] !== 2 || head[1] === 15 || head[2] !== 0 || head[3] !== 0 || counts.slice(3).some(Boolean) ||
+      pairs.length !== 2 || singles.length !== 2) {
+    throw new Error(`ffmpeg's 6.0 is not two pairs and two singles: ${asc.toString('hex')}`);
+  }
+  pos = countsAt;
+  write(4, 2);
+  write(4, 1);
+  write(4, 1);
+  pos += 2 + 3 + 4 + 3;
+  for (const e of [pairs[0], singles[0], singles[1], pairs[1]]) {
+    write(1, e.cpe);
+    write(4, e.tag);
+  }
+  const partial = file + '.part.mp4';
+  fs.writeFileSync(partial, bytes);
+  fs.renameSync(partial, file);
+}
+
+/**
+ * A fixture's AAC config.
+ * @param {string} name - Under fixtures/mp4-shapes/.
+ * @return {Uint8Array}
+ */
+function aacConfig(name) {
+  const bytes = fs.readFileSync(path.join(fixturesDir, 'mp4-shapes', name));
+  const {start, end} = aacConfigRange(bytes);
+  return new Uint8Array(bytes.subarray(start, end));
 }
 
 /**
@@ -133,6 +236,8 @@ describe('MP4 files of other shapes', function() {
     ensureFile('long-fragmented.mp4', ['-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
     ensureFile('longer-fragmented.mp4',
         ['-stream_loop', '2', '-i', LONG_FIXTURE, '-c', 'copy', '-movflags', 'frag_keyframe+empty_moov']);
+    ensureFile('long-6.0.mp4', ['-i', LONG_FIXTURE, '-c:v', 'copy', '-af', 'aformat=channel_layouts=6.0', '-c:a', 'aac']);
+    ensureFilmLayout('long-6.0-film.mp4', 'long-6.0.mp4');
 
     const bytes = fs.readFileSync(LONG_FIXTURE);
     server = http.createServer((req, res) => {
@@ -230,6 +335,23 @@ describe('MP4 files of other shapes', function() {
     expect(back.currentTime).toBeGreaterThan(61);
     expect(back.currentTime).toBeLessThan(70);
     expect(back.failed).toBe(false);
+  });
+
+  it('plays an MP4 whose sound is 6.0 AAC, as this ffmpeg writes it', async function() {
+    // Lavc62.30 and older write the front centre after the front pair: relabelled. Lavc63.1 (CI's
+    // Windows ffmpeg) writes it first: played as written. The next test does not depend on it.
+    const asc = aacConfig('long-6.0.mp4');
+    console.log(`      its AAC config: ${Buffer.from(asc).toString('hex')}, relabelled: ${!!windowsAacLayout(asc)}`);
+    const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-6.0.mp4`);
+    expect(state.currentTime).toBeGreaterThan(1);
+    expect(state.failed).toBe(false);
+  });
+
+  it('plays an MP4 whose 6.0 AAC has a lone side channel, as the kinoger film had', async function() {
+    expect(windowsAacLayout(aacConfig('long-6.0-film.mp4'))).not.toBe(null);
+    const state = await playFor(`${globalThis.__E2E_FIXTURES_ORIGIN__}/fixtures/mp4-shapes/long-6.0-film.mp4`);
+    expect(state.currentTime).toBeGreaterThan(1);
+    expect(state.failed).toBe(false);
   });
 
   it('plays an MP4 from a server that does not give its length, far into it', async function() {
