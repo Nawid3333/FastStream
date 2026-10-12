@@ -244,6 +244,7 @@ async function buildWeb() {
     'content.js',
     'overlay-guard.js',
     'episode-links.js',
+    'page-qualities.js',
     'background',
     '_locales',
     'perms.html',

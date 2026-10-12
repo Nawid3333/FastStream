@@ -124,6 +124,7 @@ export async function loadBackground({
     onBeforeSendHeaders: event(),
     onHeadersReceived: event(),
     onErrorOccurred: event(),
+    onBeforeRedirect: event(),
   };
   const tabEvents = {
     onRemoved: event(),
@@ -361,6 +362,21 @@ export async function loadBackground({
     const full = {statusCode: 200, responseHeaders: [], ...details, ...extra};
     for (const listener of webRequest.onHeadersReceived.listeners) listener(full);
     await settle();
+  };
+
+  /**
+   * A redirect: the request goes on to another address, with the same request id, as
+   * Firefox's webRequest has it (onBeforeRedirect, then the headers are sent again).
+   * @param {Object} details - The request's details (bg.requestSent).
+   * @param {string} to - Where it is redirected.
+   * @return {Object} The request's details at its new address, for bg.responded.
+   */
+  bg.redirected = (details, to) => {
+    for (const listener of webRequest.onBeforeRedirect.listeners) listener({...details, redirectUrl: to, statusCode: 302});
+    const next = {...details, url: to};
+    for (const listener of webRequest.onBeforeRequest.listeners) listener(next);
+    for (const listener of webRequest.onBeforeSendHeaders.listeners) listener(next);
+    return next;
   };
 
   /**

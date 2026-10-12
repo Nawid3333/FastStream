@@ -7,6 +7,7 @@ import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
 import {ProblemKinds, recordProblem} from '../player/utils/ProblemLog.mjs';
 import {EnvUtils} from '../player/utils/EnvUtils.mjs';
+import {desiredHeight, listForSource, pickQuality} from '../player/utils/PageQualityPick.mjs';
 import {BackgroundUtils} from './BackgroundUtils.mjs';
 import {parseCustomSourcePatterns} from './CustomSourcePatterns.mjs';
 import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
@@ -182,6 +183,9 @@ const SourceLengthWaitMs = 2500;
 // The page answers within milliseconds unless its own scripts keep it busy; then the
 // longest decides, as before the question.
 const PlayedVideoWaitMs = 1000;
+// The longest a player, or a hand-off to mpv, waits for a page to list its player's qualities
+// (getPageQualities). It reads them from what it holds: milliseconds, unless its scripts are busy.
+const PageQualitiesWaitMs = 1000;
 // How long a video's file the page told as it loaded (content.js on loadedmetadata, a
 // LOADED_MEDIA with live set) waits before it is taken in. The request for it, when there
 // was one, is the one to keep: its own headers (an Origin), not the page's stand-ins. It
@@ -1739,10 +1743,61 @@ function getSourceFromURL(frame, url) {
   });
 }
 
-function addSource(frame, url, mode, headers, time = Date.now()) {
+/**
+ * Keeps a stream a frame's page asked for.
+ * @param {Object} frame - FrameHolder.
+ * @param {string} url
+ * @param {string} mode
+ * @param {*} headers
+ * @param {number} [time]
+ * @param {?string} [requestedUrl] - The address the request was first made to, when a
+ *   redirect brought it here: the one a page's player lists (listForSource).
+ */
+function addSource(frame, url, mode, headers, time = Date.now(), requestedUrl = null) {
   frame.addSource({
     url, mode, headers, time,
+    ...(requestedUrl && requestedUrl !== url ? {requestedUrl} : {}),
   });
+}
+
+/**
+ * The quality lists a frame's page holds for its player's files (content.js, page-qualities.js).
+ * @param {Object} tab - TabHolder.
+ * @param {number} frameId
+ * @return {Promise<Array<Array<{url: string, label: string, height: number}>>>} None when the
+ *   page did not answer within PageQualitiesWaitMs.
+ */
+function getPageQualities(tab, frameId) {
+  if (tab.tabId < 0 || typeof frameId !== 'number') return Promise.resolve([]);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve([]), PageQualitiesWaitMs);
+    chrome.tabs.sendMessage(tab.tabId, {type: MessageTypes.GET_PAGE_QUALITIES}, {frameId}, (lists) => {
+      BackgroundUtils.checkMessageError('get_page_qualities');
+      clearTimeout(timer);
+      resolve(Array.isArray(lists) ? lists : []);
+    });
+  });
+}
+
+/**
+ * Gives each stream the qualities its page's player offers as files of their own, as
+ * `qualities`, asked of the frames the streams were found in: the player lists them and plays
+ * the one the user's quality setting asks for.
+ * @param {Object} tab - TabHolder.
+ * @param {Array<{url: string, requestedUrl?: string, frameId: number, qualities?: Array<Object>}>} sources -
+ *   collectSources'.
+ * @return {Promise<void>}
+ */
+async function attachPageQualities(tab, sources) {
+  const frameIds = [...new Set(sources.map((source) => source.frameId))];
+  const answers = await Promise.all(frameIds.map((frameId) => getPageQualities(tab, frameId)));
+  /** @type {Map<number, Array<Array<{url: string, label: string, height: number}>>>} */
+  const lists = new Map();
+  frameIds.forEach((frameId, i) => lists.set(frameId, answers[i]));
+  for (const source of sources) {
+    const list = listForSource(source, lists.get(source.frameId) || []);
+    if (list) source.qualities = list;
+  }
 }
 
 /**
@@ -2105,6 +2160,7 @@ async function sendSources(frame) {
   sources.forEach((source, i) => {
     source.duration = lengths[i];
   });
+  await attachPageQualities(frame.tab, sources);
 
   if (frame.parent && sources.length) {
     frame.parent.noteHandedToPlayer(frame.frameId, {subtitles, sources, video});
@@ -2412,7 +2468,9 @@ async function onSourceRecieved(details, frame, mode) {
   if (getSourceFromURL(frame, url)) return;
 
   // A stream recovered from the page (recoverFrameSources) keeps when the page asked for it.
-  addSource(frame, url, mode, customHeaders, details.time);
+  // A redirected one, the address the page asked for (the one its player lists).
+  addSource(frame, url, mode, customHeaders, details.time,
+      details.requestId !== undefined ? frame.tab.redirectOrigin(details.requestId) : null);
 
   await ensureOptions();
   // Its length, read now: by the time a player asks for the page's streams, it is known.
@@ -3504,6 +3562,26 @@ function openMpvWithSources(tab) {
 }
 
 /**
+ * The quality of a stream's file the user's setting asks for, when the page's player offers
+ * the file in several (page-qualities.js), asked of the frame the stream was found in.
+ * @param {?Object} tab - TabHolder.
+ * @param {string} url - The stream.
+ * @return {Promise<?{url: string, list: Array<Object>}>} The file to play and the list, or null.
+ */
+async function pageQualityChoice(tab, url) {
+  if (!tab) return null;
+  for (const frame of tab.getFrames()) {
+    const source = frame.getSources().find((s) => s.url === url || s.requestedUrl === url);
+    if (!source) continue;
+    const list = listForSource(source, await getPageQualities(tab, frame.frameId));
+    if (!list) continue;
+    const best = pickQuality(list, desiredHeight(Options.defaultQuality));
+    return {url: best ? best.url : url, list};
+  }
+  return null;
+}
+
+/**
  * Hands a stream to mpv, unless the page's request for it went through Firefox VPN: mpv
  * runs outside Firefox, asks from the user's own address, and a site that ties its stream
  * to the VPN's refuses it ("could not open the stream", VOE, 2026-10-06). Then mpv is not
@@ -3523,6 +3601,18 @@ async function openInMpv(tabId, url, ...rest) {
       incognito = !!(await chrome.tabs.get(tabId))?.incognito;
     } catch (e) {
       // The tab went: both kinds of window count.
+    }
+  }
+  // The page's player offers this file in other qualities too (page-qualities.js): mpv gets
+  // the one the user's quality setting asks for, and the list. MPV mode sent the page's
+  // default, the lowest on kinoger's fsst hoster. Not for the player's button, which sends the
+  // one it plays and its own list (extras.qualities).
+  if (tabId !== undefined && tabId >= 0 && !(rest[5] && 'qualities' in rest[5])) {
+    const choice = await pageQualityChoice(Tabs.getTab(tabId), url);
+    if (choice) {
+      if (Logging && choice.url !== url) console.log('[MPV] the page\'s best quality instead:', choice.url);
+      url = choice.url;
+      rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
   }
   if (VpnMirror.throughBrowserVpn(url, incognito)) {
@@ -3610,6 +3700,17 @@ chrome.webRequest.onBeforeSendHeaders.addListener((details) => {
 }, {
   urls: ['<all_urls>'],
 }, webRequestPerms);
+
+// Where a redirected request was first sent (TabHolder.noteRedirect): a page's player lists its
+// files by those addresses, and the stream is found at the end of the redirect (addSource).
+// A <video>'s requests and a player's own fetches: the files a player lists.
+chrome.webRequest.onBeforeRedirect.addListener((details) => {
+  if (isTablessRequest(details)) return;
+  Tabs.getTabOrCreate(details.tabId).noteRedirect(details.requestId, details.url);
+}, {
+  urls: ['<all_urls>'],
+  types: ['media', 'xmlhttprequest', 'other'],
+});
 
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {

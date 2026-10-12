@@ -190,6 +190,48 @@ player buffered and never played. Measured on "Die Akte Jane" (fsst 975054), all
   test Firefox: the whole file downloaded in about 50 s, seeks to 40:00 and back, 4x - no stall,
   no nudge, no rebuild, 4 dropped frames of 11,970 at 1x.
 
+## The qualities a page's own player offers (2026-10-12)
+
+His report (kinoger "Matchbox", the fsst hoster): the player showed one quality and played the
+lowest, though the page's player offers three; MPV mode sent the lowest too. The hoster's
+Playerjs is set up with `file: "[360p]<get_file link>,[720p]...,[1080p]..."` and
+`default_quality: "360p"`; the page's video asks for the 360p link, which answers with a 302 to
+the CDN (`remote_control.php?time=...`). That one request was all FastStream saw. Measured in the
+test Firefox: `player.api("qualities")` gives only the labels (`["360p","720p","1080p"]`); the
+links are only in the page's script. FastStream had the 360p file twice (the link, from the
+video's `loadedmetadata`, and the CDN's address) and played the CDN's.
+
+- **Reading them** (`chrome/page-qualities.js`, a content script before content.js; the
+  background asks with `GET_PAGE_QUALITIES`): `<source>` lists with a quality attribute (Plyr's
+  `size`, Video.js's `label`/`res`, Fluid Player's `title`, OpenPlayerJS's and MediaElement's
+  `data-quality`), Artplayer's instances (`option.quality`, checked against its 5.4.0 typings),
+  JW Player's playlist item (`sources` with labels), a DPlayer in a page variable (it keeps no
+  list of its instances), and Playerjs's file string in the page's scripts. Only what the page
+  holds; no guessed sibling URLs. A list counts with 2 to 12 files.
+- **Tying them to the stream** (`PageQualityPick.listForSource`): the stream's URL, or the address
+  its request was first made to (`TabHolder.noteRedirect`, from `webRequest.onBeforeRedirect`; the
+  source keeps it as `requestedUrl`). `sendSources` asks each frame the streams came from
+  (`attachPageQualities`, 1 s at most) and sends the list as `qualities`.
+- **Playing them** (main.mjs): the stream played is the entry the quality setting asks for
+  (`pickQuality`: the smallest at or above it, Auto the highest; none when no entry says its
+  height). The quality menu lists them (`FastStreamClient.getMenuVideoLevels`, ids
+  `page-quality:<i>`); the player's own levels stay as they were, for the analyzers, the
+  downloads and the embed API. A pick plays the file from the same time, nothing of its start
+  first (`playPageQuality`, the start-time path of #465). The remembered time goes by the list's
+  first file (`VideoSource.setQualities`): it went by the URL played, and the CDN's
+  `remote_control.php` was the same for every film on its node.
+- **MPV mode** (`openInMpv`): the same pick, asked of the page at the hand-off; the list goes in
+  the host message as `qualities` (`MpvBackend.relayQualities`). Host 11 ignores the field; mpv
+  offering the list is the next step (docs/notes/mpv.md). The player's own mpv button is not
+  overridden.
+- **Tests:** `pageQualities.test.mjs` (the hoster's real file string, each player's shape),
+  `PageQualityPick.test.mjs`, the menu and the switch in `FastStreamClient.test.mjs`, MPV in
+  `backgroundMpv.test.mjs` (the hoster's redirect; two fail without the pick), and
+  `page-qualities.e2e.mjs`: the hoster rebuilt locally (a cross-origin frame, the file string,
+  302s to a "CDN") - the 720p file plays, the menu offers both, a switch at 4 s goes on at 4 s.
+  Live, on the real hoster (fsst 975054): 1080p (1920x816) played, 360p/720p/1080p listed, the
+  switch to 720p went on from where it was.
+
 ## Player core: what the loaders tell the libraries (2026-09-28)
 
 - **hls.js's playlist loader has no `onAbort`** (`hls.mjs`, `PlaylistLoader.load` passes

@@ -72,6 +72,25 @@ export class VideoSource {
     this.headers = this.filterHeaders(this.headers);
     this.defaultLevelInfo = null;
     this.loadedFromArchive = false;
+    // The qualities the page's own player offers this file in, as files of their own
+    // ([{url, label, height}], page-qualities.js), or null (setQualities).
+    this.qualities = null;
+  }
+
+  /**
+   * Gives the source the qualities its page's player offers it in. They are one video: the
+   * remembered time goes by the list's first file, whichever is played (it went by the URL
+   * played, and a hoster's redirect target, the same for every film on its CDN node, shared
+   * one remembered time between them).
+   * @param {?Array<{url: string, label: string, height: number}>} qualities
+   */
+  setQualities(qualities) {
+    if (!Array.isArray(qualities) || qualities.length < 2) {
+      this.qualities = null;
+      return;
+    }
+    this.qualities = qualities.map((entry) => ({url: entry.url, label: entry.label || '', height: entry.height || 0}));
+    this.identifier = this.qualities[0].url.split(/[?#]/)[0];
   }
 
   /**
@@ -178,6 +197,7 @@ export class VideoSource {
     newsource.defaultLevelInfo = this.defaultLevelInfo;
     newsource.loadedFromArchive = this.loadedFromArchive;
     newsource.headers = {...this.headers};
+    newsource.qualities = this.qualities ? this.qualities.map((entry) => ({...entry})) : null;
     return newsource;
   }
 }

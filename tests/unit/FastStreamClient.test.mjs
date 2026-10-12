@@ -1121,3 +1121,115 @@ describe('FastStreamClient, "Buffer behind" changed while a video plays', () => 
     expect([client.options.bufferAhead, client.options.bufferBehind, client.state.bufferBehind]).toEqual([0, 0, 0]);
   });
 });
+
+describe('FastStreamClient, the qualities a page\'s player offers its file in', () => {
+  // kinoger's fsst hoster: one MP4 per quality (page-qualities.js lists them). The quality
+  // menu offers them; the player's own levels, which the analyzers and downloads go by, stay.
+  const QUALITIES = [
+    {url: 'https://h.test/1_360p.mp4/', label: '360p', height: 360},
+    {url: 'https://h.test/1_720p.mp4/', label: '720p', height: 720},
+    {url: 'https://h.test/1.mp4/', label: '1080p', height: 1080},
+  ];
+
+  /**
+   * A client playing one of the page's files.
+   * @param {string} url - The one playing.
+   * @return {Promise<{client: FastStreamClient, player: FakePlayer}>}
+   */
+  async function playing(url) {
+    const client = makeClient();
+    client.recoveries = {url: null, times: []};
+    const player = await setSource(client, makeSource(url, {qualities: QUALITIES}), (made) => {
+      made.duration = 7200;
+      made.getVideoLevels = () => new Map([['0:0', {id: '0:0', width: 1920, height: 816}]]);
+      made.getCurrentVideoLevelID = () => '0:0';
+      made.video.videoWidth = 1920;
+      made.video.videoHeight = 816;
+    });
+    return {client, player};
+  }
+
+  it('offers them in the menu, the one playing with its own size', async () => {
+    const {client} = await playing(QUALITIES[2].url);
+    const levels = Array.from(client.getMenuVideoLevels().values());
+    expect(levels.map((level) => [level.id, level.label, level.width, level.height])).toEqual([
+      ['page-quality:0', '360p', 0, 360],
+      ['page-quality:1', '720p', 0, 720],
+      ['page-quality:2', '1080p', 1920, 816],
+    ]);
+    expect(client.getMenuVideoLevelID()).toBe('page-quality:2');
+    // The player's own.
+    expect(Array.from(client.getVideoLevels().keys())).toEqual(['0:0']);
+    expect(client.getCurrentVideoLevelID()).toBe('0:0');
+  });
+
+  it('leaves the menu to a player with qualities of its own', async () => {
+    const {client, player} = await playing(QUALITIES[2].url);
+    player.getVideoLevels = () => new Map([['a', {id: 'a'}], ['b', {id: 'b'}]]);
+    expect(Array.from(client.getMenuVideoLevels().keys())).toEqual(['a', 'b']);
+  });
+
+  it('plays the one picked in the menu from where it was, on playing as it played', async () => {
+    const {client, player} = await playing(QUALITIES[2].url);
+    player._currentTime = 600.7;
+    player.paused = false;
+    let made = null;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      made = new FakePlayer(null);
+      made.duration = 7200;
+      return made;
+    });
+    const plays = [];
+    client.play = vi.fn(async () => {
+      plays.push(client.player.currentTime);
+    });
+
+    client.setCurrentVideoLevelID('page-quality:1');
+    await client.sourceChange;
+    await settle();
+
+    expect(client.source.url).toBe(QUALITIES[1].url);
+    expect(client.source.qualities.map((entry) => entry.url)).toEqual(QUALITIES.map((entry) => entry.url));
+    expect(made.seeks).toContain(600);
+    expect(plays).toEqual([600]);
+    expect(client.getMenuVideoLevelID()).toBe('page-quality:1');
+  });
+
+  it('does nothing for the one playing', async () => {
+    const {client} = await playing(QUALITIES[2].url);
+    const setSource = vi.spyOn(client, 'setSource');
+    client.setCurrentVideoLevelID('page-quality:2');
+    expect(setSource).not.toHaveBeenCalled();
+  });
+});
+
+describe('FastStreamClient, the page\'s qualities with a query of their own', () => {
+  it('knows which plays after a switch, though the time came and went in the query', async () => {
+    // Taking faststream-timestamp off a URL writes its query anew: "a b" came back "a+b", and
+    // the file played matched no entry any more - the menu fell back to the player's level.
+    const qualities = [
+      {url: 'https://h.test/v?q=360&t=a%20b', label: '360p', height: 360},
+      {url: 'https://h.test/v?q=720&t=a%20b', label: '720p', height: 720},
+    ];
+    const client = makeClient();
+    client.recoveries = {url: null, times: []};
+    const player = await setSource(client, makeSource(qualities[1].url, {qualities}), (made) => {
+      made.duration = 7200;
+    });
+    player._currentTime = 30;
+    client.playerLoader.createPlayer = vi.fn(async () => {
+      const made = new FakePlayer(null);
+      made.duration = 7200;
+      return made;
+    });
+    client.play = vi.fn(async () => {});
+
+    client.setCurrentVideoLevelID('page-quality:0');
+    await client.sourceChange;
+    await settle();
+
+    expect(client.source.url).not.toBe(qualities[0].url);
+    expect(client.getMenuVideoLevelID()).toBe('page-quality:0');
+    expect(client.getMenuVideoLevels().size).toBe(2);
+  });
+});

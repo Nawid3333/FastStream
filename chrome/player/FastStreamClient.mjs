@@ -40,6 +40,7 @@ import {downloadingOutside, KEEP_AHEAD_S, KEEP_BEHIND_S, shouldConcentrate, URGE
 import {SILENT_MAX_PLAYBACK_RATE} from './options/KeybindUtils.mjs';
 import {chooseToRelease, DEFAULT_BUDGET_BYTES, DISK_ONLY_ROOM_BYTES, HIGH, isFull, KEEP_IN_RAM_ONLY_WINDOW, KEEP_ON_DISK_WINDOW, LOW, shareOf, weightOf} from './network/MemoryBudget.mjs';
 import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
+import {VideoLevel} from './players/Levels.mjs';
 
 
 /**
@@ -47,6 +48,10 @@ import {VideoTransformUtils} from './utils/VideoTransformUtils.mjs';
  * @extends EventEmitter
  */
 const SET_VOLUME_USING_NODE = EnvUtils.isWebAudioSupported();
+
+// The quality menu's id of one of the page's qualities, followed by its index in
+// VideoSource.qualities (getPageQualityLevels). No player's own level id starts so.
+const PAGE_QUALITY_LEVEL = 'page-quality:';
 
 // How often recoverPlayer builds the player again for one source: at most RECOVERY_LIMIT
 // times in RECOVERY_WINDOW_MS. A stream that fails again at once after each rebuild ends in
@@ -2483,13 +2488,103 @@ export class FastStreamClient extends EventEmitter {
   }
 
   /**
-   * Sets the current video level ID.
+   * Sets the current video level ID. One of the page's qualities (getMenuVideoLevels) plays
+   * that file instead.
    * @param {string|number} levelID
    */
   setCurrentVideoLevelID(levelID) {
     if (!this.player) return;
+    if (typeof levelID === 'string' && levelID.startsWith(PAGE_QUALITY_LEVEL)) {
+      this.playPageQuality(parseInt(levelID.slice(PAGE_QUALITY_LEVEL.length), 10));
+      return;
+    }
     this.player.setCurrentVideoLevelID(levelID);
     this.checkLevelChange();
+  }
+
+  /**
+   * The qualities the page's player offers this video in as files of their own
+   * (VideoSource.qualities), as levels for the quality menu, when the player has no choice of
+   * its own (an MP4: one level). The player's own levels are unchanged: the analyzers, the
+   * downloads and the embed API go by them.
+   * @return {?Map<string, VideoLevel>}
+   */
+  getPageQualityLevels() {
+    const qualities = this.source?.qualities;
+    if (!qualities || qualities.length < 2 || this.getVideoLevels().size > 1) return null;
+    const index = this.playingPageQuality();
+    if (index < 0) return null;
+    // A label names a size class, not the picture's height: a film's "1080p" is 1920x816. The
+    // file playing shows its own size, the others their label alone.
+    const levels = new Map();
+    qualities.forEach((entry, i) => {
+      const id = PAGE_QUALITY_LEVEL + i;
+      const playing = i === index && this.videoWidth > 0 && this.videoHeight > 0;
+      levels.set(id, new VideoLevel({
+        id,
+        height: playing ? this.videoHeight : entry.height,
+        width: playing ? this.videoWidth : 0,
+        label: entry.label || (entry.height ? entry.height + 'p' : ''),
+      }));
+    });
+    return levels;
+  }
+
+  /**
+   * The video levels the quality menu offers: the page's qualities, else the player's own.
+   * @return {Map}
+   */
+  getMenuVideoLevels() {
+    return this.getPageQualityLevels() || this.getVideoLevels();
+  }
+
+  /**
+   * The quality menu's current level: the page's quality playing, else the player's own.
+   * @return {string|number|null}
+   */
+  getMenuVideoLevelID() {
+    if (this.getPageQualityLevels()) {
+      return PAGE_QUALITY_LEVEL + this.playingPageQuality();
+    }
+    return this.getCurrentVideoLevelID();
+  }
+
+  /**
+   * Which of the page's qualities plays: the entry with the source's URL, both read the same
+   * way (recoverySourceURL). A time taken off a URL's query writes the query anew, and a URL
+   * with a query of its own came back spelt differently.
+   * @return {number} Its index in VideoSource.qualities, -1 when none.
+   */
+  playingPageQuality() {
+    const qualities = this.source?.qualities || [];
+    const playing = this.recoverySourceURL(this.source?.url || '');
+    return qualities.findIndex((entry) => this.recoverySourceURL(entry.url) === playing);
+  }
+
+  /**
+   * Plays another of the page's qualities from where this one is, as a player built again
+   * does (recoverPlayer): nothing of its start first, and on playing only if it played.
+   * @param {number} index - In VideoSource.qualities.
+   */
+  playPageQuality(index) {
+    const source = this.source;
+    const entry = source?.qualities?.[index];
+    if (!entry || index === this.playingPageQuality()) return;
+    const wasPlaying = !!this.state.playing || !this.paused;
+    const next = source.copy();
+    next.url = entry.url;
+    const time = Math.floor(this.currentTime);
+    if (time >= 1 && !this.isLive()) {
+      try {
+        const withTime = new URL(next.url);
+        withTime.searchParams.set('faststream-timestamp', String(time));
+        next.url = withTime.toString();
+      } catch (e) {
+        // Not a URL after all: from the start.
+      }
+    }
+    console.log('Playing the page\'s ' + (entry.label || entry.height + 'p') + ' instead');
+    this.setSource(next, [], {play: wasPlaying}).catch((e) => console.warn('Could not switch the quality', e));
   }
 
   /**

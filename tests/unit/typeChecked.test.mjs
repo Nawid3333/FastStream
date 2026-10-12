@@ -33,6 +33,7 @@ const CHECKED = [
   'chrome/player/players/DecodingCapabilities.mjs',
   'chrome/player/players/mp4/RangeAnswers.mjs',
   'chrome/player/players/mp4/AacLayout.mjs',
+  'chrome/player/utils/PageQualityPick.mjs',
   'chrome/player/utils/AudioUtils.mjs',
   'chrome/player/utils/PlayerErrorUtils.mjs',
   'chrome/player/network/BufferAhead.mjs',

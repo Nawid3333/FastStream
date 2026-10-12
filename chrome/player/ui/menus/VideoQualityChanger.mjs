@@ -171,7 +171,8 @@ export class VideoQualityChanger extends EventEmitter {
   }
 
   updateQualityLevels(client) {
-    const videoLevels = client.getVideoLevels();
+    // The page's own qualities when it offers its file in several (FastStreamClient.getMenuVideoLevels).
+    const videoLevels = client.getMenuVideoLevels();
     if (!videoLevels || videoLevels.size < 1) {
       DOMElements.videoSource.classList.add('hidden');
       return;
@@ -180,7 +181,7 @@ export class VideoQualityChanger extends EventEmitter {
     }
 
     const videoLevelsByDimensions = this.groupLevelsByDimensions(client.getLevelManager().filterVideoLevelsByLanguage(Array.from(videoLevels.values())));
-    const currentVideoLevelID = client.getCurrentVideoLevelID();
+    const currentVideoLevelID = client.getMenuVideoLevelID();
 
     DOMElements.videoSourceList.replaceChildren();
 
@@ -191,12 +192,18 @@ export class VideoQualityChanger extends EventEmitter {
       if (dimensions === '0x0') {
         if (isLevelActive && client.videoWidth > 0 && client.videoHeight > 0) {
           dimensions = `${client.videoWidth}x${client.videoHeight}`;
+        } else if (levels[0].label) {
+          // A label alone ("HQ", one of the page's qualities): no "Unknown" beside it.
+          dimensions = levels[0].label;
         } else {
           dimensions = Localize.getMessage('player_quality_unknown');
         }
+      } else if (levels[0].width === 0) {
+        // A height alone: one of the page's qualities before the video's shape is known.
+        dimensions = `${levels[0].height}p`;
       }
 
-      if (levels[0].label) {
+      if (levels[0].label && levels[0].label !== dimensions) {
         dimensions = `${levels[0].label} ${dimensions}`;
       }
       const levelelement = document.createElement('div');
@@ -211,7 +218,7 @@ export class VideoQualityChanger extends EventEmitter {
         }
 
         // if already active, do nothing
-        const currentLevelID = client.getCurrentVideoLevelID();
+        const currentLevelID = client.getMenuVideoLevelID();
         if (chosen.id === currentLevelID) {
           e.stopPropagation();
           return;
@@ -240,7 +247,9 @@ export class VideoQualityChanger extends EventEmitter {
       icon.classList.add('source_button_icon');
 
       const text = document.createElement('span');
-      const label = `${dimensions}${(levels.length > 1 && isLevelActive) ? '' : ` @${levels.length > 1 ? `${Math.round(levels[0].bitrate / 1000)}-${Math.round(levels[levels.length - 1].bitrate / 1000)}` : Math.round(levels[0].bitrate / 1000)} kbps`}`;
+      // No bitrate where none is known (the page's own qualities, files of their own): "@0 kbps".
+      const bitrateKnown = levels.some((level) => level.bitrate > 0);
+      const label = `${dimensions}${(levels.length > 1 && isLevelActive) || !bitrateKnown ? '' : ` @${levels.length > 1 ? `${Math.round(levels[0].bitrate / 1000)}-${Math.round(levels[levels.length - 1].bitrate / 1000)}` : Math.round(levels[0].bitrate / 1000)} kbps`}`;
 
       text.textContent = (isLevelActive && levels.length <= 1) ? label + ' ' + Localize.getMessage('player_quality_current') : (isLevelActive ? (label + ' ▼') : label);
 
@@ -350,7 +359,7 @@ export class VideoQualityChanger extends EventEmitter {
 
           subLevelElement.addEventListener('click', (e) => {
             // if already active, do nothing
-            const currentLevelID = client.getCurrentVideoLevelID();
+            const currentLevelID = client.getMenuVideoLevelID();
             if (level.id === currentLevelID) {
               e.stopPropagation();
               return;

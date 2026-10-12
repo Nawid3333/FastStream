@@ -9,6 +9,7 @@ import {EnvUtils} from './utils/EnvUtils.mjs';
 import {STILLS_LENGTH, StreamLength} from './utils/StreamLength.mjs';
 import {StreamPick} from './utils/StreamPick.mjs';
 import {loadSubtitles} from './utils/SubtitleFetch.mjs';
+import {desiredHeight, pickQuality} from './utils/PageQualityPick.mjs';
 import {URLUtils} from './utils/URLUtils.mjs';
 import {Utils} from './utils/Utils.mjs';
 import {VideoSource} from './VideoSource.mjs';
@@ -163,15 +164,34 @@ async function recieveSources(request, sendResponse) {
     window.fastStream.setAutoPlay(true);
   }
 
+  /**
+   * A detected stream as a source, with the qualities its page's player offers it in
+   * (page-qualities.js). The one played is the quality the user's setting asks for: the page
+   * asked for its own default, the lowest on kinoger's fsst hoster.
+   * @param {Object} s - The stream, as the background sent it.
+   * @param {boolean} played - Whether it is the one the player plays.
+   * @return {VideoSource}
+   */
+  const toVideoSource = (s, played) => {
+    let url = s.url;
+    if (played && s.qualities) {
+      const best = pickQuality(s.qualities, desiredHeight(window.fastStream.options.defaultQuality));
+      if (best) url = best.url;
+    }
+    const source = new VideoSource(url, s.headers, s.mode);
+    source.setQualities(s.qualities);
+    return source;
+  };
+
   // Should the stream picked fail before it shows anything, the next of those it was
   // picked from plays in its place.
   const fallbacks = autoSetSource ? StreamPick.fallbacks(candidates, autoSetSource).map((s) => {
-    return new VideoSource(s.url, s.headers, s.mode);
+    return toVideoSource(s, false);
   }) : [];
 
   sources.forEach((s) => {
     const isAutoSet = s === autoSetSource;
-    window.fastStream.addSource(new VideoSource(s.url, s.headers, s.mode), isAutoSet, isAutoSet ? fallbacks : []);
+    window.fastStream.addSource(toVideoSource(s, isAutoSet), isAutoSet, isAutoSet ? fallbacks : []);
   });
 
   if (subs) {

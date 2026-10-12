@@ -1860,3 +1860,63 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(navigations).toEqual([]);
   });
 });
+
+describe('MPV mode and a page that offers its file in several qualities', () => {
+  // kinoger's fsst hoster (2026-10-12): a Playerjs with default_quality "360p" and 720p and
+  // 1080p files beside it. The page's <video> asks for its default, which the hoster
+  // redirects to its CDN, and MPV mode sent that: the lowest.
+  const HOSTER = 'https://hoster.test/embed/1/';
+  const file = (quality) => `https://hoster.test/get_file/9/abc/1/1_${quality}.mp4/`;
+  const CDN = 'https://a61.cdn.test/remote_control.php?time=1&file=%2Fvideos%2F1_360p.mp4';
+  const LIST = [
+    {url: file('360p'), label: '360p', height: 360},
+    {url: file('720p'), label: '720p', height: 720},
+    {url: file('1080p'), label: '1080p', height: 1080},
+  ];
+
+  /**
+   * The allowlisted hoster's page asks for its default file, through the redirect.
+   * @param {Object} [options] - Options over MPV mode's.
+   * @param {Array<Array<Object>>} [lists] - What the page answers GET_PAGE_QUALITIES with.
+   * @return {Promise<void>}
+   */
+  async function pagePlays(options = {}, lists = [LIST]) {
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], ...options},
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => (message.type === 'GET_PAGE_QUALITIES' ? lists : undefined),
+    });
+    await bg.navigated(1, HOSTER);
+    const sent = bg.requestSent({tabId: 1, url: file('360p'), type: 'media'});
+    const atCdn = bg.redirected(sent, CDN);
+    await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(100);
+  }
+
+  it('sends the highest the page offers, with the list for mpv', async () => {
+    await pagePlays();
+    expect(bg.toMpv()).toEqual([file('1080p')]);
+    const open = bg.native.find((m) => m.type === 'open');
+    expect(open.qualities).toEqual(LIST);
+    // The page's headers go with it, as with the stream the page asked for.
+    expect(open.headers).toEqual([{name: 'Referer', value: 'https://site.test/'}]);
+  });
+
+  it('sends the quality the user\'s setting asks for', async () => {
+    await pagePlays({defaultQuality: '720p'});
+    expect(bg.toMpv()).toEqual([file('720p')]);
+  });
+
+  it('sends the page\'s own file, as before, when the page lists no qualities', async () => {
+    await pagePlays({}, []);
+    expect(bg.toMpv()).toEqual([CDN]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toBeUndefined();
+  });
+
+  it('does not take another file\'s list for this one', async () => {
+    const other = [{url: 'https://hoster.test/get_file/9/abc/2/2_360p.mp4/', label: '360p', height: 360},
+      {url: 'https://hoster.test/get_file/9/abc/2/2_720p.mp4/', label: '720p', height: 720}];
+    await pagePlays({}, [other]);
+    expect(bg.toMpv()).toEqual([CDN]);
+  });
+});

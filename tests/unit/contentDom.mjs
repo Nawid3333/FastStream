@@ -10,6 +10,7 @@ import {webcrypto} from 'node:crypto';
 // time, the code run below was "user-provided" to CodeQL (js/code-injection).
 import overlayGuardSource from '../../chrome/overlay-guard.js?raw';
 import episodeLinksSource from '../../chrome/episode-links.js?raw';
+import pageQualitiesSource from '../../chrome/page-qualities.js?raw';
 import contentSource from '../../chrome/content.js?raw';
 
 const CAMEL_PROPERTIES = ['width', 'height', 'overflow', 'margin', 'contain', 'display', 'position',
@@ -486,7 +487,7 @@ export function loadContentScript({hostname = 'site.example', entries = [], resp
   context.window = context;
   vm.createContext(context);
   for (const [file, source] of [['chrome/overlay-guard.js', overlayGuardSource], ['chrome/episode-links.js', episodeLinksSource],
-    ['chrome/content.js', contentSource]]) {
+    ['chrome/page-qualities.js', pageQualitiesSource], ['chrome/content.js', contentSource]]) {
     vm.runInContext(source, context, {filename: file});
   }
 
