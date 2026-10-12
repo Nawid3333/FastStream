@@ -106,6 +106,8 @@ export class SaveManager {
       url: source.url,
       headers: headers,
       contentType: this.mpvContentType || undefined,
+      // The page's other qualities of this video, for mpv's own quality menu.
+      qualities: source.qualities || undefined,
       startTime: startTime >= 1 ? startTime : undefined,
       subtitles: subtitles.length > 0 ? subtitles : undefined,
     }, (response) => {

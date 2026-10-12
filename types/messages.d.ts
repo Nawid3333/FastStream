@@ -158,6 +158,8 @@ interface FSMpvOpen extends FSMessageBase {
   startTime?: number;
   /** The subtitle tracks the player shows, as SubRip text (shifts and edits included). */
   subtitles?: Array<{label: string; srt: string}>;
+  /** The qualities the page's player offers the video in (VideoSource.qualities), one of them `url`. */
+  qualities?: Array<{url: string; label: string; height: number}>;
 }
 
 /**
