@@ -172,6 +172,26 @@ export class MpvBackend {
   }
 
   /**
+   * The page's qualities as the host gets them (openStream): http(s) files, each with a label
+   * of at most 40 characters and its height (0 when unknown), at most 12; none for fewer
+   * than two.
+   * @param {*} qualities - [{url, label, height}] (PageQualityPick).
+   * @return {?Array<{url: string, label: string, height: number}>}
+   */
+  static relayQualities(qualities) {
+    if (!Array.isArray(qualities)) return null;
+    const relayed = qualities
+        .filter((entry) => entry && MpvBackend.isStreamUrl(entry.url))
+        .slice(0, 12)
+        .map((entry) => ({
+          url: entry.url,
+          label: typeof entry.label === 'string' ? entry.label.slice(0, 40) : '',
+          height: Number.isFinite(entry.height) && entry.height > 0 ? Math.round(entry.height) : 0,
+        }));
+    return relayed.length >= 2 ? relayed : null;
+  }
+
+  /**
    * Picks the headers worth relaying to mpv from a webRequest header list.
    * Duplicates are dropped, keeping the first value seen for each name.
    * @param {Array<{name: string, value: string}>|undefined} headerList
@@ -222,8 +242,10 @@ export class MpvBackend {
    *   playback position by. Only http(s) URLs are relayed.
    * @param {string} [pageTitle] - The tab's title, which mpv shows for the stream
    *   (window, taskbar, top bar); without one the host shows the stream's host name.
-   * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>}} [extras]
-   *   - Where the browser's player was, and the subtitles it shows (the player's button).
+   * @param {{startTime?: number, subtitles?: Array<{label: string, srt: string}>,
+   *   qualities?: Array<{url: string, label: string, height: number}>}} [extras]
+   *   - Where the browser's player was, the subtitles it shows (the player's button), and the
+   *   qualities the page's player offers the file in.
    * @return {Promise<{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean,
    *   focus?: string, foreground?: string, reused?: boolean}>}
    *   Host response; noHost when the host itself could not be reached, hostOutdated when
@@ -282,6 +304,13 @@ export class MpvBackend {
     const relayHeaders = MpvBackend.pickRelayHeaders(headers);
     if (relayHeaders) {
       message.headers = relayHeaders;
+    }
+
+    // The qualities the page's player offers the file in (page-qualities.js), the one sent
+    // among them, for mpv to switch between: http(s) files with a short label, at most 12.
+    const qualities = MpvBackend.relayQualities(extras.qualities);
+    if (qualities) {
+      message.qualities = qualities;
     }
 
     // Last, so the rest of the message counts: the subtitles that fit under the host's

@@ -65,6 +65,7 @@
       "js": [
         "overlay-guard.js",
         "episode-links.js",
+        "page-qualities.js",
         "content.js"
       ]
     }

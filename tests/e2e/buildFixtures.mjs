@@ -150,7 +150,7 @@ async function ensureLongAvFixture() {
  * @param {string} what - The fixture that needs it, for the message.
  * @return {string} The encoder's name.
  */
-function h264Encoder(what) {
+export function h264Encoder(what) {
   const {stdout} = spawnSync('ffmpeg', ['-hide_banner', '-encoders'], {encoding: 'utf8'});
   const encoder = ['libx264', 'libopenh264'].find((name) => (stdout || '').split(/\r?\n/).some((line) => line.trim().split(/\s+/)[1] === name));
   if (!encoder) {

@@ -104,6 +104,9 @@ describe('VideoQualityChanger: what a click hands over', () => {
       getVideoLevels: () => new Map(levels.map((version) => [version.id, version])),
       getCurrentVideoLevelID: () => 'hevc-hw',
     };
+    // The menu's, with no page qualities: the player's own (FastStreamClient.getMenuVideoLevels).
+    client.getMenuVideoLevels = client.getVideoLevels;
+    client.getMenuVideoLevelID = client.getCurrentVideoLevelID;
     const m = manager(client);
     client.getLevelManager = () => m;
 

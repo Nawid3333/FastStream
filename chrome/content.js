@@ -6,6 +6,7 @@
     OPEN_PLAYER: 'OPEN_PLAYER',
     GET_VIDEO_SIZE: 'GET_VIDEO_SIZE',
     GET_PLAYED_VIDEO: 'GET_PLAYED_VIDEO',
+    GET_PAGE_QUALITIES: 'GET_PAGE_QUALITIES',
     FRAME_ADDED: 'FRAME_ADDED',
     REMOVE_PLAYERS: 'REMOVE_PLAYERS',
     IS_FULL: 'IS_FULL',
@@ -149,6 +150,16 @@
         sendResponse(0);
       });
       return true;
+    } else if (request.type === MessageTypes.GET_PAGE_QUALITIES) {
+      // The qualities the page's own player offers as files of their own (page-qualities.js),
+      // for the background to give the stream's player, and mpv, the one the user wants.
+      let lists = [];
+      try {
+        lists = PageQualities.find(document, window.wrappedJSObject || window, window.location.href);
+      } catch (e) {
+        console.warn('Reading the page player\'s qualities failed', e);
+      }
+      sendResponse(lists);
     } else if (request.type === MessageTypes.GET_PLAYED_VIDEO) {
       // The asking player's, once it linked up with its iframe; before that, the latest
       // replaced (one player opens per frame at a time, background.mjs openPlayer).

@@ -200,6 +200,8 @@ const GoneDocumentLimit = 16;
 // (TabHolder.requestHeaders). Each goes when its response or its error comes; this only
 // bounds those that never get either.
 const RequestHeaderLimit = 500;
+// How many redirected requests' first addresses a tab keeps (TabHolder.redirectOrigins).
+const RedirectOriginLimit = 200;
 
 /**
  * @param {string} a - A URL, or anything else.
@@ -234,6 +236,11 @@ export class TabHolder {
     // found without the Referer its CDN checks got a 403 in the player.
     /** @type {Map<string, *>} */
     this.requestHeaders = new Map();
+    // The address each redirected request was first made to, by request id (noteRedirect): a
+    // page's player lists a file by that address (a hoster's get_file/... link), and the
+    // stream is detected at the end of the redirect (a CDN's address with a token).
+    /** @type {Map<string, string>} */
+    this.redirectOrigins = new Map();
 
     this.isOn = false;
     this.isMpv = false;
@@ -387,6 +394,29 @@ export class TabHolder {
     while (this.requestHeaders.size > RequestHeaderLimit) {
       this.requestHeaders.delete(this.requestHeaders.keys().next().value);
     }
+  }
+
+  /**
+   * Notes a redirect: the request's first address is kept, through every hop after it
+   * (webRequest keeps the request id across redirects).
+   * @param {string} requestId
+   * @param {string} url - The address it was redirected from.
+   */
+  noteRedirect(requestId, url) {
+    if (this.redirectOrigins.has(requestId)) return;
+    this.redirectOrigins.set(requestId, url);
+    while (this.redirectOrigins.size > RedirectOriginLimit) {
+      this.redirectOrigins.delete(this.redirectOrigins.keys().next().value);
+    }
+  }
+
+  /**
+   * The address a request was first made to, when it was redirected.
+   * @param {string} requestId
+   * @return {?string}
+   */
+  redirectOrigin(requestId) {
+    return this.redirectOrigins.get(requestId) || null;
   }
 
   getFrames() {
