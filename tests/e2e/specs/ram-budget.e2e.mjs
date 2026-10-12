@@ -18,6 +18,34 @@ const SEGMENTS = path.resolve(import.meta.dirname, '../fixtures/hls-ts');
 
 let server;
 
+// A page call that has not come back in this time is a finding of its own. On CI's Windows
+// runner (#456) one never came back: the test ran into mocha's 120 s cap with nothing said
+// about where it was, or whether the page or its video had stopped. Every call here has
+// this limit, and each wait stays well inside the cap (a test's this.timeout() does not lift
+// it, testTimeout.mjs), so the step that got stuck says so, with the state it saw last.
+const PAGE_ANSWER_MS = 5000;
+const NO_ANSWER = 'no answer from the page';
+
+/**
+ * browser.execute, with a time limit.
+ * @param {Function} fn - Run in the page.
+ * @param {...*} args - Its arguments.
+ * @return {Promise<*>} What fn returned, or NO_ANSWER.
+ */
+async function inPage(fn, ...args) {
+  const call = browser.execute(fn, ...args);
+  // Given up on, it may still fail later, with the session.
+  call.catch(() => {});
+  let timer;
+  try {
+    return await Promise.race([call, new Promise((resolve) => {
+      timer = setTimeout(() => resolve(NO_ANSWER), PAGE_ANSWER_MS);
+    })]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Opens the looped stream (two minutes) with a RAM budget and waits until all of it is
  * downloaded.
@@ -27,28 +55,98 @@ let server;
  * @param {boolean} [disk] - "Keep video on disk when this RAM is full".
  * @return {Promise<void>}
  */
-async function downloadAll(budget, playlist = '/long.m3u8', timeout = 120000, disk = true) {
+async function downloadAll(budget, playlist = '/long.m3u8', timeout = 60000, disk = true) {
   await browser.url(`/player/index.html?t=${Date.now()}#${ORIGIN}${playlist}`);
-  await browser.waitUntil(async () => browser.execute((bytes, disk) => {
+  await browser.waitUntil(async () => (await inPage((bytes, disk) => {
     const client = window.fastStream;
     if (!client?.player || !client.fragments?.length) return false;
     client.options.ramBudget = bytes;
     client.options.bufferToDisk = disk;
     client.downloadManager.setBufferToDisk(disk);
     return true;
-  }, budget, disk), {timeout: 60000, interval: 250, timeoutMsg: 'the stream never loaded'});
-  await browser.waitUntil(async () => browser.execute(() => {
-    const fragments = window.fastStream.fragments;
-    return fragments.length > 50 && fragments.every((fragment) => fragment && fragment.status === 3);
-  }), {timeout, interval: 500, timeoutMsg: 'the stream never finished downloading'});
+  }, budget, disk)) === true, {timeout: 30000, interval: 250, timeoutMsg: 'the stream never loaded'});
+  let left;
+  try {
+    await browser.waitUntil(async () => {
+      left = await inPage(() => {
+        const fragments = window.fastStream.fragments;
+        return fragments.length > 50 ? fragments.filter((fragment) => !fragment || fragment.status !== 3).length : -1;
+      });
+      return left === 0;
+    }, {timeout, interval: 500});
+  } catch (e) {
+    // -1: the playlist not read yet.
+    throw new Error(`the stream never finished downloading in ${timeout} ms: ${left} fragments to go`);
+  }
 }
 
 /**
- * @return {Promise<Object>} What the player holds where: in RAM (with what is being written
- *     to disk, as leaving), on disk (files), and in all (total).
+ * Plays the stream from its start - on disk, or let go of long ago - and waits for it to run
+ * past 2 s. Polled from here, a short call at a time: the loop that waited in the page was
+ * the call that never came back (#456).
+ * @param {string} when - What is played, for the failure message.
+ * @return {Promise<Object>} The video's state then: time, failed and more.
+ */
+async function playFromStart(when) {
+  await inPage(() => {
+    const client = window.fastStream;
+    client.currentTime = 1;
+    client.player.getVideo().play().catch(() => {});
+  });
+  let state;
+  try {
+    await browser.waitUntil(async () => {
+      state = await inPage(() => {
+        const client = window.fastStream;
+        const video = client.player.getVideo();
+        const buffered = [];
+        for (let i = 0; i < video.buffered.length; i++) {
+          buffered.push([Math.round(video.buffered.start(i) * 10) / 10, Math.round(video.buffered.end(i) * 10) / 10]);
+        }
+        return {
+          time: video.currentTime, seeking: video.seeking, paused: video.paused, readyState: video.readyState,
+          buffered, failed: !!client.interfaceController.failed, visibility: document.visibilityState,
+          // The start's fragments: 3 is downloaded, in RAM or on disk.
+          start: client.fragments.slice(0, 4).map((fragment) => fragment?.status),
+        };
+      });
+      return state !== NO_ANSWER && (state.failed || (state.time > 2 && !state.seeking));
+    }, {timeout: 20000, interval: 500});
+  } catch (e) {
+    throw new Error(`${when}: the start never played past 2 s (${e.message}). Last seen: ${JSON.stringify(state)}`);
+  }
+  return state;
+}
+
+/**
+ * Waits until what the player holds passes a check. The failure says what it held last: the
+ * message these waits had was made before their first look, and said "undefined" whatever
+ * the player held (#456).
+ * @param {function(Object): boolean} check - On holdings().
+ * @param {number} timeout - ms.
+ * @param {string} failure - What did not happen, for the message.
+ * @return {Promise<Object>} The holdings that passed.
+ */
+async function holdingsUntil(check, timeout, failure) {
+  let state;
+  try {
+    await browser.waitUntil(async () => {
+      state = await holdings();
+      return state !== NO_ANSWER && check(state);
+    }, {timeout, interval: 500});
+  } catch (e) {
+    throw new Error(`${failure} after ${timeout} ms: ${JSON.stringify(state)}`);
+  }
+  return state;
+}
+
+/**
+ * @return {Promise<Object|string>} What the player holds where: in RAM (with what is being
+ *     written to disk, as leaving), on disk (files), and in all (total). NO_ANSWER when the
+ *     page did not answer in time.
  */
 async function holdings() {
-  return browser.execute(() => new Promise((done) => {
+  return inPage(() => new Promise((done) => {
     (async () => {
       const client = window.fastStream;
       const manager = client.downloadManager;
@@ -128,34 +226,19 @@ describe('The RAM budget', function() {
     // The option (2026-10-10): as in a private window, what does not fit in the budget is let
     // go of and downloaded again when needed. All of it in first (it fits in 2 GB), then a
     // budget it does not fit in.
-    await downloadAll(2e9, '/long.m3u8', 120000, false);
-    await browser.execute(() => {
+    await downloadAll(2e9, '/long.m3u8', 60000, false);
+    await inPage(() => {
       window.fastStream.options.ramBudget = 2e6;
     });
     const bound = 2e6 + 4e6;
-    let state;
-    await browser.waitUntil(async () => {
-      state = await holdings();
-      return state.ram < bound;
-    }, {timeout: 30000, interval: 500, timeoutMsg: `still more in RAM than its share: ${JSON.stringify(state)}`});
-    const released = await browser.execute(() => window.fastStream.fragments.filter((fragment) => fragment && fragment.status !== 3).length);
+    const state = await holdingsUntil((held) => held.ram < bound, 30000, 'still more in RAM than its share');
+    const released = await inPage(() => window.fastStream.fragments.filter((fragment) => fragment && fragment.status !== 3).length);
     console.log(`      no disk, over the budget: ${JSON.stringify(state)}, ${released} fragments let go`);
     expect(state.files).toBe(0);
     expect(released).toBeGreaterThan(20);
 
     // The start, let go of long ago, is downloaded again and plays.
-    const played = await browser.execute(async () => {
-      const client = window.fastStream;
-      client.currentTime = 1;
-      const video = client.player.getVideo();
-      video.play().catch(() => {});
-      const start = Date.now();
-      while (Date.now() - start < 15000) {
-        if (video.currentTime > 2 && !video.seeking) break;
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-      return {time: video.currentTime, failed: !!client.interfaceController.failed};
-    });
+    const played = await playFromStart('the start, let go of');
     console.log(`      downloaded again: ${JSON.stringify(played)}`);
     expect(played.failed).toBe(false);
     expect(played.time).toBeGreaterThan(2);
@@ -171,29 +254,12 @@ describe('The RAM budget', function() {
     // goes only once it is on disk: 13-16 of the ~65 files were there after 4 s on the Windows
     // runner (PR #366), all of them locally.
     const start = Date.now();
-    let state;
-    await browser.waitUntil(async () => {
-      state = await holdings();
-      return state.ram < bound;
-    }, {timeout: 60000, interval: 500, timeoutMsg: `still more in RAM than its share: ${JSON.stringify(state)}`});
+    const state = await holdingsUntil((held) => held.ram < bound, 60000, 'still more in RAM than its share');
     console.log(`      over the budget, after ${Date.now() - start} ms: ${JSON.stringify(state)}`);
     expect(state.files).toBeGreaterThan(0);
 
     // The start, long written to disk, plays again.
-    const played = await browser.execute(() => new Promise((done) => {
-      (async () => {
-        const client = window.fastStream;
-        client.currentTime = 1;
-        const video = client.player.getVideo();
-        video.play().catch(() => {});
-        const start = Date.now();
-        while (Date.now() - start < 15000) {
-          if (video.currentTime > 2 && !video.seeking) break;
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-        done({time: video.currentTime, failed: !!client.interfaceController.failed});
-      })();
-    }));
+    const played = await playFromStart('the start, on disk');
     console.log(`      from disk: ${JSON.stringify(played)}`);
     expect(played.failed).toBe(false);
     expect(played.time).toBeGreaterThan(2);
@@ -204,12 +270,8 @@ describe('The RAM budget', function() {
     // decision, 2026-10-09: 0 RAM is straight to disk). Slow segments, for the budget to be
     // set long before the stream is in.
     await downloadAll(0, '/slow/long.m3u8', 60000);
-    let state;
-    await browser.waitUntil(async () => {
-      state = await holdings();
-      // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB.
-      return state.ram < 4e6;
-    }, {timeout: 30000, interval: 500, timeoutMsg: `more in RAM than the next seconds: ${JSON.stringify(state)}`});
+    // The next 10 s (MemoryBudget.KEEP_AT_LEAST), here 2-3 MB.
+    const state = await holdingsUntil((held) => held.ram < 4e6, 30000, 'more in RAM than the next seconds');
     console.log(`      budget 0: ${JSON.stringify(state)}`);
     // About 60 fragments: all but the next seconds on disk.
     expect(state.files).toBeGreaterThan(40);
