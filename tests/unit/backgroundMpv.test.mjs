@@ -1128,6 +1128,23 @@ describe('after the user turned MPV off', () => {
     expect(bg.session['tabState:1']).toMatchObject({isMpv: false, mpvTurnedOff: true});
   });
 
+  it('answers new options once they are in effect: a page opened then is checked against them', async () => {
+    // The answer came at once, before the storage read: a site put on the allowlist and
+    // opened the moment the sender heard back was checked against the old list and stayed
+    // Off (#456, mpv-shortcut.e2e.mjs on CI's Windows runner).
+    bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: []},
+      tabs: [{id: 1, url: 'https://other.test/'}]});
+    await bg.navigated(1, 'https://other.test/');
+    bg.options.mpvAllowlist = ['https://site.test/'];
+    let opened;
+    const answer = await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99, onAnswer: () => {
+      opened = bg.navigated(1, PAGE);
+    }});
+    await opened;
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    expect(answer).toBe(true);
+  });
+
   it('a page on the auto-enable list too gets the in-page player there, not MPV', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/watch'],
       autoEnableURLs: ['https://site.test/watch']}, tabs: [{id: 1, url: PAGE}]});

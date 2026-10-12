@@ -853,7 +853,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       forgetOffsForNewEntries(allowlistBefore);
       // mpv's autoplay switch shows the setting the options page just changed.
       syncMpvAutoplay(mpvWatch);
-    }).catch((e) => console.error('Loading the new options failed', e));
+    }).catch((e) => console.error('Loading the new options failed', e))
+        // Answered once they are in effect: the sender heard back at once, before the storage
+        // read, and a page it opened then was checked against the old allowlist (#456,
+        // mpv-shortcut on CI's Windows runner: "mpvSite: false" for a listed site).
+        .finally(() => sendResponse(true));
     // sent to all tabs - once the tabs are known again: right after a wake (this message
     // woke it) none were, and no page or player heard of the new options.
     ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
@@ -868,7 +872,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
       });
     }).catch((e) => console.error('Sending the new options to the tabs failed', e));
-    return;
+    return true;
   } else if (msg.type === MessageTypes.MPV_TEST) {
     // Once the options are read: the message that wakes the background comes before they
     // are, and the ping went without the user's mpv path ("mpv not found" for an mpv that

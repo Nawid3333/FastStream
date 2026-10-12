@@ -289,10 +289,12 @@ export async function loadBackground({
   /**
    * Sends the background a message from a page.
    * @param {Object} message - The message.
-   * @param {{tabId?: number, frameId?: number, url?: string, tab?: Object}} [from] - Its sender.
+   * @param {{tabId?: number, frameId?: number, url?: string, tab?: Object,
+   *   onAnswer?: function(*): void}} [from] - Its sender; onAnswer runs the moment the answer
+   *   comes, as the sender's callback does, before anything else the background has started.
    * @return {Promise<*>} The background's answer, once given (undefined for none).
    */
-  bg.message = async (message, {tabId = 1, frameId = 0, url, tab} = {}) => {
+  bg.message = async (message, {tabId = 1, frameId = 0, url, tab, onAnswer} = {}) => {
     const sender = {
       tab: tab || {id: tabId, url: (bg.tabs.find((t) => t.id === tabId) || {}).url},
       frameId,
@@ -300,7 +302,10 @@ export async function loadBackground({
     };
     let reply;
     const answered = new Promise((resolve) => {
-      reply = resolve;
+      reply = (value) => {
+        onAnswer?.(value);
+        resolve(value);
+      };
     });
     let async = false;
     for (const listener of onMessage.listeners) {
