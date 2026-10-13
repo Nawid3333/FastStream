@@ -189,7 +189,16 @@ export class OPFSManager {
       // The wait starts now only if the worker had nothing else to answer (armWatchdog).
       if (this.pending.size === 0) this.armWatchdog();
       this.pending.set(id, {resolve, reject, op, started: Date.now()});
-      this.worker.postMessage({id, op, ...payload}, transfer || []);
+      try {
+        this.worker.postMessage({id, op, ...payload}, transfer || []);
+      } catch (e) {
+        // Never sent (a buffer given away already, data that cannot be copied): left waiting,
+        // it kept the watchdog going, and 30 s later the working worker counted as crashed
+        // (glm's review, 2026-10-13).
+        this.pending.delete(id);
+        if (this.pending.size === 0) clearTimeout(this.watchdog);
+        reject(e);
+      }
     });
   }
 

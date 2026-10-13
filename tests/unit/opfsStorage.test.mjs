@@ -243,6 +243,26 @@ describe('OPFSManager', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('keeps a working worker after a call that could not be sent', async () => {
+    // postMessage threw (a buffer given away already, data that cannot be copied) after the
+    // call was counted: it waited for an answer that could never come, and the watchdog
+    // took the healthy worker for crashed 30 s later (glm's review, 2026-10-13).
+    vi.useFakeTimers();
+    const manager = new OPFSManager();
+    const worker = {
+      postMessage: () => {
+        throw new DOMException('An ArrayBuffer is detached and could not be cloned.', 'DataCloneError');
+      },
+      terminate: vi.fn(),
+    };
+    manager.worker = worker;
+    await expect(manager.call('set', {identifier: 'blob0'})).rejects.toThrow(/detached/);
+    expect(manager.pending.size).toBe(0);
+    await vi.advanceTimersByTimeAsync(OPFSManager.CallTimeoutMs * 2);
+    expect(worker.terminate).not.toHaveBeenCalled();
+    expect(manager.worker).toBe(worker);
+  });
+
   it('still gives up when the worker stops answering in the middle of a backlog', async () => {
     vi.useFakeTimers();
     const manager = new OPFSManager();
