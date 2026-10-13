@@ -217,11 +217,13 @@ jobs:
               continue
             fi
             # The commits after the ref (the compare: exact, where a date is not) that changed
-            # the path (upstream's history of it, newest first).
+            # the path (upstream's history of it, newest first). Each subject as code: written
+            # as is, an @name in one notified that GitHub user, and a #12 linked this repo's
+            # issue 12 (glm's second look, 2026-10-13).
             gh api "repos/$repo/compare/$ref...$newest" --jq '[.commits[].sha]' > "$RUNNER_TEMP/after.json"
             gh api -X GET "repos/$repo/commits" -f path="$path" -f sha="$newest" -f per_page=100 > "$RUNNER_TEMP/commits.json"
             jq -r --slurpfile after "$RUNNER_TEMP/after.json" '.[] | select(.sha as $s | $after[0] | index($s)) |
-              "- [\(.sha[0:8])](\(.html_url)) \(.commit.committer.date[0:10]) \(.commit.message | split("\n")[0])"' \
+              "- [\(.sha[0:8])](\(.html_url)) \(.commit.committer.date[0:10]) `\(.commit.message | split("\n")[0] | gsub("`"; ([39] | implode)))`"' \
               "$RUNNER_TEMP/commits.json" > "$RUNNER_TEMP/commits.md"
             # shellcheck disable=SC2016 # backticks are Markdown
             {

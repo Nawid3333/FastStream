@@ -156,6 +156,18 @@ describe('streamTitle', () => {
     expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(500)})).toHaveLength(200);
   });
 
+  it('is cut between whole characters (#470)', () => {
+    // A cut in the middle of an emoji left half of it, which mpv drew as a broken character.
+    const clapper = '\u{1F3AC}';
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + clapper + 'tail'}))
+        .toBe('x'.repeat(199) + clapper);
+    // A flag is two code points: cut between them, one letter of it was left (glm's review of
+    // the fix, 2026-10-13).
+    const flag = '\u{1F1E9}\u{1F1EA}';
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + flag + 'tail'}))
+        .toBe('x'.repeat(199) + flag);
+  });
+
   it('is the stream\'s host name without a usable title', () => {
     expect(streamTitle({url: 'https://cdn.test/v.m3u8'})).toBe('cdn.test');
     expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: ' \n '})).toBe('cdn.test');
@@ -598,6 +610,34 @@ describe('launchMpv', () => {
     const result = await launchMpv('mpv.exe', open, {}, {...io, platform: 'win32'});
     expect(result.ok).toBe(false);
     expect(result.error).toBe('Could not start mpv: mpv quit right after it started: check the mpv path');
+  });
+
+  // A new mpv gets its stream on the command line, which Windows caps at 32767 characters.
+  // The page's quality list (fs-quality=, percent-encoded once more) took twelve long URLs
+  // past it, and the start failed although the stream itself fitted (#470): mpv starts
+  // without the list now, so only its quality menu goes without it.
+  const qualities = Array.from({length: 12}, (unused, i) => ({
+    url: `https://cdn.test/${i}/` + 'a%2Fb%3Dc&'.repeat(202),
+    label: `${(i + 1) * 100}p`,
+    height: (i + 1) * 100,
+  }));
+  const commandLineOf = (args) => ['mpv.exe', ...args].map((a) => a.includes(' ') ? `"${a}"` : a).join(' ');
+
+  it('starts a new mpv without the page\'s qualities when they make its command line too long (#470)', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    expect(mpvTargetUrl({...open, qualities}).length).toBeGreaterThan(32767);
+    expect(await launchMpv('mpv.exe', {...open, qualities}, {}, {...io, platform: 'win32'})).toEqual({ok: true});
+    const [args] = io.record.started;
+    expect(args).toContain(mpvTargetUrl({...open, qualities: undefined}));
+    expect(args.some((arg) => arg.includes('fs-quality='))).toBe(false);
+    expect(commandLineOf(args).length).toBeLessThan(32767);
+  });
+
+  it('keeps the page\'s qualities when they fit', async () => {
+    const io = stand({ok: false, error: 'no mpv ipc'});
+    const few = qualities.slice(0, 2);
+    await launchMpv('mpv.exe', {...open, qualities: few}, {}, {...io, platform: 'win32'});
+    expect(io.record.started[0]).toContain(mpvTargetUrl({...open, qualities: few}));
   });
 });
 

@@ -200,7 +200,7 @@ describe('gone pages', () => {
   it('keeps what a removed page and the pages inside it had detected', () => {
     const {tab, main} = tabWithEmbed();
     tab.forgetRemovedFrame(main, 'main');
-    expect([...tab.goneDocuments.keys()]).toEqual(['main', 'embed']);
+    expect([...tab.goneDocuments.keys()]).toEqual(['embed', 'main']);
     expect(tab.goneDocuments.get('embed').sources.map((s) => s.url))
         .toEqual(['https://cdn.example.com/video.m3u8']);
     expect(tab.frames.size).toBe(0);
@@ -261,6 +261,39 @@ describe('gone pages', () => {
     expect(tab.goneDocuments.has('page-16')).toBe(true);
   });
 
+  it('keeps a page\'s streams when it had more frames than the limit', () => {
+    // content.js names the page in every frame: an ad-heavy page's 20 frames pushed the page
+    // itself out, marked first, with the streams Back was to give back (glm's review,
+    // 2026-10-13). A page that detected nothing goes first.
+    const {tab, main} = tabWithEmbed();
+    for (let i = 0; i < 20; i++) {
+      const ad = tab.getFrameOrCreate(10 + i);
+      ad.documentKey = 'ad-' + i;
+      ad.setParentFrame(main);
+    }
+    tab.forgetRemovedFrame(main, 'main');
+    expect(tab.goneDocuments.size).toBe(16);
+    expect(tab.goneDocuments.get('embed').sources.map((s) => s.url)).toEqual(['https://cdn.example.com/video.m3u8']);
+    expect(tab.goneDocuments.has('ad-19')).toBe(true);
+  });
+
+  it('keeps a page\'s streams when its frames over the limit all detected some too', () => {
+    // The page was marked before its frames, so with no frame that detected nothing to go
+    // first, the oldest went: the page itself (glm's second look, 2026-10-13). Its frames
+    // are marked first now, and the page is the newest of them.
+    const {tab, main} = tabWithEmbed();
+    main.getSources().push({url: 'https://cdn.example.com/main.m3u8', mode: 'hls'});
+    for (let i = 0; i < 20; i++) {
+      const ad = tab.getFrameOrCreate(10 + i);
+      ad.documentKey = 'ad-' + i;
+      ad.setParentFrame(main);
+      ad.getSources().push({url: `https://ads.example.com/${i}.mp4`, mode: 'mp4'});
+    }
+    tab.forgetRemovedFrame(main, 'main');
+    expect(tab.goneDocuments.size).toBe(16);
+    expect(tab.goneDocuments.get('main').sources.map((s) => s.url)).toEqual(['https://cdn.example.com/main.m3u8']);
+  });
+
   it('marks nothing when a refused player\'s frame is forgotten', () => {
     // PLAYER_LOADED of a gone page forgets the player's frame (forgetFrame): that is no
     // page leaving.
@@ -306,7 +339,7 @@ describe('noteDocumentReplaced', () => {
   it('marks the page before, and the pages inside it, gone', () => {
     const {tab, main} = tabWithEmbed();
     tab.noteDocumentReplaced(main, 'next');
-    expect([...tab.goneDocuments.keys()]).toEqual(['main', 'embed']);
+    expect([...tab.goneDocuments.keys()]).toEqual(['embed', 'main']);
   });
 
   it('marks nothing for the same page again, or a frame without a name', () => {
@@ -589,6 +622,20 @@ describe('what a frame keeps of its streams', () => {
     const urls = frame.getSources().map((s) => s.url);
     expect(urls).toHaveLength(200);
     expect(urls[0]).toBe('https://cdn.test/5/master.m3u8');
+  });
+
+  it('keeps a file that comes to a list full of manifests', () => {
+    // It was the only file, and went at once: a live playlist whose address changes with each
+    // reload filled the list, and no file was taken in again (glm's review, 2026-10-13).
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 0; n < 200; n++) {
+      frame.addSource({url: `https://cdn.test/live.m3u8?token=${n}`, mode: 'accelerated_hls'});
+    }
+    frame.addSource({url: 'https://cdn.test/film.mp4', mode: 'accelerated_mp4'});
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls.at(-1)).toBe('https://cdn.test/film.mp4');
+    expect(urls[0]).toBe('https://cdn.test/live.m3u8?token=1');
   });
 
   it('keeps the first and the newest of a stream\'s subtitle pieces', () => {

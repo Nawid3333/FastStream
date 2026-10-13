@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 13;
+export const RequiredHostVersion = 14;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -81,6 +81,25 @@ const FormatNames = new Map([
  */
 function messageBytes(message) {
   return new TextEncoder().encode(JSON.stringify(message)).length;
+}
+
+
+/**
+ * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
+ * from several is one. Cut between its code points, a part of it was left, which mpv drew
+ * as a broken character (#470; glm's review of the fix, 2026-10-13).
+ * @param {string} text
+ * @param {number} max
+ * @return {string}
+ */
+function cutText(text, max) {
+  let out = '';
+  let count = 0;
+  for (const {segment} of new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text)) {
+    if (count++ === max) break;
+    out += segment;
+  }
+  return out;
 }
 
 export class MpvBackend {
@@ -186,7 +205,7 @@ export class MpvBackend {
         .slice(0, 12)
         .map((entry) => ({
           url: entry.url,
-          label: typeof entry.label === 'string' ? Array.from(entry.label).slice(0, 40).join('') : '',
+          label: typeof entry.label === 'string' ? cutText(entry.label, 40) : '',
           height: Number.isFinite(entry.height) && entry.height > 0 ? Math.round(entry.height) : 0,
         }));
     return relayed.length >= 2 ? relayed : null;
@@ -260,6 +279,13 @@ export class MpvBackend {
     }
 
     if (tab && tab.mpvSentUrls) {
+      // One still on its way: its own answer. An "ok" at once was wrong when that one then
+      // failed: the player said it was sent and paused the page for nothing (glm's look at
+      // a noted edge case, 2026-10-13).
+      const sending = tab.mpvSending?.get(url);
+      if (sending) {
+        return sending;
+      }
       if (tab.mpvSentUrls.has(url)) {
         return Promise.resolve(this.withHostState({ok: true}));
       }
@@ -280,8 +306,10 @@ export class MpvBackend {
       message.pageUrl = pageUrl;
     }
 
+    // Cut between whole characters, as the quality labels are: a cut through an emoji left
+    // half of it, which mpv drew as a broken character (#470).
     if (typeof pageTitle === 'string' && pageTitle.trim()) {
-      message.title = pageTitle.trim().slice(0, 300);
+      message.title = cutText(pageTitle.trim(), 300);
     }
 
     if (typeof extras.startTime === 'number' && Number.isFinite(extras.startTime) && extras.startTime >= 1) {
@@ -320,7 +348,7 @@ export class MpvBackend {
       const candidates = extras.subtitles
           .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
           .slice(0, 8)
-          .map((s) => ({label: typeof s.label === 'string' ? s.label.slice(0, 100) : '', srt: s.srt}));
+          .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
       const subtitles = [];
       message.subtitles = subtitles;
       for (const subtitle of candidates) {
@@ -335,7 +363,17 @@ export class MpvBackend {
       }
     }
 
-    return new Promise((resolve) => {
+    // The rest has to fit too: a stream address near Firefox's own URL limit (1 MB) made the
+    // host quit unread, which said "is the helper installed?", and every later detection of
+    // the stream tried again (glm's review, 2026-10-13).
+    if (messageBytes(message) > HostMaxMessageBytes) {
+      if (tab && tab.mpvSentUrls) {
+        tab.mpvSentUrls.delete(url);
+      }
+      return Promise.resolve(this.withHostState({ok: false, error: 'the stream\'s address is too long to send to mpv'}));
+    }
+
+    const sent = new Promise((resolve) => {
       try {
         chrome.runtime.sendNativeMessage(NativeHostName, message, (response) => {
           const lastError = chrome.runtime.lastError;
@@ -377,6 +415,15 @@ export class MpvBackend {
         resolve({ok: false, error: String(e)});
       }
     });
+    if (tab && tab.mpvSentUrls) {
+      if (!tab.mpvSending) tab.mpvSending = new Map();
+      tab.mpvSending.set(url, sent);
+      // Off the list once answered (it always is: it never rejects).
+      sent.then(() => {
+        if (tab.mpvSending.get(url) === sent) tab.mpvSending.delete(url);
+      }).catch(() => {});
+    }
+    return sent;
   }
 
   /**

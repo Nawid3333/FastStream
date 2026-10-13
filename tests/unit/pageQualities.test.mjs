@@ -153,7 +153,11 @@ describe('PageQualities.parsePlayerjsFile', () => {
 describe('PageQualities.heightOf', () => {
   it('reads the labels players use', () => {
     const cases = {'1080p': 1080, '720': 720, 'HD 720p': 720, '1080P60': 1080, 'Full HD': 1080, 'FHD': 1080, '4K': 2160,
-      'UHD': 2160, 'HD': 720, 'SD': 480, '2160p': 2160, 'Original': 0, '': 0, 'Episode 12345': 0};
+      'UHD': 2160, 'HD': 720, 'SD': 480, '2160p': 2160, 'Original': 0, '': 0, 'Episode 12345': 0,
+      // A size: its height, not its width (glm's review, 2026-10-13).
+      '1920x1080': 1080, '3840 × 2160': 2160, '1280X720 HD': 720,
+      // A codec's number is no height: "H264 HD" read as 264 (glm's second look, 2026-10-13).
+      'H264 HD': 720, 'H.264 720p': 720, 'x264 1080p': 1080, 'HEVC x265': 0, 'AV1 480p': 480};
     for (const [label, height] of Object.entries(cases)) {
       expect([label, PageQualities.heightOf(label)]).toEqual([label, height]);
     }

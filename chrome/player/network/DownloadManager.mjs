@@ -43,8 +43,9 @@ export class DownloadManager {
     // ...and holding even its own playback's requests: it is paused (setYield).
     this.holdingPlayback = false;
     this.speedTestBuffer = [];
-    this.speedTestSeen = [];
-    this.speedTestCount = 0;
+    // The downloaders heard with a speed in this round of the speed test.
+    /** @type {Set<Object>} */
+    this.speedTestSeen = new Set();
     this.testing = true;
     this.lastSpeed = 0;
     this.lastFailed = 0;
@@ -633,8 +634,7 @@ export class DownloadManager {
       this.testing = true;
       this.failed = 0;
       this.speedTestBuffer = [];
-      this.speedTestSeen = [];
-      this.speedTestCount = 0;
+      this.speedTestSeen = new Set();
       this.lastSpeed = 0;
       console.log('Calm period over, probing the server speed');
     }
@@ -650,18 +650,20 @@ export class DownloadManager {
             this.endProbe(false);
           }
         } else {
-          if (!this.speedTestSeen[ind] && downloader.getSpeed()) {
-            this.speedTestCount++;
+          // Each downloader there now, heard once with a speed. They were counted by their place
+          // in the list: one dropped meanwhile moved the next onto a place already heard, never
+          // counted then; and a sample without a speed (a cache hit: SpeedTracker gives 0) marked
+          // its place heard without counting it. Either way the round never closed, and the test
+          // ran on for the rest of the video (glm's review, 2026-10-13).
+          if (downloader.getSpeed()) {
+            this.speedTestSeen.add(downloader);
           }
-          this.speedTestSeen[ind] = true;
 
-
-          if (this.speedTestCount >= this.downloaders.length) {
+          if (this.downloaders.every((d) => this.speedTestSeen.has(d))) {
             let speed = this.getSpeed();
 
             this.speedTestBuffer.push(speed);
-            this.speedTestSeen = [];
-            this.speedTestCount = 0;
+            this.speedTestSeen = new Set();
 
             if (this.speedTestBuffer.length >= DownloadManager.SamplesPerStep) {
               speed = this.speedTestBuffer.reduce((a, b) => a + b, 0) / this.speedTestBuffer.length;
@@ -746,13 +748,15 @@ export class DownloadManager {
     this.downloaders = [];
     this.droppedDownloaders = 0;
     this.speedTestBuffer = [];
-    this.speedTestSeen = [];
-    this.speedTestCount = 0;
+    this.speedTestSeen = new Set();
     this.lastSpeed = 0;
 
     this.failed = 0;
     this.holdUntil = 0;
     this.lastSlowDown = 0;
+    // A failure's cooldown is the last video's: its next downloads waited a second
+    // (glm's review, 2026-10-13).
+    this.lastFailed = 0;
     // After a server throttled, the next video starts with one downloader, and its speed
     // test is a probe: one that climbs without another 429 or 503 ends the caution. One
     // stopped short (the add/remove downloader keys) probes again after a calm period.

@@ -98,6 +98,22 @@ describe('MpvSubtitles.toSrt', () => {
     expect(tracks.map((t) => t.label)).toEqual(['small']);
   });
 
+  it('leaves out a <track> element\'s text larger than the host could take, unread', async () => {
+    // The page's own text came as it was, of any size (content.js reads the whole file), and
+    // was parsed in the background, which held up every tab's detection meanwhile (glm's
+    // second look, 2026-10-13). A fetched file was capped already.
+    const cue = '00:00:01.000 --> 00:00:02.000\nA line of a subtitle that goes on for a while\n\n';
+    const huge = 'WEBVTT\n\n' + cue.repeat(Math.ceil(MAX_FILE_BYTES / cue.length) + 1);
+    const subs = new MpvSubtitles();
+    const loadTrack = vi.spyOn(subs, 'loadTrack');
+    const tracks = await subs.toSrt([
+      {data: huge, source: 'https://site.test/huge.vtt', label: 'huge'},
+      {data: VTT, source: 'https://site.test/small.vtt', label: 'small'},
+    ]);
+    expect(tracks.map((t) => t.label)).toEqual(['small']);
+    expect(loadTrack).toHaveBeenCalledTimes(1);
+  });
+
   it('fetches only http(s) files', async () => {
     const fetch = vi.fn(async () => response(VTT));
     const tracks = await new MpvSubtitles({fetch}).toSrt([

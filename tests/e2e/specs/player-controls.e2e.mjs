@@ -672,6 +672,25 @@ describe('Player controls, hiding by themselves', function() {
         {timeout: 5000, timeoutMsg: 'the bar stayed up for a pointer that had left it'});
   });
 
+  it('shows the bar at the first mouse move after the fullscreen key', async function() {
+    // Every mouse move was ignored for 2 s after F: in fullscreen the bar came only after a
+    // lot of moving (his report, 2026-10-13; measured: six moves over hundreds of pixels,
+    // half a second after F, showed nothing).
+    await playerWithPointerAway();
+    try {
+      await browser.action('key').down('f').up('f').perform();
+      await browser.waitUntil(async () => browser.execute(() => !!document.fullscreenElement),
+          {timeout: 5000, timeoutMsg: 'F did not go fullscreen'});
+      await browser.waitUntil(async () => !(await controlsVisible()),
+          {timeout: 5000, timeoutMsg: 'the bar did not hide at F'});
+      const player = await browser.$('.mainplayer');
+      await browser.action('pointer').move({origin: player, x: 1, y: 1}).perform();
+      await browser.waitUntil(controlsVisible, {timeout: 1000, timeoutMsg: 'a mouse move did not show the bar'});
+    } finally {
+      await browser.execute(() => document.fullscreenElement && document.exitFullscreen());
+    }
+  });
+
   it('still keeps the bar up while the pointer is over it', async function() {
     await playerWithPointerAway();
     const bar = await browser.$('.mainplayer .fluid_controls_container');

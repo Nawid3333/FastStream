@@ -75,6 +75,10 @@ export class MpvSubtitles {
     }
     const read = await Promise.all(tracks.slice(0, MAX_READS).map(async (sub) => {
       try {
+        // A <track> element's text comes whole, of any size (content.js reads the file): no
+        // more of it is read than of a fetched one. A string has at most as many UTF-16 units
+        // as its UTF-8 has bytes, so one longer than the cap is over it either way.
+        if (typeof sub.data === 'string' && sub.data.length > MAX_FILE_BYTES) return null;
         const text = typeof sub.data === 'string' && sub.data ? sub.data : await this.fetchText(sub.source, sub.headers);
         if (!text) return null;
         const label = typeof sub.label === 'string' ? sub.label : '';

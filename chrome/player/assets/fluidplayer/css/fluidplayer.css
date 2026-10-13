@@ -2232,15 +2232,19 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
     animation: none;
 }
 
-/* Less motion for those who asked their system for it: the controls and menus appear and
-   disappear at once, and the buttons being rearranged do not shake. The controls bar
-   needs its own selector to outrank its `transition: all 0.5s !important`. */
-@media (prefers-reduced-motion: reduce) {
-    .fluid_video_wrapper.fluid_player_layout_default *,
-    .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
-        transition-duration: 0s !important;
-        animation-duration: 0s !important;
-    }
+/* Everything at once, for everyone (his wish, 2026-10-13: "I do not want delays or
+   animations"): the controls and menus appear and disappear at once, and the buttons being
+   rearranged do not shake. It was only for those who asked their system for less motion;
+   for everyone else the controls faded in over half a second, nearly invisible at first, on
+   a dark video above all. The controls bar needs its own selector to outrank its
+   `transition: all 0.5s !important`. The loading spinner is an animated SVG image, which
+   this leaves turning. */
+.fluid_video_wrapper.fluid_player_layout_default *,
+.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-delay: 0s !important;
 }
 
 @keyframes tilt-shaking {

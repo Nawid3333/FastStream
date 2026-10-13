@@ -137,12 +137,22 @@ check 'succeeds' test "$status" -eq 0
 check 'opens it for the newest change, assigned' contains "$LOG" "CREATE [--title] [${PREFIX}knob (jherrm/knobs ${NEW:0:8})] [--assignee] [Nawid3333]"
 check 'one issue only (vad-web is up to date)' test "$(grep -c '^CREATE' "$LOG")" -eq 1
 check '@mentions, naming the file and the copy' contains "$LOG" "@Nawid3333 jherrm/knobs changed \`Knob.js\` after the commit \`chrome/player/modules/knob.mjs\` was taken from (${KREF:0:8}):"
-check 'lists the change, first line only' contains "$LOG" "- [${NEW:0:8}](https://github.com/x/y/commit/$NEW) 2022-11-08 Fix the rotation"
+check 'lists the change, first line only, as code' contains "$LOG" "- [${NEW:0:8}](https://github.com/x/y/commit/$NEW) 2022-11-08 \`Fix the rotation\`"
 check 'not the ref itself' lacks "$LOG" 'the ref itself'
 check 'links all of it' contains "$LOG" "All of it: https://github.com/jherrm/knobs/compare/$KREF...$NEW"
 check 'says how it closes' contains "$LOG" "set the \`ref\` of knob in \`tools/vendored-sources.json\` to \`$NEW\`"
 check 'asks for the commits after the ref' contains "$LOG" "GH api repos/jherrm/knobs/compare/$KREF...$NEW --jq [.commits[].sha]"
 check 'and the history of the file' contains "$LOG" "GH api -X GET repos/jherrm/knobs/commits -f path=Knob.js -f sha=$NEW -f per_page=100"
+
+fixtures '[]'
+changed jherrm_knobs "$NEW"
+jq -n --arg n "$NEW" '[{sha: $n, html_url: "https://github.com/x/y/commit/\($n)",
+  commit: {committer: {date: "2022-11-08T10:00:00Z"}, message: "Thanks @someone, fixes #12 (`knob` sizes)"}}]' \
+  > "$FIX/commits_jherrm_knobs.json"
+run 's2b a subject with a mention, an issue number and a backtick -> written as code' "$step"
+check 'succeeds' test "$status" -eq 0
+# Written as is, the @name notified that GitHub user and #12 linked this repo's issue 12.
+check 'the subject is code, its backticks made quotes' contains "$LOG" "2022-11-08 \`Thanks @someone, fixes #12 ('knob' sizes)\`"
 
 fixtures "[{\"number\":71,\"state\":\"closed\",\"title\":\"${PREFIX}knob (jherrm/knobs ${NEW:0:8})\",\"user\":$bot},{\"number\":72,\"state\":\"open\",\"title\":\"${PREFIX}knob (jherrm/knobs 99999999)\",\"user\":$bot}]"
 changed jherrm_knobs "$NEW"

@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {loadBackground} from './backgroundHarness.mjs';
+import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // Small defects of the background script (#144), each through its real listeners.
 
@@ -53,7 +53,7 @@ describe('a download from a container tab', () => {
     const answers = [];
     for (const listener of bg.chrome.runtime.onMessage.listeners) {
       listener({type: 'DOWNLOAD', url: 'blob:moz-extension://bg-test/1', filename: 'a.mp4'},
-          {tab: container, frameId: 3}, (value) => answers.push(value));
+          {tab: container, frameId: 3, url: 'moz-extension://bg-test/player/index.html'}, (value) => answers.push(value));
     }
     await bg.wait(loadedAfterMs);
     const hidden = bg.createdTabs[0];
@@ -121,6 +121,60 @@ describe('the toolbar\'s On with players for several frames', () => {
     await bg.wait(3000);
     expect(bg.sent('OPEN_PLAYER').map((m) => m.frameId)).toEqual([3, 1, 2]);
   });
+
+  it('opens none in a frame the tab dropped while its video was measured', async () => {
+    // The page answers its video's size when its scripts let it; the tab went on to another
+    // site meanwhile, and the frame's id was sent a player for the page there (glm's review,
+    // 2026-10-13). onSourceRecieved's own wait checked this already.
+    bg = await loadBackground({
+      tabs: [{id: 1, url: PAGE}],
+      onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
+        new Promise((resolve) => setTimeout(() => resolve(640 * 360), 1500)) : undefined,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.click(1);
+    await bg.wait(500);
+    await bg.navigated(1, 'https://other.test/');
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+
+  it('opens none from a detected stream whose frame the tab dropped while its length was read', async () => {
+    // The open a stream schedules (Options.replaceDelay) waits up to 2.5 s for the playlist's
+    // length; the tab went on to another site meanwhile, and OPEN_PLAYER went by frame id to
+    // the page there (glm's second look, 2026-10-13).
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/', 'https://other.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: (url) => new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 2000)),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.wait(800);
+    await bg.navigated(1, 'https://other.test/');
+    await bg.wait(5000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+
+  it('opens none in a frame that loaded another page while its video was measured', async () => {
+    // The frame stays the tab's (a new page in it is reset in place), so isTracked() let the
+    // player go to the new page, whose streams were not the ones measured (review of the
+    // fixes, 2026-10-13).
+    bg = await loadBackground({
+      tabs: [{id: 1, url: PAGE}],
+      onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
+        new Promise((resolve) => setTimeout(() => resolve(640 * 360), 1500)) : undefined,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 4, 'https://hoster.test/e/1', 'page1');
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.click(1);
+    await bg.wait(500);
+    await bg.frameAdded(1, 4, 'https://hoster.test/e/2', 'page2');
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
 });
 
 describe('the "use the player for stream links" redirect', () => {
@@ -135,5 +189,41 @@ describe('the "use the player for stream links" redirect', () => {
     expect(filter(1).test('https://cdn.test/a.mp4|t=1')).toBe(false);
     expect(filter(2).test('https://cdn.test/a.m3u8?x=1')).toBe(true);
     expect(filter(2).test('https://cdn.test/a.mpd|x')).toBe(false);
+  });
+});
+
+describe('messages only FastStream\'s own pages send', () => {
+  // A send to mpv (with no MPV allowlist: it is the user's button), a header rule and a
+  // download each did what the message named for any sender, a content script in any page
+  // included (#470). Only the player sends them.
+  const PLAYER_PAGE = 'moz-extension://bg-test/player/index.html';
+  const messages = [
+    {type: 'MPV_OPEN', url: 'https://cdn.test/a.m3u8', headers: []},
+    {type: 'SET_HEADERS', url: 'https://cdn.test/a.m3u8', commands: [{operation: 'set', header: 'Referer', value: 'https://x.test/'}]},
+    {type: 'DOWNLOAD', url: 'https://cdn.test/a.mp4', filename: 'a.mp4'},
+  ];
+
+  it('refuses them from a page\'s content script', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    const downloads = vi.spyOn(bg.chrome.downloads, 'download');
+    for (const message of messages) {
+      await bg.message(message, {tabId: 1, frameId: 0, url: PAGE});
+    }
+    await bg.wait(3000);
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+    expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length)).toEqual([]);
+    expect(downloads).not.toHaveBeenCalled();
+  });
+
+  it('takes them from the player', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    const downloads = vi.spyOn(bg.chrome.downloads, 'download');
+    for (const message of messages) {
+      await bg.message(message, {tabId: 1, frameId: 0, url: PLAYER_PAGE});
+    }
+    await bg.wait(3000);
+    expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
+    expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length).length).toBe(1);
+    expect(downloads).toHaveBeenCalledTimes(1);
   });
 });

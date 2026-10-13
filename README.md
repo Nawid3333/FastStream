@@ -58,7 +58,7 @@ The `firefox-github-*.zip` on the same page is an unsigned build for development
 
 ## Build Instructions
 
-You need Node.js 22 or newer and pnpm 11.
+You need Node.js 22 or newer and pnpm 12.
 
 1. `pnpm install`
 2. `pnpm run build`

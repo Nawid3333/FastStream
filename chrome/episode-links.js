@@ -39,12 +39,16 @@ const EpisodeLinks = (() => {
   const MARKS = /^[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+|[\s«»‹›<>←→⟨⟩❮❯|·•…:\-–—]+$/g;
 
   /**
-   * Lower case, single spaces, no arrows at either end.
+   * Lower case, single spaces, no arrows at either end. The same in every locale, with the
+   * Turkish i's as a plain i: in a Turkish Firefox "NEXT EPISODE" became "next epısode", and
+   * in any, "SONRAKİ BÖLÜM" became "sonraki̇ bölüm", with a dot added (glm's review,
+   * 2026-10-13). No phrase above has a dotless ı of its own.
    * @param {*} text
    * @return {string}
    */
   function normalize(text) {
-    return String(text || '').replace(/\s+/g, ' ').replace(MARKS, '').trim().toLocaleLowerCase();
+    return String(text || '').replace(/\s+/g, ' ').replace(MARKS, '').trim().toLowerCase()
+        .replace(/i̇/g, 'i').replace(/ı/g, 'i');
   }
 
   /**

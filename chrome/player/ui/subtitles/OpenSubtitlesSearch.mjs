@@ -592,6 +592,9 @@ export class OpenSubtitlesSearch extends EventEmitter {
       }));
 
       if (body.status < 200 || body.status >= 300) {
+        // OpenSubtitles' download links expire: a dead one was kept and tried again on every
+        // click. The next click asks for a new one (glm's second look, 2026-10-13).
+        item.cached_download_link = null;
         throw new Error('Bad status code');
       }
 

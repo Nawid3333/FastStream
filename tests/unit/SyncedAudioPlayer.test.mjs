@@ -183,6 +183,48 @@ describe('SyncedAudioPlayer', () => {
     expect(client.player.volume).toBe(1);
   });
 
+  it('leaves the sound paused when the user paused while it resynced', async () => {
+    // The next player, played muted for the swap, took over still playing: the sound went on
+    // over the paused picture until the next resync (glm's review, 2026-10-13).
+    let answer;
+    Utils.timeoutableEvent.mockImplementationOnce(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const client = makeClient();
+    const synced = new SyncedAudioPlayer(client);
+    synced.videoDelay = 300;
+    const [current, next] = [audioPlayer(), audioPlayer()];
+    synced.audioPlayers = [current, next];
+    const resyncing = synced.resync();
+    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
+    client.state.playing = false;
+    client.currentVideo.paused = true;
+    await synced.pause();
+    answer(true);
+    await resyncing;
+    expect(current.getVideo().paused).toBe(true);
+    expect(next.getVideo().paused).toBe(true);
+  });
+
+  it('does not mute the video with a resync whose players were dropped meanwhile', async () => {
+    // A separate player failed during the resync (dropPlayers: the video's own sound back);
+    // the swap went on and muted the video, with no separate sound left (glm's review).
+    let answer;
+    Utils.timeoutableEvent.mockImplementationOnce(() => new Promise((resolve) => {
+      answer = resolve;
+    }));
+    const client = makeClient();
+    const synced = new SyncedAudioPlayer(client);
+    synced.videoDelay = 300;
+    synced.audioPlayers = [audioPlayer(), audioPlayer()];
+    const resyncing = synced.resync();
+    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
+    synced.dropPlayers();
+    answer(true);
+    await resyncing;
+    expect(client.player.volume).toBe(1);
+  });
+
   it('pauses the muted player again when the resync could not sync it', async () => {
     // Played for the swap, it went on decoding in silence until the next resync.
     const synced = new SyncedAudioPlayer(makeClient());
@@ -320,5 +362,65 @@ describe('SyncedAudioPlayer', () => {
     await synced.setVideoDelay(0);
     expect(synced.audioDelayNode).toBe(null);
     expect(output.connectFrom).toHaveBeenLastCalledWith(source);
+  });
+
+  it('takes a dropped player\'s sound out of the output', async () => {
+    // Its source stayed wired into the output, two more with every drop and rebuild, until
+    // the video changed (glm's second look, 2026-10-13).
+    const client = makeClient();
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+    const sources = synced.audioPlayers.map((player) => player.audioSource);
+    expect(sources).toHaveLength(2);
+    synced.dropPlayers();
+
+    for (const source of sources) {
+      expect(output.disconnectFrom).toHaveBeenCalledWith(source);
+    }
+  });
+
+  it('takes the sound of a player finished after a drop out of the output', async () => {
+    const client = makeClient({
+      createPlayer: vi.fn(async () => {
+        const player = audioPlayer();
+        // Called once synced exists (setVideoDelay below).
+        player.setSource = vi.fn(async () => synced.dropPlayers());
+        return player;
+      }),
+    });
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+
+    const source = context.createMediaElementSource.mock.results[0].value;
+    expect(output.disconnectFrom).toHaveBeenCalledWith(source);
+  });
+
+  it('takes the sound of a player whose source failed out of the output', async () => {
+    const client = makeClient({
+      createPlayer: vi.fn(async () => {
+        const player = audioPlayer();
+        player.setSource = vi.fn(async () => {
+          throw new Error('Manifest failed to load');
+        });
+        return player;
+      }),
+    });
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+
+    const source = context.createMediaElementSource.mock.results[0].value;
+    expect(output.disconnectFrom).toHaveBeenCalledWith(source);
   });
 });

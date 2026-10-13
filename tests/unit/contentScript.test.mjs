@@ -191,6 +191,20 @@ describe('OPEN_PLAYER', () => {
 
 // types/messages.d.ts described the answer as {width, height}; it is the visible area, a
 // number the background sorts frames by (#233).
+describe('OPEN_PLAYER overtaken by REMOVE_PLAYERS', () => {
+  it('puts no player in the page given back meanwhile', async () => {
+    // The open waits for the video's visibility (an IntersectionObserver, up to a second in a
+    // background tab); a removal meanwhile (the page went on to another address) gave the
+    // page back, and the open then put its player in anyway (glm's second look, 2026-10-13).
+    const {page, wrap} = pageWithVideo();
+    const opening = page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1, attempt: 1});
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(await opening).toBe('error');
+    expect(page.document.querySelectorAll('iframe').filter((f) => f.src.startsWith(PLAYER_URL))).toEqual([]);
+    expect(wrap.children.map((el) => el.tagName)).toEqual(['VIDEO']);
+  });
+});
+
 describe('GET_VIDEO_SIZE', () => {
   it('answers the largest video\'s visible area, as a number', async () => {
     const {page} = pageWithVideo();
@@ -296,6 +310,18 @@ describe('windowed fullscreen', () => {
     expect(bar.style.getPropertyValue('visibility')).toBe('');
   });
 
+  it('fits the player to its place at once when it ends', async () => {
+    // The fit waited a second after the page got its styles back, with the player at the
+    // size it had before windowed fullscreen (glm's audit, 2026-10-13).
+    const {page, wrap, video, iframe} = await pageWithPlayer();
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    // The page's box for the video changed meanwhile (the window was made larger).
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    video.rect = {x: 0, y: 0, width: 800, height: 450};
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    expect(iframe.style.getPropertyValue('width')).toBe('800px');
+  });
+
   it('leaves the <head> alone', async () => {
     const {page} = await pageWithPlayer();
     const meta = page.document.createElement('meta');
@@ -314,6 +340,38 @@ describe('windowed fullscreen', () => {
     expect(elements.every((el) => el.style.getPropertyValue('display') === '')).toBe(true);
     expect(took).toBeLessThan(1000);
   }, 60000);
+
+  it('keeps the player for a link the page\'s <base target> opens in a new tab', async () => {
+    // The click handler read the link's own target only: with <base target="_blank"> a link
+    // to another page of the site opened a new tab, and the player in this one, which the
+    // user stayed on, was taken down (glm's review, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const base = page.document.createElement('base');
+    base.setAttribute('target', '_blank');
+    page.document.head.appendChild(base);
+    const a = page.document.createElement('a');
+    a.href = 'https://site.example/other';
+    page.document.body.appendChild(a);
+    page.dispatchDocument('click', {target: a, button: 0});
+    expect(iframe.isConnected).toBe(true);
+    // Without one, the link leaves the page here, and the player goes as before.
+    base.remove();
+    page.dispatchDocument('click', {target: a, button: 0});
+    expect(iframe.isConnected).toBe(false);
+  });
+
+  it('gives the page back when the page takes the player out', async () => {
+    // A page that draws its player again (a next episode without a page load) took the
+    // iframe out: the rest of the page stayed hidden until FastStream went off, and a next
+    // player's own windowed fullscreen left its box hidden too (glm's review, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const [plain] = addElements(page, 1);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('enter');
+    expect(plain.style.getPropertyValue('display')).toBe('none');
+    iframe.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(plain.style.getPropertyValue('display')).toBe('');
+  });
 });
 
 // A player in a site's embed iframe: the top frame links the embed iframe, and windowed
@@ -374,6 +432,24 @@ describe('TOGGLE_MINIPLAYER', () => {
     expect(await requestMiniplayer(page)).toBe('enter');
     expect(iframe.style.getPropertyValue('width')).toMatch(/^[\d.]+px$/);
     expect(iframe.style.getPropertyValue('height')).toMatch(/^[\d.]+px$/);
+  });
+
+  it('fits a portrait player into its share of the screen, height too', async () => {
+    // Sized by the wider of the screen's two measures, a portrait player's miniplayer (a
+    // quarter of a 1920x1080 screen) came out 853 px high (glm's second look, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const create = page.document.createElement.bind(page.document);
+    page.document.createElement = (tag) => {
+      const el = create(tag);
+      el.rect = {x: 0, y: 0, width: 360, height: 640};
+      return el;
+    };
+    expect(await requestMiniplayer(page)).toBe('enter');
+    page.document.createElement = create;
+    const height = parseFloat(iframe.style.getPropertyValue('height'));
+    const width = parseFloat(iframe.style.getPropertyValue('width'));
+    expect(height).toBeLessThanOrEqual(1080 * 0.25 + 0.5);
+    expect(width / height).toBeCloseTo(360 / 640);
   });
 });
 

@@ -47,7 +47,7 @@ export class SyncedAudioPlayer extends EventEmitter {
           // skipped the build, the delay stayed off for the session, and a resync threw.
           // What was built goes, and the next change of the delay builds again.
           console.error('Could not build the audio players for the video delay', e);
-          this.audioPlayers.forEach((player) => player.destroy());
+          this.audioPlayers.forEach((player) => this.discardPlayer(player));
           this.audioPlayers = [];
           this.madePlayers = false;
           return;
@@ -138,11 +138,11 @@ export class SyncedAudioPlayer extends EventEmitter {
 
         await player.setSource(source);
       } catch (e) {
-        player.destroy();
+        this.discardPlayer(player);
         throw e;
       }
       if (gone()) {
-        player.destroy();
+        this.discardPlayer(player);
         return;
       }
 
@@ -156,12 +156,25 @@ export class SyncedAudioPlayer extends EventEmitter {
    */
   dropPlayers() {
     this.playersDropped++;
-    this.audioPlayers.forEach((player) => player.destroy());
+    this.audioPlayers.forEach((player) => this.discardPlayer(player));
     this.audioPlayers = [];
     this.madePlayers = false;
     if (this.client.player) {
       this.client.player.volume = this.volume;
     }
+  }
+
+  /**
+   * Destroys a player and takes its sound out of the output: its source stayed wired in, two
+   * more with every drop and rebuild, until the video changed (glm's second look, 2026-10-13).
+   * @param {Object} player
+   */
+  discardPlayer(player) {
+    if (player.audioSource) {
+      this.outputNode.disconnectFrom(player.audioSource);
+      player.audioSource = null;
+    }
+    player.destroy();
   }
 
   getOutputNode() {
@@ -330,9 +343,18 @@ export class SyncedAudioPlayer extends EventEmitter {
       return false;
     }
 
-    // Destroyed meanwhile: the video changed, and the swap below muted the new one.
-    if (this.destroyed || !this.shouldUseSeparateAudioPlayers()) {
+    // Destroyed meanwhile: the video changed, and the swap below muted the new one. Or the
+    // players were dropped (one failed: the video has its own sound back), and the swap muted
+    // the video with no separate sound left (glm's review, 2026-10-13).
+    if (this.destroyed || !this.shouldUseSeparateAudioPlayers() || this.audioPlayers[nextIndex] !== next) {
       return false;
+    }
+
+    // Paused meanwhile (by the user, during the waits above): the next player, played muted
+    // for the swap, took over still playing, and the sound went on over the paused picture
+    // until the next resync.
+    if (!this.client.state.playing) {
+      await next.pause();
     }
 
     const newError = (this.client.currentVideo.currentTime + offset) - next.getVideo().currentTime;

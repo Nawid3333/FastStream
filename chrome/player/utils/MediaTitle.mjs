@@ -137,8 +137,10 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   let season = null;
   /** @type {?number} */
   let episode = null;
-  /** @type {?number} */
-  let year = null;
+  // What lies between a season and an episode marker that start the title, for when nothing
+  // after them names it ("S2 - The Bear - Episode 5").
+  /** @type {?string} */
+  let between = null;
 
   // A season and episode marker ends the title: what follows is the episode's own title or the
   // site's ("The Bear S02E03 Sundae"). One at the very start is cut off instead ("S02E03 - The
@@ -163,10 +165,38 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
     const found = [seasonMatch, episodeMatch].filter((match) => match !== null)
         .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
     if (found.length) {
+      const first = found[0];
       const last = found[found.length - 1];
-      cutAt(found[0]?.index ?? 0, (last?.index ?? 0) + (last?.[0].length ?? 0));
+      if (!text.slice(0, first?.index ?? 0).trim()) {
+        between = text.slice((first?.index ?? 0) + (first?.[0].length ?? 0), last?.index ?? 0);
+      }
+      cutAt(first?.index ?? 0, (last?.index ?? 0) + (last?.[0].length ?? 0));
     }
   }
+
+  let found = nameAndYear(text, site, now);
+  // A season and an episode on either side of the name ("S2 - The Bear - Episode 5"): what
+  // came after the last one named nothing, and the name is between them. Only then: after
+  // them is the show's name, and between them the episode's ("Episode 5 - Pilot - Season 2 -
+  // The Bear"; review of the fixes, 2026-10-13).
+  if (!found.name && between !== null) {
+    // A year after them is still the year ("S2 - The Bear - Episode 5 (2019)").
+    const fromBetween = nameAndYear(between, site, now);
+    found = {name: fromBetween.name, year: fromBetween.year ?? found.year};
+  }
+  return {name: found.name, year: found.year, season, episode};
+}
+
+/**
+ * The name and year in what is left of a title once its season and episode are cut off.
+ * @param {string} text
+ * @param {string} site - The site's name, as bare() gives it.
+ * @param {number} now - The current year.
+ * @return {{name: string, year: ?number}}
+ */
+function nameAndYear(text, site, now) {
+  /** @type {?number} */
+  let year = null;
 
   // A year in brackets is the year ("1917 (2019)").
   const bracketed = /[([]\s*((?:19|20)\d{2})\s*[)\]]/.exec(text);
@@ -202,5 +232,5 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
     }
   }
 
-  return {name: parts.map((part) => part.join(' ')).join(' - '), year, season, episode};
+  return {name: parts.map((part) => part.join(' ')).join(' - '), year};
 }

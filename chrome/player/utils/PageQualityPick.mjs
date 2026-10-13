@@ -46,7 +46,11 @@ export function listForSource(source, lists) {
     if (!played) continue;
     const host = hostOf(played.url);
     const sameHost = list.filter((entry) => entry && hostOf(entry.url) === host);
-    return sameHost.length >= 2 ? /** @type {Array<{url: string, label: string, height: number}>} */ (sameHost) : null;
+    // None beside it on its host: a later list may hold it too (the <video>'s own <source>
+    // elements come first, the page's player's list after them).
+    if (sameHost.length >= 2) {
+      return /** @type {Array<{url: string, label: string, height: number}>} */ (sameHost);
+    }
   }
   return null;
 }

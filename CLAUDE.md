@@ -63,7 +63,7 @@ lines that matter, and check what it reports against the source.
 ## Commands
 
 ```bash
-pnpm install              # pnpm 11, pinned via packageManager
+pnpm install              # pnpm 12, pinned via packageManager
 pnpm run build            # 3 targets -> built/firefox-*.zip + built/web, unpacked dirs deleted
 pnpm run build:keep       # same, but keeps build_*/ for web-ext
 pnpm run lint             # eslint (must stay at 0), plus eslint.modules.config.js:

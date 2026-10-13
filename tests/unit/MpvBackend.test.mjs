@@ -166,6 +166,31 @@ describe('openStream retry bookkeeping', () => {
     expect(host.calls()).toBe(2);
   });
 
+  it('gives a send made while the same one is on its way that one\'s answer', async () => {
+    // It was told "ok" at once: the first then failed, and the player said it was sent to
+    // mpv and paused the page for nothing (glm's look at a noted edge case, 2026-10-13).
+    let answer;
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          answer = callback;
+        },
+      },
+    };
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    const first = backend.openStream('https://cdn/a.m3u8', tab);
+    const second = backend.openStream('https://cdn/a.m3u8', tab);
+    answer({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    expect(await first).toEqual({ok: false, error: 'mpv executable not found'});
+    expect(await second).toEqual({ok: false, error: 'mpv executable not found'});
+    // And it can be tried again.
+    const third = backend.openStream('https://cdn/a.m3u8', tab);
+    answer({ok: true, hostVersion: RequiredHostVersion});
+    expect(await third).toEqual({ok: true});
+  });
+
   it('lets the same URL be retried when the host is not installed', async () => {
     const host = stubNativeHost(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();
@@ -288,6 +313,32 @@ describe('openStream contentType', () => {
     }
   });
 
+  it('cuts a title and a subtitle label between whole characters (#470)', async () => {
+    // Cut in the middle of an emoji, a lone half of it reached mpv, which drew it as a broken
+    // character at the end of the title or the track's name.
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const clapper = '\u{1F3AC}';
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
+        'x'.repeat(299) + clapper + 'tail', {subtitles: [{label: 'y'.repeat(99) + clapper + 'tail', srt}]});
+    expect(host.message().title).toBe('x'.repeat(299) + clapper);
+    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + clapper);
+  });
+
+  it('cuts a title and a subtitle label between whole characters as read', async () => {
+    // A flag is two code points: cut between them, one letter of it reached mpv (glm's review
+    // of #470's fix, 2026-10-13).
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const flag = '\u{1F1E9}\u{1F1EA}';
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
+        'x'.repeat(299) + flag + 'tail', {subtitles: [{label: 'y'.repeat(99) + flag + 'tail', srt}]});
+    expect(host.message().title).toBe('x'.repeat(299) + flag);
+    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + flag);
+  });
+
   it('relays where the player was and its subtitles (the player\'s button)', async () => {
     const host = captureNativeHost();
     const backend = new MpvBackend();
@@ -336,6 +387,20 @@ describe('openStream contentType', () => {
         {subtitles: [{label: 'huge', srt: srtOf(25000)}]});
     expect(host.message().url).toBe('https://cdn/b.m3u8');
     expect(host.message()).not.toHaveProperty('subtitles');
+  });
+
+  it('sends nothing, and says why, when the stream\'s address alone is over the host\'s limit', async () => {
+    // The host quit unread, and the hand-off said the helper was not installed (glm's review,
+    // 2026-10-13). Firefox takes URLs up to 1 MB.
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    const url = 'https://cdn/a.m3u8?pad=' + 'x'.repeat(HostMaxMessageBytes);
+    const result = await backend.openStream(url, tab);
+    expect(host.message()).toBeUndefined();
+    expect(result).toEqual({ok: false, error: 'the stream\'s address is too long to send to mpv'});
+    // Not recorded as sent: nothing went.
+    expect(tab.mpvSentUrls.has(url)).toBe(false);
   });
 });
 

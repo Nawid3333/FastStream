@@ -58,6 +58,11 @@ const PAGE_QUALITY_LEVEL = 'page-quality:';
 // the load error within seconds; one that plays on between rare errors keeps recovering.
 const RECOVERY_LIMIT = 3;
 const RECOVERY_WINDOW_MS = 120000;
+// How often the seek preview's player is built again after an error: at most
+// PREVIEW_RELOAD_LIMIT times in RECOVERY_WINDOW_MS, as recoverPlayer. One that failed each
+// time was built anew every second for as long as the video was open; one that plays on
+// between rare errors is built again after each.
+const PREVIEW_RELOAD_LIMIT = 3;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
@@ -839,10 +844,21 @@ export class FastStreamClient extends EventEmitter {
       isPreview: true,
     });
 
-    await previewPlayer.setup();
-    this.bindPreviewPlayer(previewPlayer);
+    try {
+      await previewPlayer.setup();
+      this.bindPreviewPlayer(previewPlayer);
 
-    await previewPlayer.setSource(source);
+      await previewPlayer.setSource(source);
+    } catch (e) {
+      // Nothing else holds it: its video and its loader, which may go on fetching, lived on
+      // for the page's life, one for each failed build (glm's review, 2026-10-13).
+      try {
+        previewPlayer.destroy();
+      } catch (destroyError) {
+        console.warn('Could not destroy a preview player that failed to build', destroyError);
+      }
+      throw e;
+    }
 
     // The video being previewed can be torn down or replaced while its preview is still
     // being built, and a preview of something that is no longer playing does not belong
@@ -1939,6 +1955,7 @@ export class FastStreamClient extends EventEmitter {
     // A preview build still running is the old video's: the next video joined it, the build
     // discarded itself over the changed source, and the next video had no seek preview.
     this.previewPlayerSetup = null;
+    this.previewReloads = [];
 
     if (this.syncedAudioPlayer) {
       try {
@@ -2161,8 +2178,10 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.WAITING, (event) => {
-      if (this.options.autoplayNext && this.duration > 5&&this.duration - this.currentTime < 1) {
-        this.autoplayNextVideo();
+      // In the last second, the next video instead of a wait - when there is one: with none,
+      // this returned before the indicator, and the last video froze there with nothing
+      // shown (glm's second look, 2026-10-13).
+      if (this.duration > 5 && this.duration - this.currentTime < 1 && this.autoplayNextVideo()) {
         return;
       }
       this.watchEndStall();
@@ -2213,6 +2232,13 @@ export class FastStreamClient extends EventEmitter {
         if (this.lastPreviewReload && now - this.lastPreviewReload < 1000) {
           return;
         }
+        // PREVIEW_RELOAD_LIMIT times in RECOVERY_WINDOW_MS, as recoverPlayer (glm's review,
+        // 2026-10-13); resetPlayer starts the count again.
+        this.previewReloads = (this.previewReloads || []).filter((time) => now - time < RECOVERY_WINDOW_MS);
+        if (this.previewReloads.length >= PREVIEW_RELOAD_LIMIT) {
+          return;
+        }
+        this.previewReloads.push(now);
         this.lastPreviewReload = now;
         console.error('Reloading preview player');
         this.setupPreviewPlayer();
@@ -2741,11 +2767,14 @@ export class FastStreamClient extends EventEmitter {
    * Goes on to the next video when this one ends, once: the last second's `waiting` and then
    * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
    * Playing again (after a seek back, say) lets the end ask again.
+   * @return {boolean} Whether the next video is on its way (asked now or before).
    */
   autoplayNextVideo() {
-    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
+    if (!this.options.autoplayNext || !this.hasNextVideo()) return false;
+    if (this.autoNextRequested) return true;
     this.autoNextRequested = true;
     this.nextVideo();
+    return true;
   }
 
   /**

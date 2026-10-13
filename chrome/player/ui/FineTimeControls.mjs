@@ -158,6 +158,10 @@ export class FineTimeControls extends EventEmitter {
       if (this.client.state.playing) {
         this.client.player.pause();
       }
+      // One grab is one undo step, as a drag on the progress bar is: each move was saved,
+      // and one grab filled the undo history (glm's second look, 2026-10-13).
+      this.client.savePosition();
+      this.client.setSeekSave(false);
     };
     this.ui.timelineTicks.addEventListener('mousedown', mouseDown);
     // this.ui.timelineAudioCanvasContainer.addEventListener('mousedown', mouseDown);
@@ -168,22 +172,28 @@ export class FineTimeControls extends EventEmitter {
     // this document (a drag keeps the mouse events in the frame it started in, wherever
     // the button is released), and on a move with no button held, for a mouseup that never
     // came at all.
-    const endGrab = (e, seek) => {
+    const endGrab = (e, seek, resume = true) => {
       if (!isGrabbing) return;
       isGrabbing = false;
       this.isSeeking = false;
-      if (!this.client.player) return;
-      if (seek) {
+      if (this.client.player && seek) {
         const video = this.client.player.getVideo();
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
+        this.client.setSeekSave(false);
         this.client.currentTime = time;
         this.client.updateTime(time);
       }
-      if (shouldPlay) {
+      this.client.setSeekSave(true);
+      if (!this.client.player) return;
+      if (shouldPlay && resume) {
         this.client.player.play();
       }
     };
+    // A grab still held when the next video came (reset) went on seeking it from the
+    // previous one's position, and its release started it. It ends there, without seeking
+    // or playing on, as the progress bar's drag does.
+    this.endGrab = () => endGrab(null, false, false);
     DOMElements.playerContainer.addEventListener('mouseup', (e) => endGrab(e, true), true);
     document.addEventListener('mouseup', (e) => endGrab(e, true));
 
@@ -197,6 +207,10 @@ export class FineTimeControls extends EventEmitter {
       if (isGrabbing) {
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
+        // Off again for each move: a key's seek in the middle of the grab turns saving on
+        // around itself, and the moves after it were saved one by one (glm's review,
+        // 2026-10-13).
+        this.client.setSeekSave(false);
         this.client.currentTime = time;
         this.client.updateTime(time);
       }
@@ -218,6 +232,7 @@ export class FineTimeControls extends EventEmitter {
   }
 
   reset() {
+    this.endGrab?.();
     this.ticklineElements = [];
     this.frameElements = [];
     this.ui.timelineTicks.replaceChildren();
@@ -482,6 +497,8 @@ export class FineTimeControls extends EventEmitter {
 
       const context = el.ctx;
       el.element.width = newWidth;
+      // Moved to a screen with another scaling, it kept the height it was made with.
+      el.element.height = newHeight;
       context.clearRect(0, 0, el.element.width, el.element.height);
 
       if (this.audioSilenceThreshold !== null) {

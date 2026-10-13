@@ -72,7 +72,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 13;
+export const HostVersion = 14;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -587,6 +587,8 @@ export const HeartbeatMs = 30000;
 // stays when this mpv has no notify.lua and the notice names no time.
 export const MaxNoticeSeconds = 60;
 const DefaultTextSeconds = 4;
+// How close to its end mpv may stop, paused or after a seek, and it is the end (watchMpv).
+const EndSlackSeconds = 0.5;
 
 /**
  * How long a notice asks to stay: seconds between 0 (exclusive) and MaxNoticeSeconds, to a
@@ -618,6 +620,13 @@ export const EpisodeMessages = {
  * the end), or an end-file "eof" (an mpv without keep-open). The first eof-reached is mpv's
  * state when the watch began, a file that ended before: no end. A file loaded into the
  * window (loadfile replace) comes as a new path, eof-reached unavailable, then false.
+ *
+ * Host 14 (2026-10-13): an end is also mpv in the last EndSlackSeconds of its file when it
+ * pauses there or a seek lands there (playback-restart). A skip past the end of an HLS
+ * stream with discontinuities stopped mpv at the end, paused, with eof-reached never set
+ * (measured with the pinned mpv): MPV autoplay never started, until the user went back and
+ * played the last seconds again (his report). The pause mpv was in when the watch began is
+ * its state then, as eof-reached's first value is.
  *
  * Host 9: mpv's episode buttons show only while FastStream follows the window
  * (user-data/faststream/connected, cleared when the extension lets go), and its autoplay
@@ -654,6 +663,10 @@ export function watchMpv(send, io = {}) {
   let endedPath = null;
   let finished = false;
   let requests = 0;
+  // The questions for the time left (endCheck), by request id; whether the first pause
+  // value (mpv's state when the watch began) came.
+  const endChecks = new Set();
+  let pauseSeen = false;
   // A notice sent to notify.lua, by request id: one refused (no notify.lua in this mpv's
   // config) is shown with mpv's own text instead.
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
@@ -706,11 +719,20 @@ export function watchMpv(send, io = {}) {
       send({type: 'ended', path});
     }
   };
+  // Asks mpv how much of its file is left: the answer may be an end (Host 14 above).
+  const endCheck = () => {
+    if (path === null || endedPath === path) return;
+    requests++;
+    const id = 1000 + requests;
+    endChecks.add(id);
+    write(['get_property', 'time-remaining'], id);
+  };
   socket.on('error', () => finish('no mpv'));
   socket.on('close', () => finish('mpv closed'));
   socket.on('connect', () => {
     write(['observe_property', 1, 'path']);
     write(['observe_property', 2, 'eof-reached']);
+    write(['observe_property', 3, 'pause']);
     write(['set_property', 'user-data/faststream/connected', true]);
     beat();
     heartbeat = setInterval(beat, io.heartbeatMs || HeartbeatMs);
@@ -744,6 +766,14 @@ export function watchMpv(send, io = {}) {
         eof = typeof event.data === 'boolean' ? event.data : undefined;
       } else if (event.event === 'end-file' && event.reason === 'eof') {
         ended();
+      } else if (event.event === 'property-change' && event.name === 'pause') {
+        if (pauseSeen && event.data === true) endCheck();
+        pauseSeen = true;
+      } else if (event.event === 'playback-restart') {
+        endCheck();
+      } else if (endChecks.has(event.request_id)) {
+        endChecks.delete(event.request_id);
+        if (event.error === 'success' && typeof event.data === 'number' && event.data <= EndSlackSeconds) ended();
       } else if (event.event === 'client-message' && Array.isArray(event.args)) {
         const action = EpisodeMessages[event.args[0]];
         if (action) send({type: 'request', action});
@@ -996,7 +1026,7 @@ export function qualityFragmentFor(qualities) {
       continue;
     }
     const label = typeof entry.label === 'string' ?
-      Array.from(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()).slice(0, 40).join('') : '';
+      cutText(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim(), 40) : '';
     const height = Number.isInteger(entry.height) && entry.height > 0 && entry.height <= 10000 ? entry.height : 0;
     const parsed = new URL(entry.url);
     parsed.hash = '';
@@ -1451,6 +1481,16 @@ export const CommandLineEnv = 'FASTSTREAM_MPV_COMMAND_LINE';
 const MaxCommandLineChars = 32767;
 
 /**
+ * mpv's command line as launchViaWmi hands it to CreateProcess.
+ * @param {string} mpvPath
+ * @param {Array<string>} args
+ * @return {string}
+ */
+function windowsCommandLine(mpvPath, args) {
+  return [mpvPath, ...args].map(quoteWindowsArg).join(' ');
+}
+
+/**
  * The PowerShell that starts mpv through WMI and focuses its window. Fixed text: the
  * command line is read from the environment (CommandLineEnv).
  * @return {Array<string>} Script lines.
@@ -1570,12 +1610,31 @@ export function wmiLaunchResult(text) {
  *   tries?: number}>} wmiLaunchResult's reading of the script's output.
  */
 function launchViaWmi(mpvPath, args) {
-  const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
+  const commandLine = windowsCommandLine(mpvPath, args);
   if (commandLine.length >= MaxCommandLineChars) {
     return Promise.resolve({ok: false, error: 'the stream URL is too long for mpv\'s command line'});
   }
 
   return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then(wmiLaunchResult);
+}
+
+
+/**
+ * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
+ * from several is one. Cut between its code points, a part of it was left, which mpv drew
+ * as a broken character (#470; glm's review of the fix, 2026-10-13).
+ * @param {string} text
+ * @param {number} max
+ * @return {string}
+ */
+function cutText(text, max) {
+  let out = '';
+  let count = 0;
+  for (const {segment} of new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text)) {
+    if (count++ === max) break;
+    out += segment;
+  }
+  return out;
 }
 
 /**
@@ -1586,9 +1645,11 @@ function launchViaWmi(mpvPath, args) {
  */
 export function streamTitle(message) {
   if (typeof message.title === 'string') {
-    // Control characters out (a title is one line), length bounded.
-    const clean = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
-        .join('').replace(/\s+/g, ' ').trim().slice(0, 200);
+    // Control characters out (a title is one line), length bounded in whole characters: a
+    // cut through an emoji left half of it, which mpv drew as a broken character (#470).
+    const oneLine = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
+        .join('').replace(/\s+/g, ' ').trim();
+    const clean = cutText(oneLine, 200);
     if (clean) {
       return clean;
     }
@@ -1689,7 +1750,19 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
   for (const file of extras.subFiles) {
     args.push(`--sub-files-append=${file}`);
   }
-  args.push(mpvTargetUrl(message));
+  let target = mpvTargetUrl(message);
+  // Windows caps the command line (launchViaWmi refuses a longer one). The page's quality
+  // list, percent-encoded once more in fs-quality=, took twelve long URLs past it while the
+  // stream itself fitted, and the start failed (#470): mpv starts without the list, and only
+  // its quality menu goes without it. A window already open gets it over the pipe, uncapped.
+  if (platform === 'win32' && windowsCommandLine(mpvPath, [...args, target, '--}']).length >= MaxCommandLineChars) {
+    const withoutQualities = mpvTargetUrl({...message, qualities: undefined});
+    if (withoutQualities !== target) {
+      debugLog(config, 'qualities-dropped', {length: target.length});
+      target = withoutQualities;
+    }
+  }
+  args.push(target);
   args.push('--}');
 
   debugLog(config, 'spawn', {mpvPath, args});

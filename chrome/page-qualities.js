@@ -26,7 +26,16 @@ const PageQualities = (() => {
    */
   function heightOf(label) {
     const text = String(label ?? '').trim();
-    const digits = /(?<!\d)(\d{3,4})\s*[pP]?(?!\d)/.exec(text);
+    // A size, "1920x1080": its second number. The first was taken, the width (glm's review,
+    // 2026-10-13).
+    const size = /(?<!\d)\d{3,4}\s*[x×]\s*(\d{3,4})(?!\d)/i.exec(text);
+    if (size) {
+      const height = parseInt(size[1], 10);
+      if (height >= 100 && height <= 4320) return height;
+    }
+    // Not a number that ends a word or a version: a codec's, "H264", "H.264", "x265", went
+    // for the height (glm's second look, 2026-10-13).
+    const digits = /(?<![\w.])(\d{3,4})\s*[pP]?(?!\d)/.exec(text);
     if (digits) {
       const height = parseInt(digits[1], 10);
       if (height >= 100 && height <= 4320) return height;

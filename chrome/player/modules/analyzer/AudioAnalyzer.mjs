@@ -23,6 +23,8 @@ export class AudioAnalyzer extends EventEmitter {
 
     this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
     this.backgroundDoneRanges = [];
+    // The video and audio levels the background analysis is made of (setLevel).
+    this.analyzedLevels = null;
     this.backgroundAnalyzerEnabled = true;
     // Counts startBackgroundAnalyzer's loads (see there).
     this.backgroundStarts = 0;
@@ -110,6 +112,7 @@ export class AudioAnalyzer extends EventEmitter {
 
       this.stopBackgroundAnalyzer();
       this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
+      this.analyzedLevels = null;
     } catch (e) {
       console.error(e);
     }
@@ -149,6 +152,9 @@ export class AudioAnalyzer extends EventEmitter {
     }
 
     this.backgroundAnalyzerSource = newSource;
+    // The levels the analysis is made of (its player takes the client's), for a switch
+    // after it finished (setLevel).
+    this.analyzedLevels = {video: this.client.getCurrentVideoLevelID(), audio: this.client.getCurrentAudioLevelID()};
 
     if (this.backgroundAnalyzerPlayer) {
       this.backgroundAnalyzerPlayer.destroy();
@@ -235,6 +241,19 @@ export class AudioAnalyzer extends EventEmitter {
       volume: true,
     });
 
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      audioAnalyzerNode.destroy();
+      audioSource.disconnect();
+      audioContext.close();
+    };
+    // Destroyed before its metadata came (a stop or a newer start while it loaded): only the
+    // analysis below let these go, and it never ran - the audio context and the volume loop
+    // ran on for the rest of the session.
+    player.on(DefaultPlayerEvents.DESTROYED, release);
+
     player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
       player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
       player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
@@ -243,9 +262,7 @@ export class AudioAnalyzer extends EventEmitter {
     const onLoadMeta = () => {
       player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
       this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
-        audioAnalyzerNode.destroy();
-        audioSource.disconnect();
-        audioContext.close();
+        release();
         onDone(completed);
       });
     };
@@ -255,9 +272,7 @@ export class AudioAnalyzer extends EventEmitter {
     try {
       await player.setSource(source);
     } catch (e) {
-      audioAnalyzerNode.destroy();
-      audioSource.disconnect();
-      audioContext.close();
+      release();
       throw e;
     }
     return player;
@@ -447,19 +462,30 @@ export class AudioAnalyzer extends EventEmitter {
   }
 
   setLevel(videoLevel, audioLevel) {
+    let changedVideo;
+    let changedAudio;
     if (this.backgroundAnalyzerPlayer) {
-      const changedVideo = this.backgroundAnalyzerPlayer.getCurrentVideoLevelID() !== videoLevel;
-      const changedAudio = this.backgroundAnalyzerPlayer.getCurrentAudioLevelID() !== audioLevel;
+      changedVideo = this.backgroundAnalyzerPlayer.getCurrentVideoLevelID() !== videoLevel;
+      changedAudio = this.backgroundAnalyzerPlayer.getCurrentAudioLevelID() !== audioLevel;
       this.backgroundAnalyzerPlayer.setCurrentVideoLevelID(videoLevel);
       this.backgroundAnalyzerPlayer.setCurrentAudioLevelID(audioLevel);
-      if (audioLevel === null ? changedVideo : changedAudio) {
-        this.backgroundDoneRanges.length = 0;
-        this.volumeBuffer = [];
-        if (this.backgroundAnalyzerStatus !== AnalyzerStatus.RUNNING) {
-          this.reset();
-        }
-        this.emit('audioLevelChanged', audioLevel);
+    } else if (this.analyzedLevels) {
+      // Finished (or failed): its player is gone, and the switch changed nothing. The
+      // volumes were the old track's for the rest of the video, and nothing analysed the
+      // new one (glm's look at a noted edge case, 2026-10-13).
+      changedVideo = this.analyzedLevels.video !== videoLevel;
+      changedAudio = this.analyzedLevels.audio !== audioLevel;
+    } else {
+      return;
+    }
+    this.analyzedLevels = {video: videoLevel, audio: audioLevel};
+    if (audioLevel === null ? changedVideo : changedAudio) {
+      this.backgroundDoneRanges.length = 0;
+      this.volumeBuffer = [];
+      if (this.backgroundAnalyzerStatus !== AnalyzerStatus.RUNNING) {
+        this.reset();
       }
+      this.emit('audioLevelChanged', audioLevel);
     }
   }
 

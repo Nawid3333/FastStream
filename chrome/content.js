@@ -56,6 +56,8 @@
   // back meanwhile, and the element stayed hidden for good.
   const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
+  // Counts removePlayers(): an OPEN_PLAYER that a removal overtook puts no player in.
+  let PlayersEpoch = 0;
   let MiniplayerCooldown = 0;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
@@ -334,6 +336,13 @@
     // that the frame is gone, as before.
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.iframe.isConnected) return;
+      // Its miniplayer and its windowed fullscreen go too, as removePlayers does: the rest
+      // of the page stayed hidden, and a next player's windowed fullscreen left its own box
+      // hidden, the elements being changed already (glm's review, 2026-10-13).
+      unmakeMiniPlayer(iframeObj);
+      if (iframeObj.windowedFullscreenState.active) {
+        windowedFullscreenToggle(iframeObj);
+      }
       if (iframeObj.replacedData) {
         restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
@@ -467,7 +476,16 @@
   }
 
   function handlePlayerOpen(request, sender, sendResponse) {
+    // The video is found by its visibility, which can take a second (a background tab's
+    // IntersectionObserver): players removed meanwhile (the page went on to another address)
+    // gave the page back, and this then put its player in anyway (glm's second look,
+    // 2026-10-13).
+    const epoch = PlayersEpoch;
     getVideo().then((video) => {
+      if (epoch !== PlayersEpoch) {
+        sendResponse('error');
+        return;
+      }
       if (!video && !request.force) {
         console.log('no video found');
         sendResponse('no_video');
@@ -841,6 +859,7 @@
   }
 
   function removePlayers() {
+    PlayersEpoch++;
     MiniplayerCooldown = Date.now() + 1000;
     // The players go, and with them the reason to hold the page's media. (Keeping the hold
     // and the guards over a site's embed whose player stays up through a URL change was
@@ -924,7 +943,10 @@
       if (!(aspectRatio > 0 && aspectRatio < Infinity)) {
         aspectRatio = 16 / 9;
       }
-      const newWidth = Math.min(Math.max(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
+      // Within its share of the screen both ways: by the wider of the two, a portrait
+      // player's (a quarter of a 1920x1080 screen) came out 853 px high (glm's second look,
+      // 2026-10-13).
+      const newWidth = Math.min(Math.min(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
       const newHeight = newWidth / aspectRatio;
       element.style.setProperty('width', newWidth + 'px', 'important');
       element.style.setProperty('height', newHeight + 'px', 'important');
@@ -1045,6 +1067,10 @@
       windowedFullscreenState.active = false;
       iframeObj.iframe.setAttribute('style', windowedFullscreenState.oldStyle);
       undoFillScreenIframe(windowedFullscreenState.fillScreenWhitelist);
+      // Fitted at once: it waited a second, with the player at the size it had before
+      // (glm's audit, 2026-10-13). Again a second later, for a page whose own scripts lay
+      // it out once it has its styles back.
+      updateReplacedPlayers();
       setTimeout(() => {
         updateReplacedPlayers();
       }, 1000);
@@ -2374,9 +2400,9 @@
     }
 
     // A click that opens the link somewhere else - a new tab or window (Ctrl, Command,
-    // Shift, target="_blank"), a download (Alt, or the download attribute) - leaves this
-    // page and its player where they are.
-    const target = (current.getAttribute('target') || '').toLowerCase();
+    // Shift, target="_blank", also by the page's <base target>), a download (Alt, or the
+    // download attribute) - leaves this page and its player where they are.
+    const target = linkTarget(current);
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
         current.hasAttribute('download') ||
         (target && !['_self', '_parent', '_top'].includes(target))) {

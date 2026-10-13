@@ -283,6 +283,22 @@ describe('DownloadManager', () => {
       }
     });
 
+    it('starts the next video\'s request at once after a failure in the last one', async () => {
+      // A failure's one-second cooldown went on into the next video: its first downloads
+      // waited, as the purpose-stops' did before (glm's review, 2026-10-13).
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      try {
+        const manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
+        manager.lastFailed = Date.now();
+        await manager.reset();
+        const watcher = manager.getFile(details, callbacks());
+        expect(watcher.entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('starts when another request joins it', () => {
       const manager = new DownloadManager(null);
       manager.downloaders = [];
@@ -347,6 +363,34 @@ describe('DownloadManager', () => {
       expect(manager.downloaders).toHaveLength(3);
       round();
       expect(manager.downloaders).toHaveLength(4);
+    });
+
+    it('still decides when a sample came with no speed (a cache hit)', () => {
+      // SpeedTracker gives 0 for a response from the cache: its downloader's place was marked
+      // heard without being counted, the round never closed, and no downloader was added again
+      // (after a throttle the probe never ended either; glm's review, 2026-10-13).
+      const manager = new DownloadManager(client());
+      manager.downloaders = [finished(), finished(), finished()];
+      manager.downloaders[0].getSpeed = () => 0;
+      manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      manager.downloaders[0].getSpeed = () => 1e6;
+      const round = () => manager.downloaders.slice(0, 3).forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
+      round();
+      round();
+      expect(manager.downloaders).toHaveLength(4);
+    });
+
+    it('closes a round on the downloaders there, one dropped meanwhile', () => {
+      // Heard by their place in the list: a dropped downloader moved the next one onto a place
+      // already heard, which was then never counted (glm's review, 2026-10-13).
+      const manager = new DownloadManager(client());
+      const [a, b, c] = [finished(), finished(), finished()];
+      manager.downloaders = [a, b, c];
+      manager.onDownloaderFinished(b, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      manager.onDownloaderFinished(a, failedEntry);
+      expect(manager.downloaders).toEqual([b, c]);
+      manager.onDownloaderFinished(c, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.speedTestBuffer).toHaveLength(1);
     });
 
     it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
@@ -691,11 +735,18 @@ describe('DownloadManager', () => {
             status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'},
           }))
           .mockResolvedValueOnce(new Response('small body', {status: 200, headers: {'Content-Type': 'text/plain'}}));
-      vi.stubGlobal('fetch', fetchMock);
+      // When and from where each fetch came: CI once saw the retry before the Retry-After
+      // was over (2026-10-13), which never happened here.
+      const fetches = [];
+      vi.stubGlobal('fetch', (...args) => {
+        fetches.push({at: Date.now() - start, stack: new Error().stack.split('\n').slice(2, 8).join(' | ')});
+        return fetchMock(...args);
+      });
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const manager = new DownloadManager(client());
       manager.downloaders = Array.from({length: 4}, () => new StandardDownloader(manager));
+      const start = Date.now();
 
       const entry = {
         details: {url: 'https://cdn.example/1.ts'},
@@ -713,7 +764,6 @@ describe('DownloadManager', () => {
       };
       const onSuccess = vi.spyOn(entry, 'onSuccess');
 
-      const start = Date.now();
       manager.downloaders[0].run(entry);
       // The 429 halves the pool at once and holds new downloads for its Retry-After.
       await vi.advanceTimersByTimeAsync(10);
@@ -726,7 +776,7 @@ describe('DownloadManager', () => {
 
       // The same downloader waits the Retry-After out...
       await vi.advanceTimersByTimeAsync(3500);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock, JSON.stringify(fetches)).toHaveBeenCalledTimes(1);
       // ...gets the whole body on the retry, and the entry succeeds.
       await vi.advanceTimersByTimeAsync(700);
       expect(fetchMock).toHaveBeenCalledTimes(2);

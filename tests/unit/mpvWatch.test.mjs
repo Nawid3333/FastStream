@@ -87,6 +87,8 @@ describe('watchMpv', () => {
     expect(mpv.commands).toEqual([
       {command: ['observe_property', 1, 'path']},
       {command: ['observe_property', 2, 'eof-reached']},
+      // Host 14: a pause at the end is an end too.
+      {command: ['observe_property', 3, 'pause']},
       // Host 9: the mpv setup's episode buttons show while this holds.
       {command: ['set_property', 'user-data/faststream/connected', true]},
       // Host 10: and while this keeps changing.
@@ -162,6 +164,69 @@ describe('watchMpv', () => {
     watch.stop();
   });
 
+  // Host 14: a skip past the end of an HLS stream with discontinuities stopped mpv at the
+  // end, paused (keep-open), with eof-reached never set (measured with the pinned mpv,
+  // 2026-10-13): MPV autoplay never started, until the user went back and played the last
+  // seconds again (his report, 2026-10-13). An end is also mpv at the last half second of
+  // its file when it pauses there or a seek lands there.
+  describe('an end mpv does not mark (eof-reached unset)', () => {
+    const pauseEvent = (data) => ({event: 'property-change', id: 3, name: 'pause', data});
+    /** Answers the watch's question for the time left with this many seconds. */
+    const answerTimeLeft = async (mpv, settle, seconds) => {
+      await settle();
+      const asks = mpv.commands.filter((c) => c.command[0] === 'get_property' && c.command[1] === 'time-remaining');
+      expect(asks.length).toBeGreaterThan(0);
+      mpv.event({request_id: asks.at(-1).request_id, error: 'success', data: seconds});
+      await settle();
+    };
+
+    it('tells it when mpv pauses at the end', async () => {
+      const {mpv, sent, watch, settle} = await watching('end-paused');
+      mpv.event(pathEvent('https://cdn.test/ep4.m3u8'));
+      mpv.event(eofEvent(false));
+      mpv.event(pauseEvent(false));
+      mpv.event(pauseEvent(true));
+      await answerTimeLeft(mpv, settle, 0);
+      expect(sent.filter((m) => m.type === 'ended')).toEqual([{type: 'ended', path: 'https://cdn.test/ep4.m3u8'}]);
+      watch.stop();
+    });
+
+    it('tells it when a seek lands at the end, paused or not', async () => {
+      const {mpv, sent, watch, settle} = await watching('end-seek');
+      mpv.event(pathEvent('https://cdn.test/ep5.m3u8'));
+      mpv.event(eofEvent(false));
+      mpv.event(pauseEvent(false));
+      mpv.event({event: 'playback-restart'});
+      await answerTimeLeft(mpv, settle, 0.3);
+      expect(sent.filter((m) => m.type === 'ended')).toEqual([{type: 'ended', path: 'https://cdn.test/ep5.m3u8'}]);
+      watch.stop();
+    });
+
+    it('does not for a pause or a seek elsewhere in the file', async () => {
+      const {mpv, sent, watch, settle} = await watching('end-not');
+      mpv.event(pathEvent('https://cdn.test/ep6.m3u8'));
+      mpv.event(eofEvent(false));
+      mpv.event(pauseEvent(false));
+      mpv.event(pauseEvent(true));
+      await answerTimeLeft(mpv, settle, 600);
+      mpv.event({event: 'playback-restart'});
+      await answerTimeLeft(mpv, settle, 2);
+      expect(sent.filter((m) => m.type === 'ended')).toEqual([]);
+      watch.stop();
+    });
+
+    it('does not ask about the pause mpv was in when the watch began', async () => {
+      // A file that had ended before the watch began, paused at its end, is no end now.
+      const {mpv, watch, settle} = await watching('end-initial');
+      mpv.event(pathEvent('https://cdn.test/ep7.m3u8'));
+      mpv.event(eofEvent(false));
+      mpv.event(pauseEvent(true));
+      await settle();
+      expect(mpv.commands.filter((c) => c.command[1] === 'time-remaining')).toEqual([]);
+      watch.stop();
+    });
+  });
+
   it('tells the end of an mpv without keep-open (end-file eof)', async () => {
     const {mpv, sent, watch, settle} = await watching('eof');
     mpv.event(pathEvent('https://cdn.test/ep3.mp4'));
@@ -235,7 +300,7 @@ describe('watchMpv', () => {
     watch.state({});
     watch.state({autoplay: true});
     await settle();
-    expect(mpv.commands.slice(4)).toEqual([
+    expect(mpv.commands.slice(5)).toEqual([
       {command: ['set_property', 'user-data/faststream/autoplay', false]},
       {command: ['set_property', 'user-data/faststream/autoplay', true]},
     ]);

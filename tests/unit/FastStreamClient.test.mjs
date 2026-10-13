@@ -705,6 +705,17 @@ describe('FastStreamClient, autoplay of the next video', () => {
     client.nextVideo();
     expect(navigations()).toBe(2);
   });
+
+  it('shows the wait in the last second when there is no next video to go to', () => {
+    // Autoplay on and no next video: the wait returned before the buffering indicator, and
+    // the last video froze in its last second with nothing shown (glm's second look,
+    // 2026-10-13).
+    const {client, player} = atTheEnd();
+    client.state.hasNextVideo = false;
+    player.emit(DefaultPlayerEvents.WAITING);
+    expect(client.interfaceController.setBuffering).toHaveBeenCalledWith(true);
+    expect(navigations()).toBe(0);
+  });
 });
 
 describe('FastStreamClient, the page\'s own media', () => {
@@ -1231,5 +1242,78 @@ describe('FastStreamClient, the page\'s qualities with a query of their own', ()
     expect(client.source.url).not.toBe(qualities[0].url);
     expect(client.getMenuVideoLevelID()).toBe('page-quality:0');
     expect(client.getMenuVideoLevels().size).toBe(2);
+  });
+});
+
+describe('FastStreamClient, the seek preview\'s player', () => {
+  it('is destroyed when building it fails', async () => {
+    // Nothing else held it: its video and its loader, which may go on fetching, lived on for
+    // the page's life, one for each failed build (glm's review, 2026-10-13).
+    const client = makeClient({previewEnabled: true});
+    const preview = {
+      setup: vi.fn(async () => {}),
+      setSource: vi.fn(async () => {
+        throw new Error('level load failed');
+      }),
+      destroy: vi.fn(),
+    };
+    client.player = {getSource: () => ({mode: 'hls', url: 'https://cdn.test/x.m3u8'})};
+    client.playerLoader.createPlayer = vi.fn(async () => preview);
+    client.bindPreviewPlayer = vi.fn();
+    await expect(client.buildPreviewPlayer()).rejects.toThrow('level load failed');
+    expect(preview.destroy).toHaveBeenCalledTimes(1);
+    expect(client.previewPlayer).toBeNull();
+  });
+});
+
+describe('FastStreamClient, a seek preview that keeps failing', () => {
+  /**
+   * A client whose seek preview is bound, with its rebuild counted.
+   * @return {{client: Object, context: EventEmitter}}
+   */
+  function previewFailing() {
+    const client = makeClient({previewEnabled: true});
+    client.interfaceController.resetPreviewVideo = vi.fn();
+    const context = new EventEmitter();
+    client.setupPreviewPlayer = vi.fn();
+    client.bindPreviewPlayer({createContext: () => context});
+    return {client, context};
+  }
+
+  it('is built again at most three times in two minutes', () => {
+    // It was built anew every second for as long as the video was open (a stream whose
+    // preview fails each time), where the main player's rebuilds are capped (glm's review,
+    // 2026-10-13).
+    vi.useFakeTimers();
+    try {
+      const {client, context} = previewFailing();
+      for (let i = 0; i < 10; i++) {
+        vi.advanceTimersByTime(2000);
+        context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      }
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(3);
+      // ... and again once those two minutes are over, as recoverPlayer is.
+      vi.advanceTimersByTime(120000);
+      context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('is built again after each of a long video\'s rare errors', () => {
+    // A cap for the whole video ended the seek preview for good after its third passing
+    // error, an hour apart (review of the fixes, 2026-10-13).
+    vi.useFakeTimers();
+    try {
+      const {client, context} = previewFailing();
+      for (let i = 0; i < 6; i++) {
+        vi.advanceTimersByTime(10 * 60000);
+        context.emit(DefaultPlayerEvents.ERROR, new Error('segment expired'));
+      }
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -33,7 +33,10 @@ function trimTracked(list, urlOf, isFile) {
     }
   }
   while (list.length > TrackedLimit) {
-    const file = list.findIndex(isFile);
+    // Never the one just added: in a list of manifests only (a live playlist whose address
+    // changes with each reload) a new file was the only file, and went at once, every time
+    // (glm's review, 2026-10-13).
+    const file = list.findIndex((entry) => entry !== added && isFile(entry));
     list.splice(file === -1 ? 0 : file, 1);
   }
 }
@@ -268,6 +271,8 @@ export class TabHolder {
     this.mpvOnPlay = false;
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
+    // The sends to mpv still on their way, by URL (MpvBackend.openStream).
+    this.mpvSending = new Map();
     // Why the last hand-off to mpv failed, while MPV mode shows it on the toolbar button
     // ("!" and the reason in the tooltip); null after one that worked or a new page.
     /** @type {?string} */
@@ -500,6 +505,10 @@ export class TabHolder {
    */
   markDocumentGone(frame) {
     const mark = (f) => {
+      // The pages inside first, so a page is newer than its frames' pages: the oldest go
+      // when there are too many, and a page marked before its frames went first when all
+      // of them had detected something (glm's second look, 2026-10-13).
+      f.children.forEach(mark);
       if (f.documentKey) {
         // Deleted first: a Map keeps a key it already has at its old place, and the
         // limit below drops the oldest, not the one just marked.
@@ -509,11 +518,21 @@ export class TabHolder {
           subtitles: f.getSubtitles().slice(),
         });
       }
-      f.children.forEach(mark);
     };
     mark(frame);
     while (this.goneDocuments.size > GoneDocumentLimit) {
-      this.goneDocuments.delete(this.goneDocuments.keys().next().value);
+      // A page that detected nothing goes first, then the oldest: content.js names the page
+      // in every frame, and a page with more than the limit of them (an ad's each) pushed
+      // its own page, marked first, out with its streams, which Back then did not give back
+      // (glm's review, 2026-10-13).
+      let drop = this.goneDocuments.keys().next().value;
+      for (const [key, kept] of this.goneDocuments) {
+        if (kept.sources.length === 0 && kept.subtitles.length === 0) {
+          drop = key;
+          break;
+        }
+      }
+      this.goneDocuments.delete(drop);
     }
   }
 

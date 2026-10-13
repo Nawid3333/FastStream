@@ -20,7 +20,12 @@ export class SpeedTracker {
 
   prune() {
     const cutoff = performance.now() - this.cutoffSize;
-    while (this.buffer.length > 2 && this.buffer[0].end < cutoff) {
+    // Two old entries stay while nothing new came (getSpeed reads them as 0), but not past
+    // new data: the first download after a lull was counted over the whole lull, minutes,
+    // and read as a few KB/s (glm's second look, 2026-10-13).
+    const fresh = this.buffer.length > 0 && this.buffer[this.buffer.length - 1].end >= cutoff;
+    const keep = fresh ? 1 : 2;
+    while (this.buffer.length > keep && this.buffer[0].end < cutoff) {
       this.buffer.shift();
     }
   }
