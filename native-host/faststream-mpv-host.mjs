@@ -587,6 +587,8 @@ export const HeartbeatMs = 30000;
 // stays when this mpv has no notify.lua and the notice names no time.
 export const MaxNoticeSeconds = 60;
 const DefaultTextSeconds = 4;
+// How close to its end mpv may stop, paused or after a seek, and it is the end (watchMpv).
+const EndSlackSeconds = 0.5;
 
 /**
  * How long a notice asks to stay: seconds between 0 (exclusive) and MaxNoticeSeconds, to a
@@ -618,6 +620,13 @@ export const EpisodeMessages = {
  * the end), or an end-file "eof" (an mpv without keep-open). The first eof-reached is mpv's
  * state when the watch began, a file that ended before: no end. A file loaded into the
  * window (loadfile replace) comes as a new path, eof-reached unavailable, then false.
+ *
+ * Host 14 (2026-10-13): an end is also mpv in the last EndSlackSeconds of its file when it
+ * pauses there or a seek lands there (playback-restart). A skip past the end of an HLS
+ * stream with discontinuities stopped mpv at the end, paused, with eof-reached never set
+ * (measured with the pinned mpv): MPV autoplay never started, until the user went back and
+ * played the last seconds again (his report). The pause mpv was in when the watch began is
+ * its state then, as eof-reached's first value is.
  *
  * Host 9: mpv's episode buttons show only while FastStream follows the window
  * (user-data/faststream/connected, cleared when the extension lets go), and its autoplay
@@ -654,6 +663,10 @@ export function watchMpv(send, io = {}) {
   let endedPath = null;
   let finished = false;
   let requests = 0;
+  // The questions for the time left (endCheck), by request id; whether the first pause
+  // value (mpv's state when the watch began) came.
+  const endChecks = new Set();
+  let pauseSeen = false;
   // A notice sent to notify.lua, by request id: one refused (no notify.lua in this mpv's
   // config) is shown with mpv's own text instead.
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
@@ -706,11 +719,20 @@ export function watchMpv(send, io = {}) {
       send({type: 'ended', path});
     }
   };
+  // Asks mpv how much of its file is left: the answer may be an end (Host 14 above).
+  const endCheck = () => {
+    if (path === null || endedPath === path) return;
+    requests++;
+    const id = 1000 + requests;
+    endChecks.add(id);
+    write(['get_property', 'time-remaining'], id);
+  };
   socket.on('error', () => finish('no mpv'));
   socket.on('close', () => finish('mpv closed'));
   socket.on('connect', () => {
     write(['observe_property', 1, 'path']);
     write(['observe_property', 2, 'eof-reached']);
+    write(['observe_property', 3, 'pause']);
     write(['set_property', 'user-data/faststream/connected', true]);
     beat();
     heartbeat = setInterval(beat, io.heartbeatMs || HeartbeatMs);
@@ -744,6 +766,14 @@ export function watchMpv(send, io = {}) {
         eof = typeof event.data === 'boolean' ? event.data : undefined;
       } else if (event.event === 'end-file' && event.reason === 'eof') {
         ended();
+      } else if (event.event === 'property-change' && event.name === 'pause') {
+        if (pauseSeen && event.data === true) endCheck();
+        pauseSeen = true;
+      } else if (event.event === 'playback-restart') {
+        endCheck();
+      } else if (endChecks.has(event.request_id)) {
+        endChecks.delete(event.request_id);
+        if (event.error === 'success' && typeof event.data === 'number' && event.data <= EndSlackSeconds) ended();
       } else if (event.event === 'client-message' && Array.isArray(event.args)) {
         const action = EpisodeMessages[event.args[0]];
         if (action) send({type: 'request', action});

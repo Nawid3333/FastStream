@@ -440,7 +440,18 @@ Host 14 (2026-10-13, #470) starts a new mpv without the list when it would take 
 line past Windows' 32767 characters (twelve long URLs, percent-encoded once more, do): only
 mpv's quality menu goes without it, where the start failed before. A window already open gets
 the list over the pipe, which has no such cap. Host 14 also cuts the title between whole
-characters, as the extension now cuts the title and the subtitle labels it sends.
+characters (whole as read: a flag is one), as the extension now cuts the title and the
+subtitle labels it sends.
+
+Host 14 also tells an end that mpv does not mark (his report, 2026-10-13: MPV autoplay did not
+start after skipping to the end; he had to go back and play the last seconds). A skip past
+the end of an HLS stream with discontinuities stopped the pinned mpv at the end, paused by
+keep-open, with `eof-reached` never set (measured: 54 s of 54, paused). The watch now also
+observes `pause`, and asks for `time-remaining` when mpv pauses or a seek lands
+(`playback-restart`): half a second or less left is the end. The pause value mpv sends when
+the watch begins is its state then, not a pause, as with `eof-reached`. Measured with the
+real watch on the pinned mpv: on that stream the host 13 watch told no end, host 14's told it
+as the skip landed; skips through a file told one end, at the end.
 
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
