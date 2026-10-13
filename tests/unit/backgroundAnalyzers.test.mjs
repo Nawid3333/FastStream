@@ -84,6 +84,39 @@ describe('PreviewFrameExtractor, a background player that fails to load', () => 
   });
 });
 
+// glm's second look, 2026-10-13.
+describe('PreviewFrameExtractor after a load that failed', () => {
+  it('tries again at the next start, as the audio analyzer does', async () => {
+    // A failed load was final for the video: one dropped manifest request, and the timeline
+    // had no frames until the next video.
+    const client = makeClient(failingPlayer());
+    const extractor = new PreviewFrameExtractor(client);
+    await extractor.startBackgroundAnalyzer();
+
+    const running = {destroy: vi.fn()};
+    extractor.loadPlayer = vi.fn(async () => running);
+    await extractor.startBackgroundAnalyzer();
+    expect(extractor.loadPlayer).toHaveBeenCalled();
+    expect(extractor.backgroundAnalyzerPlayer).toBe(running);
+  });
+
+  it('keeps no player that ended before its load returned', async () => {
+    // Its video had no size: it ended while its source was still being set, when the check
+    // for "the running player" compared two unset values and passed, and the load's return
+    // then kept the dead player as the running one, which blocked every later start.
+    const client = makeClient(null);
+    const extractor = new PreviewFrameExtractor(client);
+    const dead = {destroy: vi.fn()};
+    extractor.loadPlayer = vi.fn(async (source, ranges, onDone) => {
+      onDone(false);
+      return dead;
+    });
+    await extractor.startBackgroundAnalyzer();
+    expect(extractor.backgroundAnalyzerPlayer).toBeFalsy();
+    expect(extractor.backgroundAnalyzerStatus).not.toBe('running');
+  });
+});
+
 describe('PreviewFrameExtractor, a stale background player', () => {
   it('leaves the running one in place when it ends', async () => {
     // A started for source A, then for B; B loaded first and runs. A, loaded last, is

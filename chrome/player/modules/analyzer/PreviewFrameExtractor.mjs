@@ -102,8 +102,17 @@ export class PreviewFrameExtractor extends EventEmitter {
     console.log('[FrameExtractor] Starting background analyzer');
 
     let backgroundAnalyzerPlayer;
+    // Set by an end that came before the load returned the player (its video had no size).
+    let endedWhileLoading = null;
     try {
       backgroundAnalyzerPlayer = await this.loadPlayer(this.backgroundAnalyzerSource, this.backgroundDoneRanges, (completed) => {
+        // Before the load returned, the check below compared two unset values and passed,
+        // and the return then kept the dead player as the running one, which blocked every
+        // later start (glm's second look, 2026-10-13).
+        if (backgroundAnalyzerPlayer === undefined) {
+          endedWhileLoading = completed;
+          return;
+        }
         // Only the running player's end counts, as in AudioAnalyzer: a stale player,
         // destroyed below, cleared the running one's place, and nothing could stop that
         // one any more.
@@ -116,17 +125,25 @@ export class PreviewFrameExtractor extends EventEmitter {
         this.backgroundAnalyzerPlayer = null;
       });
     } catch (e) {
-      // Thrown on, it was an unhandled rejection. Failed, as a run that ends in errors is.
+      // Thrown on, it was an unhandled rejection. The source is forgotten, as AudioAnalyzer
+      // does, so the next start (the timeline tool opened again) tries again: marked as
+      // failed, one dropped request left the timeline without frames for the whole video
+      // (glm's second look, 2026-10-13).
       console.warn('[FrameExtractor] The background analyzer could not load', e);
       if (newSource === this.backgroundAnalyzerSource) {
-        this.backgroundAnalyzerStatus = AnalyzerStatus.FAILED;
-        this.client.interfaceController.updateMarkers();
+        this.backgroundAnalyzerSource = null;
       }
       return;
     }
 
     if (newSource !== this.backgroundAnalyzerSource) {
       backgroundAnalyzerPlayer.destroy();
+      return;
+    }
+
+    if (endedWhileLoading !== null) {
+      this.backgroundAnalyzerStatus = endedWhileLoading ? AnalyzerStatus.FINISHED : AnalyzerStatus.FAILED;
+      this.client.interfaceController.updateMarkers();
       return;
     }
 
