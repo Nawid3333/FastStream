@@ -168,7 +168,7 @@ export class FineTimeControls extends EventEmitter {
     // this document (a drag keeps the mouse events in the frame it started in, wherever
     // the button is released), and on a move with no button held, for a mouseup that never
     // came at all.
-    const endGrab = (e, seek) => {
+    const endGrab = (e, seek, resume = true) => {
       if (!isGrabbing) return;
       isGrabbing = false;
       this.isSeeking = false;
@@ -180,10 +180,14 @@ export class FineTimeControls extends EventEmitter {
         this.client.currentTime = time;
         this.client.updateTime(time);
       }
-      if (shouldPlay) {
+      if (shouldPlay && resume) {
         this.client.player.play();
       }
     };
+    // A grab still held when the next video came (reset) went on seeking it from the
+    // previous one's position, and its release started it. It ends there, without seeking
+    // or playing on, as the progress bar's drag does.
+    this.endGrab = () => endGrab(null, false, false);
     DOMElements.playerContainer.addEventListener('mouseup', (e) => endGrab(e, true), true);
     document.addEventListener('mouseup', (e) => endGrab(e, true));
 
@@ -218,6 +222,7 @@ export class FineTimeControls extends EventEmitter {
   }
 
   reset() {
+    this.endGrab?.();
     this.ticklineElements = [];
     this.frameElements = [];
     this.ui.timelineTicks.replaceChildren();

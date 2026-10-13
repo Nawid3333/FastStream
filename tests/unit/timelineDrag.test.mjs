@@ -104,6 +104,23 @@ describe('FineTimeControls: grabbing the timeline', () => {
     fire(doc, 'mouseup', {clientX: 70});
     expect(timeline.isSeeking).toBe(false);
   });
+
+  it('ends a grab when the next video comes mid-grab, without seeking or starting it', () => {
+    // The held grab went on seeking the next video from the previous one's position, and
+    // its release started it.
+    const {timeline, client} = playing();
+    fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
+    fire(playerContainer, 'mousemove', {clientX: 60});
+    expect(client.currentTime).toBe(40);
+
+    timeline.reset();
+    expect(timeline.isSeeking).toBe(false);
+    client.currentTime = 0;
+    fire(playerContainer, 'mousemove', {clientX: 70});
+    fire(doc, 'mouseup', {clientX: 80});
+    expect(client.currentTime).toBe(0);
+    expect(client.player.play).not.toHaveBeenCalled();
+  });
 });
 
 describe('SubtitleSyncer: dragging a cue', () => {
