@@ -384,17 +384,17 @@ describe('SyncedAudioPlayer', () => {
   });
 
   it('takes the sound of a player finished after a drop out of the output', async () => {
-    let synced;
     const client = makeClient({
       createPlayer: vi.fn(async () => {
         const player = audioPlayer();
+        // Called once synced exists (setVideoDelay below).
         player.setSource = vi.fn(async () => synced.dropPlayers());
         return player;
       }),
     });
     const context = {createMediaElementSource: vi.fn(() => ({}))};
     const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
-    synced = new SyncedAudioPlayer(client);
+    const synced = new SyncedAudioPlayer(client);
     await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
 
     await synced.setVideoDelay(500);
