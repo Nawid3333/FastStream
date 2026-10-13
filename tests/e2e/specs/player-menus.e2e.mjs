@@ -94,35 +94,12 @@ async function settle(read, check, timeout = 10000) {
 }
 
 describe('Player menus', function() {
-  it('lets the arrow keys through the quality button once its list is closed', async function() {
-    // They moved a highlight in the hidden list, and Enter then switched the quality.
-    await openEmptyPlayer();
-    await addSource(hlsUrl());
-    await waitForPicture();
-    await browser.waitUntil(async () => browser.execute(
-        () => document.querySelector('.mainplayer .fluid_video_sources_list').children.length > 0),
-    {timeout: 10000, timeoutMsg: 'the quality list stayed empty'});
-    const state = await arrowDownOnClosedMenu('videoQualityChanger', '.mainplayer .fluid_control_video_source');
-    console.log('      quality button:', JSON.stringify(state));
-    expect(state.wasOpen).toBe(true);
-    expect(state.volume).toBeCloseTo(0.9, 5);
-  });
-
-  it('lets the arrow keys through the audio button once its list is closed', async function() {
-    await openEmptyPlayer();
-    await addSource(twoTracksUrl());
-    await waitForPicture();
-    await browser.waitUntil(async () => browser.execute(
-        () => document.querySelector('.mainplayer .fluid_audio_sources_list').children.length > 0 &&
-          window.fastStream.interfaceController.audioQualityChanger.enabled),
-    {timeout: 10000, timeoutMsg: 'the audio list stayed empty'});
-    const state = await arrowDownOnClosedMenu('audioQualityChanger', '.mainplayer .fluid_button_soundwave');
-    console.log('      audio button:', JSON.stringify(state));
-    expect(state.wasOpen).toBe(true);
-    expect(state.volume).toBeCloseTo(0.9, 5);
-  });
-
-  it('shows the audio button only where there is a track to choose, and opens its list', async function() {
+  // One case since 2026-10-13 with "lets the arrow keys through the quality button once its
+  // list is closed" and "lets the arrow keys through the audio button once its list is
+  // closed", which loaded the same two streams this case loads, one each: the quality
+  // button is tried on the first, the audio button on the second. Every assertion of the
+  // three is here.
+  it('shows the audio button only where there is a track to choose, and opens its list; the quality and audio buttons let the arrow keys through once their lists are closed', async function() {
     // It opened the audio settings window until that went (2026-10-10); it is the
     // audio-track list's button now, and a list of one track offers nothing.
     await openEmptyPlayer();
@@ -141,6 +118,16 @@ describe('Player menus', function() {
     console.log('      one track:', JSON.stringify(one));
     expect(one.shown).toBe(false);
 
+    // The arrow keys on the quality button moved a highlight in the hidden list, and Enter
+    // then switched the quality.
+    await browser.waitUntil(async () => browser.execute(
+        () => document.querySelector('.mainplayer .fluid_video_sources_list').children.length > 0),
+    {timeout: 10000, timeoutMsg: 'the quality list stayed empty'});
+    const quality = await arrowDownOnClosedMenu('videoQualityChanger', '.mainplayer .fluid_control_video_source');
+    console.log('      quality button:', JSON.stringify(quality));
+    expect(quality.wasOpen).toBe(true);
+    expect(quality.volume).toBeCloseTo(0.9, 5);
+
     await addSource(twoTracksUrl());
     await waitForPicture();
     const two = await settle(state, (s) => s.tracks === 2 && s.shown);
@@ -153,6 +140,16 @@ describe('Player menus', function() {
     expect((await state()).open).toBe(true);
     await browser.execute(() => document.querySelector('.mainplayer .fluid_button_soundwave').click());
     expect((await state()).open).toBe(false);
+
+    // The same on the audio button.
+    await browser.waitUntil(async () => browser.execute(
+        () => document.querySelector('.mainplayer .fluid_audio_sources_list').children.length > 0 &&
+          window.fastStream.interfaceController.audioQualityChanger.enabled),
+    {timeout: 10000, timeoutMsg: 'the audio list stayed empty'});
+    const audio = await arrowDownOnClosedMenu('audioQualityChanger', '.mainplayer .fluid_button_soundwave');
+    console.log('      audio button:', JSON.stringify(audio));
+    expect(audio.wasOpen).toBe(true);
+    expect(audio.volume).toBeCloseTo(0.9, 5);
   });
 
   // They changed the speed while the list was closed (review, 2026-10-09).
