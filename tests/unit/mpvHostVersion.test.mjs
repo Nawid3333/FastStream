@@ -6,7 +6,7 @@ import * as url from 'node:url';
 import {spawn} from 'node:child_process';
 import {afterEach, describe, expect, it} from 'vitest';
 import {MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
-import {HostVersion, withHostVersion} from '../../native-host/faststream-mpv-host.mjs';
+import {Capabilities, HostVersion, withHostVersion} from '../../native-host/faststream-mpv-host.mjs';
 
 // The mpv host is not part of the extension: a PC runs the copy install.ps1 made in
 // %LOCALAPPDATA%\FastStreamMpvHost, and neither an extension update nor a `git pull`
@@ -32,8 +32,8 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // chrome/background/MpvBackend.mjs by one, then put the new values here (a failure prints
 // the hashes).
 const RECORDED = {
-  version: 14,
-  host: '35cb03aa94b190cb0df63794d506aff9252f363547023434c8b0e4c4ef3c7b3c',
+  version: 15,
+  host: '1208c726546256856d93baaf1edb3b6192005f2304d6af58196656fe281f86bb',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
@@ -69,9 +69,11 @@ describe('the mpv host\'s version', () => {
   });
 
   it('goes out with every answer', () => {
-    expect(withHostVersion({ok: true, mpv: false})).toEqual({ok: true, mpv: false, hostVersion: HostVersion});
+    // Host 15: with the thin helper's messages it understands (play, ipc, relay).
+    expect(withHostVersion({ok: true, mpv: false}))
+        .toEqual({ok: true, mpv: false, hostVersion: HostVersion, capabilities: ['play', 'ipc', 'relay']});
     expect(withHostVersion({ok: false, error: 'unknown message'}))
-        .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion});
+        .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion, capabilities: [...Capabilities]});
   });
 
   /**
@@ -108,7 +110,8 @@ describe('the mpv host\'s version', () => {
 
   it('is in the running host\'s answer to a ping, and to a message it does not know', async () => {
     expect((await askHost({type: 'ping'})).hostVersion).toBe(HostVersion);
-    expect(await askHost({type: 'nonsense'})).toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion});
+    expect(await askHost({type: 'nonsense'}))
+        .toEqual({ok: false, error: 'unknown message', hostVersion: HostVersion, capabilities: [...Capabilities]});
   }, 30000);
 
   // Node names the program by its real path: started through a link to its folder (a Linux

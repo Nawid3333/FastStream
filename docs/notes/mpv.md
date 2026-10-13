@@ -559,3 +559,121 @@ no repository, so:
   extension; each case was checked to fail on its break (no visibility gate, the `mpv` flag
   ignored, the dismissal not stored). Found writing it: the page's own save does not come
   back through `loadOptions`, so `mpvModeChanged` closes the offer itself.
+
+## Host 15: the thin helper
+
+**Why (2026-10-13).** The helper went from host 1 (2026-10-04) to host 14 (2026-10-13): 14
+versions in 10 days, and each one a reinstall by hand on the owner's PC (`update-local.cmd`,
+`install.ps1`, or mpv-config's "Update mpv"), because policy lived in it: the fragment tags
+(`fs-id`, `fs-page`, `fs-content`, `fs-quality`), the title cut, the quality list, MPV
+autoplay's end detection, the notices, the heartbeat. A helper that downloads its own updates
+was considered and rejected: whoever controls its update source runs code on the PC, a
+remote-code-execution surface by design. The owner chose a thin helper instead: it keeps the
+stable mechanics and offers generic primitives behind allowlists, and the policy moves into
+the extension, which updates itself. The protocol both sides build against is fixed for host
+15 (`thin-helper-protocol.md` in the session that designed it; the message list at the top of
+`native-host/faststream-mpv-host.mjs` is its summary), after a security review of the design
+(the risks below are that review's numbers).
+
+**What stays in the helper.** The framing (`readMessage`, `readMessages`, `MaxMessageBytes`),
+config.json (`mpvPath`, `ipcToken`, `debug`), finding mpv (`resolveMpvPath`), the pipe's name
+(`ipcPipeFor`), the single instance (a busy or refusing mpv on the pipe is an error, never a
+second mpv on it), the start through WMI with the focus script on Windows (`launchViaWmi`: the
+job object) and `launchDirect` elsewhere, the subtitle files in a fresh temp folder
+(`writeSubtitleFiles`), the per-file options and their escaping (`perFileOptions`, `listItem`,
+the path list), and the IPC transport with its own request numbering (`mpvIpcRequest`). The
+legacy messages `ping`, `open`, `status` and `watch` stay exactly as they were for older
+extensions; every answer of host 15 also carries `capabilities: ['play', 'ipc', 'relay']`,
+and a host before 15 answers those types "unknown message" without it.
+
+**The three primitives.**
+- `play` (`checkPlayMessage`, `playMpv`): `{target, title?, start?, headers?, subtitles?,
+  fullscreen?, newWindow?}`. The extension builds `target` (the URL with its fs-* tags) and the
+  title as the helper's own functions did for `open` (they stay exported for that comparison).
+  Without newWindow the stream goes into the mpv on the helper's pipe as one named `loadfile`
+  (`loadInto`, shared with the legacy `loadIntoExisting`). With none there, or with newWindow,
+  mpv starts with helper-fixed arguments only (`freshMpvArgs`: `--input-ipc-server=<pipe>
+  --idle=once --force-window=immediate --no-terminal [--fullscreen]`), the helper waits up to
+  15 s for its pipe (`waitForPipe`, `get_property pid` every 200 ms), then sends the same
+  `loadfile`. newWindow's pipe is the helper's plus `-` and 16 random hex digits, used for that
+  one load: the window on the helper's pipe stays the one later sends, `ipc` and `relay` reach.
+  `play` takes the options page's `mpvPath` as the legacy `open` does: resolveMpvPath accepts
+  only an mpv executable or its folder (no network or device path), so it names no program but
+  mpv; without one, config.json's `mpvPath`, the usual folders and the PATH count, and a missing
+  mpv says what `open` says (mpvNotFoundError).
+- `ipc` (`runIpc`): at most 32 array-form commands, all allowlisted or none sent
+  (`{ok: false, error: 'refused', index, reason}`); replies in the commands' order,
+  `{error: 'no reply'}` for one mpv did not answer in time.
+- `relay` (`checkRelayMessage`, `relayMpv`): a port like `watch`. Every line of mpv's goes to
+  the extension as `{type: 'mpv', data}` except the replies to the relay's own requests (every
+  line it writes, the heartbeat's and onStop's included, carries a request id of its own, so
+  mpv's answers are told apart from events); a line over 256 KB is dropped, and when it was the
+  answer to a numbered request of the extension's, that request gets `{type: 'mpv-reply', id,
+  error: 'reply too large'}` (mpv writes `{"data":...,"request_id":N,"error":"success"}`, the id
+  at the end, measured). The extension's `{type: 'mpv', command, id?}` goes to mpv with a
+  helper-assigned request id, answered as `mpv-reply` when it gave an id, or refused as
+  `mpv-refused` with the reason. The heartbeat sets its property to a strictly rising time at
+  once and every `everyMs` (at least 5000, at most what `setInterval` can wait); `onStop` (at
+  most 8 allowlisted commands) is written when the extension lets go, not when mpv goes.
+  Relay options the checks refuse end the port with `{type: 'closed', reason: 'refused', error}`.
+
+**The allowlists are the security boundary.** Only the FastStream extension can start the
+helper (`allowed_extensions`), and a compromised extension must get no more from host 15 than
+from host 14: mpv on an http(s) URL with Referer, Origin and User-Agent, a title, a start and
+subtitle files. Nothing it sends may make mpv or the helper run a program, load a script, read
+or write a file of its choosing, or open anything but http(s). Default deny, every argument
+type-checked:
+- Nothing of the extension's is on a command line (risks 1 and 2: a `"` in a title or URL
+  meeting Windows' quoting, and the 32767-character cap); the stream goes over the pipe.
+- `target`: `isStreamUrl` (the string itself starts with `http://` or `https://`: the URL
+  parser reads `https:\\host\share` as https), at most 512 KB, no control character (risk 10).
+- `headers`: an array of at most 8 `Referer|Origin|User-Agent: <printable ASCII>` strings; the
+  helper joins them (`listItem` escapes `,` only) and refuses one ending in a backslash, which
+  mpv would read with the separator as an escaped comma (risk 3).
+- Reads (`get_property`, `observe_property`): an explicit list (`ReadableProperties`) and
+  `user-data/faststream/<lower-case words>`; never `options/*`, `working-directory`,
+  `input-bindings`, `property-list`, `mpv-configuration` (risk 4).
+- `set_property`: `fullscreen`, `pause`, `volume`, `mute`, `speed` and FastStream's user-data;
+  a yes or no, a finite number, or a text of at most 4096 characters without a control
+  character or `${` (risk 7).
+- `show-text`: no `${` (mpv expands properties there: `${working-directory}` on the screen),
+  at most 60000 ms (risk 5). `script-message-to` only `notify show faststream <title> <detail>
+  [seconds]` and `notify hide faststream`, the sub-command pinned so the boundary does not
+  depend on notify.lua's handlers (risk 6); seconds are 1 to 60, as text: notify.lua reads 0 as
+  "until hidden", which the protocol's "digits, at most 60" would have let through.
+  `script-message` only `faststream-*` names, at most 8 texts.
+- Everything else is refused: `run`, `subprocess`, `load-script`, `loadfile`, `loadlist`,
+  `script-binding`, `keypress`, `keybind`, `expand-path`, `quit`, the object form, input.conf
+  prefixes (`no-osd`, `osd-auto`). Ids are the helper's own, the extension's only echoed back,
+  and the counts are capped (risk 8). newWindow is no way around a busy pipe: without it the
+  pipe is always tried first, and a fresh start only follows "no mpv" (risk 9).
+
+**Measured with the pinned mpv (2026-10-14, launchDirect, headless; a scratch script, not in
+the repository).** A fresh start answered in 0.5 s on a pipe of the check's own; `path` was the
+target byte for byte, `media-title` the title, start 1 took (`time-pos` 1.12, then 2.66 1.5 s
+later); the Referer with commas and the User-Agent reached the server; the subtitle came as an
+external track; the next play went into the same window (`reused`); newWindow started a second
+mpv on its own pipe while the first kept the helper's; the relay passed events on, answered
+numbered commands, refused `load-script`, kept the heartbeat's replies to itself, and onStop
+set `user-data/faststream/connected` to false; `ipc` refused `run` and `options/input-conf`.
+`time-pos` is unavailable for about 0.1 s after `play` answers (loadfile answers before mpv
+has opened the stream): the extension must read that as "not yet", not as an error. Not
+measured: `play` through WMI and the focus script with a real window (the unit tests cover the
+decisions; the launch itself is the legacy one).
+
+**Tests.** `tests/unit/mpvAllowlist.test.mjs` (every allowed shape, and many refused ones:
+the commands above, wrong types, extra arguments, `${`, control characters, other notify
+sub-commands and ids, other script-message names, headers that are not the three, end in a
+backslash or carry CR/LF, targets that are `file:`, UNC-like or carry a newline) and
+`tests/unit/mpvThinHost.test.mjs` (`play` with stand-ins and over real pipes with a fake mpv,
+`ipc`, `relay` with a fake mpv, and the host process refusing each). 19 deliberate breaks of
+the boundary (a DEL let through, `${` let through, any user-data, `run` allowed, notify 0 s,
+the target on the command line, no pipe wait, newWindow reusing, a busy pipe starting a second
+mpv, a partial ipc send, the relay passing its own replies on or dropping onStop or the size
+cap...) each failed these tests.
+
+**Risks left.** Two plays at the same moment with no mpv running can both start one: the
+second mpv cannot create the pipe the first holds, both loads go to the first window, and the
+second stays idle and empty until closed. An mpv that never answers on its pipe within 15 s
+is reported, not killed (the helper never kills a process it cannot identify as idle and its
+own).

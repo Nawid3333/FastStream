@@ -6,7 +6,20 @@
 // native messaging protocol (4-byte little-endian length prefix + JSON) and
 // launches mpv on the user's machine.
 //
-// Messages:
+// Messages of host 15, the thin helper (docs/notes/mpv.md, "Host 15: the thin helper"):
+//   {type: 'play', target, title?, start?, headers?, subtitles?, fullscreen?, newWindow?}
+//     -> {ok, error?, reused?, focus?, foreground?} (checkPlayMessage, playMpv): target is
+//     the whole URL for mpv, built by the extension; mpv is started with helper-fixed
+//     arguments only, and the stream goes to it over its pipe.
+//   {type: 'ipc', commands: [array-form mpv commands, at most 32]} -> {ok: true, replies:
+//     [{error, data}, ...]} | {ok: false, error, busy?} | {ok: false, error: 'refused', index,
+//     reason} (runIpc; ipcCommandRefusal is the allowlist).
+//   {type: 'relay', heartbeat?: {property, everyMs}, onStop?: [commands]} (over a port the
+//     extension keeps open, connectNative) -> {type: 'relaying'}, then {type: 'mpv', data}
+//     for each line mpv sends; the extension sends {type: 'mpv', command, id?} and gets
+//     {type: 'mpv-reply', id, error, data} or {type: 'mpv-refused', id, reason};
+//     {type: 'closed', reason} last (relayMpv).
+// The messages before it, kept as they were for older extensions:
 //   {type: 'ping', mpvPath?}      -> {ok, mpv, path}
 //   {type: 'open', url, headers?, mpvPath?, fullscreen?, singleInstance?, contentType?,
 //    pageUrl?, title?, start?, subtitles?} -> {ok, error?, reused?, focus?, foreground?}
@@ -17,7 +30,8 @@
 //     {type: 'request', action: 'next'|'previous'}, and {type: 'closed', reason} last; the
 //     extension may send {type: 'notify', title, detail, seconds?} and {type: 'hide'}
 //     meanwhile (watchMpv; seconds and hide: host 11).
-// Every answer also carries hostVersion (HostVersion below).
+// Every answer also carries hostVersion (HostVersion below) and, from host 15, capabilities
+// (Capabilities below): the thin helper's messages this host understands.
 //
 // An open that worked on Windows says how raising mpv's window went (focusOutcome):
 // focus is "True"/"False" (what SetForegroundWindow answered), "nowindow" (no window
@@ -72,7 +86,13 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 14;
+export const HostVersion = 15;
+
+// The messages of the thin helper (host 15) this host understands, sent with every answer
+// so that the extension knows what it may ask for without a version table of its own. A
+// host before 15 answers them "unknown message", without this list, and the extension then
+// uses the legacy messages for it.
+export const Capabilities = Object.freeze(['play', 'ipc', 'relay']);
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -308,12 +328,12 @@ export function mpvNotFoundError(messagePath, platform = process.platform) {
 }
 
 /**
- * An answer as it goes to the extension: with this host's version.
+ * An answer as it goes to the extension: with this host's version and capabilities.
  * @param {Object} message - The answer.
- * @return {Object} The answer with hostVersion.
+ * @return {Object} The answer with hostVersion and capabilities.
  */
 export function withHostVersion(message) {
-  return {...message, hostVersion: HostVersion};
+  return {...message, hostVersion: HostVersion, capabilities: [...Capabilities]};
 }
 
 /**
@@ -1171,8 +1191,8 @@ function listItem(item) {
  *
  * @param {Array<string>} headerFields - "Name: value" strings for mpv.
  * @param {string} title - Media title to display.
- * @param {{start?: number, subFiles?: Array<string>}} [extras] - Where to start, and
- *   subtitle files to load with the stream.
+ * @param {{start?: (number|string), subFiles?: Array<string>}} [extras] - Where to start
+ *   (seconds; play's start comes as checked text), and subtitle files to load with the stream.
  * @param {string} [delimiter] - The path list separator; the system's by default.
  * @return {Object<string, string>} loadfile's options.
  */
@@ -1207,9 +1227,25 @@ export function perFileOptions(headerFields, title, extras = {}, delimiter = pat
  *   running and refused the command (error is mpv's reason).
  */
 export async function loadIntoExisting(message, headerFields, title, ipcRequest = mpvIpcRequest, extras = {}) {
+  return loadInto(mpvTargetUrl(message), perFileOptions(headerFields, title, extras),
+      Boolean(message.fullscreen), ipcRequest);
+}
+
+/**
+ * Loads a URL, with its per-file options, into the mpv on a pipe: loadIntoExisting's work,
+ * and play's (host 15), which gets the URL whole from the extension.
+ * @param {string} target - The URL for mpv.
+ * @param {Object<string, string>} options - loadfile's options (perFileOptions).
+ * @param {boolean} fullscreen - Whether to make the window fullscreen first.
+ * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
+ *   transport, bound to its pipe.
+ * @return {Promise<{ok: boolean, pid?: number, busy?: boolean, refused?: boolean, error?: string}>}
+ *   As loadIntoExisting.
+ */
+export async function loadInto(target, options, fullscreen, ipcRequest) {
   /** @type {Array<{command: *}>} */
   const commands = [];
-  if (message.fullscreen) {
+  if (fullscreen) {
     commands.push({command: ['set_property', 'fullscreen', true]});
   }
   // The file with its own headers and title: one command (perFileOptions). Named
@@ -1219,9 +1255,9 @@ export async function loadIntoExisting(message, headerFields, title, ipcRequest 
   // second video.
   commands.push({command: {
     name: 'loadfile',
-    url: mpvTargetUrl(message),
+    url: target,
     flags: 'replace',
-    options: perFileOptions(headerFields, title, extras),
+    options,
   }});
   commands.push({command: ['get_property', 'pid']});
 
@@ -1847,6 +1883,791 @@ export function launchDirect(mpvPath, args) {
   });
 }
 
+// Host 15, the thin helper (2026-10-13; docs/notes/mpv.md, "Host 15: the thin helper").
+//
+// The helper changed 14 times in 10 days, and every change was a reinstall by hand, because
+// policy lived in it: fragment tags, title cuts, end detection, notices, the heartbeat. From
+// host 15 the extension (which updates itself) holds the policy, and the helper offers three
+// primitives that should not need to change: play (start or reuse mpv and load one URL into
+// it), ipc (mpv commands, one answer) and relay (mpv's lines to the extension and its
+// commands to mpv, over a port).
+//
+// Only the FastStream extension can start the helper (allowed_extensions in its manifest),
+// and even a compromised extension must get no more from it than before: mpv on an http(s)
+// URL with Referer, Origin and User-Agent, a title, a start and subtitle files. Nothing it
+// sends may make mpv or the helper run a program, load a script, read or write a file of its
+// choosing, or open anything but http(s). The checks below are that boundary, default deny:
+// play's checks (checkPlayMessage), and one allowlist of mpv commands (ipcCommandRefusal) for
+// ipc, relay and a relay's onStop.
+
+// The properties a command may read (get_property, observe_property): what playback, end
+// detection and the decoder status use. Never options/*, working-directory, input-bindings,
+// property-list, mpv-configuration and the like, which tell local paths and configuration
+// (security review r10, risk 4).
+export const ReadableProperties = new Set([
+  'path', 'eof-reached', 'pause', 'time-remaining', 'time-pos', 'playback-time', 'percent-pos',
+  'duration', 'media-title', 'fullscreen', 'idle-active', 'core-idle', 'paused-for-cache',
+  'demuxer-cache-duration', 'hwdec-current', 'hwdec', 'video-format', 'width', 'height', 'pid',
+  'volume', 'mute', 'speed',
+]);
+
+// The properties set_property may change, besides FastStream's own user-data.
+export const SettableProperties = new Set(['fullscreen', 'pause', 'volume', 'mute', 'speed']);
+
+// FastStream's own part of mpv's user-data, which the mpv setup's scripts read (connected,
+// autoplay, heartbeat): readable and settable. Names of lower-case words only, so a script
+// can rely on a tidy namespace.
+const FastStreamUserData = /^user-data\/faststream(\/[a-z0-9_-]+)+$/;
+
+// The script messages the extension may send to every script (script-message): FastStream's
+// own, which mpv's built-in scripts do not listen for.
+const FastStreamScriptMessage = /^faststream-[a-z0-9-]{1,40}$/;
+
+// What one ipc message may carry, and a relay's onStop: the frame admits about 50,000
+// commands, and none of FastStream's uses comes near these.
+export const MaxIpcCommands = 32;
+export const MaxOnStopCommands = 8;
+
+// The longest property value (set_property) and notice text (notify, show-text, the
+// arguments of a script message) the allowlist takes, the most script-message arguments,
+// and the longest show-text, in milliseconds (MaxNoticeSeconds).
+const MaxPropertyText = 4096;
+const MaxNoticeText = 2048;
+const MaxScriptMessageArgs = 8;
+const MaxShowTextMs = MaxNoticeSeconds * 1000;
+
+/**
+ * Whether a value is a string of at most max characters with no control character in it (a
+ * code below 32, or 127) and, with noExpansion, no '${': mpv expands properties in show-text
+ * (and a script may in what it is sent), and ${working-directory} or ${path} would put local
+ * detail on the screen.
+ * @param {*} value - The value.
+ * @param {number} max - The most characters.
+ * @param {boolean} [noExpansion] - Whether '${' is refused too.
+ * @return {boolean}
+ */
+export function isPlainText(value, max, noExpansion = false) {
+  if (typeof value !== 'string' || value.length > max) {
+    return false;
+  }
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code < 32 || code === 127) {
+      return false;
+    }
+  }
+  return !(noExpansion && value.includes('$' + '{'));
+}
+
+/**
+ * @param {*} name - A property name from the extension.
+ * @return {boolean} Whether a command may read it.
+ */
+function isReadableProperty(name) {
+  return typeof name === 'string' && (ReadableProperties.has(name) || FastStreamUserData.test(name));
+}
+
+/**
+ * @param {*} name - A property name from the extension.
+ * @return {boolean} Whether set_property may change it.
+ */
+function isSettableProperty(name) {
+  return typeof name === 'string' && (SettableProperties.has(name) || FastStreamUserData.test(name));
+}
+
+/**
+ * @param {*} value - A value for set_property.
+ * @return {boolean} Whether it is a yes or no, a finite number, or a plain text.
+ */
+function isPropertyValue(value) {
+  return typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)) ||
+    isPlainText(value, MaxPropertyText, true);
+}
+
+/**
+ * Whether a notice's seconds are whole seconds from 1 to MaxNoticeSeconds, as text.
+ * notify.lua reads 0 as "until replaced or hidden", which would undo the cap.
+ * @param {*} seconds - The 7th argument of a notify show.
+ * @return {boolean}
+ */
+function isNoticeSeconds(seconds) {
+  return typeof seconds === 'string' && /^[0-9]{1,2}$/.test(seconds) &&
+    Number(seconds) >= 1 && Number(seconds) <= MaxNoticeSeconds;
+}
+
+/**
+ * Why a script-message-to is refused, or null: only FastStream's notices in notify.lua,
+ * show with a title, a detail and optional seconds, and hide. The sub-command is pinned, not
+ * only the target, so what passes does not depend on the handlers notify.lua has.
+ * @param {Array<*>} args - The command's arguments, after its name.
+ * @return {?string}
+ */
+function noticeRefusal(args) {
+  if (args[0] !== 'notify') {
+    return 'script-message-to: only notify';
+  }
+  if (args[1] === 'hide') {
+    return args.length === 3 && args[2] === 'faststream' ? null : 'notify hide: only faststream';
+  }
+  if (args[1] !== 'show' || args[2] !== 'faststream') {
+    return 'notify: only show or hide of faststream';
+  }
+  if (args.length !== 5 && args.length !== 6) {
+    return 'notify show: a title, a detail and the seconds only';
+  }
+  if (!isPlainText(args[3], MaxNoticeText, true) || !isPlainText(args[4], MaxNoticeText, true)) {
+    return 'notify show: title or detail not allowed';
+  }
+  if (args.length === 6 && !isNoticeSeconds(args[5])) {
+    return 'notify show: seconds not allowed';
+  }
+  return null;
+}
+
+/**
+ * Why a script-message is refused, or null: a faststream-* message with at most
+ * MaxScriptMessageArgs plain texts.
+ * @param {Array<*>} args - The command's arguments, after its name.
+ * @return {?string}
+ */
+function scriptMessageRefusal(args) {
+  if (typeof args[0] !== 'string' || !FastStreamScriptMessage.test(args[0])) {
+    return 'script-message: only faststream-* messages';
+  }
+  if (args.length - 1 > MaxScriptMessageArgs) {
+    return 'script-message: too many arguments';
+  }
+  return args.slice(1).every((arg) => isPlainText(arg, MaxNoticeText)) ? null : 'script-message: argument not allowed';
+}
+
+/**
+ * Why a show-text is refused, or null: a plain text without '${', and optionally whole
+ * milliseconds from 0 to MaxShowTextMs.
+ * @param {Array<*>} args - The command's arguments, after its name.
+ * @return {?string}
+ */
+function showTextRefusal(args) {
+  if (args.length !== 1 && args.length !== 2) {
+    return 'show-text: a text and the milliseconds only';
+  }
+  if (!isPlainText(args[0], MaxNoticeText, true)) {
+    return 'show-text: text not allowed';
+  }
+  if (args.length === 2 && !(Number.isInteger(args[1]) && args[1] >= 0 && args[1] <= MaxShowTextMs)) {
+    return 'show-text: milliseconds not allowed';
+  }
+  return null;
+}
+
+/**
+ * Why an mpv command from the extension is refused, or null when the allowlist lets it
+ * through (ipc, relay, a relay's onStop). Only the array form, every argument type-checked;
+ * anything else is refused:
+ * - ['get_property', name], ['observe_property', id, name], ['unobserve_property', id]: name
+ *   in ReadableProperties or FastStream's user-data (user-data/faststream/...), id an integer;
+ * - ['set_property', name, value]: name in SettableProperties or FastStream's user-data, value
+ *   a yes or no, a finite number, or a text of at most 4096 characters, no control
+ *   character, no '${';
+ * - ['script-message-to', 'notify', 'show', 'faststream', title, detail, seconds?] and
+ *   ['script-message-to', 'notify', 'hide', 'faststream']: title and detail texts of at most
+ *   2048 characters, no control character, no '${'; seconds whole seconds 1 to 60 as text;
+ * - ['script-message', name, ...args]: name faststream-[a-z0-9-]{1,40}, at most 8 texts of at
+ *   most 2048 characters, no control character;
+ * - ['show-text', text] and ['show-text', text, ms]: text as a notice's title, ms an integer
+ *   0 to 60000.
+ * Never run, subprocess, load-script, loadfile, loadlist, script-binding, keypress, keybind,
+ * expand-path, the object form ({name, ...}), or a property not named here.
+ * @param {*} command - The command as the extension sent it.
+ * @return {?string} Why it is refused; null when it is allowed.
+ */
+export function ipcCommandRefusal(command) {
+  if (!Array.isArray(command) || command.length === 0) {
+    return 'not an array-form command';
+  }
+  const [name, ...args] = command;
+  switch (name) {
+    case 'get_property':
+      return args.length === 1 && isReadableProperty(args[0]) ? null : 'get_property: property not allowed';
+    case 'observe_property':
+      if (args.length !== 2 || !Number.isSafeInteger(args[0])) {
+        return 'observe_property: an integer id and a property only';
+      }
+      return isReadableProperty(args[1]) ? null : 'observe_property: property not allowed';
+    case 'unobserve_property':
+      return args.length === 1 && Number.isSafeInteger(args[0]) ? null : 'unobserve_property: an integer id only';
+    case 'set_property':
+      if (args.length !== 2 || !isSettableProperty(args[0])) {
+        return 'set_property: property not allowed';
+      }
+      return isPropertyValue(args[1]) ? null : 'set_property: value not allowed';
+    case 'script-message-to':
+      return noticeRefusal(args);
+    case 'script-message':
+      return scriptMessageRefusal(args);
+    case 'show-text':
+      return showTextRefusal(args);
+    default:
+      // The command's name, when it is one, to make the extension's own mistakes easy to see.
+      return typeof name === 'string' && /^[a-z_-]{1,40}$/.test(name) ?
+        `command not allowed: ${name}` : 'command not allowed';
+  }
+}
+
+/**
+ * Whether the allowlist lets an mpv command from the extension through (ipcCommandRefusal).
+ * @param {*} command - The command as the extension sent it.
+ * @return {boolean}
+ */
+export function allowedIpcCommand(command) {
+  return ipcCommandRefusal(command) === null;
+}
+
+// The longest target play takes (bytes, UTF-8): a stream URL and its fragment tags, of which
+// the page's quality list (fs-quality=) is the longest, in a message of MaxMessageBytes.
+export const MaxTargetBytes = 512 * 1024;
+const MaxTitleChars = 1000;
+const MaxPlayHeaders = 8;
+const PlayStart = /^\d{1,7}(\.\d{1,3})?$/;
+// relayHeaderFields' names and values, as one "Name: value" string (the protocol's form).
+const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
+
+/**
+ * A play message as checkPlayMessage passes it on.
+ * @typedef {Object} PlaySpec
+ * @property {string} target - The URL for mpv, as the extension built it.
+ * @property {string} title - force-media-title.
+ * @property {string|undefined} start - Seconds, as text.
+ * @property {Array<string>} headerFields - "Name: value" strings.
+ * @property {Array<{srt: string, label: string}>} subtitles - subtitlesOf's.
+ * @property {boolean} fullscreen
+ * @property {boolean} newWindow - A window of its own, not the one on the helper's pipe.
+ * @property {string|undefined} mpvPath - The options page's mpv path, as the legacy open
+ *   takes it: resolveMpvPath accepts only an mpv executable or its folder, no network or
+ *   device path, so it names no program but mpv.
+ */
+
+/**
+ * Checks a play message (host 15) and takes from it what play uses; any failure refuses the
+ * whole message:
+ * - target: an http(s) URL (isStreamUrl) of at most MaxTargetBytes, no control character;
+ * - title: a text of at most 1000 characters, no control character; without one (or an
+ *   empty one) the target's host name;
+ * - start: seconds as text, /^\d{1,7}(\.\d{1,3})?$/;
+ * - headers: at most 8 "Referer: ...", "Origin: ..." or "User-Agent: ..." strings of
+ *   printable ASCII, none ending in a backslash (mpv would read it and the separator after it
+ *   as an escaped comma, and join the next header to this one: measured);
+ * - subtitles: at most 8 {label, srt} with SubRip text of at most MaxSubtitleChars (empty
+ *   ones are left out, as subtitlesOf does);
+ * - fullscreen and newWindow: a yes or no.
+ * - mpvPath: the options page's mpv path, kept when it is one line of text; resolveMpvPath
+ *   checks it as for the legacy open (only an mpv executable or its folder). Left out, a
+ *   user who gave the path only there got "mpv was not found" from play while "Test mpv
+ *   connection" found mpv.
+ * Fields it does not know are ignored.
+ * @param {*} message - The message.
+ * @return {{ok: true, play: PlaySpec}|{ok: false, error: string}}
+ */
+export function checkPlayMessage(message) {
+  const refuse = (error) => ({ok: /** @type {false} */ (false), error});
+  const {target} = message;
+  if (typeof target !== 'string' || !isStreamUrl(target)) {
+    return refuse('mpv is only given http(s) streams');
+  }
+  if (Buffer.byteLength(target, 'utf8') > MaxTargetBytes) {
+    return refuse('the stream URL is too long for mpv');
+  }
+  if (!isPlainText(target, Infinity)) {
+    return refuse('the stream URL holds a control character');
+  }
+
+  let title;
+  if (message.title === undefined || message.title === null || message.title === '') {
+    title = new URL(target).hostname || 'FastStream';
+  } else if (isPlainText(message.title, MaxTitleChars)) {
+    title = message.title;
+  } else {
+    return refuse('the title is not one line of at most 1000 characters');
+  }
+
+  let start;
+  if (message.start !== undefined && message.start !== null) {
+    if (typeof message.start !== 'string' || !PlayStart.test(message.start)) {
+      return refuse('the start is not a number of seconds');
+    }
+    start = message.start;
+  }
+
+  const headers = message.headers ?? [];
+  if (!Array.isArray(headers) || headers.length > MaxPlayHeaders) {
+    return refuse('the headers are not a list of at most 8');
+  }
+  for (const header of headers) {
+    if (typeof header !== 'string' || !PlayHeader.test(header)) {
+      return refuse('a header is not Referer, Origin or User-Agent with a printable ASCII value');
+    }
+    if (header.endsWith('\\')) {
+      return refuse('a header ends in a backslash');
+    }
+  }
+
+  const subtitles = message.subtitles ?? [];
+  if (!Array.isArray(subtitles) || subtitles.length > MaxSubtitles || !subtitles.every((s) =>
+    s && typeof s === 'object' && typeof s.srt === 'string' && s.srt.length <= MaxSubtitleChars &&
+      (s.label === undefined || typeof s.label === 'string'))) {
+    return refuse('the subtitles are not at most 8 SubRip texts with labels');
+  }
+
+  const fullscreen = message.fullscreen ?? false;
+  const newWindow = message.newWindow ?? false;
+  if (typeof fullscreen !== 'boolean' || typeof newWindow !== 'boolean') {
+    return refuse('fullscreen and newWindow are a yes or no');
+  }
+
+  const mpvPath = isPlainText(message.mpvPath, 4096) ? message.mpvPath : undefined;
+
+  return {
+    ok: true,
+    play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow,
+      mpvPath},
+  };
+}
+
+
+// How long a new mpv gets to open its pipe (play), and how often the helper looks.
+export const PipeWaitMs = 15000;
+const PipeWaitPollMs = 200;
+
+/**
+ * Play's new mpv's whole command line after the executable: fixed by the helper, nothing
+ * from the message. The stream goes over the pipe once mpv is up, so no value of the
+ * extension's meets Windows' command-line quoting (the review's conditional RCE, risk 1) or
+ * its 32767-character cap. --idle=once keeps mpv open until the first file has come and gone;
+ * --force-window=immediate makes the window at once, for the focus script to find (launchMpv).
+ * @param {string} pipe - The pipe mpv listens on.
+ * @param {boolean} fullscreen - Whether mpv starts fullscreen.
+ * @return {Array<string>}
+ */
+export function freshMpvArgs(pipe, fullscreen) {
+  const args = [`--input-ipc-server=${pipe}`, '--idle=once', '--force-window=immediate', '--no-terminal'];
+  if (fullscreen) {
+    args.push('--fullscreen');
+  }
+  return args;
+}
+
+/**
+ * Waits for a new mpv to answer on its pipe (get_property pid), up to waitMs.
+ * @param {(commands: Array<Object>) => ReturnType<typeof mpvIpcRequest>} ipcRequest - The
+ *   transport, bound to the pipe.
+ * @param {number} [waitMs] - How long to keep asking.
+ * @param {(ms: number) => Promise<void>} [sleep] - Injectable for tests.
+ * @param {() => number} [now] - Injectable for tests.
+ * @return {Promise<boolean>} Whether it answered.
+ */
+export async function waitForPipe(ipcRequest, waitMs = PipeWaitMs,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now) {
+  const deadline = now() + waitMs;
+  for (;;) {
+    const result = await ipcRequest([{command: ['get_property', 'pid']}]);
+    if (result.ok) {
+      return true;
+    }
+    if (now() + PipeWaitPollMs > deadline) {
+      return false;
+    }
+    await sleep(PipeWaitPollMs);
+  }
+}
+
+/**
+ * Plays a checked play message (host 15) in mpv.
+ *
+ * Not newWindow: the stream goes into the mpv on the helper's pipe, when one runs (as
+ * launchMpv's single instance: one that is busy or refuses is an error, never a second mpv
+ * on the same pipe). Otherwise, and for newWindow, a new mpv starts with freshMpvArgs only,
+ * through WMI and the focus script on Windows (launchViaWmi) and as a child elsewhere
+ * (launchDirect); once its pipe answers, the stream goes to it the same way. newWindow gives
+ * the new mpv a pipe of its own (the helper's pipe, '-', random hex), used for this one load:
+ * the window on the helper's pipe stays the one that later sends, ipc and relay reach.
+ * @param {?string} mpvPath - The mpv executable (resolveMpvPath), or null when none was found:
+ *   then only an mpv already open can play.
+ * @param {PlaySpec} play - checkPlayMessage's.
+ * @param {Object} config - The parsed config.json.
+ * @param {{ipcRequest?: typeof mpvIpcRequest, focus?: typeof focusPid,
+ *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
+ *     pid?: number, focus?: string, foreground?: string}>,
+ *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
+ *   randomHex?: () => string, subtitleBase?: string}} [io] - Stand-ins for tests, as
+ *   launchMpv's, and the clock of the pipe wait, the new pipe's suffix and the folder the
+ *   subtitle files go under.
+ * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
+ *   foreground?: string}>} The answer for the extension, as the legacy open's.
+ */
+export async function playMpv(mpvPath, play, config, io = {}) {
+  const platform = io.platform || process.platform;
+  const ipcRequest = io.ipcRequest || mpvIpcRequest;
+  const focus = io.focus || focusPid;
+  const basePipe = ipcPipeFor(config, platform);
+  /** @type {Array<string>} */
+  let subFiles = [];
+  try {
+    subFiles = writeSubtitleFiles(play.subtitles, io.subtitleBase);
+  } catch (e) {
+    // The stream still plays without them.
+    debugLog(config, 'subtitles-failed', {error: String(e)});
+  }
+  const options = perFileOptions(play.headerFields, play.title, {start: play.start, subFiles});
+  /**
+   * @param {string} pipe
+   * @param {boolean} fullscreen
+   * @return {ReturnType<typeof loadInto>}
+   */
+  const load = (pipe, fullscreen) => loadInto(play.target, options, fullscreen,
+      (commands) => ipcRequest(commands, undefined, undefined, pipe));
+
+  if (!play.newWindow) {
+    const existing = await load(basePipe, play.fullscreen);
+    if (existing.ok) {
+      let focused;
+      // The window is raised through PowerShell, which only Windows has.
+      if (existing.pid && platform === 'win32') {
+        focused = await focus(existing.pid);
+      }
+      debugLog(config, 'reused', {pid: existing.pid, focus: focused});
+      return {ok: true, reused: true, ...focusOutcome(focused || '')};
+    }
+    if (existing.refused) {
+      debugLog(config, 'refused', {error: existing.error});
+      return {ok: false, error: `the open mpv refused the stream (${existing.error}): close it and send again`};
+    }
+    if (existing.busy) {
+      debugLog(config, 'busy', {});
+      return {ok: false, error: 'mpv is busy and did not answer: try again in a moment'};
+    }
+  }
+
+  if (!mpvPath) {
+    return {ok: false, error: mpvNotFoundError(play.mpvPath)};
+  }
+  const pipe = play.newWindow ?
+    basePipe + '-' + (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) : basePipe;
+  const args = freshMpvArgs(pipe, play.fullscreen);
+  debugLog(config, 'spawn', {mpvPath, args});
+  // On Windows mpv has to be started by someone outside this process's job object, or the
+  // browser kills it the moment this host exits (launchViaWmi); no direct spawn as a fallback.
+  /** @type {{ok: boolean, error?: string, pid?: number, focus?: string, foreground?: string}} */
+  const started = await (io.start || (platform === 'win32' ? launchViaWmi : launchDirect))(mpvPath, args);
+  if (!started.ok) {
+    debugLog(config, 'start-failed', started);
+    return {ok: false, error: platform === 'win32' ? 'Could not start mpv: ' + started.error : String(started.error)};
+  }
+  debugLog(config, 'started', {pid: started.pid, focus: started.focus, foreground: started.foreground});
+
+  const answered = await waitForPipe((commands) => ipcRequest(commands, 1000, 3000, pipe), PipeWaitMs, io.sleep, io.now);
+  if (!answered) {
+    debugLog(config, 'pipe-silent', {pipe});
+    return {ok: false, error: `mpv started, but did not answer on its pipe within ${PipeWaitMs / 1000} s`};
+  }
+  // --fullscreen is on the command line already.
+  const loaded = await load(pipe, false);
+  if (!loaded.ok) {
+    debugLog(config, 'load-failed', loaded);
+    return {ok: false, error: loaded.refused ?
+      `the new mpv refused the stream (${loaded.error})` :
+      'the new mpv did not take the stream: try again in a moment'};
+  }
+  // How raising the window went, as the legacy open says it (Windows only).
+  return {ok: true, ...(platform === 'win32' ? focusFields(started) : {})};
+}
+
+/**
+ * Runs an ipc message's commands (host 15) on the mpv on the helper's pipe: all of them
+ * allowlisted (ipcCommandRefusal), or none is sent. The helper numbers the requests itself
+ * (mpvIpcRequest), so an id of the extension's can never meet one of its own.
+ * @param {*} commands - The message's commands: array-form mpv commands, at most MaxIpcCommands.
+ * @param {{ipcRequest?: typeof mpvIpcRequest, pipe?: string}} [io] - Stand-ins for tests.
+ * @return {Promise<{ok: boolean, replies?: Array<{error: *, data: *}>, error?: string,
+ *   busy?: boolean, index?: number, reason?: string}>} replies in the commands' order;
+ *   error 'refused' with the index of the first refused command and why; or mpvIpcRequest's
+ *   error (no mpv, busy).
+ */
+export async function runIpc(commands, io = {}) {
+  if (!Array.isArray(commands) || commands.length > MaxIpcCommands) {
+    return {ok: false, error: 'refused', reason: `commands is not a list of at most ${MaxIpcCommands}`};
+  }
+  for (let index = 0; index < commands.length; index++) {
+    const reason = ipcCommandRefusal(commands[index]);
+    if (reason) {
+      return {ok: false, error: 'refused', index, reason};
+    }
+  }
+  if (commands.length === 0) {
+    return {ok: true, replies: []};
+  }
+  const result = await (io.ipcRequest || mpvIpcRequest)(commands.map((command) => ({command})),
+      undefined, undefined, io.pipe || ipcPipeFor(readConfig()));
+  if (!result.ok) {
+    return {ok: false, error: result.error || 'no mpv ipc', ...(result.busy ? {busy: true} : {})};
+  }
+  const replies = result.replies || [];
+  return {
+    ok: true,
+    replies: commands.map((command, index) => {
+      const reply = replies.find((r) => r && r.request_id === index + 1);
+      // mpvIpcRequest gives up with the answers it has after its reply time.
+      return reply ? {error: reply.error, data: reply.data} : {error: 'no reply', data: undefined};
+    }),
+  };
+}
+
+// A relay's heartbeat: at least this often apart, and no further than setInterval can wait
+// (past it, Node runs the interval every millisecond).
+export const MinHeartbeatMs = 5000;
+const MaxTimerMs = 2147483647;
+
+/**
+ * A relay message's options, checked: heartbeat a FastStream user-data property and an
+ * interval of MinHeartbeatMs or more; onStop at most MaxOnStopCommands allowlisted commands.
+ * @param {*} message - The first message on the port.
+ * @return {{ok: true, heartbeat: ?{property: string, everyMs: number}, onStop: Array<Array<*>>}|
+ *   {ok: false, error: string}}
+ */
+export function checkRelayMessage(message) {
+  /** @type {?{property: string, everyMs: number}} */
+  let heartbeat = null;
+  if (message.heartbeat !== undefined && message.heartbeat !== null) {
+    const {property, everyMs} = typeof message.heartbeat === 'object' ? message.heartbeat : {};
+    if (typeof property !== 'string' || !FastStreamUserData.test(property) || !Number.isInteger(everyMs) ||
+        everyMs < MinHeartbeatMs || everyMs > MaxTimerMs) {
+      return {ok: false, error: `the heartbeat is not a user-data/faststream/ property and at least ${MinHeartbeatMs} ms`};
+    }
+    heartbeat = {property, everyMs};
+  }
+  const onStop = message.onStop ?? [];
+  if (!Array.isArray(onStop) || onStop.length > MaxOnStopCommands) {
+    return {ok: false, error: `onStop is not a list of at most ${MaxOnStopCommands} commands`};
+  }
+  for (let index = 0; index < onStop.length; index++) {
+    const reason = ipcCommandRefusal(onStop[index]);
+    if (reason) {
+      return {ok: false, error: `onStop command ${index} refused: ${reason}`};
+    }
+  }
+  return {ok: true, heartbeat, onStop};
+}
+
+// The longest line of mpv's the relay passes on (bytes, UTF-8): a native message to the
+// extension may be 1 MB, and none of the events FastStream reads comes near this.
+export const MaxRelayLineBytes = 256 * 1024;
+// How much of the end of a line over MaxRelayLineBytes is kept to find its request_id in.
+const RequestIdWindow = 256;
+
+/**
+ * Relays between the extension and the mpv on the helper's pipe (host 15), over a port the
+ * extension keeps open (connectNative): every line mpv sends goes to the extension as
+ * {type: 'mpv', data} (one over MaxRelayLineBytes is dropped), except the replies to the
+ * relay's own requests; the extension's allowlisted commands (receive) go to mpv with a request
+ * id of the helper's, and mpv's reply comes back as {type: 'mpv-reply', id, error, data} when
+ * the extension gave an id; a refused command as {type: 'mpv-refused', id, reason}.
+ *
+ * The heartbeat sets its property to a strictly rising number (the time) when the relay
+ * connects and every everyMs after, as watchMpv's does: the mpv setup hides FastStream's
+ * buttons once it stands still. onStop is written to mpv when the extension lets go (stop),
+ * not when mpv goes. {type: 'relaying'} once connected; {type: 'closed', reason} last: 'no mpv',
+ * 'mpv closed' or 'stopped'.
+ * @param {(message: Object) => *} send - Sends a message to the extension.
+ * @param {{heartbeat?: ?{property: string, everyMs: number}, onStop?: Array<Array<*>>}} [options] -
+ *   checkRelayMessage's.
+ * @param {{pipe?: string, connect?: (pipe: string) => import('net').Socket}} [io] - Tests.
+ * @return {{receive: (message: *) => void, stop: () => void, done: Promise<string>}} done
+ *   resolves with why it ended, once onStop is written.
+ */
+export function relayMpv(send, options = {}, io = {}) {
+  const heartbeatOption = options.heartbeat || null;
+  const onStop = options.onStop || [];
+  const socket = (io.connect || net.connect)(io.pipe || ipcPipeFor(readConfig()));
+  // Decoded as a stream: a character mpv sends in two chunks stays one character.
+  socket.setEncoding('utf8');
+  const newline = String.fromCharCode(10);
+  let buffer = '';
+  // Inside a line over MaxRelayLineBytes: what comes up to its end is dropped.
+  let skipping = false;
+  let connected = false;
+  let finished = false;
+  let requests = 0;
+  // The relay's requests to mpv not answered yet: the extension's id, or null for one it
+  // gave none (and for the heartbeat's and onStop's), whose answer goes nowhere.
+  /** @type {Map<number, ?number>} */
+  const pending = new Map();
+  /** @type {?ReturnType<typeof setInterval>} */
+  let heartbeat = null;
+  let lastBeat = 0;
+  /** @type {(reason: string) => void} */
+  let resolveDone = () => {};
+  /** @type {Promise<string>} */
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+
+  /**
+   * @param {Array<*>} command
+   * @param {?number} id - The extension's id for the reply, or null.
+   * @return {string} The line for mpv, with a request id of the relay's.
+   */
+  const requestLine = (command, id) => {
+    requests++;
+    pending.set(requests, id);
+    return JSON.stringify({command, request_id: requests}) + newline;
+  };
+  /**
+   * @param {Array<*>} command
+   * @param {?number} [id]
+   */
+  const write = (command, id = null) => {
+    if (!finished) socket.write(requestLine(command, id));
+  };
+  const beat = () => {
+    if (!heartbeatOption) return;
+    // Strictly rising, even with two beats in one millisecond.
+    lastBeat = Math.max(Date.now(), lastBeat + 1);
+    write(['set_property', heartbeatOption.property, lastBeat]);
+  };
+  /**
+   * An answer to one of the relay's requests: to the extension when it gave an id.
+   * @param {number} requestId
+   * @param {*} error
+   * @param {*} data
+   */
+  const answer = (requestId, error, data) => {
+    const id = pending.get(requestId);
+    pending.delete(requestId);
+    if (id !== null && id !== undefined) {
+      send({type: 'mpv-reply', id, error, data});
+    }
+  };
+  /**
+   * A line over MaxRelayLineBytes, dropped; when it answers a request of the relay's, the
+   * extension still hears that it was answered (its end holds the request id).
+   * @param {string} text - The line, or what is left of its end.
+   */
+  const overSize = (text) => {
+    const match = /"request_id":(\d+)[,}]/.exec(text.slice(-RequestIdWindow));
+    const requestId = match ? Number(match[1]) : NaN;
+    if (pending.has(requestId)) {
+      answer(requestId, 'reply too large', undefined);
+    }
+  };
+  /** @param {string} text - One line from mpv. */
+  const take = (text) => {
+    if (Buffer.byteLength(text, 'utf8') > MaxRelayLineBytes) {
+      overSize(text);
+      return;
+    }
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      return;
+    }
+    if (!data || typeof data !== 'object') return;
+    if (typeof data.request_id === 'number' && pending.has(data.request_id)) {
+      answer(data.request_id, data.error, data.data);
+      return;
+    }
+    send({type: 'mpv', data});
+  };
+  /**
+   * Ends the relay, once.
+   * @param {string} reason
+   */
+  const finish = (reason) => {
+    if (finished) return;
+    finished = true;
+    if (heartbeat) clearInterval(heartbeat);
+    send({type: 'closed', reason});
+    /** @type {?ReturnType<typeof setTimeout>} */
+    let timer = null;
+    let ended = false;
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      if (timer) clearTimeout(timer);
+      socket.destroy();
+      resolveDone(reason);
+    };
+    if (reason === 'stopped' && onStop.length > 0 && socket.writable) {
+      // The extension let go, mpv plays on: onStop tells it so. end() sends the lines before
+      // it closes the pipe (destroy() could drop them), and done waits for that, briefly.
+      timer = setTimeout(end, 2000);
+      socket.end(onStop.map((command) => requestLine(command, null)).join(''), end);
+    } else {
+      end();
+    }
+  };
+
+  socket.on('error', () => finish(connected ? 'mpv closed' : 'no mpv'));
+  socket.on('close', () => finish(connected ? 'mpv closed' : 'no mpv'));
+  socket.on('connect', () => {
+    if (finished) return;
+    connected = true;
+    if (heartbeatOption) {
+      beat();
+      heartbeat = setInterval(beat, heartbeatOption.everyMs);
+      // The beat alone keeps no host running: it ends when the extension or mpv does.
+      heartbeat.unref?.();
+    }
+    send({type: 'relaying'});
+  });
+  socket.on('data', (chunk) => {
+    buffer += chunk;
+    const lines = buffer.split(newline);
+    buffer = lines.pop() || '';
+    for (const text of lines) {
+      if (skipping) {
+        skipping = false;
+        overSize(text);
+      } else {
+        take(text);
+      }
+    }
+    if (skipping) {
+      // Still inside the line that is too long: only its end is kept, for its request id.
+      buffer = buffer.slice(-RequestIdWindow);
+    } else if (buffer.length > MaxRelayLineBytes) {
+      skipping = true;
+      buffer = buffer.slice(-RequestIdWindow);
+    }
+  });
+
+  return {
+    receive(message) {
+      if (finished || !message || typeof message !== 'object') return;
+      const {id} = message;
+      const hasId = id !== undefined && id !== null;
+      /** @param {string} reason */
+      const refuse = (reason) => {
+        send({type: 'mpv-refused', ...(Number.isSafeInteger(id) ? {id} : {}), reason});
+      };
+      if (message.type !== 'mpv') {
+        refuse('unknown message');
+      } else if (hasId && !Number.isSafeInteger(id)) {
+        refuse('the id is not an integer');
+      } else {
+        const reason = ipcCommandRefusal(message.command);
+        if (reason) {
+          refuse(reason);
+        } else {
+          write(message.command, hasId ? id : null);
+        }
+      }
+    },
+    stop() {
+      finish('stopped');
+    },
+    done,
+  };
+}
+
 /**
  * Answers the one message the extension sends this run (a watch: for as long as its port
  * stays open). It only returns; main() ends the process.
@@ -1902,6 +2723,54 @@ async function handleMessage() {
     await watch.done;
     // The last message ('closed') out before the host goes.
     await sendMessage({type: 'bye'});
+    return;
+  }
+
+  // Host 15: one stream into mpv, with helper-fixed arguments only (playMpv). No mpvPath from
+  // the message: the extension never names the program the helper starts.
+  if (message.type === 'play') {
+    const checked = checkPlayMessage(message);
+    if (!checked.ok) {
+      debugLog(config, 'play-refused', {error: checked.error});
+      await sendMessage({ok: false, error: checked.error});
+      return;
+    }
+    const result = await playMpv(resolveMpvPath(checked.play.mpvPath), checked.play, config);
+    debugLog(config, 'played', {target: checked.play.target, result});
+    await sendMessage(result);
+    return;
+  }
+
+  // Host 15: allowlisted mpv commands, one answer (runIpc).
+  if (message.type === 'ipc') {
+    const result = await runIpc(message.commands, {pipe: ipcPipeFor(config)});
+    debugLog(config, 'ipc', {ok: result.ok, error: result.error, index: result.index, reason: result.reason});
+    await sendMessage(result);
+    return;
+  }
+
+  // Host 15: mpv's lines to the extension and its commands to mpv, for as long as the
+  // extension keeps the port open (relayMpv).
+  if (message.type === 'relay') {
+    const checked = checkRelayMessage(message);
+    if (!checked.ok) {
+      debugLog(config, 'relay-refused', {error: checked.error});
+      await sendMessage({type: 'closed', reason: 'refused', error: checked.error});
+      return;
+    }
+    /** @type {Promise<void>} */
+    let last = Promise.resolve();
+    const relay = relayMpv((event) => {
+      // mpv's own lines (time-pos many times a second) stay out of the log.
+      if (event.type !== 'mpv' && event.type !== 'mpv-reply') debugLog(config, 'relay', event);
+      last = sendMessage(event);
+    }, checked, {pipe: ipcPipeFor(config)});
+    // The browser went while mpv plays on: as when the extension lets go (the watch's reason).
+    process.stdout.on('error', () => relay.stop());
+    readMessages(process.stdin, (next) => relay.receive(next), () => relay.stop());
+    await relay.done;
+    // The last message ('closed') out before the host goes.
+    await last;
     return;
   }
 
