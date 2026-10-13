@@ -330,9 +330,18 @@ export class SyncedAudioPlayer extends EventEmitter {
       return false;
     }
 
-    // Destroyed meanwhile: the video changed, and the swap below muted the new one.
-    if (this.destroyed || !this.shouldUseSeparateAudioPlayers()) {
+    // Destroyed meanwhile: the video changed, and the swap below muted the new one. Or the
+    // players were dropped (one failed: the video has its own sound back), and the swap muted
+    // the video with no separate sound left (glm's review, 2026-10-13).
+    if (this.destroyed || !this.shouldUseSeparateAudioPlayers() || this.audioPlayers[nextIndex] !== next) {
       return false;
+    }
+
+    // Paused meanwhile (by the user, during the waits above): the next player, played muted
+    // for the swap, took over still playing, and the sound went on over the paused picture
+    // until the next resync.
+    if (!this.client.state.playing) {
+      await next.pause();
     }
 
     const newError = (this.client.currentVideo.currentTime + offset) - next.getVideo().currentTime;
