@@ -1233,3 +1233,24 @@ describe('FastStreamClient, the page\'s qualities with a query of their own', ()
     expect(client.getMenuVideoLevels().size).toBe(2);
   });
 });
+
+describe('FastStreamClient, the seek preview\'s player', () => {
+  it('is destroyed when building it fails', async () => {
+    // Nothing else held it: its video and its loader, which may go on fetching, lived on for
+    // the page's life, one for each failed build (glm's review, 2026-10-13).
+    const client = makeClient({previewEnabled: true});
+    const preview = {
+      setup: vi.fn(async () => {}),
+      setSource: vi.fn(async () => {
+        throw new Error('level load failed');
+      }),
+      destroy: vi.fn(),
+    };
+    client.player = {getSource: () => ({mode: 'hls', url: 'https://cdn.test/x.m3u8'})};
+    client.playerLoader.createPlayer = vi.fn(async () => preview);
+    client.bindPreviewPlayer = vi.fn();
+    await expect(client.buildPreviewPlayer()).rejects.toThrow('level load failed');
+    expect(preview.destroy).toHaveBeenCalledTimes(1);
+    expect(client.previewPlayer).toBeNull();
+  });
+});

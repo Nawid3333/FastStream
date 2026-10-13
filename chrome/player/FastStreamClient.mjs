@@ -839,10 +839,21 @@ export class FastStreamClient extends EventEmitter {
       isPreview: true,
     });
 
-    await previewPlayer.setup();
-    this.bindPreviewPlayer(previewPlayer);
+    try {
+      await previewPlayer.setup();
+      this.bindPreviewPlayer(previewPlayer);
 
-    await previewPlayer.setSource(source);
+      await previewPlayer.setSource(source);
+    } catch (e) {
+      // Nothing else holds it: its video and its loader, which may go on fetching, lived on
+      // for the page's life, one for each failed build (glm's review, 2026-10-13).
+      try {
+        previewPlayer.destroy();
+      } catch (destroyError) {
+        console.warn('Could not destroy a preview player that failed to build', destroyError);
+      }
+      throw e;
+    }
 
     // The video being previewed can be torn down or replaced while its preview is still
     // being built, and a preview of something that is no longer playing does not belong
