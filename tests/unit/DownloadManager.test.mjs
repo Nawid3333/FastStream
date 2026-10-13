@@ -267,11 +267,15 @@ describe('DownloadManager', () => {
     const details = {url: 'https://cdn.example/live.mpd', responseType: 'text'};
     const callbacks = () => ({onSuccess() {}, onFail() {}, onAbort() {}});
 
+    // Each test destroys its manager: left running, its download of live.mpd retried after
+    // the test (with the real fetch, which fails) into the next test's stub, a fetch that
+    // test never made. On a slow CI runner it landed in the 429 retry test (2026-10-13).
     it('starts once the reset has its downloaders', async () => {
       globalThis.self = globalThis;
       vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      let manager;
       try {
-        const manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
+        manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
         const resetting = manager.reset();
         expect(manager.downloaders).toHaveLength(0);
         const watcher = manager.getFile(details, callbacks());
@@ -279,6 +283,7 @@ describe('DownloadManager', () => {
         await resetting;
         expect(watcher.entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
       } finally {
+        manager?.destroy();
         vi.unstubAllGlobals();
       }
     });
@@ -288,13 +293,15 @@ describe('DownloadManager', () => {
       // waited, as the purpose-stops' did before (glm's review, 2026-10-13).
       globalThis.self = globalThis;
       vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      let manager;
       try {
-        const manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
+        manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
         manager.lastFailed = Date.now();
         await manager.reset();
         const watcher = manager.getFile(details, callbacks());
         expect(watcher.entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
       } finally {
+        manager?.destroy();
         vi.unstubAllGlobals();
       }
     });
@@ -735,10 +742,13 @@ describe('DownloadManager', () => {
             status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'},
           }))
           .mockResolvedValueOnce(new Response('small body', {status: 200, headers: {'Content-Type': 'text/plain'}}));
-      // When and from where each fetch came: CI once saw the retry before the Retry-After
-      // was over (2026-10-13), which never happened here.
+      // Only this test's own fetches count, with when and from where each came: a download
+      // another test left running retried into this stub on a slow CI runner, a second fetch
+      // after 1 s that looked like this retry not waiting for its Retry-After (2026-10-13).
       const fetches = [];
       vi.stubGlobal('fetch', (...args) => {
+        const address = String(args[0]?.url ?? args[0]);
+        if (address !== 'https://cdn.example/1.ts') return new Promise(() => {});
         fetches.push({at: Date.now() - start, stack: new Error().stack.split('\n').slice(2, 8).join(' | ')});
         return fetchMock(...args);
       });
