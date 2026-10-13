@@ -2608,7 +2608,9 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
   if (framesWithSources.length > 0) {
     // Not on the seek bar's thumbnails alone (hasVideoSource).
     framesWithSources = (await Promise.all(framesWithSources.map(async (frame) => {
-      return await hasVideoSource(frame) ? {frame, videoSize: await getVideoSize(frame)} : null;
+      // The page measured: a new one in the frame keeps the frame (reset in place).
+      const documentKey = frame.documentKey;
+      return await hasVideoSource(frame) ? {frame, documentKey, videoSize: await getVideoSize(frame)} : null;
     }))).filter((entry) => entry !== null);
 
     // The page's videos were measured with a round trip to it; a click that turned the
@@ -2625,10 +2627,12 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
 
     for (let i = 0; i < framesWithSources.length; i++) {
       // A frame the tab dropped meanwhile (it went on to another site, or the page took
-      // the frame out): OPEN_PLAYER goes by frame id, to whatever page has it now, as
-      // onSourceRecieved's wait checks too (glm's review, 2026-10-13).
-      if (!framesWithSources[i].frame.isTracked()) continue;
-      openPlayer(framesWithSources[i].frame);
+      // the frame out), or one that loaded another page: OPEN_PLAYER goes by frame id, to
+      // whatever page has it now, as onSourceRecieved's wait checks too (glm's review and
+      // the review of its fixes, 2026-10-13).
+      const {frame, documentKey} = framesWithSources[i];
+      if (!frame.isTracked() || frame.documentKey !== documentKey) continue;
+      openPlayer(frame);
     }
   }
 }

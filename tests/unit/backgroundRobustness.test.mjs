@@ -139,6 +139,25 @@ describe('the toolbar\'s On with players for several frames', () => {
     await bg.wait(3000);
     expect(bg.sent('OPEN_PLAYER')).toEqual([]);
   });
+
+  it('opens none in a frame that loaded another page while its video was measured', async () => {
+    // The frame stays the tab's (a new page in it is reset in place), so isTracked() let the
+    // player go to the new page, whose streams were not the ones measured (review of the
+    // fixes, 2026-10-13).
+    bg = await loadBackground({
+      tabs: [{id: 1, url: PAGE}],
+      onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
+        new Promise((resolve) => setTimeout(() => resolve(640 * 360), 1500)) : undefined,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 4, 'https://hoster.test/e/1', 'page1');
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.click(1);
+    await bg.wait(500);
+    await bg.frameAdded(1, 4, 'https://hoster.test/e/2', 'page2');
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
 });
 
 describe('the "use the player for stream links" redirect', () => {
