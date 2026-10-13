@@ -192,6 +192,39 @@ describe('the "use the player for stream links" redirect', () => {
   });
 });
 
+// The Auto-enable URLs list as the background turns a tab on by it (tabs.onUpdated). The
+// background had its own parser for the list, which dropped every `-domain` line and kept a
+// lone `~` as a regex matching every URL (upstream #241). UrlMatchList.test.mjs pins the
+// list line by line; these two were classic-specs/auto-enable-list.e2e.mjs's until
+// 2026-10-13, which still checks the -domain line against Firefox's own redirect rule. A
+// tab turned on by a list in Firefox is every spec's that puts its site on the list.
+describe('the Auto-enable URLs list', () => {
+  it('does not auto-enable on a -domain site that an earlier line lists', async () => {
+    bg = await loadBackground({options: {autoEnableURLs: ['https://site.test/']}, tabs: [{id: 1, url: 'about:blank'}]});
+    await bg.navigated(1, 'https://site.test/listed');
+    // A listed page is turned on, or this proves nothing.
+    expect(bg.badges.get(1)).toBe('On');
+
+    bg.options = {autoEnableURLs: ['https://site.test/', '-site.test']};
+    await bg.message({type: 'LOAD_OPTIONS', time: 1}, {tabId: 99});
+    await bg.navigated(1, 'https://site.test/excluded');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false});
+    expect(bg.badges.get(1)).not.toBe('On');
+  });
+
+  it('does not auto-enable every site for a lone ~ line', async () => {
+    bg = await loadBackground({options: {autoEnableURLs: ['~', 'https://listed.test/']},
+      tabs: [{id: 1, url: 'about:blank'}, {id: 2, url: 'about:blank'}]});
+    // The line beside it still works.
+    await bg.navigated(1, 'https://listed.test/watch');
+    expect(bg.badges.get(1)).toBe('On');
+
+    await bg.navigated(2, 'https://other.test/anything');
+    expect(bg.session['tabState:2']).toMatchObject({isOn: false});
+    expect(bg.badges.get(2)).not.toBe('On');
+  });
+});
+
 describe('messages only FastStream\'s own pages send', () => {
   // A send to mpv (with no MPV allowlist: it is the user's button), a header rule and a
   // download each did what the message named for any sender, a content script in any page

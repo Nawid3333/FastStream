@@ -6,8 +6,13 @@
 // The background had its own parser for this list, and it dropped every `-domain` line,
 // so neither happened. It also kept a lone `~` as the empty regex, which matches every
 // URL: one stray line turned FastStream on on every site. The list now goes through
-// UrlMatchList, which the unit tests cover line by line; this checks the two effects in
-// Firefox, where the redirect is a declarativeNetRequest rule.
+// UrlMatchList, which the unit tests cover line by line; this checks the redirect in
+// Firefox, where it is a declarativeNetRequest rule. The other effect, a tab the list does
+// not turn on, is tests/unit/backgroundRobustness.test.mjs's ("the Auto-enable URLs list":
+// a -domain line after a line that lists its site, and a lone ~), through the background's
+// own tabs.onUpdated listener; it was two cases here until 2026-10-13. A tab the list does
+// turn on in Firefox is every spec's that puts its site on the list (source-length,
+// embed-page-query, page-subtitles...).
 
 import http from 'node:http';
 
@@ -46,25 +51,6 @@ async function setOptions(options) {
   }), JSON.stringify(options));
   // loadOptions rebuilds the redirect rule after it answers.
   await browser.pause(1000);
-}
-
-/**
- * Reads a tab's mode off its toolbar button.
- * @param {string} prefix - The start of the tab's URL.
- * @return {Promise<string>} 'on' or 'off'.
- */
-async function tabMode(prefix) {
-  await browser.switchToWindow(extHandle);
-  return await browser.execute((prefix) => new Promise((done) => {
-    chrome.tabs.query({}, (tabs) => {
-      const tab = tabs.find((t) => t.url && t.url.startsWith(prefix));
-      if (!tab) {
-        done('no tab at ' + prefix);
-        return;
-      }
-      chrome.action.getBadgeText({tabId: tab.id}, (badge) => done(badge === 'On' ? 'on' : 'off'));
-    });
-  }), prefix);
 }
 
 /**
@@ -132,24 +118,5 @@ describe('The Auto-enable URLs list', function() {
       timeoutMsg: 'the manifest link on the excluded site never reached the server: it was redirected'});
     await browser.pause(1000);
     expect(await browser.getUrl()).not.toMatch(new RegExp('^' + ORIGIN));
-  });
-
-  it('does not auto-enable on a -domain site that an earlier line lists', async function() {
-    await setOptions({autoEnableURLs: [`${EXCLUDED}/`]});
-    await openInSiteTab(`${EXCLUDED}/listed`);
-    await browser.waitUntil(async () => (await tabMode(EXCLUDED)) === 'on',
-        {timeout: 10000, timeoutMsg: 'a listed page was not auto-enabled at all, so this test proves nothing'});
-
-    await setOptions({autoEnableURLs: [`${EXCLUDED}/`, '-localhost']});
-    await openInSiteTab(`${EXCLUDED}/excluded`);
-    await browser.pause(2000);
-    expect(await tabMode(EXCLUDED)).toBe('off');
-  });
-
-  it('does not auto-enable every site for a lone ~ line', async function() {
-    await setOptions({autoEnableURLs: ['~']});
-    await openInSiteTab(`${OTHER}/anything`);
-    await browser.pause(2000);
-    expect(await tabMode(OTHER)).toBe('off');
   });
 });

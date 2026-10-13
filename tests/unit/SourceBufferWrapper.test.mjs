@@ -151,7 +151,8 @@ describe('SourceBufferWrapper', () => {
 // is about to take away what `buffered` shows. A seek to 0 just after a jump to the end found
 // the start buffered (the jump's removal of everything waited behind the end's appends), did
 // not reload, and the removal then took the start away: the player sat at 0 with nothing
-// loading (#265, keybinds.e2e.mjs "loads the start again after a jump from the end back to 0").
+// loading (#265, mp4-seek.e2e.mjs "loads the start again after jumping back to it from the end,
+// every time").
 describe('a removal still to run', () => {
   beforeEach(() => {
     globalThis.MediaSource = {isTypeSupported: () => true};
