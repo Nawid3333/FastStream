@@ -200,7 +200,7 @@ describe('gone pages', () => {
   it('keeps what a removed page and the pages inside it had detected', () => {
     const {tab, main} = tabWithEmbed();
     tab.forgetRemovedFrame(main, 'main');
-    expect([...tab.goneDocuments.keys()]).toEqual(['main', 'embed']);
+    expect([...tab.goneDocuments.keys()]).toEqual(['embed', 'main']);
     expect(tab.goneDocuments.get('embed').sources.map((s) => s.url))
         .toEqual(['https://cdn.example.com/video.m3u8']);
     expect(tab.frames.size).toBe(0);
@@ -277,6 +277,23 @@ describe('gone pages', () => {
     expect(tab.goneDocuments.has('ad-19')).toBe(true);
   });
 
+  it('keeps a page\'s streams when its frames over the limit all detected some too', () => {
+    // The page was marked before its frames, so with no frame that detected nothing to go
+    // first, the oldest went: the page itself (glm's second look, 2026-10-13). Its frames
+    // are marked first now, and the page is the newest of them.
+    const {tab, main} = tabWithEmbed();
+    main.getSources().push({url: 'https://cdn.example.com/main.m3u8', mode: 'hls'});
+    for (let i = 0; i < 20; i++) {
+      const ad = tab.getFrameOrCreate(10 + i);
+      ad.documentKey = 'ad-' + i;
+      ad.setParentFrame(main);
+      ad.getSources().push({url: `https://ads.example.com/${i}.mp4`, mode: 'mp4'});
+    }
+    tab.forgetRemovedFrame(main, 'main');
+    expect(tab.goneDocuments.size).toBe(16);
+    expect(tab.goneDocuments.get('main').sources.map((s) => s.url)).toEqual(['https://cdn.example.com/main.m3u8']);
+  });
+
   it('marks nothing when a refused player\'s frame is forgotten', () => {
     // PLAYER_LOADED of a gone page forgets the player's frame (forgetFrame): that is no
     // page leaving.
@@ -322,7 +339,7 @@ describe('noteDocumentReplaced', () => {
   it('marks the page before, and the pages inside it, gone', () => {
     const {tab, main} = tabWithEmbed();
     tab.noteDocumentReplaced(main, 'next');
-    expect([...tab.goneDocuments.keys()]).toEqual(['main', 'embed']);
+    expect([...tab.goneDocuments.keys()]).toEqual(['embed', 'main']);
   });
 
   it('marks nothing for the same page again, or a frame without a name', () => {

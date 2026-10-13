@@ -503,6 +503,10 @@ export class TabHolder {
    */
   markDocumentGone(frame) {
     const mark = (f) => {
+      // The pages inside first, so a page is newer than its frames' pages: the oldest go
+      // when there are too many, and a page marked before its frames went first when all
+      // of them had detected something (glm's second look, 2026-10-13).
+      f.children.forEach(mark);
       if (f.documentKey) {
         // Deleted first: a Map keeps a key it already has at its old place, and the
         // limit below drops the oldest, not the one just marked.
@@ -512,7 +516,6 @@ export class TabHolder {
           subtitles: f.getSubtitles().slice(),
         });
       }
-      f.children.forEach(mark);
     };
     mark(frame);
     while (this.goneDocuments.size > GoneDocumentLimit) {
