@@ -296,6 +296,18 @@ describe('windowed fullscreen', () => {
     expect(bar.style.getPropertyValue('visibility')).toBe('');
   });
 
+  it('fits the player to its place at once when it ends', async () => {
+    // The fit waited a second after the page got its styles back, with the player at the
+    // size it had before windowed fullscreen (glm's audit, 2026-10-13).
+    const {page, wrap, video, iframe} = await pageWithPlayer();
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    // The page's box for the video changed meanwhile (the window was made larger).
+    wrap.rect = {x: 0, y: 0, width: 800, height: 450};
+    video.rect = {x: 0, y: 0, width: 800, height: 450};
+    await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5});
+    expect(iframe.style.getPropertyValue('width')).toBe('800px');
+  });
+
   it('leaves the <head> alone', async () => {
     const {page} = await pageWithPlayer();
     const meta = page.document.createElement('meta');

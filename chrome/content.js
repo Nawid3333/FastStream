@@ -1052,6 +1052,10 @@
       windowedFullscreenState.active = false;
       iframeObj.iframe.setAttribute('style', windowedFullscreenState.oldStyle);
       undoFillScreenIframe(windowedFullscreenState.fillScreenWhitelist);
+      // Fitted at once: it waited a second, with the player at the size it had before
+      // (glm's audit, 2026-10-13). Again a second later, for a page whose own scripts lay
+      // it out once it has its styles back.
+      updateReplacedPlayers();
       setTimeout(() => {
         updateReplacedPlayers();
       }, 1000);
