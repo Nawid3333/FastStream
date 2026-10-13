@@ -215,3 +215,31 @@ describe('StreamPick.outrun', () => {
     expect(StreamPick.outrun([{duration: 1800}], Infinity)).toBe(false);
   });
 });
+
+describe('StreamPick.pick', () => {
+  const at = (name, mode, depth, time) => ({url: `https://cdn.example/${name}`, mode, depth, time});
+  const MP4 = PlayerModes.ACCELERATED_MP4;
+
+  it('keeps the file at the lowest depth over a deeper one, even a newer one', () => {
+    // The newest MP4 was taken from the other files alone: a deeper one replaced the pick
+    // (this review, 2026-10-13).
+    const top = at('top.mp4', MP4, 0, 1);
+    const deep = at('deep.mp4', MP4, 1, 2);
+    expect(StreamPick.pick([top, deep])).toBe(top);
+    expect(StreamPick.pick([deep, top])).toBe(top);
+  });
+
+  it('takes the newest file at the lowest depth', () => {
+    const older = at('older.mp4', MP4, 0, 1);
+    const newer = at('newer.mp4', MP4, 0, 5);
+    const deeper = at('deeper.mp4', MP4, 2, 9);
+    expect(StreamPick.pick([older, newer, deeper])).toBe(newer);
+  });
+
+  it('takes a stream over a file', () => {
+    const file = at('a.mp4', MP4, 0, 1);
+    const hls = at('a.m3u8', PlayerModes.ACCELERATED_HLS, 0, 2);
+    expect(StreamPick.pick([file, hls])).toBe(hls);
+    expect(StreamPick.pick([hls, file])).toBe(hls);
+  });
+});

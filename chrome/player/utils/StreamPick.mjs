@@ -98,6 +98,44 @@ export class StreamPick {
   }
 
   /**
+   * The stream to play among the candidates (played, else longest): the one at the lowest
+   * depth, a streaming one (HLS, DASH) over a file there, else the first the page loaded;
+   * an MP4 file is the newest MP4 at the lowest depth. That newest was taken from the other
+   * files alone, so a deeper one replaced a pick at the lowest depth (this review,
+   * 2026-10-13; moved here from main.mjs to be tested).
+   * @template {{mode: string, depth?: number, time?: number}} T
+   * @param {T[]} candidates - Not empty.
+   * @return {T}
+   */
+  static pick(candidates) {
+    let picked = candidates.reduce((result, curr) => {
+      // Lower depth first.
+      if (result.depth > curr.depth) {
+        return curr;
+      }
+      // Then a streaming one over a file.
+      if (!STREAMING_MODES.includes(result.mode) && STREAMING_MODES.includes(curr.mode)) {
+        return curr;
+      }
+      return result;
+    }, candidates[0]);
+
+    if (picked && picked.mode === PlayerModes.ACCELERATED_MP4) {
+      const files = candidates.filter((item) => item.mode === PlayerModes.ACCELERATED_MP4);
+      files.sort((a, b) => {
+        // Lower depth is better.
+        if (a.depth !== b.depth) {
+          return a.depth - b.depth;
+        }
+        // Newer is better.
+        return b.time - a.time;
+      });
+      picked = files[0];
+    }
+    return picked;
+  }
+
+  /**
    * The streams to try in turn should the one picked fail to load: the others it was
    * picked from, never a playlist of stills; at the lowest depth first, then a streaming
    * one (HLS, DASH) before a file, else in the order the page loaded them. Only those: a

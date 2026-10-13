@@ -112,43 +112,9 @@ async function recieveSources(request, sendResponse) {
   // choose by hand.
   const candidates = StreamPick.played(sources, request.video) || StreamLength.longest(sources);
 
-  // Sources are ordered by time, so we can just choose the first one and it will be the oldest.
-  // But we also want to minimize depth
-  let autoSetSource = candidates.reduce((result, curr) => {
-    // Choose lower depth
-    if (result.depth > curr.depth) {
-      return curr;
-    }
-
-    // If result isn't using streaming technologies, try to find one that does
-    const streamingModes = [PlayerModes.ACCELERATED_HLS, PlayerModes.ACCELERATED_DASH];
-    if (!streamingModes.includes(result.mode) && streamingModes.includes(curr.mode)) {
-      return curr;
-    }
-
-    return result;
-  }, candidates[0]);
-
-  // Play the newest source at lowest depth if it is mp4
-  if (autoSetSource.mode === PlayerModes.ACCELERATED_MP4) {
-    const mp4SourceCandidates = candidates.filter((item) => {
-      return item !== autoSetSource && item.mode === PlayerModes.ACCELERATED_MP4;
-    });
-
-    mp4SourceCandidates.sort((a, b) => {
-      // Lower depth is better
-      if (a.depth !== b.depth) {
-        return a.depth - b.depth;
-      }
-
-      // Newer is better
-      return b.time - a.time;
-    });
-
-    if (mp4SourceCandidates.length > 0) {
-      autoSetSource = mp4SourceCandidates[0];
-    }
-  }
+  // Sources are ordered by time, so the first is the oldest; the lowest depth wins, then a
+  // streaming one, and among MP4 files the newest (StreamPick.pick).
+  let autoSetSource = StreamPick.pick(candidates);
 
   // Playlists of stills are all there is (the seek bar's thumbnails): listed, to choose by
   // hand, but nothing to play by itself.
