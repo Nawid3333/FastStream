@@ -63,6 +63,13 @@ describe('listForSource', () => {
         .toBe(null);
   });
 
+  it('goes on to the next list when the first that holds the file has no other on its host', () => {
+    // The <video>'s <source> elements come first (page-qualities.js): the played file and one
+    // on another host gave no list, and the player's own list after them was never looked at.
+    const sources = [LIST[0], {url: 'https://mirror.test/1_360p.mp4', label: '360p', height: 360}];
+    expect(listForSource({url: LIST[0].url}, [sources, LIST])).toEqual(LIST);
+  });
+
   it('takes no list that does not hold the stream\'s file', () => {
     expect(listForSource({url: 'https://cdn.test/other.mp4'}, [LIST])).toBe(null);
     expect(listForSource({url: LIST[0].url}, [])).toBe(null);
