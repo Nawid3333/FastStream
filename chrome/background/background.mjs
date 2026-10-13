@@ -785,9 +785,12 @@ chrome.tabs.onUpdated.addListener(async (tabid, changeInfo, tabobj) => {
       tab.mpvOnPlay = false;
       startWithTrackedLater(tab, changeInfo.url, () => tab.isMpv && !tab.mpvOnPlay && !tab.mpvAutoOpened,
           () => openMpvWithSources(tab));
-    } else if (shouldAutoEnable && !tab.regexMatched && !(tab.isMpv && tab.mpvOnPlay)) {
-      // Not for a tab armed with the MPV shortcut: the user's own choice for the tab
-      // outranks the standing list, so the first video they start here still goes to mpv.
+    } else if (shouldAutoEnable && !tab.regexMatched && !tab.isOn) {
+      // Not for a tab the user turned on (an On or MPV the lists did not start: the MPV key's
+      // arm, the toolbar's On or On -> MPV): the user's own choice for the tab outranks the
+      // standing list, so the first video they start here still goes where they chose.
+      // Checking the MPV key's arm alone, the toolbar's On -> MPV went to the in-page
+      // player on the next page the list named (review of the fixes, 2026-10-13).
       tab.regexMatched = true;
       tab.isOn = true;
       // Allowlisted sites default to MPV mode; everything else uses the

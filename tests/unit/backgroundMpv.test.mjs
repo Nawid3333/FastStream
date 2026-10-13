@@ -1490,6 +1490,27 @@ describe('a mode the user picked on a page an auto-enable list turned on', () =>
     await bg.navigated(1, NEWS);
     expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
   });
+
+  it('keeps the toolbar\'s On -> MPV on the next page the auto-enable list names', async () => {
+    // Its MPV no longer counted as the list's (regexMatched), so the auto-enable list's
+    // start ran again on the next page and put the in-page player in its place (review of
+    // the fixes, 2026-10-13).
+    bg = await loadBackground({
+      options: {mpvMode: true, autoEnableURLs: ['https://site.test/'], mpvAllowlist: ['https://site.test/watch']},
+      tabs: [{id: 1, url: WATCH}],
+    });
+    await bg.navigated(1, WATCH);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    await bg.command('toggle_player', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+
+    await bg.navigated(1, 'https://site.test/home');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+    await bg.navigated(1, 'https://site.test/watch/2');
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true});
+  });
 });
 
 describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next one', () => {
