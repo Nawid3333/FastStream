@@ -2039,6 +2039,30 @@ describe('MPV mode and a page that offers its file in several qualities', () => 
     expect(navigations).toEqual(['next']);
   });
 
+  it('goes on at the end of a stream sent in another spelling than the one mpv plays', async () => {
+    // The host gives mpv the URL as the URL parser writes it (mpvTargetUrl); the one sent was
+    // compared as it came, and an end of the very stream sent did not count (#470).
+    const navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => {
+        if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
+        navigations.push(message.direction);
+        return 'clicked';
+      },
+    });
+    await bg.navigated(1, HOSTER);
+    await bg.frameAdded(1, 0, HOSTER, 'page1');
+    await bg.message({type: 'MPV_OPEN', url: 'HTTPS://CDN.test/Episode%201.m3u8', headers: []},
+        {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
+    const port = bg.ports.at(-1);
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: 'https://cdn.test/Episode%201.m3u8#fs-id=0123456789abcdef'});
+    await bg.wait(100);
+    expect(navigations).toEqual(['next']);
+  });
+
   it('does not go on at the end of a file the user opened in mpv himself', async () => {
     const navigations = [];
     bg = await loadBackground({

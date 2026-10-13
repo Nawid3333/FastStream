@@ -2863,11 +2863,12 @@ function watchMpvFor(tab, url, qualities = null) {
 
 /**
  * Whether mpv plays the stream FastStream sent: the host appends its fs-* tags after a #,
- * and the rest is the URL as sent. A file the user opened in mpv himself is not followed.
- * Another of the page's qualities that went along is the stream too: mpv's quality menu
- * (faststream-quality.lua) loads it in place, and autoplay stopped at the end of an episode
- * whose quality was switched in mpv (this review, 2026-10-13). The host writes each of them
- * as the URL parser does, without a fragment of its own.
+ * and the rest is the URL as sent, as the URL parser writes it (mpvTargetUrl): a URL sent
+ * in another spelling (an upper-case host) did not count (#470). A file the user opened in
+ * mpv himself is not followed. Another of the page's qualities that went along is the
+ * stream too: mpv's quality menu (faststream-quality.lua) loads it in place, and autoplay
+ * stopped at the end of an episode whose quality was switched in mpv (this review,
+ * 2026-10-13). The host writes each of them the same way.
  * @param {*} path - mpv's path.
  * @param {string} url - The stream sent.
  * @param {?Array<{url: string}>} [qualities] - The page's qualities sent with it.
@@ -2876,16 +2877,17 @@ function watchMpvFor(tab, url, qualities = null) {
 function isSentStream(path, url, qualities = null) {
   if (typeof path !== 'string' || typeof url !== 'string') return false;
   const playing = path.split('#')[0];
-  if (playing === url.split('#')[0]) return true;
-  return (Array.isArray(qualities) ? qualities : []).some((entry) => {
+  const parsedWithoutHash = (candidate) => {
     try {
-      const parsed = new URL(entry.url);
+      const parsed = new URL(candidate);
       parsed.hash = '';
-      return parsed.href === playing;
+      return parsed.href;
     } catch (e) {
-      return false;
+      return null;
     }
-  });
+  };
+  if (playing === url.split('#')[0] || playing === parsedWithoutHash(url)) return true;
+  return (Array.isArray(qualities) ? qualities : []).some((entry) => parsedWithoutHash(entry?.url) === playing);
 }
 
 /**
