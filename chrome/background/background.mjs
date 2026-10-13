@@ -2621,6 +2621,10 @@ async function openPlayersWithSources(tab, foundBefore = Infinity) {
     });
 
     for (let i = 0; i < framesWithSources.length; i++) {
+      // A frame the tab dropped meanwhile (it went on to another site, or the page took
+      // the frame out): OPEN_PLAYER goes by frame id, to whatever page has it now, as
+      // onSourceRecieved's wait checks too (glm's review, 2026-10-13).
+      if (!framesWithSources[i].frame.isTracked()) continue;
       openPlayer(framesWithSources[i].frame);
     }
   }

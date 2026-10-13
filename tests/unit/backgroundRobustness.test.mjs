@@ -121,6 +121,24 @@ describe('the toolbar\'s On with players for several frames', () => {
     await bg.wait(3000);
     expect(bg.sent('OPEN_PLAYER').map((m) => m.frameId)).toEqual([3, 1, 2]);
   });
+
+  it('opens none in a frame the tab dropped while its video was measured', async () => {
+    // The page answers its video's size when its scripts let it; the tab went on to another
+    // site meanwhile, and the frame's id was sent a player for the page there (glm's review,
+    // 2026-10-13). onSourceRecieved's own wait checked this already.
+    bg = await loadBackground({
+      tabs: [{id: 1, url: PAGE}],
+      onTabMessage: ({message}) => message.type === 'GET_VIDEO_SIZE' ?
+        new Promise((resolve) => setTimeout(() => resolve(640 * 360), 1500)) : undefined,
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.click(1);
+    await bg.wait(500);
+    await bg.navigated(1, 'https://other.test/');
+    await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
 });
 
 describe('the "use the player for stream links" redirect', () => {
