@@ -335,6 +335,16 @@ export class MpvBackend {
       }
     }
 
+    // The rest has to fit too: a stream address near Firefox's own URL limit (1 MB) made the
+    // host quit unread, which said "is the helper installed?", and every later detection of
+    // the stream tried again (glm's review, 2026-10-13).
+    if (messageBytes(message) > HostMaxMessageBytes) {
+      if (tab && tab.mpvSentUrls) {
+        tab.mpvSentUrls.delete(url);
+      }
+      return Promise.resolve(this.withHostState({ok: false, error: 'the stream\'s address is too long to send to mpv'}));
+    }
+
     return new Promise((resolve) => {
       try {
         chrome.runtime.sendNativeMessage(NativeHostName, message, (response) => {

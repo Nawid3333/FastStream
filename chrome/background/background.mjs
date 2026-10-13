@@ -1274,7 +1274,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.type === MessageTypes.REPORT_AUTOPLAY_PROBLEM) {
     // The player's video ended with autoplay on and no next episode in the page.
     if (msg.kind === ProblemKinds.NO_NEXT) {
-      recordProblem({url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'player'}).catch((e) => console.error(e));
+      noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'player'}).catch((e) => console.error(e));
     }
     return;
   } else if (msg.type === MessageTypes.REQUEST_PLAYLIST_POLL) {
@@ -2047,6 +2047,26 @@ const StartPagePlayerForMs = 20000;
 const startPagePlayerUntil = new WeakMap();
 
 /**
+ * Notes where autoplay got stuck (ProblemLog), unless the tab is in a private window: the list
+ * is kept on disk (storage.local) and shown on the options page, and a private window's pages
+ * leave nothing behind - its sites were listed there for good (this review, 2026-10-13).
+ * @param {number} tabId - The tab it happened in.
+ * @param {{url: string, kind: string, mode: 'player'|'mpv'}} problem
+ * @return {Promise<void>}
+ */
+async function noteProblem(tabId, problem) {
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (e) {
+    // The tab went: which window it was in is not known any more.
+    return;
+  }
+  if (!tab || tab.incognito) return;
+  await recordProblem(problem);
+}
+
+/**
  * Notes a next episode whose page brought no video within a minute (ProblemLog): the
  * continuation is still there, as nothing took it (its sources, or mpv's stream).
  * @param {Object} tab - TabHolder.
@@ -2057,7 +2077,7 @@ function watchNextEpisodeArrives(tab, continuation, mode) {
   const from = tab.url;
   setTimeout(() => {
     if (tab.continuationOptions !== continuation || !Tabs.tabs.has(tab.tabId) || tab.url === from) return;
-    recordProblem({url: tab.url, kind: ProblemKinds.NO_STREAM, mode}).catch((e) => console.error(e));
+    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode}).catch((e) => console.error(e));
   }, MpvNextEpisodeWaitMs);
 }
 
@@ -2691,7 +2711,7 @@ function autoOpenInMpv(tab, url, headers) {
 // (the mpv setup's faststream-episodes.lua), which this setting drives and the switch flips;
 // an end waits Options.autoplayCountdown seconds, which the switch or a key can cut short.
 /**
- * @typedef {{tabId: number, url: string, alive: boolean, going: boolean,
+ * @typedef {{tabId: number, url: string, qualities: ?Array<{url: string}>, alive: boolean, going: boolean,
  *   countdown: ?ReturnType<typeof setTimeout>, countdownAsks: number,
  *   stalled: ?ReturnType<typeof setTimeout>,
  *   watcher: ?{notify: Function, hide: Function, state: Function, stop: Function}}} MpvWatch
@@ -2761,8 +2781,10 @@ function syncMpvAutoplay(state) {
  * follow; a window per stream has no pipe.
  * @param {Object} tab - TabHolder.
  * @param {string} url - The stream sent.
+ * @param {?Array<{url: string}>} [qualities] - The page's qualities of it that went along
+ *   (isSentStream).
  */
-function watchMpvFor(tab, url) {
+function watchMpvFor(tab, url, qualities = null) {
   if (!tab || typeof tab.tabId !== 'number' || !isTabOpen(tab) || !Mpv.singleInstance) {
     return;
   }
@@ -2787,10 +2809,12 @@ function watchMpvFor(tab, url) {
     cancelMpvCountdown(mpvWatch);
     mpvWatch.tabId = tab.tabId;
     mpvWatch.url = url;
+    mpvWatch.qualities = qualities;
     return;
   }
   /** @type {MpvWatch} */
-  const state = {tabId: tab.tabId, url, alive: true, going: false, countdown: null, countdownAsks: 0, stalled: null, watcher: null};
+  const state = {tabId: tab.tabId, url, qualities, alive: true, going: false, countdown: null, countdownAsks: 0,
+    stalled: null, watcher: null};
   mpvWatch = state;
   state.watcher = Mpv.watch((event) => onMpvWatchEvent(state, event));
 }
@@ -2798,13 +2822,28 @@ function watchMpvFor(tab, url) {
 /**
  * Whether mpv plays the stream FastStream sent: the host appends its fs-* tags after a #,
  * and the rest is the URL as sent. A file the user opened in mpv himself is not followed.
+ * Another of the page's qualities that went along is the stream too: mpv's quality menu
+ * (faststream-quality.lua) loads it in place, and autoplay stopped at the end of an episode
+ * whose quality was switched in mpv (this review, 2026-10-13). The host writes each of them
+ * as the URL parser does, without a fragment of its own.
  * @param {*} path - mpv's path.
  * @param {string} url - The stream sent.
+ * @param {?Array<{url: string}>} [qualities] - The page's qualities sent with it.
  * @return {boolean}
  */
-function isSentStream(path, url) {
+function isSentStream(path, url, qualities = null) {
   if (typeof path !== 'string' || typeof url !== 'string') return false;
-  return path.split('#')[0] === url.split('#')[0];
+  const playing = path.split('#')[0];
+  if (playing === url.split('#')[0]) return true;
+  return (Array.isArray(qualities) ? qualities : []).some((entry) => {
+    try {
+      const parsed = new URL(entry.url);
+      parsed.hash = '';
+      return parsed.href === playing;
+    } catch (e) {
+      return false;
+    }
+  });
 }
 
 /**
@@ -2825,7 +2864,7 @@ function onMpvWatchEvent(state, event) {
   if (event.type === 'watching') {
     syncMpvAutoplay(state);
   } else if (event.type === 'ended') {
-    if (Options.mpvAutoplayNext && isSentStream(event.path, state.url)) {
+    if (Options.mpvAutoplayNext && isSentStream(event.path, state.url, state.qualities)) {
       startMpvCountdown(state);
     }
   } else if (event.type === 'request' && (event.action === 'next' || event.action === 'previous')) {
@@ -3007,7 +3046,7 @@ async function goToEpisode(state, direction) {
   if (!clicked) {
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_none') || 'none found on the page',
         MpvNoticeSeconds);
-    recordProblem({url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'mpv'}).catch((e) => console.error(e));
+    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_NEXT, mode: 'mpv'}).catch((e) => console.error(e));
     return;
   }
   if (Logging) console.log('[MPV autoplay] went on:', direction, tab.tabId);
@@ -3021,7 +3060,7 @@ async function goToEpisode(state, direction) {
   state.stalled = setTimeout(() => {
     state.stalled = null;
     if (!state.alive || mpvWatch !== state) return;
-    recordProblem({url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
+    noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
       'the page brought no stream within a minute; open it in the browser to see why', MpvNoticeSeconds);
   }, MpvNextEpisodeWaitMs);
@@ -3608,6 +3647,11 @@ async function openInMpv(tabId, url, ...rest) {
       // The tab went: both kinds of window count.
     }
   }
+  // The stream the page asked for: Firefox VPN is known to carry it by its host
+  // (VpnProxyMirror.noteSource). A quality file taken in its place may be on a host that check
+  // never saw - a hoster's get_file link, which redirects to its CDN - and it went to mpv on
+  // that file's host alone (this review, 2026-10-13).
+  const detected = url;
   // The page's player offers this file in other qualities too (page-qualities.js): mpv gets
   // the one the user's quality setting asks for, and the list. MPV mode sent the page's
   // default, the lowest on kinoger's fsst hoster. Not for the player's button, which sends the
@@ -3620,7 +3664,7 @@ async function openInMpv(tabId, url, ...rest) {
       rest[5] = {...(rest[5] || {}), qualities: choice.list};
     }
   }
-  if (VpnMirror.throughBrowserVpn(url, incognito)) {
+  if (VpnMirror.throughBrowserVpn(detected, incognito) || VpnMirror.throughBrowserVpn(url, incognito)) {
     if (Logging) console.log('[MPV] not handed off, Firefox VPN carries it:', url);
     return Promise.resolve({
       ok: false,
@@ -3650,7 +3694,7 @@ async function openInMpv(tabId, url, ...rest) {
   // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the
   // player's button and the MPV key's play pass no tab (openStream's duplicate check).
   if (result && result.ok && tabId !== undefined && tabId >= 0) {
-    watchMpvFor(Tabs.getTab(tabId), url);
+    watchMpvFor(Tabs.getTab(tabId), url, rest[5]?.qualities || null);
   }
   return result;
 }

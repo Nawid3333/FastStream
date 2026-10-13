@@ -1827,6 +1827,15 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(navigations.map((n) => n.direction)).toEqual(['next', 'previous']);
   });
 
+  it('notes no problem for a page in a private window (the list is kept on disk)', async () => {
+    const port = await onEpisode1({}, 'no_button');
+    bg.tabs.find((t) => t.id === 1).incognito = true;
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    expect(notices(port)).toEqual(['none found on the page']);
+    expect(bg.local.siteProblems).toBeUndefined();
+  });
+
   it('says so in mpv when the page has no next episode, or the tab is gone', async () => {
     let port = await onEpisode1({}, 'no_button');
     port.emit({type: 'ended', path: S1});
@@ -1918,6 +1927,78 @@ describe('MPV mode and a page that offers its file in several qualities', () => 
       {url: 'https://hoster.test/get_file/9/abc/2/2_720p.mp4/', label: '720p', height: 720}];
     await pagePlays({}, [other]);
     expect(bg.toMpv()).toEqual([CDN]);
+  });
+
+  it('sends nothing when Firefox VPN carried the page\'s request, though the quality file\'s host was never seen', async () => {
+    // The VPN check asked about the 1080p file's host (the hoster's get_file links) alone,
+    // which no response of the tab named: the redirect's 302 is no stream. The stream the page
+    // asked for came through the VPN, on the CDN (this review, 2026-10-13).
+    const VPN = {type: 'https', host: 'muc139.m1.fastly-masque.net', port: 2499,
+      proxyAuthorizationHeader: 'Bearer token', connectionIsolationKey: 'iso', failoverTimeout: 10};
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/']},
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => (message.type === 'GET_PAGE_QUALITIES' ? [LIST] : undefined),
+    });
+    await bg.navigated(1, HOSTER);
+    const sent = bg.requestSent({tabId: 1, url: file('360p'), type: 'media', proxyInfo: VPN});
+    const atCdn = bg.redirected(sent, CDN);
+    await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(100);
+    expect(bg.toMpv()).toEqual([]);
+    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.titles.get(1)).toContain('Firefox VPN');
+  });
+
+  it('goes on to the next episode at the end of a quality mpv switched to', async () => {
+    // mpv's quality menu (faststream-quality.lua) loads another of the page's files in place,
+    // with the same fs-* tags: its end is the episode's end. Only the file sent counted, and
+    // autoplay stopped there (this review, 2026-10-13).
+    const navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => {
+        if (message.type === 'GET_PAGE_QUALITIES') return [LIST];
+        if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
+        navigations.push(message.direction);
+        return 'clicked';
+      },
+    });
+    await bg.navigated(1, HOSTER);
+    const sent = bg.requestSent({tabId: 1, url: file('360p'), type: 'media'});
+    const atCdn = bg.redirected(sent, CDN);
+    await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(100);
+    expect(bg.toMpv()).toEqual([file('1080p')]);
+    const port = bg.ports.at(-1);
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: file('720p') + '#fs-id=0123456789abcdef&fs-quality=x'});
+    await bg.wait(100);
+    expect(navigations).toEqual(['next']);
+  });
+
+  it('does not go on at the end of a file the user opened in mpv himself', async () => {
+    const navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: HOSTER}],
+      onTabMessage: ({message}) => {
+        if (message.type === 'GET_PAGE_QUALITIES') return [LIST];
+        if (message.type !== 'PLAYLIST_NAVIGATION') return undefined;
+        navigations.push(message.direction);
+        return 'clicked';
+      },
+    });
+    await bg.navigated(1, HOSTER);
+    const sent = bg.requestSent({tabId: 1, url: file('360p'), type: 'media'});
+    await bg.responded(bg.redirected(sent, CDN), {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
+    await bg.wait(100);
+    const port = bg.ports.at(-1);
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: 'https://other.test/film.mp4'});
+    await bg.wait(100);
+    expect(navigations).toEqual([]);
   });
 });
 

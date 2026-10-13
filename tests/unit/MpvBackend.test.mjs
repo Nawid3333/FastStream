@@ -337,6 +337,20 @@ describe('openStream contentType', () => {
     expect(host.message().url).toBe('https://cdn/b.m3u8');
     expect(host.message()).not.toHaveProperty('subtitles');
   });
+
+  it('sends nothing, and says why, when the stream\'s address alone is over the host\'s limit', async () => {
+    // The host quit unread, and the hand-off said the helper was not installed (glm's review,
+    // 2026-10-13). Firefox takes URLs up to 1 MB.
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    const url = 'https://cdn/a.m3u8?pad=' + 'x'.repeat(HostMaxMessageBytes);
+    const result = await backend.openStream(url, tab);
+    expect(host.message()).toBeUndefined();
+    expect(result).toEqual({ok: false, error: 'the stream\'s address is too long to send to mpv'});
+    // Not recorded as sent: nothing went.
+    expect(tab.mpvSentUrls.has(url)).toBe(false);
+  });
 });
 
 // The options page's "Test mpv connection" button: a ping that asks the host to find mpv.
