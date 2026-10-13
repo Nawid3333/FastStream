@@ -199,13 +199,18 @@ jobs:
   # 37382065299: each Windows suite about 15 minutes, the setup about 2). The groups are
   # of about the same running time (E2E_SHARD, tests/e2e/shardSpecs.mjs): three a suite on
   # Windows and two on Linux, where the suites take about two thirds of the time, so each
-  # job takes about 5 to 7.5 minutes. More groups would not help: a run is 18 jobs, of
+  # job takes about 5 to 7.5 minutes. More groups would not help: a run is 14 jobs, of
   # the account's 20 at once. Each job builds the extension itself, in seconds, rather
   # than wait for `verify`'s. fail-fast off: one failing group would cancel the others,
   # and with them their lists of retried specs. auto-release.yml waits for the whole
   # workflow, so a release ships only when every one passes.
+  #
+  # The GitHub build is one job a platform, a smoke set (tools/test-ext-github.mjs): it
+  # shares all its code with the AMO build but the options page's update checker, and the
+  # whole extension suite ran on it a second time, five jobs that tested the same code twice
+  # (his request, 2026-10-13: a leaner suite).
   e2e:
-    name: e2e (${{ matrix.os }}, ${{ matrix.suite }} ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 3 || 2 }})
+    name: e2e (${{ matrix.os }}, ${{ matrix.suite }}${{ matrix.suite != 'github' && format(' {0}/{1}', matrix.shard, matrix.os == 'Windows' && 3 || 2) || ' smoke' }})
     runs-on: ${{ matrix.os == 'Windows' && (inputs.windows-runner || 'windows-latest') || (inputs.linux-runner || 'ubuntu-latest') }}
     timeout-minutes: 20
     strategy:
@@ -213,11 +218,16 @@ jobs:
       matrix:
         os: [Linux, Windows]
         # playback: real playback (wdio.conf.mjs). extension: the AMO build installed, and
-        # in a private window (seconds). github: the GitHub self-host build installed.
+        # in a private window (seconds). github: the GitHub self-host build installed, its
+        # smoke set.
         suite: [playback, extension, github]
         shard: [1, 2, 3]
         exclude:
           - os: Linux
+            shard: 3
+          - suite: github
+            shard: 2
+          - suite: github
             shard: 3
     env:
       E2E_SHARD: ${{ matrix.shard }}/${{ matrix.os == 'Windows' && 3 || 2 }}
