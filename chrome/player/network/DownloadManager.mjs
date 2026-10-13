@@ -754,6 +754,9 @@ export class DownloadManager {
     this.failed = 0;
     this.holdUntil = 0;
     this.lastSlowDown = 0;
+    // A failure's cooldown is the last video's: its next downloads waited a second
+    // (glm's review, 2026-10-13).
+    this.lastFailed = 0;
     // After a server throttled, the next video starts with one downloader, and its speed
     // test is a probe: one that climbs without another 429 or 503 ends the caution. One
     // stopped short (the add/remove downloader keys) probes again after a calm period.

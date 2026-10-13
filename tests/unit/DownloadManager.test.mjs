@@ -283,6 +283,22 @@ describe('DownloadManager', () => {
       }
     });
 
+    it('starts the next video\'s request at once after a failure in the last one', async () => {
+      // A failure's one-second cooldown went on into the next video: its first downloads
+      // waited, as the purpose-stops' did before (glm's review, 2026-10-13).
+      globalThis.self = globalThis;
+      vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+      try {
+        const manager = new DownloadManager({options: {maximumDownloaders: 6}, resetFailed() {}, predownloadFragments() {}});
+        manager.lastFailed = Date.now();
+        await manager.reset();
+        const watcher = manager.getFile(details, callbacks());
+        expect(watcher.entry.status).toBe(DownloadStatus.DOWNLOAD_INITIATED);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     it('starts when another request joins it', () => {
       const manager = new DownloadManager(null);
       manager.downloaders = [];
