@@ -123,12 +123,9 @@ describe('Firefox audio at speed', function() {
     expect(fastest.moved).toBeGreaterThan(28);
   });
 
-  it('is what the player is set to stop at', async function() {
-    await browser.url('/player/index.html?t=' + Date.now() + '#' +
-      globalThis.__E2E_FIXTURES_ORIGIN__ + '/fixtures/sample.mp4');
-    await browser.waitUntil(
-        async () => browser.execute(() => !!window.fastStream?.options),
-        {timeout: 60000, timeoutMsg: 'the player never started'});
-    expect(await browser.execute(() => window.fastStream.options.maxPlaybackRate)).toBe(8);
-  });
+  // That the player stops at 8 is pinned in the running player by keybinds.e2e.mjs ("never
+  // runs the video faster than options.maxPlaybackRate, whoever sets the rate": 10 asked, 8
+  // on the client and on the video), on every machine; the case above is skipped on one
+  // without sound. A case here that read options.maxPlaybackRate was a weaker copy of it
+  // (removed 2026-10-13).
 });

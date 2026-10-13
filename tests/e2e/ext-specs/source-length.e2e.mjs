@@ -20,7 +20,13 @@
 // file, or the stream as long as it is (StreamPick), when a page loads the next episode or
 // another longer stream beside it - unless a stream five times as long plays, or any longer
 // one while the video runs under three minutes: then the video is an ad, a trailer or a
-// preview as likely as not, and the longest plays, as before.
+// preview as likely as not, and the longest plays, as before. Where that line falls is
+// tests/unit/StreamPick.test.mjs's ("StreamPick.played"); here, a page's file and a page's
+// MSE video each pick their stream through the real page, and the longest plays where the
+// page's video says nothing. (A case that played the longest beside a 10-second ad in the
+// page's video went on 2026-10-13: its page reported its video's file as the film's page
+// does, the longest then played as on the manifests' page, and that an ad's file loses to a
+// far longer stream is the unit's "does not take a short video over a far longer stream".)
 //
 // A playlist of the seek bar's thumbnails (EXT-X-IMAGES-ONLY: JPEG tiles) runs as long as
 // the video, and a page often asks for it first: vixeo.io's did, and the player opened on
@@ -295,16 +301,9 @@ describe('Of a page\'s streams, the player', function() {
               fetch('/hls/intro.m3u8?c=' + c)
                   .then(() => fetch('/watch?v=' + c))
                   .then(() => fetch('/manifest?id=' + c));`));
-      } else if (pathname === '/page/pieces') {
-        // A short title, and the pieces of it its player fetched: the init segment, then
-        // media segments.
-        text('text/html; charset=utf-8', page('pieces', '', `
-              fetch('/fmp4/index.m3u8' + location.search)
-                  .then(() => fetch('/fmp4/init.mp4' + location.search))
-                  .then(() => fetch('/fmp4/seg-000.mp4' + location.search))
-                  .then(() => fetch('/fmp4/seg-001.mp4' + location.search));`));
       } else if (pathname === '/page/slow-piece') {
-        // The same, the last piece's length still being read when the player picks.
+        // A short title, and the pieces of it its player fetched: the init segment, then
+        // media segments, the last piece's length still being read when the player picks.
         text('text/html; charset=utf-8', page('slow-piece', '', `
               fetch('/fmp4-slow/index.m3u8' + location.search)
                   .then(() => fetch('/fmp4-slow/init.mp4' + location.search))
@@ -315,11 +314,6 @@ describe('Of a page\'s streams, the player', function() {
         // The 320-second film in the page's video, then a longer stream the page loads beside it.
         text('text/html; charset=utf-8', page('film and stream', '', `
               document.querySelector('video').src = '/media/film-long.mp4' + location.search;
-              setTimeout(() => fetch('/hls/extra.m3u8' + location.search), 200);`));
-      } else if (pathname === '/page/ad-in-video') {
-        // A 10-second ad in the page's video, and the 12-minute stream.
-        text('text/html; charset=utf-8', page('ad in video', '', `
-              document.querySelector('video').src = '/media/ad.mp4' + location.search;
               setTimeout(() => fetch('/hls/extra.m3u8' + location.search), 200);`));
       } else if (pathname === '/page/mse') {
         // An MSE player, as hls.js is: the video's length is the manifest's, set on the
@@ -336,13 +330,9 @@ describe('Of a page\'s streams, the player', function() {
                 media.duration = 270;
                 fetch('/hls/clip.m3u8' + location.search).then(() => fetch('/hls/extra.m3u8' + location.search));
               });`));
-      } else if (pathname === '/page/thumbnails') {
-        // The seek bar's thumbnails first, then the clip: as long, and newer.
-        text('text/html; charset=utf-8', page('thumbnails', '', `
-              fetch('/hls/thumbnails.m3u8' + location.search)
-                  .then(() => fetch('/hls/clip.m3u8' + location.search));`));
       } else if (pathname === '/page/thumbnails-alone') {
-        // The thumbnails, and the clip only once the player would long have opened.
+        // The seek bar's thumbnails first, and the clip, as long and newer, only once the
+        // player would long have opened.
         text('text/html; charset=utf-8', page('thumbnails alone', '', `
               fetch('/hls/thumbnails.m3u8' + location.search)
                   .then(() => setTimeout(() => fetch('/hls/clip.m3u8' + location.search), 4000));`));
@@ -404,22 +394,16 @@ describe('Of a page\'s streams, the player', function() {
     expect(state.source).toBe(`${SITE}/watch?v=${c}`);
   });
 
-  it('plays a short stream, not the pieces of it the page fetched', async function() {
-    const c = Date.now();
-    await browser.url(`${SITE}/page/pieces?c=${c}`);
-    const state = await playerSources();
-    expect(state.sources).toEqual(expect.arrayContaining([
-      `${SITE}/fmp4/index.m3u8?c=${c}`, `${SITE}/fmp4/init.mp4?c=${c}`, `${SITE}/fmp4/seg-001.mp4?c=${c}`,
-    ]));
-    expect(state.source).toBe(`${SITE}/fmp4/index.m3u8?c=${c}`);
-  });
-
-  it('plays a short stream, not a piece of it whose length is still being read', async function() {
+  // One case since 2026-10-13 (it was two, on the same pieces of the same stream): the pieces
+  // read at once (the init segment, the first media segments) are pieces, and the last one,
+  // its read still out when the player picks, counts as one too - which needs the first.
+  it('plays a short stream, not the pieces of it the page fetched, nor one whose length is still being read', async function() {
     const c = Date.now();
     await browser.url(`${SITE}/page/slow-piece?c=${c}`);
     const state = await playerSources();
     expect(state.sources).toEqual(expect.arrayContaining([
-      `${SITE}/fmp4-slow/index.m3u8?c=${c}`, `${SITE}/fmp4-slow/seg-000.mp4?c=${c}`, `${SITE}/fmp4-slow/seg-002.mp4?c=${c}`,
+      `${SITE}/fmp4-slow/index.m3u8?c=${c}`, `${SITE}/fmp4-slow/init.mp4?c=${c}`, `${SITE}/fmp4-slow/seg-000.mp4?c=${c}`,
+      `${SITE}/fmp4-slow/seg-001.mp4?c=${c}`, `${SITE}/fmp4-slow/seg-002.mp4?c=${c}`,
     ]));
     expect(state.source).toBe(`${SITE}/fmp4-slow/index.m3u8?c=${c}`);
     // Its length was asked for: the piece was among the sources while the player waited.
@@ -443,30 +427,17 @@ describe('Of a page\'s streams, the player', function() {
     expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
   });
 
-  it('plays the longest over a short video in the page: an ad', async function() {
+  // One case since 2026-10-13 (it was two: the same thumbnails and clip, the clip at once
+  // or 4 s later). The player picks once both are known either way, the thumbnails the
+  // older of two as long; here it must not open on them alone first, either.
+  it('plays the video, not the seek bar\'s thumbnails the page asked for first, nor opens on them alone', async function() {
     const c = Date.now();
-    await browser.url(`${SITE}/page/ad-in-video?c=${c}`);
-    const state = await playerSources();
-    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/media/ad.mp4?c=${c}`, `${SITE}/hls/extra.m3u8?c=${c}`]));
-    expect(state.source).toBe(`${SITE}/hls/extra.m3u8?c=${c}`);
-  });
-
-  it('plays the video, not the seek bar\'s thumbnails the page asked for first', async function() {
-    const c = Date.now();
-    await browser.url(`${SITE}/page/thumbnails?c=${c}`);
+    await browser.url(`${SITE}/page/thumbnails-alone?c=${c}`);
     const state = await playerSources();
     // Listed, to choose by hand.
     expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/thumbnails.m3u8?c=${c}`, `${SITE}/hls/clip.m3u8?c=${c}`]));
     expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
     expect(state.readyState).toBeGreaterThanOrEqual(2);
-  });
-
-  it('does not open on the thumbnails alone, and opens on the video when it comes', async function() {
-    const c = Date.now();
-    await browser.url(`${SITE}/page/thumbnails-alone?c=${c}`);
-    const state = await playerSources();
-    expect(state.sources).toEqual(expect.arrayContaining([`${SITE}/hls/thumbnails.m3u8?c=${c}`, `${SITE}/hls/clip.m3u8?c=${c}`]));
-    expect(state.source).toBe(`${SITE}/hls/clip.m3u8?c=${c}`);
   });
 
   it('plays the next stream when the one it picked fails to load: thumbnails that do not say so', async function() {

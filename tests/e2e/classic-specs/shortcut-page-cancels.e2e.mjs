@@ -350,10 +350,16 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     }
   });
 
-  it('Alt+F works on a page that cancels every Alt key', async function() {
+  // One case since 2026-10-13, on one page that cancels every Ctrl and Alt key: it was
+  // three ("Alt+F works on a page that cancels every Alt key", "Ctrl+Shift+F works on a
+  // page that cancels every Ctrl key", "Ctrl+Shift+F switches from MPV to the player on a
+  // page that cancels it"), each loading the same page anew. Every press and mode check of
+  // the three is here, in the same order within each.
+  it('Alt+F and Ctrl+Shift+F work on a page that cancels them, and Ctrl+Shift+F switches from MPV to the player there', async function() {
     await openPage(SITE + '/cancel-modified');
     await expectMode('off', 'on opening the page');
 
+    // Alt+F, on and off.
     await focusPage();
     expect(await press(KEYS.altF)).toBe(false);
     expect(await pageKeys()).toEqual([{key: 'f', prevented: true}]);
@@ -362,12 +368,8 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await focusPage();
     await press(KEYS.altF);
     await expectMode('off', 'after Alt+F again');
-  });
 
-  it('Ctrl+Shift+F works on a page that cancels every Ctrl key', async function() {
-    await openPage(SITE + '/cancel-modified');
-    await expectMode('off', 'on opening the page');
-
+    // Ctrl+Shift+F, on and off.
     await focusPage();
     expect(await press(KEYS.ctrlShiftF)).toBe(false);
     await expectMode('on', 'after Ctrl+Shift+F');
@@ -375,6 +377,19 @@ describe('FastStream shortcuts on a page that cancels them', function() {
     await focusPage();
     await press(KEYS.ctrlShiftF);
     await expectMode('off', 'after Ctrl+Shift+F again');
+
+    // From MPV, Ctrl+Shift+F goes straight to the in-page player, cancelled as it is.
+    await focusPage();
+    expect(await press(KEYS.altF)).toBe(false);
+    await expectMode('mpv', 'after Alt+F, before the switch');
+
+    await focusPage();
+    expect(await press(KEYS.ctrlShiftF)).toBe(false);
+    await expectMode('on', 'after Ctrl+Shift+F in MPV');
+
+    await focusPage();
+    await press(KEYS.ctrlShiftF);
+    await expectMode('off', 'after Ctrl+Shift+F in the player');
   });
 
   it('a shortcut the page leaves alone runs once, not twice', async function() {
@@ -393,23 +408,6 @@ describe('FastStream shortcuts on a page that cancels them', function() {
 
     await focusPage();
     expect(await press(KEYS.ctrlShiftF)).toBe(true);
-    await expectMode('off', 'after Ctrl+Shift+F again');
-  });
-
-  it('Ctrl+Shift+F switches from MPV to the player on a page that cancels it', async function() {
-    await openPage(SITE + '/cancel-modified');
-    await expectMode('off', 'on opening the page');
-
-    await focusPage();
-    expect(await press(KEYS.altF)).toBe(false);
-    await expectMode('mpv', 'after Alt+F');
-
-    await focusPage();
-    expect(await press(KEYS.ctrlShiftF)).toBe(false);
-    await expectMode('on', 'after Ctrl+Shift+F');
-
-    await focusPage();
-    await press(KEYS.ctrlShiftF);
     await expectMode('off', 'after Ctrl+Shift+F again');
   });
 

@@ -84,33 +84,33 @@ async function doubleClickAndAnswer(time, text) {
 }
 
 describe('Subtitle editing', function() {
-  it('keeps a cue whose edit is cancelled', async function() {
-    // Cancel gives the prompt no value, which was taken for emptied text: the cue went.
+  // One case since 2026-10-13: "keeps a cue whose edit is cancelled", "adds no cue when the
+  // new one is cancelled" and "removes a cue whose text is emptied, and edits one whose text
+  // is changed" each opened the same video and track. They run on one player now, the
+  // third on a fresh track of its own, with every answer and expected cue list as they were.
+  // tests/unit/timelineDrag.test.mjs pins what the syncer does with each answer; these go
+  // through the real prompt, whose Cancel and empty answers are what the syncer gets.
+  it('keeps a cue whose edit is cancelled, adds no cue when the new one is cancelled, and removes or edits a cue by its text', async function() {
     await openPlayer();
     await editTrack();
-    const cues = await doubleClickAndAnswer(2, null);
+    // Cancel gives the prompt no value, which was taken for emptied text: the cue went.
+    let cues = await doubleClickAndAnswer(2, null);
     console.log('      after cancel:', JSON.stringify(cues));
     expect(cues).toEqual([{start: 1, end: 3, text: 'Old line'}]);
-  });
 
-  it('removes a cue whose text is emptied, and edits one whose text is changed', async function() {
-    await openPlayer();
-    await editTrack();
-    expect(await doubleClickAndAnswer(2, 'New line')).toEqual([{start: 1, end: 3, text: 'New line'}]);
-    expect(await doubleClickAndAnswer(2, '')).toEqual([]);
-  });
-
-  it('adds no cue when the new one is cancelled', async function() {
     // The cue was added before the prompt, and stayed as "New subtitle".
-    await openPlayer();
-    await editTrack();
-    const cues = await doubleClickAndAnswer(6, null);
+    cues = await doubleClickAndAnswer(6, null);
     console.log('      after cancel:', JSON.stringify(cues));
     expect(cues).toEqual([{start: 1, end: 3, text: 'Old line'}]);
     expect(await doubleClickAndAnswer(6, 'Added')).toEqual([
       {start: 1, end: 3, text: 'Old line'},
       {start: 6, end: 8, text: 'Added'},
     ]);
+
+    // A fresh track with the one cue.
+    await editTrack();
+    expect(await doubleClickAndAnswer(2, 'New line')).toEqual([{start: 1, end: 3, text: 'New line'}]);
+    expect(await doubleClickAndAnswer(2, '')).toEqual([]);
   });
 
   it('leaves Shift+Backspace over a track\'s row to the player, which undoes a seek', async function() {

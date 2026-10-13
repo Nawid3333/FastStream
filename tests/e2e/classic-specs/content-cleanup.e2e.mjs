@@ -638,12 +638,16 @@ describe('content.js around an in-page player', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
   });
 
-  it('keeps the page\'s media paused while the player is up, and lets it play after', async function() {
+  // One case since 2026-10-13 with "keeps a video paused that the page adds inside a new
+  // element's shadow root" and "gives the page's video its own styles and id back", which
+  // opened the same player on the same page, and the second left it the same way.
+  it('keeps the page\'s media paused while the player is up, and gives the page its video, styles and id back after', async function() {
     await openPage('/cleanup');
     await openPlayer();
     await inPage(() => {
       window.addNested();
       window.addAudio();
+      window.addShadowHost();
     });
     await browser.pause(2000);
     // The re-render one level down used to be missed and played under the player.
@@ -651,31 +655,12 @@ describe('content.js around an in-page player', function() {
       nested: document.getElementById('nested').paused,
       sfx: document.getElementById('sfx').paused,
     }))).toEqual({nested: true, sfx: true});
-
-    await inPage(() => window.leave());
-    await browser.waitUntil(async () => !(await hasPlayer()),
-        {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
-    // The <audio> kept its pause-on-play hook, so the page's sounds never played again.
-    expect(await playingAfterPlay(['main', 'nested', 'sfx'])).toEqual({main: true, nested: true, sfx: true});
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  it('keeps a video paused that the page adds inside a new element\'s shadow root', async function() {
-    await openPage('/cleanup');
-    await openPlayer();
-    await inPage(() => window.addShadowHost());
-    await browser.pause(2000);
     // The observer looked below each added element, but not into its own shadow root.
     expect(await inPage(() => {
       const video = document.getElementById('host').shadowRoot.getElementById('shadowed');
       return {paused: video.paused, played: video.currentTime > 0.5};
     })).toEqual({paused: true, played: false});
-    expect(await takeContentErrors()).toEqual([]);
-  });
 
-  it('gives the page\'s video its own styles and id back', async function() {
-    await openPage('/cleanup');
-    await openPlayer();
     await inPage(() => window.leave());
     await browser.waitUntil(async () => !(await hasPlayer()),
         {timeout: 15000, timeoutMsg: 'leaving the page left the player up'});
@@ -687,6 +672,8 @@ describe('content.js around an in-page player', function() {
       transition: window.wrap.style.transition,
       width: window.wrap.getBoundingClientRect().width,
     }))).toEqual({id: 'wrap', transition: 'opacity 0.25s', width: 640});
+    // The <audio> kept its pause-on-play hook, so the page's sounds never played again.
+    expect(await playingAfterPlay(['main', 'nested', 'sfx'])).toEqual({main: true, nested: true, sfx: true});
     expect(await takeContentErrors()).toEqual([]);
   });
 
@@ -728,7 +715,14 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  it('keeps the player in the box the page\'s #id rule gives its element', async function() {
+  // One case since 2026-10-13: "keeps the player in the box the page's #id rule gives its
+  // element", "gives the page its video back when it removed a player that had linked up"
+  // and "cleans up after a page that removed the player itself" each opened the same player
+  // on the same page, and the last two then took its iframe out. Every assertion of the
+  // three is here. The next video's case stays apart: with a second video in the page, the
+  // tab (still on) opens a player again after the navigation, and the page's video is
+  // rightly paused under it (seen on Linux, 2026-10-14).
+  it('keeps the player in the box the page\'s #id rule gives its element, and copes with a page that removes it', async function() {
     await openPage('/cleanup');
     await openPlayer();
     // The soft replace measures the element again on each update: a resize, and 8 times in
@@ -739,6 +733,39 @@ describe('content.js around an in-page player', function() {
       const r = window.playerIframe().getBoundingClientRect();
       return [r.left, r.top, r.width, r.height].map(Math.round);
     })).toEqual([0, 0, 640, 360]);
+
+    // The page takes the player out itself. Nothing watched the iframe of a player that had
+    // linked up, and the page's element stayed hidden, its video pausing itself on every
+    // play, until a navigation (final review, 2026-10-10).
+    await inPage(() => window.playerIframe().remove());
+    await browser.pause(500);
+    expect(await inPage(() => ({
+      id: window.wrap.id,
+      width: window.wrap.getBoundingClientRect().width,
+    }))).toEqual({id: 'wrap', width: 640});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    // Each resize threw on the missing iframe.
+    await nudgeWindowSize();
+    await inPage(() => window.leave());
+    await browser.pause(1500);
+    // The cleanup threw on the missing iframe, and the page's video stayed paused for good.
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
+
+  it('opens a player for the next video after the page removed the player itself', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => window.playerIframe().remove());
+    // The background keeps a player's frame apart: its streams are the player's own, and
+    // no player opens over it. Only the player's beforeunload told it the player went, and
+    // an iframe taken out of the page runs none: the page's next video was dropped as the
+    // player's, and no player opened for it until the page navigated.
+    await inPage(() => window.addVideo());
+    await browser.waitUntil(hasPlayer, {
+      timeout: 15000,
+      timeoutMsg: 'no player opened for the video the page added after it removed the player',
+    });
     expect(await takeContentErrors()).toEqual([]);
   });
 
@@ -764,32 +791,9 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  it('cleans up after a page that removed the player itself', async function() {
-    await openPage('/cleanup');
-    await openPlayer();
-    await inPage(() => window.playerIframe().remove());
-    await nudgeWindowSize();
-    await inPage(() => window.leave());
-    await browser.pause(1500);
-    // The cleanup threw on the missing iframe, and the page's video stayed paused for good.
-    expect(await playingAfterPlay(['main'])).toEqual({main: true});
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  it('copes with a page that removed a hard-replaced player', async function() {
-    await openPage('/cleanup');
-    await inPage(() => window.shrinkWhenReplaced());
-    await openPlayer();
-    await waitForHardReplace();
-    await inPage(() => window.playerIframe().remove());
-    // Each resize, and the cleanup, used to throw on the iframe that has no parent.
-    await nudgeWindowSize();
-    await inPage(() => window.leave());
-    await browser.pause(1500);
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  it('measures a hard-replaced element without putting it back into the page', async function() {
+  // One case since 2026-10-13 with "copes with a page that removed a hard-replaced player",
+  // which opened the same hard-replaced player and then took its iframe out.
+  it('measures a hard-replaced element without putting it back into the page, and copes with a page that removes it', async function() {
     // Each update (a resize, the timers after opening) put the page's element back to
     // measure it: its observers and custom-element callbacks ran each time, and a <video
     // autoplay> in it loaded again (#228). A stand-in is measured instead.
@@ -818,29 +822,25 @@ describe('content.js around an in-page player', function() {
       })(),
       id: window.playerIframe().id,
     }))).toEqual({inserted: 0, inPage: false, size: [100, 100], id: 'wrap'});
-    expect(await takeContentErrors()).toEqual([]);
-  });
 
-  // The background keeps a player's frame apart: its streams are the player's own, and
-  // no player opens over it. Only the player's beforeunload told it the player went, and
-  // an iframe taken out of the page runs none: the page's next video was dropped as the
-  // player's, and no player opened for it until the page navigated.
-  it('opens a player for the next video after the page removed the player itself', async function() {
-    await openPage('/cleanup');
-    await openPlayer();
+    // The page takes the hard-replaced player out. Each resize, and the cleanup, used to
+    // throw on the iframe that has no parent.
     await inPage(() => window.playerIframe().remove());
-    await inPage(() => window.addVideo());
-    await browser.waitUntil(hasPlayer, {
-      timeout: 15000,
-      timeoutMsg: 'no player opened for the video the page added after it removed the player',
-    });
+    await nudgeWindowSize();
+    await inPage(() => window.leave());
+    await browser.pause(1500);
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // Taken out before its player loaded, the iframe ran nothing to tell the background, and
-  // the background kept the frame's player opening: no player opened there again until the
-  // page navigated.
-  it('opens a player for the next video after the page removed a player still loading', async function() {
+  // One case since 2026-10-13 with "opens a player for the next video after the page
+  // removed a player still loading", which put the same player in the same way.
+  //
+  // The player it put in was taken out before it linked up, and nothing let go of what it
+  // took: the page's element stayed hidden (0 by 0), and its video paused itself on every
+  // play, until FastStream was turned off. And taken out before its player loaded, the
+  // iframe ran nothing to tell the background, and the background kept the frame's player
+  // opening: no player opened there again until the page navigated.
+  it('gives the page its video back when it removed a player still loading, and opens a player for the next video', async function() {
     await openPage('/cleanup');
     await inPage(() => window.removePlayersAtOnce());
     await clickToolbar();
@@ -849,6 +849,13 @@ describe('content.js around an in-page player', function() {
       timeoutMsg: 'FastStream never put a player in the page',
     });
     await inPage(() => window.keepPlayers());
+    await browser.pause(500);
+    expect(await inPage(() => ({
+      id: window.wrap.id,
+      width: window.wrap.getBoundingClientRect().width,
+    }))).toEqual({id: 'wrap', width: 640});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+
     await inPage(() => window.addVideo());
     await browser.waitUntil(hasPlayer, {
       timeout: 15000,
@@ -857,44 +864,8 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  // The player it put in was taken out before it linked up, and nothing let go of what it
-  // took: the page's element stayed hidden (0 by 0), and its video paused itself on every
-  // play, until FastStream was turned off.
-  it('gives the page its video back when it removed a player still loading', async function() {
-    await openPage('/cleanup');
-    await inPage(() => window.removePlayersAtOnce());
-    await clickToolbar();
-    await browser.waitUntil(async () => inPage(() => window.removedPlayers > 0), {
-      timeout: 15000,
-      timeoutMsg: 'FastStream never put a player in the page',
-    });
-    await inPage(() => window.keepPlayers());
-    await browser.pause(500);
-    expect(await inPage(() => ({
-      id: window.wrap.id,
-      width: window.wrap.getBoundingClientRect().width,
-    }))).toEqual({id: 'wrap', width: 640});
-    expect(await playingAfterPlay(['main'])).toEqual({main: true});
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  // The same for a player that had linked up: nothing watched its iframe once it had, and
-  // the page's element stayed hidden, its video pausing itself on every play, until a
-  // navigation (final review, 2026-10-10).
-  it('gives the page its video back when it removed a player that had linked up', async function() {
-    await openPage('/cleanup');
-    await openPlayer();
-    await inPage(() => window.playerIframe().remove());
-    await browser.pause(500);
-    expect(await inPage(() => ({
-      id: window.wrap.id,
-      width: window.wrap.getBoundingClientRect().width,
-    }))).toEqual({id: 'wrap', width: 640});
-    expect(await playingAfterPlay(['main'])).toEqual({main: true});
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  // The same for a player laid over the whole page, which hides everything else on it.
+  // The same as the case above for a player laid over the whole page, which hides
+  // everything else on it.
   it('shows the page again when it removed an overlay player still loading', async function() {
     await openPage('/full');
     await inPage(() => window.removePlayersAtOnce());
@@ -974,12 +945,17 @@ describe('content.js around an in-page player', function() {
     expect(await takeContentErrors()).toEqual([]);
   });
 
-  it('opens a player for the next video after a same-site navigation took the overlay', async function() {
+  // One case since 2026-10-13 with "removes a player that overlays the whole page", which
+  // opened the same overlay and left the page the same way.
+  it('removes a player that overlays the whole page, and opens a player for the next video after that navigation', async function() {
     await openPage('/full');
     await openPlayer();
     await inPage(() => window.leave());
+    // The overlay was never tracked: it stayed on top of the restored page.
     await browser.waitUntil(async () => !(await hasPlayer()),
         {timeout: 15000, timeoutMsg: 'leaving the page left the overlay player up'});
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+
     await inPage(() => window.addVideo());
     await browser.waitUntil(hasPlayer, {
       timeout: 15000,
@@ -1065,17 +1041,6 @@ describe('content.js around an in-page player', function() {
         .toEqual({kept: true, withPlayer: true});
     await browser.waitUntil(async () => !(await hasPlayer()),
         {timeout: 10000, timeoutMsg: 'the player the cache gave back stayed up'});
-    expect(await playingAfterPlay(['main'])).toEqual({main: true});
-    expect(await takeContentErrors()).toEqual([]);
-  });
-
-  it('removes a player that overlays the whole page', async function() {
-    await openPage('/full');
-    await openPlayer();
-    await inPage(() => window.leave());
-    // The overlay was never tracked: it stayed on top of the restored page.
-    await browser.waitUntil(async () => !(await hasPlayer()),
-        {timeout: 15000, timeoutMsg: 'leaving the page left the overlay player up'});
     expect(await playingAfterPlay(['main'])).toEqual({main: true});
     expect(await takeContentErrors()).toEqual([]);
   });

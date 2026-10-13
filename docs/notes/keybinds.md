@@ -64,11 +64,12 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   `KeybindsWithModifiers`; a plain D is the speed-up alone). `MOVED_IN_VERSION_4` moves a saved
   binding only if it is still the old default, Save video first so D is free; a new key the user
   already has elsewhere leaves the action unbound (`KeybindUtils.test.mjs` "to version 4",
-  `keybinds-storage.e2e.mjs`).
+  `Keybinds.test.mjs` "migrates a few bindings saved at version 3").
 - **Speed shown on screen** (2026-10-07), like mpv's OSD. Every speed key
   (`IncreasePlaybackRate`, `DecreasePlaybackRate`, `ResetPlaybackRate`, the `SpeedPreset` keys)
   calls `KeybindManager.showSpeed()`, which shows the rate now in effect top left over the
-  video; it stays 1 s, then fades out over 0.3 s, and a new press replaces the text and starts
+  video; it stays 1 s, then goes at once (no fade since 2026-10-13: the player has no
+  animations), and a new press replaces the text and starts
   the time over. `ui/OnScreenDisplay.mjs` drives `.mainplayer .osd` (in `player/index.html`,
   outside the control bar's container so it shows with the controls hidden; white bold text on
   rgba(0,0,0,0.6) in `fluidplayer.css`), `aria-hidden` because the rate button carries the
