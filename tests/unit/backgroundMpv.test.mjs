@@ -942,10 +942,10 @@ describe('a message that wakes the background', () => {
     });
     bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}],
       onNative: (m) => m.type === 'open' ? pending : {ok: true, hostVersion: RequiredHostVersion}});
-    const one = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    const one = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
     await bg.wait(300);
     let repeat = null;
-    const two = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    const two = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
     two.then((r) => {
       repeat = r;
     });
@@ -957,7 +957,7 @@ describe('a message that wakes the background', () => {
     expect(await two).toMatchObject({ok: false, error: 'mpv executable not found'});
     // One send for both clicks; after a failure the next click is a send of its own.
     expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
-    const again = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    const again = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
     await bg.wait(500);
     await again;
     expect(bg.native.filter((m) => m.type === 'open').length).toBe(2);
@@ -966,7 +966,7 @@ describe('a message that wakes the background', () => {
   it('sends the player\'s stream with the mpv path from the options (the player\'s mpv button)', async () => {
     bg = await loadBackground({options: {mpvMode: true, mpvPath: MPV_PATH}, tabs: [{id: 1, url: PAGE}],
       beforeImport: slowStorage});
-    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
     await bg.wait(500);
     expect(await answer).toMatchObject({ok: true});
     expect(bg.native.find((m) => m.type === 'open')).toMatchObject({url: EPISODE, mpvPath: MPV_PATH});
@@ -1266,7 +1266,7 @@ describe('a stream that came through Firefox VPN', () => {
   it('is not sent by the player\'s mpv button, whose answer says why', async () => {
     bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
     await bg.request({tabId: 1, url: EPISODE, proxyInfo: VPN});
-    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0});
+    const answer = bg.message({type: 'MPV_OPEN', url: EPISODE, headers: []}, {tabId: 1, frameId: 0, url: 'moz-extension://bg-test/player/index.html'});
     await bg.wait(500);
     expect(await answer).toMatchObject({ok: false, vpn: true});
     expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
@@ -2083,7 +2083,7 @@ describe('the player\'s mpv button and a page that offers several qualities', ()
     const atCdn = bg.redirected(sent, 'https://cdn.test/remote_control.php?time=1');
     await bg.responded(atCdn, {statusCode: 206, responseHeaders: [{name: 'Content-Type', value: 'video/mp4'}]});
 
-    await bg.message({type: 'MPV_OPEN', url: file('360p'), headers: [], qualities: LIST}, {tabId: 1, frameId: 7});
+    await bg.message({type: 'MPV_OPEN', url: file('360p'), headers: [], qualities: LIST}, {tabId: 1, frameId: 7, url: 'moz-extension://bg-test/player/index.html'});
     await bg.wait(100);
 
     expect(bg.toMpv()).toEqual([file('360p')]);

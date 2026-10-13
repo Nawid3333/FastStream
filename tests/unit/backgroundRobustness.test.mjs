@@ -53,7 +53,7 @@ describe('a download from a container tab', () => {
     const answers = [];
     for (const listener of bg.chrome.runtime.onMessage.listeners) {
       listener({type: 'DOWNLOAD', url: 'blob:moz-extension://bg-test/1', filename: 'a.mp4'},
-          {tab: container, frameId: 3}, (value) => answers.push(value));
+          {tab: container, frameId: 3, url: 'moz-extension://bg-test/player/index.html'}, (value) => answers.push(value));
     }
     await bg.wait(loadedAfterMs);
     const hidden = bg.createdTabs[0];
@@ -172,5 +172,41 @@ describe('the "use the player for stream links" redirect', () => {
     expect(filter(1).test('https://cdn.test/a.mp4|t=1')).toBe(false);
     expect(filter(2).test('https://cdn.test/a.m3u8?x=1')).toBe(true);
     expect(filter(2).test('https://cdn.test/a.mpd|x')).toBe(false);
+  });
+});
+
+describe('messages only FastStream\'s own pages send', () => {
+  // A send to mpv (with no MPV allowlist: it is the user's button), a header rule and a
+  // download each did what the message named for any sender, a content script in any page
+  // included (#470). Only the player sends them.
+  const PLAYER_PAGE = 'moz-extension://bg-test/player/index.html';
+  const messages = [
+    {type: 'MPV_OPEN', url: 'https://cdn.test/a.m3u8', headers: []},
+    {type: 'SET_HEADERS', url: 'https://cdn.test/a.m3u8', commands: [{operation: 'set', header: 'Referer', value: 'https://x.test/'}]},
+    {type: 'DOWNLOAD', url: 'https://cdn.test/a.mp4', filename: 'a.mp4'},
+  ];
+
+  it('refuses them from a page\'s content script', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    const downloads = vi.spyOn(bg.chrome.downloads, 'download');
+    for (const message of messages) {
+      await bg.message(message, {tabId: 1, frameId: 0, url: PAGE});
+    }
+    await bg.wait(3000);
+    expect(bg.native.filter((m) => m.type === 'open')).toEqual([]);
+    expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length)).toEqual([]);
+    expect(downloads).not.toHaveBeenCalled();
+  });
+
+  it('takes them from the player', async () => {
+    bg = await loadBackground({options: {mpvMode: true}, tabs: [{id: 1, url: PAGE}]});
+    const downloads = vi.spyOn(bg.chrome.downloads, 'download');
+    for (const message of messages) {
+      await bg.message(message, {tabId: 1, frameId: 0, url: PLAYER_PAGE});
+    }
+    await bg.wait(3000);
+    expect(bg.native.filter((m) => m.type === 'open').length).toBe(1);
+    expect(bg.sessionRuleUpdates.filter((update) => update.addRules?.length).length).toBe(1);
+    expect(downloads).toHaveBeenCalledTimes(1);
   });
 });
