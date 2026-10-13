@@ -2590,7 +2590,9 @@ async function onSourceRecieved(details, frame, mode) {
       if (!await hasVideoSource(frame)) {
         return;
       }
-      if (frame.tab.isOn && !frame.tab.isMpv) {
+      // Again after the wait for the lengths (up to SourceLengthWaitMs): a tab that went on
+      // to another site meanwhile dropped the frame (glm's second look, 2026-10-13).
+      if (frame.isTracked() && frame.tab.isOn && !frame.tab.isMpv) {
         openPlayer(frame);
       }
     }, Options.replaceDelay);
@@ -3083,6 +3085,13 @@ async function goToEpisode(state, direction) {
   } finally {
     state.going = false;
   }
+  // Another tab's stream took mpv while the page was asked (watchMpvFor moves the watch to
+  // it): what this page did is no longer what mpv waits for. The old tab got the next
+  // episode's wait all the same, and a minute later mpv said "no stream" over the other
+  // tab's video (glm's second look, 2026-10-13).
+  if (state.tabId !== tab.tabId || !state.alive) {
+    return;
+  }
   if (seriesEnd) {
     notifySeriesEnd(state);
     return;
@@ -3103,7 +3112,7 @@ async function goToEpisode(state, direction) {
   if (state.stalled) clearTimeout(state.stalled);
   state.stalled = setTimeout(() => {
     state.stalled = null;
-    if (!state.alive || mpvWatch !== state) return;
+    if (!state.alive || mpvWatch !== state || state.tabId !== tab.tabId) return;
     noteProblem(tab.tabId, {url: tab.url, kind: ProblemKinds.NO_STREAM, mode: 'mpv'}).catch((e) => console.error(e));
     state.watcher?.notify(title, chrome.i18n.getMessage('mpv_episode_nostream') ||
       'the page brought no stream within a minute; open it in the browser to see why', MpvNoticeSeconds);

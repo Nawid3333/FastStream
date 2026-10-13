@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
-import {loadBackground} from './backgroundHarness.mjs';
+import {hlsPlaylist, loadBackground, response} from './backgroundHarness.mjs';
 
 // Small defects of the background script (#144), each through its real listeners.
 
@@ -137,6 +137,23 @@ describe('the toolbar\'s On with players for several frames', () => {
     await bg.wait(500);
     await bg.navigated(1, 'https://other.test/');
     await bg.wait(3000);
+    expect(bg.sent('OPEN_PLAYER')).toEqual([]);
+  });
+
+  it('opens none from a detected stream whose frame the tab dropped while its length was read', async () => {
+    // The open a stream schedules (Options.replaceDelay) waits up to 2.5 s for the playlist's
+    // length; the tab went on to another site meanwhile, and OPEN_PLAYER went by frame id to
+    // the page there (glm's second look, 2026-10-13).
+    bg = await loadBackground({
+      options: {autoEnableURLs: ['https://site.test/', 'https://other.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: (url) => new Promise((resolve) => setTimeout(() => resolve(response(hlsPlaylist(1400))), 2000)),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.request({tabId: 1, frameId: 4, parentFrameId: 0, url: 'https://cdn.test/4/master.m3u8'});
+    await bg.wait(800);
+    await bg.navigated(1, 'https://other.test/');
+    await bg.wait(5000);
     expect(bg.sent('OPEN_PLAYER')).toEqual([]);
   });
 

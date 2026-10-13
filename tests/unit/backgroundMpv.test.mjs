@@ -2063,6 +2063,33 @@ describe('MPV mode and a page that offers its file in several qualities', () => 
     expect(navigations).toEqual(['next']);
   });
 
+  it('leaves the old tab alone when another tab\'s stream takes mpv while its page goes on', async () => {
+    // goToEpisode waits for the page's answer; a stream another tab sent meanwhile moved
+    // the watch to that tab, and the old tab still got the next episode's wait, and a minute
+    // later mpv said "no stream" over the other tab's playing video (glm's second look,
+    // 2026-10-13).
+    const OTHER = 'https://hoster.test/other';
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://hoster.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: HOSTER}, {id: 2, url: OTHER}],
+      onTabMessage: ({message}) => message.type === 'PLAYLIST_NAVIGATION' ?
+        new Promise((resolve) => setTimeout(() => resolve('clicked'), 1000)) : undefined,
+    });
+    const player = 'moz-extension://bg-test/player/index.html';
+    await bg.navigated(1, HOSTER);
+    await bg.frameAdded(1, 0, HOSTER, 'page1');
+    await bg.navigated(2, OTHER);
+    await bg.message({type: 'MPV_OPEN', url: 'https://cdn.test/one.m3u8', headers: []}, {tabId: 1, frameId: 0, url: player});
+    const port = bg.ports.at(-1);
+    port.emit({type: 'watching'});
+    port.emit({type: 'ended', path: 'https://cdn.test/one.m3u8#fs-id=0123456789abcdef'});
+    await bg.wait(100);
+    // The page is still asked; tab 2's stream goes to the same mpv meanwhile.
+    await bg.message({type: 'MPV_OPEN', url: 'https://cdn.test/two.m3u8', headers: []}, {tabId: 2, frameId: 0, url: player});
+    await bg.wait(61000);
+    expect(port.sent.filter((m) => m.type === 'notify' && /no stream/.test(m.detail))).toEqual([]);
+  });
+
   it('does not go on at the end of a file the user opened in mpv himself', async () => {
     const navigations = [];
     bg = await loadBackground({
