@@ -2178,8 +2178,10 @@ export class FastStreamClient extends EventEmitter {
 
 
     this.context.on(DefaultPlayerEvents.WAITING, (event) => {
-      if (this.options.autoplayNext && this.duration > 5&&this.duration - this.currentTime < 1) {
-        this.autoplayNextVideo();
+      // In the last second, the next video instead of a wait - when there is one: with none,
+      // this returned before the indicator, and the last video froze there with nothing
+      // shown (glm's second look, 2026-10-13).
+      if (this.duration > 5 && this.duration - this.currentTime < 1 && this.autoplayNextVideo()) {
         return;
       }
       this.watchEndStall();
@@ -2765,11 +2767,14 @@ export class FastStreamClient extends EventEmitter {
    * Goes on to the next video when this one ends, once: the last second's `waiting` and then
    * `ended` each asked for it, and a page whose next button counts clicks skipped a video.
    * Playing again (after a seek back, say) lets the end ask again.
+   * @return {boolean} Whether the next video is on its way (asked now or before).
    */
   autoplayNextVideo() {
-    if (!this.options.autoplayNext || this.autoNextRequested || !this.hasNextVideo()) return;
+    if (!this.options.autoplayNext || !this.hasNextVideo()) return false;
+    if (this.autoNextRequested) return true;
     this.autoNextRequested = true;
     this.nextVideo();
+    return true;
   }
 
   /**

@@ -705,6 +705,17 @@ describe('FastStreamClient, autoplay of the next video', () => {
     client.nextVideo();
     expect(navigations()).toBe(2);
   });
+
+  it('shows the wait in the last second when there is no next video to go to', () => {
+    // Autoplay on and no next video: the wait returned before the buffering indicator, and
+    // the last video froze in its last second with nothing shown (glm's second look,
+    // 2026-10-13).
+    const {client, player} = atTheEnd();
+    client.state.hasNextVideo = false;
+    player.emit(DefaultPlayerEvents.WAITING);
+    expect(client.interfaceController.setBuffering).toHaveBeenCalledWith(true);
+    expect(navigations()).toBe(0);
+  });
 });
 
 describe('FastStreamClient, the page\'s own media', () => {
