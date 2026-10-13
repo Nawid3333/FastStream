@@ -286,12 +286,15 @@ extension; neither touches that copy. After the host changes, install it again:
   installed copy against the repository's and runs `install.ps1` for you
   (keeping your mpv and Node paths), or run `install.ps1` yourself.
 
-You do not have to remember this. The host sends its version (`HostVersion` in
-`faststream-mpv-host.mjs`) with every answer, and the extension knows which
-version it was released with. When the installed host is older, the stream still
-opens, and FastStream says the host is out of date: a `!` on the toolbar button
-in MPV mode (the reason is in its tooltip), in the player's "Sent to mpv"
-message, and in **Test mpv connection** on the options page.
+Since host 15 (2026-10-13) this should rarely be needed: the host became a thin
+helper that only starts mpv and passes allowlisted commands to it, and what used to
+change in it (the stream's fragment tags, titles, the quality list, MPV autoplay's
+end detection, notices) lives in the extension, which Firefox updates. The host
+sends its version (`HostVersion` in `faststream-mpv-host.mjs`) and what it offers
+(`capabilities`) with every answer. An older host keeps working through the
+messages it knows and only lacks newer features: FastStream says so in the toolbar
+button's tooltip in MPV mode and in **Test mpv connection** on the options page,
+without a `!` on the button or a warning in the player.
 
 ## Testing the host by hand
 
