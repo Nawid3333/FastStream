@@ -1,5 +1,10 @@
+import nodeCrypto from 'node:crypto';
 import {vi} from 'vitest';
 import {RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+
+// The thin helper's primitives (host 15): a helper before it answers each of them so.
+const ThinMessages = new Set(['play', 'ipc', 'relay']);
+const UnknownMessage = Object.freeze({ok: false, error: 'unknown message', hostVersion: 14});
 
 // Runs chrome/background/background.mjs in Node against a stand-in for the WebExtension
 // API, for what its listeners do together: a page's request, the page naming itself, a
@@ -72,6 +77,10 @@ let requestCounter = 0;
  *   A page's answer to a message the background sends it (tabs.sendMessage).
  * @param {function(Object): *} [setup.onNative] - The mpv host's answer; a current host's
  *   {ok: true} by default.
+ * @param {boolean} [setup.thinHost] - The mpv host is the thin helper (host 15): onNative
+ *   answers its play and ipc messages too. Without it the host is one from before (host 14),
+ *   which answers them "unknown message" (onNative is not asked), and the background goes
+ *   on with the messages it knows: the tests written for those keep testing them.
  * @param {string} [setup.os] - What runtime.getPlatformInfo says ('win', 'linux', 'mac'):
  *   Windows, whatever the system the tests run on.
  * @param {function(): void} [setup.beforeImport] - Runs once the stand-in is in place,
@@ -85,11 +94,21 @@ export async function loadBackground({
   fetch = async () => response('', 404),
   onTabMessage = () => undefined,
   onNative = () => ({ok: true, hostVersion: RequiredHostVersion}),
+  thinHost = false,
   os = 'win',
   beforeImport = () => {},
 } = {}) {
   vi.useFakeTimers();
   vi.resetModules();
+  // mpv's fs-id is a SHA-256 (crypto.subtle, MpvTarget.mjs), which Node computes on its
+  // thread pool: under fake timers nothing waits for it, and a send to mpv never went. The
+  // same hash, as the moment's microtask.
+  const realDigest = Object.hasOwn(globalThis.crypto.subtle, 'digest') ? globalThis.crypto.subtle.digest : null;
+  globalThis.crypto.subtle.digest = async (algorithm, data) => {
+    const view = ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(data);
+    const bytes = nodeCrypto.createHash('sha256').update(view).digest();
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  };
 
   const bg = {
     options: {...options},
@@ -164,7 +183,7 @@ export async function loadBackground({
       },
       sendNativeMessage: (name, message, callback) => {
         bg.native.push(message);
-        answer(callback, onNative(message));
+        answer(callback, !thinHost && ThinMessages.has(message?.type) ? {...UnknownMessage} : onNative(message));
       },
       connectNative: () => {
         const port = {
@@ -481,6 +500,11 @@ export async function loadBackground({
     vi.useRealTimers();
     globalThis.fetch = realFetch;
     delete globalThis.chrome;
+    if (realDigest) {
+      globalThis.crypto.subtle.digest = realDigest;
+    } else {
+      delete globalThis.crypto.subtle.digest;
+    }
   };
 
   return bg;

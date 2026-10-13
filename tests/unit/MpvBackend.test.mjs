@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {HostMaxMessageBytes, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
+import {HostMaxMessageBytes, MaxPlayTargetChars, MpvBackend, RequiredHostVersion} from '../../chrome/background/MpvBackend.mjs';
 import {MaxMessageBytes} from '../../native-host/faststream-mpv-host.mjs';
 
 // The header filter decides which request headers are relayed to mpv.
@@ -113,37 +114,60 @@ describe('pickRelayHeaders', () => {
 // and retries the very same video, and a stale entry would make the retry
 // report success while nothing plays.
 
+// What the thin helper (host 15) adds to every answer.
+const Thin = {hostVersion: 15, capabilities: ['play', 'ipc', 'relay']};
+// What a helper before it answers the thin helper's messages.
+const Unknown = {ok: false, error: 'unknown message', hostVersion: 14};
+const ThinMessages = ['play', 'ipc', 'relay'];
+
 /**
  * Installs a fake chrome.runtime whose sendNativeMessage replies with a fixed
  * response, and reports how many times it was called.
  * @param {Object|null} response - Reply handed to the callback.
  * @param {Object} [lastError] - chrome.runtime.lastError to simulate.
- * @return {{calls: () => number}} Call counter.
+ * @param {{thin?: boolean}} [kind] - thin: the thin helper (host 15), whose answers name its
+ *   capabilities; else a helper before it, which answers "unknown message" to the thin
+ *   helper's messages (not counted: it does nothing with them).
+ * @return {{calls: () => number, sent: () => Array<Object>}} Call counter, and every message.
  */
-function stubNativeHost(response, lastError) {
+function stubNativeHost(response, lastError, {thin = false} = {}) {
   let calls = 0;
+  const sent = [];
   globalThis.chrome = {
     runtime: {
       lastError: undefined,
       sendNativeMessage(name, message, callback) {
-        calls++;
+        sent.push(message);
         globalThis.chrome.runtime.lastError = lastError;
-        callback(response);
+        if (!lastError && !thin && ThinMessages.includes(message.type)) {
+          callback({...Unknown});
+        } else {
+          calls++;
+          callback(thin && response ? {...Thin, ...response} : response);
+        }
         globalThis.chrome.runtime.lastError = undefined;
       },
     },
   };
-  return {calls: () => calls};
+  return {calls: () => calls, sent: () => sent};
 }
 
-describe('openStream retry bookkeeping', () => {
+describe.each([['an older helper', false], ['the thin helper', true]])('openStream retry bookkeeping, %s', (what, thin) => {
   afterEach(() => {
     delete globalThis.chrome;
     vi.restoreAllMocks();
   });
 
+  const stubNativeHostOfKind = (response, lastError) => stubNativeHost(response, lastError, {thin});
+
+  it('sends the stream as the helper knows it', async () => {
+    const host = stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion});
+    await new MpvBackend().openStream('https://cdn/a.m3u8');
+    expect(host.sent().at(-1).type).toBe(thin ? 'play' : 'open');
+  });
+
   it('does not resend a URL the host already accepted', async () => {
-    const host = stubNativeHost({ok: true, hostVersion: RequiredHostVersion});
+    const host = stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -153,7 +177,7 @@ describe('openStream retry bookkeeping', () => {
   });
 
   it('lets the same URL be retried after the host reports a launch failure', async () => {
-    const host = stubNativeHost({ok: false, error: 'mpv executable not found'});
+    const host = stubNativeHostOfKind({ok: false, error: 'mpv executable not found'});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -170,11 +194,17 @@ describe('openStream retry bookkeeping', () => {
     // It was told "ok" at once: the first then failed, and the player said it was sent to
     // mpv and paused the page for nothing (glm's look at a noted edge case, 2026-10-13).
     let answer;
+    const streams = [];
     globalThis.chrome = {
       runtime: {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
-          answer = callback;
+          if (!thin && message.type === 'play') {
+            callback({...Unknown});
+            return;
+          }
+          streams.push(message);
+          answer = (response) => callback(thin ? {...Thin, ...response} : response);
         },
       },
     };
@@ -182,17 +212,23 @@ describe('openStream retry bookkeeping', () => {
     const tab = {mpvSentUrls: new Set()};
     const first = backend.openStream('https://cdn/a.m3u8', tab);
     const second = backend.openStream('https://cdn/a.m3u8', tab);
+    // The message is built first (the page's hash for mpv's resume key is async).
+    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
     answer({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
     expect(await first).toEqual({ok: false, error: 'mpv executable not found'});
     expect(await second).toEqual({ok: false, error: 'mpv executable not found'});
+    expect(streams).toHaveLength(1);
     // And it can be tried again.
+    answer = null;
     const third = backend.openStream('https://cdn/a.m3u8', tab);
+    await vi.waitFor(() => expect(answer).toBeTypeOf('function'));
     answer({ok: true, hostVersion: RequiredHostVersion});
     expect(await third).toEqual({ok: true});
+    expect(streams).toHaveLength(2);
   });
 
   it('lets the same URL be retried when the host is not installed', async () => {
-    const host = stubNativeHost(undefined, {message: 'no such native application'});
+    const host = stubNativeHostOfKind(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();
     const tab = {mpvSentUrls: new Set()};
 
@@ -204,13 +240,13 @@ describe('openStream retry bookkeeping', () => {
   // The player and the toolbar show the host's own reason, and "is the host
   // installed?" only when the host itself could not be reached.
   it('says when the host itself could not be reached', async () => {
-    stubNativeHost(undefined, {message: 'no such native application'});
+    stubNativeHostOfKind(undefined, {message: 'no such native application'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'no such native application', noHost: true});
   });
 
   it('passes the host\'s own reason on, without noHost', async () => {
-    stubNativeHost({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    stubNativeHostOfKind({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toEqual({ok: false, error: 'mpv executable not found'});
   });
@@ -218,15 +254,15 @@ describe('openStream retry bookkeeping', () => {
   // The host says how raising mpv's window went (host version 3): the result passes it
   // on, so the background can log an mpv that opened behind the browser (2026-10-04).
   it('passes on how raising mpv\'s window went, as the host sent it', async () => {
-    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true});
+    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 'True', foreground: 'False', reused: true});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8'))
         .toStrictEqual({ok: true, focus: 'True', foreground: 'False', reused: true});
-    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 'nowindow'});
+    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 'nowindow'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true, focus: 'nowindow'});
   });
 
   it('passes on only fields of the expected type', async () => {
-    stubNativeHost({ok: true, hostVersion: RequiredHostVersion, focus: 5, foreground: {x: 1}, reused: 'yes'});
+    stubNativeHostOfKind({ok: true, hostVersion: RequiredHostVersion, focus: 5, foreground: {x: 1}, reused: 'yes'});
     expect(await new MpvBackend().openStream('https://cdn/a.m3u8')).toStrictEqual({ok: true});
   });
 });
@@ -234,6 +270,8 @@ describe('openStream retry bookkeeping', () => {
 // contentType is the MPV allowlist tag or the player's manual anime/movie
 // override, threaded through to the native host message so it can append
 // the #fs-content= marker gpu-toggles.lua reads on the mpv side.
+// These are the open message a helper before host 15 gets; the thin helper's play message
+// is built from the same (MpvTarget.test.mjs, and 'the thin helper' below).
 
 describe('openStream contentType', () => {
   afterEach(() => {
@@ -242,7 +280,8 @@ describe('openStream contentType', () => {
   });
 
   /**
-   * Installs a fake native host that captures the message it was sent.
+   * Installs a fake native host from before host 15 that captures the open message it was
+   * sent (it answers the thin helper's play message "unknown message").
    * @return {{message: () => Object}} The most recent message sent.
    */
   function captureNativeHost() {
@@ -251,6 +290,10 @@ describe('openStream contentType', () => {
       runtime: {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
+          if (message.type === 'play') {
+            callback({...Unknown});
+            return;
+          }
           lastMessage = message;
           callback({ok: true});
         },
@@ -394,13 +437,200 @@ describe('openStream contentType', () => {
     // 2026-10-13). Firefox takes URLs up to 1 MB.
     const host = captureNativeHost();
     const backend = new MpvBackend();
+    // Known as a helper before host 15 (its answer names no capabilities): the open message.
+    await backend.testConnection();
+    expect(backend.capabilities).toEqual([]);
+    const ping = host.message();
     const tab = {mpvSentUrls: new Set()};
     const url = 'https://cdn/a.m3u8?pad=' + 'x'.repeat(HostMaxMessageBytes);
     const result = await backend.openStream(url, tab);
-    expect(host.message()).toBeUndefined();
-    expect(result).toEqual({ok: false, error: 'the stream\'s address is too long to send to mpv'});
+    expect(host.message()).toBe(ping);
+    // (This fake answers as a host from before versions: hostOutdated too.)
+    expect(result).toMatchObject({ok: false, error: 'the stream\'s address is too long to send to mpv'});
     // Not recorded as sent: nothing went.
     expect(tab.mpvSentUrls.has(url)).toBe(false);
+  });
+});
+
+// The thin helper (host 15, 2026-10-13): the extension builds what mpv gets (MpvTarget.mjs)
+// and sends it as a play message; a helper before it answers "unknown message", and gets the
+// open message from then on. What the helper can do is remembered from every answer.
+describe('the thin helper', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+    vi.restoreAllMocks();
+  });
+
+  const SRT = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+  const PAGE = 'https://site.test/ep-1';
+  const fsId = (page) => crypto.createHash('sha256').update(page).digest('hex').slice(0, 16);
+
+  /**
+   * A fake helper: its answer to each message (by default the thin helper's ok), and what it
+   * was sent.
+   * @param {function(Object): *} [answer]
+   * @return {Array<Object>} The messages.
+   */
+  function helper(answer = () => ({ok: true, ...Thin})) {
+    const sent = [];
+    globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      sent.push(message);
+      callback(answer(message));
+    }}};
+    return sent;
+  }
+
+  it('sends a play message with mpv\'s target, title, start, headers and subtitles built here', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    backend.mpvPath = 'D:/tools/mpv.exe';
+    const result = await backend.openStream('https://cdn.test/a.m3u8', undefined,
+        [{name: 'Referer', value: 'https://site.test/'}, {name: 'Cookie', value: 'secret'},
+          {name: 'User-Agent', value: 'Mozilla/5.0 (X11; Linux x86_64)'}],
+        'anime', PAGE, '  Show - Episode 1 ', {startTime: 754.5, subtitles: [{label: 'English', srt: SRT}, {srt: ' '}],
+          qualities: [{url: 'https://cdn.test/1080.mp4', label: '1080p', height: 1080}, {url: 'https://cdn.test/720.mp4', label: '720p', height: 720}]});
+    expect(result).toEqual({ok: true});
+    const qualities = encodeURIComponent(JSON.stringify([{label: '1080p', height: 1080, url: 'https://cdn.test/1080.mp4'},
+      {label: '720p', height: 720, url: 'https://cdn.test/720.mp4'}]));
+    // Exactly the protocol's fields: the options page's mpv path as in the open message, no
+    // single-instance flag (one window is the default; newWindow asks for another).
+    expect(sent).toStrictEqual([{
+      type: 'play',
+      target: `https://cdn.test/a.m3u8#fs-content=anime&fs-id=${fsId(PAGE)}&fs-page=${encodeURIComponent(PAGE)}&fs-quality=${qualities}`,
+      title: 'Show - Episode 1',
+      start: '754.5',
+      headers: ['Referer: https://site.test/', 'User-Agent: Mozilla/5.0 (X11; Linux x86_64)'],
+      mpvPath: 'D:/tools/mpv.exe',
+      subtitles: [{label: 'English', srt: SRT}],
+    }]);
+  });
+
+  it('names the stream\'s host without a title, asks for fullscreen and a window of its own as set', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    backend.fullscreen = true;
+    backend.singleInstance = false;
+    await backend.openStream('https://CDN.test/a.mp4');
+    // No mpv path set: none sent.
+    expect(sent).toStrictEqual([{type: 'play', target: 'https://cdn.test/a.mp4', title: 'cdn.test', fullscreen: true, newWindow: true}]);
+  });
+
+  it('leaves out what the helper would refuse the whole message for', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    // A header field ending in a backslash (mpv joined the next one to it), a title over
+    // 1000 units (a letter with a pile of combining marks is one character of 200).
+    const heavy = 'e' + String.fromCharCode(0x301).repeat(20);
+    await backend.openStream('https://cdn.test/a.mp4', undefined,
+        [{name: 'Referer', value: 'https://site.test/\\'}, {name: 'Origin', value: 'https://site.test'}],
+        undefined, undefined, heavy.repeat(100), {startTime: 0.5});
+    expect(sent[0].headers).toEqual(['Origin: https://site.test']);
+    expect(sent[0].title).toBe(heavy.repeat(47));
+    expect(sent[0]).not.toHaveProperty('start');
+  });
+
+  it('drops the page\'s qualities from a target too long for the helper, then sends nothing', async () => {
+    const sent = helper();
+    const backend = new MpvBackend();
+    const qualities = Array.from({length: 12}, (_, i) => ({url: `https://cdn.test/${i}.mp4?` + '%41'.repeat(600), label: `${i}`, height: i + 1}));
+    const fits = 'https://cdn.test/a.mp4?pad=' + 'x'.repeat(MaxPlayTargetChars - 100);
+    expect((await backend.openStream(fits, undefined, undefined, undefined, undefined, undefined, {qualities})).ok).toBe(true);
+    expect(sent[0].target).toBe(fits);
+    const tab = {mpvSentUrls: new Set()};
+    const tooLong = fits + 'x'.repeat(200);
+    expect(await backend.openStream(tooLong, tab)).toEqual({ok: false, error: 'the stream\'s address is too long to send to mpv'});
+    expect(sent).toHaveLength(1);
+    expect(tab.mpvSentUrls.has(tooLong)).toBe(false);
+  });
+
+  it('keeps a play message under the host\'s limit, leaving out subtitles that do not fit', async () => {
+    const sent = helper();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const srtOf = (cues) => Array.from({length: cues}, (_, i) =>
+      `${i + 1}\n00:00:01,000 --> 00:00:02,000\nLine ${i} ${String.fromCodePoint(0xFC)}\n\n`).join('');
+    const big = srtOf(7000);
+    await new MpvBackend().openStream('https://cdn.test/a.m3u8', undefined, undefined, undefined, PAGE, 'Title', {subtitles: [
+      {label: 'one', srt: big}, {label: 'two', srt: big}, {label: 'three', srt: big}, {label: 'four', srt: srtOf(10)},
+    ]});
+    expect(sent[0].subtitles.map((s) => s.label)).toEqual(['one', 'two', 'four']);
+    expect(new TextEncoder().encode(JSON.stringify(sent[0])).length).toBeLessThanOrEqual(HostMaxMessageBytes);
+  });
+
+  it('sends an older helper\'s answer of "unknown message" the open message, and that from then on', async () => {
+    const sent = helper((message) => message.type === 'play' ? {...Unknown} : {ok: true, hostVersion: 14, focus: 'True'});
+    const backend = new MpvBackend();
+    backend.mpvPath = 'D:/tools/mpv.exe';
+    const tab = {mpvSentUrls: new Set()};
+    // (Outdated or not, by RequiredHostVersion: the open's answer says, as before.)
+    expect(await backend.openStream('https://cdn.test/a.m3u8', tab, [{name: 'Referer', value: 'https://site.test/'}],
+        'movie', PAGE, 'Title', {startTime: 12})).toMatchObject({ok: true, focus: 'True'});
+    expect(sent.map((m) => m.type)).toEqual(['play', 'open']);
+    expect(sent[1]).toStrictEqual({type: 'open', url: 'https://cdn.test/a.m3u8', contentType: 'movie', pageUrl: PAGE,
+      title: 'Title', start: 12, mpvPath: 'D:/tools/mpv.exe', singleInstance: true,
+      headers: [{name: 'Referer', value: 'https://site.test/'}]});
+    expect(backend.capabilities).toEqual([]);
+    await backend.openStream('https://cdn.test/b.m3u8', tab);
+    expect(sent.map((m) => m.type)).toEqual(['play', 'open', 'open']);
+  });
+
+  it('remembers what the helper can do from any answer, and notices one installed again', async () => {
+    // A ping of the thin helper: the stream goes as a play message at once.
+    let thin = true;
+    const sent = helper(() => thin ? {ok: true, mpv: true, ...Thin} : {ok: true, mpv: true, hostVersion: 14});
+    const backend = new MpvBackend();
+    await backend.testConnection();
+    expect(backend.capabilities).toEqual(['play', 'ipc', 'relay']);
+    await backend.openStream('https://cdn.test/a.m3u8');
+    expect(sent.map((m) => m.type)).toEqual(['ping', 'play']);
+    // An older helper's ping (no capabilities): the open message at once.
+    thin = false;
+    await backend.testConnection();
+    expect(backend.capabilities).toEqual([]);
+    await backend.openStream('https://cdn.test/b.m3u8');
+    expect(sent.map((m) => m.type)).toEqual(['ping', 'play', 'ping', 'open']);
+    // The thin helper installed meanwhile: its answer to that open names its capabilities.
+    thin = true;
+    await backend.openStream('https://cdn.test/c.m3u8');
+    await backend.openStream('https://cdn.test/d.m3u8');
+    expect(sent.map((m) => m.type)).toEqual(['ping', 'play', 'ping', 'open', 'open', 'play']);
+  });
+
+  it('passes on the helper\'s own refusal of a play message, without trying the open message', async () => {
+    const sent = helper(() => ({ok: false, error: 'unknown message', ...Thin}));
+    expect(await new MpvBackend().openStream('https://cdn.test/a.m3u8')).toEqual({ok: false, error: 'unknown message'});
+    expect(sent.map((m) => m.type)).toEqual(['play']);
+    const refused = helper(() => ({ok: false, error: 'headers refused', ...Thin}));
+    expect(await new MpvBackend().openStream('https://cdn.test/a.m3u8')).toEqual({ok: false, error: 'headers refused'});
+    expect(refused.map((m) => m.type)).toEqual(['play']);
+  });
+
+  it('says a helper that is not installed is not, with no second try', async () => {
+    const sent = [];
+    globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      sent.push(message);
+      globalThis.chrome.runtime.lastError = {message: 'no such native application'};
+      callback(undefined);
+      globalThis.chrome.runtime.lastError = undefined;
+    }}};
+    const backend = new MpvBackend();
+    expect(await backend.openStream('https://cdn.test/a.m3u8'))
+        .toEqual({ok: false, error: 'no such native application', noHost: true});
+    expect(sent.map((m) => m.type)).toEqual(['play']);
+    // Nothing learned: still unknown.
+    expect(backend.capabilities).toBe(null);
+  });
+
+  it('answers a send whose message could not be built, and lets it be sent again', async () => {
+    const sent = helper();
+    vi.spyOn(globalThis.crypto.subtle, 'digest').mockRejectedValueOnce(new Error('no digest'));
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    expect(await backend.openStream('https://cdn.test/a.m3u8', tab, undefined, undefined, PAGE))
+        .toEqual({ok: false, error: 'Error: no digest'});
+    expect(tab.mpvSentUrls.size).toBe(0);
+    expect(tab.mpvSending.size).toBe(0);
+    expect((await backend.openStream('https://cdn.test/a.m3u8', tab, undefined, undefined, PAGE)).ok).toBe(true);
+    expect(sent).toHaveLength(1);
   });
 });
 

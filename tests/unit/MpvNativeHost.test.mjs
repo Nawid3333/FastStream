@@ -675,9 +675,10 @@ describe('launchDirect', () => {
     expect(result.error).toContain('exit code 3');
   });
 
-  it('reports one that keeps running as started', async () => {
+  it('reports one that keeps running as started, with its pid', async () => {
     // Runs past the 500 ms launchDirect waits, and has ended by itself before the test does.
-    expect(await launchDirect(process.execPath, ['-e', 'setTimeout(() => {}, 700)'])).toEqual({ok: true});
+    expect(await launchDirect(process.execPath, ['-e', 'setTimeout(() => {}, 700)']))
+        .toEqual({ok: true, pid: expect.any(Number)});
     await new Promise((resolve) => setTimeout(resolve, 1000));
   });
 });

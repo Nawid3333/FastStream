@@ -193,6 +193,35 @@ describe('SaveManager: a streamed save that fails', () => {
   });
 });
 
+// The player's mpv button. Since the thin helper (2026-10-13) an older helper still plays the
+// stream and lacks only newer features: the owner chose no warning here for it.
+describe('SaveManager.openInMpv', () => {
+  afterEach(() => {
+    delete globalThis.chrome;
+  });
+
+  it('says "sent" for a stream that went to an outdated helper too, and pauses the page', async () => {
+    for (const answer of [{ok: true}, {ok: true, hostOutdated: true}]) {
+      const statuses = [];
+      const client = {
+        ...makeClient({}),
+        source: {url: 'https://cdn.test/a.m3u8', headers: {}},
+        currentTime: 0,
+        options: {mpvPausePage: true},
+        pause: vi.fn(async () => {}),
+        interfaceController: {
+          setStatusMessage: (key, message, type) => statuses.push({message, type}),
+          subtitlesManager: {activeTracks: []},
+        },
+      };
+      globalThis.chrome = {runtime: {lastError: undefined, sendMessage: (message, callback) => callback(answer)}};
+      await new SaveManager(client).openInMpv();
+      expect(statuses.at(-1)).toEqual({message: 'player_mpv_sent', type: 'info'});
+      expect(client.pause).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
 describe('SaveManager.hasPicture', () => {
   // A size from the metadata alone: drawImage draws nothing before a frame is decoded, and the
   // screenshot was an empty file that said "saved" (review).
