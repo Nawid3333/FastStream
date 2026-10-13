@@ -37,6 +37,24 @@ the next hand-off on the owner's PC shows the "!" until `update-local.cmd` (or
 `install.ps1`) has run. The hash check is skipped in Stryker's sandbox, whose copy of
 the host holds every mutant.
 
+**The thin helper (host 15, 2026-10-13).** The host changed 14 times in 10 days, each one a
+reinstall by hand, because policy lived in it. The owner chose to move the policy into the
+extension and keep only mechanics in the host, offered as allowlisted primitives: `play`
+(mpv's target, title, start and header fields built by `chrome/background/MpvTarget.mjs`,
+byte for byte as the host built them from `open`, `tests/unit/MpvTarget.test.mjs` compares
+them with the host's own functions), `ipc` (one-shot mpv commands: `decoderStatus` asks
+mpv's decoder properties itself, once a second while it opens) and `relay` (a port that
+passes mpv's lines on: `chrome/background/MpvRelayWatch.mjs` is watchMpv's end detection,
+and `MpvBackend.watch()` gives background.mjs the same events). Every host-15 answer names
+its `capabilities`; `MpvBackend` remembers them from every answer (`learn()`), sends the new
+message while nothing is known, and an older host's "unknown message" makes it use the
+legacy `open`/`status`/`watch` from then on. No hard version gate since: an outdated host
+shows in the toolbar's tooltip and "Test mpv connection" only, with no "!" (only an error
+shows "!") and no warning in the player ("Sent to mpv", the owner chose silence). `play`
+carries the options page's mpv path as `open` does, and the host takes it by the same rule
+(`resolveMpvPath`: an mpv executable only). Notices go to notify.lua in whole seconds, 1 to
+60 (the host refuses "6.5", and notify.lua reads "0" as "stay until hidden").
+
 **Only http(s) goes to mpv, and a bare `mpv` is looked up (2026-09-28).** mpv opens
 local files and UNC paths too, and a UNC path makes Windows sign in to that host with
 the user's credentials. The player page is web-accessible, so a page could build a

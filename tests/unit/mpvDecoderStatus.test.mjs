@@ -142,6 +142,8 @@ describe('the extension asking the host', () => {
     delete globalThis.chrome;
   });
 
+  // A host from before the thin helper (host 15): it answers the ipc message "unknown
+  // message", and is asked with its status message then.
   const host = (answer) => {
     const sent = [];
     globalThis.chrome = {
@@ -149,7 +151,7 @@ describe('the extension asking the host', () => {
         lastError: undefined,
         sendNativeMessage(name, message, callback) {
           sent.push(message);
-          callback(answer(message));
+          callback(message.type === 'ipc' ? {ok: false, error: 'unknown message', hostVersion: 14} : answer(message));
         },
       },
     };
@@ -159,9 +161,14 @@ describe('the extension asking the host', () => {
   it('sends a status message and reads the decoder', async () => {
     const sent = host(() => ({ok: true, running: true, hostVersion: RequiredHostVersion,
       decoder: {hardware: true, api: 'd3d11va', requested: 'auto-safe', format: 'av1', width: 1920, height: 1080}}));
-    expect(await new MpvBackend().decoderStatus(20000)).toEqual({ok: true, running: true,
+    const backend = new MpvBackend();
+    expect(await backend.decoderStatus(20000)).toEqual({ok: true, running: true,
       decoder: {hardware: true, api: 'd3d11va', format: 'av1', width: 1920, height: 1080}});
-    expect(sent).toEqual([{type: 'status', waitMs: 20000}]);
+    expect(sent.filter((m) => m.type === 'status')).toEqual([{type: 'status', waitMs: 20000}]);
+    // Once known, the older host is asked its way at once.
+    sent.length = 0;
+    await backend.decoderStatus(0);
+    expect(sent).toEqual([{type: 'status', waitMs: 0}]);
   });
 
   it('says when no mpv of the host\'s is open', async () => {
@@ -199,6 +206,123 @@ describe('the extension asking the host', () => {
     expect(MpvBackend.describeDecoder({hardware: true, api: 'vulkan', format: 'prores', width: null, height: null}))
         .toBe('vulkan, PRORES');
     expect(MpvBackend.describeDecoder(null)).toBe('');
+  });
+});
+
+// The thin helper (host 15, 2026-10-13) has no status message of its own to change: the
+// extension asks mpv's properties through its ipc primitive, and reads them as the host did.
+describe('the extension asking the thin helper', () => {
+  const Thin = {hostVersion: 15, capabilities: ['play', 'ipc', 'relay']};
+  const COMMANDS = ['hwdec-current', 'hwdec', 'video-format', 'width', 'height'].map((name) => ['get_property', name]);
+  const answers = (...values) => ({ok: true, ...Thin, replies: values.map((data) =>
+    data === undefined ? {error: 'property unavailable'} : {error: 'success', data})});
+
+  afterEach(() => {
+    delete globalThis.chrome;
+    vi.useRealTimers();
+  });
+
+  /**
+   * A thin helper that answers ipc messages from a list, the last one again.
+   * @param {Array<Object>} list - Its answers, in order.
+   * @return {Array<Object>} What it was sent.
+   */
+  const thinHost = (list) => {
+    const sent = [];
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          sent.push(message);
+          callback(list[Math.min(sent.length - 1, list.length - 1)]);
+        },
+      },
+    };
+    return sent;
+  };
+
+  it('asks mpv\'s decoder properties over ipc, and reads them as the host did', async () => {
+    const sent = thinHost([answers('d3d11va', 'auto-safe', 'av1', 1920, 1080)]);
+    expect(await new MpvBackend().decoderStatus(20000)).toEqual({ok: true, running: true,
+      decoder: {hardware: true, api: 'd3d11va', format: 'av1', width: 1920, height: 1080}});
+    expect(sent).toEqual([{type: 'ipc', commands: COMMANDS}]);
+  });
+
+  it('reads the replies as the host\'s decoderFromReplies did, by their order', () => {
+    const sets = [
+      [reply(1, 'd3d11va'), reply(2, 'auto-safe'), reply(3, 'av1'), reply(4, 1920), reply(5, 1080)],
+      [reply(1, 'no'), reply(2, 'no'), reply(3, 'h264'), reply(4, 1280), reply(5, 720)],
+      [reply(1, 'd3d11va-copy')],
+      [unavailable(1), reply(2, 'auto-safe')],
+      [],
+      [reply(1, 'vulkan'), unavailable(2), unavailable(3), reply(4, -1), reply(5, 'x')],
+      [reply(1, ''), reply(2, 'auto')],
+      [reply(1, 5)],
+      [{request_id: 1, data: 'nvdec'}, reply(2, null), reply(3, ''), reply(4, Infinity), reply(5, 2160.5)],
+    ];
+    for (const replies of sets) {
+      // The thin helper answers in the commands' order, without mpv's request ids.
+      const inOrder = replies.map(({request_id: id, ...rest}) => rest);
+      expect(MpvBackend.decoderFromReplies(inOrder)).toEqual(decoderFromReplies(replies));
+    }
+    expect(MpvBackend.decoderFromReplies(undefined)).toBe(null);
+    expect(MpvBackend.decoderFromReplies([null, 5])).toBe(null);
+  });
+
+  it('asks once a second while mpv opens the stream, then answers', async () => {
+    vi.useFakeTimers();
+    const sent = thinHost([answers(undefined), {ok: false, busy: true, error: 'mpv did not answer', ...Thin},
+      answers('vaapi', 'auto-safe', 'hevc', 3840, 2160)]);
+    const status = new MpvBackend().decoderStatus(20000);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(await status).toEqual({ok: true, running: true,
+      decoder: {hardware: true, api: 'vaapi', format: 'hevc', width: 3840, height: 2160}});
+    expect(sent).toHaveLength(3);
+  });
+
+  it('gives up after the wait with mpv running and no decoder yet, and never waits past the cap', async () => {
+    vi.useFakeTimers();
+    let sent = thinHost([answers(undefined)]);
+    let status = new MpvBackend().decoderStatus(5000);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(await status).toEqual({ok: true, running: true, decoder: null});
+    // Once a second, the last time at the deadline.
+    expect(sent).toHaveLength(6);
+    sent = thinHost([answers(undefined)]);
+    status = new MpvBackend().decoderStatus(Infinity);
+    await vi.advanceTimersByTimeAsync(60000);
+    await status;
+    expect(sent).toHaveLength(31);
+    sent = thinHost([answers(undefined)]);
+    await new MpvBackend().decoderStatus();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('says no mpv of the helper\'s is open when nothing answers on its pipe', async () => {
+    thinHost([{ok: false, error: 'no mpv ipc', ...Thin}]);
+    expect(await new MpvBackend().decoderStatus(20000)).toEqual({ok: true, running: false, decoder: null});
+  });
+
+  it('takes a refusal of the helper for no answer, without asking again', async () => {
+    const sent = thinHost([{ok: false, error: 'refused', index: 0, ...Thin}]);
+    expect((await new MpvBackend().decoderStatus(20000)).ok).toBe(false);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('asks a helper that turns out older with its status message, and from then on', async () => {
+    // Nothing known yet: the ipc message first, which an older helper does not know.
+    const sent = [];
+    globalThis.chrome = {runtime: {lastError: undefined, sendNativeMessage(name, message, callback) {
+      sent.push(message);
+      callback(message.type === 'status' ?
+        {ok: true, running: true, hostVersion: 14, decoder: {api: 'd3d11va', format: 'av1', width: 1920, height: 1080}} :
+        {ok: false, error: 'unknown message', hostVersion: 14});
+    }}};
+    const backend = new MpvBackend();
+    expect((await backend.decoderStatus(0)).decoder).toMatchObject({api: 'd3d11va'});
+    expect(sent.map((m) => m.type)).toEqual(['ipc', 'status']);
+    await backend.decoderStatus(0);
+    expect(sent.map((m) => m.type)).toEqual(['ipc', 'status', 'status']);
   });
 });
 

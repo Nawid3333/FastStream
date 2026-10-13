@@ -44,10 +44,12 @@ describe('the toolbar button in MPV mode', () => {
   });
 
   // The stream went to mpv, but through a host older than this extension was released
-  // with (MpvBackend's RequiredHostVersion): the copy on the PC wants installing again.
-  it('shows "!" and what to run after a hand-off through an outdated host', () => {
+  // with (MpvBackend's RequiredHostVersion): the copy on the PC wants installing again. No
+  // "!" since the thin helper (2026-10-13): an older one still plays it, and lacks only newer
+  // features; only an error shows "!".
+  it('says what to run after a hand-off through an outdated host, with no "!"', () => {
     BackgroundUtils.updateTabIcon({tabId: 7, isOn: true, isMpv: true, mpvError: null, mpvHostOutdated: true});
-    expect(calls.badge).toEqual({text: '!', tabId: 7});
+    expect(calls.badge).toEqual({text: '', tabId: 7});
     expect(calls.title).toEqual({title: 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
       'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)',
     tabId: 7});

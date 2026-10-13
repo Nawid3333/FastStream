@@ -31,9 +31,6 @@ async function releaseWhenDownloaded(url, download, release) {
 export class SaveManager {
   constructor(client) {
     this.client = client;
-    // Firefox's word for the system, long before an mpv answer names the helper's steps
-    // (EnvUtils.isWindows).
-    EnvUtils.os();
     this.downloadURL = null;
     // What Utils.downloadURL answered for the last download of downloadURL.
     this.downloadURLDownload = undefined;
@@ -124,14 +121,10 @@ export class SaveManager {
         return;
       }
       if (response && response.ok) {
-        // An outdated host still got the stream; say that it wants installing again.
-        if (response.hostOutdated) {
-          // The steps differ: Windows has a Start menu entry, Linux and macOS a manifest.
-          const key = EnvUtils.isWindows() ? 'player_mpv_sent_outdated' : 'player_mpv_sent_outdated_unix';
-          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage(key), 'warning', 8000);
-        } else {
-          this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
-        }
+        // Sent, through an outdated helper too (response.hostOutdated): since the thin helper
+        // (2026-10-13) an older one still plays the stream and lacks only newer features, and
+        // the owner chose silence here. The toolbar's tooltip and "Test mpv connection" say so.
+        this.setStatusMessage(StatusTypes.MPV, Localize.getMessage('player_mpv_sent'), 'info', 2000);
         // mpv has the stream now, so stop playing it here too: otherwise both
         // players run at once and the user has to come back just to pause.
         if (this.client.options.mpvPausePage) {

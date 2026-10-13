@@ -106,10 +106,11 @@ export class BackgroundUtils {
       // MPV uses the plain purple icon, so clear any leftover state badge - or, when the
       // last hand-off failed, say so: the page plays on in the browser, and nothing else
       // would tell why. The title still names the mode ("MPV"): the tab is in it. An
-      // outdated host gets the "!" too, after a hand-off that worked: the tooltip says to
-      // install the host again. A failure's reason comes first.
+      // outdated host says so in the tooltip only: since the thin helper (2026-10-13) an
+      // older one still plays everything it is sent (through the messages it knows) and
+      // lacks only newer features, which is no error to flag. A failure's reason comes first.
       chrome.action.setBadgeText({
-        text: tab.mpvError || tab.mpvHostOutdated ? '!' : '',
+        text: tab.mpvError ? '!' : '',
         tabId: tab.tabId,
       });
       // Locales without a translation for this key yet still get sensible

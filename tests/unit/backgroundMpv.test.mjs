@@ -425,12 +425,13 @@ describe('a failed hand-off', () => {
 
 // The host is not part of the extension: the copy a PC runs stays as it is through an
 // extension update and a `git pull`. Until 2026-10-04 an e-mail said to install it again;
-// now the button does, where MPV mode is used.
+// now the button's tooltip does, where MPV mode is used. No "!" since the thin helper
+// (2026-10-13): an older helper still plays the stream, through the messages it knows.
 describe('an outdated mpv host', () => {
   const OUTDATED = 'FastStream - MPV - the mpv helper on this computer is out of date: ' +
     'run "Update mpv" from the Start menu (in a FastStream checkout: update-local.cmd or native-host\\install.ps1)';
 
-  it('gets the stream, and the toolbar says to install the host again', async () => {
+  it('gets the stream, and the toolbar\'s tooltip says to install the host again', async () => {
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: PAGE}],
@@ -440,15 +441,15 @@ describe('an outdated mpv host', () => {
     await bg.navigated(1, PAGE);
     await bg.request({tabId: 1, url: EPISODE});
     expect(bg.toMpv()).toEqual([EPISODE]);
-    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.badges.get(1)).toBe('');
     expect(bg.titles.get(1)).toBe(OUTDATED);
     const session = bg.session;
     bg.unload();
 
-    // And still after the event page restarted, as a failed hand-off's "!" does.
+    // And still after the event page restarted, as a failed hand-off's "!" is.
     bg = await loadBackground({options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
       tabs: [{id: 1, url: PAGE}], session});
-    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.badges.get(1)).toBe('');
     expect(bg.titles.get(1)).toBe(OUTDATED);
   });
 
@@ -494,7 +495,8 @@ describe('an outdated mpv host', () => {
     });
     await bg.navigated(1, PAGE);
     await bg.request({tabId: 1, url: AD});
-    expect(bg.badges.get(1)).toBe('!');
+    expect(bg.badges.get(1)).toBe('');
+    expect(bg.titles.get(1)).toBe(OUTDATED);
     // The host was installed again; the next page's stream goes through the new one.
     answer = {ok: true, hostVersion: RequiredHostVersion};
     await bg.navigated(1, 'https://site.test/watch/2');

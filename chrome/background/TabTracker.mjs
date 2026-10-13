@@ -278,8 +278,8 @@ export class TabHolder {
     /** @type {?string} */
     this.mpvError = null;
     // Whether the mpv host's last answer in this tab came from an outdated host
-    // (MpvBackend's RequiredHostVersion): the button then shows "!" after a hand-off that
-    // worked too, and its tooltip says to install the host again.
+    // (MpvBackend's RequiredHostVersion): the button's tooltip then says to install the host
+    // again (no "!": an older helper still plays the stream, 2026-10-13).
     /** @type {boolean} */
     this.mpvHostOutdated = false;
     // Which video decoder the mpv this tab handed its stream to uses (MpvBackend's
@@ -644,8 +644,8 @@ const TabStateKeyPrefix = 'tabState:';
 // mpvAutoOpened goes with it: without it the page's next stream request after a
 // wake opens a second mpv window for a page already handed off. mpvOnPlay too,
 // or a woken background forwards the page's first stream after all. mpvError and
-// mpvHostOutdated, or the toolbar's "!" for a failed hand-off or an outdated host went at
-// the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
+// mpvHostOutdated, or the toolbar's "!" for a failed hand-off and its tooltip for an outdated
+// host went at the wake; mpvDecoder, or its tooltip forgot which decoder mpv uses. And a play still waiting for its
 // stream (mpvPlayPendingUntil, mpvPlayedVideo) and the last one sent (mpvLastPlaySend,
 // which keeps a player's second play() from opening a second window). mpvTurnedOff, or the
 // MPV Allowlist started MPV again on the site the user had turned it off on. The rest of
