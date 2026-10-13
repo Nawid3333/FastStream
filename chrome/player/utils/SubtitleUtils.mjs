@@ -406,6 +406,7 @@ export class SubtitleUtils {
     // becomes the cue's settings. One on a later line is stripped below: its settings went
     // onto whatever line came before it, and were shown as text.
     const lines = text.split('\n');
+    const written = lines.slice();
     for (let i = 1; i < lines.length; i++) {
       // The alignment can share its block with other tags ({\an8\i1}): those stay, in a
       // block of their own, for the override blocks below.
@@ -418,24 +419,35 @@ export class SubtitleUtils {
       lines[i - 1] = settings ? `${timing} ${settings}` : timing;
       lines[i] = (tag[2] ? `{${tag[2]}}` : '') + lines[i].substring(tag[0].length);
     }
-    const withAlignment = lines.join('\n');
+    // Line by line: every tag below ends on its line.
+    const converted = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+          // An ASS override block ({\i1}, {\b0}, {\i1\fad(200,0)}, {\pos(400,570)\c&HFFFFFF&}):
+          // its italic, bold and underline switches become tags; the rest (position, colour,
+          // fades, fonts, a later alignment) has no WebVTT form and goes. Only {\b1} and the
+          // like were known, and every other block was shown as text (audit, 2026-10-09).
+          // \b700 is a bold weight, so on; \b, \b0 off. \bord, \blur, \be, \iclip are other
+          // tags (a letter follows). A block ends on its line: a stray "{\" took everything up
+          // to a "}" in a later cue, timing lines too. Switches are not toggled ASS-style:
+          // {\i1}a{\b1}b{\i0}c becomes <i>a<b>b</i>c, and WebVTT ignores that </i> while <b>
+          // is open, so c stays italic and bold.
+          .replace(/\{(\\[^{}\n]*)\}/g, (block, overrides) =>
+            Array.from(overrides.matchAll(/\\([ibu])(\d*)(?![a-z])/gi), ([, tag, value]) =>
+              value === '' || value === '0' ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`).join(''))
+          .replace(/\{([ibu])\}/gi, '<$1>') // convert {b}, {i}, {u} to <b>, <i>, <u>
+          .replace(/\{\/([ibu])\}/gi, '</$1>') // convert {/b}, {/i}, {/u} to </b>, </i>, </u>
+          .replace(/\{an\d\}/gi, ''); // strip any remaining alignment tags without a backslash
+      // A line that held only tags with no WebVTT form ({\an8} on a line of its own, made
+      // the cue's settings above; {\pos(400,570)}) was left empty, and an empty line ends
+      // the cue: the text after it was lost. It goes; a line that was empty stays.
+      if (line.trim() === '' && written[i].trim() !== '') {
+        continue;
+      }
+      converted.push(line);
+    }
 
-    return withAlignment
-        // An ASS override block ({\i1}, {\b0}, {\i1\fad(200,0)}, {\pos(400,570)\c&HFFFFFF&}):
-        // its italic, bold and underline switches become tags; the rest (position, colour,
-        // fades, fonts, a later alignment) has no WebVTT form and goes. Only {\b1} and the
-        // like were known, and every other block was shown as text (audit, 2026-10-09).
-        // \b700 is a bold weight, so on; \b, \b0 off. \bord, \blur, \be, \iclip are other
-        // tags (a letter follows). A block ends on its line: a stray "{\" took everything up
-        // to a "}" in a later cue, timing lines too. Switches are not toggled ASS-style:
-        // {\i1}a{\b1}b{\i0}c becomes <i>a<b>b</i>c, and WebVTT ignores that </i> while <b>
-        // is open, so c stays italic and bold.
-        .replace(/\{(\\[^{}\n]*)\}/g, (block, overrides) =>
-          Array.from(overrides.matchAll(/\\([ibu])(\d*)(?![a-z])/gi), ([, tag, value]) =>
-            value === '' || value === '0' ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`).join(''))
-        .replace(/\{([ibu])\}/gi, '<$1>') // convert {b}, {i}, {u} to <b>, <i>, <u>
-        .replace(/\{\/([ibu])\}/gi, '</$1>') // convert {/b}, {/i}, {/u} to </b>, </i>, </u>
-        .replace(/\{an\d\}/gi, '') // strip any remaining alignment tags without a backslash
+    return converted.join('\n')
         // An ASS hard line break. Several in a row, with or without a real line break after
         // each, make one: an empty line would end the cue.
         .replace(/(?:\\N(?:\r?\n)?)+/g, '\n')

@@ -300,6 +300,24 @@ describe('convertSubtitleFormatting', () => {
     expect(SubtitleUtils.convertSubtitleFormatting('00:00:01.000 --> 00:00:02.000\n{\\an8\\i1}Top{\\i0}'))
         .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\n<i>Top</i>');
   });
+
+  // A line that held only tags with no WebVTT form was left empty, and an empty line ends a
+  // cue: the text after it was lost.
+  it('drops a line that only held tags, rather than end the cue there', () => {
+    const format = (text) => SubtitleUtils.convertSubtitleFormatting(text);
+    // On its own line right after the timing: the cue's settings, and the text still the cue's.
+    expect(format('00:00:01.000 --> 00:00:02.000\n{\\an8}\nTop line\n\n00:00:03.000 --> 00:00:04.000\nnext'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\nTop line\n\n00:00:03.000 --> 00:00:04.000\nnext');
+    expect(format('00:00:01.000 --> 00:00:02.000\r\n{\\an8}\r\nTop line\r\n'))
+        .toBe('00:00:01.000 --> 00:00:02.000 line:5% position:50% align:center\nTop line\r\n');
+    // Inside a cue.
+    expect(format('00:00:01.000 --> 00:00:02.000\nFirst\n{\\an8}\nSecond')).toBe('00:00:01.000 --> 00:00:02.000\nFirst\nSecond');
+    expect(format('00:00:01.000 --> 00:00:02.000\nFirst\n{\\pos(400,570)}{\\fad(200,0)}\nSecond'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nFirst\nSecond');
+    // A line that was empty already still ends the cue.
+    expect(format('00:00:01.000 --> 00:00:02.000\nFirst\n\n00:00:03.000 --> 00:00:04.000\n{\\i1}x'))
+        .toBe('00:00:01.000 --> 00:00:02.000\nFirst\n\n00:00:03.000 --> 00:00:04.000\n<i>x');
+  });
 });
 
 describe('cuesAt', () => {
