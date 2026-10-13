@@ -5,6 +5,14 @@
 // it without a word, so the migration never ran in the extension at all. Nothing noticed:
 // the unit tests fed the migration plain objects, and the web specs read localStorage. This
 // is the path that broke, driven the way the extension takes it.
+//
+// What each layout step moves is tests/unit/KeybindUtils.test.mjs's ("migrateKeybinds", "to
+// version 3", "to version 4") and Keybinds.test.mjs's (Utils.getOptionsFromStorage, the same
+// function as here, over a stored string). Three cases here walked those steps again over
+// chrome.storage (version 2, version 3, a choice made after the migration); since
+// 2026-10-13 they are Keybinds.test.mjs's, with the same stored options: the first case
+// below already reads options of an earlier layout through chrome.storage, and the step it
+// takes is no different there.
 
 import {browser, expect} from '@wdio/globals';
 
@@ -100,69 +108,5 @@ describe('keybinds saved by an earlier version, in chrome.storage', function() {
     expect(saved.keybindsVersion).toBe(4);
     expect(saved.keybinds.WindowedFullscreen).toBe('Shift+KeyW');
     expect(saved.keybinds.ResetPlaybackRate).toBe('KeyY');
-  });
-
-  it('moves options saved at version 2 to the mpv seeks and a 5 s arrow step', async function() {
-    await openExtensionPage('/player/options/index.html');
-    await setStored({keybindsVersion: 2, seekStepSize: 2, keybinds: {
-      UndoSeek: 'KeyZ', Screenshot: 'KeyX', PlayPause: 'KeyK',
-      SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
-      SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
-    }});
-
-    const options = await browser.execute(() => new Promise((done) => {
-      import('/player/utils/Utils.mjs')
-          .then(({Utils}) => Utils.getOptionsFromStorage())
-          .then(done, (e) => done({failed: String(e)}));
-    }));
-    expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(4);
-    expect(options.seekStepSize).toBe(5);
-    expect(options.keybinds.UndoSeek).toBe('Shift+Backspace');
-    expect(options.keybinds.Screenshot).toBe('Shift+KeyS');
-    expect(options.keybinds.SeekBackward60s).toBe('KeyZ');
-    expect(options.keybinds.SeekForward60s).toBe('KeyX');
-    expect(options.keybinds.SeekBackward10s).toBe('KeyJ');
-    // K was the user's play/pause, so the 10 s seek forward waits for a key.
-    expect(options.keybinds.PlayPause).toBe('KeyK');
-    expect(options.keybinds.SeekForward10s).toBe('None');
-    // The frame step takes `,`/`.` from the 10 s seeks, which no longer exist.
-    expect(options.keybinds.SeekForwardFrame).toBe('Period');
-    expect(options.keybinds.SeekBackwardFrame).toBe('Comma');
-    expect(options.keybinds.SeekForwardLarge).toBeUndefined();
-  });
-
-  it('moves the speed steps saved at version 3 to S and D, and Save video to Shift+D', async function() {
-    // As in mpv (2026-10-10). An S the user took keeps theirs: the slow-down waits for a key.
-    await openExtensionPage('/player/options/index.html');
-    await setStored({keybindsVersion: 3, keybinds: {
-      SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
-    }});
-
-    const options = await browser.execute(() => new Promise((done) => {
-      import('/player/utils/Utils.mjs')
-          .then(({Utils}) => Utils.getOptionsFromStorage())
-          .then(done, (e) => done({failed: String(e)}));
-    }));
-    expect(options.failed).toBeUndefined();
-    expect(options.keybindsVersion).toBe(4);
-    expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');
-    expect(options.keybinds.IncreasePlaybackRate).toBe('KeyD');
-    expect(options.keybinds.Mute).toBe('KeyS');
-    expect(options.keybinds.DecreasePlaybackRate).toBe('None');
-  });
-
-  it('keeps a choice made after the migration, even one equal to an old default', async function() {
-    await openExtensionPage('/player/options/index.html');
-    await setStored({keybindsVersion: 3, keybinds: {WindowedFullscreen: 'KeyW'}});
-
-    const options = await browser.execute(() => new Promise((done) => {
-      import('/player/utils/Utils.mjs')
-          .then(({Utils}) => Utils.getOptionsFromStorage())
-          .then(done, (e) => done({failed: String(e)}));
-    }));
-    expect(options.keybinds.WindowedFullscreen).toBe('KeyW');
-    // Through the version 4 step (S and D), which does not touch it.
-    expect(options.keybindsVersion).toBe(4);
   });
 });

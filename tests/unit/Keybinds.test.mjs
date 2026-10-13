@@ -234,6 +234,54 @@ describe('Utils.getOptionsFromStorage', () => {
     expect(await Utils.getOptionsFromStorage()).toEqual(options);
   });
 
+  // The three cases below were ext-specs/keybinds-storage.e2e.mjs's until 2026-10-13, with
+  // the same stored options: a few bindings saved at a version, not every one, as an
+  // imported or hand-edited file may hold them. That spec still reads options of an earlier
+  // layout through chrome.storage; what each step makes of them is the same function's.
+  it('migrates a few bindings saved at version 2 to the mpv seeks and a 5 s arrow step', async () => {
+    store({keybindsVersion: 2, seekStepSize: 2, keybinds: {
+      UndoSeek: 'KeyZ', Screenshot: 'KeyX', PlayPause: 'KeyK',
+      SeekForwardFrame: 'Shift+ArrowRight', SeekBackwardFrame: 'Shift+ArrowLeft',
+      SeekForwardLarge: 'Period', SeekBackwardLarge: 'Comma',
+    }});
+    const options = await Utils.getOptionsFromStorage();
+    expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+    expect(options.seekStepSize).toBe(5);
+    expect(options.keybinds.UndoSeek).toBe('Shift+Backspace');
+    expect(options.keybinds.Screenshot).toBe('Shift+KeyS');
+    expect(options.keybinds.SeekBackward60s).toBe('KeyZ');
+    expect(options.keybinds.SeekForward60s).toBe('KeyX');
+    expect(options.keybinds.SeekBackward10s).toBe('KeyJ');
+    // K was the user's play/pause, so the 10 s seek forward waits for a key.
+    expect(options.keybinds.PlayPause).toBe('KeyK');
+    expect(options.keybinds.SeekForward10s).toBe('None');
+    // The frame step takes `,`/`.` from the 10 s seeks, which no longer exist.
+    expect(options.keybinds.SeekForwardFrame).toBe('Period');
+    expect(options.keybinds.SeekBackwardFrame).toBe('Comma');
+    expect(options.keybinds.SeekForwardLarge).toBeUndefined();
+  });
+
+  it('migrates a few bindings saved at version 3: the speed steps to S and D, Save video to Shift+D', async () => {
+    // As in mpv (2026-10-10). An S the user took keeps theirs: the slow-down waits for a key.
+    store({keybindsVersion: 3, keybinds: {
+      SaveVideo: 'KeyD', IncreasePlaybackRate: 'Shift+ArrowUp', DecreasePlaybackRate: 'Shift+ArrowDown', Mute: 'KeyS',
+    }});
+    const options = await Utils.getOptionsFromStorage();
+    expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+    expect(options.keybinds.SaveVideo).toBe('Shift+KeyD');
+    expect(options.keybinds.IncreasePlaybackRate).toBe('KeyD');
+    expect(options.keybinds.Mute).toBe('KeyS');
+    expect(options.keybinds.DecreasePlaybackRate).toBe('None');
+  });
+
+  it('keeps a choice saved at version 3, even one equal to an old default', async () => {
+    store({keybindsVersion: 3, keybinds: {WindowedFullscreen: 'KeyW'}});
+    const options = await Utils.getOptionsFromStorage();
+    expect(options.keybinds.WindowedFullscreen).toBe('KeyW');
+    // Through the version 4 step (S and D), which does not touch it.
+    expect(options.keybindsVersion).toBe(KEYBINDS_VERSION);
+  });
+
   it('keeps what the user chose and unbinds the new default that would have clashed', async () => {
     store({keybinds: {...legacyBinds, ResetPlaybackRate: 'KeyY', Mute: 'Digit5'}});
     const {keybinds} = await Utils.getOptionsFromStorage();
