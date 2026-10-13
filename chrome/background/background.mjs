@@ -3147,10 +3147,10 @@ function isHandOffPage(tab, page) {
 /**
  * Shows a failed MPV-mode hand-off on the tab's toolbar button ("!", and the reason in
  * its tooltip), or clears it after one that worked. Without it the page simply played
- * on in the browser, and nothing said why. An outdated host shows the same "!" after a
- * hand-off that worked, with a tooltip that says to install the host again: the copy a
- * PC runs is not updated by an extension update or a `git pull`, and nothing else in
- * MPV mode would say so (MpvBackend's RequiredHostVersion).
+ * on in the browser, and nothing said why. An outdated host is kept too, for the tooltip
+ * alone (no "!" since the thin helper, 2026-10-13: an older one still plays the stream):
+ * it says to install the host again, as the copy a PC runs is not updated by an extension
+ * update or a `git pull` (MpvBackend's RequiredHostVersion).
  * @param {Object} tab - TabHolder the stream was sent from.
  * @param {{ok: boolean, error?: string, noHost?: boolean, hostOutdated?: boolean}} result -
  *   The host's answer.
