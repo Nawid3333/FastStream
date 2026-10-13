@@ -23,6 +23,23 @@ describe('EpisodeLinks.phraseScore', () => {
     expect(EpisodeLinks.phraseScore(text, isNext)).toBe(2);
   });
 
+  it('takes upper-case words in a Turkish Firefox too, whose lower case of I is a dotless ı', () => {
+    // The locale's lower case made "NEXT EPISODE" "next epısode", which no phrase matched
+    // (glm's review, 2026-10-13). The rows above take it only on a runner in Turkish: the
+    // script's own String lower-cases as Firefox in Turkish does here.
+    const proto = vm.runInContext('String.prototype', context);
+    const original = proto.toLocaleLowerCase;
+    proto.toLocaleLowerCase = function() {
+      return String(this).replace(/I/g, 'ı').replace(/İ/g, 'i').toLowerCase();
+    };
+    try {
+      expect(EpisodeLinks.phraseScore('NEXT EPISODE', true)).toBe(2);
+      expect(EpisodeLinks.phraseScore('PREVIOUS EPISODE', false)).toBe(2);
+    } finally {
+      proto.toLocaleLowerCase = original;
+    }
+  });
+
   it.each([['Next', true], ['weiter', true], ['Suivant', true], ['次へ', true], ['Prev', false], ['Zurück', false]])(
       'takes the bare word "%s" for a weaker hint', (text, isNext) => {
         expect(EpisodeLinks.phraseScore(text, isNext)).toBe(1);
