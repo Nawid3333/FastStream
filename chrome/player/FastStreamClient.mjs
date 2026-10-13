@@ -58,6 +58,9 @@ const PAGE_QUALITY_LEVEL = 'page-quality:';
 // the load error within seconds; one that plays on between rare errors keeps recovering.
 const RECOVERY_LIMIT = 3;
 const RECOVERY_WINDOW_MS = 120000;
+// How often the seek preview's player is built again after an error, per video: one that
+// failed each time was built anew every second for as long as the video was open.
+const PREVIEW_RELOAD_LIMIT = 3;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
 const EndStallMs = 3000;
@@ -1950,6 +1953,7 @@ export class FastStreamClient extends EventEmitter {
     // A preview build still running is the old video's: the next video joined it, the build
     // discarded itself over the changed source, and the next video had no seek preview.
     this.previewPlayerSetup = null;
+    this.previewReloads = 0;
 
     if (this.syncedAudioPlayer) {
       try {
@@ -2224,6 +2228,12 @@ export class FastStreamClient extends EventEmitter {
         if (this.lastPreviewReload && now - this.lastPreviewReload < 1000) {
           return;
         }
+        // PREVIEW_RELOAD_LIMIT times per video, as recoverPlayer is capped (glm's review,
+        // 2026-10-13); resetPlayer starts the count again.
+        if ((this.previewReloads || 0) >= PREVIEW_RELOAD_LIMIT) {
+          return;
+        }
+        this.previewReloads = (this.previewReloads || 0) + 1;
         this.lastPreviewReload = now;
         console.error('Reloading preview player');
         this.setupPreviewPlayer();

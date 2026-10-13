@@ -1254,3 +1254,26 @@ describe('FastStreamClient, the seek preview\'s player', () => {
     expect(client.previewPlayer).toBeNull();
   });
 });
+
+describe('FastStreamClient, a seek preview that keeps failing', () => {
+  it('is built again at most three times for one video', () => {
+    // It was built anew every second for as long as the video was open (a stream whose
+    // preview fails each time), where the main player's rebuilds are capped (glm's review,
+    // 2026-10-13).
+    vi.useFakeTimers();
+    try {
+      const client = makeClient({previewEnabled: true});
+      client.interfaceController.resetPreviewVideo = vi.fn();
+      const context = new EventEmitter();
+      client.setupPreviewPlayer = vi.fn();
+      client.bindPreviewPlayer({createContext: () => context});
+      for (let i = 0; i < 10; i++) {
+        vi.advanceTimersByTime(2000);
+        context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      }
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
