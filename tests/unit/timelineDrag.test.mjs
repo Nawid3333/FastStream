@@ -40,14 +40,15 @@ const {el, fire, playerContainer, doc} = vi.hoisted(() => {
 vi.mock('../../chrome/player/ui/DOMElements.mjs', () => ({DOMElements: {playerContainer, timelineSyncer: el()}}));
 vi.mock('../../chrome/player/utils/WebUtils.mjs', () => ({WebUtils: {create: () => el()}}));
 vi.mock('../../chrome/player/modules/Localize.mjs', () => ({Localize: {getMessage: (key) => key}}));
-vi.mock('../../chrome/player/modules/vtt.mjs', () => ({WebVTT: {}}));
-vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => ({AlertPolyfill: {}}));
+vi.mock('../../chrome/player/modules/vtt.mjs', () => ({WebVTT: {convertCueToDOMTree: () => ({})}}));
+vi.mock('../../chrome/player/utils/AlertPolyfill.mjs', () => ({AlertPolyfill: {prompt: vi.fn()}}));
 vi.mock('../../chrome/player/utils/Utils.mjs', () => ({Utils: {clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v))}}));
 vi.mock('../../chrome/player/utils/StringUtils.mjs', () => ({StringUtils: {formatTime: String}}));
 
 vi.stubGlobal('document', doc);
 const {FineTimeControls} = await import('../../chrome/player/ui/FineTimeControls.mjs');
 const {SubtitleSyncer} = await import('../../chrome/player/ui/subtitles/SubtitleSyncer.mjs');
+const {AlertPolyfill} = await import('../../chrome/player/utils/AlertPolyfill.mjs');
 
 afterEach(() => {
   for (const target of [playerContainer, doc]) {
@@ -202,5 +203,54 @@ describe('SubtitleSyncer: dragging a cue', () => {
     fire(playerContainer, 'mousemove', {clientX: 7});
     expect(cue.startTime).toBe(15);
     expect(cue.endTime).toBe(17);
+  });
+
+  describe('editing a cue by a double click shows the change on the video at once', () => {
+    // Only playback redrew the video's subtitles: paused, the old text stayed, an emptied
+    // cue stayed, and a new cue that was cancelled went on reading "New subtitle".
+    /**
+     * A syncer in edit mode, its cue from 10 s to 12 s, double-clicked at a time.
+     * @param {number} time - Where the double click lands.
+     * @param {string|undefined} answer - What the prompt gives back.
+     * @return {Promise<{syncer: SubtitleSyncer, cue: Object, track: Object, render: Function}>}
+     */
+    async function doubleClicked(time, answer) {
+      const {syncer, cue, track} = grabbed(2);
+      fire(playerContainer, 'mouseup');
+      fineTimeControls.mousePositionToTime = () => time;
+      const render = syncer.client.interfaceController.subtitlesManager.renderSubtitles;
+      render.mockClear();
+      AlertPolyfill.prompt.mockResolvedValueOnce(answer);
+      fire(syncer.ui.timelineTrack, 'dblclick');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return {syncer, cue, track, render};
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal('VTTCue', class {
+        constructor(startTime, endTime, text) {
+          Object.assign(this, {startTime, endTime, text});
+        }
+      });
+    });
+
+    it('a cue given new text', async () => {
+      const {cue, render} = await doubleClicked(11, 'Changed');
+      expect(cue.text).toBe('Changed');
+      expect(render).toHaveBeenCalled();
+    });
+
+    it('a cue emptied, which removes it', async () => {
+      const {track, render} = await doubleClicked(11, '');
+      expect(track.cues).toEqual([]);
+      expect(render).toHaveBeenCalled();
+    });
+
+    it('a new cue whose prompt was cancelled', async () => {
+      const {track, render} = await doubleClicked(50, undefined);
+      expect(track.cues).toHaveLength(1);
+      // Once to show the new cue while its text is asked for, once to take it off.
+      expect(render).toHaveBeenCalledTimes(2);
+    });
   });
 });

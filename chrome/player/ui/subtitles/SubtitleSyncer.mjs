@@ -116,6 +116,9 @@ export class SubtitleSyncer extends EventEmitter {
               this.trackToSync.cues.splice(index, 1);
             }
           }
+          // Shown on the video at once: only playback redrew it, and paused the old text
+          // stayed.
+          this.client.interfaceController.subtitlesManager.renderSubtitles();
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       } else {
         // create new cue at this time with default duration of 2 seconds
@@ -138,7 +141,6 @@ export class SubtitleSyncer extends EventEmitter {
               el.element.appendChild(newCue.dom2);
               el.element.title = newCue.text;
             }
-            this.client.interfaceController.subtitlesManager.renderSubtitles();
           } else {
             // Cancelled, or emptied: no new cue, rather than one reading "New subtitle".
             const index = this.trackToSync.cues.indexOf(newCue);
@@ -146,6 +148,8 @@ export class SubtitleSyncer extends EventEmitter {
               this.trackToSync.cues.splice(index, 1);
             }
           }
+          // Either way: a cancelled one stayed on a paused video, reading "New subtitle".
+          this.client.interfaceController.subtitlesManager.renderSubtitles();
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       }
     });
