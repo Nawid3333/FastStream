@@ -214,6 +214,7 @@ describe('SubtitleSyncer: dragging a cue', () => {
     const video = {duration: 100};
     fineTimeControls = {
       isStateActive: () => true, prioritizeState: vi.fn(), pushState: vi.fn(), removeState: vi.fn(),
+      renderTimeline: vi.fn(),
     };
     const client = {
       player: {getVideo: () => video},
@@ -257,6 +258,42 @@ describe('SubtitleSyncer: dragging a cue', () => {
     expect(syncer.trackToSync).toBeNull();
     expect(syncer.started).toBe(false);
     expect(fineTimeControls.prioritizeState).not.toHaveBeenCalled();
+  });
+
+  // The timeline redrew only on a time update: on a paused video what was changed by hand
+  // stayed as it was (glm's second look, 2026-10-13).
+  it('takes an emptied cue\'s bar off a paused timeline at once', async () => {
+    const {syncer, cue} = grabbed(2);
+    fire(playerContainer, 'mouseup');
+    // The real timeline's render: it draws the syncer's track with what is in view.
+    fineTimeControls.renderTimeline = () => syncer.renderTracks(0, 100);
+    syncer.visibleCues = [cue];
+    const bar = syncer.trackElements[0].element;
+    bar.remove = vi.fn();
+    fineTimeControls.mousePositionToTime = () => 11;
+    AlertPolyfill.prompt.mockResolvedValueOnce('');
+    fire(syncer.ui.timelineTrack, 'dblclick');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(bar.remove).toHaveBeenCalled();
+    expect(syncer.trackElements).toEqual([]);
+  });
+
+  it('moves the bars of a paused timeline at once with the shift keys', () => {
+    const {syncer} = grabbed(2);
+    fire(playerContainer, 'mouseup');
+    syncer.shiftSubtitles(1);
+    expect(fineTimeControls.renderTimeline).toHaveBeenCalled();
+  });
+
+  it('shows the other track\'s cues, not the last one\'s, when switched to it', () => {
+    // start() returned at once for a syncer already started.
+    const {syncer} = grabbed(2);
+    fire(playerContainer, 'mouseup');
+    const other = {cues: [{startTime: 40, endTime: 42}], shift: vi.fn()};
+    syncer.toggleTrack(other);
+    expect(syncer.trackToSync).toBe(other);
+    expect(syncer.trackElements).toEqual([]);
+    expect(fineTimeControls.pushState).toHaveBeenCalled();
   });
 
   it('never lets a cue end before it starts', () => {

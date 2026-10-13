@@ -27,9 +27,18 @@ export class SubtitleSyncer extends EventEmitter {
     this.client.interfaceController.subtitlesManager.renderSubtitles();
     // There is no onVideoTimeUpdate() here (it moved to FineTimeControls long
     // ago), so this used to throw a TypeError on every ShiftSubtitles key.
-    // The timeline redraws on its own; only the cues in view are stale.
-    this.lastUpdate = 0;
+    this.redrawTrack();
     this.showShift();
+  }
+
+  /**
+   * Shows a change to the cues on the timeline at once. It redrew only on a time update, so
+   * on a paused video a removed cue's bar stayed, a new one did not show, and a shift or a
+   * switch to another track showed the old places (glm's second look, 2026-10-13).
+   */
+  redrawTrack() {
+    this.lastUpdate = 0;
+    this.client.interfaceController.fineTimeControls.renderTimeline();
   }
 
   // The track's total shift, so the tool says where the subtitles stand
@@ -119,6 +128,7 @@ export class SubtitleSyncer extends EventEmitter {
           // Shown on the video at once: only playback redrew it, and paused the old text
           // stayed.
           this.client.interfaceController.subtitlesManager.renderSubtitles();
+          this.redrawTrack();
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       } else {
         // create new cue at this time with default duration of 2 seconds
@@ -127,6 +137,7 @@ export class SubtitleSyncer extends EventEmitter {
         // sort cues by start time
         this.trackToSync.cues.sort((a, b) => a.startTime - b.startTime);
         this.client.interfaceController.subtitlesManager.renderSubtitles();
+        this.redrawTrack();
         AlertPolyfill.prompt(Localize.getMessage('player_subtitlesmenu_resynctool_edit'), newCue.text).then((newText) => {
           if (newText) {
             newCue.text = newText;
@@ -150,6 +161,7 @@ export class SubtitleSyncer extends EventEmitter {
           }
           // Either way: a cancelled one stayed on a paused video, reading "New subtitle".
           this.client.interfaceController.subtitlesManager.renderSubtitles();
+          this.redrawTrack();
         }).catch((e) => console.error('Applying the subtitle edit failed', e));
       }
     });
@@ -199,7 +211,7 @@ export class SubtitleSyncer extends EventEmitter {
           this.showShift();
         }
         // cues dragged into view show at once, not up to 500 ms later
-        this.lastUpdate = 0;
+        this.redrawTrack();
         this.client.interfaceController.subtitlesManager.renderSubtitles();
       }
     });
@@ -218,6 +230,9 @@ export class SubtitleSyncer extends EventEmitter {
       this.trackToSync = null;
       this.stop();
     } else if (!removeOnly) {
+      // Another track while one was synced: start() returned at once, and the timeline went on
+      // showing the last track's cues, or stayed hidden behind another tool.
+      if (this.started) this.stop();
       this.trackToSync = track;
       this.start();
     }
