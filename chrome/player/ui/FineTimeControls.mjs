@@ -158,6 +158,10 @@ export class FineTimeControls extends EventEmitter {
       if (this.client.state.playing) {
         this.client.player.pause();
       }
+      // One grab is one undo step, as a drag on the progress bar is: each move was saved,
+      // and one grab filled the undo history (glm's second look, 2026-10-13).
+      this.client.savePosition();
+      this.client.setSeekSave(false);
     };
     this.ui.timelineTicks.addEventListener('mousedown', mouseDown);
     // this.ui.timelineAudioCanvasContainer.addEventListener('mousedown', mouseDown);
@@ -172,14 +176,15 @@ export class FineTimeControls extends EventEmitter {
       if (!isGrabbing) return;
       isGrabbing = false;
       this.isSeeking = false;
-      if (!this.client.player) return;
-      if (seek) {
+      if (this.client.player && seek) {
         const video = this.client.player.getVideo();
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
         this.client.currentTime = time;
         this.client.updateTime(time);
       }
+      this.client.setSeekSave(true);
+      if (!this.client.player) return;
       if (shouldPlay && resume) {
         this.client.player.play();
       }
@@ -487,6 +492,8 @@ export class FineTimeControls extends EventEmitter {
 
       const context = el.ctx;
       el.element.width = newWidth;
+      // Moved to a screen with another scaling, it kept the height it was made with.
+      el.element.height = newHeight;
       context.clearRect(0, 0, el.element.width, el.element.height);
 
       if (this.audioSilenceThreshold !== null) {

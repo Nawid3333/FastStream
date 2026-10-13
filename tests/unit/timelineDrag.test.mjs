@@ -24,7 +24,9 @@ const {el, fire, playerContainer, doc} = vi.hoisted(() => {
       remove() {},
       getBoundingClientRect: () => ({left: 0, right: 10, top: 0, bottom: 8, width: 10, height: 8}),
       clientWidth: 100,
-      getContext: () => ({}),
+      clientHeight: 22,
+      // A 2D context whose drawing calls do nothing.
+      getContext: () => new Proxy({}, {get: (target, key) => (key in target ? target[key] : () => {})}),
     };
   };
   const fire = (target, type, event = {}) => {
@@ -67,6 +69,8 @@ describe('FineTimeControls: grabbing the timeline', () => {
       player: {getVideo: () => video, pause: vi.fn(), play: vi.fn()},
       state: {playing: true},
       updateTime: vi.fn(),
+      savePosition: vi.fn(),
+      setSeekSave: vi.fn(),
     };
     return {timeline: new FineTimeControls(client), client};
   }
@@ -121,6 +125,70 @@ describe('FineTimeControls: grabbing the timeline', () => {
     fire(doc, 'mouseup', {clientX: 80});
     expect(client.currentTime).toBe(0);
     expect(client.player.play).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A client that keeps undo history as FastStreamClient does: each seek made with seek
+   * saving on is one undo step.
+   * @return {{timeline: FineTimeControls, client: Object}}
+   */
+  function withUndo() {
+    const {timeline, client} = playing();
+    let time = 50;
+    client.saveSeek = true;
+    client.undoSteps = 0;
+    client.savePosition = vi.fn(() => client.undoSteps++);
+    client.setSeekSave = (value) => {
+      client.saveSeek = value;
+    };
+    Object.defineProperty(client, 'currentTime', {
+      get: () => time,
+      set: (value) => {
+        if (client.saveSeek) client.savePosition();
+        time = value;
+      },
+    });
+    return {timeline, client};
+  }
+
+  it('makes one grab one undo step, however many moves it had', () => {
+    // Each move was a seek saved for undo: one grab filled the 50-step history, and undo
+    // (Z) went back through its moves one by one (glm's second look, 2026-10-13).
+    const {timeline, client} = withUndo();
+    fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
+    for (const x of [52, 55, 58, 61, 64]) fire(playerContainer, 'mousemove', {clientX: x});
+    fire(doc, 'mouseup', {clientX: 70});
+    expect(client.currentTime).toBe(30);
+    expect(client.undoSteps).toBe(1);
+    expect(client.saveSeek).toBe(true);
+  });
+
+  it('saves seeks again after a grab the next video ended', () => {
+    const {timeline, client} = withUndo();
+    fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
+    fire(playerContainer, 'mousemove', {clientX: 60});
+    timeline.reset();
+    expect(client.saveSeek).toBe(true);
+  });
+});
+
+describe('FineTimeControls: the audio canvases', () => {
+  it('draws at the new screen scaling after a move to another screen', () => {
+    // The height was set once, at the scaling the canvas was made with (glm's second look,
+    // 2026-10-13).
+    const client = {audioAnalyzer: {getOutputRate: () => 1, getVolumeData: () => []}};
+    const timeline = new FineTimeControls(client);
+    timeline.resetAudio();
+    vi.stubGlobal('window', {devicePixelRatio: 1});
+    timeline.renderAudio(100, 0, 10);
+    const canvas = timeline.canvasElements[0].element;
+    expect(canvas.height).toBe(22);
+
+    vi.stubGlobal('window', {devicePixelRatio: 2});
+    timeline.renderAudio(100, 0, 10);
+    expect(canvas.height).toBe(44);
+    vi.unstubAllGlobals();
+    vi.stubGlobal('document', doc);
   });
 });
 
