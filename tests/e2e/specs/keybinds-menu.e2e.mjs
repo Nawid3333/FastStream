@@ -102,15 +102,9 @@ describe('Keybinding menu', function() {
       expect(shown).not.toMatch(/_|undefined/);
     }
     expect(new Set(labels.map((label) => label.shown)).size).toBe(labels.length);
-  });
-
-  it('reads out the percent seeks and speed presets, and spaces the rest as before', async function() {
-    expect((await rowState('SeekPercent50')).label).toBe('Seek to 50%');
-    expect((await rowState('SeekPercent10')).label).toBe('Seek to 10%');
-    expect((await rowState('SpeedPreset2_5')).label).toBe('Speed preset 2.5x');
-    expect((await rowState('SpeedPreset16')).label).toBe('Speed preset 16x');
-    expect((await rowState('PlayPause')).label).toBe('Play Pause');
-    expect((await rowState('SeekForwardFrame')).label).toBe('Seek Forward Frame');
+    // What keybindLabel reads out ("Seek to 10%", "Speed preset 2.5x", "Play Pause") is
+    // tests/unit/KeybindUtils.test.mjs's; a case here that read six rows' labels again went
+    // on 2026-10-13, since every row is compared with keybindLabel above.
   });
 
   it('shows no clash for the defaults', async function() {
@@ -221,20 +215,14 @@ describe('Keybinding menu', function() {
     expect(state).toEqual({same: true, focused: true, key: 'KeyU', shown: 'U'});
   });
 
-  it('saves the choice with the layout version, and shows it again after a reload', async function() {
-    await assignKey('SeekPercent50', 'KeyU');
-    await waitForSaved((saved) => saved.keybinds.SeekPercent50 === 'KeyU');
-    const saved = await savedOptions();
-    expect(saved.keybindsVersion).toBe(4);
-
-    await openOptions();
-    expect((await rowState('SeekPercent50')).key).toBe('KeyU');
-  });
-
-  it('does not migrate again a choice made after the layout changed', async function() {
+  // One case since 2026-10-13 (it was two, on the same steps: a key set, saved, the page
+  // loaded again): the save carries the layout version, the choice shows again after a
+  // reload, and a choice that is an old default is not migrated again.
+  it('saves the choice with the layout version, and does not migrate it again after a reload', async function() {
     // Old default, chosen on purpose, saved by a page that already knows the new layout.
     await assignKey('WindowedFullscreen', 'KeyW');
     await waitForSaved((saved) => saved.keybinds.WindowedFullscreen === 'KeyW');
+    expect((await savedOptions()).keybindsVersion).toBe(4);
 
     await openOptions();
     const state = await rowState('WindowedFullscreen');

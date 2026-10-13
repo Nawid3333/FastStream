@@ -9,12 +9,20 @@
 //
 // Guarded:
 //
-// - Digit1..Digit9 jump to 10%..90% of the duration, and do nothing on a live stream,
-//   whose duration is Infinity and which the currentTime setter would throw on.
+// - A percent seek (Digit5, from the real keyboard) jumps to its share of the duration,
+//   and a percent seek does nothing on a live stream, whose duration is Infinity and which
+//   the currentTime setter would throw on.
 // - The mpv-style speed presets: a preset key sets its speed, pressing the SAME key
 //   again reverts to the rate that was active before it took effect, and that memory
 //   is per key (Q, then Y, then Y lands on 3x, not 1x). The target is clamped to
 //   options.maxPlaybackRate, which is 8.
+//
+// The rules themselves are tests/unit/KeybindUtils.test.mjs's: seekPercentTarget for every
+// percent, applySpeedPreset for every preset, a rate set by hand, a preset put back by hand.
+// Keybinds.test.mjs ("KeybindManager wiring") pins that the player registers one handler
+// per percent and per preset from the same lists. The cases here press keys in the running
+// player, one of each kind; until 2026-10-13 they also pressed all nine digits and every
+// preset, and replayed the two hand-set-rate rules, which the unit tests already pin.
 // - The six moved defaults: plain KeyW is now the 3.5x preset, and Shift+KeyW is
 //   windowed fullscreen and must not touch the rate.
 // - The mpv seeks, on a 160 s video: Z/X 60 s, J/K 10 s, the arrows 5 s; a 60 s hop back
@@ -99,21 +107,6 @@ describe('Keybinds', function() {
   before(() => openPlayer());
   beforeEach(reset);
 
-  it('Digit1 to Digit9 seek to 10% to 90% of the duration', async function() {
-    const duration = await browser.execute(() => window.fastStream.duration);
-    // Ten percent has to be well clear of the start the video is parked at, or a key that
-    // did nothing would land inside the tolerance.
-    expect(duration).toBeGreaterThan(5);
-
-    for (let digit = 1; digit <= 9; digit++) {
-      await reset();
-      await pressKey(`Digit${digit}`);
-      const target = duration * digit / 10;
-      await browser.waitUntil(async () => Math.abs((await time()) - target) <= 0.25,
-          {timeout: 10000, timeoutMsg: `Digit${digit} never seeked to ${target} s, ${digit * 10}% of ${duration} s`});
-    }
-  });
-
   it('a percent seek does nothing, and throws nothing, on a live stream', async function() {
     // A live stream's duration is Infinity both on the media element and on the client.
     await browser.execute(() => {
@@ -190,39 +183,6 @@ describe('Keybinds', function() {
     expect(await rate()).toBe(1);
   });
 
-  it('every preset key sets its speed, and pressing it again puts the rate back', async function() {
-    const presets = {KeyG: 2, KeyB: 2.5, KeyQ: 3, KeyW: 3.5, KeyA: 4, KeyY: 5, KeyE: 8, KeyH: 16};
-    for (const [code, speed] of Object.entries(presets)) {
-      await reset();
-      await pressKey(code);
-      expect(await rate()).toBe(speed);
-      await pressKey(code);
-      expect(await rate()).toBe(1);
-    }
-
-    // The 1x key at 1x has nothing to do, and from another speed it resets.
-    await reset();
-    await pressKey('KeyR');
-    expect(await rate()).toBe(1);
-    await browser.execute(() => {
-      window.fastStream.playbackRate = 2;
-    });
-    await pressKey('KeyR');
-    expect(await rate()).toBe(1);
-    await pressKey('KeyR');
-    expect(await rate()).toBe(2);
-  });
-
-  it('reverts to a rate set by hand, not only to 1x', async function() {
-    await browser.execute(() => {
-      window.fastStream.playbackRate = 1.7;
-    });
-    await pressKey('KeyY');
-    expect(await rate()).toBe(5);
-    await pressKey('KeyY');
-    expect(await rate()).toBe(1.7);
-  });
-
   it('never runs the video faster than options.maxPlaybackRate, whoever sets the rate', async function() {
     // Holding the mouse on the video doubles the rate: at 5x that asked for 10x, which only
     // the speed menu clamped, and the video played it, silent (#184).
@@ -231,16 +191,6 @@ describe('Keybinds', function() {
       return [window.fastStream.playbackRate, window.fastStream.player.getVideo().playbackRate];
     });
     expect(rates).toEqual([8, 8]);
-  });
-
-  it('a preset is not left dead when the rate is put back to it by hand', async function() {
-    await pressKey('KeyQ');
-    await pressKey('KeyQ');
-    await browser.execute(() => {
-      window.fastStream.playbackRate = 3;
-    });
-    await pressKey('KeyQ');
-    expect(await rate()).toBe(1);
   });
 
   it('KeyW sets 3.5x and Shift+KeyW leaves the playbackRate alone', async function() {
@@ -537,54 +487,12 @@ describe('mpv seek keys', function() {
     });
   }
 
-  it('loads the start again after a jump from the end back to 0', async function() {
-    // What reset() does after the test below: from the end of the video back to 0, with
-    // the end's appends and a removal of everything still queued. The hop test further down
-    // starts from a freshly loaded video because this jump was once seen, about once in
-    // fifteen runs on one CPU core, to leave the player at 0 with nothing loading (#265).
-    // 60 such jumps in a row loaded the start every time on 2026-10-04. It is checked
-    // here, with the player's state in the failure, so a run that does stall says why.
-    const duration = await browser.execute(() => window.fastStream.duration);
-    const state = () => browser.execute(() => {
-      const player = window.fastStream.player;
-      const video = player.getVideo();
-      const queue = (wrapper) => wrapper ? {updating: wrapper.updating || wrapper.sourceBuffer.updating,
-        queued: wrapper.toDo.map((task) => task.type)} : null;
-      const ranges = [];
-      for (let i = 0; i < video.buffered.length; i++) {
-        ranges.push([video.buffered.start(i), video.buffered.end(i)]);
-      }
-      let current;
-      try {
-        current = player.currentFragment?.sn;
-      } catch (e) {
-        current = String(e);
-      }
-      return {
-        time: video.currentTime, seeking: video.seeking, readyState: video.readyState,
-        mediaSource: player.mediaSource?.readyState, running: player.running, loading: !!player.loader,
-        currentFragment: current, held: player.currentFragments.map((frag) => frag.sn),
-        video: queue(player.videoSourceBuffer), audio: queue(player.audioSourceBuffer), ranges,
-      };
-    });
-    for (let jump = 0; jump < 3; jump++) {
-      await seekTo(duration - 2);
-      await landsOn(duration - 2, 'the position near the end');
-      await pressKey('ArrowRight');
-      await reset();
-      let last;
-      try {
-        await browser.waitUntil(async () => {
-          last = await state();
-          const idle = (queue) => !queue || (!queue.updating && queue.queued.length === 0);
-          return idle(last.video) && idle(last.audio) && !last.seeking &&
-            last.ranges.length > 0 && last.ranges[0][0] <= 0.1 && last.ranges[0][1] >= 3;
-        }, {timeout: 20000, interval: 250});
-      } catch (e) {
-        throw new Error(`jump ${jump}: the start never loaded again: ${JSON.stringify(last)}`);
-      }
-    }
-  });
+  // A jump from the end of the video back to 0, as reset() makes after the test below, was
+  // once seen, about once in fifteen runs on one CPU core, to leave the player at 0 with
+  // nothing loading (#265). mp4-seek.e2e.mjs checks that jump on its own, eight times over
+  // on the same file, with the player's state in the failure; a three-jump copy of it here
+  // went on 2026-10-13. The hop test further down starts from a freshly loaded video, so
+  // that jump cannot touch it.
 
   it('ArrowRight and X near the end stop at the duration', async function() {
     const duration = await browser.execute(() => window.fastStream.duration);
@@ -609,10 +517,10 @@ describe('mpv seek keys', function() {
     // reset() does after the test before this one, queues a removal of everything behind
     // appends still pending from there, so on a slow machine [0, 3] can look buffered, then
     // empty, then refill from wherever the player was when the removal ran - and a seek in
-    // between rightly resets. That jump is checked on its own above ("loads the start again
-    // after a jump from the end back to 0"), so this test starts from a freshly loaded
-    // video, and every step waits until nothing is queued, the element is not seeking, and
-    // the start really is buffered.
+    // between rightly resets. That jump is checked on its own in mp4-seek.e2e.mjs ("loads
+    // the start again after jumping back to it from the end, every time"), so this test
+    // starts from a freshly loaded video, and every step waits until nothing is queued, the
+    // element is not seeking, and the start really is buffered.
     const settled = async (what) => {
       let last;
       try {

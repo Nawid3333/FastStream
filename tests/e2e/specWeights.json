@@ -56,7 +56,6 @@
   "specs/subtitle-empty-cue.e2e.mjs": 10,
   "specs/subtitle-load.e2e.mjs": 14,
   "specs/subtitle-overlap.e2e.mjs": 11,
-  "specs/subtitle-parsing.e2e.mjs": 10,
   "specs/subtitle-search.e2e.mjs": 20,
   "specs/subtitle-sync.e2e.mjs": 13,
   "specs/subtitle-toggle.e2e.mjs": 10,
