@@ -349,6 +349,34 @@ describe('DownloadManager', () => {
       expect(manager.downloaders).toHaveLength(4);
     });
 
+    it('still decides when a sample came with no speed (a cache hit)', () => {
+      // SpeedTracker gives 0 for a response from the cache: its downloader's place was marked
+      // heard without being counted, the round never closed, and no downloader was added again
+      // (after a throttle the probe never ended either; glm's review, 2026-10-13).
+      const manager = new DownloadManager(client());
+      manager.downloaders = [finished(), finished(), finished()];
+      manager.downloaders[0].getSpeed = () => 0;
+      manager.onDownloaderFinished(manager.downloaders[0], {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      manager.downloaders[0].getSpeed = () => 1e6;
+      const round = () => manager.downloaders.slice(0, 3).forEach((d) => manager.onDownloaderFinished(d, {status: DownloadStatus.DOWNLOAD_COMPLETE}));
+      round();
+      round();
+      expect(manager.downloaders).toHaveLength(4);
+    });
+
+    it('closes a round on the downloaders there, one dropped meanwhile', () => {
+      // Heard by their place in the list: a dropped downloader moved the next one onto a place
+      // already heard, which was then never counted (glm's review, 2026-10-13).
+      const manager = new DownloadManager(client());
+      const [a, b, c] = [finished(), finished(), finished()];
+      manager.downloaders = [a, b, c];
+      manager.onDownloaderFinished(b, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      manager.onDownloaderFinished(a, failedEntry);
+      expect(manager.downloaders).toEqual([b, c]);
+      manager.onDownloaderFinished(c, {status: DownloadStatus.DOWNLOAD_COMPLETE});
+      expect(manager.speedTestBuffer).toHaveLength(1);
+    });
+
     it('hears a real 429 through FetchLoader and StandardDownloader, with its Retry-After', async () => {
       globalThis.self = globalThis;
       vi.stubGlobal('fetch', vi.fn(async () => new Response('', {status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'}})));
