@@ -314,6 +314,19 @@ describe('windowed fullscreen', () => {
     expect(elements.every((el) => el.style.getPropertyValue('display') === '')).toBe(true);
     expect(took).toBeLessThan(1000);
   }, 60000);
+
+  it('gives the page back when the page takes the player out', async () => {
+    // A page that draws its player again (a next episode without a page load) took the
+    // iframe out: the rest of the page stayed hidden until FastStream went off, and a next
+    // player's own windowed fullscreen left its box hidden too (glm's review, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const [plain] = addElements(page, 1);
+    expect(await page.send({type: 'TOGGLE_WINDOWED_FULLSCREEN', frameId: 5})).toBe('enter');
+    expect(plain.style.getPropertyValue('display')).toBe('none');
+    iframe.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(plain.style.getPropertyValue('display')).toBe('');
+  });
 });
 
 // A player in a site's embed iframe: the top frame links the embed iframe, and windowed

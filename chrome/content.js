@@ -334,6 +334,13 @@
     // that the frame is gone, as before.
     iframeMap.forEach((iframeObj) => {
       if (iframeObj.iframe.isConnected) return;
+      // Its miniplayer and its windowed fullscreen go too, as removePlayers does: the rest
+      // of the page stayed hidden, and a next player's windowed fullscreen left its own box
+      // hidden, the elements being changed already (glm's review, 2026-10-13).
+      unmakeMiniPlayer(iframeObj);
+      if (iframeObj.windowedFullscreenState.active) {
+        windowedFullscreenToggle(iframeObj);
+      }
       if (iframeObj.replacedData) {
         restoreReplaced(iframeObj.replacedData);
         iframeObj.replacedData = null;
