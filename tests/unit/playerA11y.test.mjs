@@ -65,12 +65,15 @@ describe('the extension\'s pages', () => {
     vi.stubGlobal('document', doc);
   });
 
-  it('keep still for those who asked their system for less motion', () => {
+  it('keep still, for everyone', () => {
+    // His wish (2026-10-13): no animations. It was only for those who asked their system for
+    // less motion; for everyone else the controls faded in over half a second.
     const css = fs.readFileSync(new URL('../../chrome/player/assets/fluidplayer/css/fluidplayer.css', import.meta.url), 'utf8');
-    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([^]*?)\n\}/.exec(css);
-    expect(reduced).not.toBe(null);
-    // The controls bar's own `transition: all 0.5s !important` needs a selector as specific.
-    expect(reduced[1]).toContain('.fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container');
-    expect(reduced[1]).toMatch(/transition-duration: 0s !important;\s*animation-duration: 0s !important;/);
+    expect(css).not.toContain('prefers-reduced-motion');
+    // At the top level, and with the controls bar's own selector: its `transition: all 0.5s
+    // !important` needs one as specific.
+    const still = /\n\.fluid_video_wrapper\.fluid_player_layout_default \*,\n\.fluid_video_wrapper\.fluid_player_layout_default \.fluid_controls_container \{([^}]*)\}/.exec(css);
+    expect(still).not.toBe(null);
+    expect(still[1]).toMatch(/transition-duration: 0s !important;\s*animation-duration: 0s !important;/);
   });
 });

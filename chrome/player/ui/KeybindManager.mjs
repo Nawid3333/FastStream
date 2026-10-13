@@ -99,7 +99,7 @@ export class KeybindManager extends EventEmitter {
 
     this.on('Fullscreen', (e) => {
       this.client.interfaceController.fullscreenToggle();
-      this.client.interfaceController.hideControlBarOnAction(2000);
+      this.client.interfaceController.hideControlBarOnAction();
     });
 
     this.on('PictureInPicture', (e) => {

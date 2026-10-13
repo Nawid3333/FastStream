@@ -12,6 +12,7 @@ import {StringUtils} from '../utils/StringUtils.mjs';
 import {Utils} from '../utils/Utils.mjs';
 import {WebUtils} from '../utils/WebUtils.mjs';
 import {ClickSequence} from './ClickSequence.mjs';
+import {PointerMoves} from './PointerMoves.mjs';
 import {DOMElements} from './DOMElements.mjs';
 import {FineTimeControls} from './FineTimeControls.mjs';
 import {AudioQualityChanger} from './menus/AudioQualityChanger.mjs';
@@ -50,7 +51,8 @@ export class InterfaceController {
     this.lastSpeed = 0;
     this.mouseOverControls = false;
     this.controlsVisible = true;
-    this.mouseActivityCooldown = 0;
+    // Which mouse moves are the user's (PointerMoves): those bring the controls back.
+    this.pointerMoves = new PointerMoves();
 
     this.failed = false;
 
@@ -982,8 +984,8 @@ export class InterfaceController {
     if (document.activeElement && DOMElements.controlsContainer.contains(document.activeElement)) document.activeElement.blur();
     this.queueControlsHide();
   }
-  onPlayerMouseMove() {
-    if (Date.now() < this.mouseActivityCooldown) {
+  onPlayerMouseMove(event) {
+    if (!this.pointerMoves.moved(event)) {
       return;
     }
     this.showControlBar();
@@ -1038,9 +1040,8 @@ export class InterfaceController {
     }, time || 2000);
   }
 
-  hideControlBarOnAction(cooldown) {
+  hideControlBarOnAction() {
     if (!this.isPointerOverControls() && !this.isFocusInControls()) {
-      this.mouseActivityCooldown = Date.now() + (cooldown || 500);
       if (!this.isBigPlayButtonVisible()) {
         this.hideControlBar();
       }
