@@ -63,6 +63,8 @@ describe('guessMediaInfo', () => {
     // the episode's.
     ['Episode 5 - Pilot - Season 2 - The Bear', 'example.com', show('The Bear', 2, 5)],
     ['Folge 5: Das Erwachen - Staffel 2 - The Bear', 'example.com', show('The Bear', 2, 5)],
+    // A year after them stays the year.
+    ['S2 - The Bear - Episode 5 (2019)', 'example.com', {name: 'The Bear', year: 2019, season: 2, episode: 5}],
   ])('finds the episode in %j', (title, host, expected) => {
     expect(guess(title, host)).toEqual(expected);
   });

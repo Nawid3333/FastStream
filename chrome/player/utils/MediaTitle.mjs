@@ -180,7 +180,9 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
   // them is the show's name, and between them the episode's ("Episode 5 - Pilot - Season 2 -
   // The Bear"; review of the fixes, 2026-10-13).
   if (!found.name && between !== null) {
-    found = nameAndYear(between, site, now);
+    // A year after them is still the year ("S2 - The Bear - Episode 5 (2019)").
+    const fromBetween = nameAndYear(between, site, now);
+    found = {name: fromBetween.name, year: fromBetween.year ?? found.year};
   }
   return {name: found.name, year: found.year, season, episode};
 }
