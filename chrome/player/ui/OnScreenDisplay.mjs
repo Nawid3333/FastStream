@@ -1,6 +1,6 @@
 import {DOMElements} from './DOMElements.mjs';
 
-// How long a change stays on screen before it fades.
+// How long a change stays on screen.
 const ShowMs = 1000;
 
 /**
