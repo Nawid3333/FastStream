@@ -735,11 +735,18 @@ describe('DownloadManager', () => {
             status: 429, statusText: 'Too Many Requests', headers: {'Retry-After': '4'},
           }))
           .mockResolvedValueOnce(new Response('small body', {status: 200, headers: {'Content-Type': 'text/plain'}}));
-      vi.stubGlobal('fetch', fetchMock);
+      // When and from where each fetch came: CI once saw the retry before the Retry-After
+      // was over (2026-10-13), which never happened here.
+      const fetches = [];
+      vi.stubGlobal('fetch', (...args) => {
+        fetches.push({at: Date.now() - start, stack: new Error().stack.split('\n').slice(2, 8).join(' | ')});
+        return fetchMock(...args);
+      });
       vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const manager = new DownloadManager(client());
       manager.downloaders = Array.from({length: 4}, () => new StandardDownloader(manager));
+      const start = Date.now();
 
       const entry = {
         details: {url: 'https://cdn.example/1.ts'},
@@ -757,7 +764,6 @@ describe('DownloadManager', () => {
       };
       const onSuccess = vi.spyOn(entry, 'onSuccess');
 
-      const start = Date.now();
       manager.downloaders[0].run(entry);
       // The 429 halves the pool at once and holds new downloads for its Retry-After.
       await vi.advanceTimersByTimeAsync(10);
@@ -770,7 +776,7 @@ describe('DownloadManager', () => {
 
       // The same downloader waits the Retry-After out...
       await vi.advanceTimersByTimeAsync(3500);
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock, JSON.stringify(fetches)).toHaveBeenCalledTimes(1);
       // ...gets the whole body on the retry, and the entry succeeds.
       await vi.advanceTimersByTimeAsync(700);
       expect(fetchMock).toHaveBeenCalledTimes(2);
