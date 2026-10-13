@@ -716,12 +716,12 @@ describe('content.js around an in-page player', function() {
   });
 
   // One case since 2026-10-13: "keeps the player in the box the page's #id rule gives its
-  // element", "gives the page its video back when it removed a player that had linked up",
-  // "cleans up after a page that removed the player itself" and "opens a player for the
-  // next video after the page removed the player itself" each opened the same player on
-  // the same page, and the last three then took its iframe out. Every assertion of the four
-  // is here. The next video comes before the page leaves, as it did: a navigation lets the
-  // background forget the player's frame anyway.
+  // element", "gives the page its video back when it removed a player that had linked up"
+  // and "cleans up after a page that removed the player itself" each opened the same player
+  // on the same page, and the last two then took its iframe out. Every assertion of the
+  // three is here. The next video's case stays apart: with a second video in the page, the
+  // tab (still on) opens a player again after the navigation, and the page's video is
+  // rightly paused under it (seen on Linux, 2026-10-14).
   it('keeps the player in the box the page\'s #id rule gives its element, and copes with a page that removes it', async function() {
     await openPage('/cleanup');
     await openPlayer();
@@ -746,7 +746,17 @@ describe('content.js around an in-page player', function() {
     expect(await playingAfterPlay(['main'])).toEqual({main: true});
     // Each resize threw on the missing iframe.
     await nudgeWindowSize();
+    await inPage(() => window.leave());
+    await browser.pause(1500);
+    // The cleanup threw on the missing iframe, and the page's video stayed paused for good.
+    expect(await playingAfterPlay(['main'])).toEqual({main: true});
+    expect(await takeContentErrors()).toEqual([]);
+  });
 
+  it('opens a player for the next video after the page removed the player itself', async function() {
+    await openPage('/cleanup');
+    await openPlayer();
+    await inPage(() => window.playerIframe().remove());
     // The background keeps a player's frame apart: its streams are the player's own, and
     // no player opens over it. Only the player's beforeunload told it the player went, and
     // an iframe taken out of the page runs none: the page's next video was dropped as the
@@ -756,13 +766,6 @@ describe('content.js around an in-page player', function() {
       timeout: 15000,
       timeoutMsg: 'no player opened for the video the page added after it removed the player',
     });
-
-    await inPage(() => window.leave());
-    await browser.waitUntil(async () => !(await hasPlayer()),
-        {timeout: 15000, timeoutMsg: 'leaving the page left the next video\'s player up'});
-    await browser.pause(1500);
-    // The cleanup threw on the missing iframe, and the page's video stayed paused for good.
-    expect(await playingAfterPlay(['main'])).toEqual({main: true});
     expect(await takeContentErrors()).toEqual([]);
   });
 
