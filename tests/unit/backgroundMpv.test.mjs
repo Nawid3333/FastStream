@@ -1452,6 +1452,46 @@ describe('the toolbar cycle on a page the MPV allowlist names by its path', () =
   });
 });
 
+describe('a mode the user picked on a page an auto-enable list turned on', () => {
+  // His call (2026-10-10): what the user picks stays for the tab; what a list started ends
+  // when the tab leaves the list. The toolbar cycle's Off -> On kept to it; the MPV key and
+  // the plain toggle's On still counted as the list's start, and the first page outside
+  // the lists turned them off (glm's review, 2026-10-13).
+  const WATCH = 'https://site.test/watch/1';
+  const NEWS = 'https://site.test/news';
+
+  async function onAutoEnabledPage(options = {}) {
+    bg = await loadBackground({options: {mpvMode: true, autoEnableURLs: ['https://site.test/watch'], ...options},
+      tabs: [{id: 1, url: WATCH}]});
+    await bg.navigated(1, WATCH);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+  }
+
+  it('keeps the MPV key\'s MPV on the next page the lists do not name', async () => {
+    await onAutoEnabledPage();
+    await bg.command('toggle_mpv', 1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
+    await bg.navigated(1, NEWS);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: true, mpvOnPlay: true});
+  });
+
+  it('keeps the toolbar\'s own On on the next page the lists do not name', async () => {
+    await onAutoEnabledPage();
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false});
+    await bg.click(1);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true});
+    await bg.navigated(1, NEWS);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: true, isMpv: false});
+  });
+
+  it('still ends the On the list started when the tab leaves the list', async () => {
+    await onAutoEnabledPage();
+    await bg.navigated(1, NEWS);
+    expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
+  });
+});
+
 describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next one', () => {
   // His wish (2026-10-11): a series episode after episode in mpv, without the browser. The
   // host (7) follows the mpv it started over a port kept open, and says when the file ended

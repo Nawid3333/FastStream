@@ -293,6 +293,11 @@ async function startMpv(tab, onPlay = false) {
   tab.isOn = true;
   tab.isMpv = true;
   tab.mpvOnPlay = onPlay;
+  // The user's own MPV (the MPV key, the toolbar's On -> MPV), not a list's start: it stays
+  // for the tab (his call, 2026-10-10). Still marked as the list's, it went off on the first
+  // page outside the lists of a site an auto-enable list had turned on (glm's review,
+  // 2026-10-13).
+  tab.regexMatched = false;
   tab.mpvTurnedOff = false;
   tab.mpvError = null;
   tab.mpvHostOutdated = false;
@@ -483,6 +488,9 @@ async function onClicked(tabobj, {playerKey = false} = {}) {
         tab.isMpv = false;
         if (!tab.isOn) {
           userTurnedOff(tab);
+        } else {
+          // The user's own On, as the toolbar cycle's Off -> On: it stays for the tab.
+          tab.regexMatched = false;
         }
 
         BackgroundUtils.updateTabIcon(tab);
