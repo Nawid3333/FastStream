@@ -87,16 +87,19 @@ jobs:
           node tools/check-patched-updates.mjs --json > "$RUNNER_TEMP/libraries.jsonl"
           node tools/check-patched-updates.mjs
 
-          # --- Close what has been caught up with: issues, and pull requests.
+          # --- Close what has been caught up with: issues, and pull requests. A pull request's
+          # branch goes with it, as in supersede() below: it stayed on the remote for good.
           for kind in issue pr; do
+            delete_branch=()
+            if [ "$kind" = pr ]; then delete_branch=(--delete-branch); fi
             gh "$kind" list --state open --limit 200 --json number,title,author \
               --jq ".[] | select((.title | startswith(\"$PREFIX\")) and .author.login == \"app/github-actions\") | \"\(.number) \(.title[${#PREFIX}:])\"" |
             while read -r number name version; do
               current=$(jq -r --arg n "$name" 'select(.name == $n) | .current' "$RUNNER_TEMP/libraries.jsonl")
               if [ -z "$current" ]; then
-                gh "$kind" close "$number" --comment "$name is no longer a patched library. Closing."
+                gh "$kind" close "$number" "${delete_branch[@]}" --comment "$name is no longer a patched library. Closing."
               elif [ "$(printf '%s\n%s\n' "$version" "$current" | sort -V | tail -1)" = "$current" ]; then
-                gh "$kind" close "$number" --comment "The patch is now cut against $name $current (commit $GITHUB_SHA). Closing."
+                gh "$kind" close "$number" "${delete_branch[@]}" --comment "The patch is now cut against $name $current (commit $GITHUB_SHA). Closing."
               else
                 echo "$kind #$number ($name $version) still open: patched version is $current."
               fi
