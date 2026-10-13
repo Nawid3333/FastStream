@@ -17,6 +17,8 @@ describe('EpisodeLinks.phraseScore', () => {
     ['下一集', true], ['다음 화', true], ['Episode berikutnya', true], ['Nächste Folge: Der Anfang', true],
     ['Previous episode', false], ['‹ Vorherige Folge', false], ['Épisode précédent', false], ['上一集', false],
     ['이전 화', false], ['Предыдущая серия', false],
+    // Upper case with a Turkish İ: lower case gave "i̇", a dot added (glm's review, 2026-10-13).
+    ['SONRAKİ BÖLÜM', true], ['ÖNCEKİ BÖLÜM', false], ['NEXT EPISODE', true],
   ])('takes "%s" for an episode (next: %s)', (text, isNext) => {
     expect(EpisodeLinks.phraseScore(text, isNext)).toBe(2);
   });
