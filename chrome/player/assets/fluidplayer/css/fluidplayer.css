@@ -2243,6 +2243,8 @@ div:not(.reordering)>.volume_block:focus .tooltip .tooltiptext {
 .fluid_video_wrapper.fluid_player_layout_default .fluid_controls_container {
     transition-duration: 0s !important;
     animation-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-delay: 0s !important;
 }
 
 @keyframes tilt-shaking {

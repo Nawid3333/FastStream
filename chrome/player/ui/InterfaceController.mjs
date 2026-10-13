@@ -1258,19 +1258,14 @@ export class InterfaceController {
     this.hideBigPlayButton();
     this.updatePlayPauseButton();
     if (!previousValue) {
-      this.playPauseAnimation();
       this.queueControlsHide();
     }
   }
 
   pause() {
-    const previousValue = this.state.playing;
     this.state.playing = false;
     this.updatePlayPauseButton();
     this.showControlBar();
-    if (previousValue) {
-      this.playPauseAnimation();
-    }
   }
 
   updatePlayPauseButton() {
@@ -1289,20 +1284,5 @@ export class InterfaceController {
 
   isUserSeeking() {
     return this.progressBar.isSeeking || this.fineTimeControls.isSeeking;
-  }
-
-  playPauseAnimation() {
-    if (this.isUserSeeking()) {
-      return;
-    }
-    DOMElements.playPauseButtonBigCircle.classList.remove('transform-active');
-    void DOMElements.playPauseButtonBigCircle.offsetWidth;
-    DOMElements.playPauseButtonBigCircle.classList.add('transform-active');
-    setTimeout(
-        function() {
-          DOMElements.playPauseButtonBigCircle.classList.remove('transform-active');
-        },
-        450,
-    );
   }
 }
