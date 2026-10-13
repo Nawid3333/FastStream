@@ -235,6 +235,19 @@ export class AudioAnalyzer extends EventEmitter {
       volume: true,
     });
 
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      audioAnalyzerNode.destroy();
+      audioSource.disconnect();
+      audioContext.close();
+    };
+    // Destroyed before its metadata came (a stop or a newer start while it loaded): only the
+    // analysis below let these go, and it never ran - the audio context and the volume loop
+    // ran on for the rest of the session.
+    player.on(DefaultPlayerEvents.DESTROYED, release);
+
     player.on(DefaultPlayerEvents.MANIFEST_PARSED, () => {
       player.setCurrentVideoLevelID(this.client.getCurrentVideoLevelID());
       player.setCurrentAudioLevelID(this.client.getCurrentAudioLevelID());
@@ -243,9 +256,7 @@ export class AudioAnalyzer extends EventEmitter {
     const onLoadMeta = () => {
       player.off(DefaultPlayerEvents.LOADEDMETADATA, onLoadMeta);
       this.runAnalyzerInBackground(player, doneRanges, (completed)=>{
-        audioAnalyzerNode.destroy();
-        audioSource.disconnect();
-        audioContext.close();
+        release();
         onDone(completed);
       });
     };
@@ -255,9 +266,7 @@ export class AudioAnalyzer extends EventEmitter {
     try {
       await player.setSource(source);
     } catch (e) {
-      audioAnalyzerNode.destroy();
-      audioSource.disconnect();
-      audioContext.close();
+      release();
       throw e;
     }
     return player;

@@ -112,3 +112,50 @@ describe('PreviewFrameExtractor, a stale background player', () => {
     expect(extractor.backgroundAnalyzerPlayer).toBe(playerB);
   });
 });
+
+describe('AudioAnalyzer, a background player destroyed before its metadata came', () => {
+  // A stop (a new video, the tool closed) or a newer start while the player loaded: its
+  // audio context and volume loop were let go only once the analysis ran, which needs the
+  // metadata, and ran on for the rest of the session.
+  it('closes its audio context and stops its volume loop', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    const {DefaultPlayerEvents} = await import('../../chrome/player/enums/DefaultPlayerEvents.mjs');
+    const {EventEmitter} = await import('../../chrome/player/modules/eventemitter.mjs');
+    const contexts = [];
+    vi.stubGlobal('AudioContext', class {
+      constructor() {
+        this.close = vi.fn(async () => {});
+        contexts.push(this);
+      }
+      createMediaElementSource() {
+        return {connect: vi.fn(), disconnect: vi.fn()};
+      }
+      createAnalyser() {
+        return {};
+      }
+    });
+    vi.useFakeTimers();
+    try {
+      const video = {readyState: 0, paused: true, playbackRate: 1, currentTime: 0};
+      const player = Object.assign(new EventEmitter(), {
+        setup: vi.fn(async () => {}),
+        setSource: vi.fn(async () => {}),
+        getVideo: () => video,
+        destroy() {
+          this.emit(DefaultPlayerEvents.DESTROYED);
+        },
+      });
+      const client = makeClient(player);
+      const analyzer = new AudioAnalyzer(client);
+      await analyzer.setupPlayer(player, client.source, [], vi.fn());
+      expect(vi.getTimerCount()).toBe(1);
+
+      player.destroy();
+      vi.advanceTimersByTime(1000);
+      expect(contexts[0].close).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
