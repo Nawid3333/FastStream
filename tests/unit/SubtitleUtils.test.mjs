@@ -163,6 +163,20 @@ describe('srt2webvtt', () => {
       '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
   });
 
+  it('keeps a cue whose whole text is a number when no blank line comes after it', () => {
+    // The number was taken for the next cue's sequence number: its cue lost its only line
+    // and was dropped (glm's second look, 2026-10-13).
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\n2000\n00:00:03,000 --> 00:00:04,000\nSecond';
+    const vtt = SubtitleUtils.srt2webvtt(srt);
+    expect(vtt).toContain('00:00:01.000 --> 00:00:02.000\n2000\n');
+    expect(vtt).toContain('00:00:03.000 --> 00:00:04.000\nSecond');
+    // A cue number after such a cue is still the next cue's.
+    const numbered = '1\n00:00:01,000 --> 00:00:02,000\n2000\n2\n00:00:03,000 --> 00:00:04,000\nSecond';
+    expect(SubtitleUtils.srt2webvtt(numbered)).toBe('WEBVTT\n\n' +
+      '1\n00:00:01.000 --> 00:00:02.000\n2000\n\n' +
+      '2\n00:00:03.000 --> 00:00:04.000\nSecond\n\n');
+  });
+
   it('keeps every cue when the line between them holds only a non-breaking space', () => {
     const srt = '1\n00:00:01,000 --> 00:00:02,000\nFirst\n \n2\n00:00:03,000 --> 00:00:04,000\nSecond';
     expect(SubtitleUtils.srt2webvtt(srt)).toBe('WEBVTT\n\n' +
@@ -222,6 +236,8 @@ describe('translateXMLEntities', () => {
   it('translates decimal and hex numeric references', () => {
     expect(SubtitleUtils.translateXMLEntities('&#65;')).toBe('A');
     expect(SubtitleUtils.translateXMLEntities('&#x41;')).toBe('A');
+    // XML allows the X in either case (glm's second look, 2026-10-13).
+    expect(SubtitleUtils.translateXMLEntities('&#X41;')).toBe('A');
   });
 
   it('leaves plain text without entities untouched', () => {

@@ -123,7 +123,7 @@ export class SubtitleUtils {
       const reference = entitySplit[i];
       if (reference.charAt(1) === '#') {
         let code;
-        if (reference.charAt(2) === 'x') { // Hexadecimal
+        if (reference.charAt(2) === 'x' || reference.charAt(2) === 'X') { // Hexadecimal
           code = parseInt(reference.substring(3, reference.length - 1), 16);
         } else { // Decimal
           code = parseInt(reference.substring(2, reference.length - 1), 10);
@@ -323,15 +323,23 @@ export class SubtitleUtils {
     };
 
     let start = 0;
+    // The last cue's timestamp line.
+    let lastCueTime = -1;
     for (let i = 0; i < lines.length; i++) {
       if (!SRT_CUE_START.test(lines[i])) {
         continue;
       }
-      const cueStart = i > start && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
+      // The number before a timestamp is that cue's sequence number, unless it is the only
+      // line after the last cue's timestamp: then it is that cue's text (a score, a year).
+      // Taken for the next cue's number, it left its cue empty, which was dropped (glm's
+      // second look, 2026-10-13).
+      const onlyText = lastCueTime >= 0 && lastCueTime === i - 2;
+      const cueStart = i > start && !onlyText && /^\d+$/.test(lines[i - 1].trim()) ? i - 1 : i;
       if (cueStart > start) {
         push(start, cueStart);
         start = cueStart;
       }
+      lastCueTime = i;
     }
     push(start, lines.length);
     return cues;
