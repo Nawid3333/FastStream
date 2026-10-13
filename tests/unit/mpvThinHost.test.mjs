@@ -181,7 +181,7 @@ describe('playMpv', () => {
    */
   const stand = (setup = {}) => {
     const running = new Set(setup.running || []);
-    const record = {asks: [], focused: [], started: [], slept: 0};
+    const record = {asks: [], focused: [], started: [], stopped: [], slept: 0};
     let pipeUpIn = Infinity;
     let pendingPipe = null;
     return {
@@ -206,6 +206,9 @@ describe('playMpv', () => {
         pendingPipe = args[0].slice('--input-ipc-server='.length);
         pipeUpIn = setup.pipeUpAfter || 1;
         return setup.start || {ok: true, pid: 77, focus: 'True', foreground: 'True', tries: 1};
+      },
+      stop: (pid) => {
+        record.stopped.push(pid);
       },
       sleep: async (ms) => {
         record.slept += ms;
@@ -351,6 +354,37 @@ describe('playMpv', () => {
       {ok: true, replies: [{request_id: 1, error: 'unknown command'}, {request_id: 2, data: 1}]} : null});
     expect(await playMpv('mpv.exe', play(), {}, refusing))
         .toEqual({ok: false, error: 'the new mpv refused the stream (unknown command)'});
+  });
+
+  // --idle=once keeps an mpv that never loaded a file open for good: an empty window after
+  // the error (glm's review of host 15).
+  it('ends the mpv it started when its pipe stays silent or it refuses the stream, and only that one', async () => {
+    const silent = stand({pipeUpAfter: Infinity});
+    expect((await playMpv('mpv.exe', play(), {ipcToken: token}, silent)).ok).toBe(false);
+    expect(silent.record.stopped).toEqual([77]);
+
+    const refusing = stand({answer: (commands) => commands.some((c) => c.command.name === 'loadfile') ?
+      {ok: true, replies: [{request_id: 1, error: 'unknown command'}, {request_id: 2, data: 1}]} : null});
+    expect((await playMpv('mpv.exe', play(), {ipcToken: token}, refusing)).ok).toBe(false);
+    expect(refusing.record.stopped).toEqual([77]);
+
+    // A late answer: mpv may well have the stream and play it.
+    const slow = stand({answer: (commands) => commands.some((c) => c.command.name === 'loadfile') ?
+      {ok: true, replies: [{request_id: 2, data: 77}]} : null});
+    expect(await playMpv('mpv.exe', play(), {ipcToken: token}, slow))
+        .toEqual({ok: false, error: 'the new mpv did not take the stream: try again in a moment'});
+    expect(slow.record.stopped).toEqual([]);
+
+    // Nothing to end without a pid, and never the window on the pipe it found.
+    const nameless = stand({pipeUpAfter: Infinity, start: {ok: true}});
+    await playMpv('/usr/bin/mpv', play(), {ipcToken: token}, {...nameless, platform: 'linux'});
+    expect(nameless.record.stopped).toEqual([]);
+    for (const answer of [() => ({ok: false, busy: true, error: 'mpv did not answer'}),
+      () => ({ok: true, replies: [{request_id: 1, error: 'unknown command'}, {request_id: 2, data: 4242}]})]) {
+      const found = stand({running: [basePipe], answer});
+      await playMpv('mpv.exe', play(), {ipcToken: token}, found);
+      expect(found.record.stopped).toEqual([]);
+    }
   });
 
   it('needs no mpv path to reuse a window, and says what to do without one', async () => {

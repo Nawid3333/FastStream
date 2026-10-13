@@ -1849,7 +1849,7 @@ function focusFields(result) {
  * a Windows job object, where the parent's death takes mpv with it.
  * @param {string} mpvPath - Path to the mpv executable.
  * @param {Array<string>} args - Arguments to pass to mpv.
- * @return {Promise<{ok: boolean, error?: string}>} Result.
+ * @return {Promise<{ok: boolean, pid?: number, error?: string}>} Result.
  */
 export function launchDirect(mpvPath, args) {
   return new Promise((resolve) => {
@@ -1868,7 +1868,7 @@ export function launchDirect(mpvPath, args) {
       // surface the error, but do not wait for full playback start. An mpv that
       // quits within it (an option it refuses, a broken install) played nothing,
       // as the WMI path's FOCUS=gone.
-      const timer = setTimeout(() => resolve({ok: true}), 500);
+      const timer = setTimeout(() => resolve({ok: true, pid: child.pid}), 500);
       child.once('error', (err) => {
         clearTimeout(timer);
         resolve({ok: false, error: String(err.message || err)});
@@ -2280,6 +2280,18 @@ export async function waitForPipe(ipcRequest, waitMs = PipeWaitMs,
 }
 
 /**
+ * Ends an mpv this helper started (playMpv), as Task Manager would.
+ * @param {number} pid - Its process id.
+ */
+export function stopMpv(pid) {
+  try {
+    process.kill(pid);
+  } catch {
+    // It has gone already.
+  }
+}
+
+/**
  * Plays a checked play message (host 15) in mpv.
  *
  * Not newWindow: the stream goes into the mpv on the helper's pipe, when one runs (as
@@ -2297,9 +2309,9 @@ export async function waitForPipe(ipcRequest, waitMs = PipeWaitMs,
  *   start?: (mpvPath: string, args: Array<string>) => Promise<{ok: boolean, error?: string,
  *     pid?: number, focus?: string, foreground?: string}>,
  *   platform?: string, sleep?: (ms: number) => Promise<void>, now?: () => number,
- *   randomHex?: () => string, subtitleBase?: string}} [io] - Stand-ins for tests, as
- *   launchMpv's, and the clock of the pipe wait, the new pipe's suffix and the folder the
- *   subtitle files go under.
+ *   randomHex?: () => string, subtitleBase?: string, stop?: (pid: number) => void}} [io] -
+ *   Stand-ins for tests, as launchMpv's, and the clock of the pipe wait, the new pipe's
+ *   suffix, the folder the subtitle files go under and the end of a started mpv (stopMpv).
  * @return {Promise<{ok: boolean, error?: string, reused?: boolean, focus?: string,
  *   foreground?: string}>} The answer for the extension, as the legacy open's.
  */
@@ -2364,14 +2376,27 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   debugLog(config, 'started', {pid: started.pid, focus: started.focus, foreground: started.foreground});
 
   const answered = await waitForPipe((commands) => ipcRequest(commands, 1000, 3000, pipe), PipeWaitMs, io.sleep, io.now);
+  // --idle=once keeps an mpv that never loaded a file open for good: one that stays silent
+  // or refuses the stream would be an empty window after the error (glm's review of host
+  // 15). Only the one started here, by its own pid; a late answer is left alone, since mpv
+  // may well have the stream.
+  const end = () => {
+    if (started.pid) {
+      (io.stop || stopMpv)(started.pid);
+    }
+  };
   if (!answered) {
     debugLog(config, 'pipe-silent', {pipe});
+    end();
     return {ok: false, error: `mpv started, but did not answer on its pipe within ${PipeWaitMs / 1000} s`};
   }
   // --fullscreen is on the command line already.
   const loaded = await load(pipe, false);
   if (!loaded.ok) {
     debugLog(config, 'load-failed', loaded);
+    if (loaded.refused) {
+      end();
+    }
     return {ok: false, error: loaded.refused ?
       `the new mpv refused the stream (${loaded.error})` :
       'the new mpv did not take the stream: try again in a moment'};

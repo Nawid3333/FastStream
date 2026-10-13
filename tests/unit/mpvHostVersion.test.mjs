@@ -33,7 +33,7 @@ const installerFile = path.join(root, 'native-host/install.ps1');
 // the hashes).
 const RECORDED = {
   version: 15,
-  host: '1208c726546256856d93baaf1edb3b6192005f2304d6af58196656fe281f86bb',
+  host: '4c1d380e9137ea50cc42bbee7bbc6b157a04b86b10eea433b7784328b3880fba',
   installer: 'db3b8027b508556b8af66eb4b8188460c2a5a6e1feb32d32b490f2e234b29b3a',
 };
 
