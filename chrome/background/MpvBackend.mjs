@@ -83,6 +83,25 @@ function messageBytes(message) {
   return new TextEncoder().encode(JSON.stringify(message)).length;
 }
 
+
+/**
+ * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
+ * from several is one. Cut between its code points, a part of it was left, which mpv drew
+ * as a broken character (#470; glm's review of the fix, 2026-10-13).
+ * @param {string} text
+ * @param {number} max
+ * @return {string}
+ */
+function cutText(text, max) {
+  let out = '';
+  let count = 0;
+  for (const {segment} of new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text)) {
+    if (count++ === max) break;
+    out += segment;
+  }
+  return out;
+}
+
 export class MpvBackend {
   constructor() {
     /** @type {boolean} */
@@ -186,7 +205,7 @@ export class MpvBackend {
         .slice(0, 12)
         .map((entry) => ({
           url: entry.url,
-          label: typeof entry.label === 'string' ? Array.from(entry.label).slice(0, 40).join('') : '',
+          label: typeof entry.label === 'string' ? cutText(entry.label, 40) : '',
           height: Number.isFinite(entry.height) && entry.height > 0 ? Math.round(entry.height) : 0,
         }));
     return relayed.length >= 2 ? relayed : null;
@@ -283,7 +302,7 @@ export class MpvBackend {
     // Cut between whole characters, as the quality labels are: a cut through an emoji left
     // half of it, which mpv drew as a broken character (#470).
     if (typeof pageTitle === 'string' && pageTitle.trim()) {
-      message.title = Array.from(pageTitle.trim()).slice(0, 300).join('');
+      message.title = cutText(pageTitle.trim(), 300);
     }
 
     if (typeof extras.startTime === 'number' && Number.isFinite(extras.startTime) && extras.startTime >= 1) {
@@ -322,7 +341,7 @@ export class MpvBackend {
       const candidates = extras.subtitles
           .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
           .slice(0, 8)
-          .map((s) => ({label: typeof s.label === 'string' ? Array.from(s.label).slice(0, 100).join('') : '', srt: s.srt}));
+          .map((s) => ({label: typeof s.label === 'string' ? cutText(s.label, 100) : '', srt: s.srt}));
       const subtitles = [];
       message.subtitles = subtitles;
       for (const subtitle of candidates) {

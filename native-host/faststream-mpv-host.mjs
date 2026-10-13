@@ -996,7 +996,7 @@ export function qualityFragmentFor(qualities) {
       continue;
     }
     const label = typeof entry.label === 'string' ?
-      Array.from(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()).slice(0, 40).join('') : '';
+      cutText(entry.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim(), 40) : '';
     const height = Number.isInteger(entry.height) && entry.height > 0 && entry.height <= 10000 ? entry.height : 0;
     const parsed = new URL(entry.url);
     parsed.hash = '';
@@ -1588,6 +1588,25 @@ function launchViaWmi(mpvPath, args) {
   return runPowerShell(wmiLaunchLines(), PowerShellTimeoutMs, {[CommandLineEnv]: commandLine}).then(wmiLaunchResult);
 }
 
+
+/**
+ * The first `max` characters of a text, as a reader counts them: a flag or an emoji joined
+ * from several is one. Cut between its code points, a part of it was left, which mpv drew
+ * as a broken character (#470; glm's review of the fix, 2026-10-13).
+ * @param {string} text
+ * @param {number} max
+ * @return {string}
+ */
+function cutText(text, max) {
+  let out = '';
+  let count = 0;
+  for (const {segment} of new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(text)) {
+    if (count++ === max) break;
+    out += segment;
+  }
+  return out;
+}
+
 /**
  * The title mpv shows for a stream (window, taskbar, uosc's top bar): the browser tab's
  * title when the extension sent one, else the stream's host name.
@@ -1600,7 +1619,7 @@ export function streamTitle(message) {
     // cut through an emoji left half of it, which mpv drew as a broken character (#470).
     const oneLine = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
         .join('').replace(/\s+/g, ' ').trim();
-    const clean = Array.from(oneLine).slice(0, 200).join('');
+    const clean = cutText(oneLine, 200);
     if (clean) {
       return clean;
     }

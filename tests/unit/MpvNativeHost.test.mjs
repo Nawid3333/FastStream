@@ -161,6 +161,11 @@ describe('streamTitle', () => {
     const clapper = '\u{1F3AC}';
     expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + clapper + 'tail'}))
         .toBe('x'.repeat(199) + clapper);
+    // A flag is two code points: cut between them, one letter of it was left (glm's review of
+    // the fix, 2026-10-13).
+    const flag = '\u{1F1E9}\u{1F1EA}';
+    expect(streamTitle({url: 'https://cdn.test/v.m3u8', title: 'x'.repeat(199) + flag + 'tail'}))
+        .toBe('x'.repeat(199) + flag);
   });
 
   it('is the stream\'s host name without a usable title', () => {

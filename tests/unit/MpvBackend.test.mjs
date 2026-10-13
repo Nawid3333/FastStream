@@ -301,6 +301,19 @@ describe('openStream contentType', () => {
     expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + clapper);
   });
 
+  it('cuts a title and a subtitle label between whole characters as read', async () => {
+    // A flag is two code points: cut between them, one letter of it reached mpv (glm's review
+    // of #470's fix, 2026-10-13).
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const flag = '\u{1F1E9}\u{1F1EA}';
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
+        'x'.repeat(299) + flag + 'tail', {subtitles: [{label: 'y'.repeat(99) + flag + 'tail', srt}]});
+    expect(host.message().title).toBe('x'.repeat(299) + flag);
+    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + flag);
+  });
+
   it('relays where the player was and its subtitles (the player\'s button)', async () => {
     const host = captureNativeHost();
     const backend = new MpvBackend();
