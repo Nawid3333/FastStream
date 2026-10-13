@@ -163,8 +163,16 @@ export function guessMediaInfo(title, hostname = '', now = new Date().getFullYea
     const found = [seasonMatch, episodeMatch].filter((match) => match !== null)
         .sort((a, b) => (a?.index ?? 0) - (b?.index ?? 0));
     if (found.length) {
+      const first = found[0];
       const last = found[found.length - 1];
-      cutAt(found[0]?.index ?? 0, (last?.index ?? 0) + (last?.[0].length ?? 0));
+      // A season and an episode on either side of the name ("S2 - The Bear - Episode 5"):
+      // the name is between them. What came after the last one was nothing.
+      const between = text.slice((first?.index ?? 0) + (first?.[0].length ?? 0), last?.index ?? 0);
+      if (!text.slice(0, first?.index ?? 0).trim() && /[\p{L}\p{N}]/u.test(between)) {
+        text = between;
+      } else {
+        cutAt(first?.index ?? 0, (last?.index ?? 0) + (last?.[0].length ?? 0));
+      }
     }
   }
 

@@ -53,6 +53,12 @@ describe('guessMediaInfo', () => {
     ['Jujutsu Kaisen Season 2 Episode 5 English Sub', 'example.org', show('Jujutsu Kaisen', 2, 5)],
     // The marker first: cut off, not the end of the title.
     ['S02E03 - The Bear | Disney+', 'disneyplus.com', show('The Bear', 2, 3)],
+    ['Staffel 2 Folge 3 - The Bear | Disney+', 'disneyplus.com', show('The Bear', 2, 3)],
+    // A season and an episode on either side of the name: the name is between them. It was
+    // what came after the last one, nothing.
+    ['S2 - The Bear - Episode 5', 'example.com', show('The Bear', 2, 5)],
+    ['Staffel 2 - The Bear - Folge 5 | Disney+', 'disneyplus.com', show('The Bear', 2, 5)],
+    ['Episode 5 - The Bear - Season 2', 'example.com', show('The Bear', 2, 5)],
   ])('finds the episode in %j', (title, host, expected) => {
     expect(guess(title, host)).toEqual(expected);
   });
