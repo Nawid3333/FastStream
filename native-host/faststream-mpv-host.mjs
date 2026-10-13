@@ -2141,6 +2141,9 @@ const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
  * @property {Array<{srt: string, label: string}>} subtitles - subtitlesOf's.
  * @property {boolean} fullscreen
  * @property {boolean} newWindow - A window of its own, not the one on the helper's pipe.
+ * @property {string|undefined} mpvPath - The options page's mpv path, as the legacy open
+ *   takes it: resolveMpvPath accepts only an mpv executable or its folder, no network or
+ *   device path, so it names no program but mpv.
  */
 
 /**
@@ -2156,8 +2159,11 @@ const PlayHeader = /^(referer|origin|user-agent): [ -~]{1,4096}$/i;
  * - subtitles: at most 8 {label, srt} with SubRip text of at most MaxSubtitleChars (empty
  *   ones are left out, as subtitlesOf does);
  * - fullscreen and newWindow: a yes or no.
- * Fields it does not know are ignored. There is no mpvPath: the extension never names the
- * program the helper starts (config.json's mpvPath and the usual places do).
+ * - mpvPath: the options page's mpv path, kept when it is one line of text; resolveMpvPath
+ *   checks it as for the legacy open (only an mpv executable or its folder). Left out, a
+ *   user who gave the path only there got "mpv was not found" from play while "Test mpv
+ *   connection" found mpv.
+ * Fields it does not know are ignored.
  * @param {*} message - The message.
  * @return {{ok: true, play: PlaySpec}|{ok: false, error: string}}
  */
@@ -2217,17 +2223,15 @@ export function checkPlayMessage(message) {
     return refuse('fullscreen and newWindow are a yes or no');
   }
 
+  const mpvPath = isPlainText(message.mpvPath, 4096) ? message.mpvPath : undefined;
+
   return {
     ok: true,
-    play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow},
+    play: {target, title, start, headerFields: [...headers], subtitles: subtitlesOf({subtitles}), fullscreen, newWindow,
+      mpvPath},
   };
 }
 
-// What play says without an mpv to start. The extension names no program (checkPlayMessage),
-// so the path is the one the helper's installer wrote into config.json (-MpvPath), or mpv is
-// in its usual folder or on the PATH.
-export const PlayMpvNotFound = 'mpv was not found where the mpv helper looks (its config.json, the usual install ' +
-  'folders, the PATH): install mpv, or install the helper again with the path of mpv';
 
 // How long a new mpv gets to open its pipe (play), and how often the helper looks.
 export const PipeWaitMs = 15000;
@@ -2343,8 +2347,7 @@ export async function playMpv(mpvPath, play, config, io = {}) {
   }
 
   if (!mpvPath) {
-    // Not mpvNotFoundError's advice: play takes no path from FastStream's options.
-    return {ok: false, error: PlayMpvNotFound};
+    return {ok: false, error: mpvNotFoundError(play.mpvPath)};
   }
   const pipe = play.newWindow ?
     basePipe + '-' + (io.randomHex ? io.randomHex() : crypto.randomBytes(8).toString('hex')) : basePipe;
@@ -2732,7 +2735,7 @@ async function handleMessage() {
       await sendMessage({ok: false, error: checked.error});
       return;
     }
-    const result = await playMpv(resolveMpvPath(undefined), checked.play, config);
+    const result = await playMpv(resolveMpvPath(checked.play.mpvPath), checked.play, config);
     debugLog(config, 'played', {target: checked.play.target, result});
     await sendMessage(result);
     return;

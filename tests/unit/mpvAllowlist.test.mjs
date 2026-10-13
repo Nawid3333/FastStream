@@ -389,12 +389,21 @@ describe('checkPlayMessage', () => {
         .toBe(true);
   });
 
-  it('ignores fields it does not know, mpvPath among them: the extension never names the program', () => {
-    const checked = checkPlayMessage({target, mpvPath: 'C:/Users/x/Downloads/mpv.exe', url: 'file:///x', extra: 1});
+  it('ignores fields it does not know', () => {
+    const checked = checkPlayMessage({target, url: 'file:///x', extra: 1});
     expect(checked.ok).toBe(true);
     expect(Object.keys(checked.play).sort())
-        .toEqual(['fullscreen', 'headerFields', 'newWindow', 'start', 'subtitles', 'target', 'title']);
-    expect(JSON.stringify(checked)).not.toContain('Downloads');
+        .toEqual(['fullscreen', 'headerFields', 'mpvPath', 'newWindow', 'start', 'subtitles', 'target', 'title']);
+    expect(JSON.stringify(checked)).not.toContain('file:');
+  });
+
+  it('keeps the options page\'s mpv path for resolveMpvPath, as the legacy open does, only as one line', () => {
+    // Left out, a user who gave the path only in the options got "mpv was not found" from
+    // play while "Test mpv connection" found mpv. resolveMpvPath takes only an mpv executable.
+    expect(checkPlayMessage({target, mpvPath: 'D:/Tools/mpv/mpv.exe'}).play.mpvPath).toBe('D:/Tools/mpv/mpv.exe');
+    for (const mpvPath of [42, {}, 'D:/mpv.exe' + String.fromCharCode(10) + '--script=x', 'x'.repeat(5000)]) {
+      expect(checkPlayMessage({target, mpvPath}).play.mpvPath).toBeUndefined();
+    }
   });
 
   describe('the target', () => {

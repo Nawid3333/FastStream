@@ -597,10 +597,10 @@ and a host before 15 answers those types "unknown message" without it.
   15 s for its pipe (`waitForPipe`, `get_property pid` every 200 ms), then sends the same
   `loadfile`. newWindow's pipe is the helper's plus `-` and 16 random hex digits, used for that
   one load: the window on the helper's pipe stays the one later sends, `ipc` and `relay` reach.
-  There is no `mpvPath` in `play`: the extension never names the program the helper starts, so
-  only config.json's `mpvPath`, the usual folders and the PATH count, and a missing mpv says so
-  (`PlayMpvNotFound`, not "give its path in FastStream's options"). The legacy `open` and `ping`
-  still take the options page's path.
+  `play` takes the options page's `mpvPath` as the legacy `open` does: resolveMpvPath accepts
+  only an mpv executable or its folder (no network or device path), so it names no program but
+  mpv; without one, config.json's `mpvPath`, the usual folders and the PATH count, and a missing
+  mpv says what `open` says (mpvNotFoundError).
 - `ipc` (`runIpc`): at most 32 array-form commands, all allowlisted or none sent
   (`{ok: false, error: 'refused', index, reason}`); replies in the commands' order,
   `{error: 'no reply'}` for one mpv did not answer in time.
@@ -676,6 +676,4 @@ cap...) each failed these tests.
 second mpv cannot create the pipe the first holds, both loads go to the first window, and the
 second stays idle and empty until closed. An mpv that never answers on its pipe within 15 s
 is reported, not killed (the helper never kills a process it cannot identify as idle and its
-own). A user who set the mpv path only in FastStream's options, with mpv in no usual place and
-not on the PATH, gets `PlayMpvNotFound` from `play` while "Test mpv connection" (`ping`) finds
-it.
+own).

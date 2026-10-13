@@ -11,11 +11,11 @@ import {
   HostVersion,
   MaxRelayLineBytes,
   PipeWaitMs,
-  PlayMpvNotFound,
   checkPlayMessage,
   freshMpvArgs,
   ipcPipeFor,
   loadInto,
+  mpvNotFoundError,
   playMpv,
   relayMpv,
   runIpc,
@@ -356,9 +356,10 @@ describe('playMpv', () => {
   it('needs no mpv path to reuse a window, and says what to do without one', async () => {
     expect((await playMpv(null, play(), {ipcToken: token}, stand({running: [basePipe]}))).reused).toBe(true);
     const io = stand();
-    // Not "give its path in FastStream's options": play takes no path from the extension.
-    expect(await playMpv(null, play(), {ipcToken: token}, io)).toEqual({ok: false, error: PlayMpvNotFound});
-    expect(PlayMpvNotFound).not.toContain('options');
+    // The legacy open's words: play takes the options page's path too.
+    expect(await playMpv(null, play(), {ipcToken: token}, io)).toEqual({ok: false, error: mpvNotFoundError(undefined)});
+    expect(await playMpv(null, {...play(), mpvPath: 'D:/Tools/mpv.exe'}, {ipcToken: token}, stand()))
+        .toEqual({ok: false, error: mpvNotFoundError('D:/Tools/mpv.exe')});
     expect(io.record.started).toEqual([]);
   });
 
