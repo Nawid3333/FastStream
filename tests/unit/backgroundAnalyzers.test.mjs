@@ -192,3 +192,52 @@ describe('AudioAnalyzer, a background player destroyed before its metadata came'
     }
   });
 });
+
+describe('AudioAnalyzer, an audio track switched after the analysis finished', () => {
+  // Finished, the background player was gone, and the switch changed nothing: the volumes
+  // were the old track's for the rest of the video, and nothing analysed the new one (glm's
+  // look at a noted edge case, 2026-10-13).
+  it('drops the old track\'s volumes and analyses the new one', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    const client = makeClient(null);
+    let audio = 'a1';
+    client.getCurrentAudioLevelID = () => audio;
+    const analyzer = new AudioAnalyzer(client);
+    const loads = [];
+    analyzer.loadPlayer = vi.fn(async (source, ranges, onDone) => {
+      const player = {destroy: vi.fn()};
+      loads.push({player, onDone});
+      return player;
+    });
+
+    await analyzer.startBackgroundAnalyzer();
+    loads[0].onDone(true);
+    expect(analyzer.backgroundAnalyzerStatus).toBe('finished');
+    analyzer.volumeBuffer[3] = -20;
+
+    audio = 'a2';
+    analyzer.setLevel('0:0', 'a2');
+    expect(analyzer.volumeBuffer).toEqual([]);
+    await analyzer.startBackgroundAnalyzer();
+    expect(analyzer.loadPlayer).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the volumes when only the video changed and the audio is its own track', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    const client = makeClient(null);
+    client.getCurrentAudioLevelID = () => 'a1';
+    const analyzer = new AudioAnalyzer(client);
+    const loads = [];
+    analyzer.loadPlayer = vi.fn(async (source, ranges, onDone) => {
+      loads.push({onDone});
+      return {destroy: vi.fn()};
+    });
+    await analyzer.startBackgroundAnalyzer();
+    loads[0].onDone(true);
+    analyzer.volumeBuffer[3] = -20;
+
+    analyzer.setLevel('1:0', 'a1');
+    expect(analyzer.volumeBuffer[3]).toBe(-20);
+    expect(analyzer.backgroundAnalyzerStatus).toBe('finished');
+  });
+});
