@@ -163,6 +163,21 @@ describe('FineTimeControls: grabbing the timeline', () => {
     expect(client.saveSeek).toBe(true);
   });
 
+  it('stays one undo step when an arrow key seeks in the middle of it', () => {
+    // A key's seek turns saving off and on again around itself, and the moves after it were
+    // saved again one by one (glm's review, 2026-10-13).
+    const {timeline, client} = withUndo();
+    fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});
+    fire(playerContainer, 'mousemove', {clientX: 52});
+    client.setSeekSave(false);
+    client.currentTime += 5;
+    client.setSeekSave(true);
+    for (const x of [55, 58, 61]) fire(playerContainer, 'mousemove', {clientX: x});
+    fire(doc, 'mouseup', {clientX: 64});
+    expect(client.undoSteps).toBe(1);
+    expect(client.saveSeek).toBe(true);
+  });
+
   it('saves seeks again after a grab the next video ended', () => {
     const {timeline, client} = withUndo();
     fire(timeline.ui.timelineTicks, 'mousedown', {clientX: 50});

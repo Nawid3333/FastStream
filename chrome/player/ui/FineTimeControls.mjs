@@ -180,6 +180,7 @@ export class FineTimeControls extends EventEmitter {
         const video = this.client.player.getVideo();
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
+        this.client.setSeekSave(false);
         this.client.currentTime = time;
         this.client.updateTime(time);
       }
@@ -206,6 +207,10 @@ export class FineTimeControls extends EventEmitter {
       if (isGrabbing) {
         const delta = e.clientX - grabStart;
         const time = grabStartTime - (delta / this.ui.timelineTicks.clientWidth * video.duration);
+        // Off again for each move: a key's seek in the middle of the grab turns saving on
+        // around itself, and the moves after it were saved one by one (glm's review,
+        // 2026-10-13).
+        this.client.setSeekSave(false);
         this.client.currentTime = time;
         this.client.updateTime(time);
       }

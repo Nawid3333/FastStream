@@ -20,7 +20,12 @@ export class PointerMoves {
    * @return {boolean} Whether the pointer moved since the last one.
    */
   moved(event) {
-    const moved = event.screenX !== this.screenX || event.screenY !== this.screenY;
+    // The first has no place to compare to: Firefox's own moves carry no movement. The page's
+    // first could be one, when F goes fullscreen under a pointer that has not moved since the
+    // page came, and it brought back the bar F hid (glm's review, 2026-10-13).
+    const moved = this.screenX === null ?
+      event.movementX !== 0 || event.movementY !== 0 :
+      event.screenX !== this.screenX || event.screenY !== this.screenY;
     this.screenX = event.screenX;
     this.screenY = event.screenY;
     return moved;
