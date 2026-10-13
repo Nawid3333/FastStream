@@ -2381,9 +2381,9 @@
     }
 
     // A click that opens the link somewhere else - a new tab or window (Ctrl, Command,
-    // Shift, target="_blank"), a download (Alt, or the download attribute) - leaves this
-    // page and its player where they are.
-    const target = (current.getAttribute('target') || '').toLowerCase();
+    // Shift, target="_blank", also by the page's <base target>), a download (Alt, or the
+    // download attribute) - leaves this page and its player where they are.
+    const target = linkTarget(current);
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey ||
         current.hasAttribute('download') ||
         (target && !['_self', '_parent', '_top'].includes(target))) {

@@ -315,6 +315,25 @@ describe('windowed fullscreen', () => {
     expect(took).toBeLessThan(1000);
   }, 60000);
 
+  it('keeps the player for a link the page\'s <base target> opens in a new tab', async () => {
+    // The click handler read the link's own target only: with <base target="_blank"> a link
+    // to another page of the site opened a new tab, and the player in this one, which the
+    // user stayed on, was taken down (glm's review, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const base = page.document.createElement('base');
+    base.setAttribute('target', '_blank');
+    page.document.head.appendChild(base);
+    const a = page.document.createElement('a');
+    a.href = 'https://site.example/other';
+    page.document.body.appendChild(a);
+    page.dispatchDocument('click', {target: a, button: 0});
+    expect(iframe.isConnected).toBe(true);
+    // Without one, the link leaves the page here, and the player goes as before.
+    base.remove();
+    page.dispatchDocument('click', {target: a, button: 0});
+    expect(iframe.isConnected).toBe(false);
+  });
+
   it('gives the page back when the page takes the player out', async () => {
     // A page that draws its player again (a next episode without a page load) took the
     // iframe out: the rest of the page stayed hidden until FastStream went off, and a next
