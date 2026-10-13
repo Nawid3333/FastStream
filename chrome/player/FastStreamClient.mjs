@@ -58,8 +58,10 @@ const PAGE_QUALITY_LEVEL = 'page-quality:';
 // the load error within seconds; one that plays on between rare errors keeps recovering.
 const RECOVERY_LIMIT = 3;
 const RECOVERY_WINDOW_MS = 120000;
-// How often the seek preview's player is built again after an error, per video: one that
-// failed each time was built anew every second for as long as the video was open.
+// How often the seek preview's player is built again after an error: at most
+// PREVIEW_RELOAD_LIMIT times in RECOVERY_WINDOW_MS, as recoverPlayer. One that failed each
+// time was built anew every second for as long as the video was open; one that plays on
+// between rare errors is built again after each.
 const PREVIEW_RELOAD_LIMIT = 3;
 // How long a stream may stay stuck in its last seconds before autoplay takes it as ended
 // (watchEndStall).
@@ -1953,7 +1955,7 @@ export class FastStreamClient extends EventEmitter {
     // A preview build still running is the old video's: the next video joined it, the build
     // discarded itself over the changed source, and the next video had no seek preview.
     this.previewPlayerSetup = null;
-    this.previewReloads = 0;
+    this.previewReloads = [];
 
     if (this.syncedAudioPlayer) {
       try {
@@ -2228,12 +2230,13 @@ export class FastStreamClient extends EventEmitter {
         if (this.lastPreviewReload && now - this.lastPreviewReload < 1000) {
           return;
         }
-        // PREVIEW_RELOAD_LIMIT times per video, as recoverPlayer is capped (glm's review,
+        // PREVIEW_RELOAD_LIMIT times in RECOVERY_WINDOW_MS, as recoverPlayer (glm's review,
         // 2026-10-13); resetPlayer starts the count again.
-        if ((this.previewReloads || 0) >= PREVIEW_RELOAD_LIMIT) {
+        this.previewReloads = (this.previewReloads || []).filter((time) => now - time < RECOVERY_WINDOW_MS);
+        if (this.previewReloads.length >= PREVIEW_RELOAD_LIMIT) {
           return;
         }
-        this.previewReloads = (this.previewReloads || 0) + 1;
+        this.previewReloads.push(now);
         this.lastPreviewReload = now;
         console.error('Reloading preview player');
         this.setupPreviewPlayer();

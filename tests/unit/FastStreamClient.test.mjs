@@ -1256,22 +1256,51 @@ describe('FastStreamClient, the seek preview\'s player', () => {
 });
 
 describe('FastStreamClient, a seek preview that keeps failing', () => {
-  it('is built again at most three times for one video', () => {
+  /**
+   * A client whose seek preview is bound, with its rebuild counted.
+   * @return {{client: Object, context: EventEmitter}}
+   */
+  function previewFailing() {
+    const client = makeClient({previewEnabled: true});
+    client.interfaceController.resetPreviewVideo = vi.fn();
+    const context = new EventEmitter();
+    client.setupPreviewPlayer = vi.fn();
+    client.bindPreviewPlayer({createContext: () => context});
+    return {client, context};
+  }
+
+  it('is built again at most three times in two minutes', () => {
     // It was built anew every second for as long as the video was open (a stream whose
     // preview fails each time), where the main player's rebuilds are capped (glm's review,
     // 2026-10-13).
     vi.useFakeTimers();
     try {
-      const client = makeClient({previewEnabled: true});
-      client.interfaceController.resetPreviewVideo = vi.fn();
-      const context = new EventEmitter();
-      client.setupPreviewPlayer = vi.fn();
-      client.bindPreviewPlayer({createContext: () => context});
+      const {client, context} = previewFailing();
       for (let i = 0; i < 10; i++) {
         vi.advanceTimersByTime(2000);
         context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
       }
       expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(3);
+      // ... and again once those two minutes are over, as recoverPlayer is.
+      vi.advanceTimersByTime(120000);
+      context.emit(DefaultPlayerEvents.ERROR, new Error('preview failed'));
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('is built again after each of a long video\'s rare errors', () => {
+    // A cap for the whole video ended the seek preview for good after its third passing
+    // error, an hour apart (review of the fixes, 2026-10-13).
+    vi.useFakeTimers();
+    try {
+      const {client, context} = previewFailing();
+      for (let i = 0; i < 6; i++) {
+        vi.advanceTimersByTime(10 * 60000);
+        context.emit(DefaultPlayerEvents.ERROR, new Error('segment expired'));
+      }
+      expect(client.setupPreviewPlayer).toHaveBeenCalledTimes(6);
     } finally {
       vi.useRealTimers();
     }
