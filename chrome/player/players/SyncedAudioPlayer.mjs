@@ -47,7 +47,7 @@ export class SyncedAudioPlayer extends EventEmitter {
           // skipped the build, the delay stayed off for the session, and a resync threw.
           // What was built goes, and the next change of the delay builds again.
           console.error('Could not build the audio players for the video delay', e);
-          this.audioPlayers.forEach((player) => player.destroy());
+          this.audioPlayers.forEach((player) => this.discardPlayer(player));
           this.audioPlayers = [];
           this.madePlayers = false;
           return;
@@ -138,11 +138,11 @@ export class SyncedAudioPlayer extends EventEmitter {
 
         await player.setSource(source);
       } catch (e) {
-        player.destroy();
+        this.discardPlayer(player);
         throw e;
       }
       if (gone()) {
-        player.destroy();
+        this.discardPlayer(player);
         return;
       }
 
@@ -156,12 +156,25 @@ export class SyncedAudioPlayer extends EventEmitter {
    */
   dropPlayers() {
     this.playersDropped++;
-    this.audioPlayers.forEach((player) => player.destroy());
+    this.audioPlayers.forEach((player) => this.discardPlayer(player));
     this.audioPlayers = [];
     this.madePlayers = false;
     if (this.client.player) {
       this.client.player.volume = this.volume;
     }
+  }
+
+  /**
+   * Destroys a player and takes its sound out of the output: its source stayed wired in, two
+   * more with every drop and rebuild, until the video changed (glm's second look, 2026-10-13).
+   * @param {Object} player
+   */
+  discardPlayer(player) {
+    if (player.audioSource) {
+      this.outputNode.disconnectFrom(player.audioSource);
+      player.audioSource = null;
+    }
+    player.destroy();
   }
 
   getOutputNode() {

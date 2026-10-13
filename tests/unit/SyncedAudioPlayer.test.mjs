@@ -363,4 +363,64 @@ describe('SyncedAudioPlayer', () => {
     expect(synced.audioDelayNode).toBe(null);
     expect(output.connectFrom).toHaveBeenLastCalledWith(source);
   });
+
+  it('takes a dropped player\'s sound out of the output', async () => {
+    // Its source stayed wired into the output, two more with every drop and rebuild, until
+    // the video changed (glm's second look, 2026-10-13).
+    const client = makeClient();
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+    const sources = synced.audioPlayers.map((player) => player.audioSource);
+    expect(sources).toHaveLength(2);
+    synced.dropPlayers();
+
+    for (const source of sources) {
+      expect(output.disconnectFrom).toHaveBeenCalledWith(source);
+    }
+  });
+
+  it('takes the sound of a player finished after a drop out of the output', async () => {
+    let synced;
+    const client = makeClient({
+      createPlayer: vi.fn(async () => {
+        const player = audioPlayer();
+        player.setSource = vi.fn(async () => synced.dropPlayers());
+        return player;
+      }),
+    });
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+
+    const source = context.createMediaElementSource.mock.results[0].value;
+    expect(output.disconnectFrom).toHaveBeenCalledWith(source);
+  });
+
+  it('takes the sound of a player whose source failed out of the output', async () => {
+    const client = makeClient({
+      createPlayer: vi.fn(async () => {
+        const player = audioPlayer();
+        player.setSource = vi.fn(async () => {
+          throw new Error('Manifest failed to load');
+        });
+        return player;
+      }),
+    });
+    const context = {createMediaElementSource: vi.fn(() => ({}))};
+    const output = {connectFrom: vi.fn(), disconnectFrom: vi.fn()};
+    const synced = new SyncedAudioPlayer(client);
+    await synced.setup(context, {connect: vi.fn(), disconnect: vi.fn()}, output);
+
+    await synced.setVideoDelay(500);
+
+    const source = context.createMediaElementSource.mock.results[0].value;
+    expect(output.disconnectFrom).toHaveBeenCalledWith(source);
+  });
 });
