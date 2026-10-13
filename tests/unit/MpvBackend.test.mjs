@@ -288,6 +288,19 @@ describe('openStream contentType', () => {
     }
   });
 
+  it('cuts a title and a subtitle label between whole characters (#470)', async () => {
+    // Cut in the middle of an emoji, a lone half of it reached mpv, which drew it as a broken
+    // character at the end of the title or the track's name.
+    const host = captureNativeHost();
+    const backend = new MpvBackend();
+    const clapper = '\u{1F3AC}';
+    const srt = '1\n00:00:01,000 --> 00:00:02,000\nHello';
+    await backend.openStream('https://cdn/a.m3u8', undefined, undefined, 'anime', 'https://site/ep-3',
+        'x'.repeat(299) + clapper + 'tail', {subtitles: [{label: 'y'.repeat(99) + clapper + 'tail', srt}]});
+    expect(host.message().title).toBe('x'.repeat(299) + clapper);
+    expect(host.message().subtitles[0].label).toBe('y'.repeat(99) + clapper);
+  });
+
   it('relays where the player was and its subtitles (the player\'s button)', async () => {
     const host = captureNativeHost();
     const backend = new MpvBackend();

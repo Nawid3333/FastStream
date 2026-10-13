@@ -72,7 +72,7 @@ const __dirname = url.fileURLToPath(new URL('.', import.meta.url));
 // install.ps1 (what it installs is part of the host a PC has), together with
 // RequiredHostVersion and the hashes in tests/unit/mpvHostVersion.test.mjs, which fails
 // until they agree.
-export const HostVersion = 13;
+export const HostVersion = 14;
 
 // No mpv path from the environment (FASTSTREAM_MPV_PATH until 2026-10-04): config.json's
 // mpvPath and the options page's path name one, and an environment variable reached
@@ -1451,6 +1451,16 @@ export const CommandLineEnv = 'FASTSTREAM_MPV_COMMAND_LINE';
 const MaxCommandLineChars = 32767;
 
 /**
+ * mpv's command line as launchViaWmi hands it to CreateProcess.
+ * @param {string} mpvPath
+ * @param {Array<string>} args
+ * @return {string}
+ */
+function windowsCommandLine(mpvPath, args) {
+  return [mpvPath, ...args].map(quoteWindowsArg).join(' ');
+}
+
+/**
  * The PowerShell that starts mpv through WMI and focuses its window. Fixed text: the
  * command line is read from the environment (CommandLineEnv).
  * @return {Array<string>} Script lines.
@@ -1570,7 +1580,7 @@ export function wmiLaunchResult(text) {
  *   tries?: number}>} wmiLaunchResult's reading of the script's output.
  */
 function launchViaWmi(mpvPath, args) {
-  const commandLine = [mpvPath, ...args].map(quoteWindowsArg).join(' ');
+  const commandLine = windowsCommandLine(mpvPath, args);
   if (commandLine.length >= MaxCommandLineChars) {
     return Promise.resolve({ok: false, error: 'the stream URL is too long for mpv\'s command line'});
   }
@@ -1586,9 +1596,11 @@ function launchViaWmi(mpvPath, args) {
  */
 export function streamTitle(message) {
   if (typeof message.title === 'string') {
-    // Control characters out (a title is one line), length bounded.
-    const clean = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
-        .join('').replace(/\s+/g, ' ').trim().slice(0, 200);
+    // Control characters out (a title is one line), length bounded in whole characters: a
+    // cut through an emoji left half of it, which mpv drew as a broken character (#470).
+    const oneLine = Array.from(message.title, (c) => c.charCodeAt(0) < 32 || c === '\u007f' ? ' ' : c)
+        .join('').replace(/\s+/g, ' ').trim();
+    const clean = Array.from(oneLine).slice(0, 200).join('');
     if (clean) {
       return clean;
     }
@@ -1689,7 +1701,19 @@ export async function launchMpv(mpvPath, message, config, io = {}) {
   for (const file of extras.subFiles) {
     args.push(`--sub-files-append=${file}`);
   }
-  args.push(mpvTargetUrl(message));
+  let target = mpvTargetUrl(message);
+  // Windows caps the command line (launchViaWmi refuses a longer one). The page's quality
+  // list, percent-encoded once more in fs-quality=, took twelve long URLs past it while the
+  // stream itself fitted, and the start failed (#470): mpv starts without the list, and only
+  // its quality menu goes without it. A window already open gets it over the pipe, uncapped.
+  if (platform === 'win32' && windowsCommandLine(mpvPath, [...args, target, '--}']).length >= MaxCommandLineChars) {
+    const withoutQualities = mpvTargetUrl({...message, qualities: undefined});
+    if (withoutQualities !== target) {
+      debugLog(config, 'qualities-dropped', {length: target.length});
+      target = withoutQualities;
+    }
+  }
+  args.push(target);
   args.push('--}');
 
   debugLog(config, 'spawn', {mpvPath, args});

@@ -436,6 +436,11 @@ appends it last, as `fs-quality=<percent-encoded JSON of [{label, height, url}]>
 by `path` up to its first `#`, and switches with `loadfile` of another entry plus the same
 fragment. A host 11 ignores the field. Host 13 (2026-10-13) added the length cap, the
 fragment removal and the whole-character cut; a host 12 sends the list without them.
+Host 14 (2026-10-13, #470) starts a new mpv without the list when it would take the command
+line past Windows' 32767 characters (twelve long URLs, percent-encoded once more, do): only
+mpv's quality menu goes without it, where the start failed before. A window already open gets
+the list over the pipe, which has no such cap. Host 14 also cuts the title between whole
+characters, as the extension now cuts the title and the subtitle labels it sends.
 
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host

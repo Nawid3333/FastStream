@@ -47,7 +47,7 @@ const NativeHostName = 'com.faststream.mpv';
 // An answer with a lower version, or none (a host from before 2026-10-04), is an
 // outdated host: the stream still goes to it, and the toolbar button, the player's mpv
 // button and "Test mpv connection" say to install the host again.
-export const RequiredHostVersion = 13;
+export const RequiredHostVersion = 14;
 
 // The largest message the host reads (MaxMessageBytes in native-host/faststream-mpv-host.mjs),
 // as Firefox sends it: the JSON in UTF-8. A bigger one was never read: the host quit
@@ -280,8 +280,10 @@ export class MpvBackend {
       message.pageUrl = pageUrl;
     }
 
+    // Cut between whole characters, as the quality labels are: a cut through an emoji left
+    // half of it, which mpv drew as a broken character (#470).
     if (typeof pageTitle === 'string' && pageTitle.trim()) {
-      message.title = pageTitle.trim().slice(0, 300);
+      message.title = Array.from(pageTitle.trim()).slice(0, 300).join('');
     }
 
     if (typeof extras.startTime === 'number' && Number.isFinite(extras.startTime) && extras.startTime >= 1) {
@@ -320,7 +322,7 @@ export class MpvBackend {
       const candidates = extras.subtitles
           .filter((s) => s && typeof s.srt === 'string' && s.srt.trim())
           .slice(0, 8)
-          .map((s) => ({label: typeof s.label === 'string' ? s.label.slice(0, 100) : '', srt: s.srt}));
+          .map((s) => ({label: typeof s.label === 'string' ? Array.from(s.label).slice(0, 100).join('') : '', srt: s.srt}));
       const subtitles = [];
       message.subtitles = subtitles;
       for (const subtitle of candidates) {
