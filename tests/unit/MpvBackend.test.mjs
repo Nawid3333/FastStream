@@ -166,6 +166,31 @@ describe('openStream retry bookkeeping', () => {
     expect(host.calls()).toBe(2);
   });
 
+  it('gives a send made while the same one is on its way that one\'s answer', async () => {
+    // It was told "ok" at once: the first then failed, and the player said it was sent to
+    // mpv and paused the page for nothing (glm's look at a noted edge case, 2026-10-13).
+    let answer;
+    globalThis.chrome = {
+      runtime: {
+        lastError: undefined,
+        sendNativeMessage(name, message, callback) {
+          answer = callback;
+        },
+      },
+    };
+    const backend = new MpvBackend();
+    const tab = {mpvSentUrls: new Set()};
+    const first = backend.openStream('https://cdn/a.m3u8', tab);
+    const second = backend.openStream('https://cdn/a.m3u8', tab);
+    answer({ok: false, error: 'mpv executable not found', hostVersion: RequiredHostVersion});
+    expect(await first).toEqual({ok: false, error: 'mpv executable not found'});
+    expect(await second).toEqual({ok: false, error: 'mpv executable not found'});
+    // And it can be tried again.
+    const third = backend.openStream('https://cdn/a.m3u8', tab);
+    answer({ok: true, hostVersion: RequiredHostVersion});
+    expect(await third).toEqual({ok: true});
+  });
+
   it('lets the same URL be retried when the host is not installed', async () => {
     const host = stubNativeHost(undefined, {message: 'no such native application'});
     const backend = new MpvBackend();

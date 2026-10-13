@@ -271,6 +271,8 @@ export class TabHolder {
     this.mpvOnPlay = false;
     this.mpvAutoOpened = false;
     this.mpvSentUrls = new Set();
+    // The sends to mpv still on their way, by URL (MpvBackend.openStream).
+    this.mpvSending = new Map();
     // Why the last hand-off to mpv failed, while MPV mode shows it on the toolbar button
     // ("!" and the reason in the tooltip); null after one that worked or a new page.
     /** @type {?string} */

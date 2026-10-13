@@ -279,6 +279,13 @@ export class MpvBackend {
     }
 
     if (tab && tab.mpvSentUrls) {
+      // One still on its way: its own answer. An "ok" at once was wrong when that one then
+      // failed: the player said it was sent and paused the page for nothing (glm's look at
+      // a noted edge case, 2026-10-13).
+      const sending = tab.mpvSending?.get(url);
+      if (sending) {
+        return sending;
+      }
       if (tab.mpvSentUrls.has(url)) {
         return Promise.resolve(this.withHostState({ok: true}));
       }
@@ -366,7 +373,7 @@ export class MpvBackend {
       return Promise.resolve(this.withHostState({ok: false, error: 'the stream\'s address is too long to send to mpv'}));
     }
 
-    return new Promise((resolve) => {
+    const sent = new Promise((resolve) => {
       try {
         chrome.runtime.sendNativeMessage(NativeHostName, message, (response) => {
           const lastError = chrome.runtime.lastError;
@@ -408,6 +415,15 @@ export class MpvBackend {
         resolve({ok: false, error: String(e)});
       }
     });
+    if (tab && tab.mpvSentUrls) {
+      if (!tab.mpvSending) tab.mpvSending = new Map();
+      tab.mpvSending.set(url, sent);
+      // Off the list once answered (it always is: it never rejects).
+      sent.then(() => {
+        if (tab.mpvSending.get(url) === sent) tab.mpvSending.delete(url);
+      }).catch(() => {});
+    }
+    return sent;
   }
 
   /**
