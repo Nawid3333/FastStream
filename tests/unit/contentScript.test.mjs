@@ -191,6 +191,20 @@ describe('OPEN_PLAYER', () => {
 
 // types/messages.d.ts described the answer as {width, height}; it is the visible area, a
 // number the background sorts frames by (#233).
+describe('OPEN_PLAYER overtaken by REMOVE_PLAYERS', () => {
+  it('puts no player in the page given back meanwhile', async () => {
+    // The open waits for the video's visibility (an IntersectionObserver, up to a second in a
+    // background tab); a removal meanwhile (the page went on to another address) gave the
+    // page back, and the open then put its player in anyway (glm's second look, 2026-10-13).
+    const {page, wrap} = pageWithVideo();
+    const opening = page.send({type: 'OPEN_PLAYER', url: PLAYER_URL, noRedirect: true, frameId: 0, parentFrameId: -1, attempt: 1});
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(await opening).toBe('error');
+    expect(page.document.querySelectorAll('iframe').filter((f) => f.src.startsWith(PLAYER_URL))).toEqual([]);
+    expect(wrap.children.map((el) => el.tagName)).toEqual(['VIDEO']);
+  });
+});
+
 describe('GET_VIDEO_SIZE', () => {
   it('answers the largest video\'s visible area, as a number', async () => {
     const {page} = pageWithVideo();
@@ -418,6 +432,24 @@ describe('TOGGLE_MINIPLAYER', () => {
     expect(await requestMiniplayer(page)).toBe('enter');
     expect(iframe.style.getPropertyValue('width')).toMatch(/^[\d.]+px$/);
     expect(iframe.style.getPropertyValue('height')).toMatch(/^[\d.]+px$/);
+  });
+
+  it('fits a portrait player into its share of the screen, height too', async () => {
+    // Sized by the wider of the screen's two measures, a portrait player's miniplayer (a
+    // quarter of a 1920x1080 screen) came out 853 px high (glm's second look, 2026-10-13).
+    const {page, iframe} = await pageWithPlayer();
+    const create = page.document.createElement.bind(page.document);
+    page.document.createElement = (tag) => {
+      const el = create(tag);
+      el.rect = {x: 0, y: 0, width: 360, height: 640};
+      return el;
+    };
+    expect(await requestMiniplayer(page)).toBe('enter');
+    page.document.createElement = create;
+    const height = parseFloat(iframe.style.getPropertyValue('height'));
+    const width = parseFloat(iframe.style.getPropertyValue('width'));
+    expect(height).toBeLessThanOrEqual(1080 * 0.25 + 0.5);
+    expect(width / height).toBeCloseTo(360 / 640);
   });
 });
 

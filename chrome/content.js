@@ -56,6 +56,8 @@
   // back meanwhile, and the element stayed hidden for good.
   const elementsChangedByFillscreen = new Map();
   const linkRequests = new Map();
+  // Counts removePlayers(): an OPEN_PLAYER that a removal overtook puts no player in.
+  let PlayersEpoch = 0;
   let MiniplayerCooldown = 0;
   // Set when this frame is sent to the player (handlePlayerOpen's redirect). The frame is
   // not going away: the player takes it over, and asks the background for the sources
@@ -474,7 +476,16 @@
   }
 
   function handlePlayerOpen(request, sender, sendResponse) {
+    // The video is found by its visibility, which can take a second (a background tab's
+    // IntersectionObserver): players removed meanwhile (the page went on to another address)
+    // gave the page back, and this then put its player in anyway (glm's second look,
+    // 2026-10-13).
+    const epoch = PlayersEpoch;
     getVideo().then((video) => {
+      if (epoch !== PlayersEpoch) {
+        sendResponse('error');
+        return;
+      }
       if (!video && !request.force) {
         console.log('no video found');
         sendResponse('no_video');
@@ -848,6 +859,7 @@
   }
 
   function removePlayers() {
+    PlayersEpoch++;
     MiniplayerCooldown = Date.now() + 1000;
     // The players go, and with them the reason to hold the page's media. (Keeping the hold
     // and the guards over a site's embed whose player stays up through a URL change was
@@ -931,7 +943,10 @@
       if (!(aspectRatio > 0 && aspectRatio < Infinity)) {
         aspectRatio = 16 / 9;
       }
-      const newWidth = Math.min(Math.max(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
+      // Within its share of the screen both ways: by the wider of the two, a portrait
+      // player's (a quarter of a 1920x1080 screen) came out 853 px high (glm's second look,
+      // 2026-10-13).
+      const newWidth = Math.min(Math.min(window.screen.width, window.screen.height * aspectRatio) * miniplayerState.size, document.body.clientWidth);
       const newHeight = newWidth / aspectRatio;
       element.style.setProperty('width', newWidth + 'px', 'important');
       element.style.setProperty('height', newHeight + 'px', 'important');
