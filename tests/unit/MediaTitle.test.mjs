@@ -59,6 +59,10 @@ describe('guessMediaInfo', () => {
     ['S2 - The Bear - Episode 5', 'example.com', show('The Bear', 2, 5)],
     ['Staffel 2 - The Bear - Folge 5 | Disney+', 'disneyplus.com', show('The Bear', 2, 5)],
     ['Episode 5 - The Bear - Season 2', 'example.com', show('The Bear', 2, 5)],
+    // ... but with a name after the last one, that is the show's, and the one between them
+    // the episode's.
+    ['Episode 5 - Pilot - Season 2 - The Bear', 'example.com', show('The Bear', 2, 5)],
+    ['Folge 5: Das Erwachen - Staffel 2 - The Bear', 'example.com', show('The Bear', 2, 5)],
   ])('finds the episode in %j', (title, host, expected) => {
     expect(guess(title, host)).toEqual(expected);
   });
