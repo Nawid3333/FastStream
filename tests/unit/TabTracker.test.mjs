@@ -261,6 +261,22 @@ describe('gone pages', () => {
     expect(tab.goneDocuments.has('page-16')).toBe(true);
   });
 
+  it('keeps a page\'s streams when it had more frames than the limit', () => {
+    // content.js names the page in every frame: an ad-heavy page's 20 frames pushed the page
+    // itself out, marked first, with the streams Back was to give back (glm's review,
+    // 2026-10-13). A page that detected nothing goes first.
+    const {tab, main} = tabWithEmbed();
+    for (let i = 0; i < 20; i++) {
+      const ad = tab.getFrameOrCreate(10 + i);
+      ad.documentKey = 'ad-' + i;
+      ad.setParentFrame(main);
+    }
+    tab.forgetRemovedFrame(main, 'main');
+    expect(tab.goneDocuments.size).toBe(16);
+    expect(tab.goneDocuments.get('embed').sources.map((s) => s.url)).toEqual(['https://cdn.example.com/video.m3u8']);
+    expect(tab.goneDocuments.has('ad-19')).toBe(true);
+  });
+
   it('marks nothing when a refused player\'s frame is forgotten', () => {
     // PLAYER_LOADED of a gone page forgets the player's frame (forgetFrame): that is no
     // page leaving.
@@ -589,6 +605,20 @@ describe('what a frame keeps of its streams', () => {
     const urls = frame.getSources().map((s) => s.url);
     expect(urls).toHaveLength(200);
     expect(urls[0]).toBe('https://cdn.test/5/master.m3u8');
+  });
+
+  it('keeps a file that comes to a list full of manifests', () => {
+    // It was the only file, and went at once: a live playlist whose address changes with each
+    // reload filled the list, and no file was taken in again (glm's review, 2026-10-13).
+    const frame = new TabTracker().getTabOrCreate(7).getFrameOrCreate(0);
+    for (let n = 0; n < 200; n++) {
+      frame.addSource({url: `https://cdn.test/live.m3u8?token=${n}`, mode: 'accelerated_hls'});
+    }
+    frame.addSource({url: 'https://cdn.test/film.mp4', mode: 'accelerated_mp4'});
+    const urls = frame.getSources().map((s) => s.url);
+    expect(urls).toHaveLength(200);
+    expect(urls.at(-1)).toBe('https://cdn.test/film.mp4');
+    expect(urls[0]).toBe('https://cdn.test/live.m3u8?token=1');
   });
 
   it('keeps the first and the newest of a stream\'s subtitle pieces', () => {

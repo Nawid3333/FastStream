@@ -33,7 +33,10 @@ function trimTracked(list, urlOf, isFile) {
     }
   }
   while (list.length > TrackedLimit) {
-    const file = list.findIndex(isFile);
+    // Never the one just added: in a list of manifests only (a live playlist whose address
+    // changes with each reload) a new file was the only file, and went at once, every time
+    // (glm's review, 2026-10-13).
+    const file = list.findIndex((entry) => entry !== added && isFile(entry));
     list.splice(file === -1 ? 0 : file, 1);
   }
 }
@@ -513,7 +516,18 @@ export class TabHolder {
     };
     mark(frame);
     while (this.goneDocuments.size > GoneDocumentLimit) {
-      this.goneDocuments.delete(this.goneDocuments.keys().next().value);
+      // A page that detected nothing goes first, then the oldest: content.js names the page
+      // in every frame, and a page with more than the limit of them (an ad's each) pushed
+      // its own page, marked first, out with its streams, which Back then did not give back
+      // (glm's review, 2026-10-13).
+      let drop = this.goneDocuments.keys().next().value;
+      for (const [key, kept] of this.goneDocuments) {
+        if (kept.sources.length === 0 && kept.subtitles.length === 0) {
+          drop = key;
+          break;
+        }
+      }
+      this.goneDocuments.delete(drop);
     }
   }
 
