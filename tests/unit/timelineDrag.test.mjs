@@ -187,6 +187,22 @@ describe('FineTimeControls: grabbing the timeline', () => {
   });
 });
 
+describe('FineTimeControls: closing the last state', () => {
+  it('closes it at once, not a second later', () => {
+    // The review of 2026-10-14 (his "no delays" wish): precise seek, the silence skipper
+    // and the subtitle syncer closed a second after they were let go.
+    const timeline = new FineTimeControls({audioAnalyzer: {getOutputRate: () => 1, getVolumeData: () => []}});
+    timeline.stop = vi.fn();
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    timeline.stateStack = [{onOpen, onClose, settings: {}}];
+    timeline.removeState(onOpen);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(timeline.stop).toHaveBeenCalled();
+    expect(timeline.stateStack).toEqual([]);
+  });
+});
+
 describe('FineTimeControls: the audio canvases', () => {
   it('draws at the new screen scaling after a move to another screen', () => {
     // The height was set once, at the scaling the canvas was made with (glm's second look,

@@ -82,8 +82,12 @@ describe('Subtitle resync tool', function() {
         const box = document.querySelector('.fluid_controls_timeline_syncer').getBoundingClientRect();
         const x = box.left + box.width / 2;
         const container = row.closest('.fluid_video_wrapper') || document.body;
+        // The buttons held, as a real drag's events carry them: the drag ends at a move with
+        // none held (a release it never heard).
+        const held = {0: 1, 1: 4, 2: 2};
         const mouse = (target, type, clientX, button) => target.dispatchEvent(
-            new MouseEvent(type, {bubbles: true, cancelable: true, clientX, clientY: box.top + 60, button}));
+            new MouseEvent(type, {bubbles: true, cancelable: true, clientX, clientY: box.top + 60, button,
+              buttons: type === 'mouseup' ? 0 : held[button]}));
 
         // right button: no drag
         const beforeRight = track.cues[0].startTime;

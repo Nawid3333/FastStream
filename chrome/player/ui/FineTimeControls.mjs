@@ -25,12 +25,6 @@ export class FineTimeControls extends EventEmitter {
   }
 
   pushState(onOpen, onClose, settings = {}) {
-    if (this.activeCloseFn) {
-      this.activeCloseFn();
-      this.activeCloseFn = null;
-      clearTimeout(this.closeTimeout);
-    }
-
     if (this.stateStack.length > 0) {
       this.stateStack[this.stateStack.length - 1].onClose();
     }
@@ -50,24 +44,9 @@ export class FineTimeControls extends EventEmitter {
     }
 
     if (index === this.stateStack.length - 1) {
-      if (this.activeCloseFn) {
-        this.activeCloseFn();
-        this.activeCloseFn = null;
-        clearTimeout(this.closeTimeout);
-      }
-
-      const closeFn = this.stateStack[index].onClose;
-      if (this.stateStack.length > 1) {
-        closeFn();
-      } else {
-        this.activeCloseFn = closeFn;
-        this.closeTimeout = setTimeout(()=>{
-          if (closeFn === this.activeCloseFn) {
-            closeFn();
-            this.activeCloseFn = null;
-          }
-        }, 1000);
-      }
+      // At once: the last one (precise seek, the silence skipper, the subtitle syncer)
+      // closed a second later (review of 2026-10-14, his "no delays" wish).
+      this.stateStack[index].onClose();
       this.stateStack.pop();
       if (this.stateStack.length > 0) {
         this.stateStack[this.stateStack.length - 1].onOpen();

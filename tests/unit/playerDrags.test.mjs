@@ -58,6 +58,22 @@ describe('the volume bar', () => {
   const press = (props) => controls.onVolumeBarMouseDown({button: 0, clientX: 160, stopPropagation() {}, ...props});
   beforeEach(() => controls.setVolume(1));
 
+  it('saves the volume once, after its last change, and shows each change at once', () => {
+    // The review of 2026-10-14: a wheel turn or a drag wrote it at every step.
+    vi.useFakeTimers();
+    try {
+      Utils.setConfig.mockClear();
+      for (const volume of [0.5, 0.6, 0.7]) controls.setVolume(volume);
+      expect(controls.volume).toBe(0.7);
+      expect(Utils.setConfig).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(600);
+      expect(Utils.setConfig).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(Utils.setConfig.mock.calls[0][1]).volume).toBe(0.7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('drags with the left button', () => {
     press();
     move({clientX: 170});

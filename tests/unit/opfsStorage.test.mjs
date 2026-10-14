@@ -431,6 +431,20 @@ describe('FSBlob', () => {
     return {fsblob, cached};
   }
 
+  it('says when no disk backend is left, and a memory-only store does not', async () => {
+    // The review of 2026-10-14: OPFS, the Cache API and IndexedDB all failing left the store
+    // in RAM with nobody told (its warning sat in a catch nothing reached).
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('navigator', {});
+    const fsblob = new FSBlob();
+    expect(await fsblob.ready()).toBe(false);
+    expect(fsblob.diskGone).toBe(true);
+
+    const memoryOnly = new FSBlob({memoryOnly: true});
+    expect(await memoryOnly.ready()).toBe(false);
+    expect(memoryOnly.diskGone).toBe(false);
+  });
+
   it('stores a downloaded fragment, named by its URL, on disk and deletes it again', async () => {
     const root = new FakeDir();
     const manager = await startManager(root);

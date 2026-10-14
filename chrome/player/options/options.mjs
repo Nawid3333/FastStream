@@ -355,9 +355,26 @@ document.querySelectorAll('.video-option').forEach((option) => {
     optionChanged();
   }
 
-  function rangeInputChanged() {
+  // A drag saves once a frame: it saved at every value the slider passed, and each save
+  // writes the storage and makes every player read the options again (review of
+  // 2026-10-14). The video still follows the drag; letting go saves at once.
+  let pendingSave = 0;
+  function rangeInputChanged(e) {
     numberInput.value = rangeInput.value + unit;
     Options[optionKey] = parseInt(rangeInput.value) / unitMultiplier;
+    if (e?.type === 'input') {
+      if (!pendingSave) {
+        pendingSave = requestAnimationFrame(() => {
+          pendingSave = 0;
+          optionChanged();
+        });
+      }
+      return;
+    }
+    if (pendingSave) {
+      cancelAnimationFrame(pendingSave);
+      pendingSave = 0;
+    }
     optionChanged();
   }
 

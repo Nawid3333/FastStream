@@ -22,6 +22,8 @@ export class PreviewFrameExtractor extends EventEmitter {
     this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
     this.backgroundDoneRanges = [];
     this.backgroundAnalyzerEnabled = true;
+    // Counts the starts: only the latest one may keep its player (AudioAnalyzer's).
+    this.backgroundStarts = 0;
 
     this.extractorCanvas = document.createElement('canvas');
     this.extractorContext = this.extractorCanvas.getContext('2d');
@@ -101,6 +103,10 @@ export class PreviewFrameExtractor extends EventEmitter {
 
     console.log('[FrameExtractor] Starting background analyzer');
 
+    // A stop and a new start while this one loads (the tool closed and opened again) make
+    // this start stale: both passed the source check below, and the first player went on
+    // seeking, downloading and drawing frames with the tool closed (review of 2026-10-14).
+    const start = ++this.backgroundStarts;
     let backgroundAnalyzerPlayer;
     // Set by an end that came before the load returned the player (its video had no size).
     let endedWhileLoading = null;
@@ -130,13 +136,13 @@ export class PreviewFrameExtractor extends EventEmitter {
       // failed, one dropped request left the timeline without frames for the whole video
       // (glm's second look, 2026-10-13).
       console.warn('[FrameExtractor] The background analyzer could not load', e);
-      if (newSource === this.backgroundAnalyzerSource) {
+      if (start === this.backgroundStarts && newSource === this.backgroundAnalyzerSource) {
         this.backgroundAnalyzerSource = null;
       }
       return;
     }
 
-    if (newSource !== this.backgroundAnalyzerSource) {
+    if (start !== this.backgroundStarts || newSource !== this.backgroundAnalyzerSource) {
       backgroundAnalyzerPlayer.destroy();
       return;
     }
@@ -158,7 +164,10 @@ export class PreviewFrameExtractor extends EventEmitter {
       this.backgroundAnalyzerPlayer = null;
       player.destroy();
     }
-    if (this.backgroundAnalyzerStatus === AnalyzerStatus.RUNNING) {
+    // A failed analysis too: the start needs IDLE, so reopening the tool never tried that
+    // video again (review of 2026-10-14). A finished one stays finished.
+    if (this.backgroundAnalyzerStatus === AnalyzerStatus.RUNNING ||
+        this.backgroundAnalyzerStatus === AnalyzerStatus.FAILED) {
       this.backgroundAnalyzerStatus = AnalyzerStatus.IDLE;
     }
     this.client.interfaceController.updateMarkers();

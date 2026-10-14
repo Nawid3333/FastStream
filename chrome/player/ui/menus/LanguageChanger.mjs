@@ -159,6 +159,10 @@ export class LanguageChanger extends EventEmitter {
 
     if (videoLanguageMap.size < 2 && audioLanguageMap.size < 2) {
       DOMElements.languageButton.classList.add('hidden');
+      // An open menu stayed with the previous video's languages (review of 2026-10-14), as
+      // the audio menu once did.
+      DOMElements.languageMenu.replaceChildren();
+      this.closeUI();
       return;
     } else {
       DOMElements.languageButton.classList.remove('hidden');

@@ -184,6 +184,13 @@ export class SubtitleSyncer extends EventEmitter {
     DOMElements.playerContainer.addEventListener('mouseleave', clearGrabbing);
 
     DOMElements.playerContainer.addEventListener('mousemove', (e) => {
+      // No button held: it was let go where this drag never heard of it (the subtitles menu
+      // and the subtitle rows stop mouseup), and the track went on following the pointer.
+      // The subtitles' own drag ends the same way (SubtitlesManager).
+      if (isGrabbingTrack && e.buttons === 0) {
+        clearGrabbing();
+        return;
+      }
       if (!this.client.player) return;
       const video = this.client.player.getVideo();
       if (isGrabbingTrack && this.trackToSync) {
