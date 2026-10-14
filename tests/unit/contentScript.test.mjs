@@ -205,6 +205,26 @@ describe('the page\'s own inline styles after a soft replace', () => {
     await page.send({type: 'REMOVE_PLAYERS'});
     expect(wrap.style.getPropertyValue('width')).toBe('');
   });
+
+  // GLM's review: saved only at the first hide, a value the page set while the player was up
+  // was hidden again at the next measurement, and the old one came back.
+  it('come back as the page set them last, while the player was up', async () => {
+    const {page, wrap} = pageWithVideo();
+    wrap.setAttribute('style', 'width: 640px;');
+    const {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    page.advance(2000);
+    wrap.style.setProperty('width', '500px');
+    wrap.rect = {x: 0, y: 0, width: 500, height: 360};
+    page.dispatchWindow('resize');
+    page.advance(150);
+    expect(iframe.style.width).toBe('500px');
+    expect(wrap.style.getPropertyValue('width')).toBe('0px');
+    // the saves are not in the page's DOM, for the page to change
+    expect(Object.keys(wrap.dataset).filter((key) => /^(old|fsSoft)/.test(key))).toEqual([]);
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(wrap.style.getPropertyValue('width')).toBe('500px');
+  });
 });
 
 // types/messages.d.ts described the answer as {width, height}; it is the visible area, a

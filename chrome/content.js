@@ -1186,18 +1186,32 @@
   // What hideSoft sets on the page's element: no size, nothing drawn outside it.
   const SoftHidden = {width: '0px', height: '0px', overflow: 'hidden', margin: '0px', contain: 'paint'};
 
-  // The page's own inline values of those, saved once with their priority until the element
-  // is given back (forgetSoft). A value equal to the hidden one (overflow: hidden, margin: 0)
-  // was never saved and showSoft cleared it, the saved ones were never deleted (a later
-  // replace restored a stale one), and !important was lost (review of 2026-10-14).
+  /**
+   * The page's own inline values of those, with their priority, per element until it is
+   * given back (forgetSoft). Kept here, not in the page's DOM (data-old-width and the like):
+   * a page that changed the attribute could leave its element hidden for good. A value equal
+   * to the hidden one (overflow: hidden, margin: 0) was never saved and showSoft cleared it,
+   * the saves were never deleted (a later replace restored a stale one), and !important was
+   * lost (review of 2026-10-14).
+   * @type {WeakMap<HTMLElement, Object<string, string[]>>}
+   */
+  const softSaves = new WeakMap();
+
+  function isSoftHidden(player, name) {
+    return player.style.getPropertyValue(name) === SoftHidden[name] &&
+      player.style.getPropertyPriority(name) === 'important';
+  }
+
   function hideSoft(player) {
     rememberTransition(player);
-    if (!('fsSoft' in player.dataset)) {
-      const saved = {};
-      for (const name of Object.keys(SoftHidden)) {
+    // Saved at the first hide, and again at each later one where the value is no longer the
+    // hidden one: what the page set while its element was hidden is its newest wish.
+    const saved = softSaves.get(player) || {};
+    softSaves.set(player, saved);
+    for (const name of Object.keys(SoftHidden)) {
+      if (!(name in saved) || !isSoftHidden(player, name)) {
         saved[name] = [player.style.getPropertyValue(name), player.style.getPropertyPriority(name)];
       }
-      player.dataset.fsSoft = JSON.stringify(saved);
     }
     for (const [name, value] of Object.entries(SoftHidden)) {
       player.style.setProperty(name, value, 'important');
@@ -1210,19 +1224,14 @@
   function showSoft(player) {
     rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
-    let saved = null;
-    try {
-      saved = JSON.parse(player.dataset.fsSoft || 'null');
-    } catch (e) {
-      saved = null;
-    }
+    const saved = softSaves.get(player);
     // Not hidden yet (the first measurement shows it before hiding it): a value equal to the
     // hidden one is the page's own, e.g. margin: 0 !important.
     if (!saved) {
       return;
     }
-    for (const [name, hidden] of Object.entries(SoftHidden)) {
-      if (player.style.getPropertyValue(name) !== hidden || player.style.getPropertyPriority(name) !== 'important') {
+    for (const name of Object.keys(SoftHidden)) {
+      if (!isSoftHidden(player, name)) {
         continue;
       }
       const [value, priority] = saved[name] || ['', ''];
@@ -1235,7 +1244,7 @@
   }
 
   function forgetSoft(player) {
-    delete player.dataset.fsSoft;
+    softSaves.delete(player);
   }
 
   /**
