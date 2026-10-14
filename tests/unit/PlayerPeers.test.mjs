@@ -155,7 +155,7 @@ describe('PlayerPeers', () => {
     const watched = player(channel, clock, {visible: true, playing: true, ahead: 2, ramBytes: 500});
     const hidden = player(channel, clock, {visible: false, playing: false, ahead: 100});
     watched.announce();
-    expect(hidden.peersRamBytes()).toBe(500);
+    expect(hidden.livePeers().map((peer) => peer.ramBytes)).toEqual([500]);
     watched.stop();
     expect(hidden.livePeers()).toEqual([]);
     clock.now += YIELD_TAIL_MS;

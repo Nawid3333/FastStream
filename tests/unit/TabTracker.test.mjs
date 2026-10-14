@@ -668,7 +668,7 @@ describe('frames and players', () => {
   it('adds and removes a child frame on both sides', () => {
     const {tab, page} = tabWithFrames();
     const child = tab.getFrameOrCreate(4);
-    page.addChildFrame(child);
+    child.setParentFrame(page);
     expect(child.parent).toBe(page);
     expect(page.children.has(child)).toBe(true);
     page.removeChildFrame(child);

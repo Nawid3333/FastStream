@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Alternar tela cheia"
     },
-    "player_fullscreen_denied": {
-        "message": "O Firefox só permite tela cheia depois de um clique: use o botão de tela cheia do reprodutor."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Alternar tela cheia em janela"
     },

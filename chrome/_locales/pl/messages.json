@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Przełącz tryb pełnoekranowy"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox zezwala na pełny ekran dopiero po kliknięciu: kliknij przycisk pełnego ekranu odtwarzacza."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Przełącz tryb pełnoekranowy w oknie"
     },

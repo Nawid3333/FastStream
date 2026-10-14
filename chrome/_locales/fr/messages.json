@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Basculer en plein écran"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox n'autorise le plein écran qu'après un clic : cliquez sur le bouton plein écran du lecteur."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Basculer en plein écran fenêtré"
     },

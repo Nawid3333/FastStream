@@ -1,8 +1,5 @@
 (() => { // Encapsulate the code to avoid polluting the global scope
   const MessageTypes = {
-    FRAME_LOADED: 'FRAME_LOADED',
-    PING_TAB: 'PING_TAB',
-    PONG_TAB: 'PONG_TAB',
     OPEN_PLAYER: 'OPEN_PLAYER',
     GET_VIDEO_SIZE: 'GET_VIDEO_SIZE',
     GET_PLAYED_VIDEO: 'GET_PLAYED_VIDEO',
@@ -23,8 +20,6 @@
     START_PAGE_PLAYER: 'START_PAGE_PLAYER',
     PAGE_TYPING: 'PAGE_TYPING',
     FRAME_REMOVED: 'FRAME_REMOVED',
-    SEND_TO_CONTENT: 'SEND_TO_CONTENT',
-    MESSAGE_FROM_CONTENT: 'MESSAGE_FROM_CONTENT',
     PAUSE_MEDIA: 'PAUSE_MEDIA',
     POPUP_GUARD_ARM: 'POPUP_GUARD_ARM',
     MPV_USER_PLAY: 'MPV_USER_PLAY',
@@ -73,10 +68,6 @@
   let resizeTrailing = null;
   const Config = {
     softReplaceByDefault: true,
-    hasCustomPlaylist: false,
-    customVideoQuery: null,
-    hasCustomLinkHandler: false,
-    customIframeId: null,
   };
 
   const {hostname} = window.location;
@@ -129,8 +120,6 @@
       // this content script knows the page's name (background.mjs, PLAYER_LOADED).
       sendResponse(request.document === DocumentKey);
       return;
-    } else if (request.type === MessageTypes.PING_TAB) {
-      sendResponse(MessageTypes.PONG_TAB);
     } else if (request.type === MessageTypes.OPEN_PLAYER) {
       return handlePlayerOpen(request, sender, sendResponse);
     } else if (request.type === MessageTypes.REMOVE_PLAYERS) {
@@ -194,9 +183,9 @@
     } else if (request.type === MessageTypes.CARRIED_FULLSCREEN) {
       carriedFullscreen = !!request.active;
       return;
-    } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_NAVIGATION) {
+    } else if (request.type === MessageTypes.PLAYLIST_NAVIGATION) {
       return handlePlaylistNavigation(request, sender, sendResponse);
-    } else if (!Config.hasCustomPlaylist && request.type === MessageTypes.PLAYLIST_POLL) {
+    } else if (request.type === MessageTypes.PLAYLIST_POLL) {
       return pollPlaylistButtons(request, sender, sendResponse);
     } else if (request.type === MessageTypes.START_PAGE_PLAYER) {
       startPagePlayer().then(sendResponse, () => sendResponse(null));
@@ -208,8 +197,6 @@
       sendResponse(document.visibilityState !== 'visible' ||
         !!active && (active.isContentEditable === true || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)));
       return;
-    } else if (request.type === MessageTypes.MESSAGE_FROM_CONTENT && request.destination === 'main') {
-      return handleContentMessage(request, sender, sendResponse);
     }
   });
 
@@ -414,16 +401,6 @@
     });
   }
 
-  function handleContentMessage(request, sender, sendResponse) {
-    const data = request.data;
-    if (data.type === 'config') {
-      Object.assign(Config, data.config);
-    } else if (data.type === 'send-to-player') {
-      sendToPlayer(data.frameId, data.data);
-    }
-    sendResponse('ok');
-  }
-
   function findIframeWithWindow(win) {
     const iframes = querySelectorAllInAllShadows('iframe');
     for (let i = 0; i < iframes.length; i++) {
@@ -487,7 +464,6 @@
         return;
       }
       if (!video && !request.force) {
-        console.log('no video found');
         sendResponse('no_video');
         return;
       }
@@ -504,7 +480,6 @@
           }
           RedirectingToPlayer = true;
           window.location = newURL.href;
-          console.log('redirecting to player');
           sendResponse('redirect');
         } else {
           const iframe = document.createElement('iframe');
@@ -518,7 +493,6 @@
           const hidden = fillScreenIframe(iframe);
           overlayPlayers.push({iframe, watcher, hidden});
           watchPendingPlayer(iframe, request.attempt);
-          console.log('Overlaying iframe');
           sendResponse('replaceall');
         }
       } else {
@@ -559,7 +533,6 @@
 
         updateReplacedPlayer(video.highest, iframe, softReplace);
 
-        console.log('replacing video with iframe');
         sendResponse('replace');
 
         if (softReplace) {
@@ -924,9 +897,7 @@
     // transferStyles gave the iframe the element's id, so the page's CSS for it applied to
     // the player. The element gets it back; it used to keep none, and the page's own rules
     // and scripts for it stopped working until a reload.
-    if (!Config.customIframeId) {
-      transferId(iframe, old);
-    }
+    transferId(iframe, old);
     restoreTransition(old);
     removePauseListeners(replacedData.watcher);
     replacedData.resizeObserver?.disconnect();
@@ -1299,7 +1270,6 @@
         } else {
           const final_size = updateReplacedPlayer(old, iframe, softReplace);
           if (convert == iframeObj.replacedData &&final_size <= 100 && softReplace) {
-            console.log('converting to hard', iframeObj);
             makeSoftIntoHard(iframeObj.replacedData);
             updateReplacedPlayer(old, iframe, false);
           }
@@ -1326,7 +1296,7 @@
       // and without it the page's #id rules no longer sized or placed the element. From the
       // second update on (the resize observer's first call), the player took the element's
       // unstyled box: the page's whole width, below the page's content.
-      if (!Config.customIframeId && holdsId) {
+      if (holdsId) {
         transferId(iframe, old);
       }
       final_size = transferStyles(old, iframe, true);
@@ -1490,11 +1460,7 @@
       iframe.style.position = 'relative';
     }
 
-    if (!Config.customIframeId) {
-      transferId(old, iframe);
-    } else {
-      iframe.id = Config.customIframeId;
-    }
+    transferId(old, iframe);
 
     iframe.style.zIndex = styles.zIndex;
     iframe.style.border = styles.border;
@@ -1821,17 +1787,6 @@
   }
 
   async function getVideo() {
-    if (Config.customVideoQuery) {
-      const player = querySelectorAllIncludingShadows(Config.customVideoQuery)[0];
-      if (player) {
-        return {
-          size: player.clientWidth * player.clientHeight,
-          highest: player,
-        };
-      }
-      return null;
-    }
-
     const videos = Array.from(querySelectorAllIncludingShadows('video'));
 
     let visibleVideos = await Promise.all(videos.map(async (video) => {
@@ -2383,10 +2338,6 @@
   }
 
   document.addEventListener('click', (e) => {
-    if (Config.hasCustomLinkHandler) {
-      return;
-    }
-
     let current = e.target;
     while (current) {
       if (current.tagName === 'A') {
@@ -2876,12 +2827,6 @@
     // a player still plays: naming the page (below) makes it tell every frame (FRAME_ADDED).
     pageMediaHeld = false;
     nameThisPage();
-  });
-
-  document.addEventListener('DOMContentLoaded', () => {
-    notifyBackground({
-      type: MessageTypes.FRAME_LOADED,
-    });
   });
 
   nameThisPage();

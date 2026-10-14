@@ -58,15 +58,6 @@ export class StatusManager {
     this.updateStatusMessage();
   }
 
-  getStatusMessage(key) {
-    const level = this.statusMessages.get(key);
-    if (!level) {
-      throw new Error(`Unknown status level ${key}`);
-    }
-
-    return level.message;
-  }
-
   updateStatusMessage() {
     const elements = DOMElements.statusMessages;
     const toDisplayList = new Array(elements.length).fill(null);

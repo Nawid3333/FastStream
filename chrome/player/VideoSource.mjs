@@ -124,10 +124,6 @@ export class VideoSource {
     }
   }
 
-  countHeaders() {
-    return Object.keys(this.headers).length;
-  }
-
   /**
    * The source as a link to copy: its URL with its headers, minus the login ones, and its
    * mode in the query, which parseHeadersParam reads back when the link is pasted into

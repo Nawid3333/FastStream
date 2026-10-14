@@ -585,12 +585,6 @@ export class FineTimeControls extends EventEmitter {
     }
   }
 
-  shouldRenderVolume(value) {
-    if (this.renderVolume === value) return;
-    this.renderVolume = value;
-    this.resetAudio();
-  }
-
   setAudioSilenceThreshold(threshold, paddingStart, paddingEnd) {
     this.audioSilenceThreshold = threshold;
     this.audioSilencePaddingStart = paddingStart || 0;

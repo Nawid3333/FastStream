@@ -19,7 +19,8 @@ export class ToolManager {
     });
 
     const options = {
-      animation: 100,
+      // No reorder animation: everything in the player is instant.
+      animation: 0,
       group: 'reorder',
       onStart: ()=>{
         this.userIsReordering = true;

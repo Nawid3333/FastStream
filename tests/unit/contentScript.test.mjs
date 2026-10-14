@@ -179,14 +179,6 @@ describe('OPEN_PLAYER', () => {
     expect(wrap.style.width).toBe('0px');
     expect(iframe.id).toBe('wrap');
   });
-
-  it('sends the background nothing for the site scripts on opening and removing a player', async () => {
-    const {page} = pageWithVideo();
-    const {iframe} = await openPlayer(page);
-    await linkPlayer(page, iframe, 5);
-    expect(await page.send({type: 'REMOVE_PLAYERS'})).toBe('ok');
-    expect(page.sent.map((message) => message.type).filter((type) => type === 'SEND_TO_CONTENT')).toEqual([]);
-  });
 });
 
 // types/messages.d.ts described the answer as {width, height}; it is the visible area, a

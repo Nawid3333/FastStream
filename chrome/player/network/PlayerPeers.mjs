@@ -257,12 +257,4 @@ export class PlayerPeers {
     const needyNow = this.livePeers().some((peer) => peer.needy);
     return needyNow || this.now() - this.lastNeedyPeerAt < YIELD_TAIL_MS;
   }
-
-  /**
-   * What the other players hold in RAM, together.
-   * @return {number}
-   */
-  peersRamBytes() {
-    return this.livePeers().reduce((sum, peer) => sum + (peer.ramBytes || 0), 0);
-  }
 }

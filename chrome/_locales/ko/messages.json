@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "전체 화면 전환"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox에서는 클릭 후에만 전체 화면을 사용할 수 있습니다: 플레이어의 전체 화면 버튼을 클릭하세요."
-    },
     "player_windowed_fullscreen_label": {
         "message": "창 모드 전체 화면 전환"
     },

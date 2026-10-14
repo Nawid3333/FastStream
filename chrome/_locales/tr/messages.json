@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Tam ekranı aç/kapat"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox tam ekrana yalnızca bir tıklamadan sonra izin veriyor: oynatıcının tam ekran düğmesine tıklayın."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Pencereli tam ekranı aç/kapat"
     },

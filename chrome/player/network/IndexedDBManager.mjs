@@ -9,20 +9,6 @@ export class IndexedDBManager {
     return window.indexedDB !== undefined;
   }
 
-  static async isSupportedAndAvailable() {
-    if (!IndexedDBManager.isSupported()) return false;
-
-    try {
-      const db = await IndexedDBManager.requestDB('faststream-temp-test', true);
-      db.close();
-      await IndexedDBManager.deleteDB('faststream-temp-test');
-      return true;
-    } catch (e) {
-      console.error(e);
-      return false;
-    }
-  }
-
   isPersistent() {
     return this.persistentName !== null;
   }
@@ -70,32 +56,11 @@ export class IndexedDBManager {
   }
 
   static async getDatabases() {
-    if (window.indexedDB.databases) {
-      return window.indexedDB.databases();
-    } else {
-      return JSON.parse(localStorage.getItem('fs_temp_databases') || '[]').map((name)=>{
-        return {
-          name: name,
-        };
-      });
-    }
+    return window.indexedDB.databases();
   }
 
   async prune() {
     const databases = await IndexedDBManager.getDatabases();
-
-    // Double check because of Firefox bug
-    if (!window.indexedDB.databases) {
-      const previouslyDeleted = JSON.parse(localStorage.getItem('fs_temp_databases_deleted') || '[]');
-      await Promise.all(previouslyDeleted.map(async (database)=>{
-        try {
-          await IndexedDBManager.deleteDB(database);
-        } catch (e) {
-          console.error(e);
-        }
-      }));
-      localStorage.setItem('fs_temp_databases_deleted', '[]');
-    }
 
     return Promise.all(databases.map(async (database)=>{
       if (database.name.startsWith('faststream-temp-')) {
@@ -129,15 +94,10 @@ export class IndexedDBManager {
   static async requestDB(dbName, open = false) {
     const request = window.indexedDB.open(dbName, 3);
     if (open) {
-      request.onupgradeneeded = async (event) => {
+      request.onupgradeneeded = (event) => {
         const db = event.target.result;
         db.createObjectStore('metadata');
         db.createObjectStore('files');
-        if (!window.indexedDB.databases) {
-          const databases = JSON.parse(localStorage.getItem('fs_temp_databases') || '[]');
-          if (!databases.includes(dbName)) databases.push(dbName);
-          localStorage.setItem('fs_temp_databases', JSON.stringify(databases));
-        }
       };
     }
     return IndexedDBManager.wrapRequest(request, 5000);
@@ -146,15 +106,6 @@ export class IndexedDBManager {
   static async deleteDB(dbName) {
     try {
       await IndexedDBManager.wrapRequest(window.indexedDB.deleteDatabase(dbName), 5000);
-
-      if (!window.indexedDB.databases) {
-        const deleted = JSON.parse(localStorage.getItem('fs_temp_databases_deleted') || '[]');
-        if (!deleted.includes(dbName)) deleted.push(dbName);
-        localStorage.setItem('fs_temp_databases_deleted', JSON.stringify(deleted));
-
-        const databases = JSON.parse(localStorage.getItem('fs_temp_databases') || '[]');
-        localStorage.setItem('fs_temp_databases', JSON.stringify(databases.filter((name)=>name !== dbName)));
-      }
     } catch (e) {
       console.error(e);
     }

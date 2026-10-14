@@ -479,9 +479,6 @@
     "player_fullscreen_label": {
         "message": "Volledig scherm in-/uitschakelen"
     },
-    "player_fullscreen_denied": {
-        "message": "Firefox staat volledig scherm alleen na een klik toe: klik op de knop voor volledig scherm van de speler."
-    },
     "player_windowed_fullscreen_label": {
         "message": "Volledig scherm in venster in-/uitschakelen"
     },
