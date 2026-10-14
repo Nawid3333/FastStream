@@ -174,7 +174,7 @@ describe('MPV mode, end to end', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
     // Only the windows this run started; see mpvTestProcesses.mjs.
-    closeSpecMpv([SITE, SITE_B, CDN]);
+    await closeSpecMpv([SITE, SITE_B, CDN]);
   });
 
   (HAVE_HOST ? it : it.skip)(
