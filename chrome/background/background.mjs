@@ -14,7 +14,7 @@ import {sanitizeDownloadFilename} from './DownloadFilename.mjs';
 import {KeyShortcut} from './KeyShortcut.mjs';
 import {modeFromContentType, modeFromMediaType} from './ManifestTypes.mjs';
 import {MessageTypes} from '../player/enums/MessageTypes.mjs';
-import {MpvBackend} from './MpvBackend.mjs';
+import {Capabilities, MpvBackend} from './MpvBackend.mjs';
 import {MpvSubtitles} from './MpvSubtitles.mjs';
 import {MultiRegexMatcher} from './MultiRegexMatcher.mjs';
 import {RuleManager} from './NetRequestRuleManager.mjs';
@@ -901,20 +901,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         // read, and a page it opened then was checked against the old allowlist (#456,
         // mpv-shortcut on CI's Windows runner: "mpvSite: false" for a listed site).
         .finally(() => sendResponse(true));
-    // sent to all tabs - once the tabs are known again: right after a wake (this message
-    // woke it) none were, and no page or player heard of the new options.
-    ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
-      tabs.forEach((tab) => {
-        if (Tabs.getTab(tab.id)) {
-          chrome.tabs.sendMessage(tab.id, {
-            type: MessageTypes.UPDATE_OPTIONS,
-            time: msg.time,
-          }, (response) => {
-            BackgroundUtils.checkMessageError('options', true);
-          });
-        }
-      });
-    }).catch((e) => console.error('Sending the new options to the tabs failed', e));
+    sendOptionsToTabs(msg.time);
     return true;
   } else if (msg.type === MessageTypes.MPV_TEST) {
     // Once the options are read: the message that wakes the background comes before they
@@ -2854,9 +2841,35 @@ async function saveOption(key, value) {
   options[key] = value;
   await Utils.setConfig('options', JSON.stringify(options));
   await loadOptions(options);
-  chrome.runtime.sendMessage({type: MessageTypes.LOAD_OPTIONS, time: Date.now()}).catch(() => {
+  const time = Date.now();
+  // An open options page hears UPDATE_OPTIONS (OptionsStore). It was sent LOAD_OPTIONS,
+  // which only this background handles: the page went on showing the old value, and its
+  // next save wrote it back (mpv's autoplay switch, turned on again).
+  chrome.runtime.sendMessage({type: MessageTypes.UPDATE_OPTIONS, time}).catch(() => {
     // No options page open.
   });
+  sendOptionsToTabs(time);
+}
+
+/**
+ * Tells every known tab's pages and players that the options changed (UPDATE_OPTIONS) -
+ * once the tabs are known again: right after a wake none were, and no page or player
+ * heard of the new options.
+ * @param {number} time - The change's time, which a player that sent it skips.
+ */
+function sendOptionsToTabs(time) {
+  ensureOptions().then(() => BackgroundUtils.queryTabs()).then((tabs) => {
+    tabs.forEach((tab) => {
+      if (Tabs.getTab(tab.id)) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: MessageTypes.UPDATE_OPTIONS,
+          time,
+        }, (response) => {
+          BackgroundUtils.checkMessageError('options', true);
+        });
+      }
+    });
+  }).catch((e) => console.error('Sending the new options to the tabs failed', e));
 }
 
 /**
@@ -2970,11 +2983,24 @@ function onMpvWatchEvent(state, event) {
     if (state.stalled) clearTimeout(state.stalled);
     state.stalled = null;
     if (mpvWatch === state) mpvWatch = null;
+    // mpv is gone (both watches' reasons for it): the page's next play is the user's, not
+    // the player repeating itself. Within MpvPlayRepeatMs it only paused the page, and
+    // closing mpv quickly left a dead click. A helper port that went while mpv plays on
+    // keeps the window: a repeat would load the episode again from where the page is.
+    const tab = event.reason === 'mpv closed' || event.reason === 'no mpv' ? Tabs.getTab(state.tabId) : null;
+    if (tab?.mpvLastPlaySend) {
+      tab.mpvLastPlaySend = null;
+      Tabs.saveTabState(tab);
+    }
     if (Logging) console.log('[MPV autoplay] the watch ended:', event.reason);
     return;
   }
   if (event.type === 'watching') {
     syncMpvAutoplay(state);
+  } else if (event.type === 'decoder') {
+    // What the toolbar's tooltip names, for the tab whose stream mpv plays (followMpvDecoder).
+    const tab = Tabs.getTab(state.tabId);
+    if (tab) setMpvDecoder(tab, event.decoder);
   } else if (event.type === 'ended') {
     if (Options.mpvAutoplayNext && isSentStream(event.path, state.url, state.qualities)) {
       startMpvCountdown(state);
@@ -3258,6 +3284,12 @@ function followMpvDecoder(tab, result) {
   tab.mpvDecoderQuery = query;
   setMpvDecoder(tab, null);
   if (!result.ok || !Mpv.singleInstance) {
+    return;
+  }
+  // The thin helper's relay, which the watch holds open, tells the decoder as mpv loads it
+  // (onMpvWatchEvent). Asked here, each second until mpv had one meant a new helper process
+  // (cmd and node) every second, up to MpvDecoderWaitMs (review of 2026-10-14).
+  if (Mpv.mayUse(Capabilities.RELAY)) {
     return;
   }
   Mpv.decoderStatus(MpvDecoderWaitMs).then((status) => {

@@ -156,6 +156,44 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
     expect(bg.sent('PAUSE_MEDIA')).toHaveLength(1);
   });
 
+  it('sends the video again when the user plays it after closing mpv, within the repeat window', async () => {
+    // The review of 2026-10-14: the repeat window (10 s) outlived mpv, and a play right
+    // after closing it only paused the page again.
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+    bg.ports.at(-1).emit({type: 'closed', reason: 'mpv closed'});
+    await bg.wait(100);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE, EPISODE]);
+  });
+
+  it('keeps the repeat window when only the helper\'s port went and mpv plays on', async () => {
+    // GLM's review of the fix above: a repeat then loaded the episode again in mpv.
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    bg.ports.at(-1).emit({type: 'closed', reason: 'the mpv host went'});
+    await bg.wait(100);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
   it('takes the next page\'s play by itself while the last page\'s stream is still read', async () => {
     bg = await loadBackground({
       options: {mpvMode: true},
@@ -1656,8 +1694,10 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.wait(100);
     expect(states(port)).toEqual([false]);
     expect(notices(port).at(-1)).toBe('off');
-    // Saved, and an open options page told.
-    expect(bg.runtimeSent.map((m) => m.type)).toContain('LOAD_OPTIONS');
+    // Saved, and an open options page told with the message it listens for (OptionsStore:
+    // UPDATE_OPTIONS); LOAD_OPTIONS reached only this background.
+    expect(bg.runtimeSent.map((m) => m.type)).toContain('UPDATE_OPTIONS');
+    expect(bg.runtimeSent.map((m) => m.type)).not.toContain('LOAD_OPTIONS');
     await bg.wait(6000);
     expect(navigations).toEqual([]);
 

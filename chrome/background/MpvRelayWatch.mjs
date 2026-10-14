@@ -60,6 +60,8 @@ export const EpisodeMessages = {
 const PathId = 1;
 const EofId = 2;
 const PauseId = 3;
+// The decoder's properties (decoderProperties) get the ids from here on.
+const DecoderBaseId = 10;
 
 /**
  * How long a notice asks to stay: seconds between 0 (exclusive) and MaxNoticeSeconds, to a
@@ -96,7 +98,10 @@ function noticeText(text) {
  * Follows mpv over a `relay` port of the helper: its file, its end, and its keys for the next
  * or the previous episode, each sent as it happens as watchMpv sent them (host 7's watch):
  * {type: 'watching'} once mpv is followed, {type: 'path', path}, {type: 'ended', path},
- * {type: 'request', action}, and {type: 'closed', reason} last (not after stop()).
+ * {type: 'request', action}, and {type: 'closed', reason} last (not after stop()). With
+ * decoderProperties, also {type: 'decoder-replies', replies} whenever one of them changed:
+ * their values in that order, as the ipc message's replies ({error, data}), so a caller reads
+ * them as it reads an answer to get_property.
  *
  * An end is eof-reached going from false to true for the file mpv has (keep-open stops at the
  * end), or an end-file "eof" (an mpv without keep-open), or mpv in the last EndSlackSeconds of
@@ -108,12 +113,13 @@ function noticeText(text) {
  * @param {*} port - A connectNative port to the helper (postMessage, onMessage, onDisconnect,
  *   disconnect), nothing sent on it yet.
  * @param {(event: Object) => void} onEvent - Gets each event.
- * @param {{onLegacy?: () => void}} [options] - onLegacy: the helper answered "unknown
- *   message", one from before host 15. The watch then ends without a 'closed' event, for the
- *   caller to follow mpv the old way.
+ * @param {{onLegacy?: () => void, decoderProperties?: Array<string>}} [options] - onLegacy:
+ *   the helper answered "unknown message", one from before host 15. The watch then ends
+ *   without a 'closed' event, for the caller to follow mpv the old way. decoderProperties: mpv
+ *   properties to observe for its video decoder (MpvBackend's DecoderProperties).
  * @return {MpvWatcher}
  */
-export function relayWatch(port, onEvent, {onLegacy} = {}) {
+export function relayWatch(port, onEvent, {onLegacy, decoderProperties = []} = {}) {
   let ended = false;
   let relaying = false;
   /** @type {Array<Object>} */
@@ -128,6 +134,11 @@ export function relayWatch(port, onEvent, {onLegacy} = {}) {
   let requests = 0;
   // The questions for the time left (endCheck), by id.
   const endChecks = new Set();
+  // The decoder's properties as mpv last said them, and the replies last told.
+  /** @type {Object<string, *>} */
+  const decoderValues = {};
+  /** @type {?string} */
+  let decoderTold = null;
   // A notice sent to notify.lua, by id: one refused (no notify.lua in this mpv's config) is
   // shown with mpv's own text instead.
   /** @type {Map<number, {text: string, seconds: (number|undefined)}>} */
@@ -226,6 +237,16 @@ export function relayWatch(port, onEvent, {onLegacy} = {}) {
     } else if (event.event === 'client-message' && Array.isArray(event.args)) {
       const action = Object.hasOwn(EpisodeMessages, event.args[0]) ? EpisodeMessages[event.args[0]] : undefined;
       if (action) onEvent({type: 'request', action});
+    } else if (event.event === 'property-change' && decoderProperties.includes(event.name)) {
+      // No data: unavailable (no video decoder loaded, between two files).
+      decoderValues[event.name] = event.data;
+      const replies = decoderProperties.map((name) =>
+        decoderValues[name] === undefined ? {error: 'property unavailable'} : {error: 'success', data: decoderValues[name]});
+      const told = JSON.stringify(replies);
+      if (told !== decoderTold) {
+        decoderTold = told;
+        onEvent({type: 'decoder-replies', replies});
+      }
     }
   };
 
@@ -252,6 +273,7 @@ export function relayWatch(port, onEvent, {onLegacy} = {}) {
       post({type: 'mpv', command: ['observe_property', PathId, 'path']});
       post({type: 'mpv', command: ['observe_property', EofId, 'eof-reached']});
       post({type: 'mpv', command: ['observe_property', PauseId, 'pause']});
+      decoderProperties.forEach((name, i) => post({type: 'mpv', command: ['observe_property', DecoderBaseId + i, name]}));
       // mpv's episode buttons show while this holds (host 9); the helper clears it when this
       // port closes (onStop below).
       post({type: 'mpv', command: ['set_property', ConnectedProperty, true]});

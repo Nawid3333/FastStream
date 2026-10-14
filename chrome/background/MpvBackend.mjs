@@ -762,12 +762,20 @@ export class MpvBackend {
         emit({type: 'closed', reason: String(e)});
         return;
       }
-      current = relay ? relayWatch(port, emit, {
+      current = relay ? relayWatch(port, (event) => {
+        // mpv's decoder, observed over the relay: read as decoderStatus reads it.
+        if (event.type === 'decoder-replies') {
+          emit({type: 'decoder', decoder: MpvBackend.readDecoder(MpvBackend.decoderFromReplies(event.replies))});
+        } else {
+          emit(event);
+        }
+      }, {
         onLegacy: () => {
           // It is older than host 15: followed the old way, and asked the old way from now on.
           this.capabilities = [];
           if (!stopped) start(false);
         },
+        decoderProperties: DecoderProperties,
       }) : legacyWatch(port, emit);
     };
     this.watcher = handle;
