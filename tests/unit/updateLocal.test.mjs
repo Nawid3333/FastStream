@@ -2,7 +2,7 @@ import {spawnSync} from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {describe, expect, it} from 'vitest';
+import {beforeAll, describe, expect, it} from 'vitest';
 import {isPinnedUrl, newestNode, newestPackage, newestWsl} from '../../tools/newest-release.mjs';
 
 // tools/update-local.ps1 brings this PC to the newest releases, tools/newest-release.mjs picks
@@ -262,17 +262,14 @@ describe('update-local.ps1', () => {
       ]),
     };
 
-    it.each([
-      ['nothing is due', 0, {}],
-      ['a newer Node.js', 2, {STUB_NODE: '22.23.2'}],
-      ['a newer npm', 2, {STUB_NPM: '11.8.0'}],
-      ['pnpm older than the pin', 2, {STUB_PNPM: '11.27.0'}],
-      ['main behind origin', 2, {STUB_BEHIND: '3'}],
-      ['an mpv helper unlike the repository\'s', 2, {}, true],
-      // Not on main, the repository's helper is not the one to install, and -Apply leaves it:
-      // the check offered it anyway, and -Apply then did nothing and exited 0.
-      ['an mpv helper unlike that of another branch', 0, {STUB_BRANCH: 'fix/x'}, true],
-    ])('%s: exits %i', (name, code, change, helper = false) => {
+    /**
+     * Runs the check against a fake repository.
+     * @param {Object} change - The environment that differs from upToDate.
+     * @param {boolean} helper - Whether an mpv helper unlike the repository's is installed.
+     * @param {number} timeout - How long the run may take, in ms.
+     * @return {Object} spawnSync's result.
+     */
+    function runCheck(change, helper, timeout) {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-update-check-'));
       const bin = path.join(dir, 'bin');
       const repo = path.join(dir, 'repo');
@@ -316,18 +313,40 @@ describe('update-local.ps1', () => {
           USERPROFILE: dir, PSModulePath: path.join(powershellDir, 'Modules'),
           ...upToDate, ...change,
         };
-        // A margin, not the expected time (about 1 s with the module path above): the run
-        // gets 100 s and the test 120 s, and a hung PowerShell is ended with the run.
-        const r = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-          '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env, timeout: 100000});
-        expect(r.error).toBeUndefined();
-        expect(r.stdout).not.toMatch(/failed|stand-in/);
-        expect(r.stdout).toMatch(/WSL: not on this PC/);
-        expect(r.stdout.includes('Run tools\\update-local.ps1 -Apply')).toBe(code === 2);
-        expect(r.status).toBe(code);
+        return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+          '-File', script, '-Repo', repo], {encoding: 'utf8', windowsHide: true, env, timeout});
       } finally {
         fs.rmSync(dir, {recursive: true, force: true});
       }
+    }
+
+    // GitHub's Windows runner takes about 20 s a run with the module path above (about 2 s
+    // here), and its first run in a job more than 100 s on top, once: the first case timed
+    // out on main (2026-10-14) while the six after it took about 20 s each. A first run that
+    // counts for nothing takes that once.
+    beforeAll(() => {
+      runCheck({}, false, 280000);
+    }, 300000);
+
+    it.each([
+      ['nothing is due', 0, {}],
+      ['a newer Node.js', 2, {STUB_NODE: '22.23.2'}],
+      ['a newer npm', 2, {STUB_NPM: '11.8.0'}],
+      ['pnpm older than the pin', 2, {STUB_PNPM: '11.27.0'}],
+      ['main behind origin', 2, {STUB_BEHIND: '3'}],
+      ['an mpv helper unlike the repository\'s', 2, {}, true],
+      // Not on main, the repository's helper is not the one to install, and -Apply leaves it:
+      // the check offered it anyway, and -Apply then did nothing and exited 0.
+      ['an mpv helper unlike that of another branch', 0, {STUB_BRANCH: 'fix/x'}, true],
+    ])('%s: exits %i', (name, code, change, helper = false) => {
+      // A margin, not the expected time: the run gets 100 s and the test 120 s, and a hung
+      // PowerShell is ended with the run.
+      const r = runCheck(change, helper, 100000);
+      expect(r.error).toBeUndefined();
+      expect(r.stdout).not.toMatch(/failed|stand-in/);
+      expect(r.stdout).toMatch(/WSL: not on this PC/);
+      expect(r.stdout.includes('Run tools\\update-local.ps1 -Apply')).toBe(code === 2);
+      expect(r.status).toBe(code);
     }, 120000);
   });
 
