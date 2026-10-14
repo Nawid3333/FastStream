@@ -139,7 +139,7 @@ describe('faithful save flow (UI + embedded iframe)', function() {
     // here, once a second: a single executeAsync that waited in the page ran
     // into WebDriver's 30 s script timeout, and its own 120 s budget into
     // mocha's cap, so neither outcome below was ever logged.
-    const started = Date.now();
+    const started = performance.now();
     let outcome;
     for (;;) {
       const page = await browser.execute(() => {
@@ -149,7 +149,7 @@ describe('faithful save flow (UI + embedded iframe)', function() {
           status: document.querySelector('.status_text')?.textContent ?? null,
         };
       });
-      const elapsedMs = Date.now() - started;
+      const elapsedMs = performance.now() - started;
       if (!page.bannerVisible && elapsedMs > 3000) {
         outcome = {settled: true, elapsedMs, status: page.status};
         break;

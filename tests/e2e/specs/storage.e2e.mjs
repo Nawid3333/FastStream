@@ -339,10 +339,12 @@ describe('FSBlob storage backends', function() {
         // the setup, the worker's start took longer than that on CI's Windows runner (#334).
         OPFSManager.CallTimeoutMs = 500;
         blobStore.opfsManager.worker.postMessage = () => {};
-        const started = Date.now();
+        // The monotonic clock: Date.now() follows the wall clock, which WSL's time sync set
+        // back mid-wait once, and the wait came out as -77 ms (2026-10-14).
+        const started = performance.now();
         const payload = new Uint8Array([4, 5, 6, 7]);
         const second = await blobStore.saveBlobAsync(new Blob([payload]));
-        const waited = Date.now() - started;
+        const waited = performance.now() - started;
         // The Cache API now: getBlob answers a promise, read when asked for.
         const readBack = new Uint8Array(await (await blobStore.getBlob(second)).arrayBuffer());
         const after = blobStore.opfsManager ? 'opfs' :
