@@ -575,6 +575,7 @@
     }
 
     showSoft(old);
+    forgetSoft(old);
     old.remove();
     pobj.softReplace = false;
   }
@@ -890,6 +891,7 @@
     const {iframe, old} = replacedData;
     if (replacedData.softReplace) {
       showSoft(old);
+      forgetSoft(old);
       iframe.remove();
     } else {
       iframe.replaceWith(old);
@@ -1181,57 +1183,59 @@
     }
   }
 
+  // What hideSoft sets on the page's element: no size, nothing drawn outside it.
+  const SoftHidden = {width: '0px', height: '0px', overflow: 'hidden', margin: '0px', contain: 'paint'};
+
+  // The page's own inline values of those, saved once with their priority until the element
+  // is given back (forgetSoft). A value equal to the hidden one (overflow: hidden, margin: 0)
+  // was never saved and showSoft cleared it, the saved ones were never deleted (a later
+  // replace restored a stale one), and !important was lost (review of 2026-10-14).
   function hideSoft(player) {
     rememberTransition(player);
-    // player.style.setProperty('display', 'none', 'important');
-    // set height and width to 0, overflow hidden
-
-    if (player.style.width && player.style.width !== '0px') {
-      player.dataset.oldWidth = player.style.width;
+    if (!('fsSoft' in player.dataset)) {
+      const saved = {};
+      for (const name of Object.keys(SoftHidden)) {
+        saved[name] = [player.style.getPropertyValue(name), player.style.getPropertyPriority(name)];
+      }
+      player.dataset.fsSoft = JSON.stringify(saved);
     }
-
-    if (player.style.height && player.style.height !== '0px') {
-      player.dataset.oldHeight = player.style.height;
+    for (const [name, value] of Object.entries(SoftHidden)) {
+      player.style.setProperty(name, value, 'important');
     }
-
-    if (player.style.overflow && player.style.overflow !== 'hidden') {
-      player.dataset.oldOverflow = player.style.overflow;
-    }
-
-    if (player.style.margin && player.style.margin !== '0px') {
-      player.dataset.oldMargin = player.style.margin;
-    }
-
-    if (player.style.contain && player.style.contain !== 'paint') {
-      player.dataset.oldContain = player.style.contain;
-    }
-
-    player.style.setProperty('width', '0px', 'important');
-    player.style.setProperty('height', '0px', 'important');
-    player.style.setProperty('overflow', 'hidden', 'important');
-    player.style.setProperty('margin', '0px', 'important');
     player.style.setProperty('transition', 'none', 'important');
-    player.style.setProperty('contain', 'paint', 'important');
   }
 
+  // The saved values back - each only while it is still the hidden one: a value the page set
+  // meanwhile is the page's newer one. The save stays for the next hideSoft (a measurement).
   function showSoft(player) {
     rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
-    if (player.style.width === '0px') {
-      player.style.width = player.dataset.oldWidth || '';
+    let saved = null;
+    try {
+      saved = JSON.parse(player.dataset.fsSoft || 'null');
+    } catch (e) {
+      saved = null;
     }
-    if (player.style.height === '0px') {
-      player.style.height = player.dataset.oldHeight || '';
+    // Not hidden yet (the first measurement shows it before hiding it): a value equal to the
+    // hidden one is the page's own, e.g. margin: 0 !important.
+    if (!saved) {
+      return;
     }
-    if (player.style.overflow === 'hidden') {
-      player.style.overflow = player.dataset.oldOverflow || '';
+    for (const [name, hidden] of Object.entries(SoftHidden)) {
+      if (player.style.getPropertyValue(name) !== hidden || player.style.getPropertyPriority(name) !== 'important') {
+        continue;
+      }
+      const [value, priority] = saved[name] || ['', ''];
+      if (value) {
+        player.style.setProperty(name, value, priority);
+      } else {
+        player.style.removeProperty(name);
+      }
     }
-    if (player.style.margin === '0px') {
-      player.style.margin = player.dataset.oldMargin || '';
-    }
-    if (player.style.contain === 'paint') {
-      player.style.contain = player.dataset.oldContain || '';
-    }
+  }
+
+  function forgetSoft(player) {
+    delete player.dataset.fsSoft;
   }
 
   /**

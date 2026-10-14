@@ -1467,6 +1467,17 @@ closed_before_verdict() {
   check 'no comment on a closed pull request' test "$(comments_n)" -eq 0
   check 'not assigned' test ! -s "$STATE/assignees"
 }
+moved_before_verdict() {
+  # Green and up to date, but the branch moved on while this ran: no verdict on a commit
+  # nothing here has checked.
+  setup
+  : > "$STATE/head_moved"
+  run_step
+  check 'exit 0' test "$rc" -eq 0
+  check 'says why' grep -qF "that commit's CI run decides" "$T/out"
+  check 'no comment' test "$(comments_n)" -eq 0
+  check 'not assigned' test ! -s "$STATE/assignees"
+}
 update_refused_head_moved() {
   setup
   echo 2 > "$STATE/behind"
@@ -1614,6 +1625,7 @@ patched_review_rerun_pending_then_success
 patched_review_unreadable
 toolchain_not_reviewed
 closed_before_verdict
+moved_before_verdict
 update_refused_head_moved
 update_refused
 green_mergeable_stays_unknown

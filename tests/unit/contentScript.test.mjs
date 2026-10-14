@@ -181,6 +181,32 @@ describe('OPEN_PLAYER', () => {
   });
 });
 
+// The review of 2026-10-14: hideSoft saved only values unlike its own and never deleted the
+// saves, and showSoft cleared or restored the page's inline styles wrongly.
+describe('the page\'s own inline styles after a soft replace', () => {
+  it('come back as they were, !important too, and a later replace restores nothing stale', async () => {
+    const {page, wrap} = pageWithVideo();
+    wrap.setAttribute('style', 'width: 640px; overflow: hidden; margin: 0px !important;');
+    let {iframe} = await openPlayer(page);
+    await linkPlayer(page, iframe, 5);
+    expect(wrap.style.width).toBe('0px');
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(wrap.style.getPropertyValue('width')).toBe('640px');
+    expect(wrap.style.getPropertyValue('overflow')).toBe('hidden');
+    expect(wrap.style.getPropertyValue('margin')).toBe('0px');
+    expect(wrap.style.getPropertyPriority('margin')).toBe('important');
+    expect(wrap.style.getPropertyValue('height')).toBe('');
+    expect(Object.keys(wrap.dataset).filter((key) => /^(old|fsSoft)/.test(key))).toEqual([]);
+
+    // the page drops its width; the next player must not bring the old one back
+    wrap.style.removeProperty('width');
+    ({iframe} = await openPlayer(page));
+    await linkPlayer(page, iframe, 6);
+    await page.send({type: 'REMOVE_PLAYERS'});
+    expect(wrap.style.getPropertyValue('width')).toBe('');
+  });
+});
+
 // types/messages.d.ts described the answer as {width, height}; it is the visible area, a
 // number the background sorts frames by (#233).
 describe('OPEN_PLAYER overtaken by REMOVE_PLAYERS', () => {
