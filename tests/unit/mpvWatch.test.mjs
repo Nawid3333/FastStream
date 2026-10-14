@@ -3,7 +3,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import {PassThrough} from 'node:stream';
-import {afterEach, describe, expect, it} from 'vitest';
+import {afterEach, describe, expect, it, vi} from 'vitest';
 import {MaxMessageBytes, readMessage, readMessages, watchMpv} from '../../native-host/faststream-mpv-host.mjs';
 
 // MPV autoplay (host 7, 2026-10-11): the host follows the mpv it started, over a port the
@@ -269,13 +269,16 @@ describe('watchMpv', () => {
   it('says how long a notice stays, and takes it down early (host 11)', async () => {
     // Before, every notice went after notify.lua's 2 s: "next episode in 5 s" was gone 3 s
     // before the episode came.
-    const {mpv, watch, settle} = await watching('seconds');
+    const {mpv, watch} = await watching('seconds');
     watch.notify('Autoplay', 'next episode in 5 s', 5);
     watch.notify('Next video', 'none found', 99);
     watch.notify('Next video', 'loading', 6.04);
     for (const bad of [0, -1, NaN, Infinity, '5', null, 0.01]) watch.notify('x', '', bad);
     watch.hide();
-    await settle();
+    // Until the fake mpv has it all, not a fixed 60 ms: under verify's whole suite the round
+    // trip below took longer (2026-10-14).
+    await vi.waitFor(() => expect(mpv.commands.at(-1)?.command.slice(2)).toEqual(['hide', 'faststream']),
+        {timeout: 5000, interval: 20});
     const sent = mpv.commands.filter((c) => c.command[0] === 'script-message-to');
     expect(sent.map((c) => c.command.slice(2))).toEqual([
       ['show', 'faststream', 'Autoplay', 'next episode in 5 s', '5'],
@@ -288,8 +291,8 @@ describe('watchMpv', () => {
     expect(sent.at(-1).request_id).toBeUndefined();
     // Without notify.lua: mpv's own text, for as long.
     mpv.event({request_id: sent[0].request_id, error: 'error running command'});
-    await settle();
-    expect(mpv.commands.at(-1)).toEqual({command: ['show-text', 'Autoplay: next episode in 5 s', 5000]});
+    await vi.waitFor(() => expect(mpv.commands.at(-1)).toEqual({command: ['show-text', 'Autoplay: next episode in 5 s', 5000]}),
+        {timeout: 5000, interval: 20});
     watch.stop();
   });
 
