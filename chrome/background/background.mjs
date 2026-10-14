@@ -1,7 +1,7 @@
 // @ts-check
 import {PlayerModes} from '../player/enums/PlayerModes.mjs';
 import {PIECE_LENGTH, STILLS_LENGTH, StreamLength} from '../player/utils/StreamLength.mjs';
-import {StreamPick} from '../player/utils/StreamPick.mjs';
+import {SHORT_S, StreamPick} from '../player/utils/StreamPick.mjs';
 import {guessMediaInfo} from '../player/utils/MediaTitle.mjs';
 import {URLUtils} from '../player/utils/URLUtils.mjs';
 import {Utils} from '../player/utils/Utils.mjs';
@@ -2562,8 +2562,14 @@ async function onSourceRecieved(details, frame, mode) {
     // tracked for the toolbar and the player's "send to mpv" button, but
     // they must not each spawn their own mpv window. Not one already known to show no
     // video of its own (showsNoVideo); there is no waiting here for a length still read.
+    // MPV autoplay's next page is the exception: its first stream may be an ad's
+    // (pickNextEpisodeForMpv).
     if (!frame.tab.mpvAutoOpened && !showsNoVideo({url, mode}, frame)) {
-      autoOpenInMpv(frame.tab, url, customHeaders);
+      if (frame.tab.mpvNextEpisodeUntil > Date.now()) {
+        pickNextEpisodeForMpv(frame.tab);
+      } else {
+        autoOpenInMpv(frame.tab, url, customHeaders);
+      }
     }
     return;
   }
@@ -2747,6 +2753,67 @@ function autoOpenInMpv(tab, url, headers) {
   });
 }
 
+/**
+ * MPV autoplay's next page (tab.mpvNextEpisodeUntil): the stream to send, picked as
+ * openMpvWithSources picks, once the lengths of what the page loaded are read. Its first
+ * stream went at once before, and here this extension started the page's player itself
+ * (startPagePlayers): a hoster's player may load an ad's stream first, which went to mpv under
+ * the episode's title, and the episode's own, detected after, was dropped (aniworld, season 1
+ * to 2, his report 2026-10-13: mpv showed the title on a black picture). Each detection
+ * starts the pick again. One known to run under StreamPick's SHORT_S (an ad, a trailer, a
+ * preview) waits for a longer one until MpvNextPickGraceMs before the minute is up, and goes
+ * then as the best there is. Only streams detected since the episode was asked for: a frame
+ * of the page before that is not always gone from the tab (its FRAME_REMOVED never came),
+ * and its episode, the longest, went to mpv again.
+ * @param {TabHolder} tab - The tab gone on to the next episode.
+ */
+async function pickNextEpisodeForMpv(tab) {
+  const pick = {};
+  tab.mpvNextPick = pick;
+  clearTimeout(tab.mpvNextPickTimer);
+  const page = tab.mpvPage;
+  const since = tab.mpvNextEpisodeUntil - MpvNextEpisodeWaitMs;
+  const fresh = () => tabSources(tab).filter((source) => !(source.time < since));
+  await Lengths.settle(fresh, SourceLengthWaitMs);
+  if (tab.mpvNextPick !== pick || !isTabOpen(tab) || !isHandOffPage(tab, page) || tab.mpvAutoOpened ||
+      !tab.isOn || !tab.isMpv || !Options.mpvMode) {
+    return;
+  }
+  const source = newestOfLongest(fresh());
+  if (!source) {
+    return;
+  }
+  const length = Lengths.lengthOf(source.url);
+  const left = tab.mpvNextEpisodeUntil - Date.now();
+  if (typeof length === 'number' && length > 0 && length < SHORT_S && left > MpvNextPickGraceMs) {
+    if (Logging) console.log('[MPV autoplay] a short stream, waiting for a longer one:', source.url, length);
+    tab.mpvNextPickTimer = setTimeout(() => {
+      if (tab.mpvNextPick === pick) pickNextEpisodeForMpv(tab);
+    }, left - MpvNextPickGraceMs);
+    return;
+  }
+  autoOpenInMpv(tab, source.url, source.headers);
+}
+
+/**
+ * Every stream detected in a tab's frames, once each.
+ * @param {TabHolder} tab
+ * @return {Array<Object>}
+ */
+function tabSources(tab) {
+  const seen = new Set();
+  const sources = [];
+  for (const frame of tab.getFrames()) {
+    for (const source of frame.getSources()) {
+      if (!seen.has(source.url)) {
+        seen.add(source.url);
+        sources.push(source);
+      }
+    }
+  }
+  return sources;
+}
+
 // MPV autoplay (his wish, 2026-10-11): an episode handed to mpv that plays to its end (with
 // "Autoplay next episode in mpv" on), or mpv's key or button for the next or the previous
 // episode, goes on to that episode in the tab's page, and its stream goes into the same mpv
@@ -2765,6 +2832,9 @@ function autoOpenInMpv(tab, url, headers) {
 let mpvWatch = null;
 // How long the next page has to bring its stream (MPV key's mode: TabHolder.mpvNextEpisodeUntil).
 const MpvNextEpisodeWaitMs = 60000;
+// How long before that minute is up a short stream goes as the best there is
+// (pickNextEpisodeForMpv).
+const MpvNextPickGraceMs = 5000;
 // How long mpv shows a notice that is a sentence to read (host 11; before, every notice went
 // after notify.lua's 2 s). The countdown's stays for the countdown; on and off for 2 s.
 const MpvNoticeSeconds = 6;
@@ -3615,19 +3685,7 @@ function openMpvWithSources(tab) {
   // re-entry that targets the same URL (toolbar cycled MPV -> Off -> On -> MPV).
   tab.mpvSentUrls.clear();
 
-  const seen = new Set();
-  const sources = [];
-
-  for (const frame of tab.getFrames()) {
-    for (const source of frame.getSources()) {
-      if (!seen.has(source.url)) {
-        seen.add(source.url);
-        sources.push(source);
-      }
-    }
-  }
-
-  const source = newestOfLongest(sources);
+  const source = newestOfLongest(tabSources(tab));
   if (!source) {
     return false;
   }

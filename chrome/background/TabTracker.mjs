@@ -254,10 +254,16 @@ export class TabHolder {
     // The continuation that timer asks for.
     /** @type {?Object} */
     this.pagePlayerContinuation = null;
-    // Until when the next page's first stream goes to mpv by itself, after MPV autoplay
-    // went on to the next episode (background.mjs goToEpisode): also in the MPV key's mode,
-    // which otherwise waits for a play in the page.
+    // Until when the next page's stream goes to mpv by itself, after MPV autoplay went on to
+    // the next episode (background.mjs goToEpisode): also in the MPV key's mode, which
+    // otherwise waits for a play in the page. The longest of its streams, not the first
+    // (background.mjs pickNextEpisodeForMpv): the pick under way (a newer detection starts
+    // another), and its timer when it waits for a longer stream.
     this.mpvNextEpisodeUntil = 0;
+    /** @type {?Object} */
+    this.mpvNextPick = null;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    this.mpvNextPickTimer = undefined;
     // A fullscreen carried over to the next episode (background.mjs setCarriedFullscreen):
     // the window's state before it went fullscreen, to go back to, and the player that asked.
     /** @type {?string} */

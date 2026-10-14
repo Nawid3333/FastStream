@@ -471,6 +471,21 @@ the watch begins is its state then, not a pause, as with `eof-reached`. Measured
 real watch on the pinned mpv: on that stream the host 13 watch told no end, host 14's told it
 as the skip landed; skips through a file told one end, at the end.
 
+**The next page's stream: the longest, not the first (2026-10-14).** His report (2026-10-13):
+MPV autoplay from aniworld's season 1 to season 2 showed episode 1's title in mpv on a black
+picture. Checked then: every episode there has the same four hosters, VOE first; VOE's file is
+one HLS master that plays in mpv with no Referer (so neither the page-quality swap nor the
+headers), and the season's first episode is the URL aniworld itself uses. What remained: the
+allowlist's MPV sent the first stream a page detected, and on the next page this extension
+starts the page's player itself (`startPagePlayers`), whose hoster may load an ad's stream
+first; every later one, the episode's, was dropped (`mpvAutoOpened`). While
+`mpvNextEpisodeUntil` holds, `pickNextEpisodeForMpv` waits for the lengths of the streams
+detected since the episode was asked for (`Lengths.settle`), then sends `newestOfLongest`, as
+the toolbar's MPV does; one under StreamPick's `SHORT_S` waits for a longer one until 5 s
+before the minute is up. A failed open was never silent: mpv-config's `source-info.lua` shows
+one for a FastStream stream (`end-file` error). `backgroundMpv.test.mjs`: an ad, then the
+episode; a stream of a few minutes alone.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next
