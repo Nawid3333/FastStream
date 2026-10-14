@@ -230,4 +230,5 @@ the wider range. That range turned out to be worth nothing: 136-139 are
 ordinary releases, never ESR, and long out of support (ESR 128 was already
 below the old floor). The build now uses the AMO build's floor of 142 and
 declares `data_collection_permissions: {required: ['none']}` the same way, and
-the warning is gone with no new one in its place.
+the warning is gone with no new one in its place. Both builds require
+Firefox 153 since 2026-10-14 (the picture-in-picture API).
