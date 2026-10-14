@@ -87,8 +87,9 @@ const MpvPlayPendingMs = 15000;
 const MpvPlayRepeatMs = 10000;
 // The allowlist's MPV, on a page Back gave back: how long a play whose stream is not
 // known waits for it to be detected before the page's known stream goes
-// (autoOpenKnownLater).
-const MpvPlayKnownAfterMs = 3000;
+// (autoOpenKnownLater). 1 s (3 s until 2026-10-14): a play-triggered fetch lands within a
+// few hundred ms, and every Back + play waited the whole time before mpv started.
+const MpvPlayKnownAfterMs = 1000;
 
 // How long a tab stays "armed" after content.js reports focus moving into
 // one of its player iframes (see the tabs.onCreated listener below). Short
