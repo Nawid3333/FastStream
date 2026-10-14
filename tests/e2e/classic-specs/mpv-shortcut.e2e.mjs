@@ -649,7 +649,7 @@ describe('The MPV keyboard shortcut (Alt+F)', function() {
   after(async function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
-    closeSpecMpv([SITE, CDN]);
+    await closeSpecMpv([SITE, CDN]);
   });
 
   beforeEach(function() {

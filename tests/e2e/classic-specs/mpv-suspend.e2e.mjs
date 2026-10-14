@@ -93,7 +93,7 @@ describe('MPV mode across a suspended background', function() {
     if (siteServer) await new Promise((r) => siteServer.close(r));
     if (cdnServer) await new Promise((r) => cdnServer.close(r));
     // Only the mpv windows this run started; see mpvTestProcesses.mjs.
-    closeSpecMpv([SITE, CDN]);
+    await closeSpecMpv([SITE, CDN]);
   });
 
   (HAVE_HOST ? it : it.skip)(
