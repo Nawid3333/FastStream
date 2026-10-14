@@ -2771,11 +2771,17 @@ async function pickNextEpisodeForMpv(tab) {
   const pick = {};
   tab.mpvNextPick = pick;
   clearTimeout(tab.mpvNextPickTimer);
+  // Only while the episode is still waited for: another tab's stream that took the mpv window
+  // ends the wait (watchMpvFor), and a pick then sent this tab's page over it.
+  const open = () => tab.mpvNextEpisodeUntil > Date.now();
+  if (!open()) {
+    return;
+  }
   const page = tab.mpvPage;
   const since = tab.mpvNextEpisodeUntil - MpvNextEpisodeWaitMs;
   const fresh = () => tabSources(tab).filter((source) => !(source.time < since));
   await Lengths.settle(fresh, SourceLengthWaitMs);
-  if (tab.mpvNextPick !== pick || !isTabOpen(tab) || !isHandOffPage(tab, page) || tab.mpvAutoOpened ||
+  if (tab.mpvNextPick !== pick || !open() || !isTabOpen(tab) || !isHandOffPage(tab, page) || tab.mpvAutoOpened ||
       !tab.isOn || !tab.isMpv || !Options.mpvMode) {
     return;
   }

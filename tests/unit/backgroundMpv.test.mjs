@@ -1903,6 +1903,39 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.toMpv()).toEqual([S1, S3]);
   });
 
+  it('sends nothing for a short stream that waited when another tab\'s stream took the window', async () => {
+    // pickNextEpisodeForMpv: tab 1's next page had only a stream of a few minutes, which waits
+    // for a longer one; tab 2's video took the window meanwhile, which ends tab 1's wait.
+    const S3 = 'https://cdn.test/other/master.m3u8';
+    navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://other.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: EP1}, {id: 2, url: 'https://other.test/film'}],
+      fetch: playlists({[S1]: 1400, [S3]: 1400, [SHORT]: 90}),
+      onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),
+    });
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'ep1');
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: S1});
+    await bg.wait(500);
+    bg.ports.at(-1).emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.request({tabId: 1, url: SHORT});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([S1]);
+
+    await bg.navigated(2, 'https://other.test/film');
+    await bg.frameAdded(2, 0, 'https://other.test/film', 'film');
+    await bg.request({tabId: 2, url: S3});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S3]);
+    await bg.wait(60000);
+    expect(bg.toMpv()).toEqual([S1, S3]);
+  });
+
   it('stops at the series\' last episode and says so, asking no hoster frame', async () => {
     // His report (2026-10-11, aniworld.cc): after a season's last episode autoplay went on to
     // another series. The page says its series ended (content.js isSeriesEnd): no other
