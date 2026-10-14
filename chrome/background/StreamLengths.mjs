@@ -37,8 +37,79 @@ export class StreamLengths {
     this.setHeaders = setHeaders;
     /** @type {Map<string, {duration: (number|null|undefined), promise: Promise<number|null>}>} */
     this.known = new Map();
+    // The HLS master playlists read (by the URL detected), with their variants (absolute URLs),
+    // and each variant's master: hlsQualities.
+    /** @type {Map<string, {variants: Array<{url: string, bandwidth: number, height: number}>, renditions: boolean}>} */
+    this.masters = new Map();
+    /** @type {Map<string, string>} */
+    this.masterOf = new Map();
     this.active = 0;
     this.waiting = [];
+  }
+
+  /**
+   * An HLS stream's qualities, as the master playlist read for it, or for the master of the
+   * variant it is, lists them (largest first, one per height, the highest bandwidth of each).
+   * @param {string} url - A detected stream.
+   * @return {?{master: string, list: ?Array<{url: string, label: string, height: number}>}}
+   *   Null for a URL that is no master read and no variant of one; list null when the master
+   *   names fewer than two heights, or lists audio or subtitles of their own, which a variant
+   *   played alone goes without (then only the master plays them).
+   */
+  hlsQualities(url) {
+    const master = this.masters.has(url) ? url : this.masterOf.get(url);
+    const info = master && this.masters.get(master);
+    if (!master || !info) {
+      return null;
+    }
+    /** @type {Map<number, {url: string, bandwidth: number, height: number}>} */
+    const byHeight = new Map();
+    for (const variant of info.variants) {
+      if (variant.height <= 0) continue;
+      const kept = byHeight.get(variant.height);
+      if (!kept || variant.bandwidth > kept.bandwidth) {
+        byHeight.set(variant.height, variant);
+      }
+    }
+    if (info.renditions || byHeight.size < 2) {
+      return {master, list: null};
+    }
+    const list = [...byHeight.values()].sort((a, b) => b.height - a.height)
+        .map((variant) => ({url: variant.url, label: variant.height + 'p', height: variant.height}));
+    return {master, list};
+  }
+
+  /**
+   * Keeps the variants of a master playlist read (hlsQualities).
+   * @param {string} master - The URL it was detected at.
+   * @param {string} text - The playlist.
+   * @param {string} base - The URL it came from (after redirects): its variants' URIs are
+   *   relative to it, as for the page's player.
+   */
+  noteMaster(master, text, base) {
+    const parsed = StreamLength.hlsVariants(text);
+    if (!parsed) {
+      return;
+    }
+    const variants = [];
+    for (const variant of parsed.variants) {
+      try {
+        variants.push({url: new URL(variant.uri, base).href, bandwidth: variant.bandwidth, height: variant.height});
+      } catch (e) {
+        // No URL: left out.
+      }
+    }
+    this.masters.set(master, {variants, renditions: parsed.renditions});
+    for (const variant of variants) {
+      this.masterOf.set(variant.url, master);
+    }
+    if (this.masters.size > MAX_KNOWN) {
+      const [oldest, info] = this.masters.entries().next().value;
+      this.masters.delete(oldest);
+      for (const variant of info.variants) {
+        if (this.masterOf.get(variant.url) === oldest) this.masterOf.delete(variant.url);
+      }
+    }
   }
 
   /**
@@ -197,6 +268,9 @@ export class StreamLengths {
         }
         if ('duration' in playlist) {
           return playlist.duration;
+        }
+        if (read === 0) {
+          this.noteMaster(source.url, response.text(), response.url);
         }
         url = new URL(playlist.variant, response.url).href;
       }

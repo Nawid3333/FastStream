@@ -296,6 +296,25 @@ describe('StreamLength.fromHls', () => {
     expect(StreamLength.fromHls('#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1\n')).toBeNull();
   });
 
+  it('lists a master playlist\'s variants, and whether it has audio or subtitles of their own', () => {
+    const master = '\uFEFF#EXTM3U\n#EXT-X-INDEPENDENT-SEGMENTS\n' +
+      '#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=90000,URI="iframes.m3u8"\n' +
+      '#EXT-X-STREAM-INF:AVERAGE-BANDWIDTH=1000000,BANDWIDTH=1280000,RESOLUTION=1280x720\n\n720p/index.m3u8?token=a\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=640000\n360p/index.m3u8\n';
+    expect(StreamLength.hlsVariants(master)).toEqual({
+      variants: [{uri: '720p/index.m3u8?token=a', bandwidth: 1280000, height: 720}, {uri: '360p/index.m3u8', bandwidth: 640000, height: 0}],
+      renditions: false,
+    });
+    // An audio rendition with a playlist of its own; one without a URI is in the variants.
+    expect(StreamLength.hlsVariants('#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="en",URI="audio/en.m3u8"\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1x2,AUDIO="aud"\nv.m3u8\n').renditions).toBe(true);
+    expect(StreamLength.hlsVariants('#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="en",DEFAULT=YES\n' +
+      '#EXT-X-STREAM-INF:BANDWIDTH=1,RESOLUTION=1x2,AUDIO="aud"\nv.m3u8\n').renditions).toBe(false);
+    // A media playlist, or no playlist at all.
+    expect(StreamLength.hlsVariants('#EXTM3U\n#EXTINF:6,\na.ts\n#EXT-X-ENDLIST\n')).toBeNull();
+    expect(StreamLength.hlsVariants('<html></html>')).toBeNull();
+  });
+
   it('takes a playlist of images or of keyframes for stills, not a video of its length', () => {
     // vixeo.io's seek bar thumbnails (2026-09-30), which its page asked for just before the
     // video's playlist, and which ran as long as the video.
