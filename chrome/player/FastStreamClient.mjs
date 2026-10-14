@@ -685,7 +685,14 @@ export class FastStreamClient extends EventEmitter {
     // (2026-10-10): what is kept has to fit in this player's share of the RAM budget, below
     // where it lets go (MemoryBudget.LOW), in bits. Kept beyond it, the budget let go of the
     // far end and the downloads ahead fetched it again, round and round. No limit: Infinity.
-    const ramOnly = EnvUtils.isIncognito() || this.options.bufferToDisk === false;
+    // Or no disk backend works (FSBlob.diskGone): it planned a disk-sized buffer that all
+    // stayed in RAM, past the budget, and said nothing (review of 2026-10-14).
+    const diskGone = this.downloadManager?.blobStore?.diskGone === true;
+    if (diskGone && !this.diskGoneSaid) {
+      this.diskGoneSaid = true;
+      this.interfaceController.setStatusMessage(StatusTypes.INFO, Localize.getMessage('player_outofstorage'), 'warning', 10000);
+    }
+    const ramOnly = EnvUtils.isIncognito() || this.options.bufferToDisk === false || diskGone;
     const ramRoom = ramOnly ? this.memoryShare().share * 8 * LOW : Infinity;
 
     if (EnvUtils.isIncognito()) {

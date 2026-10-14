@@ -576,7 +576,7 @@ export class DownloadManager {
   }
 
   canSpill() {
-    return !!this.blobStore && !this.blobStore.memoryOnly;
+    return !!this.blobStore && !this.blobStore.memoryOnly && !this.blobStore.diskGone;
   }
 
   removeAllDownloaders() {

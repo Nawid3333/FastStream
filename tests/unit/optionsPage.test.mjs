@@ -37,6 +37,9 @@ vi.stubGlobal('document', doc);
 vi.stubGlobal('window', win);
 vi.stubGlobal('parent', win);
 vi.stubGlobal('sessionStorage', {removeItem: () => {}});
+// A frame, as a later task.
+vi.stubGlobal('requestAnimationFrame', (fn) => setTimeout(fn, 0));
+vi.stubGlobal('cancelAnimationFrame', (id) => clearTimeout(id));
 
 const {Utils} = await import('../../chrome/player/utils/Utils.mjs');
 const {DefaultKeybinds} = await import('../../chrome/player/options/defaults/DefaultKeybinds.mjs');
@@ -151,6 +154,23 @@ describe('the options page once the saved options are read', () => {
     number.fire('change');
     await settle();
     expect(number.value).toBe('15%');
+  });
+
+  it('saves a dragged slider once a frame, and at once when it is let go', async () => {
+    // The review of 2026-10-14: every value the slider passed was a storage write and a
+    // reload of the options in every player.
+    const zoom = doc.querySelectorAll('.video-option').find((option) => option.dataset.option === 'videoZoom');
+    const range = zoom.querySelector('input.range');
+    for (const value of [101, 102, 103, 104, 105]) {
+      range.value = String(value);
+      range.fire('input', {type: 'input'});
+    }
+    await settle();
+    expect(optionWrites().map((write) => write.value.videoZoom)).toEqual([1.05]);
+    range.value = '106';
+    range.fire('change', {type: 'change'});
+    await settle();
+    expect(optionWrites().map((write) => write.value.videoZoom)).toEqual([1.05, 1.06]);
   });
 
   it('still shows a change saved elsewhere', async () => {

@@ -1,7 +1,5 @@
 import {IndexedDBManager} from '../network/IndexedDBManager.mjs';
 import {OPFSManager} from '../network/OPFSManager.mjs';
-import {AlertPolyfill} from '../utils/AlertPolyfill.mjs';
-import {Localize} from './Localize.mjs';
 
 // Offloading backends in preference order. OPFS (via a worker-owned
 // FileSystemSyncAccessHandle) beats the Cache API round trip where it works.
@@ -53,21 +51,13 @@ export class FSBlob {
     // Whether the backend chain was ever started: a store made memory-only starts it when
     // it may write to disk after all (setMemoryOnly).
     this.chainStarted = !memoryOnly;
+    // Every disk backend failed: what comes stays in RAM, and the player has to plan for
+    // that (DownloadManager.canSpill, FastStreamClient.updateHasDownloadSpace). Its warning
+    // sat in a catch around activateNextBackend() that nothing reached: that absorbs each
+    // backend's failure itself (review of 2026-10-14).
+    this.diskGone = false;
 
-    try {
-      this.activateNextBackend();
-    } catch (e) {
-      // activateNextBackend() already absorbs a single backend's failure and
-      // moves on, so reaching this means something more fundamental broke.
-      // Memory storage still works; warn and say so.
-      console.warn('FSBlob setup failed, falling back to memory storage', e);
-      this.opfsManager = null;
-      this.cache = null;
-      this.indexedDBManager = null;
-      this.setupPromise = null;
-      this.blobStorePromises.clear();
-      AlertPolyfill.alert(Localize.getMessage('player_outofstorage'));
-    }
+    this.activateNextBackend();
 
     this.blobIndex = 0;
   }
@@ -139,7 +129,13 @@ export class FSBlob {
   async ready() {
     for (;;) {
       const attempt = this.setupPromise;
-      if (!attempt) return false;
+      if (!attempt) {
+        if (this.chainStarted && !this.memoryOnly && !this.diskGone) {
+          this.diskGone = true;
+          console.warn('FSBlob: no storage backend works, everything stays in memory');
+        }
+        return false;
+      }
       try {
         await attempt;
         return true;
@@ -332,17 +328,7 @@ export class FSBlob {
     if (memoryOnly || this.chainStarted) return;
     this.chainStarted = true;
     this.remainingBackends = BackendChain.slice();
-    try {
-      this.activateNextBackend();
-    } catch (e) {
-      console.warn('FSBlob setup failed, staying in memory', e);
-      this.opfsManager = null;
-      this.cache = null;
-      this.indexedDBManager = null;
-      this.setupPromise = null;
-      this.memoryOnly = true;
-      this.chainStarted = false;
-    }
+    this.activateNextBackend();
   }
 
   /**

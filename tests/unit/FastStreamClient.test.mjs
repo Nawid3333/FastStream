@@ -913,6 +913,19 @@ describe('FastStreamClient, the RAM budget with nothing on disk', () => {
     expect(withDisk.hasDownloadSpace).toBe(true);
   });
 
+  it('keeps to the budget, and says so once, when no disk backend works', () => {
+    // The review of 2026-10-14: with every disk backend failed, the buffer was planned for
+    // the disk's free space while everything stayed in RAM.
+    const client = clientWithVideo({bufferToDisk: true, ramBudget: 500 * MB});
+    client.downloadManager = {...client.downloadManager, blobStore: {diskGone: true}};
+    client.updateHasDownloadSpace();
+    client.updateHasDownloadSpace();
+    expect(client.hasDownloadSpace).toBe(false);
+    expect(client.state.bufferAhead).toBe(fits(500 * MB) - 20);
+    const said = client.interfaceController.setStatusMessage.mock.calls.map((call) => call[1]);
+    expect(said.filter((key) => key === 'player_outofstorage')).toHaveLength(1);
+  });
+
   it('keeps nothing ahead with a budget of 0, and has no limit with an empty field', () => {
     const none = clientWithVideo({bufferToDisk: false, ramBudget: 0});
     none.updateHasDownloadSpace();

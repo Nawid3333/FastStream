@@ -117,6 +117,58 @@ describe('PreviewFrameExtractor after a load that failed', () => {
   });
 });
 
+describe('PreviewFrameExtractor, the tool closed and opened again while its player loads', () => {
+  it('keeps only the second start\'s player, and destroys the first', async () => {
+    // The review of 2026-10-14: both loads passed the source check, and the first player
+    // went on seeking and downloading with the tool closed.
+    const client = makeClient(null);
+    const extractor = new PreviewFrameExtractor(client);
+    const loads = [];
+    extractor.loadPlayer = vi.fn((source, ranges, onDone) => new Promise((resolve) => loads.push({resolve, onDone})));
+
+    const first = extractor.startBackgroundAnalyzer();
+    extractor.stopBackgroundAnalyzer();
+    const second = extractor.startBackgroundAnalyzer();
+    const playerOne = {destroy: vi.fn()};
+    const playerTwo = {destroy: vi.fn()};
+    loads[1].resolve(playerTwo);
+    await second;
+    loads[0].resolve(playerOne);
+    await first;
+
+    expect(playerOne.destroy).toHaveBeenCalled();
+    expect(playerTwo.destroy).not.toHaveBeenCalled();
+    expect(extractor.backgroundAnalyzerPlayer).toBe(playerTwo);
+  });
+});
+
+describe('a background analysis that failed', () => {
+  it('runs again when its tool opens again, in both analyzers', async () => {
+    const {AudioAnalyzer} = await import('../../chrome/player/modules/analyzer/AudioAnalyzer.mjs');
+    for (const make of [(client) => new PreviewFrameExtractor(client), (client) => {
+      const analyzer = Object.create(AudioAnalyzer.prototype);
+      Object.assign(analyzer, {client, backgroundAnalyzerStatus: 'idle', backgroundAnalyzerSource: null,
+        backgroundAnalyzerPlayer: null, backgroundStarts: 0, backgroundDoneRanges: []});
+      return analyzer;
+    }]) {
+      const client = makeClient(null);
+      const analyzer = make(client);
+      let onDone;
+      const player = {destroy: vi.fn()};
+      analyzer.loadPlayer = vi.fn(async (source, ranges, done) => {
+        onDone = done;
+        return player;
+      });
+      await analyzer.startBackgroundAnalyzer();
+      onDone(false);
+      expect(analyzer.backgroundAnalyzerStatus).toBe('failed');
+      analyzer.stopBackgroundAnalyzer();
+      await analyzer.startBackgroundAnalyzer();
+      expect(analyzer.loadPlayer).toHaveBeenCalledTimes(2);
+    }
+  });
+});
+
 describe('PreviewFrameExtractor, a stale background player', () => {
   it('leaves the running one in place when it ends', async () => {
     // A started for source A, then for B; B loaded first and runs. A, loaded last, is

@@ -11,6 +11,8 @@ if (!EnvUtils.isWebAudioSupported()) {
   DOMElements.volumeUnity.style.display = 'none';
 }
 
+const VolumeSaveDelayMs = 500;
+
 export class VolumeControls extends EventEmitter {
   constructor(client) {
     super();
@@ -18,6 +20,10 @@ export class VolumeControls extends EventEmitter {
     this.volume = 1;
     this.previousVolume = 1;
     this.muted = false;
+    // The volume is saved this long after its last change: a wheel or a drag saved it at
+    // every step (review of 2026-10-14). What is heard and shown changes at once.
+    this.saveTimer = null;
+    globalThis.addEventListener?.('pagehide', () => this.saveVolumeNow());
   }
 
   setupUI() {
@@ -73,7 +79,8 @@ export class VolumeControls extends EventEmitter {
     this.updateVolumeBar(volume);
 
     if (!dontSave) {
-      this.saveVolumeState();
+      clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => this.saveVolumeNow(), VolumeSaveDelayMs);
     }
 
     this.emit('volume', volume);
@@ -185,6 +192,14 @@ export class VolumeControls extends EventEmitter {
       volume: 1,
     });
     this.setVolume(state.volume, true);
+  }
+
+  /** Saves a volume change still waiting for its delay. */
+  saveVolumeNow() {
+    if (this.saveTimer === null) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = null;
+    this.saveVolumeState().catch((e) => console.error('Saving the volume failed', e));
   }
 
   async saveVolumeState() {

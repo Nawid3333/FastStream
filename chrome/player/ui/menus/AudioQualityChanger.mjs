@@ -150,6 +150,10 @@ export class AudioQualityChanger extends EventEmitter {
     const audioLevels = client.getLevelManager().filterAudioLevelsByLanguage(Array.from(client.getAudioLevels().values()));
     this.hasChoice = !!audioLevels && audioLevels.length > 1;
     DOMElements.audioTracksBtn.classList.toggle('hidden', !this.hasChoice);
+    // With one track the button hides, and an open list stayed open under no button.
+    if (!this.hasChoice) {
+      this.closeUI();
+    }
     if (!audioLevels || audioLevels.length < 1) {
       this.enabled = false;
       // An open list kept the previous video's tracks (final review, 2026-10-10).
