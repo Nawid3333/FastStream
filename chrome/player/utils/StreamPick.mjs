@@ -109,11 +109,15 @@ export class StreamPick {
    */
   static pick(candidates) {
     let picked = candidates.reduce((result, curr) => {
-      // Lower depth first.
+      // Lower depth first, either way round: a file at depth 0 and a deeper stream gave the
+      // stream in one detection order and the file in the other (glm, r5-04; 2026-10-14).
       if (result.depth > curr.depth) {
         return curr;
       }
-      // Then a streaming one over a file.
+      if (result.depth < curr.depth) {
+        return result;
+      }
+      // Then a streaming one over a file, at one depth.
       if (!STREAMING_MODES.includes(result.mode) && STREAMING_MODES.includes(curr.mode)) {
         return curr;
       }
