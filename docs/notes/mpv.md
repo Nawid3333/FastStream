@@ -471,6 +471,21 @@ the watch begins is its state then, not a pause, as with `eof-reached`. Measured
 real watch on the pinned mpv: on that stream the host 13 watch told no end, host 14's told it
 as the skip landed; skips through a file told one end, at the end.
 
+**The next page's stream: the longest, not the first (2026-10-14).** His report (2026-10-13):
+MPV autoplay from aniworld's season 1 to season 2 showed episode 1's title in mpv on a black
+picture. Checked then: every episode there has the same four hosters, VOE first; VOE's file is
+one HLS master that plays in mpv with no Referer (so neither the page-quality swap nor the
+headers), and the season's first episode is the URL aniworld itself uses. What remained: the
+allowlist's MPV sent the first stream a page detected, and on the next page this extension
+starts the page's player itself (`startPagePlayers`), whose hoster may load an ad's stream
+first; every later one, the episode's, was dropped (`mpvAutoOpened`). While
+`mpvNextEpisodeUntil` holds, `pickNextEpisodeForMpv` waits for the lengths of the streams
+detected since the episode was asked for (`Lengths.settle`), then sends `newestOfLongest`, as
+the toolbar's MPV does; one under StreamPick's `SHORT_S` waits for a longer one until 5 s
+before the minute is up. A failed open was never silent: mpv-config's `source-info.lua` shows
+one for a FastStream stream (`end-file` error). `backgroundMpv.test.mjs`: an ad, then the
+episode; a stream of a few minutes alone.
+
 **Debugging.** Add `"debug": true` to
 `%LOCALAPPDATA%\FastStreamMpvHost\config.json` (no reinstall needed, the host
 reads it per message) and it appends JSONL to `faststream-mpv-host.log` next
@@ -560,7 +575,7 @@ menu folder "mpv" with "mpv", "Update mpv" (updater.bat; it also brings a host t
 installed to the newest release) and "Uninstall mpv" (removes that host too). Such a user has
 no repository, so:
 - The outdated-host texts (`extension_toggle_label_mpv_outdated`, `options_mpv_test_outdated`,
-  `player_mpv_sent_outdated`, and BackgroundUtils' English fallback) name "Update mpv" in the
+  and BackgroundUtils' English fallback) name "Update mpv" in the
   Start menu first, and `update-local.cmd`/`install.ps1` for a checkout second.
   `options_mpv_body` and two links under it point to mpv-config's README ("Install") first and
   README-MPV.md second; `options_mpv_test_fail` asks "is it installed?".
@@ -577,6 +592,14 @@ no repository, so:
   extension; each case was checked to fail on its break (no visibility gate, the `mpv` flag
   ignored, the dismissal not stored). Found writing it: the page's own save does not come
   back through `loadOptions`, so `mpvModeChanged` closes the offer itself.
+
+**A private window's stream (`fs-private=1`, 2026-10-14).** The owner's pick: mpv keeps no
+resume position for a stream sent from a private window. `openInMpv` reads the tab's
+`incognito` and passes `extras.private`; `mpvTargetUrl` adds `fs-private=1` after `fs-id`, and
+mpv-config's `stream-resume.lua` neither reads nor saves a position for such a file. The
+`fs-id` stays: mpv's episode buttons (`faststream-episodes.lua`) know a FastStream stream by it,
+so dropping it would have taken MPV autoplay away in private windows. Only the thin helper's
+play carries it: a helper before host 15 builds the URL itself and cannot.
 
 ## Host 15: the thin helper
 

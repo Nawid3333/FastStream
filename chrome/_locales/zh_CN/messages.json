@@ -1115,12 +1115,6 @@
     "options_mpv_test_decoder_sw": {
         "message": "已打开的 mpv 窗口正在用处理器解码（$1）：在 mpv.conf 中添加 hwdec=auto-safe 即可由显卡解码。"
     },
-    "player_mpv_sent_outdated": {
-        "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请运行开始菜单中的“Update mpv”（在 FastStream 仓库的检出副本中：update-local.cmd 或 native-host\\install.ps1）。"
-    },
-    "player_mpv_sent_outdated_unix": {
-        "message": "已发送到 mpv。这台电脑上的 mpv 辅助程序已过时：请更新原生消息传递清单所指向的 faststream-mpv-host.mjs（在 FastStream 仓库的检出副本中执行 git pull；参见 native-host/README.md）。"
-    },
     "player_mpv_content_unset": {
         "message": "在 mpv 中打开此视频流（内容类型：自动——除非网站被标记为 @anime，否则为电影；右键点击可为该视频覆盖此设置）"
     },

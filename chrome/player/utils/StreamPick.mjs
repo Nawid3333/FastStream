@@ -14,7 +14,7 @@ const MATCH_SHARE = 0.0025;
 // the video runs less than SHORT_S, the video is as likely as not an ad, a trailer or a
 // preview (they run a few minutes at most), and the longest decides, as it did before.
 const DWARF_RATIO = 5;
-const SHORT_S = 180;
+export const SHORT_S = 180;
 
 /**
  * Which of a page's streams its video plays: the one FastStream replaced, or the one the
@@ -109,11 +109,15 @@ export class StreamPick {
    */
   static pick(candidates) {
     let picked = candidates.reduce((result, curr) => {
-      // Lower depth first.
+      // Lower depth first, either way round: a file at depth 0 and a deeper stream gave the
+      // stream in one detection order and the file in the other (glm, r5-04; 2026-10-14).
       if (result.depth > curr.depth) {
         return curr;
       }
-      // Then a streaming one over a file.
+      if (result.depth < curr.depth) {
+        return result;
+      }
+      // Then a streaming one over a file, at one depth.
       if (!STREAMING_MODES.includes(result.mode) && STREAMING_MODES.includes(curr.mode)) {
         return curr;
       }

@@ -190,18 +190,21 @@ export function qualityFragmentFor(qualities) {
 /**
  * The URL to hand mpv: the stream URL as the URL parser writes it (the form a browser
  * requests: tabs and newlines dropped, spaces and the like percent-encoded), plus its
- * fs-content=, fs-id=, fs-page= and fs-quality= fragment tags, in that order (fs-quality
- * last, the longest).
- * @param {{url: string, contentType?: *, pageUrl?: *, qualities?: *}} stream - url passed
- *   isStreamUrl.
+ * fs-content=, fs-id=, fs-private=, fs-page= and fs-quality= fragment tags, in that order
+ * (fs-quality last, the longest). fs-private=1 marks a private window's stream: mpv keeps no
+ * resume position for it (stream-resume.lua; the owner's pick, 2026-10-14). It keeps its
+ * fs-id: mpv's episode buttons know a FastStream stream by it.
+ * @param {{url: string, contentType?: *, pageUrl?: *, qualities?: *, private?: *}} stream -
+ *   url passed isStreamUrl.
  * @return {Promise<string>}
  */
 export async function mpvTargetUrl(stream) {
   const target = withContentTypeFragment(withoutFsTags(new URL(stream.url).href), stream.contentType);
   const resumeId = await resumeIdFor(stream.pageUrl);
   const withId = resumeId ? withFragmentTag(target, `fs-id=${resumeId}`) : target;
+  const withPrivate = stream.private === true ? withFragmentTag(withId, 'fs-private=1') : withId;
   const pageFragment = pageFragmentFor(stream.pageUrl);
-  const withPage = pageFragment ? withFragmentTag(withId, `fs-page=${pageFragment}`) : withId;
+  const withPage = pageFragment ? withFragmentTag(withPrivate, `fs-page=${pageFragment}`) : withPrivate;
   const qualities = qualityFragmentFor(stream.qualities);
   return qualities ? withFragmentTag(withPage, `fs-quality=${qualities}`) : withPage;
 }

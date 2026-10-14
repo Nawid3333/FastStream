@@ -1,4 +1,5 @@
 import {MessageTypes} from '../enums/MessageTypes.mjs';
+import {ClickActions} from '../options/defaults/ClickActions.mjs';
 import {DefaultOptions} from '../options/defaults/DefaultOptions.mjs';
 import {migrateKeybinds} from '../options/KeybindUtils.mjs';
 import {DefaultSubtitlesSettings} from '../options/defaults/DefaultSubtitlesSettings.mjs';
@@ -14,7 +15,8 @@ export class Utils {
    */
   static async getOptionsFromStorage() {
     const stored = await Utils.readStoredConfig('options');
-    return Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored);
+    return Utils.migrateClickActions(
+        Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, stored || {}), stored), stored), stored);
   }
 
   /**
@@ -37,6 +39,30 @@ export class Utils {
       if (options.maxSpeed === 0) options.maxSpeed = -1;
     }
     options.sizesVersion = 1;
+    return options;
+  }
+
+  /**
+   * The click defaults were "hide controls" on a click, play/pause on a double click and
+   * fullscreen on a triple from 2023-12 until upstream's 2024-09-14 "click to play", and
+   * options saved in that time keep them: a pause then took a double click, after the triple
+   * click's wait (the owner's "the click to pause reacts late", 2026-10-13). All three still
+   * as they were then move to today's defaults, once (clickActionsVersion); a set the user
+   * changed in any part is theirs and stays.
+   * @param {Object} options - Saved options merged over the defaults; changed in place.
+   * @param {Object|null} stored - The options as saved, before the defaults were filled in.
+   * @return {Object} The same options, with clickActionsVersion set.
+   */
+  static migrateClickActions(options, stored) {
+    if (stored && !Number.isInteger(stored.clickActionsVersion) &&
+        options.singleClickAction === ClickActions.HIDE_CONTROLS &&
+        options.doubleClickAction === ClickActions.PLAY_PAUSE &&
+        options.tripleClickAction === ClickActions.FULLSCREEN) {
+      options.singleClickAction = DefaultOptions.singleClickAction;
+      options.doubleClickAction = DefaultOptions.doubleClickAction;
+      options.tripleClickAction = DefaultOptions.tripleClickAction;
+    }
+    options.clickActionsVersion = 1;
     return options;
   }
 

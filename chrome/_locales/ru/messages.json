@@ -1115,12 +1115,6 @@
     "options_mpv_test_decoder_sw": {
         "message": "Открытое окно mpv декодирует на процессоре ($1): добавьте hwdec=auto-safe в mpv.conf, чтобы декодировать на видеокарте."
     },
-    "player_mpv_sent_outdated": {
-        "message": "Отправлено в mpv. mpv-хост на этом компьютере устарел: запустите «Update mpv» из меню «Пуск» (в копии репозитория FastStream: update-local.cmd или native-host\\install.ps1)."
-    },
-    "player_mpv_sent_outdated_unix": {
-        "message": "Отправлено в mpv. mpv-хост на этом компьютере устарел: обновите faststream-mpv-host.mjs, на который указывает ваш манифест нативного обмена сообщениями (git pull в копии репозитория FastStream; см. native-host/README.md)."
-    },
     "player_mpv_content_unset": {
         "message": "Открыть этот поток в mpv (тип содержимого: авто — фильм, если только сайт не помечен @anime; щёлкните правой кнопкой, чтобы переопределить для этого видео)"
     },

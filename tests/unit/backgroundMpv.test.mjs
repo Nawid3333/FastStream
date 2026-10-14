@@ -1527,6 +1527,9 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
   const EP2 = 'https://site.test/watch/2';
   const S1 = 'https://cdn.test/one/master.m3u8';
   const S2 = 'https://cdn.test/two/master.m3u8';
+  // A hoster's preroll, and a stream of a few minutes (a trailer, a preview).
+  const AD = 'https://ads.test/pre/master.m3u8';
+  const SHORT = 'https://cdn.test/short/master.m3u8';
   let navigations;
   let polls;
 
@@ -1543,7 +1546,7 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvAutoplayNext: true, autoplayCountdown: 0, ...options},
       tabs: [{id: 1, url: EP1}],
-      fetch: playlists({[S1]: 1400, [S2]: 1400}),
+      fetch: playlists({[S1]: 1400, [S2]: 1400, [AD]: 30, [SHORT]: 90}),
       onTabMessage: ({frameId, message}) => {
         // The page's video: in the top frame here (startPagePlayers asks the largest).
         if (message.type === 'GET_VIDEO_SIZE') return frameId === 0 ? 640 * 360 : 0;
@@ -1752,6 +1755,39 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     expect(bg.ports).toHaveLength(1);
   });
 
+  // aniworld, season 1 to 2 (his report, 2026-10-13): mpv showed the next episode's title on
+  // a black picture. The next page's player, started by this extension, may load an ad's
+  // stream first; it went to mpv at once, and the episode's own, detected after, was dropped.
+  it('sends the next page\'s longest stream, not an ad its player loaded first', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: AD, frameId: 6});
+    await bg.wait(200);
+    await bg.request({tabId: 1, url: S2, frameId: 6});
+    await bg.wait(3000);
+    expect(bg.toMpv()).toEqual([S1, S2]);
+  });
+
+  it('sends a stream of a few minutes when nothing longer came before the minute is nearly up', async () => {
+    const port = await onEpisode1();
+    port.emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.frameAdded(1, 6, 'https://hoster.test/e/2', 'hoster2');
+    await bg.request({tabId: 1, url: SHORT, frameId: 6});
+    await bg.wait(30000);
+    expect(bg.toMpv()).toEqual([S1]);
+    await bg.wait(29000);
+    expect(bg.toMpv()).toEqual([S1, SHORT]);
+    // It went in time: no "no stream" notice.
+    expect(notices(port)).toEqual(['loading in mpv']);
+  });
+
   it('starts the next page\'s player when it waits for a click, in MPV mode too', async () => {
     const port = await onEpisode1();
     port.emit({type: 'ended', path: S1});
@@ -1864,6 +1900,39 @@ describe('MPV autoplay: an episode\'s end, or mpv\'s key, goes on to the next on
     await bg.frameAdded(1, 0, EP2, 'ep2');
     await bg.request({tabId: 1, url: S2});
     await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S3]);
+  });
+
+  it('sends nothing for a short stream that waited when another tab\'s stream took the window', async () => {
+    // pickNextEpisodeForMpv: tab 1's next page had only a stream of a few minutes, which waits
+    // for a longer one; tab 2's video took the window meanwhile, which ends tab 1's wait.
+    const S3 = 'https://cdn.test/other/master.m3u8';
+    navigations = [];
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://other.test/'], mpvAutoplayNext: true, autoplayCountdown: 0},
+      tabs: [{id: 1, url: EP1}, {id: 2, url: 'https://other.test/film'}],
+      fetch: playlists({[S1]: 1400, [S3]: 1400, [SHORT]: 90}),
+      onTabMessage: ({frameId, message}) => (message.type === 'PLAYLIST_NAVIGATION' && frameId === 0 ? 'clicked' : undefined),
+    });
+    await bg.navigated(1, EP1);
+    await bg.frameAdded(1, 0, EP1, 'ep1');
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: S1});
+    await bg.wait(500);
+    bg.ports.at(-1).emit({type: 'ended', path: S1});
+    await bg.wait(100);
+    await bg.navigated(1, EP2);
+    await bg.frameAdded(1, 0, EP2, 'ep2');
+    await bg.request({tabId: 1, url: SHORT});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([S1]);
+
+    await bg.navigated(2, 'https://other.test/film');
+    await bg.frameAdded(2, 0, 'https://other.test/film', 'film');
+    await bg.request({tabId: 2, url: S3});
+    await bg.wait(500);
+    expect(bg.toMpv()).toEqual([S1, S3]);
+    await bg.wait(60000);
     expect(bg.toMpv()).toEqual([S1, S3]);
   });
 

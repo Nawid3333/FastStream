@@ -214,7 +214,7 @@ function legacyWatch(port, onEvent) {
 /**
  * What a send of a stream needs (openStream's arguments).
  * @typedef {{url: string, headers?: Array<{name: string, value: string}>, contentType?: string,
- *   pageUrl?: string, pageTitle?: string, extras: {startTime?: number,
+ *   pageUrl?: string, pageTitle?: string, extras: {startTime?: number, private?: boolean,
  *   subtitles?: Array<{label: string, srt: string}>,
  *   qualities?: Array<{url: string, label: string, height: number}>}}} MpvStream
  */
@@ -667,6 +667,9 @@ export class MpvBackend {
       contentType,
       pageUrl: MpvBackend.sentPageUrl(pageUrl),
       qualities: MpvBackend.relayQualities(extras.qualities),
+      // A private window's: mpv keeps no resume position (fs-private). The helper before
+      // host 15 builds the URL itself, from the open message, and cannot say it.
+      private: extras.private === true,
     };
     let target = await mpvTargetUrl(tags);
     if (target.length > MaxPlayTargetChars && tags.qualities) {

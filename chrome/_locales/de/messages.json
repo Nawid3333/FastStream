@@ -1115,12 +1115,6 @@
     "options_mpv_test_decoder_sw": {
         "message": "Das geöffnete mpv-Fenster dekodiert auf dem Prozessor ($1): Füge hwdec=auto-safe zu mpv.conf hinzu, um auf der Grafikkarte zu dekodieren."
     },
-    "player_mpv_sent_outdated": {
-        "message": "An mpv gesendet. Der mpv-Helfer auf diesem Computer ist veraltet: Führe \"Update mpv\" aus dem Startmenü aus (in einem FastStream-Checkout: update-local.cmd oder native-host\\install.ps1)."
-    },
-    "player_mpv_sent_outdated_unix": {
-        "message": "An mpv gesendet. Der mpv-Helfer auf diesem Computer ist veraltet: Aktualisiere die faststream-mpv-host.mjs-Datei, auf die dein Native-Messaging-Manifest verweist (git pull in deinem FastStream-Checkout; siehe native-host/README.md)."
-    },
     "player_mpv_content_unset": {
         "message": "Diesen Stream in mpv öffnen (Inhaltstyp: Automatisch – Film, außer die Seite ist mit @anime markiert; Rechtsklick, um es für dieses Video zu ändern)"
     },

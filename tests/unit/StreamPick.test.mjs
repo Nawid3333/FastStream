@@ -242,4 +242,15 @@ describe('StreamPick.pick', () => {
     expect(StreamPick.pick([file, hls])).toBe(hls);
     expect(StreamPick.pick([hls, file])).toBe(hls);
   });
+
+  // The documented rule, and fallbacks()' order: depth first, a stream over a file only at
+  // one depth. A file at depth 0 and a stream deeper gave the stream in one detection order
+  // and the file in the other (glm, r5-04; decided 2026-10-14).
+  it('takes a file at a lower depth over a deeper stream, in either order', () => {
+    const file = at('top.mp4', MP4, 0, 1);
+    const hls = at('embed.m3u8', PlayerModes.ACCELERATED_HLS, 1, 2);
+    expect(StreamPick.pick([file, hls])).toBe(file);
+    expect(StreamPick.pick([hls, file])).toBe(file);
+    expect(StreamPick.fallbacks([file, hls], file)).toEqual([hls]);
+  });
 });
