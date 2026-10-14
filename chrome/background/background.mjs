@@ -3744,6 +3744,11 @@ async function openInMpv(tabId, url, ...rest) {
       rest[5] = {...(extras || {}), subtitles};
     }
   }
+  if (incognito) {
+    // A private window's stream: mpv keeps no resume position for it (the owner's pick,
+    // 2026-10-14; fs-private, MpvTarget.mjs).
+    rest[5] = {...(rest[5] || {}), private: true};
+  }
   const result = await Mpv.openStream(url, ...rest);
   // MPV autoplay: the mpv it went to is followed (watchMpvFor). By the tab's id: the
   // player's button and the MPV key's play pass no tab (openStream's duplicate check).

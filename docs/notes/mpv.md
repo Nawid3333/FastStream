@@ -578,6 +578,14 @@ no repository, so:
   ignored, the dismissal not stored). Found writing it: the page's own save does not come
   back through `loadOptions`, so `mpvModeChanged` closes the offer itself.
 
+**A private window's stream (`fs-private=1`, 2026-10-14).** The owner's pick: mpv keeps no
+resume position for a stream sent from a private window. `openInMpv` reads the tab's
+`incognito` and passes `extras.private`; `mpvTargetUrl` adds `fs-private=1` after `fs-id`, and
+mpv-config's `stream-resume.lua` neither reads nor saves a position for such a file. The
+`fs-id` stays: mpv's episode buttons (`faststream-episodes.lua`) know a FastStream stream by it,
+so dropping it would have taken MPV autoplay away in private windows. Only the thin helper's
+play carries it: a helper before host 15 builds the URL itself and cannot.
+
 ## Host 15: the thin helper
 
 **Why (2026-10-13).** The helper went from host 1 (2026-10-04) to host 14 (2026-10-13): 14

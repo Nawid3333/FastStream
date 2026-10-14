@@ -41,14 +41,15 @@ describe('MPV mode with the thin helper', () => {
   /**
    * Episode 1 handed to mpv by the MPV allowlist, and the port the watch opened.
    * @param {Object} [options] - More options.
+   * @param {Object} [tab] - More of the tab's fields (incognito).
    * @return {Promise<Object>} The port (backgroundHarness: sent, emit, drop).
    */
-  async function onEpisode1(options = {}) {
+  async function onEpisode1(options = {}, tab = {}) {
     navigations = [];
     bg = await loadBackground({
       options: {mpvMode: true, mpvAllowlist: ['https://site.test/'], mpvSingleInstance: true, mpvAutoplayNext: true,
         autoplayCountdown: 5, ...options},
-      tabs: [{id: 1, url: EP1, title: 'Show - Episode 1'}],
+      tabs: [{id: 1, url: EP1, title: 'Show - Episode 1', ...tab}],
       fetch: (url) => new Promise((resolve) => setTimeout(() => resolve(url === S1 ? response(hlsPlaylist(1400)) : response('', 404)), 300)),
       thinHost: true,
       onNative: thinHelper,
@@ -65,6 +66,20 @@ describe('MPV mode with the thin helper', () => {
     await bg.wait(500);
     return bg.ports.at(-1);
   }
+
+  // The owner's pick (2026-10-14): mpv keeps no resume position for a private window's
+  // stream (stream-resume.lua reads fs-private). The resume key stays: mpv's episode buttons
+  // know a FastStream stream by it.
+  it('marks a private window\'s stream fs-private, and only that', async () => {
+    await onEpisode1({}, {incognito: true});
+    const plays = bg.native.filter((m) => m.type === 'play');
+    expect(plays).toHaveLength(1);
+    expect(plays[0].target).toBe(`${S1}#fs-content=movie&fs-id=${fsId(EP1)}&fs-private=1&fs-page=${encodeURIComponent(EP1)}`);
+    bg.unload();
+
+    await onEpisode1({}, {incognito: false});
+    expect(bg.native.filter((m) => m.type === 'play')[0].target).not.toContain('fs-private');
+  });
 
   /** The mpv commands the background sent through the relay. */
   const commands = (port) => port.sent.filter((m) => m.type === 'mpv');

@@ -316,3 +316,17 @@ describe('a play message and an open message for the same stream', () => {
     }
   });
 });
+
+describe('a private window\'s stream', () => {
+  it('carries fs-private=1 after its resume key, which it keeps, and nothing else changes', async () => {
+    const stream = {url: 'https://cdn.test/a.m3u8?t=1', contentType: 'anime', pageUrl: 'https://site.test/ep-1',
+      qualities: [{url: 'https://cdn.test/720.mp4', label: '720p', height: 720}, {url: 'https://cdn.test/1080.mp4', label: '1080p', height: 1080}]};
+    const normal = await Target.mpvTargetUrl(stream);
+    const hidden = await Target.mpvTargetUrl({...stream, private: true});
+    expect(normal).not.toContain('fs-private');
+    expect(hidden).toBe(normal.replace('&fs-page=', '&fs-private=1&fs-page='));
+    expect(await Target.mpvTargetUrl({...stream, private: 'yes'})).toBe(normal);
+    // Without a page (no fs-id, no fs-page) it still says so.
+    expect(await Target.mpvTargetUrl({url: 'https://cdn.test/a.m3u8', private: true})).toBe('https://cdn.test/a.m3u8#fs-private=1');
+  });
+});
