@@ -40,6 +40,9 @@ export const DefaultOptions = {
   // Saved with the options: those saved before carry none, and their maximum size may be a
   // bare number read as bytes (Utils.migrateSizes).
   sizesVersion: 1,
+  // Likewise: those saved before may hold the click defaults of 2023-12 to 2024-09, "hide
+  // controls" on a click (Utils.migrateClickActions).
+  clickActionsVersion: 1,
   videoZoom: 1,
   videoAspectRatio: AspectRatios.AUTO,
   maxSpeed: -1,

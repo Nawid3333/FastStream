@@ -156,3 +156,10 @@ The pure logic is in `chrome/player/options/KeybindUtils.mjs` (no DOM, so Node c
   welcome page and locales), `tests/e2e/specs/keybinds.e2e.mjs` (presses in the running player,
   the migration on a legacy profile, the text-field guard) and `keybinds-menu.e2e.mjs` (the
   options page). Not covered: a saved profile in the real extension's `chrome.storage`.
+- **Mouse clicks: the old defaults move once** (2026-10-14). From 2023-12 until upstream's
+  2024-09-14 "click to play" the defaults were "hide controls" on a click, play/pause on a
+  double click and fullscreen on a triple; options saved then keep them, and a pause took a
+  double click after the triple click's wait (the owner's "the click to pause reacts late").
+  `Utils.migrateClickActions` moves all three, when still exactly so, to today's defaults
+  once (`clickActionsVersion`); a set the user changed in any part stays.
+  `tests/unit/migrateClickActions.test.mjs`.

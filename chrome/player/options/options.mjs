@@ -1024,7 +1024,8 @@ importButton.addEventListener('click', () => {
       alert(Localize.getMessage('options_import_invalid'));
       return;
     }
-    const newOptions = Utils.migrateSizes(Utils.migrateKeybinds(Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj);
+    const newOptions = Utils.migrateClickActions(Utils.migrateSizes(Utils.migrateKeybinds(
+        Utils.mergeOptions(DefaultOptions, newOptionsObj), newOptionsObj), newOptionsObj), newOptionsObj);
     const subtitlesSettings = Utils.mergeOptions(DefaultSubtitlesSettings, newOptionsObj.subtitlesSettings || {});
     const toolSettings = Utils.mergeOptions(DefaultToolSettings, newOptionsObj.toolSettings || {});
     loadOptions(newOptions);
