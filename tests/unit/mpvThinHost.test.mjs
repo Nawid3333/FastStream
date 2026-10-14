@@ -66,10 +66,16 @@ async function fakeMpv(pipe, answer = undefined) {
   const connected = new Promise((resolve) => {
     connectedResolve = resolve;
   });
+  let closedResolve;
+  // Its side of the pipe closed: every line sent to it before has been read.
+  const closed = new Promise((resolve) => {
+    closedResolve = resolve;
+  });
   const server = net.createServer((s) => {
     socket = s;
     sockets.push(s);
     s.on('error', () => {});
+    s.on('close', () => closedResolve());
     let buffer = '';
     s.on('data', (chunk) => {
       buffer += chunk;
@@ -89,6 +95,7 @@ async function fakeMpv(pipe, answer = undefined) {
   return {
     requests,
     connected,
+    closed,
     event: (object) => socket.write(JSON.stringify(object) + NL),
     raw: (bytes) => socket.write(bytes),
     close: () => socket.destroy(),
@@ -639,6 +646,9 @@ describe('relayMpv', () => {
     expect(sent.filter((m) => m.type !== 'relaying')).toEqual([]);
     relay.stop();
     await relay.done;
+    // A beat written just before the stop could still be on its way (CI Windows,
+    // 2026-10-14): count once the fake mpv has read everything, then see none follow.
+    await mpv.closed;
     const after = beats().length;
     await settle(150);
     expect(beats().length).toBe(after);
