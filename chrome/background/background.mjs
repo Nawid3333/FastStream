@@ -3760,13 +3760,18 @@ async function pageQualityChoice(tab, url) {
  */
 async function hlsQualityChoice(tab, url) {
   let hls = Lengths.hlsQualities(url);
-  if (!hls && Lengths.lengthOf(url) === undefined) {
-    // Its read started when it was detected: an allowlisted site's first stream goes at once.
-    const source = tab?.getFrames().flatMap((frame) => frame.getSources()).find((s) => s.url === url);
-    if (source?.mode === PlayerModes.ACCELERATED_HLS) {
+  if (!hls) {
+    // The list comes from the master playlist's read, which started when it was detected. An
+    // allowlisted site's first stream goes at once, and the toolbar's MPV sends without waiting
+    // for the lengths: a variant whose own read ended first went while the master's still ran
+    // (glm's review of #480). So every HLS playlist of the tab still being read is waited for.
+    const sources = tab ? [...tab.getFrames()].flatMap((frame) => frame.getSources()) : [];
+    const hlsSources = sources.filter((s) => s.mode === PlayerModes.ACCELERATED_HLS);
+    const pending = hlsSources.filter((s) => Lengths.lengthOf(s.url) === undefined);
+    if (hlsSources.some((s) => s.url === url) && pending.length > 0) {
       let timer;
       await Promise.race([
-        Lengths.probe(source),
+        Promise.all(pending.map((source) => Lengths.probe(source))),
         new Promise((resolve) => {
           timer = setTimeout(resolve, HlsQualitiesWaitMs);
         }),

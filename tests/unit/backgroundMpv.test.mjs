@@ -2237,11 +2237,15 @@ describe('MPV mode and an HLS stream whose master playlist offers several qualit
   /**
    * The network: the master playlist, and each variant a 1400 s media playlist.
    * @param {string} text - The master playlist.
+   * @param {number} [masterDelayMs] - How long the master playlist takes to come, if at all.
    * @return {function(string): Promise<Object>} fetch() for loadBackground.
    */
-  function network(text) {
+  function network(text, masterDelayMs = 0) {
     return async (url) => {
-      if (url === MASTER) return response(text);
+      if (url === MASTER) {
+        if (masterDelayMs) await new Promise((resolve) => setTimeout(resolve, masterDelayMs));
+        return response(text);
+      }
       return /\/index\.m3u8$/.test(url) ? response(hlsPlaylist(1400)) : response('', 404);
     };
   }
@@ -2293,6 +2297,29 @@ describe('MPV mode and an HLS stream whose master playlist offers several qualit
     await bg.wait(500);
     expect(bg.toMpv()).toEqual([MASTER]);
     expect(bg.native.find((m) => m.type === 'open').qualities).toBeUndefined();
+  });
+
+  it('waits for the master playlist\'s read when the toolbar sends a variant read before it', async () => {
+    // The master's host is slow, the variant's CDN fast: the variant's length is known while
+    // the master's read still runs, and the toolbar's MPV sends without waiting for the
+    // lengths (glm's review of #480).
+    bg = await loadBackground({
+      options: {mpvMode: true, mpvAllowlist: ['https://site.test/']},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: network(master(), 1000),
+    });
+    await bg.navigated(1, PAGE);
+    await bg.frameAdded(1, 0, PAGE, 'episode');
+    // MPV off before the page loads its stream; then Off -> On -> MPV, which sends the tab's
+    // known streams (openMpvWithSources).
+    await bg.click(1);
+    await pageLoads(480);
+    await bg.wait(300);
+    await bg.click(1);
+    await bg.click(1);
+    await bg.wait(2000);
+    expect(bg.toMpv()).toEqual([variant(1080)]);
+    expect(bg.native.find((m) => m.type === 'open').qualities).toEqual(LIST);
   });
 
   it('sends a variant whose master the page never loaded as it is', async () => {
