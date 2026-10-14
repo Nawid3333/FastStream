@@ -615,11 +615,10 @@ jobs:
           fi
 
           # --- Hand over. Nothing merges itself: the comment says whether it is ready.
-          # Merged or closed while this ran: a verdict on it would be noise.
-          if [ "$(gh pr view "$number" --json state --jq .state)" != OPEN ]; then
-            echo 'The pull request is no longer open: nothing to say.'
-            exit 0
-          fi
+          # Merged or closed while this ran: a verdict on it would be noise. Moved on (Dependabot
+          # rebased it during the build comparison, say): "ready to merge" would stand on the new
+          # commit, which no check here has seen; its own CI run decides (review of 2026-10-14).
+          head_moved
           key=look
           if [ ${#reasons[@]} = 0 ]; then key=ready; fi
           # shellcheck disable=SC2016

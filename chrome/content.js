@@ -575,6 +575,7 @@
     }
 
     showSoft(old);
+    forgetSoft(old);
     old.remove();
     pobj.softReplace = false;
   }
@@ -890,6 +891,7 @@
     const {iframe, old} = replacedData;
     if (replacedData.softReplace) {
       showSoft(old);
+      forgetSoft(old);
       iframe.remove();
     } else {
       iframe.replaceWith(old);
@@ -1181,57 +1183,68 @@
     }
   }
 
-  function hideSoft(player) {
-    rememberTransition(player);
-    // player.style.setProperty('display', 'none', 'important');
-    // set height and width to 0, overflow hidden
+  // What hideSoft sets on the page's element: no size, nothing drawn outside it.
+  const SoftHidden = {width: '0px', height: '0px', overflow: 'hidden', margin: '0px', contain: 'paint'};
 
-    if (player.style.width && player.style.width !== '0px') {
-      player.dataset.oldWidth = player.style.width;
-    }
+  /**
+   * The page's own inline values of those, with their priority, per element until it is
+   * given back (forgetSoft). Kept here, not in the page's DOM (data-old-width and the like):
+   * a page that changed the attribute could leave its element hidden for good. A value equal
+   * to the hidden one (overflow: hidden, margin: 0) was never saved and showSoft cleared it,
+   * the saves were never deleted (a later replace restored a stale one), and !important was
+   * lost (review of 2026-10-14).
+   * @type {WeakMap<HTMLElement, Object<string, string[]>>}
+   */
+  const softSaves = new WeakMap();
 
-    if (player.style.height && player.style.height !== '0px') {
-      player.dataset.oldHeight = player.style.height;
-    }
-
-    if (player.style.overflow && player.style.overflow !== 'hidden') {
-      player.dataset.oldOverflow = player.style.overflow;
-    }
-
-    if (player.style.margin && player.style.margin !== '0px') {
-      player.dataset.oldMargin = player.style.margin;
-    }
-
-    if (player.style.contain && player.style.contain !== 'paint') {
-      player.dataset.oldContain = player.style.contain;
-    }
-
-    player.style.setProperty('width', '0px', 'important');
-    player.style.setProperty('height', '0px', 'important');
-    player.style.setProperty('overflow', 'hidden', 'important');
-    player.style.setProperty('margin', '0px', 'important');
-    player.style.setProperty('transition', 'none', 'important');
-    player.style.setProperty('contain', 'paint', 'important');
+  function isSoftHidden(player, name) {
+    return player.style.getPropertyValue(name) === SoftHidden[name] &&
+      player.style.getPropertyPriority(name) === 'important';
   }
 
+  function hideSoft(player) {
+    rememberTransition(player);
+    // Saved at the first hide, and again at each later one where the value is no longer the
+    // hidden one: what the page set while its element was hidden is its newest wish.
+    const saved = softSaves.get(player) || {};
+    softSaves.set(player, saved);
+    for (const name of Object.keys(SoftHidden)) {
+      if (!(name in saved) || !isSoftHidden(player, name)) {
+        saved[name] = [player.style.getPropertyValue(name), player.style.getPropertyPriority(name)];
+      }
+    }
+    for (const [name, value] of Object.entries(SoftHidden)) {
+      player.style.setProperty(name, value, 'important');
+    }
+    player.style.setProperty('transition', 'none', 'important');
+  }
+
+  // The saved values back - each only while it is still the hidden one: a value the page set
+  // meanwhile is the page's newer one. The save stays for the next hideSoft (a measurement).
   function showSoft(player) {
     rememberTransition(player);
     player.style.setProperty('transition', 'none', 'important');
-    if (player.style.width === '0px') {
-      player.style.width = player.dataset.oldWidth || '';
+    const saved = softSaves.get(player);
+    // Not hidden yet (the first measurement shows it before hiding it): a value equal to the
+    // hidden one is the page's own, e.g. margin: 0 !important.
+    if (!saved) {
+      return;
     }
-    if (player.style.height === '0px') {
-      player.style.height = player.dataset.oldHeight || '';
+    for (const name of Object.keys(SoftHidden)) {
+      if (!isSoftHidden(player, name)) {
+        continue;
+      }
+      const [value, priority] = saved[name] || ['', ''];
+      if (value) {
+        player.style.setProperty(name, value, priority);
+      } else {
+        player.style.removeProperty(name);
+      }
     }
-    if (player.style.overflow === 'hidden') {
-      player.style.overflow = player.dataset.oldOverflow || '';
-    }
-    if (player.style.margin === '0px') {
-      player.style.margin = player.dataset.oldMargin || '';
-    }
-    if (player.style.contain === 'paint') {
-      player.style.contain = player.dataset.oldContain || '';
-    }
+  }
+
+  function forgetSoft(player) {
+    softSaves.delete(player);
   }
 
   /**
