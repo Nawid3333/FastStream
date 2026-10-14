@@ -206,38 +206,42 @@ describe('the allowlist\'s MPV, a play on a page Back gave back', () => {
         {tabId: 1, frameId: 0});
   }
 
-  it('sends the page\'s known stream when no other went within 3 s', async () => {
+  // 1 s since 2026-10-14 (3 s before): a play-triggered fetch lands within a few hundred ms,
+  // and every Back + play waited the whole time before mpv started.
+  it('sends the page\'s known stream when no other went within 1 s, and not before', async () => {
     await backToA();
-    await bg.wait(3500);
+    await bg.wait(900);
+    expect(bg.toMpv()).toEqual([SA, SB]);
+    await bg.wait(300);
     expect(bg.toMpv()).toEqual([SA, SB, SA]);
   });
 
-  it('sends nothing when the tab went to another page within the 3 s', async () => {
-    // The timer was the tab's, not the page's: Back once more within 3 s gave page B back
+  it('sends nothing when the tab went to another page within the 1 s', async () => {
+    // The timer was the tab's, not the page's: Back once more within the wait gave page B back
     // with its stream, and the play on page A sent B's stream.
     await backToA();
     await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
     await bg.navigated(1, B);
     await bg.frameAdded(1, 0, B, 'page-b');
-    await bg.wait(3500);
+    await bg.wait(1200);
     expect(bg.toMpv()).toEqual([SA, SB]);
   });
 
-  it('sends nothing when another page came back at the same address within the 3 s', async () => {
+  it('sends nothing when another page came back at the same address within the 1 s', async () => {
     // Two history entries of one URL: the address tells nothing, the page's name does.
     await backToA();
     await bg.message({type: 'FRAME_REMOVED', document: 'page-a'}, {tabId: 1, frameId: 0});
     await bg.frameAdded(1, 0, A, 'page-b');
-    await bg.wait(3500);
+    await bg.wait(1200);
     expect(bg.toMpv()).toEqual([SA, SB]);
   });
 
-  it('sends nothing when the toolbar turned MPV off within the 3 s', async () => {
+  it('sends nothing when the toolbar turned MPV off within the 1 s', async () => {
     // Off means off: nothing in the tab goes to mpv after it.
     await backToA();
     await bg.click(1);
     expect(bg.session['tabState:1']).toMatchObject({isOn: false, isMpv: false});
-    await bg.wait(3500);
+    await bg.wait(1200);
     expect(bg.toMpv()).toEqual([SA, SB]);
   });
 });

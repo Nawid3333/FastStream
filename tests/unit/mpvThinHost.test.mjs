@@ -66,10 +66,16 @@ async function fakeMpv(pipe, answer = undefined) {
   const connected = new Promise((resolve) => {
     connectedResolve = resolve;
   });
+  let closedResolve;
+  // Its side of the pipe closed: every line sent to it before has been read.
+  const closed = new Promise((resolve) => {
+    closedResolve = resolve;
+  });
   const server = net.createServer((s) => {
     socket = s;
     sockets.push(s);
     s.on('error', () => {});
+    s.on('close', () => closedResolve());
     let buffer = '';
     s.on('data', (chunk) => {
       buffer += chunk;
@@ -89,6 +95,7 @@ async function fakeMpv(pipe, answer = undefined) {
   return {
     requests,
     connected,
+    closed,
     event: (object) => socket.write(JSON.stringify(object) + NL),
     raw: (bytes) => socket.write(bytes),
     close: () => socket.destroy(),
@@ -158,7 +165,9 @@ describe('loadInto', () => {
 });
 
 describe('playMpv', () => {
-  const token = crypto.randomBytes(16).toString('hex');
+  // Starts with "12", the start below: a random token held it in about one run in eight,
+  // and the check that nothing the extension sent is on mpv's command line read the pipe.
+  const token = '12' + crypto.randomBytes(15).toString('hex');
   const basePipe = `\\\\.\\pipe\\faststream-mpv-${token}`;
   const target = 'https://cdn.test/hls/v.m3u8?token=1#fs-content=anime&fs-id=0123456789abcdef&fs-page=https%3A%2F%2Fsite.test%2Fep3';
   /**
@@ -296,8 +305,8 @@ describe('playMpv', () => {
         .toStrictEqual({ok: true, focus: 'True', foreground: 'True'});
     expect(io.record.started).toEqual([{mpvPath: 'C:/mpv/mpv.exe',
       args: [`--input-ipc-server=${basePipe}`, '--idle=once', '--force-window=immediate', '--no-terminal']}]);
-    // Nothing the extension sent is on the command line.
-    const line = io.record.started[0].args.join(' ');
+    // Nothing the extension sent is on the command line (the pipe is the helper's own).
+    const line = io.record.started[0].args.join(' ').split(basePipe).join('<pipe>');
     for (const part of ['cdn.test', 'fs-id', 'Show', 'site.test', 'Referer', '12', 'English', '.srt']) {
       expect(line).not.toContain(part);
     }
@@ -637,6 +646,9 @@ describe('relayMpv', () => {
     expect(sent.filter((m) => m.type !== 'relaying')).toEqual([]);
     relay.stop();
     await relay.done;
+    // A beat written just before the stop could still be on its way (CI Windows,
+    // 2026-10-14): count once the fake mpv has read everything, then see none follow.
+    await mpv.closed;
     const after = beats().length;
     await settle(150);
     expect(beats().length).toBe(after);
