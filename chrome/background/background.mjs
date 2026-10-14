@@ -2983,9 +2983,11 @@ function onMpvWatchEvent(state, event) {
     if (state.stalled) clearTimeout(state.stalled);
     state.stalled = null;
     if (mpvWatch === state) mpvWatch = null;
-    // The page's next play is the user's, not the player repeating itself: within
-    // MpvPlayRepeatMs it only paused the page, and closing mpv quickly left a dead click.
-    const tab = Tabs.getTab(state.tabId);
+    // mpv is gone (both watches' reasons for it): the page's next play is the user's, not
+    // the player repeating itself. Within MpvPlayRepeatMs it only paused the page, and
+    // closing mpv quickly left a dead click. A helper port that went while mpv plays on
+    // keeps the window: a repeat would load the episode again from where the page is.
+    const tab = event.reason === 'mpv closed' || event.reason === 'no mpv' ? Tabs.getTab(state.tabId) : null;
     if (tab?.mpvLastPlaySend) {
       tab.mpvLastPlaySend = null;
       Tabs.saveTabState(tab);

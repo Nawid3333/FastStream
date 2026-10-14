@@ -176,6 +176,24 @@ describe('the shortcut\'s MPV, a play before its stream', () => {
     expect(bg.toMpv()).toEqual([EPISODE, EPISODE]);
   });
 
+  it('keeps the repeat window when only the helper\'s port went and mpv plays on', async () => {
+    // GLM's review of the fix above: a repeat then loaded the episode again in mpv.
+    bg = await loadBackground({
+      options: {mpvMode: true},
+      tabs: [{id: 1, url: PAGE}],
+      fetch: playlists({[EPISODE]: 1400}),
+    });
+    await playWithShortcutMpv(1400);
+    await bg.request({tabId: 1, url: EPISODE});
+    await bg.wait(1000);
+    bg.ports.at(-1).emit({type: 'closed', reason: 'the mpv host went'});
+    await bg.wait(100);
+    await bg.message({type: 'MPV_USER_PLAY', src: 'blob:https://site.test/1', video: {src: 'blob:https://site.test/1', duration: 1400}},
+        {tabId: 1, frameId: 0});
+    await bg.wait(1000);
+    expect(bg.toMpv()).toEqual([EPISODE]);
+  });
+
   it('takes the next page\'s play by itself while the last page\'s stream is still read', async () => {
     bg = await loadBackground({
       options: {mpvMode: true},
